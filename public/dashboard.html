@@ -55,6 +55,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .bk-status{padding:3px 10px;border-radius:10px;font-size:.68rem;font-weight:600}
 .bk-status.confirmed{background:var(--green-bg);color:var(--green)}
 .bk-status.pending{background:var(--gold-bg);color:var(--gold)}
+.bk-status.completed{background:var(--surface);color:var(--text-3)}
+.bk-status.noshow{background:var(--gold-bg);color:var(--gold)}
+.bk-status.cancelled{background:var(--red-bg);color:var(--red)}
 
 .empty{padding:40px;text-align:center;color:var(--text-4);font-size:.88rem}
 
@@ -239,9 +242,139 @@ document.querySelectorAll('.ni').forEach(item => {
     }[section] || 'Dashboard';
 
     if (section === 'home') loadDashboard();
-    else document.getElementById('contentArea').innerHTML = `<div class="empty">Section "${section}" — Bientôt disponible<br><span style="font-size:.78rem">Cette section sera connectée dans une prochaine itération.</span></div>`;
+    else if (section === 'bookings') loadAgenda();
+    else document.getElementById('contentArea').innerHTML = `<div class="empty">Section "${section}" — Bientôt disponible</div>`;
   });
 });
+
+// ============================================================
+// AGENDA
+// ============================================================
+let agendaDate = new Date();
+agendaDate.setHours(0,0,0,0);
+
+const DAYS_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const MONTHS_FULL = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+function fmtAgendaDate(d) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+  if (d.getTime() === today.getTime()) return "Aujourd'hui";
+  if (d.getTime() === tomorrow.getTime()) return "Demain";
+  return `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_FULL[d.getMonth()]}`;
+}
+
+async function loadAgenda() {
+  const content = document.getElementById('contentArea');
+  const dateStr = agendaDate.toISOString().split('T')[0];
+  const nextDay = new Date(agendaDate); nextDay.setDate(nextDay.getDate()+1);
+  const nextStr = nextDay.toISOString().split('T')[0];
+
+  content.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="shiftAgenda(-1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">‹</button>
+        <span style="font-size:1rem;font-weight:600">${fmtAgendaDate(agendaDate)}</span>
+        <button onclick="shiftAgenda(1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">›</button>
+        <button onclick="agendaDate=new Date();agendaDate.setHours(0,0,0,0);loadAgenda()" style="padding:5px 12px;border-radius:6px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3)">Aujourd'hui</button>
+      </div>
+      <span style="font-size:.78rem;color:var(--text-4)">${dateStr}</span>
+    </div>
+    <div class="loading"><div class="spinner"></div></div>
+  `;
+
+  try {
+    const token = api.getToken();
+    const res = await fetch(`/api/bookings?from=${dateStr}T00:00:00&to=${nextStr}T00:00:00`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    const bookings = data.bookings || [];
+
+    let html = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button onclick="shiftAgenda(-1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">‹</button>
+          <span style="font-size:1rem;font-weight:600">${fmtAgendaDate(agendaDate)}</span>
+          <button onclick="shiftAgenda(1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">›</button>
+          <button onclick="agendaDate=new Date();agendaDate.setHours(0,0,0,0);loadAgenda()" style="padding:5px 12px;border-radius:6px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3)">Aujourd'hui</button>
+        </div>
+        <span style="font-size:.78rem;color:var(--text-4)">${bookings.length} RDV</span>
+      </div>
+    `;
+
+    if (bookings.length === 0) {
+      html += `<div class="card"><div class="empty">Aucun rendez-vous ${fmtAgendaDate(agendaDate).toLowerCase()}</div></div>`;
+    } else {
+      html += `<div class="card">`;
+      bookings.forEach(b => {
+        const start = new Date(b.start_at);
+        const end = new Date(b.end_at);
+        const time = start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        const endTime = end.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        const statusMap = {
+          confirmed: {label:'Confirmé', cls:'confirmed'},
+          pending: {label:'En attente', cls:'pending'},
+          completed: {label:'Terminé', cls:'completed'},
+          no_show: {label:'No-show', cls:'noshow'},
+          cancelled: {label:'Annulé', cls:'cancelled'}
+        };
+        const st = statusMap[b.status] || {label:b.status, cls:''};
+        const modeMap = {cabinet:'🏢',visio:'💻',phone:'📞'};
+
+        html += `<div class="bk-row" style="flex-wrap:wrap;gap:8px" id="bk-${b.id}">
+          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:200px">
+            <div style="min-width:90px">
+              <div style="font-size:.9rem;font-weight:700;color:var(--primary)">${time}</div>
+              <div style="font-size:.68rem;color:var(--text-4)">${time} – ${endTime}</div>
+            </div>
+            <div style="width:4px;height:36px;border-radius:2px;background:${b.service_color||'var(--primary)'};flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="font-size:.88rem;font-weight:600">${b.client_name}</div>
+              <div style="font-size:.73rem;color:var(--text-4)">${b.service_name} · ${b.duration_min}min · ${modeMap[b.appointment_mode]||''} ${b.appointment_mode||''}</div>
+              <div style="font-size:.68rem;color:var(--text-4)">${b.practitioner_name} · ${b.client_phone||''}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="bk-status ${st.cls}">${st.label}</span>
+            ${b.status === 'confirmed' ? `
+              <button onclick="updateStatus('${b.id}','completed')" title="Terminé" style="padding:4px 8px;border-radius:5px;border:1px solid #B8E6C4;background:var(--green-bg);cursor:pointer;font-size:.7rem;color:var(--green);font-weight:600">✓ Terminé</button>
+              <button onclick="updateStatus('${b.id}','no_show')" title="No-show" style="padding:4px 8px;border-radius:5px;border:1px solid #E8DCBA;background:var(--gold-bg);cursor:pointer;font-size:.7rem;color:var(--gold);font-weight:600">✗ No-show</button>
+              <button onclick="if(confirm('Annuler ce RDV ?'))updateStatus('${b.id}','cancelled')" title="Annuler" style="padding:4px 8px;border-radius:5px;border:1px solid #FECACA;background:var(--red-bg);cursor:pointer;font-size:.7rem;color:var(--red);font-weight:600">Annuler</button>
+            ` : ''}
+          </div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    content.innerHTML = html;
+
+  } catch (err) {
+    content.innerHTML = `<div class="empty" style="color:var(--red)">Erreur : ${err.message}</div>`;
+  }
+}
+
+function shiftAgenda(dir) {
+  agendaDate.setDate(agendaDate.getDate() + dir);
+  loadAgenda();
+}
+
+async function updateStatus(id, status) {
+  try {
+    const token = api.getToken();
+    const res = await fetch(`/api/bookings/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+    BooktUI.toast(status==='completed'?'RDV terminé':status==='no_show'?'Marqué no-show':'RDV annulé', status==='completed'?'success':'warning');
+    loadAgenda();
+  } catch (err) {
+    BooktUI.toast('Erreur : '+err.message, 'error');
+  }
+}
 
 function doLogout() {
   api.logout();
