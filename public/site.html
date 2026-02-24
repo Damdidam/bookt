@@ -380,6 +380,11 @@ function render(d) {
 
   // CTA
   document.getElementById('ctaSub').textContent = `Réservez chez ${b.name} en quelques clics.`;
+  
+  // Link all booking CTAs to /:slug/book
+  const bookUrl = '/' + b.slug + '/book';
+  document.querySelectorAll('a[href="#booking"]').forEach(a => { a.href = bookUrl; });
+  document.getElementById('ctaBtn').href = bookUrl;
 
   // Hide sections based on page_sections
   const sections = b.page_sections || {};
