@@ -102,6 +102,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .undo-toast button{padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-family:var(--sans);font-size:.8rem;font-weight:700;cursor:pointer}
 .undo-toast .dismiss{background:transparent;color:rgba(255,255,255,.5);font-size:.75rem;padding:4px 8px}
 @media(max-width:1000px){.sidebar{width:60px}.sidebar .w,.sidebar .plan,.ni span:not(.ic),.sb-foot .nm,.sb-foot .rl,.sb-foot .logout{display:none}.main{margin-left:60px}.stats{grid-template-columns:1fr 1fr}.week-grid{grid-template-columns:repeat(3,1fr)}}
+/* Theme picker */
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.theme-card{background:var(--white);border:2px solid var(--border-light);border-radius:var(--radius);padding:0;cursor:pointer;transition:all .2s;overflow:hidden;position:relative}
+.theme-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.theme-card.active{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+.theme-card.locked{opacity:.7;cursor:default}
+.theme-card.locked:hover{transform:none;border-color:var(--border-light)}
+.theme-preview{height:120px;position:relative;overflow:hidden}
+.theme-preview .tp-nav{height:28px;display:flex;align-items:center;padding:0 10px;gap:6px}
+.theme-preview .tp-nav .dot{width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:#fff}
+.theme-preview .tp-nav .tp-name{font-size:.5rem;font-weight:700;flex:1}
+.theme-preview .tp-nav .tp-cta{padding:2px 6px;border-radius:3px;font-size:.42rem;font-weight:700;color:#fff}
+.theme-preview .tp-hero{padding:6px 10px}
+.theme-preview .tp-hero h3{font-size:.6rem;font-weight:400;margin-bottom:2px;line-height:1.2}
+.theme-preview .tp-hero p{font-size:.38rem;opacity:.5}
+.theme-preview .tp-cards{display:flex;gap:4px;padding:0 10px}
+.theme-preview .tp-card{flex:1;height:24px;border-radius:3px;border-width:1px;border-style:solid}
+.theme-info{padding:12px 14px;border-top:1px solid var(--border-light)}
+.theme-info h4{font-size:.85rem;font-weight:700;display:flex;align-items:center;gap:6px}
+.theme-info p{font-size:.72rem;color:var(--text-4);margin-top:2px}
+.th-badge{padding:2px 8px;border-radius:8px;font-size:.6rem;font-weight:700}
+.th-free{background:var(--green-bg);color:var(--green)}
+.th-pro{background:var(--gold-bg);color:var(--gold)}
+.theme-card .check{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:none;align-items:center;justify-content:center;font-size:.7rem;z-index:2}
+.theme-card.active .check{display:flex}
+.lock-icon{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;z-index:2}
+@media(max-width:800px){.theme-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.theme-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -158,7 +186,7 @@ async function loadDashboard(){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',site:'Mon site',calls:'Appels',settings:'Paramètres'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',site:'Mon site',calls:'Appels',settings:'Paramètres'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // AGENDA
 const DF=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -279,6 +307,124 @@ async function undoStatus(id,rs){
   if(undoTimer)clearTimeout(undoTimer);
   try{await fetch(`/api/bookings/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({status:rs})});
     BooktUI.toast('Statut restauré','success');loadAgenda();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// SITE SECTION — THEME PICKER
+// ============================================================
+const THEMES={
+  classique:{name:'Classique',desc:'Épuré et professionnel. Teal + typographie éditoriale.',free:true,
+    colors:{bg:'#FAFAF9',nav:'#FAFAF9',navText:'#1A1816',primary:'#0D7377',text:'#1A1816',card:'#FFF',cardBorder:'#ECEAE6',heroBg:'#FAFAF9'},
+    heroStyle:'light'},
+  prestige:{name:'Prestige',desc:'Bleu nuit + or. Idéal avocats, notaires, consultants.',free:false,
+    colors:{bg:'#F8F7F4',nav:'#1B1B1B',navText:'#FFF',primary:'#1E3A5F',text:'#1B1B1B',card:'#FFF',cardBorder:'#E0DDD8',heroBg:'#1B1B1B'},
+    heroStyle:'dark'},
+  zen:{name:'Zen',desc:'Vert sauge + beige. Parfait bien-être, thérapeutes, coachs.',free:false,
+    colors:{bg:'#F7F5F0',nav:'#F7F5F0',navText:'#2C2820',primary:'#6B7F5E',text:'#2C2820',card:'#FFFDF9',cardBorder:'#E5E0D6',heroBg:'#F7F5F0'},
+    heroStyle:'light'},
+  moderne:{name:'Moderne',desc:'Noir + blanc. Géométrique, tech-forward, minimaliste.',free:false,
+    colors:{bg:'#FAFAFA',nav:'#FAFAFA',navText:'#111',primary:'#111',text:'#111',card:'#FFF',cardBorder:'#E8E8E8',heroBg:'#FAFAFA'},
+    heroStyle:'light'},
+  chaleureux:{name:'Chaleureux',desc:'Terracotta + crème. Accueillant, personnel, artisanal.',free:false,
+    colors:{bg:'#FAF6F2',nav:'#FAF6F2',navText:'#2E1F14',primary:'#8B4513',text:'#2E1F14',card:'#FFFCF8',cardBorder:'#E8E0D6',heroBg:'#FAF6F2'},
+    heroStyle:'light'},
+  ocean:{name:'Océan',desc:'Bleu profond + ciel. Frais, ouvert, médical.',free:false,
+    colors:{bg:'#F5F8FA',nav:'#0F2440',navText:'#FFF',primary:'#1565C0',text:'#0F2440',card:'#FFF',cardBorder:'#DCE5ED',heroBg:'#0F2440'},
+    heroStyle:'dark'}
+};
+
+let currentThemePreset='classique';
+let businessPlan='free';
+
+async function loadSiteSection(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const r=await fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const b=d.business;
+    currentThemePreset=b.theme?.preset||'classique';
+    businessPlan=b.plan||'free';
+    const slug=b.slug||'';
+
+    let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
+
+    h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge ${businessPlan==='free'?'badge-teal':'badge-teal'}">${businessPlan==='free'?'Plan Gratuit — 1 thème':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
+    <div style="padding:18px">
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:4px">Choisissez l'identité visuelle de votre site. Chaque thème inclut typographie, palette et mise en page uniques.</p>
+      ${businessPlan==='free'?'<p style="font-size:.78rem;color:var(--gold);margin-bottom:12px">🔓 Passez au plan Pro pour débloquer les 5 thèmes premium + couleur personnalisée.</p>':''}
+      <div class="theme-grid">`;
+
+    Object.entries(THEMES).forEach(([key,t])=>{
+      const isActive=key===currentThemePreset;
+      const isPro=!t.free;
+      const isLocked=isPro&&businessPlan==='free';
+      const cls=`theme-card${isActive?' active':''}${isLocked?' locked':''}`;
+      const co=t.colors;
+
+      h+=`<div class="${cls}" onclick="${isLocked?'':'selectTheme(\''+key+'\')'}">
+        <div class="check">✓</div>
+        ${isLocked?'<div class="lock-icon">🔒</div>':''}
+        <div class="theme-preview" style="background:${co.heroBg}">
+          <div class="tp-nav" style="background:${co.nav}">
+            <div class="dot" style="background:${co.primary}">B</div>
+            <span class="tp-name" style="color:${co.navText}">Cabinet</span>
+            <span class="tp-cta" style="background:${co.primary}">RDV</span>
+          </div>
+          <div class="tp-hero" style="color:${t.heroStyle==='dark'?'#fff':co.text}">
+            <h3>Cabinet Dupont & Associés</h3>
+            <p>Votre santé, notre priorité depuis 2018</p>
+          </div>
+          <div class="tp-cards">
+            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}"></div>
+            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}"></div>
+            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}"></div>
+          </div>
+        </div>
+        <div class="theme-info">
+          <h4>${t.name} <span class="th-badge ${t.free?'th-free':'th-pro'}">${t.free?'Gratuit':'Pro'}</span></h4>
+          <p>${t.desc}</p>
+        </div>
+      </div>`;
+    });
+
+    h+=`</div></div></div>`;
+
+    // Custom color (Pro only)
+    const curColor=b.theme?.primary_color||THEMES[currentThemePreset]?.colors?.primary||'#0D7377';
+    h+=`<div class="card"><div class="card-h"><h3>Couleur personnalisée</h3>${businessPlan==='free'?'<span class="th-badge th-pro">Pro</span>':''}</div>
+      <div style="padding:18px;display:flex;align-items:center;gap:14px">
+        <input type="color" id="customColor" value="${curColor}" ${businessPlan==='free'?'disabled':''} style="width:44px;height:44px;border:2px solid var(--border);border-radius:8px;cursor:${businessPlan==='free'?'not-allowed':'pointer'};padding:2px">
+        <div><p style="font-size:.85rem;font-weight:600">Remplacer la couleur primaire du thème</p>
+        <p style="font-size:.75rem;color:var(--text-4)">${businessPlan==='free'?'Disponible avec le plan Pro':'Choisissez une couleur qui représente votre marque'}</p></div>
+        ${businessPlan!=='free'?'<button onclick="saveCustomColor()" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-family:var(--sans);font-size:.8rem;font-weight:600;cursor:pointer;margin-left:auto">Appliquer</button>':''}
+      </div>
+    </div>`;
+
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+async function selectTheme(preset){
+  if(preset===currentThemePreset)return;
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({theme:{preset,primary_color:THEMES[preset]?.colors?.primary}})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    currentThemePreset=preset;
+    BooktUI.toast(`Thème "${THEMES[preset].name}" appliqué !`,'success');
+    loadSiteSection();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveCustomColor(){
+  const color=document.getElementById('customColor').value;
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({theme:{preset:currentThemePreset,primary_color:color}})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    BooktUI.toast('Couleur appliquée !','success');
   }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
