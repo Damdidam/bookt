@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prendre rendez-vous</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--primary-border:#B8DDD9;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#DC2626;--red-bg:#FEF2F2;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+
+/* Layout */
+.page{max-width:560px;margin:0 auto;padding:20px 20px 40px}
+
+/* Header */
+.header{display:flex;align-items:center;gap:10px;padding:12px 0 20px;border-bottom:1px solid var(--border-light);margin-bottom:20px}
+.header-logo{width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;flex-shrink:0}
+.header-info h2{font-size:.9rem;font-weight:700}.header-info p{font-size:.72rem;color:var(--text-4)}
+.header-back{margin-left:auto;padding:6px 12px;border-radius:var(--radius-xs);font-size:.75rem;font-weight:600;color:var(--text-3);background:var(--surface);border:none;cursor:pointer;text-decoration:none}
+
+/* Progress */
+.progress{display:flex;gap:4px;margin-bottom:24px}
+.pdot{flex:1;height:4px;border-radius:2px;background:var(--surface-2);transition:background .3s}
+.pdot.done{background:var(--primary)}
+.pdot.active{background:var(--primary)}
+
+/* Steps */
+.step{display:none;animation:fadeIn .3s ease}
+.step.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.step-title{font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:4px}
+.step-sub{font-size:.85rem;color:var(--text-3);margin-bottom:18px}
+
+/* Service cards */
+.svc-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white)}
+.svc-card:hover{border-color:var(--primary-border);background:var(--primary-light)}
+.svc-card.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
+.svc-card .top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.svc-card .dot{width:8px;height:8px;border-radius:4px;flex-shrink:0}
+.svc-card .name{font-size:.9rem;font-weight:700;flex:1}
+.svc-card .price{font-size:.9rem;font-weight:700;color:var(--primary)}
+.svc-card .meta{font-size:.75rem;color:var(--text-4)}
+.svc-modes{display:flex;gap:3px;margin-top:6px}
+.svc-mode{padding:2px 8px;border-radius:4px;font-size:.62rem;font-weight:600;background:var(--surface);color:var(--text-3)}
+
+/* Practitioner cards */
+.prac-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white);display:flex;gap:14px;align-items:center}
+.prac-card:hover{border-color:var(--primary-border)}
+.prac-card.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
+.prac-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;color:#fff;flex-shrink:0}
+.prac-info h4{font-size:.88rem;font-weight:700;margin-bottom:1px}
+.prac-info p{font-size:.73rem;color:var(--text-4)}
+
+/* Date picker */
+.date-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.date-nav .label{font-size:.9rem;font-weight:600}
+.date-nav button{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem;transition:all .12s;display:flex;align-items:center;justify-content:center}
+.date-nav button:hover{background:var(--surface)}
+.date-nav button:disabled{opacity:.3;cursor:not-allowed}
+.date-row{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
+.date-btn{min-width:56px;padding:10px 6px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;flex-shrink:0}
+.date-btn:hover{border-color:var(--primary-border)}
+.date-btn.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
+.date-btn.empty{opacity:.4;cursor:not-allowed}
+.date-btn .dow{font-size:.6rem;font-weight:700;text-transform:uppercase;color:var(--text-4);margin-bottom:2px}
+.date-btn .num{font-size:1.1rem;font-weight:700;color:var(--text)}
+.date-btn .month{font-size:.6rem;color:var(--text-4)}
+.date-btn.sel .dow,.date-btn.sel .num,.date-btn.sel .month{color:var(--primary)}
+
+/* Time slots */
+.slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
+.slot-btn{padding:10px 4px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;font-size:.85rem;font-weight:600;color:var(--text);transition:all .15s;font-family:var(--sans)}
+.slot-btn:hover{border-color:var(--primary-border);background:var(--primary-light)}
+.slot-btn.sel{border-color:var(--primary);background:var(--primary);color:#fff}
+.no-slots{padding:24px;text-align:center;color:var(--text-4);font-size:.85rem;background:var(--surface);border-radius:var(--radius-xs)}
+
+/* Form */
+.fg{margin-bottom:12px}
+.fl{display:block;font-size:.75rem;font-weight:600;color:var(--text-2);margin-bottom:3px}
+.fl .opt{font-weight:400;color:var(--text-4)}
+.fi{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;color:var(--text);background:var(--white);outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.fi::placeholder{color:var(--text-4)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ft{resize:vertical;min-height:60px}
+.checkbox{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:.78rem;color:var(--text-3);cursor:pointer}
+.checkbox input{margin-top:2px;accent-color:var(--primary)}
+
+/* Mode selector */
+.mode-row{display:flex;gap:6px;margin-bottom:14px}
+.mode-btn{flex:1;padding:10px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;font-family:var(--sans);font-size:.78rem;font-weight:600;color:var(--text-3)}
+.mode-btn:hover{border-color:var(--primary-border)}
+.mode-btn.sel{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.mode-btn .ico{font-size:1.1rem;display:block;margin-bottom:2px}
+
+/* Summary */
+.summary{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+.sum-row{display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem}
+.sum-row .label{color:var(--text-3)}.sum-row .val{font-weight:600}
+.sum-divider{border-top:1px solid var(--border-light);margin:6px 0}
+
+/* Confirmation */
+.confirm-box{background:var(--green-bg);border:2px solid #B8E6C4;border-radius:var(--radius);padding:28px;text-align:center}
+.confirm-box .icon{font-size:2.5rem;margin-bottom:8px}
+.confirm-box h3{font-family:var(--serif);font-size:1.4rem;margin-bottom:4px}
+.confirm-box p{font-size:.85rem;color:var(--text-3)}
+.confirm-details{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-top:16px;text-align:left}
+.confirm-details .row{display:flex;justify-content:space-between;padding:5px 0;font-size:.82rem}
+.confirm-details .row .l{color:var(--text-4)}.confirm-details .row .v{font-weight:600}
+
+/* Buttons */
+.btn-next{width:100%;padding:13px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px}
+.btn-next:hover{background:var(--primary-hover)}
+.btn-next:disabled{background:var(--surface-2);color:var(--text-4);cursor:not-allowed}
+.btn-outline{width:100%;padding:12px;background:transparent;color:var(--text-2);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px}
+.btn-outline:hover{background:var(--surface)}
+
+/* Error */
+.err{display:none;padding:10px 14px;background:var(--red-bg);border:1px solid #FECACA;border-radius:var(--radius-xs);font-size:.8rem;color:var(--red);margin-bottom:12px}
+.err.show{display:block}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:var(--text-4)}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo" id="hLogo">?</div>
+    <div class="header-info"><h2 id="hName">—</h2><p id="hTagline">—</p></div>
+    <a class="header-back" id="hBack" href="#">← Retour</a>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress">
+    <div class="pdot active" id="p1"></div>
+    <div class="pdot" id="p2"></div>
+    <div class="pdot" id="p3"></div>
+    <div class="pdot" id="p4"></div>
+    <div class="pdot" id="p5"></div>
+  </div>
+
+  <div class="err" id="errMsg"></div>
+
+  <!-- LOADING -->
+  <div class="loading" id="loadingState"><div class="spinner"></div><p style="margin-top:8px">Chargement...</p></div>
+
+  <!-- STEP 1: SERVICE -->
+  <div class="step" data-step="1" id="step1">
+    <h2 class="step-title">Choisir une prestation</h2>
+    <p class="step-sub">Quel type de rendez-vous souhaitez-vous ?</p>
+    <div id="svcList"></div>
+    <button class="btn-next" id="btnStep1" disabled onclick="goStep(2)">Continuer →</button>
+  </div>
+
+  <!-- STEP 2: PRACTITIONER -->
+  <div class="step" data-step="2" id="step2">
+    <h2 class="step-title">Choisir un praticien</h2>
+    <p class="step-sub" id="pracSub">Avec qui souhaitez-vous prendre rendez-vous ?</p>
+    <div id="pracList"></div>
+    <button class="btn-next" id="btnStep2" disabled onclick="goStep(3)">Continuer →</button>
+    <button class="btn-outline" onclick="goStep(1)">← Retour</button>
+  </div>
+
+  <!-- STEP 3: DATE + TIME -->
+  <div class="step" data-step="3" id="step3">
+    <h2 class="step-title">Choisir un créneau</h2>
+    <p class="step-sub" id="slotSub">Sélectionnez une date puis un horaire.</p>
+
+    <!-- Mode -->
+    <div class="mode-row" id="modeRow" style="display:none"></div>
+
+    <!-- Date selector -->
+    <div class="date-nav">
+      <button id="prevWeek" onclick="shiftWeek(-1)">‹</button>
+      <span class="label" id="weekLabel">—</span>
+      <button id="nextWeek" onclick="shiftWeek(1)">›</button>
+    </div>
+    <div class="date-row" id="dateRow"></div>
+
+    <!-- Slots -->
+    <div id="slotsArea"><div class="no-slots">Sélectionnez une date</div></div>
+
+    <button class="btn-next" id="btnStep3" disabled onclick="goStep(4)">Continuer →</button>
+    <button class="btn-outline" onclick="goStep(2)">← Retour</button>
+  </div>
+
+  <!-- STEP 4: CLIENT INFO -->
+  <div class="step" data-step="4" id="step4">
+    <h2 class="step-title">Vos coordonnées</h2>
+    <p class="step-sub">Pour confirmer votre rendez-vous.</p>
+
+    <div class="summary" id="bookingSummary"></div>
+
+    <div class="fr">
+      <div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="cName" placeholder="Marie Dupont"></div>
+      <div class="fg"><label class="fl">Téléphone *</label><input class="fi" type="tel" id="cPhone" placeholder="+32 4XX XX XX XX"></div>
+    </div>
+    <div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="cEmail" placeholder="marie@example.com"></div>
+    <div class="fg"><label class="fl">N° BCE / entreprise <span class="opt">(opt.)</span></label><input class="fi" id="cBce" placeholder="0XXX.XXX.XXX"></div>
+    <div class="fg"><label class="fl">Remarque <span class="opt">(opt.)</span></label><textarea class="fi ft" id="cComment" placeholder="Informations utiles pour le praticien..."></textarea></div>
+
+    <label class="checkbox"><input type="checkbox" id="cConsent" checked> J'accepte de recevoir les confirmations et rappels par email et SMS.</label>
+
+    <button class="btn-next" id="btnStep4" onclick="submitBooking()">Confirmer le rendez-vous →</button>
+    <button class="btn-outline" onclick="goStep(3)">← Retour</button>
+  </div>
+
+  <!-- STEP 5: CONFIRMATION -->
+  <div class="step" data-step="5" id="step5">
+    <div class="confirm-box">
+      <div class="icon">✅</div>
+      <h3>Rendez-vous confirmé !</h3>
+      <p>Vous recevrez une confirmation par email.</p>
+      <div class="confirm-details" id="confirmDetails"></div>
+    </div>
+    <button class="btn-outline" style="margin-top:16px" onclick="window.location.href='/' + slug">← Retour au cabinet</button>
+  </div>
+
+</div>
+
+<script>
+const DAYS_SHORT = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+const DAYS_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+const MONTHS_FULL = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const MODE_LABELS = {cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone'};
+const MODE_ICONS = {cabinet:'🏢',visio:'💻',phone:'📞'};
+
+// State
+let slug = '';
+let siteData = null;
+let selectedService = null;
+let selectedPractitioner = null;
+let selectedMode = null;
+let selectedDate = null;
+let selectedSlot = null;
+let slotsData = {};
+let weekOffset = 0;
+
+// Get slug from URL
+const pathParts = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
+slug = pathParts[0];
+
+loadSiteData();
+
+async function loadSiteData() {
+  try {
+    const res = await fetch(`/api/public/${slug}`);
+    if (!res.ok) throw new Error('Cabinet introuvable');
+    siteData = await res.json();
+    initPage();
+  } catch (err) {
+    document.getElementById('loadingState').innerHTML = `<p style="color:var(--red)">Erreur : ${err.message}</p>`;
+  }
+}
+
+function initPage() {
+  const b = siteData.business;
+  const initials = b.name.split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
+  document.getElementById('hLogo').textContent = initials;
+  document.getElementById('hName').textContent = b.name;
+  document.getElementById('hTagline').textContent = b.tagline || '';
+  document.getElementById('hBack').href = '/' + slug;
+  document.title = `Prendre RDV — ${b.name}`;
+
+  // Apply theme
+  if (b.theme?.primary_color) {
+    document.documentElement.style.setProperty('--primary', b.theme.primary_color);
+  }
+
+  // Build service list
+  const list = document.getElementById('svcList');
+  list.innerHTML = siteData.services.map(s => {
+    const price = s.price_cents ? `${(s.price_cents/100).toFixed(0)} €` : (s.price_label || 'Gratuit');
+    const modes = (s.mode_options||[]).map(m => `<span class="svc-mode">${MODE_LABELS[m]||m}</span>`).join('');
+    return `<div class="svc-card" data-id="${s.id}" onclick="selectService('${s.id}')">
+      <div class="top"><div class="dot" style="background:${s.color||'var(--primary)'}"></div><span class="name">${s.name}</span><span class="price">${price}</span></div>
+      <div class="meta">${s.duration_min} min</div>
+      <div class="svc-modes">${modes}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('step1').classList.add('active');
+}
+
+// ============================================================
+// STEP 1: SELECT SERVICE
+// ============================================================
+function selectService(id) {
+  selectedService = siteData.services.find(s => s.id === id);
+  document.querySelectorAll('.svc-card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
+  document.getElementById('btnStep1').disabled = false;
+}
+
+// ============================================================
+// STEP 2: SELECT PRACTITIONER
+// ============================================================
+function buildPractitioners() {
+  // Filter practitioners who offer this service
+  const pracs = siteData.practitioners.filter(p =>
+    p.service_ids.includes(selectedService.id)
+  );
+
+  if (pracs.length === 1) {
+    // Auto-select and skip
+    selectedPractitioner = pracs[0];
+    return false; // signal to skip
+  }
+
+  const list = document.getElementById('pracList');
+  list.innerHTML = pracs.map(p => {
+    const initials = p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    return `<div class="prac-card" data-id="${p.id}" onclick="selectPractitioner('${p.id}')">
+      <div class="prac-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>
+      <div class="prac-info"><h4>${p.display_name}</h4><p>${p.title||''}${p.years_experience ? ' · '+p.years_experience+' ans' : ''}</p></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('btnStep2').disabled = true;
+  return true; // show step
+}
+
+function selectPractitioner(id) {
+  selectedPractitioner = siteData.practitioners.find(p => p.id === id);
+  document.querySelectorAll('.prac-card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
+  document.getElementById('btnStep2').disabled = false;
+}
+
+// ============================================================
+// STEP 3: DATE + TIME
+// ============================================================
+function buildModeSelector() {
+  const modes = selectedService.mode_options || ['cabinet'];
+  if (modes.length <= 1) {
+    selectedMode = modes[0] || 'cabinet';
+    document.getElementById('modeRow').style.display = 'none';
+    return;
+  }
+  selectedMode = modes[0];
+  document.getElementById('modeRow').style.display = 'flex';
+  document.getElementById('modeRow').innerHTML = modes.map(m =>
+    `<div class="mode-btn ${m===selectedMode?'sel':''}" data-mode="${m}" onclick="selectMode('${m}')">
+      <span class="ico">${MODE_ICONS[m]||'📋'}</span>${MODE_LABELS[m]||m}
+    </div>`
+  ).join('');
+}
+
+function selectMode(m) {
+  selectedMode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('sel', b.dataset.mode === m));
+  selectedDate = null;
+  selectedSlot = null;
+  document.getElementById('btnStep3').disabled = true;
+  loadSlots();
+}
+
+function buildDateRow() {
+  const today = new Date();
+  today.setDate(today.getDate() + 1 + weekOffset * 7); // Start from tomorrow
+  const row = document.getElementById('dateRow');
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const key = d.toISOString().split('T')[0];
+    const hasSlots = slotsData[key] && slotsData[key].length > 0;
+    html += `<div class="date-btn ${!hasSlots?'empty':''} ${selectedDate===key?'sel':''}" data-date="${key}" onclick="${hasSlots ? `selectDate('${key}')` : ''}">
+      <div class="dow">${DAYS_SHORT[d.getDay()]}</div>
+      <div class="num">${d.getDate()}</div>
+      <div class="month">${MONTHS[d.getMonth()]}</div>
+    </div>`;
+  }
+  row.innerHTML = html;
+
+  // Week label
+  const endDate = new Date(today);
+  endDate.setDate(today.getDate() + 6);
+  document.getElementById('weekLabel').textContent =
+    `${today.getDate()} ${MONTHS[today.getMonth()]} – ${endDate.getDate()} ${MONTHS[endDate.getMonth()]}`;
+  document.getElementById('prevWeek').disabled = weekOffset <= 0;
+}
+
+async function loadSlots() {
+  const today = new Date();
+  today.setDate(today.getDate() + 1 + weekOffset * 7);
+  const endDate = new Date(today);
+  endDate.setDate(today.getDate() + 6);
+
+  const params = new URLSearchParams({
+    service_id: selectedService.id,
+    practitioner_id: selectedPractitioner.id,
+    date_from: today.toISOString().split('T')[0],
+    date_to: endDate.toISOString().split('T')[0]
+  });
+  if (selectedMode) params.set('appointment_mode', selectedMode);
+
+  try {
+    const res = await fetch(`/api/public/${slug}/slots?${params}`);
+    const data = await res.json();
+    slotsData = data.by_date || {};
+  } catch (err) {
+    slotsData = {};
+  }
+
+  buildDateRow();
+
+  // Auto-select first date with slots
+  if (!selectedDate) {
+    const firstDate = Object.keys(slotsData).find(k => slotsData[k]?.length > 0);
+    if (firstDate) selectDate(firstDate);
+    else document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible cette semaine. Essayez la semaine suivante.</div>';
+  } else {
+    renderSlots();
+  }
+}
+
+function selectDate(key) {
+  selectedDate = key;
+  selectedSlot = null;
+  document.getElementById('btnStep3').disabled = true;
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('sel', b.dataset.date === key));
+  renderSlots();
+}
+
+function renderSlots() {
+  const slots = slotsData[selectedDate] || [];
+  if (slots.length === 0) {
+    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour.</div>';
+    return;
+  }
+  document.getElementById('slotsArea').innerHTML = `<div class="slots-grid">${
+    slots.map(s => `<button class="slot-btn ${selectedSlot?.start_at===s.start_at?'sel':''}" onclick="selectSlot(this)" data-slot='${JSON.stringify(s)}'>${s.start_time}</button>`).join('')
+  }</div>`;
+}
+
+function selectSlot(btn) {
+  selectedSlot = JSON.parse(btn.dataset.slot);
+  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  document.getElementById('btnStep3').disabled = false;
+}
+
+function shiftWeek(dir) {
+  weekOffset += dir;
+  if (weekOffset < 0) weekOffset = 0;
+  selectedDate = null;
+  selectedSlot = null;
+  document.getElementById('btnStep3').disabled = true;
+  loadSlots();
+}
+
+// ============================================================
+// STEP 4: CLIENT INFO + SUMMARY
+// ============================================================
+function buildSummary() {
+  const d = new Date(selectedSlot.start_at);
+  const dateStr = `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_FULL[d.getMonth()]}`;
+  document.getElementById('bookingSummary').innerHTML = `
+    <div class="sum-row"><span class="label">Prestation</span><span class="val">${selectedService.name}</span></div>
+    <div class="sum-row"><span class="label">Praticien</span><span class="val">${selectedPractitioner.display_name}</span></div>
+    <div class="sum-divider"></div>
+    <div class="sum-row"><span class="label">Date</span><span class="val">${dateStr}</span></div>
+    <div class="sum-row"><span class="label">Heure</span><span class="val">${selectedSlot.start_time} – ${selectedSlot.end_time}</span></div>
+    <div class="sum-row"><span class="label">Mode</span><span class="val">${MODE_LABELS[selectedMode]||selectedMode}</span></div>
+    <div class="sum-divider"></div>
+    <div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">${selectedService.price_cents ? (selectedService.price_cents/100).toFixed(0)+' €' : 'Gratuit'}</span></div>
+  `;
+}
+
+// ============================================================
+// STEP NAVIGATION
+// ============================================================
+function goStep(n) {
+  hideError();
+
+  // Pre-step logic
+  if (n === 2) {
+    const showPracStep = buildPractitioners();
+    if (!showPracStep) { n = 3; } // Skip if only 1 practitioner
+  }
+  if (n === 3) {
+    buildModeSelector();
+    weekOffset = 0;
+    selectedDate = null;
+    selectedSlot = null;
+    slotsData = {};
+    loadSlots();
+  }
+  if (n === 4) {
+    buildSummary();
+  }
+
+  // Switch steps
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.querySelector(`.step[data-step="${n}"]`).classList.add('active');
+
+  // Update progress
+  for (let i = 1; i <= 5; i++) {
+    const dot = document.getElementById('p' + i);
+    dot.classList.toggle('done', i < n);
+    dot.classList.toggle('active', i === n);
+  }
+
+  window.scrollTo(0, 0);
+}
+
+// ============================================================
+// STEP 5: SUBMIT BOOKING
+// ============================================================
+async function submitBooking() {
+  hideError();
+  const name = document.getElementById('cName').value.trim();
+  const phone = document.getElementById('cPhone').value.trim();
+  const email = document.getElementById('cEmail').value.trim();
+  const bce = document.getElementById('cBce').value.trim();
+  const comment = document.getElementById('cComment').value.trim();
+  const consent = document.getElementById('cConsent').checked;
+
+  if (!name) return showError('Votre nom est requis.');
+  if (!phone) return showError('Votre téléphone est requis.');
+  if (!email) return showError('Votre email est requis.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('Format email invalide.');
+
+  const btn = document.getElementById('btnStep4');
+  btn.disabled = true;
+  btn.textContent = 'Réservation en cours...';
+
+  try {
+    const res = await fetch(`/api/public/${slug}/bookings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: selectedService.id,
+        practitioner_id: selectedPractitioner.id,
+        start_at: selectedSlot.start_at,
+        appointment_mode: selectedMode || 'cabinet',
+        client_name: name,
+        client_phone: phone,
+        client_email: email,
+        client_bce: bce || undefined,
+        client_comment: comment || undefined,
+        consent_sms: consent,
+        consent_email: consent
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Erreur lors de la réservation');
+    }
+
+    // Confirmation
+    const d = new Date(selectedSlot.start_at);
+    const dateStr = `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_FULL[d.getMonth()]}`;
+    document.getElementById('confirmDetails').innerHTML = `
+      <div class="row"><span class="l">Prestation</span><span class="v">${selectedService.name}</span></div>
+      <div class="row"><span class="l">Praticien</span><span class="v">${selectedPractitioner.display_name}</span></div>
+      <div class="row"><span class="l">Date</span><span class="v">${dateStr}</span></div>
+      <div class="row"><span class="l">Heure</span><span class="v">${selectedSlot.start_time} – ${selectedSlot.end_time}</span></div>
+      <div class="row"><span class="l">Mode</span><span class="v">${MODE_LABELS[selectedMode]||selectedMode}</span></div>
+      <div class="row"><span class="l">Email</span><span class="v">${email}</span></div>
+    `;
+
+    goStep(5);
+
+  } catch (err) {
+    showError(err.message);
+    btn.disabled = false;
+    btn.textContent = 'Confirmer le rendez-vous →';
+  }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function showError(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideError() { document.getElementById('errMsg').classList.remove('show'); }
+</script>
+
+</body>
+</html>
