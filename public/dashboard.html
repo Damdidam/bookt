@@ -9,7 +9,6 @@
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#DC2626;--red-bg:#FEF2F2;--sidebar-bg:#1C1917;--sidebar-hover:#292524;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
-
 .sidebar{position:fixed;top:0;left:0;bottom:0;width:230px;background:var(--sidebar-bg);color:#fff;display:flex;flex-direction:column;z-index:50}
 .sb-logo{padding:18px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sb-logo .l{width:30px;height:30px;border-radius:8px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.85rem}
@@ -24,61 +23,88 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .sb-foot .nm{font-size:.78rem;font-weight:600}
 .sb-foot .rl{font-size:.65rem;color:rgba(255,255,255,.35)}
 .sb-foot .logout{font-size:.68rem;color:rgba(255,255,255,.3);cursor:pointer;margin-top:4px;text-decoration:underline}
-
 .main{margin-left:230px;min-height:100vh}
 .topbar{position:sticky;top:0;background:rgba(250,250,249,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-light);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;z-index:40}
 .topbar h1{font-family:var(--serif);font-size:1.3rem;font-weight:400}
-.topbar-right{display:flex;align-items:center;gap:10px}
-
-.content{padding:24px 28px;max-width:960px}
-
-/* Stats grid */
+.content{padding:24px 28px;max-width:1100px}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
 .stat-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--border-light);padding:16px}
 .stat-card .label{font-size:.7rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
 .stat-card .val{font-family:var(--serif);font-size:1.6rem;color:var(--text)}
 .stat-card .sub{font-size:.7rem;color:var(--text-4);margin-top:2px}
-
-/* Bookings list */
 .card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border-light);overflow:hidden;margin-bottom:16px}
 .card-h{padding:14px 18px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
 .card-h h3{font-size:.9rem;font-weight:700}
-.card-h .badge{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+.badge{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
 .badge-teal{background:var(--primary-light);color:var(--primary)}
-
 .bk-row{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--border-light)}
 .bk-row:last-child{border:none}
-.bk-time{font-size:.82rem;font-weight:700;color:var(--primary);min-width:50px}
-.bk-info{flex:1}
-.bk-info .name{font-size:.85rem;font-weight:600}
-.bk-info .svc{font-size:.72rem;color:var(--text-4)}
 .bk-status{padding:3px 10px;border-radius:10px;font-size:.68rem;font-weight:600}
 .bk-status.confirmed{background:var(--green-bg);color:var(--green)}
 .bk-status.pending{background:var(--gold-bg);color:var(--gold)}
 .bk-status.completed{background:var(--surface);color:var(--text-3)}
-.bk-status.noshow{background:var(--gold-bg);color:var(--gold)}
+.bk-status.noshow{background:#FFF3CD;color:#856404}
 .bk-status.cancelled{background:var(--red-bg);color:var(--red)}
-
 .empty{padding:40px;text-align:center;color:var(--text-4);font-size:.88rem}
-
-/* Quick link */
 .qlink{background:linear-gradient(135deg,var(--primary),#0A5E61);border-radius:var(--radius-sm);padding:16px 20px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .qlink .info h4{font-size:.9rem;font-weight:600;margin-bottom:2px}
 .qlink .info p{font-size:.75rem;opacity:.6}
-.qlink a{padding:7px 14px;background:rgba(255,255,255,.15);border-radius:var(--radius-xs);font-size:.78rem;font-weight:600;color:#fff;text-decoration:none;transition:background .15s}
-.qlink a:hover{background:rgba(255,255,255,.25)}
-
-/* Loading */
+.qlink a{padding:7px 14px;background:rgba(255,255,255,.15);border-radius:var(--radius-xs);font-size:.78rem;font-weight:600;color:#fff;text-decoration:none}
 .loading{text-align:center;padding:40px;color:var(--text-4)}
-.loading .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* Responsive */
-@media(max-width:1000px){.sidebar{width:60px}.sidebar .w,.sidebar .plan,.ni span:not(.ic),.sb-foot .nm,.sb-foot .rl,.sb-foot .logout{display:none}.main{margin-left:60px}.stats{grid-template-columns:1fr 1fr}}
+/* Agenda */
+.agenda-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.agenda-nav{display:flex;align-items:center;gap:8px}
+.a-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center}
+.a-btn:hover{background:var(--surface)}
+.a-btn-text{padding:5px 12px;border-radius:6px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3);font-family:var(--sans)}
+.agenda-label{font-size:1rem;font-weight:600;min-width:200px;text-align:center}
+.view-tabs{display:flex;gap:2px;background:var(--surface);border-radius:8px;padding:2px}
+.view-tab{padding:5px 14px;border-radius:6px;font-size:.75rem;font-weight:600;color:var(--text-3);cursor:pointer;border:none;background:transparent;font-family:var(--sans)}
+.view-tab.active{background:var(--white);color:var(--text);box-shadow:var(--shadow)}
+.bk-card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-xs);padding:10px 14px;margin-bottom:6px}
+.bk-card:hover{border-color:var(--primary-soft)}
+.bk-card .time{font-size:.8rem;font-weight:700;color:var(--primary)}
+.bk-card .client{font-size:.85rem;font-weight:600}
+.bk-card .meta{font-size:.7rem;color:var(--text-4)}
+.bk-card .actions{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.act-btn{padding:3px 8px;border-radius:5px;border:1px solid;cursor:pointer;font-size:.68rem;font-weight:600;font-family:var(--sans)}
+.act-done{border-color:#B8E6C4;background:var(--green-bg);color:var(--green)}
+.act-noshow{border-color:#E8DCBA;background:var(--gold-bg);color:var(--gold)}
+.act-cancel{border-color:#FECACA;background:var(--red-bg);color:var(--red)}
+.act-undo{border-color:var(--primary-border);background:var(--primary-light);color:var(--primary)}
+.week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.week-col{min-height:120px}
+.week-header{text-align:center;padding:8px 4px;font-size:.72rem;font-weight:700;color:var(--text-3);border-bottom:2px solid var(--border-light);margin-bottom:6px;cursor:pointer}
+.week-header.today{color:var(--primary);border-bottom-color:var(--primary)}
+.week-header .num{font-size:1.1rem;display:block;color:var(--text)}
+.week-header.today .num{color:var(--primary)}
+.week-bk{background:var(--primary-light);border-left:3px solid var(--primary);border-radius:4px;padding:4px 6px;margin-bottom:3px;cursor:pointer;font-size:.7rem}
+.week-bk:hover{background:var(--primary-soft)}
+.week-bk .t{font-weight:700;color:var(--primary)}.week-bk .n{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.week-bk.st-completed{background:var(--surface);border-color:var(--text-4)}.week-bk.st-completed .t{color:var(--text-4)}
+.week-bk.st-cancelled{background:var(--red-bg);border-color:var(--red);opacity:.5}
+.week-bk.st-no_show{background:#FFF3CD;border-color:#856404}
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border-light);border:1px solid var(--border-light);border-radius:var(--radius-sm);overflow:hidden}
+.month-header{padding:8px;text-align:center;font-size:.7rem;font-weight:700;color:var(--text-4);background:var(--surface)}
+.month-cell{background:var(--white);min-height:80px;padding:4px}
+.month-cell.other{background:var(--bg);opacity:.4}
+.month-cell.today{background:var(--primary-light)}
+.month-cell .day-num{font-size:.75rem;font-weight:700;color:var(--text-3);margin-bottom:2px;padding:2px 4px;cursor:pointer}
+.month-cell.today .day-num{color:var(--primary)}
+.month-dot{display:flex;align-items:center;gap:3px;padding:1px 4px;border-radius:3px;font-size:.6rem;color:var(--text-3);cursor:pointer;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.month-dot:hover{background:var(--surface)}
+.month-dot .d{width:5px;height:5px;border-radius:50%;background:var(--primary);flex-shrink:0}
+.month-more{font-size:.6rem;color:var(--primary);font-weight:600;padding:1px 4px;cursor:pointer}
+.undo-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1C1917;color:#fff;padding:12px 20px;border-radius:10px;font-size:.85rem;display:flex;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,.2);z-index:1000;animation:slideUp .3s ease}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.undo-toast button{padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-family:var(--sans);font-size:.8rem;font-weight:700;cursor:pointer}
+.undo-toast .dismiss{background:transparent;color:rgba(255,255,255,.5);font-size:.75rem;padding:4px 8px}
+@media(max-width:1000px){.sidebar{width:60px}.sidebar .w,.sidebar .plan,.ni span:not(.ic),.sb-foot .nm,.sb-foot .rl,.sb-foot .logout{display:none}.main{margin-left:60px}.stats{grid-template-columns:1fr 1fr}.week-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
-
 <aside class="sidebar">
   <div class="sb-logo"><div class="l">B</div><span class="w">Bookt</span><span class="plan" id="planBadge">FREE</span></div>
   <nav class="sb-nav">
@@ -97,289 +123,166 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <div class="logout" onclick="doLogout()">Déconnexion</div>
   </div>
 </aside>
-
 <div class="main">
-  <div class="topbar">
-    <h1 id="pageTitle">Dashboard</h1>
-    <div class="topbar-right">
-      <span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span>
-    </div>
-  </div>
-  <div class="content" id="contentArea">
-    <div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div>
-  </div>
+  <div class="topbar"><h1 id="pageTitle">Dashboard</h1><div><span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span></div></div>
+  <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
 </div>
-
 <script src="/js/api-client.js"></script>
 <script>
-const api = new BooktAPI();
-
-// ============================================================
-// AUTH CHECK
-// ============================================================
-if (!api.isLoggedIn()) {
-  window.location.href = '/login.html';
-}
-
-// ============================================================
-// INIT
-// ============================================================
-const user = api.getUser();
-const biz = api.getBusiness();
-
-document.getElementById('userName').textContent = user?.business_name || user?.email || '—';
-document.getElementById('userRole').textContent = user?.role === 'owner' ? 'Propriétaire' : 'Staff';
-document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
-if (biz) {
-  document.getElementById('planBadge').textContent = (biz.plan || 'free').toUpperCase();
-}
-
-// Check if coming from onboarding
-if (new URLSearchParams(location.search).get('onboarding')) {
-  BooktUI.toast('🎉 Bienvenue sur votre dashboard !', 'success', 5000);
-}
-
-// ============================================================
-// LOAD DASHBOARD
-// ============================================================
+const api=new BooktAPI();
+if(!api.isLoggedIn())window.location.href='/login.html';
+const user=api.getUser(),biz=api.getBusiness();
+document.getElementById('userName').textContent=user?.business_name||user?.email||'—';
+document.getElementById('userRole').textContent=user?.role==='owner'?'Propriétaire':'Staff';
+document.getElementById('todayDate').textContent=new Date().toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
+if(biz)document.getElementById('planBadge').textContent=(biz.plan||'free').toUpperCase();
+if(new URLSearchParams(location.search).get('onboarding'))BooktUI.toast('🎉 Bienvenue !','success',5000);
 loadDashboard();
 
-async function loadDashboard() {
-  const content = document.getElementById('contentArea');
-
-  try {
-    const [dashData, summaryData] = await Promise.allSettled([
-      api.getDashboard(),
-      api.get('/api/dashboard/summary')
-    ]);
-
-    const dash = dashData.status === 'fulfilled' ? dashData.value : {};
-    const summary = summaryData.status === 'fulfilled' ? summaryData.value : null;
-
-    const slug = dash.business?.slug || biz?.slug || '';
-
-    let html = '';
-
-    // Quick link banner
-    html += `<div class="qlink">
-      <div class="info"><h4>Votre page publique</h4><p>bookt.be/${slug}</p></div>
-      <div><a href="/api/public/${slug}" target="_blank">Voir ma page</a></div>
-    </div>`;
-
-    // Stats
-    if (summary) {
-      const m = summary.month || {};
-      const c = summary.clients || {};
-      const calls = summary.calls || {};
-      html += `<div class="stats">
-        <div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${summary.today?.count || 0}</div></div>
-        <div class="stat-card"><div class="label">CA ce mois</div><div class="val">${m.revenue_formatted || '0 €'}</div><div class="sub">${m.total_bookings || 0} rendez-vous</div></div>
-        <div class="stat-card"><div class="label">Clients actifs</div><div class="val">${c.total || 0}</div></div>
-        <div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${calls.conversion_rate || 0}%</div><div class="sub">${calls.total || 0} appels ce mois</div></div>
-      </div>`;
-
-      // Today's bookings
-      html += `<div class="card"><div class="card-h"><h3>Rendez-vous du jour</h3><span class="badge badge-teal">${summary.today?.count || 0} RDV</span></div>`;
-      if (summary.today?.bookings?.length > 0) {
-        summary.today.bookings.forEach(b => {
-          const time = new Date(b.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-          html += `<div class="bk-row">
-            <span class="bk-time">${time}</span>
-            <div class="bk-info"><div class="name">${b.client_name}</div><div class="svc">${b.service_name} · ${b.duration_min}min · ${b.practitioner_name}</div></div>
-            <span class="bk-status ${b.status}">${b.status === 'confirmed' ? 'Confirmé' : b.status === 'pending' ? 'En attente' : b.status}</span>
-          </div>`;
-        });
-      } else {
-        html += `<div class="empty">Aucun rendez-vous aujourd'hui<br><span style="font-size:.78rem">Partagez votre lien de réservation pour recevoir vos premiers RDV</span></div>`;
-      }
-      html += `</div>`;
-    } else {
-      // No summary data (fresh account)
-      html += `<div class="stats">
-        <div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">0</div></div>
-        <div class="stat-card"><div class="label">CA ce mois</div><div class="val">0 €</div></div>
-        <div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div>
-        <div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>
-      </div>`;
-
-      html += `<div class="card"><div class="card-h"><h3>Rendez-vous du jour</h3></div>
-        <div class="empty">Aucun rendez-vous aujourd'hui<br><span style="font-size:.78rem">Partagez votre lien : <strong>bookt.be/${slug}</strong></span></div>
-      </div>`;
-    }
-
-    // Practitioners
-    if (dash.practitioners?.length > 0) {
-      html += `<div class="card"><div class="card-h"><h3>Équipe</h3><span class="badge badge-teal">${dash.practitioners.length} praticien(s)</span></div>`;
-      dash.practitioners.forEach(p => {
-        const initials = p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || '??';
-        html += `<div class="bk-row">
-          <div style="width:36px;height:36px;border-radius:9px;background:${p.color||'var(--primary)'};color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.8rem">${initials}</div>
-          <div class="bk-info"><div class="name">${p.display_name}</div><div class="svc">${p.title || '—'} ${p.years_experience ? '· '+p.years_experience+' ans' : ''}</div></div>
-        </div>`;
-      });
-      html += `</div>`;
-    }
-
-    content.innerHTML = html;
-
-  } catch (err) {
-    content.innerHTML = `<div class="empty" style="color:var(--red)">Erreur de chargement : ${err.message}<br><button onclick="loadDashboard()" style="margin-top:10px;padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;
-  }
+async function loadDashboard(){
+  const c=document.getElementById('contentArea');
+  try{
+    const[dd,sd]=await Promise.allSettled([api.getDashboard(),api.get('/api/dashboard/summary')]);
+    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null;
+    const slug=dash.business?.slug||biz?.slug||'';
+    let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}" target="_blank">Voir ma page</a></div></div>`;
+    if(sum){const m=sum.month||{},cl=sum.clients||{},ca=sum.calls||{};
+      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">CA ce mois</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">${cl.total||0}</div></div><div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div></div>`;
+      h+=`<div class="card"><div class="card-h"><h3>RDV du jour</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
+      if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});h+=`<div class="bk-row"><span style="font-size:.85rem;font-weight:700;color:var(--primary);min-width:50px">${t}</span><div style="flex:1"><div style="font-size:.85rem;font-weight:600">${b.client_name}</div><div style="font-size:.72rem;color:var(--text-4)">${b.service_name} · ${b.duration_min}min</div></div><span class="bk-status ${b.status}">${b.status==='confirmed'?'Confirmé':b.status}</span></div>`});}
+      else h+=`<div class="empty">Aucun RDV aujourd'hui</div>`;
+      h+=`</div>`;
+    }else{h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">CA</div><div class="val">0 €</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div><div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div></div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;}
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}<br><button onclick="loadDashboard()" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;}
 }
 
-// ============================================================
 // NAV
-// ============================================================
-document.querySelectorAll('.ni').forEach(item => {
-  item.addEventListener('click', (e) => {
-    e.preventDefault();
-    document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
-    item.classList.add('active');
-    const section = item.dataset.section;
-    document.getElementById('pageTitle').textContent = {
-      home:'Dashboard', bookings:'Agenda', clients:'Clients', services:'Prestations',
-      hours:'Disponibilités', site:'Mon site', calls:'Appels', settings:'Paramètres'
-    }[section] || 'Dashboard';
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',site:'Mon site',calls:'Appels',settings:'Paramètres'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
-    if (section === 'home') loadDashboard();
-    else if (section === 'bookings') loadAgenda();
-    else document.getElementById('contentArea').innerHTML = `<div class="empty">Section "${section}" — Bientôt disponible</div>`;
-  });
-});
-
-// ============================================================
 // AGENDA
-// ============================================================
-let agendaDate = new Date();
-agendaDate.setHours(0,0,0,0);
+const DF=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const DS=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+const MF=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const MS=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+const MODE_ICO={cabinet:'🏢',visio:'💻',phone:'📞'};
+const ST={confirmed:{l:'Confirmé',c:'confirmed'},pending:{l:'En attente',c:'pending'},completed:{l:'Terminé',c:'completed'},no_show:{l:'No-show',c:'noshow'},cancelled:{l:'Annulé',c:'cancelled'}};
+let agendaView='week',agendaDate=new Date(),agendaBookings=[],undoTimer=null;
 
-const DAYS_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-const MONTHS_FULL = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function getMonday(d){const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);dt.setHours(0,0,0,0);return dt;}
+function fmt(d){return d.toISOString().split('T')[0];}
+function isToday(d){return fmt(d)===fmt(new Date());}
+function fmtDay(d){return isToday(d)?"Aujourd'hui":`${DF[d.getDay()]} ${d.getDate()} ${MF[d.getMonth()]}`;}
 
-function fmtAgendaDate(d) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
-  if (d.getTime() === today.getTime()) return "Aujourd'hui";
-  if (d.getTime() === tomorrow.getTime()) return "Demain";
-  return `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_FULL[d.getMonth()]}`;
+async function loadAgenda(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  let from,to;
+  if(agendaView==='day'){from=new Date(agendaDate);from.setHours(0,0,0,0);to=new Date(from);to.setDate(to.getDate()+1);}
+  else if(agendaView==='week'){from=getMonday(agendaDate);to=new Date(from);to.setDate(to.getDate()+7);}
+  else{from=new Date(agendaDate.getFullYear(),agendaDate.getMonth(),1);to=new Date(agendaDate.getFullYear(),agendaDate.getMonth()+1,1);}
+  try{const r=await fetch(`/api/bookings?from=${from.toISOString()}&to=${to.toISOString()}`,{headers:{'Authorization':'Bearer '+api.getToken()}});const d=await r.json();agendaBookings=d.bookings||[];}catch(e){agendaBookings=[];}
+  renderAgenda();
 }
 
-async function loadAgenda() {
-  const content = document.getElementById('contentArea');
-  const dateStr = agendaDate.toISOString().split('T')[0];
-  const nextDay = new Date(agendaDate); nextDay.setDate(nextDay.getDate()+1);
-  const nextStr = nextDay.toISOString().split('T')[0];
+function renderAgenda(){
+  const c=document.getElementById('contentArea');
+  let label='';
+  if(agendaView==='day')label=fmtDay(agendaDate);
+  else if(agendaView==='week'){const m=getMonday(agendaDate),s=new Date(m);s.setDate(s.getDate()+6);label=`${m.getDate()} ${MS[m.getMonth()]} – ${s.getDate()} ${MS[s.getMonth()]} ${s.getFullYear()}`;}
+  else label=`${MF[agendaDate.getMonth()].charAt(0).toUpperCase()+MF[agendaDate.getMonth()].slice(1)} ${agendaDate.getFullYear()}`;
 
-  content.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="shiftAgenda(-1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">‹</button>
-        <span style="font-size:1rem;font-weight:600">${fmtAgendaDate(agendaDate)}</span>
-        <button onclick="shiftAgenda(1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">›</button>
-        <button onclick="agendaDate=new Date();agendaDate.setHours(0,0,0,0);loadAgenda()" style="padding:5px 12px;border-radius:6px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3)">Aujourd'hui</button>
-      </div>
-      <span style="font-size:.78rem;color:var(--text-4)">${dateStr}</span>
-    </div>
-    <div class="loading"><div class="spinner"></div></div>
-  `;
-
-  try {
-    const token = api.getToken();
-    const res = await fetch(`/api/bookings?from=${dateStr}T00:00:00&to=${nextStr}T00:00:00`, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    const data = await res.json();
-    const bookings = data.bookings || [];
-
-    let html = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <button onclick="shiftAgenda(-1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">‹</button>
-          <span style="font-size:1rem;font-weight:600">${fmtAgendaDate(agendaDate)}</span>
-          <button onclick="shiftAgenda(1)" style="width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem">›</button>
-          <button onclick="agendaDate=new Date();agendaDate.setHours(0,0,0,0);loadAgenda()" style="padding:5px 12px;border-radius:6px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3)">Aujourd'hui</button>
-        </div>
-        <span style="font-size:.78rem;color:var(--text-4)">${bookings.length} RDV</span>
-      </div>
-    `;
-
-    if (bookings.length === 0) {
-      html += `<div class="card"><div class="empty">Aucun rendez-vous ${fmtAgendaDate(agendaDate).toLowerCase()}</div></div>`;
-    } else {
-      html += `<div class="card">`;
-      bookings.forEach(b => {
-        const start = new Date(b.start_at);
-        const end = new Date(b.end_at);
-        const time = start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
-        const endTime = end.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
-        const statusMap = {
-          confirmed: {label:'Confirmé', cls:'confirmed'},
-          pending: {label:'En attente', cls:'pending'},
-          completed: {label:'Terminé', cls:'completed'},
-          no_show: {label:'No-show', cls:'noshow'},
-          cancelled: {label:'Annulé', cls:'cancelled'}
-        };
-        const st = statusMap[b.status] || {label:b.status, cls:''};
-        const modeMap = {cabinet:'🏢',visio:'💻',phone:'📞'};
-
-        html += `<div class="bk-row" style="flex-wrap:wrap;gap:8px" id="bk-${b.id}">
-          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:200px">
-            <div style="min-width:90px">
-              <div style="font-size:.9rem;font-weight:700;color:var(--primary)">${time}</div>
-              <div style="font-size:.68rem;color:var(--text-4)">${time} – ${endTime}</div>
-            </div>
-            <div style="width:4px;height:36px;border-radius:2px;background:${b.service_color||'var(--primary)'};flex-shrink:0"></div>
-            <div style="flex:1">
-              <div style="font-size:.88rem;font-weight:600">${b.client_name}</div>
-              <div style="font-size:.73rem;color:var(--text-4)">${b.service_name} · ${b.duration_min}min · ${modeMap[b.appointment_mode]||''} ${b.appointment_mode||''}</div>
-              <div style="font-size:.68rem;color:var(--text-4)">${b.practitioner_name} · ${b.client_phone||''}</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="bk-status ${st.cls}">${st.label}</span>
-            ${b.status === 'confirmed' ? `
-              <button onclick="updateStatus('${b.id}','completed')" title="Terminé" style="padding:4px 8px;border-radius:5px;border:1px solid #B8E6C4;background:var(--green-bg);cursor:pointer;font-size:.7rem;color:var(--green);font-weight:600">✓ Terminé</button>
-              <button onclick="updateStatus('${b.id}','no_show')" title="No-show" style="padding:4px 8px;border-radius:5px;border:1px solid #E8DCBA;background:var(--gold-bg);cursor:pointer;font-size:.7rem;color:var(--gold);font-weight:600">✗ No-show</button>
-              <button onclick="if(confirm('Annuler ce RDV ?'))updateStatus('${b.id}','cancelled')" title="Annuler" style="padding:4px 8px;border-radius:5px;border:1px solid #FECACA;background:var(--red-bg);cursor:pointer;font-size:.7rem;color:var(--red);font-weight:600">Annuler</button>
-            ` : ''}
-          </div>
-        </div>`;
-      });
-      html += `</div>`;
-    }
-
-    content.innerHTML = html;
-
-  } catch (err) {
-    content.innerHTML = `<div class="empty" style="color:var(--red)">Erreur : ${err.message}</div>`;
-  }
+  let h=`<div class="agenda-toolbar"><div class="agenda-nav"><button class="a-btn" onclick="shiftAgenda(-1)">‹</button><button class="a-btn-text" onclick="agendaDate=new Date();loadAgenda()">Aujourd'hui</button><button class="a-btn" onclick="shiftAgenda(1)">›</button><span class="agenda-label">${label}</span></div><div class="view-tabs"><button class="view-tab ${agendaView==='day'?'active':''}" onclick="agendaView='day';loadAgenda()">Jour</button><button class="view-tab ${agendaView==='week'?'active':''}" onclick="agendaView='week';loadAgenda()">Semaine</button><button class="view-tab ${agendaView==='month'?'active':''}" onclick="agendaView='month';loadAgenda()">Mois</button></div></div>`;
+  if(agendaView==='day')h+=renderDayView();
+  else if(agendaView==='week')h+=renderWeekView();
+  else h+=renderMonthView();
+  c.innerHTML=h;
 }
 
-function shiftAgenda(dir) {
-  agendaDate.setDate(agendaDate.getDate() + dir);
+function renderDayView(){
+  const ds=fmt(agendaDate),bks=agendaBookings.filter(b=>fmt(new Date(b.start_at))===ds);
+  if(!bks.length)return`<div class="card"><div class="empty">Aucun rendez-vous ${fmtDay(agendaDate).toLowerCase()}</div></div>`;
+  let h=`<div class="card"><div class="card-h"><h3>${fmtDay(agendaDate)}</h3><span class="badge badge-teal">${bks.length} RDV</span></div><div style="padding:10px 14px">`;
+  bks.forEach(b=>{h+=renderBkCard(b);});
+  return h+`</div></div>`;
+}
+
+function renderBkCard(b){
+  const s=new Date(b.start_at),e=new Date(b.end_at);
+  const t1=s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}),t2=e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+  const st=ST[b.status]||{l:b.status,c:''};
+  const ico=MODE_ICO[b.appointment_mode]||'';
+  const acts=b.status==='confirmed'||b.status==='pending'?
+    `<button class="act-btn act-done" onclick="updateStatus('${b.id}','completed','${b.status}')">✓ Terminé</button><button class="act-btn act-noshow" onclick="updateStatus('${b.id}','no_show','${b.status}')">✗ No-show</button><button class="act-btn act-cancel" onclick="updateStatus('${b.id}','cancelled','${b.status}')">Annuler</button>`:
+    `<button class="act-btn act-undo" onclick="updateStatus('${b.id}','confirmed','${b.status}')">↩ Remettre confirmé</button>`;
+  return`<div class="bk-card"><div style="display:flex;align-items:center;gap:12px"><div style="min-width:85px"><div class="time">${t1}</div><div style="font-size:.68rem;color:var(--text-4)">${t1} – ${t2}</div></div><div style="width:4px;height:34px;border-radius:2px;background:${b.service_color||'var(--primary)'};flex-shrink:0"></div><div style="flex:1"><div class="client">${b.client_name}</div><div class="meta">${b.service_name} · ${b.duration_min}min · ${ico} ${b.appointment_mode||''} · ${b.practitioner_name}</div><div class="meta">${b.client_phone||''} · ${b.client_email||''}</div></div><span class="bk-status ${st.c}">${st.l}</span></div><div class="actions">${acts}</div></div>`;
+}
+
+function renderWeekView(){
+  const mon=getMonday(agendaDate);let h=`<div class="week-grid">`;
+  for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const ds=fmt(d);
+    const bks=agendaBookings.filter(b=>fmt(new Date(b.start_at))===ds).sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
+    const td=isToday(d)?' today':'';
+    h+=`<div class="week-col"><div class="week-header${td}" onclick="agendaDate=new Date('${ds}');agendaView='day';loadAgenda()"><div style="font-size:.65rem">${DS[d.getDay()]}</div><span class="num">${d.getDate()}</span><div style="font-size:.55rem">${MS[d.getMonth()]}</div></div>`;
+    bks.forEach(b=>{const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+      h+=`<div class="week-bk st-${b.status}" onclick="agendaDate=new Date('${ds}');agendaView='day';loadAgenda()" title="${b.client_name} – ${b.service_name}"><div class="t">${t}</div><div class="n">${b.client_name}</div></div>`;});
+    if(!bks.length)h+=`<div style="padding:6px;text-align:center;font-size:.65rem;color:var(--text-4)">—</div>`;
+    h+=`</div>`;}
+  return h+`</div>`;
+}
+
+function renderMonthView(){
+  const y=agendaDate.getFullYear(),m=agendaDate.getMonth();
+  const first=new Date(y,m,1),last=new Date(y,m+1,0);
+  let so=first.getDay();if(so===0)so=7;so-=1;
+  let h=`<div class="month-grid">`;
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(d=>{h+=`<div class="month-header">${d}</div>`;});
+  const sd=new Date(first);sd.setDate(sd.getDate()-so);
+  const tc=Math.ceil((so+last.getDate())/7)*7;
+  for(let i=0;i<tc;i++){const d=new Date(sd);d.setDate(sd.getDate()+i);const ds=fmt(d);
+    const ot=d.getMonth()!==m,td=isToday(d)?' today':'';
+    const bks=agendaBookings.filter(b=>fmt(new Date(b.start_at))===ds);
+    h+=`<div class="month-cell${ot?' other':''}${td}"><div class="day-num" onclick="agendaDate=new Date('${ds}');agendaView='day';loadAgenda()">${d.getDate()}</div>`;
+    bks.slice(0,3).forEach(b=>{const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+      h+=`<div class="month-dot" onclick="agendaDate=new Date('${ds}');agendaView='day';loadAgenda()"><span class="d" style="background:${b.service_color||'var(--primary)'}"></span>${t} ${b.client_name?.split(' ')[0]||''}</div>`;});
+    if(bks.length>3)h+=`<div class="month-more" onclick="agendaDate=new Date('${ds}');agendaView='day';loadAgenda()">+${bks.length-3} de plus</div>`;
+    h+=`</div>`;}
+  return h+`</div>`;
+}
+
+function shiftAgenda(dir){
+  if(agendaView==='day')agendaDate.setDate(agendaDate.getDate()+dir);
+  else if(agendaView==='week')agendaDate.setDate(agendaDate.getDate()+dir*7);
+  else agendaDate.setMonth(agendaDate.getMonth()+dir);
   loadAgenda();
 }
 
-async function updateStatus(id, status) {
-  try {
-    const token = api.getToken();
-    const res = await fetch(`/api/bookings/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
-      body: JSON.stringify({ status })
-    });
-    if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-    BooktUI.toast(status==='completed'?'RDV terminé':status==='no_show'?'Marqué no-show':'RDV annulé', status==='completed'?'success':'warning');
-    loadAgenda();
-  } catch (err) {
-    BooktUI.toast('Erreur : '+err.message, 'error');
-  }
+async function updateStatus(id,ns,os){
+  try{const r=await fetch(`/api/bookings/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({status:ns})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    showUndo(id,ns,os);loadAgenda();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
-function doLogout() {
-  api.logout();
+function showUndo(id,ns,os){
+  document.querySelectorAll('.undo-toast').forEach(t=>t.remove());
+  if(undoTimer)clearTimeout(undoTimer);
+  const labels={completed:'marqué terminé',no_show:'marqué no-show',cancelled:'annulé',confirmed:'remis confirmé'};
+  const t=document.createElement('div');t.className='undo-toast';
+  t.innerHTML=`<span>RDV ${labels[ns]||ns}</span><button onclick="undoStatus('${id}','${os}')">↩ Annuler</button><button class="dismiss" onclick="this.parentElement.remove()">✕</button>`;
+  document.body.appendChild(t);
+  undoTimer=setTimeout(()=>{t.remove();},8000);
 }
+
+async function undoStatus(id,rs){
+  document.querySelectorAll('.undo-toast').forEach(t=>t.remove());
+  if(undoTimer)clearTimeout(undoTimer);
+  try{await fetch(`/api/bookings/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({status:rs})});
+    BooktUI.toast('Statut restauré','success');loadAgenda();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+function doLogout(){api.logout();}
 </script>
-
 </body>
 </html>
