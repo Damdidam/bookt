@@ -499,12 +499,12 @@ router.patch('/onboarding', async (req, res, next) => {
     const result = await queryWithRLS(req.businessId,
       `UPDATE onboarding_progress SET
         steps_completed = $1::jsonb,
-        completion_percent = $2,
-        completed_at = CASE WHEN $2 = 100 THEN NOW() ELSE NULL END,
+        completion_percent = $2::int,
+        completed_at = CASE WHEN $3::int = 100 THEN NOW() ELSE NULL END,
         updated_at = NOW()
-       WHERE business_id = $3
+       WHERE business_id = $4
        RETURNING *`,
-      [JSON.stringify(steps), percent, req.businessId]
+      [JSON.stringify(steps), percent, percent, req.businessId]
     );
 
     res.json({ onboarding: result.rows[0] });
