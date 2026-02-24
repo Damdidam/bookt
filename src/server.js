@@ -25,10 +25,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===== MIDDLEWARE =====
+// Trust proxy (Render, Railway, etc.)
+app.set('trust proxy', 1);
+
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://bookt.be', 'https://www.bookt.be']
+    ? ['https://bookt.be', 'https://www.bookt.be', process.env.APP_BASE_URL].filter(Boolean)
     : '*',
   credentials: true
 }));
