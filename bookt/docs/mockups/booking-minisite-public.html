@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cabinet De Wit & Associés — Expertise comptable à Bruxelles</title>
+<meta name="description" content="Cabinet comptable ITAA agréé à Bruxelles. Fiscalité, sociétés, TVA, création d'entreprise. Prenez rendez-vous en ligne.">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #FAFAF9;
+  --white: #FFFFFF;
+  --surface: #F5F4F1;
+  --surface-2: #EDEBE8;
+  --border: #E0DDD8;
+  --border-light: #ECEAE6;
+  --text: #1A1816;
+  --text-2: #3D3832;
+  --text-3: #6B6560;
+  --text-4: #9C958E;
+  --primary: #0D7377;
+  --primary-hover: #0A5E61;
+  --primary-light: #EFF9F8;
+  --primary-border: #B8DDD9;
+  --primary-soft: #D5EFEC;
+  --green: #1B7A42;
+  --green-bg: #EEFAF1;
+  --gold: #A68B3C;
+  --gold-bg: #FAF6EC;
+  --gold-border: #E8DCBA;
+  --serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --max-w: 960px;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===== STICKY NAV ===== */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(250,250,249,0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.nav.scrolled {
+  border-bottom-color: var(--border-light);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.03);
+}
+
+.nav-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.nav-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.nav-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-3);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.nav-link:hover { color: var(--text); background: var(--surface); }
+
+.nav-cta {
+  padding: 8px 18px;
+  background: var(--primary);
+  color: white;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+  margin-left: 8px;
+}
+
+.nav-cta:hover { background: var(--primary-hover); }
+
+.lang-toggle {
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  background: var(--surface);
+  border-radius: 6px;
+  margin-left: 10px;
+}
+
+.lang-btn {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-4);
+  cursor: pointer;
+}
+
+.lang-btn.active { background: var(--white); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* ===== HERO ===== */
+.hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 110px 24px 64px;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 40px;
+  align-items: center;
+}
+
+.hero-content {
+  animation: fadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.badge {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.badge.gold { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+.badge.neutral { background: var(--surface); color: var(--text-3); border: 1px solid var(--border); }
+
+.hero h1 {
+  font-family: var(--serif);
+  font-size: 2.8rem;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--primary);
+}
+
+.hero-desc {
+  font-size: 1.02rem;
+  color: var(--text-3);
+  line-height: 1.65;
+  max-width: 480px;
+  margin-bottom: 28px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-primary {
+  padding: 14px 28px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+
+.btn-secondary {
+  padding: 13px 24px;
+  background: var(--white);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+
+.btn-secondary:hover { border-color: var(--text-4); background: var(--surface); }
+
+.hero-proof {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  font-size: 0.78rem;
+  color: var(--text-4);
+}
+
+.hero-proof .dot { color: var(--green); }
+
+/* Hero card */
+.hero-card {
+  background: var(--white);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-light);
+  animation: fadeUp 0.8s 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-card-header {
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 16px;
+}
+
+.hero-card-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  margin: 0 auto 8px;
+  box-shadow: 0 4px 12px rgba(13,115,119,0.2);
+}
+
+.hero-card-header h3 { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.hero-card-header p { font-size: 0.75rem; color: var(--text-4); }
+
+.hero-card-stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 0.82rem;
+}
+
+.hero-card-stat .label { color: var(--text-3); }
+.hero-card-stat .val { font-weight: 600; color: var(--text); }
+
+.hero-card-next {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--primary-light);
+  border-radius: var(--radius-xs);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ===== SECTION LAYOUT ===== */
+section {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+.section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-family: var(--serif);
+  font-size: 1.8rem;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+
+.section-desc {
+  font-size: 0.92rem;
+  color: var(--text-3);
+  max-width: 560px;
+  margin-bottom: 32px;
+}
+
+/* ===== DIVIDER ===== */
+.divider {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.divider-line {
+  height: 1px;
+  background: var(--border-light);
+}
+
+/* ===== ABOUT ===== */
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.about-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 24px;
+  border: 1px solid var(--border-light);
+}
+
+.about-card .ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.about-card .ico.teal { background: var(--primary-light); }
+.about-card .ico.gold { background: var(--gold-bg); }
+.about-card .ico.green { background: var(--green-bg); }
+.about-card .ico.neutral { background: var(--surface); }
+
+.about-card h4 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.about-card p {
+  font-size: 0.82rem;
+  color: var(--text-3);
+  line-height: 1.55;
+}
+
+/* About bio block */
+.bio-block {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 28px;
+  border: 1px solid var(--border-light);
+  margin-bottom: 20px;
+}
+
+.bio-block p {
+  font-size: 0.92rem;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+
+.bio-block p + p { margin-top: 12px; }
+
+.bio-highlight {
+  display: inline;
+  background: linear-gradient(to top, var(--primary-soft) 40%, transparent 40%);
+  padding: 0 2px;
+}
+
+/* ===== TEAM ===== */
+.team-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.team-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 24px;
+  border: 1px solid var(--border-light);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.team-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+.team-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.team-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  color: white;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.team-header h4 { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.team-header .title { font-size: 0.78rem; color: var(--text-4); }
+
+.team-bio {
+  font-size: 0.82rem;
+  color: var(--text-3);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.team-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.team-tag {
+  padding: 3px 10px;
+  background: var(--surface);
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+/* ===== SPECIALIZATIONS ===== */
+.spec-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.spec-card {
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  border: 1px solid var(--border-light);
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.spec-card:hover { border-color: var(--primary-border); background: var(--primary-light); }
+
+.spec-card .ico { font-size: 1.5rem; margin-bottom: 8px; }
+.spec-card h4 { font-size: 0.85rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.spec-card p { font-size: 0.75rem; color: var(--text-3); }
+
+/* ===== SERVICES PREVIEW ===== */
+.services-list {
+  display: grid;
+  gap: 8px;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  transition: all 0.15s;
+}
+
+.service-item:hover { border-color: var(--primary-border); box-shadow: var(--shadow-sm); }
+
+.service-left { display: flex; align-items: center; gap: 14px; }
+
+.service-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.service-item h4 { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.service-item .meta { font-size: 0.75rem; color: var(--text-4); }
+
+.service-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.service-price { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.service-price.free { color: var(--green); }
+
+.service-arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-4);
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.service-item:hover .service-arrow { background: var(--primary); color: white; }
+
+/* ===== TESTIMONIALS ===== */
+.testimonials-bg {
+  background: var(--surface);
+  padding: 64px 0;
+  margin-top: 64px;
+}
+
+.testimonials-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.testimonial-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 24px;
+  border: 1px solid var(--border-light);
+}
+
+.testimonial-stars {
+  color: #E8B931;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.testimonial-text {
+  font-size: 0.88rem;
+  color: var(--text-2);
+  line-height: 1.6;
+  font-style: italic;
+  margin-bottom: 14px;
+}
+
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.testimonial-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.testimonial-author .name { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.testimonial-author .role { font-size: 0.72rem; color: var(--text-4); }
+
+/* ===== LOCATION & HOURS ===== */
+.location-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.map-placeholder {
+  background: var(--surface);
+  border-radius: var(--radius);
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  position: relative;
+}
+
+.map-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.map-overlay {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.map-overlay .pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.map-overlay .addr { font-size: 0.8rem; color: var(--text-2); font-weight: 500; }
+.map-overlay .directions { font-size: 0.72rem; color: var(--primary); font-weight: 600; text-decoration: none; }
+
+.hours-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 24px;
+  border: 1px solid var(--border-light);
+}
+
+.hours-card h3 {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.hours-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.85rem;
+}
+
+.hours-row:last-child { border: none; }
+.hours-row .day { color: var(--text-2); font-weight: 500; }
+.hours-row .time { color: var(--text-3); }
+.hours-row .time.closed { color: var(--text-4); font-style: italic; }
+.hours-row.today { background: var(--primary-light); margin: 0 -12px; padding: 8px 12px; border-radius: var(--radius-xs); }
+.hours-row.today .day { color: var(--primary); font-weight: 700; }
+.hours-row.today .time { color: var(--primary); font-weight: 600; }
+
+.contact-info {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+
+.contact-row .ico { font-size: 0.9rem; width: 20px; text-align: center; }
+.contact-row a { color: var(--primary); text-decoration: none; font-weight: 500; }
+
+/* ===== BOOKING CTA ===== */
+.cta-section {
+  text-align: center;
+  padding: 80px 24px;
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+
+.cta-section h2 {
+  font-family: var(--serif);
+  font-size: 2rem;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.cta-section p {
+  font-size: 0.95rem;
+  color: var(--text-3);
+  margin-bottom: 28px;
+}
+
+.cta-features {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin-bottom: 28px;
+  font-size: 0.82rem;
+  color: var(--text-3);
+}
+
+.cta-features span { display: flex; align-items: center; gap: 6px; }
+.cta-features .check { color: var(--green); font-weight: 700; }
+
+/* ===== FOOTER ===== */
+.footer {
+  background: var(--text);
+  color: rgba(255,255,255,0.5);
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.footer-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.footer a { color: rgba(255,255,255,0.7); text-decoration: none; }
+.footer a:hover { color: white; }
+
+.footer-bookt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-bookt .logo-sm {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 0.55rem;
+}
+
+/* ===== MOBILE NAV ===== */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-2);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding-top: 90px;
+    padding-bottom: 40px;
+    gap: 28px;
+  }
+
+  .hero h1 { font-size: 2rem; }
+  .hero-card { order: -1; }
+  .hero-actions { flex-direction: column; width: 100%; }
+  .hero-actions .btn-primary, .hero-actions .btn-secondary { width: 100%; text-align: center; justify-content: center; }
+
+  .about-grid, .team-grid, .testimonials-grid, .location-grid { grid-template-columns: 1fr; }
+  .spec-grid { grid-template-columns: 1fr 1fr; }
+
+  .nav-links { display: none; }
+  .mobile-menu-btn { display: block; }
+  .lang-toggle { display: none; }
+
+  .section-title { font-size: 1.5rem; }
+  .cta-features { flex-direction: column; align-items: center; gap: 8px; }
+  .footer-inner { flex-direction: column; gap: 10px; }
+}
+
+@media (max-width: 480px) {
+  .spec-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 1.7rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAVIGATION ===== -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#">
+      <div class="nav-logo">DW</div>
+      <span class="nav-name">De Wit & Associés</span>
+    </a>
+    <div class="nav-links">
+      <a class="nav-link" href="#about">À propos</a>
+      <a class="nav-link" href="#team">Équipe</a>
+      <a class="nav-link" href="#services">Prestations</a>
+      <a class="nav-link" href="#contact">Contact</a>
+      <a class="nav-cta" href="#booking">Prendre RDV</a>
+      <div class="lang-toggle">
+        <button class="lang-btn active">FR</button>
+        <button class="lang-btn">NL</button>
+      </div>
+    </div>
+    <button class="mobile-menu-btn">☰</button>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<header class="hero">
+  <div class="hero-content">
+    <div class="hero-badges">
+      <span class="badge gold">✦ ITAA agréé</span>
+      <span class="badge neutral">Depuis 2008</span>
+    </div>
+    <h1>Votre expert-comptable à <em>Bruxelles</em></h1>
+    <p class="hero-desc">Cabinet spécialisé en fiscalité des indépendants, gestion de sociétés et accompagnement à la création d'entreprise. Une approche personnalisée, des résultats concrets.</p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="#booking">Prendre rendez-vous →</a>
+      <a class="btn-secondary" href="#about">Découvrir le cabinet</a>
+    </div>
+    <div class="hero-proof">
+      <span class="dot">●</span> Prochain créneau disponible : <strong style="color:var(--text);margin-left:3px;">demain 9h00</strong>
+    </div>
+  </div>
+
+  <div class="hero-card">
+    <div class="hero-card-header">
+      <div class="hero-card-avatar">DW</div>
+      <h3>De Wit & Associés</h3>
+      <p>Avenue Louise 142, Bruxelles</p>
+    </div>
+    <div class="hero-card-stat">
+      <span class="label">Équipe</span>
+      <span class="val">2 comptables</span>
+    </div>
+    <div class="hero-card-stat">
+      <span class="label">Consultations</span>
+      <span class="val">Cabinet · Visio · Tél</span>
+    </div>
+    <div class="hero-card-stat">
+      <span class="label">Horaires</span>
+      <span class="val">Lun — Ven, 9h — 17h</span>
+    </div>
+    <div class="hero-card-stat">
+      <span class="label">Langues</span>
+      <span class="val">🇫🇷 Français · 🇳🇱 Nederlands</span>
+    </div>
+    <div class="hero-card-next">📅 Prochain créneau : demain 9h00</div>
+  </div>
+</header>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ===== ABOUT ===== -->
+<section id="about" class="reveal">
+  <div class="section-label">À propos</div>
+  <div class="section-title">Un cabinet à taille humaine</div>
+
+  <div class="bio-block">
+    <p>Fondé en 2008 par Pierre De Wit, notre cabinet accompagne les indépendants, PME et professions libérales dans leur <span class="bio-highlight">gestion comptable et fiscale</span>. Nous croyons qu'un bon comptable ne se contente pas de remplir des déclarations — il vous aide à prendre les bonnes décisions financières.</p>
+    <p>Avec plus de 120 clients actifs et une expertise reconnue en fiscalité des sociétés, nous sommes agréés par l'ITAA et engagés dans une démarche de <span class="bio-highlight">digitalisation responsable</span> de nos services.</p>
+  </div>
+
+  <div class="about-grid">
+    <div class="about-card">
+      <div class="ico teal">🎯</div>
+      <h4>Approche personnalisée</h4>
+      <p>Chaque dossier est unique. Nous adaptons nos conseils à votre situation, votre secteur et vos objectifs.</p>
+    </div>
+    <div class="about-card">
+      <div class="ico gold">⚡</div>
+      <h4>Réactivité garantie</h4>
+      <p>Réponse sous 24h, suivi proactif des échéances, et consultations flexibles en cabinet, visio ou téléphone.</p>
+    </div>
+    <div class="about-card">
+      <div class="ico green">🔒</div>
+      <h4>Conformité & rigueur</h4>
+      <p>Agréés ITAA, nous appliquons les normes les plus strictes en matière de déontologie et de confidentialité.</p>
+    </div>
+    <div class="about-card">
+      <div class="ico neutral">💡</div>
+      <h4>Conseils proactifs</h4>
+      <p>Nous ne nous contentons pas du minimum légal. Optimisation fiscale, planification et anticipation font partie de notre ADN.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ===== TEAM ===== -->
+<section id="team" class="reveal">
+  <div class="section-label">Notre équipe</div>
+  <div class="section-title">Les experts à votre service</div>
+  <p class="section-desc">Deux comptables complémentaires, une même exigence de qualité.</p>
+
+  <div class="team-grid">
+    <div class="team-card">
+      <div class="team-header">
+        <div class="team-avatar" style="background:var(--primary);">PD</div>
+        <div>
+          <h4>Pierre De Wit</h4>
+          <div class="title">Expert-comptable · Fondateur</div>
+        </div>
+      </div>
+      <p class="team-bio">16 ans d'expérience en fiscalité belge. Spécialisé dans l'accompagnement des sociétés (SRL, SA) et la structuration fiscale. Intervenant régulier auprès de chambres de commerce.</p>
+      <div class="team-tags">
+        <span class="team-tag">Fiscalité</span>
+        <span class="team-tag">Sociétés</span>
+        <span class="team-tag">Création</span>
+        <span class="team-tag">Restructuration</span>
+      </div>
+    </div>
+
+    <div class="team-card">
+      <div class="team-header">
+        <div class="team-avatar" style="background:#52B69A;">SL</div>
+        <div>
+          <h4>Sophie Laurent</h4>
+          <div class="title">Comptable agréée</div>
+        </div>
+      </div>
+      <p class="team-bio">8 ans d'expérience. Spécialiste des déclarations IPP et TVA pour indépendants et professions libérales. Approche pédagogique et accompagnement pas-à-pas des primo-déclarants.</p>
+      <div class="team-tags">
+        <span class="team-tag">TVA</span>
+        <span class="team-tag">IPP</span>
+        <span class="team-tag">Indépendants</span>
+        <span class="team-tag">Professions libérales</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ===== SPECIALIZATIONS ===== -->
+<section class="reveal">
+  <div class="section-label">Spécialisations</div>
+  <div class="section-title">Nos domaines d'expertise</div>
+
+  <div class="spec-grid">
+    <div class="spec-card">
+      <div class="ico">📊</div>
+      <h4>Fiscalité des indépendants</h4>
+      <p>IPP, avantages en nature, frais professionnels</p>
+    </div>
+    <div class="spec-card">
+      <div class="ico">🏢</div>
+      <h4>Gestion de sociétés</h4>
+      <p>SRL, SA, comptes annuels, bilans</p>
+    </div>
+    <div class="spec-card">
+      <div class="ico">📝</div>
+      <h4>Obligations TVA</h4>
+      <p>Déclarations, régularisations, contrôles</p>
+    </div>
+    <div class="spec-card">
+      <div class="ico">🚀</div>
+      <h4>Création d'entreprise</h4>
+      <p>Plan financier, statuts, numéro BCE</p>
+    </div>
+    <div class="spec-card">
+      <div class="ico">💶</div>
+      <h4>Optimisation fiscale</h4>
+      <p>Planification, épargne-pension, déductions</p>
+    </div>
+    <div class="spec-card">
+      <div class="ico">🤝</div>
+      <h4>Conseil & accompagnement</h4>
+      <p>Projections, tableaux de bord, décisions stratégiques</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ===== SERVICES ===== -->
+<section id="services" class="reveal">
+  <div class="section-label">Prestations</div>
+  <div class="section-title">Consultations disponibles</div>
+  <p class="section-desc">Réservez en ligne le type de consultation qui vous convient. Tous les prix sont HTVA.</p>
+
+  <div class="services-list">
+    <div class="service-item">
+      <div class="service-left">
+        <div class="service-dot" style="background:#15803D;"></div>
+        <div>
+          <h4>Premier contact</h4>
+          <div class="meta">30 min · Cabinet / Visio / Téléphone</div>
+        </div>
+      </div>
+      <div class="service-right">
+        <span class="service-price free">Gratuit</span>
+        <div class="service-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="service-item">
+      <div class="service-left">
+        <div class="service-dot" style="background:var(--primary);"></div>
+        <div>
+          <h4>Déclaration IPP (indépendant)</h4>
+          <div class="meta">45 min · Cabinet / Visio</div>
+        </div>
+      </div>
+      <div class="service-right">
+        <span class="service-price">120 €</span>
+        <div class="service-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="service-item">
+      <div class="service-left">
+        <div class="service-dot" style="background:var(--primary);"></div>
+        <div>
+          <h4>Consultation TVA</h4>
+          <div class="meta">30 min · Cabinet / Visio / Téléphone</div>
+        </div>
+      </div>
+      <div class="service-right">
+        <span class="service-price">95 €</span>
+        <div class="service-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="service-item">
+      <div class="service-left">
+        <div class="service-dot" style="background:var(--gold);"></div>
+        <div>
+          <h4>Question société / SRL</h4>
+          <div class="meta">45 min · Cabinet / Visio</div>
+        </div>
+      </div>
+      <div class="service-right">
+        <span class="service-price">150 €</span>
+        <div class="service-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="service-item">
+      <div class="service-left">
+        <div class="service-dot" style="background:#1D4ED8;"></div>
+        <div>
+          <h4>Création d'activité</h4>
+          <div class="meta">60 min · Cabinet uniquement</div>
+        </div>
+      </div>
+      <div class="service-right">
+        <span class="service-price">200 €</span>
+        <div class="service-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="service-item">
+      <div class="service-left">
+        <div class="service-dot" style="background:var(--text-4);"></div>
+        <div>
+          <h4>Suivi dossier</h4>
+          <div class="meta">20 min · Cabinet / Visio / Téléphone</div>
+        </div>
+      </div>
+      <div class="service-right">
+        <span class="service-price">75 €</span>
+        <div class="service-arrow">→</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== TESTIMONIALS ===== -->
+<div class="testimonials-bg reveal">
+  <div class="testimonials-inner">
+    <div class="section-label">Témoignages</div>
+    <div class="section-title">Ce que disent nos clients</div>
+    <p class="section-desc">Des avis authentiques de clients qui nous font confiance.</p>
+
+    <div class="testimonials-grid">
+      <div class="testimonial-card">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Pierre m'a accompagné dans la création de ma SRL avec une clarté et une patience remarquables. Chaque étape était limpide. Je recommande sans hésiter."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">MH</div>
+          <div>
+            <div class="name">Marc Henrard</div>
+            <div class="role">Gérant, TechFlow SA</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Sophie est toujours disponible pour répondre à mes questions TVA, même les plus basiques. Ça change la vie quand on débute comme indépendante."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">CM</div>
+          <div>
+            <div class="name">Claire Mertens</div>
+            <div class="role">Architecte d'intérieur, indépendante</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Après 3 ans avec un autre cabinet, j'ai changé pour De Wit. La différence est flagrante : proactivité, conseils d'optimisation, et une vraie disponibilité."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">KO</div>
+          <div>
+            <div class="name">Karim Ouhadi</div>
+            <div class="role">Consultant IT, indépendant complémentaire</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"La prise de rendez-vous en ligne est un vrai plus. Plus besoin d'appeler entre deux réunions. Je réserve mon créneau le soir et c'est réglé."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">NB</div>
+          <div>
+            <div class="name">Nathalie Bodart</div>
+            <div class="role">Gérante, SPRL NB Consulting</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOCATION & HOURS ===== -->
+<section id="contact" class="reveal">
+  <div class="section-label">Nous trouver</div>
+  <div class="section-title">Localisation & horaires</div>
+
+  <div class="location-grid">
+    <div class="map-placeholder">
+      <!-- In production: Leaflet/Google Maps embed -->
+      <div style="width:100%;height:100%;background:linear-gradient(135deg, #E8E6E1 0%, #D4D1CD 100%);display:flex;align-items:center;justify-content:center;">
+        <div style="text-align:center;color:var(--text-4);">
+          <div style="font-size:2rem;margin-bottom:6px;">📍</div>
+          <div style="font-size:0.82rem;">Carte interactive</div>
+          <div style="font-size:0.72rem;">(Leaflet / OpenStreetMap)</div>
+        </div>
+      </div>
+      <div class="map-overlay">
+        <div class="pin">📍</div>
+        <div>
+          <div class="addr">Avenue Louise 142, 1050 Bruxelles</div>
+          <a class="directions" href="https://maps.google.com/?q=Avenue+Louise+142+1050+Bruxelles" target="_blank">Itinéraire →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="hours-card">
+      <h3>Horaires d'ouverture</h3>
+      <div class="hours-row">
+        <span class="day">Lundi</span>
+        <span class="time">09:00 — 17:00</span>
+      </div>
+      <div class="hours-row today">
+        <span class="day">Mardi ← Aujourd'hui</span>
+        <span class="time">09:00 — 17:00</span>
+      </div>
+      <div class="hours-row">
+        <span class="day">Mercredi</span>
+        <span class="time">09:00 — 17:00</span>
+      </div>
+      <div class="hours-row">
+        <span class="day">Jeudi</span>
+        <span class="time">09:00 — 17:00</span>
+      </div>
+      <div class="hours-row">
+        <span class="day">Vendredi</span>
+        <span class="time">09:00 — 16:00</span>
+      </div>
+      <div class="hours-row">
+        <span class="day">Samedi</span>
+        <span class="time closed">Fermé</span>
+      </div>
+      <div class="hours-row">
+        <span class="day">Dimanche</span>
+        <span class="time closed">Fermé</span>
+      </div>
+
+      <div class="contact-info">
+        <div class="contact-row"><span class="ico">📞</span> <a href="tel:+3221234567">02 123 45 67</a></div>
+        <div class="contact-row"><span class="ico">✉️</span> <a href="/cdn-cgi/l/email-protection#ccafa3a2b8adafb88ca8a9bba5b8e1afa3a1bcb8ade2aea9"><span class="__cf_email__" data-cfemail="e784888993868493a78382908e93ca84888a979386c98582">[email&#160;protected]</span></a></div>
+        <div class="contact-row"><span class="ico">🅿️</span> Parking gratuit derrière le bâtiment</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ===== BOOKING CTA ===== -->
+<section id="booking" class="cta-section reveal">
+  <div class="section-label">Prendre rendez-vous</div>
+  <h2>Réservez votre consultation en ligne</h2>
+  <p>Choisissez le type de rendez-vous, votre comptable et le créneau qui vous convient. Confirmation immédiate.</p>
+
+  <div class="cta-features">
+    <span><span class="check">✓</span> Sans compte requis</span>
+    <span><span class="check">✓</span> Rappel SMS automatique</span>
+    <span><span class="check">✓</span> Annulation gratuite 24h</span>
+    <span><span class="check">✓</span> Cabinet, visio ou téléphone</span>
+  </div>
+
+  <a class="btn-primary" href="#" style="display:inline-flex;font-size:1rem;padding:16px 36px;">
+    📅 Prendre rendez-vous →
+  </a>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <span>© 2026 De Wit & Associés · ITAA agréé · BCE 0XXX.XXX.XXX</span>
+    <div class="footer-bookt">
+      <span>Propulsé par</span>
+      <div class="logo-sm">B</div>
+      <a href="https://bookt.be" target="_blank"><strong>Bookt</strong></a>
+    </div>
+  </div>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+// Scroll reveal
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+reveals.forEach(el => observer.observe(el));
+
+// Nav scroll effect
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+// Smooth scroll for nav links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEven

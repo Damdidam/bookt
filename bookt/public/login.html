@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion — Bookt</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-soft:#D5EFEC;--red:#DC2626;--red-bg:#FEF2F2;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--radius:14px;--radius-sm:10px;--radius-xs:6px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
+.login-card{width:100%;max-width:400px;background:var(--white);border-radius:var(--radius);border:1px solid var(--border-light);padding:36px;box-shadow:0 4px 20px rgba(0,0,0,0.06)}
+.logo-row{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:24px}
+.logo{width:36px;height:36px;border-radius:10px;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem}
+.wordmark{font-family:var(--serif);font-size:1.2rem;color:var(--text)}
+h1{font-family:var(--serif);font-size:1.4rem;font-weight:400;text-align:center;margin-bottom:4px}
+.subtitle{font-size:0.85rem;color:var(--text-3);text-align:center;margin-bottom:24px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:0.75rem;font-weight:600;color:var(--text-2);margin-bottom:4px}
+.form-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:0.88rem;color:var(--text);outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.form-input::placeholder{color:var(--text-4)}
+.error-msg{display:none;padding:10px 14px;background:var(--red-bg);border:1px solid #FECACA;border-radius:var(--radius-xs);font-size:0.82rem;color:var(--red);margin-bottom:14px}
+.error-msg.visible{display:block}
+.btn{width:100%;padding:12px;background:var(--primary);color:white;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:0.9rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:4px}
+.btn:hover{background:var(--primary-hover)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.footer-text{text-align:center;margin-top:18px;font-size:0.8rem;color:var(--text-4)}
+.footer-text a{color:var(--primary);text-decoration:none;font-weight:600}
+.expired-notice{padding:10px 14px;background:#FAF6EC;border:1px solid #E8DCBA;border-radius:var(--radius-xs);font-size:0.82rem;color:#A68B3C;margin-bottom:14px;text-align:center;display:none}
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="logo-row"><div class="logo">B</div><span class="wordmark">Bookt</span></div>
+  <h1>Connexion</h1>
+  <p class="subtitle">Accédez à votre dashboard</p>
+
+  <div class="expired-notice" id="expiredNotice">Votre session a expiré. Reconnectez-vous.</div>
+  <div class="error-msg" id="errorMsg"></div>
+
+  <form id="loginForm" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="email" placeholder="pierre@dewit-compta.be" required autofocus>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mot de passe</label>
+      <input class="form-input" type="password" id="password" placeholder="Votre mot de passe" required>
+    </div>
+    <button class="btn" type="submit" id="submitBtn">Se connecter →</button>
+  </form>
+
+  <p class="footer-text">Pas encore de compte ? <a href="/signup.html">Créer mon cabinet</a></p>
+</div>
+
+<script src="/js/api-client.js"></script>
+<script>
+const api = new BooktAPI();
+
+// If already logged in, redirect
+if (api.isLoggedIn()) {
+  window.location.href = '/dashboard.html';
+}
+
+// Show expired notice if redirected
+if (new URLSearchParams(window.location.search).get('expired')) {
+  document.getElementById('expiredNotice').style.display = 'block';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const errorEl = document.getElementById('errorMsg');
+  errorEl.classList.remove('visible');
+
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!email || !password) {
+    errorEl.textContent = 'Veuillez remplir tous les champs.';
+    errorEl.classList.add('visible');
+    return;
+  }
+
+  BooktUI.btnLoading(btn, true);
+
+  try {
+    await api.login(email, password);
+
+    // Redirect
+    const redirect = new URLSearchParams(window.location.search).get('redirect');
+    window.location.href = redirect || '/dashboard.html';
+
+  } catch (err) {
+    errorEl.textContent = err.message || 'Erreur de connexion';
+    errorEl.classList.add('visible');
+  } finally {
+    BooktUI.btnLoading(btn, false);
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookt — Votre cabinet en ligne en 10 minutes</title>
+<meta name="description" content="Page professionnelle + prise de rendez-vous + filtre d'appels intelligent. Conçu pour les comptables, avocats et professions libérales en Belgique.">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #FAFAF9;
+  --bg-dark: #0F0F0E;
+  --white: #FFFFFF;
+  --surface: #F5F4F1;
+  --surface-2: #EDEBE8;
+  --border: #E0DDD8;
+  --border-light: #ECEAE6;
+  --text: #1A1816;
+  --text-2: #3D3832;
+  --text-3: #6B6560;
+  --text-4: #9C958E;
+  --primary: #0D7377;
+  --primary-hover: #0A5E61;
+  --primary-light: #EFF9F8;
+  --primary-soft: #D5EFEC;
+  --primary-border: #B8DDD9;
+  --green: #1B7A42;
+  --green-bg: #EEFAF1;
+  --gold: #A68B3C;
+  --gold-bg: #FAF6EC;
+  --gold-border: #E8DCBA;
+  --red: #DC2626;
+  --serif: 'Instrument Serif', Georgia, serif;
+  --sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --shadow: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.07);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.1);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --max-w: 1040px;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1); }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.delay-1 { transition-delay: 0.1s; }
+.delay-2 { transition-delay: 0.2s; }
+.delay-3 { transition-delay: 0.3s; }
+
+/* ===== NAV ===== */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(250,250,249,0.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid transparent; transition: all 0.3s; }
+.nav.scrolled { border-bottom-color: var(--border-light); box-shadow: 0 1px 8px rgba(0,0,0,0.03); }
+.nav-inner { max-width: var(--max-w); margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+
+.nav-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.nav-logo { width: 32px; height: 32px; border-radius: 9px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 0.95rem; }
+.nav-wordmark { font-family: var(--serif); font-size: 1.15rem; color: var(--text); }
+
+.nav-links { display: flex; align-items: center; gap: 4px; }
+.nav-link { padding: 6px 14px; font-size: 0.8rem; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 8px; transition: all 0.15s; }
+.nav-link:hover { color: var(--text); background: var(--surface); }
+
+.nav-cta { padding: 8px 20px; background: var(--primary); color: white; font-family: var(--sans); font-size: 0.82rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+.nav-cta:hover { background: var(--primary-hover); }
+
+.nav-login { padding: 8px 16px; font-size: 0.82rem; font-weight: 500; color: var(--text-2); text-decoration: none; border-radius: 8px; transition: all 0.15s; }
+.nav-login:hover { background: var(--surface); }
+
+/* ===== HERO ===== */
+.hero { max-width: var(--max-w); margin: 0 auto; padding: 130px 24px 80px; text-align: center; }
+
+.hero-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: var(--gold-bg); border: 1px solid var(--gold-border); border-radius: 24px; font-size: 0.75rem; font-weight: 600; color: var(--gold); margin-bottom: 20px; animation: fadeUp 0.6s both; }
+.hero-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+
+.hero h1 { font-family: var(--serif); font-size: 3.5rem; font-weight: 400; line-height: 1.12; color: var(--text); margin-bottom: 20px; letter-spacing: -0.03em; animation: fadeUp 0.7s 0.1s both; }
+.hero h1 em { font-style: italic; color: var(--primary); }
+
+.hero-desc { font-size: 1.1rem; color: var(--text-3); max-width: 580px; margin: 0 auto 32px; line-height: 1.65; animation: fadeUp 0.7s 0.2s both; }
+
+.hero-actions { display: flex; gap: 10px; justify-content: center; animation: fadeUp 0.7s 0.3s both; }
+
+.btn-lg { padding: 16px 32px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.95rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; }
+.btn-primary-lg { background: var(--primary); color: white; border: none; }
+.btn-primary-lg:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-ghost-lg { background: transparent; color: var(--text-2); border: 1.5px solid var(--border); }
+.btn-ghost-lg:hover { border-color: var(--text-4); background: var(--surface); }
+
+.hero-proof { display: flex; justify-content: center; gap: 28px; margin-top: 32px; font-size: 0.78rem; color: var(--text-4); animation: fadeUp 0.7s 0.4s both; }
+.hero-proof span { display: flex; align-items: center; gap: 5px; }
+.hero-proof .check { color: var(--green); font-weight: 700; font-size: 0.85rem; }
+
+/* ===== BROWSER MOCKUP ===== */
+.mockup-wrapper { max-width: 860px; margin: 48px auto 0; animation: fadeUp 0.8s 0.5s both; }
+
+.browser-chrome { background: var(--white); border-radius: 12px 12px 0 0; padding: 10px 14px; border: 1px solid var(--border); border-bottom: none; display: flex; align-items: center; gap: 8px; }
+.browser-dots { display: flex; gap: 5px; }
+.browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+.browser-dot.r { background: #FECACA; }
+.browser-dot.y { background: #FDE68A; }
+.browser-dot.g { background: #BBF7D0; }
+.browser-bar { flex: 1; background: var(--surface); border-radius: 6px; padding: 4px 12px; font-size: 0.7rem; color: var(--text-4); font-family: monospace; }
+
+.browser-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; overflow: hidden; box-shadow: var(--shadow-lg); }
+.browser-body img, .browser-body .placeholder { width: 100%; display: block; }
+
+.placeholder { background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%); height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.placeholder .ph-logo { width: 48px; height: 48px; border-radius: 12px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.2rem; }
+.placeholder .ph-title { font-family: var(--serif); font-size: 1.3rem; color: var(--text-2); }
+.placeholder .ph-sub { font-size: 0.82rem; color: var(--text-4); }
+.placeholder .ph-cards { display: flex; gap: 8px; margin-top: 8px; }
+.placeholder .ph-card { width: 140px; height: 50px; background: var(--white); border-radius: 8px; border: 1px solid var(--border-light); }
+
+/* ===== SECTION GENERAL ===== */
+section { max-width: var(--max-w); margin: 0 auto; padding: 80px 24px; }
+.section-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--primary); margin-bottom: 8px; }
+.section-title { font-family: var(--serif); font-size: 2.1rem; font-weight: 400; color: var(--text); margin-bottom: 10px; letter-spacing: -0.015em; }
+.section-desc { font-size: 0.95rem; color: var(--text-3); max-width: 540px; margin-bottom: 40px; }
+.section-center { text-align: center; }
+.section-center .section-desc { margin-left: auto; margin-right: auto; }
+
+/* ===== PAIN POINTS ===== */
+.pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.pain-card { background: var(--white); border-radius: var(--radius); padding: 24px; border: 1px solid var(--border-light); position: relative; overflow: hidden; }
+.pain-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--red); opacity: 0.4; }
+
+.pain-card .ico { font-size: 1.5rem; margin-bottom: 10px; }
+.pain-card h3 { font-size: 0.92rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.pain-card p { font-size: 0.82rem; color: var(--text-3); line-height: 1.55; }
+
+.pain-card .stat { font-family: var(--serif); font-size: 1.6rem; color: var(--red); margin-top: 10px; }
+
+/* ===== SOLUTION / FEATURES ===== */
+.feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-bottom: 64px; }
+.feature-row.reverse { direction: rtl; }
+.feature-row.reverse > * { direction: ltr; }
+
+.feature-text .section-label { margin-bottom: 6px; }
+.feature-text h3 { font-family: var(--serif); font-size: 1.5rem; color: var(--text); margin-bottom: 10px; }
+.feature-text p { font-size: 0.9rem; color: var(--text-3); line-height: 1.6; margin-bottom: 16px; }
+
+.feature-bullets { list-style: none; }
+.feature-bullets li { padding: 5px 0; font-size: 0.85rem; color: var(--text-2); display: flex; align-items: flex-start; gap: 8px; }
+.feature-bullets .check { color: var(--green); font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+
+.feature-visual { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border-light); overflow: hidden; min-height: 300px; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; }
+
+.feature-visual .phone-frame { width: 220px; background: var(--white); border-radius: 24px; box-shadow: var(--shadow-lg); border: 1px solid var(--border); padding: 8px; }
+.phone-screen { border-radius: 18px; overflow: hidden; background: var(--surface); }
+.phone-screen .ps-bar { background: var(--primary); color: white; padding: 10px 14px; font-size: 0.72rem; font-weight: 600; text-align: center; }
+.phone-screen .ps-content { padding: 14px; }
+.phone-screen .ps-item { background: var(--white); border-radius: 8px; padding: 8px 10px; margin-bottom: 4px; border: 1px solid var(--border-light); font-size: 0.68rem; display: flex; justify-content: space-between; align-items: center; }
+.phone-screen .ps-item .time { color: var(--primary); font-weight: 700; }
+.phone-screen .ps-item .name { color: var(--text-2); font-weight: 500; }
+.phone-screen .ps-item .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: 700; }
+.phone-screen .ps-item .tag.green { background: var(--green-bg); color: var(--green); }
+
+.feature-visual .dashboard-mini { width: 100%; background: var(--white); border-radius: 10px; border: 1px solid var(--border-light); overflow: hidden; box-shadow: var(--shadow); }
+.dm-header { background: var(--bg-dark); color: white; padding: 10px 14px; font-size: 0.72rem; display: flex; align-items: center; gap: 8px; }
+.dm-header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.dm-body { padding: 14px; }
+.dm-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border-light); font-size: 0.72rem; }
+.dm-row:last-child { border: none; }
+.dm-row .time { color: var(--text-4); min-width: 40px; }
+.dm-row .num { color: var(--text-2); flex: 1; }
+.dm-row .action { padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; }
+.dm-row .action.blue { background: #EFF6FF; color: #1D4ED8; }
+.dm-row .action.green { background: var(--green-bg); color: var(--green); }
+.dm-row .action.orange { background: var(--gold-bg); color: var(--gold); }
+
+/* ===== HOW IT WORKS ===== */
+.steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+.step-card { text-align: center; position: relative; }
+.step-number { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.1rem; margin: 0 auto 12px; }
+.step-card h4 { font-size: 0.88rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.step-card p { font-size: 0.78rem; color: var(--text-3); }
+
+.step-arrow { position: absolute; top: 20px; right: -16px; color: var(--border); font-size: 1rem; }
+
+/* ===== PRICING ===== */
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.price-card { background: var(--white); border-radius: var(--radius); padding: 28px 24px; border: 1px solid var(--border-light); transition: all 0.2s; }
+.price-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.price-card.featured { border-color: var(--primary); position: relative; }
+.price-card.featured::before { content: 'Populaire'; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; padding: 3px 14px; border-radius: 12px; font-size: 0.68rem; font-weight: 700; }
+
+.price-card .plan-name { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-4); margin-bottom: 6px; }
+.price-card .price { font-family: var(--serif); font-size: 2.4rem; color: var(--text); }
+.price-card .price span { font-family: var(--sans); font-size: 0.85rem; color: var(--text-4); font-weight: 400; }
+.price-card .price-desc { font-size: 0.8rem; color: var(--text-3); margin: 6px 0 20px; }
+
+.price-features { list-style: none; margin-bottom: 24px; }
+.price-features li { padding: 5px 0; font-size: 0.82rem; color: var(--text-2); display: flex; align-items: flex-start; gap: 8px; }
+.price-features li .check { color: var(--green); font-weight: 700; flex-shrink: 0; }
+.price-features li .x { color: var(--text-4); flex-shrink: 0; }
+
+.price-btn { display: block; width: 100%; padding: 12px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.85rem; font-weight: 600; text-align: center; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+.price-btn.primary { background: var(--primary); color: white; border: none; }
+.price-btn.primary:hover { background: var(--primary-hover); }
+.price-btn.outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
+.price-btn.outline:hover { border-color: var(--text-4); background: var(--surface); }
+
+/* ===== SOCIAL PROOF BAR ===== */
+.proof-bar { background: var(--surface); padding: 28px 24px; text-align: center; }
+.proof-inner { max-width: var(--max-w); margin: 0 auto; display: flex; justify-content: center; gap: 48px; }
+.proof-stat .num { font-family: var(--serif); font-size: 1.5rem; color: var(--text); }
+.proof-stat .label { font-size: 0.75rem; color: var(--text-4); }
+
+/* ===== SECTORS ===== */
+.sectors-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.sector-chip { padding: 10px 20px; background: var(--white); border: 1px solid var(--border-light); border-radius: 24px; font-size: 0.82rem; font-weight: 500; color: var(--text-2); transition: all 0.15s; cursor: default; display: flex; align-items: center; gap: 6px; }
+.sector-chip:hover { border-color: var(--primary-border); background: var(--primary-light); }
+
+/* ===== FAQ ===== */
+.faq-list { max-width: 680px; margin: 0 auto; }
+.faq-item { border-bottom: 1px solid var(--border-light); }
+.faq-q { padding: 18px 0; font-size: 0.92rem; font-weight: 600; color: var(--text); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.faq-q .arrow { font-size: 0.85rem; color: var(--text-4); transition: transform 0.2s; }
+.faq-item.open .faq-q .arrow { transform: rotate(180deg); }
+.faq-a { font-size: 0.85rem; color: var(--text-3); line-height: 1.6; padding-bottom: 18px; display: none; }
+.faq-item.open .faq-a { display: block; }
+
+/* ===== FINAL CTA ===== */
+.final-cta { background: var(--bg-dark); border-radius: 20px; padding: 64px 40px; text-align: center; margin: 0 24px; max-width: calc(var(--max-w) - 48px); margin-left: auto; margin-right: auto; }
+.final-cta h2 { font-family: var(--serif); font-size: 2.2rem; color: white; margin-bottom: 10px; }
+.final-cta p { font-size: 0.95rem; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
+.final-cta .btn-primary-lg { font-size: 1rem; padding: 18px 36px; }
+
+/* ===== FOOTER ===== */
+.footer { padding: 40px 24px; border-top: 1px solid var(--border-light); margin-top: 80px; }
+.footer-inner { max-width: var(--max-w); margin: 0 auto; display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 40px; }
+.footer-brand .logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.footer-brand .logo-row .nav-logo { width: 28px; height: 28px; font-size: 0.8rem; }
+.footer-brand .tagline { font-size: 0.8rem; color: var(--text-3); max-width: 240px; }
+.footer-col h4 { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-4); margin-bottom: 10px; }
+.footer-col a { display: block; font-size: 0.82rem; color: var(--text-3); text-decoration: none; padding: 3px 0; transition: color 0.15s; }
+.footer-col a:hover { color: var(--primary); }
+.footer-bottom { max-width: var(--max-w); margin: 0 auto; padding: 20px 24px 0; font-size: 0.72rem; color: var(--text-4); display: flex; justify-content: space-between; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .hero h1 { font-size: 2.2rem; }
+  .hero-actions { flex-direction: column; align-items: center; }
+  .hero-proof { flex-direction: column; align-items: center; gap: 8px; }
+  .pain-grid { grid-template-columns: 1fr; }
+  .feature-row, .feature-row.reverse { grid-template-columns: 1fr; direction: ltr; }
+  .feature-row.reverse > * { direction: ltr; }
+  .feature-visual { min-height: 240px; }
+  .steps-grid { grid-template-columns: 1fr 1fr; }
+  .step-arrow { display: none; }
+  .pricing-grid { grid-template-columns: 1fr; max-width: 380px; margin: 0 auto; }
+  .proof-inner { flex-direction: column; gap: 16px; }
+  .footer-inner { grid-template-columns: 1fr 1fr; }
+  .nav-links { display: none; }
+  .mockup-wrapper { margin: 32px auto 0; }
+  .final-cta { margin: 0 12px; padding: 48px 24px; }
+  .final-cta h2 { font-size: 1.6rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAV ===== -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#">
+      <div class="nav-logo">B</div>
+      <span class="nav-wordmark">Bookt</span>
+    </a>
+    <div class="nav-links">
+      <a class="nav-link" href="#features">Fonctionnalités</a>
+      <a class="nav-link" href="#how">Comment ça marche</a>
+      <a class="nav-link" href="#pricing">Tarifs</a>
+      <a class="nav-link" href="#faq">FAQ</a>
+      <a class="nav-login" href="/login">Se connecter</a>
+      <a class="nav-cta" href="#signup">Créer mon cabinet →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<header class="hero">
+  <div class="hero-pill"><span class="dot"></span> Conçu pour les professions libérales en Belgique</div>
+
+  <h1>Votre cabinet en ligne<br>en <em>10 minutes</em></h1>
+
+  <p class="hero-desc">Page professionnelle, prise de rendez-vous 24/7 et filtre d'appels intelligent. Vos clients réservent en ligne, votre téléphone arrête de sonner pendant les consultations.</p>
+
+  <div class="hero-actions">
+    <a class="btn-lg btn-primary-lg" href="#signup">Créer mon cabinet gratuitement →</a>
+    <a class="btn-lg btn-ghost-lg" href="#features">Voir comment ça marche</a>
+  </div>
+
+  <div class="hero-proof">
+    <span><span class="check">✓</span> Gratuit pour commencer</span>
+    <span><span class="check">✓</span> En ligne en 10 min</span>
+    <span><span class="check">✓</span> Sans engagement</span>
+    <span><span class="check">✓</span> RGPD compliant</span>
+  </div>
+
+  <div class="mockup-wrapper">
+    <div class="browser-chrome">
+      <div class="browser-dots">
+        <div class="browser-dot r"></div>
+        <div class="browser-dot y"></div>
+        <div class="browser-dot g"></div>
+      </div>
+      <div class="browser-bar">bookt.be/cabinet-dewit</div>
+    </div>
+    <div class="browser-body">
+      <div class="placeholder">
+        <div class="ph-logo">DW</div>
+        <div class="ph-title">De Wit & Associés</div>
+        <div class="ph-sub">Expert-comptable à Bruxelles · ITAA agréé</div>
+        <div class="ph-cards">
+          <div class="ph-card"></div>
+          <div class="ph-card"></div>
+          <div class="ph-card"></div>
+          <div class="ph-card"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== SECTORS ===== -->
+<div style="max-width:var(--max-w);margin:0 auto;padding:0 24px 40px;text-align:center;" class="reveal">
+  <div style="font-size:0.75rem;color:var(--text-4);margin-bottom:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Conçu pour</div>
+  <div class="sectors-row">
+    <div class="sector-chip">📊 Comptables</div>
+    <div class="sector-chip">⚖️ Avocats</div>
+    <div class="sector-chip">🩺 Médecins</div>
+    <div class="sector-chip">🦷 Dentistes</div>
+    <div class="sector-chip">💪 Kinésithérapeutes</div>
+    <div class="sector-chip">🤝 Consultants</div>
+  </div>
+</div>
+
+<!-- ===== PAIN POINTS ===== -->
+<section class="reveal">
+  <div class="section-center">
+    <div class="section-label">Le problème</div>
+    <div class="section-title">Votre quotidien sans Bookt</div>
+    <p class="section-desc">Des heures perdues chaque semaine à gérer des appels, des agendas papier et des rendez-vous oubliés.</p>
+  </div>
+
+  <div class="pain-grid">
+    <div class="pain-card reveal delay-1">
+      <div class="ico">📞</div>
+      <h3>Le téléphone sonne sans arrêt</h3>
+      <p>Les appels interrompent vos consultations. Vous rappelez entre deux clients, et ça recommence.</p>
+      <div class="stat">~18 appels/jour</div>
+    </div>
+    <div class="pain-card reveal delay-2">
+      <div class="ico">📅</div>
+      <h3>L'agenda est un casse-tête</h3>
+      <p>Post-it, Excel, carnet papier... Les doubles réservations et les oublis sont fréquents.</p>
+      <div class="stat">3h/semaine</div>
+    </div>
+    <div class="pain-card reveal delay-3">
+      <div class="ico">🌐</div>
+      <h3>Pas de présence en ligne</h3>
+      <p>Pas de site web, ou un site de 2014. Vos clients ne vous trouvent pas sur Google.</p>
+      <div class="stat">62% sans site</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section id="features">
+  <!-- Feature 1: Mini-site -->
+  <div class="feature-row reveal">
+    <div class="feature-text">
+      <div class="section-label">Page professionnelle</div>
+      <h3>Votre vitrine en ligne, sans effort</h3>
+      <p>Une page complète qui vous représente : votre bio, votre équipe, vos spécialisations, vos tarifs et des témoignages clients. Le tout avec un design professionnel qui inspire confiance.</p>
+      <ul class="feature-bullets">
+        <li><span class="check">✓</span> Bio du cabinet et de chaque membre de l'équipe</li>
+        <li><span class="check">✓</span> Spécialisations et domaines d'expertise</li>
+        <li><span class="check">✓</span> Témoignages clients vérifiés</li>
+        <li><span class="check">✓</span> Optimisé pour Google (SEO)</li>
+        <li><span class="check">✓</span> Nom de domaine personnalisé possible</li>
+      </ul>
+    </div>
+    <div class="feature-visual">
+      <div style="text-align:center;">
+        <div style="font-size:2.5rem;margin-bottom:8px;">🏛️</div>
+        <div style="font-family:var(--serif);font-size:1.1rem;color:var(--text);">De Wit & Associés</div>
+        <div style="font-size:0.75rem;color:var(--text-4);margin-bottom:14px;">bookt.be/cabinet-dewit</div>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+          <span style="padding:4px 10px;background:var(--gold-bg);border-radius:12px;font-size:0.68rem;font-weight:600;color:var(--gold);">ITAA agréé</span>
+          <span style="padding:4px 10px;background:var(--green-bg);border-radius:12px;font-size:0.68rem;font-weight:600;color:var(--green);">★ 4.9/5</span>
+          <span style="padding:4px 10px;background:var(--surface);border-radius:12px;font-size:0.68rem;font-weight:600;color:var(--text-3);">FR · NL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 2: Booking -->
+  <div class="feature-row reverse reveal">
+    <div class="feature-text">
+      <div class="section-label">Prise de rendez-vous</div>
+      <h3>Vos clients réservent en 30 secondes</h3>
+      <p>Un flow de booking intuitif : choix du service, du praticien, du créneau. Confirmation instantanée par email, rappel SMS 24h avant. Fini les allers-retours par téléphone.</p>
+      <ul class="feature-bullets">
+        <li><span class="check">✓</span> Disponibilités en temps réel</li>
+        <li><span class="check">✓</span> Rappels SMS et email automatiques</li>
+        <li><span class="check">✓</span> Cabinet, visio ou téléphone</li>
+        <li><span class="check">✓</span> Annulation et replanification en 1 clic</li>
+        <li><span class="check">✓</span> Anti double-booking garanti</li>
+      </ul>
+    </div>
+    <div class="feature-visual">
+      <div class="phone-frame">
+        <div class="phone-screen">
+          <div class="ps-bar">📅 Mardi 25 février</div>
+          <div class="ps-content">
+            <div class="ps-item"><span class="time">09:00</span><span class="name">Disponible</span></div>
+            <div class="ps-item" style="background:var(--primary-light);border-color:var(--primary-border);"><span class="time" style="color:var(--primary);">09:45</span><span class="name" style="color:var(--primary);font-weight:700;">✓ Sélectionné</span></div>
+            <div class="ps-item"><span class="time">10:30</span><span class="name">Disponible</span></div>
+            <div class="ps-item"><span class="time">11:15</span><span class="name">Disponible</span></div>
+            <div class="ps-item" style="opacity:0.4;"><span class="time">14:00</span><span class="name">Pris</span></div>
+            <div class="ps-item"><span class="time">14:45</span><span class="name">Disponible</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature 3: Call filter -->
+  <div class="feature-row reveal">
+    <div class="feature-text">
+      <div class="section-label">Filtre d'appels intelligent</div>
+      <h3>Votre téléphone ne sonne plus pendant les consultations</h3>
+      <p>Un numéro belge dédié filtre les appels entrants. Vos contacts VIP passent toujours, les autres reçoivent un SMS avec votre lien de booking. Les urgences peuvent presser "1" pour être transférées.</p>
+      <ul class="feature-bullets">
+        <li><span class="check">✓</span> Numéro belge dédié (+32)</li>
+        <li><span class="check">✓</span> Whitelist VIP (5-10 contacts prioritaires)</li>
+        <li><span class="check">✓</span> SMS automatique avec lien de réservation</li>
+        <li><span class="check">✓</span> Option "Tapez 1" pour les urgences</li>
+        <li><span class="check">✓</span> Statistiques de conversion appels → RDV</li>
+      </ul>
+    </div>
+    <div class="feature-visual">
+      <div class="dashboard-mini">
+        <div class="dm-header"><span class="dot"></span> Filtre actif — Mode soft</div>
+        <div class="dm-body">
+          <div class="dm-row"><span class="time">14:32</span><span class="num">+32 470 ***</span><span class="action blue">SMS envoyé</span><span class="action green" style="margin-left:4px;">→ RDV</span></div>
+          <div class="dm-row"><span class="time">11:15</span><span class="num">+32 2 345 ***</span><span class="action green">VIP passé</span></div>
+          <div class="dm-row"><span class="time">09:45</span><span class="num">+32 485 ***</span><span class="action blue">SMS envoyé</span><span class="action green" style="margin-left:4px;">→ RDV</span></div>
+          <div class="dm-row"><span class="time">09:02</span><span class="num">+32 496 ***</span><span class="action orange">Urgence</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section id="how" class="section-center reveal">
+  <div class="section-label">Comment ça marche</div>
+  <div class="section-title">En ligne en 4 étapes</div>
+  <p class="section-desc">Pas besoin de compétences techniques. Votre page est prête en 10 minutes.</p>
+
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-number">1</div>
+      <h4>Créez votre compte</h4>
+      <p>Email, nom du cabinet, secteur. 30 secondes.</p>
+      <div class="step-arrow">→</div>
+    </div>
+    <div class="step-card">
+      <div class="step-number">2</div>
+      <h4>Complétez votre profil</h4>
+      <p>Bio, équipe, horaires. Templates pré-remplis par secteur.</p>
+      <div class="step-arrow">→</div>
+    </div>
+    <div class="step-card">
+      <div class="step-number">3</div>
+      <h4>Configurez vos prestations</h4>
+      <p>Services, durées, tarifs. Tout est éditable.</p>
+      <div class="step-arrow">→</div>
+    </div>
+    <div class="step-card">
+      <div class="step-number">4</div>
+      <h4>Publiez votre page</h4>
+      <p>Votre cabinet est en ligne. Partagez le lien.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SOCIAL PROOF ===== -->
+<div class="proof-bar reveal">
+  <div class="proof-inner">
+    <div class="proof-stat"><div class="num">78%</div><div class="label">des appels filtrés → RDV en ligne</div></div>
+    <div class="proof-stat"><div class="num">10 min</div><div class="label">pour être en ligne</div></div>
+    <div class="proof-stat"><div class="num">3h</div><div class="label">gagnées par semaine</div></div>
+    <div class="proof-stat"><div class="num">24/7</div><div class="label">réservation en ligne</div></div>
+  </div>
+</div>
+
+<!-- ===== PRICING ===== -->
+<section id="pricing" class="section-center reveal">
+  <div class="section-label">Tarifs</div>
+  <div class="section-title">Simple et transparent</div>
+  <p class="section-desc">Commencez gratuitement. Passez au Pro quand vous êtes prêt.</p>
+
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="plan-name">Gratuit</div>
+      <div class="price">0 € <span>/mois</span></div>
+      <p class="price-desc">Pour tester et démarrer</p>
+      <ul class="price-features">
+        <li><span class="check">✓</span> Page professionnelle</li>
+        <li><span class="check">✓</span> Booking en ligne (1 praticien)</li>
+        <li><span class="check">✓</span> Confirmation email</li>
+        <li><span class="check">✓</span> 3 prestations max</li>
+        <li><span class="x">—</span> <span style="color:var(--text-4);">Filtre d'appels</span></li>
+        <li><span class="x">—</span> <span style="color:var(--text-4);">Rappels SMS</span></li>
+        <li><span class="x">—</span> <span style="color:var(--text-4);">Domaine personnalisé</span></li>
+      </ul>
+      <a class="price-btn outline" href="#signup">Commencer →</a>
+    </div>
+
+    <div class="price-card featured">
+      <div class="plan-name">Pro</div>
+      <div class="price">39 € <span>/mois</span></div>
+      <p class="price-desc">Pour les cabinets établis</p>
+      <ul class="price-features">
+        <li><span class="check">✓</span> Tout du plan Gratuit</li>
+        <li><span class="check">✓</span> Praticiens illimités</li>
+        <li><span class="check">✓</span> Prestations illimitées</li>
+        <li><span class="check">✓</span> <strong>Filtre d'appels intelligent</strong></li>
+        <li><span class="check">✓</span> <strong>Rappels SMS automatiques</strong></li>
+        <li><span class="check">✓</span> Témoignages clients</li>
+        <li><span class="check">✓</span> Statistiques avancées</li>
+      </ul>
+      <a class="price-btn primary" href="#signup">Essai gratuit 14 jours →</a>
+    </div>
+
+    <div class="price-card">
+      <div class="plan-name">Team</div>
+      <div class="price">59 € <span>/mois</span></div>
+      <p class="price-desc">Pour les cabinets avec plusieurs associés</p>
+      <ul class="price-features">
+        <li><span class="check">✓</span> Tout du plan Pro</li>
+        <li><span class="check">✓</span> <strong>Domaine personnalisé</strong></li>
+        <li><span class="check">✓</span> Multi-utilisateurs (staff)</li>
+        <li><span class="check">✓</span> Rôles et permissions</li>
+        <li><span class="check">✓</span> Export données CSV</li>
+        <li><span class="check">✓</span> Support prioritaire</li>
+        <li><span class="check">✓</span> Branding personnalisé</li>
+      </ul>
+      <a class="price-btn outline" href="#signup">Essai gratuit 14 jours →</a>
+    </div>
+  </div>
+
+  <p style="text-align:center;font-size:0.78rem;color:var(--text-4);margin-top:16px;">Tous les prix sont HTVA. SMS facturés à l'usage (~0.05€/SMS). Annulable à tout moment.</p>
+</section>
+
+<!-- ===== FAQ ===== -->
+<section id="faq" class="reveal">
+  <div class="section-center">
+    <div class="section-label">Questions fréquentes</div>
+    <div class="section-title">Tout ce que vous devez savoir</div>
+  </div>
+
+  <div class="faq-list">
+    <div class="faq-item open">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce que mes clients doivent créer un compte ? <span class="arrow">▾</span></div>
+      <div class="faq-a">Non. Vos clients remplissent simplement leur nom, téléphone et email pour réserver. Pas de compte, pas de mot de passe, pas de friction.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment fonctionne le filtre d'appels ? <span class="arrow">▾</span></div>
+      <div class="faq-a">Vous recevez un numéro belge dédié. Quand quelqu'un appelle, les contacts VIP (que vous définissez) sont transférés directement. Les autres entendent une courte annonce et reçoivent un SMS avec votre lien de booking. En cas d'urgence, ils peuvent presser "1" pour être transférés.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Puis-je utiliser mon propre nom de domaine ? <span class="arrow">▾</span></div>
+      <div class="faq-a">Oui, avec le plan Team. Vous pointez votre domaine existant (ex: dewit-compta.be) vers votre page Bookt. Le certificat SSL est provisionné automatiquement.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce que c'est conforme au RGPD ? <span class="arrow">▾</span></div>
+      <div class="faq-a">Oui. Les données sont hébergées en Europe, les consentements sont trackés explicitement, et vos clients peuvent demander la suppression de leurs données à tout moment.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Combien de temps pour être en ligne ? <span class="arrow">▾</span></div>
+      <div class="faq-a">10 minutes. L'inscription prend 30 secondes, et l'onboarding vous guide étape par étape avec des templates pré-remplis pour votre secteur. Vous pouvez affiner plus tard.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Je peux annuler à tout moment ? <span class="arrow">▾</span></div>
+      <div class="faq-a">Oui. Sans engagement. Si vous annulez, votre page reste active en mode gratuit (sans les fonctionnalités Pro). Vos données ne sont jamais supprimées sans votre demande explicite.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FINAL CTA ===== -->
+<div class="final-cta reveal" id="signup">
+  <h2>Prêt à simplifier votre quotidien ?</h2>
+  <p>Créez votre page professionnelle en 10 minutes. Gratuit, sans engagement.</p>
+  <a class="btn-lg btn-primary-lg" href="/signup" style="display:inline-flex;">Créer mon cabinet gratuitement →</a>
+</div>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="logo-row">
+        <div class="nav-logo">B</div>
+        <span class="nav-wordmark">Bookt</span>
+      </div>
+      <p class="tagline">Votre cabinet en ligne. Page pro, booking 24/7 et filtre d'appels pour les professions libérales.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Produit</h4>
+      <a href="#features">Fonctionnalités</a>
+      <a href="#pricing">Tarifs</a>
+      <a href="#faq">FAQ</a>
+      <a href="#">Changelog</a>
+    </div>
+    <div class="footer-col">
+      <h4>Secteurs</h4>
+      <a href="#">Comptables</a>
+      <a href="#">Avocats</a>
+      <a href="#">Médecins</a>
+      <a href="#">Dentistes</a>
+      <a href="#">Kinés</a>
+    </div>
+    <div class="footer-col">
+      <h4>Légal</h4>
+      <a href="#">Conditions d'utilisation</a>
+      <a href="#">Politique de confidentialité</a>
+      <a href="#">RGPD</a>
+      <a href="#">Contact</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Bookt · Une solution belge 🇧🇪</span>
+    <span>Fait avec soin à Charleroi</span>
+  </div>
+</footer>
+
+<script>
+// Scroll reveal
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
+  });
+}, { threshold: 0.06, rootMargin: '0px 0px -30px 0px' });
+reveals.forEach(el => observer.observe(el));
+
+// Nav scroll
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => { nav.classList.toggle('scrolled', window.scrollY > 20); });
+
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', (e) => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+});
+</script>
+
+</body>
+</html>

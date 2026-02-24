@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookt — Flow Client Booking</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #FAFAF9;
+  --white: #FFFFFF;
+  --surface: #F5F5F4;
+  --surface-2: #E7E5E4;
+  --border: #E2E0DD;
+  --border-strong: #D4D1CD;
+  --text: #1C1917;
+  --text-2: #44403C;
+  --text-3: #78716C;
+  --text-4: #A8A29E;
+  --primary: #0D7377;
+  --primary-hover: #0A5E61;
+  --primary-light: #F0FDFA;
+  --primary-lighter: #E6FAF7;
+  --primary-border: #B2E0DB;
+  --green: #15803D;
+  --green-bg: #F0FDF4;
+  --green-border: #BBF7D0;
+  --orange: #B45309;
+  --orange-bg: #FFFBEB;
+  --orange-border: #FDE68A;
+  --red: #DC2626;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.03);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== DEMO CONTROLS ===== */
+.demo-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--text);
+  color: white;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+}
+
+.demo-bar .label { opacity: 0.6; }
+.demo-bar .steps { display: flex; gap: 4px; }
+
+.demo-step {
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.demo-step:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); }
+.demo-step.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+/* ===== MAIN FRAME ===== */
+.app-frame {
+  max-width: 480px;
+  margin: 64px auto 40px;
+  min-height: calc(100vh - 104px);
+  position: relative;
+}
+
+/* Phone preview wrapper */
+.phone-chrome {
+  background: var(--white);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--border);
+  overflow: hidden;
+  min-height: 700px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== SCREEN HEADER ===== */
+.screen-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--white);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.btn-back {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 1rem;
+  transition: all 0.15s;
+}
+
+.btn-back:hover { border-color: var(--border-strong); color: var(--text); }
+
+.screen-header h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.step-indicator {
+  font-size: 0.72rem;
+  color: var(--text-4);
+  font-weight: 500;
+}
+
+/* ===== PROGRESS BAR ===== */
+.progress-bar {
+  height: 3px;
+  background: var(--surface);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ===== SCREEN BODY ===== */
+.screen-body {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* ===== STICKY FOOTER ===== */
+.screen-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--white);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary:hover { background: var(--primary-hover); }
+
+.btn-outline {
+  padding: 10px 16px;
+  background: var(--white);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.btn-outline:hover { border-color: var(--border-strong); background: var(--surface); }
+
+/* ===== SCREEN COMPONENTS ===== */
+
+/* Cabinet hero */
+.cabinet-hero {
+  text-align: center;
+  padding: 24px 0 20px;
+}
+
+.cabinet-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 auto 12px;
+  box-shadow: var(--shadow-md);
+}
+
+.cabinet-hero h1 {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.cabinet-address {
+  font-size: 0.82rem;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.cabinet-badges {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.badge.primary { background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-border); }
+.badge.neutral { background: var(--surface); color: var(--text-3); border: 1px solid var(--border); }
+
+/* Cabinet info bar */
+.cabinet-info-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.info-chip {
+  flex: 1;
+  padding: 10px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.info-chip .ico { font-size: 1rem; margin-bottom: 2px; }
+.info-chip .val { font-size: 0.75rem; color: var(--text-2); font-weight: 500; }
+
+/* Category */
+.category-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-4);
+  margin-bottom: 8px;
+  margin-top: 20px;
+}
+
+.category-label:first-child { margin-top: 0; }
+
+/* Service card */
+.service-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.service-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.service-card.selected { border-color: var(--primary); background: var(--primary-light); }
+
+.service-card .info h4 {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.service-card .info p {
+  font-size: 0.78rem;
+  color: var(--text-3);
+}
+
+.service-card .price {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.service-card.selected .price { color: var(--primary); }
+
+.check-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 12px;
+  color: transparent;
+  font-size: 0.7rem;
+  transition: all 0.15s;
+}
+
+.service-card.selected .check-circle {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Recap bar */
+.recap-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--primary-light);
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+.recap-bar .left {
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+
+.recap-bar .left strong { color: var(--text); }
+
+.recap-bar .right {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* Mode selector */
+.mode-group {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.mode-option {
+  flex: 1;
+  padding: 12px 10px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode-option:hover { border-color: var(--border-strong); }
+.mode-option.selected { border-color: var(--primary); background: var(--primary-light); }
+
+.mode-option .ico { font-size: 1.2rem; margin-bottom: 4px; }
+.mode-option .lbl { font-size: 0.78rem; font-weight: 500; color: var(--text-2); }
+.mode-option.selected .lbl { color: var(--primary); font-weight: 600; }
+
+/* Day chips */
+.day-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  scroll-snap-type: x mandatory;
+}
+
+.day-row::-webkit-scrollbar { display: none; }
+
+.day-chip {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--white);
+  text-align: center;
+  min-width: 52px;
+  cursor: pointer;
+  transition: all 0.15s;
+  scroll-snap-align: start;
+}
+
+.day-chip:hover { border-color: var(--border-strong); }
+.day-chip.active { border-color: var(--primary); background: var(--primary); }
+
+.day-chip .dn {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-4);
+}
+
+.day-chip.active .dn { color: rgba(255,255,255,0.7); }
+
+.day-chip .dd {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 1px;
+}
+
+.day-chip.active .dd { color: white; }
+.day-chip.disabled { opacity: 0.35; pointer-events: none; }
+
+/* Time label */
+.time-label {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+/* Time slots */
+.slots-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.slot {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.slot:hover { border-color: var(--primary); color: var(--primary); }
+.slot.selected { background: var(--primary); border-color: var(--primary); color: white; }
+.slot.disabled { opacity: 0.3; pointer-events: none; text-decoration: line-through; }
+
+/* Divider */
+.section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 20px 0;
+}
+
+/* Form */
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 5px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,115,119,0.08); }
+.form-input::placeholder { color: var(--text-4); }
+
+.form-textarea {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  outline: none;
+  resize: vertical;
+  min-height: 70px;
+  transition: border-color 0.15s;
+}
+
+.form-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,115,119,0.08); }
+.form-textarea::placeholder { color: var(--text-4); }
+
+.form-hint {
+  font-size: 0.72rem;
+  color: var(--text-4);
+  margin-top: 4px;
+}
+
+/* Confirm block */
+.confirm-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.confirm-card h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-4);
+  margin-bottom: 10px;
+}
+
+.confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 0.85rem;
+}
+
+.confirm-row .label { color: var(--text-3); }
+.confirm-row .val { font-weight: 600; color: var(--text); text-align: right; }
+.confirm-row.total { border-top: 1.5px solid var(--border); margin-top: 6px; padding-top: 10px; }
+.confirm-row.total .val { color: var(--primary); font-size: 1rem; }
+
+/* Policy */
+.policy-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.checkbox-visual {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--border-strong);
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-size: 0.65rem;
+  color: transparent;
+}
+
+.policy-check.checked .checkbox-visual {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.policy-text {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+/* Info callout */
+.callout {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 14px;
+}
+
+.callout.info { background: var(--primary-light); border: 1px solid var(--primary-border); }
+.callout.warning { background: var(--orange-bg); border: 1px solid var(--orange-border); }
+.callout.success { background: var(--green-bg); border: 1px solid var(--green-border); }
+
+.callout .ico { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.callout .content { font-size: 0.78rem; color: var(--text-2); line-height: 1.45; }
+.callout .content strong { color: var(--text); }
+
+/* Success screen */
+.success-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--green-bg);
+  border: 2px solid var(--green-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin: 28px auto 16px;
+}
+
+.success-title {
+  text-align: center;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.success-sub {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-3);
+  margin-bottom: 24px;
+}
+
+.success-recap {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.success-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.success-row:last-child { border: none; }
+.success-row .label { color: var(--text-3); }
+.success-row .val { font-weight: 600; color: var(--text); }
+
+.success-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.success-actions .btn-outline { font-size: 0.75rem; padding: 10px 8px; }
+
+/* Powered by */
+.powered-by {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-4);
+  padding: 16px 0 8px;
+}
+
+.powered-by a { color: var(--primary); text-decoration: none; font-weight: 600; }
+
+/* Page prep */
+.prep-card {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  background: var(--primary-light);
+  border: 1px dashed var(--primary-border);
+  border-radius: var(--radius-sm);
+  margin-top: 16px;
+}
+
+.prep-card .ico { font-size: 1.1rem; flex-shrink: 0; }
+.prep-card h4 { font-size: 0.82rem; font-weight: 600; color: var(--primary); margin-bottom: 3px; }
+.prep-card p { font-size: 0.75rem; color: var(--text-3); line-height: 1.4; }
+
+/* Screens */
+.screen { display: none; }
+.screen.active { display: flex; flex-direction: column; min-height: 700px; }
+
+/* Lang switch */
+.lang-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.lang-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-4);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.lang-btn.active { background: var(--white); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* Consent */
+.consent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.consent-row .checkbox-visual { width: 16px; height: 16px; border-radius: 3px; }
+.consent-row .consent-text { font-size: 0.78rem; color: var(--text-3); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 520px) {
+  .app-frame { margin: 52px 0 0; }
+  .phone-chrome { border-radius: 0; box-shadow: none; min-height: 100vh; }
+  .demo-bar { font-size: 0.7rem; }
+  .demo-step { padding: 4px 10px; font-size: 0.65rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span class="label">Flow Client — Template Comptable</span>
+  <div class="steps">
+    <button class="demo-step active" onclick="goScreen(1)">1. Accueil</button>
+    <button class="demo-step" onclick="goScreen(2)">2. Service</button>
+    <button class="demo-step" onclick="goScreen(3)">3. Créneau</button>
+    <button class="demo-step" onclick="goScreen(4)">4. Infos</button>
+    <button class="demo-step" onclick="goScreen(5)">5. Confirmer</button>
+    <button class="demo-step" onclick="goScreen(6)">6. Succès</button>
+  </div>
+</div>
+
+<div class="app-frame">
+  <div class="phone-chrome">
+
+    <!-- ==========================================
+         SCREEN 1: PAGE D'ACCUEIL CABINET
+    =========================================== -->
+    <div class="screen active" id="screen-1">
+      <div class="screen-header">
+        <div style="flex:1;"></div>
+        <div class="lang-switch">
+          <button class="lang-btn active">FR</button>
+          <button class="lang-btn">NL</button>
+        </div>
+      </div>
+
+      <div class="screen-body">
+        <div class="cabinet-hero">
+          <div class="cabinet-avatar">DW</div>
+          <h1>Cabinet De Wit & Associés</h1>
+          <div class="cabinet-address">
+            <span>📍</span> Avenue Louise 142, 1050 Bruxelles
+          </div>
+          <div class="cabinet-badges">
+            <span class="badge primary">ITAA agréé</span>
+            <span class="badge neutral">Depuis 2008</span>
+          </div>
+        </div>
+
+        <div class="cabinet-info-bar">
+          <div class="info-chip">
+            <div class="ico">🕐</div>
+            <div class="val">Lun — Ven</div>
+          </div>
+          <div class="info-chip">
+            <div class="ico">📞</div>
+            <div class="val">02 123 45 67</div>
+          </div>
+          <div class="info-chip">
+            <div class="ico">💻</div>
+            <div class="val">Cabinet & Visio</div>
+          </div>
+        </div>
+
+        <div class="callout info">
+          <span class="ico">💡</span>
+          <div class="content">Prenez rendez-vous en ligne 24/7. Choisissez votre type de consultation et le créneau qui vous convient.</div>
+        </div>
+
+        <div style="margin-top:8px; font-size:0.82rem; color:var(--text-2); margin-bottom:12px;">
+          <strong>2 comptables</strong> · Prochaine disponibilité : <strong style="color:var(--primary);">demain 9h00</strong>
+        </div>
+
+        <div class="category-label">Consultations disponibles</div>
+
+        <div class="service-card" onclick="this.classList.toggle('selected')">
+          <div class="info">
+            <h4>Premier contact</h4>
+            <p>30 min · Découverte & évaluation</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="price">Gratuit</span>
+            <div class="check-circle">✓</div>
+          </div>
+        </div>
+
+        <div class="service-card selected">
+          <div class="info">
+            <h4>Déclaration IPP (indépendant)</h4>
+            <p>45 min · Personne physique / indépendant</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="price">120 €</span>
+            <div class="check-circle">✓</div>
+          </div>
+        </div>
+
+        <div class="service-card" onclick="this.classList.toggle('selected')">
+          <div class="info">
+            <h4>Consultation TVA</h4>
+            <p>30 min · Obligations périodiques</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="price">95 €</span>
+            <div class="check-circle">✓</div>
+          </div>
+        </div>
+
+        <div class="service-card" onclick="this.classList.toggle('selected')">
+          <div class="info">
+            <h4>Question société / SRL</h4>
+            <p>45 min · Constitution, statuts, modifications</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="price">150 €</span>
+            <div class="check-circle">✓</div>
+          </div>
+        </div>
+
+        <div class="service-card" onclick="this.classList.toggle('selected')">
+          <div class="info">
+            <h4>Création d'activité</h4>
+            <p>60 min · Lancement, fiscalité, TVA</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="price">200 €</span>
+            <div class="check-circle">✓</div>
+          </div>
+        </div>
+
+        <div class="service-card" onclick="this.classList.toggle('selected')">
+          <div class="info">
+            <h4>Suivi dossier</h4>
+            <p>20 min · Point sur votre dossier en cours</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="price">75 €</span>
+            <div class="check-circle">✓</div>
+          </div>
+        </div>
+
+        <div class="powered-by">Propulsé par <a href="#">Bookt</a></div>
+      </div>
+
+      <div class="screen-footer">
+        <div class="recap-bar">
+          <div class="left">
+            <strong>Déclaration IPP</strong> · 45 min
+          </div>
+          <div class="right">120 €</div>
+        </div>
+        <button class="btn-primary" onclick="goScreen(2)">
+          Continuer
+          <span style="font-size:1rem;">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 2: CHOIX COMPTABLE + MODE
+    =========================================== -->
+    <div class="screen" id="screen-2">
+      <div class="screen-header">
+        <button class="btn-back" onclick="goScreen(1)">←</button>
+        <h2>Comptable & mode</h2>
+        <span class="step-indicator">2/5</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:40%;"></div></div>
+
+      <div class="screen-body">
+        <div class="category-label">Choisir votre comptable</div>
+
+        <div class="service-card" style="border-color:var(--green-border); background:var(--green-bg);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--green-bg);border:2px solid var(--green-border);display:flex;align-items:center;justify-content:center;font-size:0.9rem;">✦</div>
+            <div class="info">
+              <h4>Pas de préférence</h4>
+              <p>Premier créneau disponible</p>
+            </div>
+          </div>
+          <div class="check-circle">✓</div>
+        </div>
+
+        <div class="service-card selected">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;">PD</div>
+            <div class="info">
+              <h4>Pierre De Wit</h4>
+              <p>Fiscalité · Sociétés · 16 ans exp.</p>
+            </div>
+          </div>
+          <div class="check-circle">✓</div>
+        </div>
+
+        <div class="service-card" onclick="this.classList.toggle('selected')">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#7DD3C0;color:white;display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;">SL</div>
+            <div class="info">
+              <h4>Sophie Laurent</h4>
+              <p>TVA · IPP · Indépendants · 8 ans exp.</p>
+            </div>
+          </div>
+          <div class="check-circle">✓</div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="category-label">Mode de consultation</div>
+
+        <div class="mode-group">
+          <div class="mode-option selected">
+            <div class="ico">🏢</div>
+            <div class="lbl">Au cabinet</div>
+          </div>
+          <div class="mode-option" onclick="document.querySelectorAll('.mode-option').forEach(m=>m.classList.remove('selected'));this.classList.add('selected');">
+            <div class="ico">💻</div>
+            <div class="lbl">Visio</div>
+          </div>
+          <div class="mode-option" onclick="document.querySelectorAll('.mode-option').forEach(m=>m.classList.remove('selected'));this.classList.add('selected');">
+            <div class="ico">📞</div>
+            <div class="lbl">Téléphone</div>
+          </div>
+        </div>
+
+        <div class="prep-card">
+          <span class="ico">📎</span>
+          <div>
+            <h4>Documents à préparer</h4>
+            <p>Pour votre déclaration IPP, merci de préparer : fiches de revenus (281.10 / 281.50), attestations fiscales (assurance, épargne-pension), justificatifs de frais professionnels.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-footer">
+        <button class="btn-primary" onclick="goScreen(3)">
+          Voir les créneaux
+          <span style="font-size:1rem;">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 3: CHOIX DU CRÉNEAU
+    =========================================== -->
+    <div class="screen" id="screen-3">
+      <div class="screen-header">
+        <button class="btn-back" onclick="goScreen(2)">←</button>
+        <h2>Choisir un créneau</h2>
+        <span class="step-indicator">3/5</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:60%;"></div></div>
+
+      <div class="screen-body">
+        <div class="day-row">
+          <div class="day-chip disabled"><div class="dn">Lun</div><div class="dd">24</div></div>
+          <div class="day-chip active"><div class="dn">Mar</div><div class="dd">25</div></div>
+          <div class="day-chip" onclick="document.querySelectorAll('.day-chip').forEach(d=>d.classList.remove('active'));this.classList.add('active');"><div class="dn">Mer</div><div class="dd">26</div></div>
+          <div class="day-chip" onclick="document.querySelectorAll('.day-chip').forEach(d=>d.classList.remove('active'));this.classList.add('active');"><div class="dn">Jeu</div><div class="dd">27</div></div>
+          <div class="day-chip" onclick="document.querySelectorAll('.day-chip').forEach(d=>d.classList.remove('active'));this.classList.add('active');"><div class="dn">Ven</div><div class="dd">28</div></div>
+          <div class="day-chip" onclick="document.querySelectorAll('.day-chip').forEach(d=>d.classList.remove('active'));this.classList.add('active');"><div class="dn">Lun</div><div class="dd">3</div></div>
+          <div class="day-chip" onclick="document.querySelectorAll('.day-chip').forEach(d=>d.classList.remove('active'));this.classList.add('active');"><div class="dn">Mar</div><div class="dd">4</div></div>
+          <div class="day-chip" onclick="document.querySelectorAll('.day-chip').forEach(d=>d.classList.remove('active'));this.classList.add('active');"><div class="dn">Mer</div><div class="dd">5</div></div>
+        </div>
+
+        <div class="time-label">Mardi 25 février — <strong>Pierre De Wit</strong></div>
+
+        <div class="category-label" style="margin-top:0;">Matin</div>
+        <div class="slots-grid">
+          <div class="slot" onclick="selectSlot(this)">09:00</div>
+          <div class="slot" onclick="selectSlot(this)">09:45</div>
+          <div class="slot selected">10:30</div>
+          <div class="slot" onclick="selectSlot(this)">11:15</div>
+        </div>
+
+        <div class="category-label">Après-midi</div>
+        <div class="slots-grid">
+          <div class="slot" onclick="selectSlot(this)">14:00</div>
+          <div class="slot" onclick="selectSlot(this)">14:45</div>
+          <div class="slot" onclick="selectSlot(this)">15:30</div>
+          <div class="slot disabled">16:15</div>
+        </div>
+
+        <div class="callout info" style="margin-top:16px;">
+          <span class="ico">🕐</span>
+          <div class="content">
+            <strong>Mar. 25 fév. · 10:30 — 11:15</strong><br>
+            Déclaration IPP · 45 min · Au cabinet
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-footer">
+        <button class="btn-primary" onclick="goScreen(4)">
+          Continuer
+          <span style="font-size:1rem;">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 4: INFORMATIONS CLIENT
+    =========================================== -->
+    <div class="screen" id="screen-4">
+      <div class="screen-header">
+        <button class="btn-back" onclick="goScreen(3)">←</button>
+        <h2>Vos coordonnées</h2>
+        <span class="step-indicator">4/5</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:80%;"></div></div>
+
+      <div class="screen-body">
+        <div class="form-group">
+          <label class="form-label">Nom complet *</label>
+          <input class="form-input" type="text" placeholder="Jean Dupont" value="Jean Dupont">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Téléphone *</label>
+          <input class="form-input" type="tel" placeholder="+32 470 12 34 56" value="+32 470 12 34 56">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email *</label>
+          <input class="form-input" type="email" placeholder="jean@exemple.be" value="jean.dupont@gmail.com">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">N° entreprise (BCE) <span style="color:var(--text-4);font-weight:400;">— optionnel</span></label>
+          <input class="form-input" type="text" placeholder="0XXX.XXX.XXX">
+          <div class="form-hint">Si vous consultez en tant qu'indépendant ou société</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Préférence de consultation</label>
+          <div class="mode-group" style="margin-top:6px; margin-bottom:0;">
+            <div class="mode-option selected" style="padding:10px;">
+              <div class="lbl">🏢 Cabinet</div>
+            </div>
+            <div class="mode-option" style="padding:10px;">
+              <div class="lbl">💻 Visio</div>
+            </div>
+            <div class="mode-option" style="padding:10px;">
+              <div class="lbl">📞 Téléphone</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Commentaire <span style="color:var(--text-4);font-weight:400;">— optionnel</span></label>
+          <textarea class="form-textarea" placeholder="Décrivez brièvement l'objet de votre rendez-vous..."></textarea>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="consent-row" onclick="this.querySelector('.checkbox-visual').classList.toggle('checked')">
+          <div class="checkbox-visual checked" style="background:var(--primary);border-color:var(--primary);color:white;">✓</div>
+          <span class="consent-text">J'accepte de recevoir un rappel par SMS et email</span>
+        </div>
+
+        <div class="consent-row" onclick="this.querySelector('.checkbox-visual').classList.toggle('checked')">
+          <div class="checkbox-visual"></div>
+          <span class="consent-text">J'accepte de recevoir des communications du cabinet</span>
+        </div>
+      </div>
+
+      <div class="screen-footer">
+        <button class="btn-primary" onclick="goScreen(5)">
+          Vérifier le récapitulatif
+          <span style="font-size:1rem;">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 5: CONFIRMATION
+    =========================================== -->
+    <div class="screen" id="screen-5">
+      <div class="screen-header">
+        <button class="btn-back" onclick="goScreen(4)">←</button>
+        <h2>Confirmer le rendez-vous</h2>
+        <span class="step-indicator">5/5</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:100%;"></div></div>
+
+      <div class="screen-body">
+        <div class="confirm-card">
+          <h3>📋 Votre rendez-vous</h3>
+          <div class="confirm-row">
+            <span class="label">Prestation</span>
+            <span class="val">Déclaration IPP</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Comptable</span>
+            <span class="val">Pierre De Wit</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Date</span>
+            <span class="val">Mar. 25 fév. 2026</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Heure</span>
+            <span class="val">10:30 — 11:15</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Mode</span>
+            <span class="val">🏢 Au cabinet</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Lieu</span>
+            <span class="val">Av. Louise 142, 1050 BXL</span>
+          </div>
+          <div class="confirm-row total">
+            <span class="label" style="font-weight:600;color:var(--text);">Honoraires</span>
+            <span class="val">120 € HTVA</span>
+          </div>
+        </div>
+
+        <div class="confirm-card">
+          <h3>👤 Vos coordonnées</h3>
+          <div class="confirm-row">
+            <span class="label">Nom</span>
+            <span class="val">Jean Dupont</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Téléphone</span>
+            <span class="val">+32 470 12 34 56</span>
+          </div>
+          <div class="confirm-row">
+            <span class="label">Email</span>
+            <span class="val"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7b111e1a15551f0e0b14150f3b1c161a121755181416">[email&#160;protected]</a></span>
+          </div>
+        </div>
+
+        <div class="prep-card" style="margin-top:0; margin-bottom:14px;">
+          <span class="ico">📎</span>
+          <div>
+            <h4>Documents à préparer</h4>
+            <p>Fiches de revenus (281.10 / 281.50), attestations fiscales, justificatifs de frais professionnels.</p>
+          </div>
+        </div>
+
+        <div class="policy-check checked" onclick="this.classList.toggle('checked')">
+          <div class="checkbox-visual">✓</div>
+          <div class="policy-text">
+            J'accepte les conditions du cabinet : annulation gratuite jusqu'à <strong>24 heures</strong> avant le rendez-vous. Au-delà, 50% des honoraires seront facturés.
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-footer">
+        <button class="btn-primary" onclick="goScreen(6)" style="background:var(--green);">
+          ✓ Confirmer le rendez-vous
+        </button>
+        <div style="text-align:center; margin-top:8px; font-size:0.72rem; color:var(--text-4);">Aucun paiement requis maintenant</div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 6: SUCCÈS
+    =========================================== -->
+    <div class="screen" id="screen-6">
+      <div class="screen-body">
+        <div class="success-icon">✓</div>
+        <div class="success-title">Rendez-vous confirmé</div>
+        <div class="success-sub">Confirmation envoyée à <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ef858a8e81c18b9a9f80819baf88828e8683c18c8082">[email&#160;protected]</a></div>
+
+        <div class="success-recap">
+          <div class="success-row">
+            <span class="label">Cabinet</span>
+            <span class="val">De Wit & Associés</span>
+          </div>
+          <div class="success-row">
+            <span class="label">Comptable</span>
+            <span class="val">Pierre De Wit</span>
+          </div>
+          <div class="success-row">
+            <span class="label">Date</span>
+            <span class="val">Mar. 25 fév. · 10:30</span>
+          </div>
+          <div class="success-row">
+            <span class="label">Durée</span>
+            <span class="val">45 min</span>
+          </div>
+          <div class="success-row">
+            <span class="label">Mode</span>
+            <span class="val">🏢 Au cabinet</span>
+          </div>
+          <div class="success-row">
+            <span class="label">Adresse</span>
+            <span class="val">Av. Louise 142, BXL</span>
+          </div>
+          <div class="success-row">
+            <span class="label">Honoraires</span>
+            <span class="val" style="color:var(--primary);font-weight:700;">120 € HTVA</span>
+          </div>
+        </div>
+
+        <div class="callout success">
+          <span class="ico">📱</span>
+          <div class="content">Un <strong>rappel SMS</strong> vous sera envoyé 24h avant votre rendez-vous.</div>
+        </div>
+
+        <div class="prep-card" style="margin-top:0;">
+          <span class="ico">📎</span>
+          <div>
+            <h4>N'oubliez pas d'apporter</h4>
+            <p>Fiches de revenus (281.10 / 281.50), attestations fiscales, justificatifs de frais professionnels.</p>
+          </div>
+        </div>
+
+        <div class="success-actions">
+          <button class="btn-outline">📅 Calendrier</button>
+          <button class="btn-outline">✏️ Modifier</button>
+          <button class="btn-outline" style="color:var(--red);border-color:#FECACA;">✕ Annuler</button>
+        </div>
+
+        <div class="powered-by">Propulsé par <a href="#">Bookt</a></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+function goScreen(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + n).classList.add('active');
+  document.querySelectorAll('.dem

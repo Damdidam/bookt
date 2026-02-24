@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Bookt</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#DC2626;--red-bg:#FEF2F2;--sidebar-bg:#1C1917;--sidebar-hover:#292524;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:230px;background:var(--sidebar-bg);color:#fff;display:flex;flex-direction:column;z-index:50}
+.sb-logo{padding:18px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sb-logo .l{width:30px;height:30px;border-radius:8px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.85rem}
+.sb-logo .w{font-size:.82rem;font-weight:700;letter-spacing:.5px}
+.sb-logo .plan{font-size:.55rem;font-weight:700;background:rgba(255,255,255,.12);padding:1px 5px;border-radius:3px;margin-left:4px;color:rgba(255,255,255,.5)}
+.sb-nav{padding:10px 8px;flex:1}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.5);cursor:pointer;transition:all .12s;text-decoration:none;margin-bottom:2px}
+.ni:hover{background:var(--sidebar-hover);color:rgba(255,255,255,.8)}
+.ni.active{background:var(--primary);color:#fff;font-weight:600}
+.ni .ic{width:18px;text-align:center;font-size:.9rem}
+.sb-foot{padding:14px 16px;border-top:1px solid rgba(255,255,255,.06)}
+.sb-foot .nm{font-size:.78rem;font-weight:600}
+.sb-foot .rl{font-size:.65rem;color:rgba(255,255,255,.35)}
+.sb-foot .logout{font-size:.68rem;color:rgba(255,255,255,.3);cursor:pointer;margin-top:4px;text-decoration:underline}
+
+.main{margin-left:230px;min-height:100vh}
+.topbar{position:sticky;top:0;background:rgba(250,250,249,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-light);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;z-index:40}
+.topbar h1{font-family:var(--serif);font-size:1.3rem;font-weight:400}
+.topbar-right{display:flex;align-items:center;gap:10px}
+
+.content{padding:24px 28px;max-width:960px}
+
+/* Stats grid */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.stat-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--border-light);padding:16px}
+.stat-card .label{font-size:.7rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.stat-card .val{font-family:var(--serif);font-size:1.6rem;color:var(--text)}
+.stat-card .sub{font-size:.7rem;color:var(--text-4);margin-top:2px}
+
+/* Bookings list */
+.card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border-light);overflow:hidden;margin-bottom:16px}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
+.card-h h3{font-size:.9rem;font-weight:700}
+.card-h .badge{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+.badge-teal{background:var(--primary-light);color:var(--primary)}
+
+.bk-row{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--border-light)}
+.bk-row:last-child{border:none}
+.bk-time{font-size:.82rem;font-weight:700;color:var(--primary);min-width:50px}
+.bk-info{flex:1}
+.bk-info .name{font-size:.85rem;font-weight:600}
+.bk-info .svc{font-size:.72rem;color:var(--text-4)}
+.bk-status{padding:3px 10px;border-radius:10px;font-size:.68rem;font-weight:600}
+.bk-status.confirmed{background:var(--green-bg);color:var(--green)}
+.bk-status.pending{background:var(--gold-bg);color:var(--gold)}
+
+.empty{padding:40px;text-align:center;color:var(--text-4);font-size:.88rem}
+
+/* Quick link */
+.qlink{background:linear-gradient(135deg,var(--primary),#0A5E61);border-radius:var(--radius-sm);padding:16px 20px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.qlink .info h4{font-size:.9rem;font-weight:600;margin-bottom:2px}
+.qlink .info p{font-size:.75rem;opacity:.6}
+.qlink a{padding:7px 14px;background:rgba(255,255,255,.15);border-radius:var(--radius-xs);font-size:.78rem;font-weight:600;color:#fff;text-decoration:none;transition:background .15s}
+.qlink a:hover{background:rgba(255,255,255,.25)}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:var(--text-4)}
+.loading .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:1000px){.sidebar{width:60px}.sidebar .w,.sidebar .plan,.ni span:not(.ic),.sb-foot .nm,.sb-foot .rl,.sb-foot .logout{display:none}.main{margin-left:60px}.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sb-logo"><div class="l">B</div><span class="w">Bookt</span><span class="plan" id="planBadge">FREE</span></div>
+  <nav class="sb-nav">
+    <a class="ni active" href="#" data-section="home"><span class="ic">📊</span><span>Dashboard</span></a>
+    <a class="ni" href="#" data-section="bookings"><span class="ic">📅</span><span>Agenda</span></a>
+    <a class="ni" href="#" data-section="clients"><span class="ic">👥</span><span>Clients</span></a>
+    <a class="ni" href="#" data-section="services"><span class="ic">📋</span><span>Prestations</span></a>
+    <a class="ni" href="#" data-section="hours"><span class="ic">🕐</span><span>Disponibilités</span></a>
+    <a class="ni" href="#" data-section="site"><span class="ic">🌐</span><span>Mon site</span></a>
+    <a class="ni" href="#" data-section="calls"><span class="ic">📞</span><span>Appels</span></a>
+    <a class="ni" href="#" data-section="settings"><span class="ic">⚙️</span><span>Paramètres</span></a>
+  </nav>
+  <div class="sb-foot">
+    <div class="nm" id="userName">—</div>
+    <div class="rl" id="userRole">—</div>
+    <div class="logout" onclick="doLogout()">Déconnexion</div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <h1 id="pageTitle">Dashboard</h1>
+    <div class="topbar-right">
+      <span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span>
+    </div>
+  </div>
+  <div class="content" id="contentArea">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div>
+  </div>
+</div>
+
+<script src="/js/api-client.js"></script>
+<script>
+const api = new BooktAPI();
+
+// ============================================================
+// AUTH CHECK
+// ============================================================
+if (!api.isLoggedIn()) {
+  window.location.href = '/login.html';
+}
+
+// ============================================================
+// INIT
+// ============================================================
+const user = api.getUser();
+const biz = api.getBusiness();
+
+document.getElementById('userName').textContent = user?.business_name || user?.email || '—';
+document.getElementById('userRole').textContent = user?.role === 'owner' ? 'Propriétaire' : 'Staff';
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+if (biz) {
+  document.getElementById('planBadge').textContent = (biz.plan || 'free').toUpperCase();
+}
+
+// Check if coming from onboarding
+if (new URLSearchParams(location.search).get('onboarding')) {
+  BooktUI.toast('🎉 Bienvenue sur votre dashboard !', 'success', 5000);
+}
+
+// ============================================================
+// LOAD DASHBOARD
+// ============================================================
+loadDashboard();
+
+async function loadDashboard() {
+  const content = document.getElementById('contentArea');
+
+  try {
+    const [dashData, summaryData] = await Promise.allSettled([
+      api.getDashboard(),
+      api.get('/api/dashboard/summary')
+    ]);
+
+    const dash = dashData.status === 'fulfilled' ? dashData.value : {};
+    const summary = summaryData.status === 'fulfilled' ? summaryData.value : null;
+
+    const slug = dash.business?.slug || biz?.slug || '';
+
+    let html = '';
+
+    // Quick link banner
+    html += `<div class="qlink">
+      <div class="info"><h4>Votre page publique</h4><p>bookt.be/${slug}</p></div>
+      <div><a href="/api/public/${slug}" target="_blank">Voir ma page</a></div>
+    </div>`;
+
+    // Stats
+    if (summary) {
+      const m = summary.month || {};
+      const c = summary.clients || {};
+      const calls = summary.calls || {};
+      html += `<div class="stats">
+        <div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${summary.today?.count || 0}</div></div>
+        <div class="stat-card"><div class="label">CA ce mois</div><div class="val">${m.revenue_formatted || '0 €'}</div><div class="sub">${m.total_bookings || 0} rendez-vous</div></div>
+        <div class="stat-card"><div class="label">Clients actifs</div><div class="val">${c.total || 0}</div></div>
+        <div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${calls.conversion_rate || 0}%</div><div class="sub">${calls.total || 0} appels ce mois</div></div>
+      </div>`;
+
+      // Today's bookings
+      html += `<div class="card"><div class="card-h"><h3>Rendez-vous du jour</h3><span class="badge badge-teal">${summary.today?.count || 0} RDV</span></div>`;
+      if (summary.today?.bookings?.length > 0) {
+        summary.today.bookings.forEach(b => {
+          const time = new Date(b.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+          html += `<div class="bk-row">
+            <span class="bk-time">${time}</span>
+            <div class="bk-info"><div class="name">${b.client_name}</div><div class="svc">${b.service_name} · ${b.duration_min}min · ${b.practitioner_name}</div></div>
+            <span class="bk-status ${b.status}">${b.status === 'confirmed' ? 'Confirmé' : b.status === 'pending' ? 'En attente' : b.status}</span>
+          </div>`;
+        });
+      } else {
+        html += `<div class="empty">Aucun rendez-vous aujourd'hui<br><span style="font-size:.78rem">Partagez votre lien de réservation pour recevoir vos premiers RDV</span></div>`;
+      }
+      html += `</div>`;
+    } else {
+      // No summary data (fresh account)
+      html += `<div class="stats">
+        <div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">0</div></div>
+        <div class="stat-card"><div class="label">CA ce mois</div><div class="val">0 €</div></div>
+        <div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div>
+        <div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>
+      </div>`;
+
+      html += `<div class="card"><div class="card-h"><h3>Rendez-vous du jour</h3></div>
+        <div class="empty">Aucun rendez-vous aujourd'hui<br><span style="font-size:.78rem">Partagez votre lien : <strong>bookt.be/${slug}</strong></span></div>
+      </div>`;
+    }
+
+    // Practitioners
+    if (dash.practitioners?.length > 0) {
+      html += `<div class="card"><div class="card-h"><h3>Équipe</h3><span class="badge badge-teal">${dash.practitioners.length} praticien(s)</span></div>`;
+      dash.practitioners.forEach(p => {
+        const initials = p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || '??';
+        html += `<div class="bk-row">
+          <div style="width:36px;height:36px;border-radius:9px;background:${p.color||'var(--primary)'};color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.8rem">${initials}</div>
+          <div class="bk-info"><div class="name">${p.display_name}</div><div class="svc">${p.title || '—'} ${p.years_experience ? '· '+p.years_experience+' ans' : ''}</div></div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    content.innerHTML = html;
+
+  } catch (err) {
+    content.innerHTML = `<div class="empty" style="color:var(--red)">Erreur de chargement : ${err.message}<br><button onclick="loadDashboard()" style="margin-top:10px;padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;
+  }
+}
+
+// ============================================================
+// NAV
+// ============================================================
+document.querySelectorAll('.ni').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    const section = item.dataset.section;
+    document.getElementById('pageTitle').textContent = {
+      home:'Dashboard', bookings:'Agenda', clients:'Clients', services:'Prestations',
+      hours:'Disponibilités', site:'Mon site', calls:'Appels', settings:'Paramètres'
+    }[section] || 'Dashboard';
+
+    if (section === 'home') loadDashboard();
+    else document.getElementById('contentArea').innerHTML = `<div class="empty">Section "${section}" — Bientôt disponible<br><span style="font-size:.78rem">Cette section sera connectée dans une prochaine itération.</span></div>`;
+  });
+});
+
+function doLogout() {
+  api.logout();
+}
+</script>
+
+</body>
+</html>

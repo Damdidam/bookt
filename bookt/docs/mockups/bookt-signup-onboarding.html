@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Créer mon cabinet — Bookt</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #FAFAF9;
+  --white: #FFFFFF;
+  --surface: #F5F4F1;
+  --surface-2: #EDEBE8;
+  --border: #E0DDD8;
+  --border-light: #ECEAE6;
+  --text: #1A1816;
+  --text-2: #3D3832;
+  --text-3: #6B6560;
+  --text-4: #9C958E;
+  --primary: #0D7377;
+  --primary-hover: #0A5E61;
+  --primary-light: #EFF9F8;
+  --primary-soft: #D5EFEC;
+  --primary-border: #B8DDD9;
+  --green: #1B7A42;
+  --green-bg: #EEFAF1;
+  --green-border: #B8E6C4;
+  --gold: #A68B3C;
+  --gold-bg: #FAF6EC;
+  --gold-border: #E8DCBA;
+  --red: #DC2626;
+  --red-light: #FEF2F2;
+  --serif: 'Instrument Serif', Georgia, serif;
+  --sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --shadow: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideLeft { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideRight { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes confetti1 { 0% { transform: translateY(0) rotate(0); opacity: 1; } 100% { transform: translateY(-80px) rotate(360deg) translateX(40px); opacity: 0; } }
+@keyframes confetti2 { 0% { transform: translateY(0) rotate(0); opacity: 1; } 100% { transform: translateY(-100px) rotate(-270deg) translateX(-30px); opacity: 0; } }
+@keyframes confetti3 { 0% { transform: translateY(0) rotate(0); opacity: 1; } 100% { transform: translateY(-60px) rotate(180deg) translateX(50px); opacity: 0; } }
+
+.animate-in { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+
+/* ===== LAYOUT ===== */
+.page-signup { display: flex; min-height: 100vh; }
+
+/* LEFT PANEL — branding */
+.signup-left {
+  width: 420px;
+  background: linear-gradient(160deg, #0F1110 0%, #1A2421 100%);
+  color: white;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sl-logo { display: flex; align-items: center; gap: 8px; margin-bottom: auto; }
+.sl-logo .logo { width: 32px; height: 32px; border-radius: 9px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 0.95rem; }
+.sl-logo .wordmark { font-family: var(--serif); font-size: 1.15rem; }
+
+.sl-content { margin: auto 0; }
+.sl-content h2 { font-family: var(--serif); font-size: 1.8rem; line-height: 1.2; margin-bottom: 12px; font-weight: 400; }
+.sl-content h2 em { font-style: italic; color: #5CB8B2; }
+.sl-content p { font-size: 0.88rem; color: rgba(255,255,255,0.5); line-height: 1.6; margin-bottom: 28px; }
+
+.sl-features { list-style: none; }
+.sl-features li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; font-size: 0.82rem; color: rgba(255,255,255,0.7); }
+.sl-features .ico { width: 28px; height: 28px; border-radius: 7px; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
+
+.sl-footer { margin-top: auto; font-size: 0.72rem; color: rgba(255,255,255,0.3); }
+
+/* RIGHT PANEL — form / wizard */
+.signup-right {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.form-container {
+  width: 100%;
+  max-width: 520px;
+  padding-top: 20px;
+}
+
+/* ===== PROGRESS BAR (wizard) ===== */
+.wizard-progress {
+  display: none;
+  margin-bottom: 32px;
+}
+
+.wizard-progress.active { display: block; }
+
+.wp-bar { height: 4px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
+.wp-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.4s cubic-bezier(0.22,1,0.36,1); }
+
+.wp-info { display: flex; justify-content: space-between; align-items: center; }
+.wp-step { font-size: 0.75rem; font-weight: 600; color: var(--text-3); }
+.wp-percent { font-size: 0.72rem; color: var(--text-4); }
+
+/* ===== STEPS ===== */
+.step { display: none; }
+.step.active { display: block; animation: scaleIn 0.4s cubic-bezier(0.22,1,0.36,1) both; }
+
+.step-header { margin-bottom: 24px; }
+.step-header .step-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--primary); margin-bottom: 6px; }
+.step-header h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 400; color: var(--text); margin-bottom: 4px; }
+.step-header p { font-size: 0.88rem; color: var(--text-3); }
+
+/* ===== FORM ELEMENTS ===== */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-2); margin-bottom: 5px; }
+.form-label .opt { font-weight: 400; color: var(--text-4); }
+
+.form-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  color: var(--text);
+  background: var(--white);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.form-input::placeholder { color: var(--text-4); }
+
+.form-textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.form-hint { font-size: 0.72rem; color: var(--text-4); margin-top: 3px; }
+
+.form-slug-preview {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+.form-slug-preview .domain { color: var(--text-4); }
+.form-slug-preview .slug { color: var(--primary); font-weight: 600; }
+
+/* ===== SECTOR SELECTOR ===== */
+.sector-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.sector-btn {
+  padding: 14px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  font-family: var(--sans);
+}
+.sector-btn:hover { border-color: var(--primary-border); background: var(--primary-light); }
+.sector-btn.selected { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 3px var(--primary-soft); }
+.sector-btn .ico { font-size: 1.3rem; margin-bottom: 4px; }
+.sector-btn .name { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+
+/* ===== TOGGLE ===== */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-light); }
+.toggle-row:last-child { border: none; }
+.toggle-label { font-size: 0.85rem; color: var(--text-2); }
+.toggle-label .sub { display: block; font-size: 0.72rem; color: var(--text-4); font-weight: 400; }
+
+.toggle { width: 42px; height: 24px; background: var(--surface-2); border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+.toggle.on { background: var(--primary); }
+.toggle::after { content: ''; width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.toggle.on::after { transform: translateX(18px); }
+
+/* ===== SCHEDULE GRID ===== */
+.sched-grid { margin-top: 8px; }
+.sched-row { display: grid; grid-template-columns: 100px 42px 1fr 1fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-light); }
+.sched-day { font-size: 0.82rem; font-weight: 600; color: var(--text-2); }
+.sched-input { padding: 7px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-xs); font-family: var(--sans); font-size: 0.78rem; width: 100%; text-align: center; outline: none; }
+.sched-input:focus { border-color: var(--primary); }
+.sched-input:disabled { background: var(--surface); color: var(--text-4); }
+
+/* ===== SERVICE TEMPLATE ROW ===== */
+.svc-list { margin-top: 8px; }
+.svc-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--white); border: 1px solid var(--border-light); border-radius: var(--radius-xs); margin-bottom: 6px; }
+.svc-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.svc-info { flex: 1; }
+.svc-info .name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.svc-info .meta { font-size: 0.72rem; color: var(--text-4); }
+.svc-toggle { flex-shrink: 0; }
+
+/* ===== TEAM CARD ===== */
+.team-edit-card {
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 12px;
+}
+.team-edit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.team-edit-avatar { width: 44px; height: 44px; border-radius: 12px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 0.95rem; }
+.team-edit-header h4 { font-size: 0.9rem; font-weight: 700; }
+.team-edit-header .role { font-size: 0.72rem; color: var(--text-4); }
+
+/* ===== SPEC TAG SELECTOR ===== */
+.spec-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.spec-tag {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--white);
+}
+.spec-tag:hover { border-color: var(--primary-border); }
+.spec-tag.selected { background: var(--primary-light); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+/* ===== TESTIMONIAL FORM ===== */
+.testimonial-mini {
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 10px;
+}
+.testimonial-mini .stars { color: #E8B931; font-size: 0.85rem; letter-spacing: 2px; margin-bottom: 8px; }
+.testimonial-mini .quote { font-size: 0.82rem; color: var(--text-2); font-style: italic; margin-bottom: 8px; }
+.testimonial-mini .author { font-size: 0.75rem; font-weight: 600; color: var(--text-3); }
+
+.add-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  color: var(--text-3);
+  transition: all 0.15s;
+  width: 100%;
+  justify-content: center;
+}
+.add-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+/* ===== CALL FILTER EXPLAINER ===== */
+.callfilter-visual {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin: 12px 0 16px;
+}
+.cf-flow { display: flex; flex-direction: column; gap: 8px; }
+.cf-step { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--text-2); }
+.cf-step .num { width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; font-weight: 700; flex-shrink: 0; }
+.cf-step .arrow { color: var(--text-4); margin-left: 34px; font-size: 0.7rem; }
+
+/* ===== GO LIVE (final step) ===== */
+.golive-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  border: 2px solid var(--green-border);
+  padding: 32px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.golive-card .confetti { position: absolute; font-size: 1.2rem; }
+.golive-card .c1 { top: 20px; left: 30px; animation: confetti1 1.5s ease-out both; animation-delay: 0.2s; }
+.golive-card .c2 { top: 30px; right: 40px; animation: confetti2 1.8s ease-out both; animation-delay: 0.4s; }
+.golive-card .c3 { top: 40px; left: 50%; animation: confetti3 1.3s ease-out both; animation-delay: 0.6s; }
+
+.golive-icon { font-size: 3rem; margin-bottom: 12px; }
+.golive-card h3 { font-family: var(--serif); font-size: 1.5rem; color: var(--text); margin-bottom: 6px; }
+.golive-card p { font-size: 0.88rem; color: var(--text-3); margin-bottom: 4px; }
+
+.golive-url {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--surface);
+  border-radius: var(--radius-xs);
+  font-family: monospace;
+  font-size: 0.88rem;
+  color: var(--primary);
+  font-weight: 600;
+  margin: 16px 0;
+}
+
+.golive-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+.golive-btn { padding: 10px 18px; border-radius: var(--radius-xs); font-family: var(--sans); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid var(--border); background: var(--white); color: var(--text-2); text-decoration: none; }
+.golive-btn:hover { border-color: var(--text-4); background: var(--surface); }
+.golive-btn.primary { background: var(--primary); color: white; border-color: var(--primary); }
+.golive-btn.primary:hover { background: var(--primary-hover); }
+
+/* ===== NAV BUTTONS ===== */
+.step-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border-light); }
+
+.btn-back { padding: 10px 20px; font-family: var(--sans); font-size: 0.85rem; font-weight: 500; color: var(--text-3); background: none; border: none; cursor: pointer; transition: color 0.15s; }
+.btn-back:hover { color: var(--text); }
+
+.btn-next { padding: 12px 28px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.btn-next:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-next:disabled { background: var(--surface-2); color: var(--text-4); cursor: not-allowed; transform: none; }
+
+.btn-skip { padding: 10px 16px; font-family: var(--sans); font-size: 0.82rem; font-weight: 500; color: var(--text-4); background: none; border: none; cursor: pointer; }
+.btn-skip:hover { color: var(--text-3); }
+
+/* ===== CALLOUT ===== */
+.callout { padding: 12px 16px; border-radius: var(--radius-xs); font-size: 0.82rem; margin: 12px 0; }
+.callout.info { background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-border); }
+.callout.tip { background: var(--gold-bg); color: var(--gold); border: 1px solid var(--gold-border); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .page-signup { flex-direction: column; }
+  .signup-left { width: 100%; height: auto; position: relative; padding: 28px 24px; }
+  .sl-content h2 { font-size: 1.4rem; }
+  .sl-features { display: none; }
+  .signup-right { padding: 24px; }
+  .form-container { padding-top: 0; }
+}
+
+@media (max-width: 500px) {
+  .sector-grid { grid-template-columns: 1fr 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+  .sched-row { grid-template-columns: 80px 36px 1fr 1fr; gap: 4px; }
+  .golive-actions { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-signup">
+
+  <!-- LEFT PANEL -->
+  <aside class="signup-left">
+    <div class="sl-logo">
+      <div class="logo">B</div>
+      <span class="wordmark">Bookt</span>
+    </div>
+
+    <div class="sl-content">
+      <h2 id="leftTitle">Créez votre <em>cabinet en ligne</em></h2>
+      <p id="leftDesc">En quelques minutes, vous aurez une page professionnelle avec prise de rendez-vous intégrée.</p>
+
+      <ul class="sl-features" id="leftFeatures">
+        <li><div class="ico">🏛️</div> Page pro avec votre bio, équipe et spécialisations</li>
+        <li><div class="ico">📅</div> Booking en ligne 24/7 — vos clients réservent sans appeler</li>
+        <li><div class="ico">📞</div> Filtre d'appels intelligent — finies les interruptions</li>
+        <li><div class="ico">📱</div> Rappels SMS automatiques — zéro no-show</li>
+      </ul>
+    </div>
+
+    <div class="sl-footer">© 2026 Bookt · Une solution belge 🇧🇪</div>
+  </aside>
+
+  <!-- RIGHT PANEL -->
+  <main class="signup-right">
+    <div class="form-container">
+
+      <!-- PROGRESS BAR -->
+      <div class="wizard-progress" id="wizardProgress">
+        <div class="wp-bar"><div class="wp-fill" id="progressFill" style="width: 10%;"></div></div>
+        <div class="wp-info">
+          <span class="wp-step" id="progressLabel">Étape 1 / 10</span>
+          <span class="wp-percent" id="progressPercent">10%</span>
+        </div>
+      </div>
+
+      <!-- ===== STEP 0: SIGNUP ===== -->
+      <div class="step active" id="step0">
+        <div class="step-header">
+          <h2>Créer votre compte</h2>
+          <p>30 secondes. Gratuit, sans engagement.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Votre nom complet</label>
+          <input class="form-input" type="text" id="fullName" placeholder="Pierre De Wit">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email professionnel</label>
+          <input class="form-input" type="email" id="email" placeholder="pierre@dewit-compta.be">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mot de passe <span class="opt">(optionnel — sinon magic link)</span></label>
+          <input class="form-input" type="password" id="password" placeholder="Min. 8 caractères">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Votre secteur</label>
+          <div class="sector-grid">
+            <button class="sector-btn selected" onclick="selectSector(this,'comptable')"><div class="ico">📊</div><div class="name">Comptable</div></button>
+            <button class="sector-btn" onclick="selectSector(this,'avocat')"><div class="ico">⚖️</div><div class="name">Avocat</div></button>
+            <button class="sector-btn" onclick="selectSector(this,'medecin')"><div class="ico">🩺</div><div class="name">Médecin</div></button>
+            <button class="sector-btn" onclick="selectSector(this,'dentiste')"><div class="ico">🦷</div><div class="name">Dentiste</div></button>
+            <button class="sector-btn" onclick="selectSector(this,'kine')"><div class="ico">💪</div><div class="name">Kiné</div></button>
+            <button class="sector-btn" onclick="selectSector(this,'autre')"><div class="ico">🤝</div><div class="name">Autre</div></button>
+          </div>
+        </div>
+
+        <div class="step-nav" style="border:none;padding-top:8px;">
+          <span style="font-size:0.78rem;color:var(--text-4);">Déjà inscrit ? <a href="/login" style="color:var(--primary);font-weight:600;text-decoration:none;">Se connecter</a></span>
+          <button class="btn-next" onclick="createAccount()">Créer mon compte →</button>
+        </div>
+      </div>
+
+      <!-- ===== STEP 1: CABINET INFO ===== -->
+      <div class="step" id="step1">
+        <div class="step-header">
+          <div class="step-label">Étape 1 · Votre cabinet</div>
+          <h2>Informations du cabinet</h2>
+          <p>Ces infos apparaîtront sur votre page publique.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nom du cabinet</label>
+          <input class="form-input" type="text" id="bizName" placeholder="De Wit & Associés" oninput="updateSlug()">
+          <div class="form-slug-preview">
+            <span class="domain">bookt.be/</span><span class="slug" id="slugPreview">cabinet-dewit</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Téléphone</label>
+            <input class="form-input" type="tel" placeholder="+32 2 123 45 67">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Langue principale</label>
+            <select class="form-input" style="cursor:pointer;">
+              <option value="fr">Français</option>
+              <option value="nl">Nederlands</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Adresse</label>
+          <input class="form-input" type="text" placeholder="Avenue Louise 142, 1050 Bruxelles">
+        </div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(0)">← Retour</button>
+          <button class="btn-next" onclick="goStep(2)">Continuer →</button>
+        </div>
+      </div>
+
+      <!-- ===== STEP 2: SCHEDULE ===== -->
+      <div class="step" id="step2">
+        <div class="step-header">
+          <div class="step-label">Étape 2 · Horaires</div>
+          <h2>Vos disponibilités</h2>
+          <p>Horaires hebdomadaires par défaut. Modifiables à tout moment.</p>
+        </div>
+
+        <div class="sched-grid">
+          <div class="sched-row"><span class="sched-day">Lundi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div><input class="sched-input" value="09:00 – 12:00"><input class="sched-input" value="13:00 – 17:00"></div>
+          <div class="sched-row"><span class="sched-day">Mardi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div><input class="sched-input" value="09:00 – 12:00"><input class="sched-input" value="13:00 – 17:00"></div>
+          <div class="sched-row"><span class="sched-day">Mercredi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div><input class="sched-input" value="09:00 – 12:00"><input class="sched-input" value="13:00 – 17:00"></div>
+          <div class="sched-row"><span class="sched-day">Jeudi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div><input class="sched-input" value="09:00 – 12:00"><input class="sched-input" value="13:00 – 17:00"></div>
+          <div class="sched-row"><span class="sched-day">Vendredi</span><div class="toggle on" onclick="this.classList.toggle('on')"></div><input class="sched-input" value="09:00 – 12:00"><input class="sched-input" value="13:00 – 16:00"></div>
+          <div class="sched-row"><span class="sched-day" style="color:var(--text-4);">Samedi</span><div class="toggle" onclick="this.classList.toggle('on')"></div><input class="sched-input" disabled value="—"><input class="sched-input" disabled value="—"></div>
+          <div class="sched-row"><span class="sched-day" style="color:var(--text-4);">Dimanche</span><div class="toggle" onclick="this.classList.toggle('on')"></div><input class="sched-input" disabled value="—"><input class="sched-input" disabled value="—"></div>
+        </div>
+
+        <div class="callout tip" style="margin-top:16px;">💡 Pause midi 12h-13h pré-configurée. Vous pourrez ajouter des exceptions (congés, jours fériés) depuis le dashboard.</div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(1)">← Retour</button>
+          <button class="btn-next" onclick="goStep(3)">Continuer →</button>
+        </div>
+      </div>
+
+      <!-- ===== STEP 3: SERVICES ===== -->
+      <div class="step" id="step3">
+        <div class="step-header">
+          <div class="step-label">Étape 3 · Prestations</div>
+          <h2>Vos consultations</h2>
+          <p>Services pré-remplis pour votre secteur. Activez, désactivez ou modifiez.</p>
+        </div>
+
+        <div class="svc-list" id="serviceList">
+          <div class="svc-row"><div class="svc-dot" style="background:#15803D;"></div><div class="svc-info"><div class="name">Premier contact</div><div class="meta">30 min · Gratuit</div></div><div class="svc-toggle"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div></div>
+          <div class="svc-row"><div class="svc-dot" style="background:var(--primary);"></div><div class="svc-info"><div class="name">Déclaration IPP</div><div class="meta">45 min · 120 €</div></div><div class="svc-toggle"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div></div>
+          <div class="svc-row"><div class="svc-dot" style="background:var(--primary);"></div><div class="svc-info"><div class="name">Consultation TVA</div><div class="meta">30 min · 95 €</div></div><div class="svc-toggle"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div></div>
+          <div class="svc-row"><div class="svc-dot" style="background:#B45309;"></div><div class="svc-info"><div class="name">Question société / SRL</div><div class="meta">45 min · 150 €</div></div><div class="svc-toggle"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div></div>
+          <div class="svc-row"><div class="svc-dot" style="background:#1D4ED8;"></div><div class="svc-info"><div class="name">Création d'activité</div><div class="meta">60 min · 200 €</div></div><div class="svc-toggle"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div></div>
+          <div class="svc-row"><div class="svc-dot" style="background:var(--text-4);"></div><div class="svc-info"><div class="name">Suivi dossier</div><div class="meta">20 min · 75 €</div></div><div class="svc-toggle"><div class="toggle" onclick="this.classList.toggle('on')"></div></div></div>
+        </div>
+
+        <button class="add-btn" style="margin-top:10px;">+ Ajouter une prestation</button>
+
+        <div class="callout info" style="margin-top:12px;">Vous pourrez personnaliser les durées, tarifs et messages de préparation depuis le dashboard.</div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(2)">← Retour</button>
+          <button class="btn-next" onclick="goStep(4)">Continuer →</button>
+        </div>
+      </div>
+
+      <!-- ===== STEP 4: TEAM ===== -->
+      <div class="step" id="step4">
+        <div class="step-header">
+          <div class="step-label">Étape 4 · Équipe</div>
+          <h2>Votre équipe</h2>
+          <p>Vous êtes déjà ajouté. Ajoutez vos associés ou collaborateurs si nécessaire.</p>
+        </div>
+
+        <div class="team-edit-card">
+          <div class="team-edit-header">
+            <div class="team-edit-avatar">PD</div>
+            <div>
+              <h4>Pierre De Wit</h4>
+              <div class="role">Owner · Expert-comptable</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Titre</label><input class="form-input" value="Expert-comptable · Fondateur"></div>
+            <div class="form-group"><label class="form-label">Années d'exp.</label><input class="form-input" type="number" value="16"></div>
+          </div>
+        </div>
+
+        <button class="add-btn">+ Ajouter un(e) collaborateur(rice)</button>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(3)">← Retour</button>
+          <div>
+            <button class="btn-skip" onclick="goStep(5)">Plus tard</button>
+            <button class="btn-next" onclick="goStep(5)">Continuer →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STEP 5: BIO ===== -->
+      <div class="step" id="step5">
+        <div class="step-header">
+          <div class="step-label">Étape 5 · À propos</div>
+          <h2>Présentez votre cabinet</h2>
+          <p>Un court texte qui apparaîtra sur votre page publique.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tagline <span class="opt">(sous le nom du cabinet)</span></label>
+          <input class="form-input" placeholder="Votre expert-comptable à Bruxelles">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description du cabinet</label>
+          <textarea class="form-input form-textarea" placeholder="Fondé en 2008, notre cabinet accompagne les indépendants et PME dans leur gestion comptable et fiscale..."></textarea>
+          <div class="form-hint">2-3 phrases suffisent. Vous pourrez enrichir depuis le dashboard.</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Accréditation <span class="opt">(optionnel)</span></label>
+            <input class="form-input" placeholder="ITAA agréé">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Année de fondation <span class="opt">(optionnel)</span></label>
+            <input class="form-input" type="number" placeholder="2008">
+          </div>
+        </div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(4)">← Retour</button>
+          <div>
+            <button class="btn-skip" onclick="goStep(6)">Plus tard</button>
+            <button class="btn-next" onclick="goStep(6)">Continuer →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STEP 6: SPECIALIZATIONS ===== -->
+      <div class="step" id="step6">
+        <div class="step-header">
+          <div class="step-label">Étape 6 · Spécialisations</div>
+          <h2>Vos domaines d'expertise</h2>
+          <p>Sélectionnez ce qui correspond à votre pratique.</p>
+        </div>
+
+        <div class="spec-tags" id="specTags">
+          <div class="spec-tag selected" onclick="this.classList.toggle('selected')">📊 Fiscalité indépendants</div>
+          <div class="spec-tag selected" onclick="this.classList.toggle('selected')">🏢 Gestion de sociétés</div>
+          <div class="spec-tag selected" onclick="this.classList.toggle('selected')">📝 Obligations TVA</div>
+          <div class="spec-tag selected" onclick="this.classList.toggle('selected')">🚀 Création d'entreprise</div>
+          <div class="spec-tag" onclick="this.classList.toggle('selected')">💶 Optimisation fiscale</div>
+          <div class="spec-tag" onclick="this.classList.toggle('selected')">🤝 Conseil stratégique</div>
+          <div class="spec-tag" onclick="this.classList.toggle('selected')">📈 Comptes annuels</div>
+          <div class="spec-tag" onclick="this.classList.toggle('selected')">🏠 Immobilier</div>
+          <div class="spec-tag" onclick="this.classList.toggle('selected')">👨‍👩‍👧 Succession</div>
+          <div class="spec-tag" onclick="this.classList.toggle('selected')">🌍 International</div>
+        </div>
+
+        <button class="add-btn" style="margin-top:12px;">+ Ajouter une spécialisation personnalisée</button>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(5)">← Retour</button>
+          <div>
+            <button class="btn-skip" onclick="goStep(7)">Plus tard</button>
+            <button class="btn-next" onclick="goStep(7)">Continuer →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STEP 7: TESTIMONIALS ===== -->
+      <div class="step" id="step7">
+        <div class="step-header">
+          <div class="step-label">Étape 7 · Témoignages</div>
+          <h2>Avis de vos clients</h2>
+          <p>Les témoignages renforcent la confiance. Ajoutez-en ou passez cette étape.</p>
+        </div>
+
+        <div class="testimonial-mini">
+          <div class="stars">★★★★★</div>
+          <div class="quote">"Exemple : Pierre m'a accompagné dans la création de ma SRL avec une clarté remarquable."</div>
+          <div class="author">— Marc Henrard, Gérant TechFlow SA</div>
+        </div>
+
+        <button class="add-btn">+ Ajouter un témoignage</button>
+
+        <div class="callout tip" style="margin-top:12px;">💡 Pas de témoignage sous la main ? Pas de souci. Vous pourrez en ajouter plus tard, ou même demander à vos clients de vous envoyer le leur par email.</div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(6)">← Retour</button>
+          <div>
+            <button class="btn-skip" onclick="goStep(8)">Plus tard</button>
+            <button class="btn-next" onclick="goStep(8)">Continuer →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STEP 8: NOTIFICATIONS ===== -->
+      <div class="step" id="step8">
+        <div class="step-header">
+          <div class="step-label">Étape 8 · Notifications</div>
+          <h2>Rappels automatiques</h2>
+          <p>Réduisez les no-shows avec des rappels par email et SMS.</p>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Confirmation par email<span class="sub">Envoyée dès la réservation</span></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Rappel email J-1<span class="sub">24h avant le rendez-vous</span></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Rappel SMS J-1 <span style="padding:2px 6px;background:var(--gold-bg);border-radius:4px;font-size:0.65rem;font-weight:700;color:var(--gold);">PRO</span><span class="sub">~0.05€/SMS · réduit les no-shows de 60%</span></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Rappel SMS H-2 <span style="padding:2px 6px;background:var(--gold-bg);border-radius:4px;font-size:0.65rem;font-weight:700;color:var(--gold);">PRO</span><span class="sub">2h avant — pour les oublieux</span></div>
+          <div class="toggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Notification nouveau RDV (pro)<span class="sub">Vous recevez un email quand un client réserve</span></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(7)">← Retour</button>
+          <button class="btn-next" onclick="goStep(9)">Continuer →</button>
+        </div>
+      </div>
+
+      <!-- ===== STEP 9: CALL FILTER ===== -->
+      <div class="step" id="step9">
+        <div class="step-header">
+          <div class="step-label">Étape 9 · Filtre d'appels</div>
+          <h2>Arrêtez de décrocher pendant les consultations</h2>
+          <p>Un numéro belge dédié filtre vos appels et envoie un SMS de booking automatiquement.</p>
+        </div>
+
+        <div class="callfilter-visual">
+          <div class="cf-flow">
+            <div class="cf-step"><span class="num">1</span> Un client appelle votre numéro Bookt</div>
+            <div class="cf-step arrow">↓</div>
+            <div class="cf-step"><span class="num">2</span> Contact VIP ? → Transféré directement ✓</div>
+            <div class="cf-step arrow">↓</div>
+            <div class="cf-step"><span class="num">3</span> Sinon → Annonce + SMS avec lien booking</div>
+            <div class="cf-step arrow">↓</div>
+            <div class="cf-step"><span class="num">4</span> Urgence ? Le client tape 1 → Transféré</div>
+          </div>
+        </div>
+
+        <div class="toggle-row" style="padding:14px 0;">
+          <div class="toggle-label" style="font-weight:600;font-size:0.9rem;">Activer le filtre d'appels<span class="sub">Nécessite le plan Pro (39€/mois)</span></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="callout info">📞 Votre numéro sera activé après votre passage au plan Pro. En attendant, vous pouvez déjà tout configurer.</div>
+
+        <div class="step-nav">
+          <button class="btn-back" onclick="goStep(8)">← Retour</button>
+          <div>
+            <button class="btn-skip" onclick="goStep(10)">Plus tard</button>
+            <button class="btn-next" onclick="goStep(10)">Continuer →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STEP 10: GO LIVE ===== -->
+      <div class="step" id="step10">
+        <div class="step-header">
+          <div class="step-label">🎉 C'est prêt !</div>
+          <h2>Votre cabinet est en ligne</h2>
+        </div>
+
+        <div class="golive-card">
+          <span class="confetti c1">🎉</span>
+          <span class="confetti c2">✨</span>
+          <span class="confetti c3">🎊</span>
+
+          <div class="golive-icon">🟢</div>
+          <h3>Cabinet De Wit & Associés</h3>
+          <p>Votre page professionnelle est en ligne et prête à recevoir des réservations.</p>
+
+          <div class="golive-url">🔗 bookt.be/cabinet-dewit</div>
+
+          <div class="golive-actions">
+            <a class="golive-btn" href="#">📋 Copier le lien</a>
+            <a class="golive-btn" href="#">📱 QR Code</a>
+            <a class="golive-btn" href="#">🧪 Tester ma page</a>
+            <a class="golive-btn" href="#">📧 Envoyer à un client</a>
+          </div>
+        </div>
+
+        <div class="callout tip" style="margin-top:20px;">
+          <strong>Prochaines étapes recommandées :</strong><br>
+          • Partagez votre lien Bookt sur votre signature email<br>
+          • Mettez le lien sur Google My Business<br>
+          • Testez une vraie réservation vous-même<br>
+          • Ajoutez 2-3 témoignages clients
+        </div>
+
+        <div class="step-nav" style="border:none;justify-content:center;">
+          <a class="btn-next" href="/dashboard" style="text-decoration:none;">Accéder à mon dashboard →</a>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+let currentStep = 0;
+let selectedSector = 'comptable';
+const totalSteps = 10;
+
+function selectSector(btn, sector) {
+  document.querySelectorAll('.sector-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedSector = sector;
+}
+
+function createAccount() {
+  const name = document.getElementById('fullName').value.trim();
+  const email = document.getElementById('email').value.trim();
+
+  if (!name || !email) {
+    alert('Veuillez remplir votre nom et email.');
+    return;
+  }
+
+  // In production: POST /api/auth/signup
+  console.log('Creating account:', { name, email, sector: selectedSector });
+
+  // Show wizard progress
+  document.getElementById('wizardProgress').classList.add('active');
+  goStep(1);
+}
+
+function goStep(n) {
+  // Hide current
+  const current = document.querySelector('.step.active');
+  if (current) current.classList.remove('active');
+
+  // Show target
+  const target = document.getElementById('step' + n);
+  if (target) {
+    target.classList.add('active');
+    currentStep = n;
+  }
+
+  // Update progress
+  if (n > 0) {
+    const pct = Math.round((n / totalSteps) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent = `Étape ${n} / ${totalSteps}`;
+    document.getElementById('progressPercent').textContent = pct + '%';
+    document.getElementById('wizardProgress').classList.add('active');
+  } else {
+    document.getElementById('wizardProgress').classList.remove('active');
+  }
+
+  // Update left panel context
+  updateLeftPanel(n);
+
+  // Scroll to top
+  document.querySelector('.signup-right').scrollTop = 0;
+}
+
+function updateLeftPanel(step) {
+  const titles = {
+    0: ['Créez votre <em>cabinet en ligne</em>', 'En quelques minutes, vous aurez une page professionnelle avec prise de rendez-vous intégrée.'],
+    1: ['<em>Identité</em> de votre cabinet', 'Ces informations seront visibles sur votre page publique et dans les confirmations de rendez-vous.'],
+    2: ['Définissez vos <em>horaires</em>', 'Vos clients ne verront que les créneaux disponibles. Vous pourrez bloquer des plages et ajouter des exceptions.'],
+    3: ['Configurez vos <em>prestations</em>', 'Chaque service a sa durée, son prix et ses modes de consultation. Templates adaptés à votre secteur.'],
+    4: ['Présentez votre <em>équipe</em>', 'Vos clients pourront choisir le praticien qui leur convient. Chacun a son propre agenda.'],
+    5: ['Racontez votre <em>histoire</em>', 'Un cabinet avec une description complète inspire 3x plus confiance qu\'une page vide.'],
+    6: ['Montrez votre <em>expertise</em>', 'Les spécialisations aident vos clients à comprendre ce que vous faites — et Google à vous référencer.'],
+    7: ['La preuve <em>sociale</em>', 'Les témoignages sont le facteur #1 de conversion pour les professions libérales.'],
+    8: ['Zéro <em>no-show</em>', 'Les rappels automatiques réduisent les absences de 60%. SMS recommandé pour les plus distraits.'],
+    9: ['Finies les <em>interruptions</em>', 'Le filtre d\'appels convertit 78% des appels en rendez-vous en ligne, sans que votre téléphone sonne.'],
+    10: ['Félicitations <em>!</em>', 'Votre cabinet est en ligne. Partagez le lien et commencez à recevoir des réservations.']
+  };
+
+  const t = titles[step] || titles[0];
+  document.getElementById('leftTitle').innerHTML = t[0];
+  document.getElementById('leftDesc').textContent = t[1];
+}
+
+function updateSlug() {
+  const name = document.getElementById('bizName').value;
+  const slug = name
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 40);
+  document.getElementById('slugPreview').textContent = slug || 'votre-cabinet';
+}
+</script>
+
+</body>
+</html>

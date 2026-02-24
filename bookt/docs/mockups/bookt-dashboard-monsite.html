@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon site — Bookt Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #FAFAF9;
+  --white: #FFFFFF;
+  --surface: #F5F4F1;
+  --surface-2: #EDEBE8;
+  --border: #E0DDD8;
+  --border-light: #ECEAE6;
+  --text: #1A1816;
+  --text-2: #3D3832;
+  --text-3: #6B6560;
+  --text-4: #9C958E;
+  --primary: #0D7377;
+  --primary-hover: #0A5E61;
+  --primary-light: #EFF9F8;
+  --primary-soft: #D5EFEC;
+  --primary-border: #B8DDD9;
+  --green: #1B7A42;
+  --green-bg: #EEFAF1;
+  --green-border: #B8E6C4;
+  --gold: #A68B3C;
+  --gold-bg: #FAF6EC;
+  --gold-border: #E8DCBA;
+  --red: #DC2626;
+  --red-bg: #FEF2F2;
+  --sidebar-bg: #1C1917;
+  --sidebar-hover: #292524;
+  --sidebar-active: #0D7377;
+  --serif: 'Instrument Serif', Georgia, serif;
+  --sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --shadow: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+
+/* ===== SIDEBAR (compact from dashboard) ===== */
+.sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 230px; background: var(--sidebar-bg); color: white; display: flex; flex-direction: column; z-index: 50; }
+.sidebar-logo { padding: 20px 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sidebar-logo .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 0.85rem; }
+.sidebar-logo .wordmark { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.5px; }
+.sidebar-logo .pro { font-size: 0.55rem; font-weight: 700; background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 3px; margin-left: 4px; color: rgba(255,255,255,0.5); }
+
+.sidebar-nav { padding: 12px 8px; flex: 1; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; font-size: 0.8rem; color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.12s; text-decoration: none; margin-bottom: 2px; }
+.nav-item:hover { background: var(--sidebar-hover); color: rgba(255,255,255,0.8); }
+.nav-item.active { background: var(--sidebar-active); color: white; font-weight: 600; }
+.nav-item .ico { width: 18px; text-align: center; font-size: 0.9rem; }
+
+.sidebar-footer { padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.06); }
+.sidebar-footer .user-name { font-size: 0.78rem; font-weight: 600; }
+.sidebar-footer .user-role { font-size: 0.65rem; color: rgba(255,255,255,0.35); }
+
+/* ===== MAIN ===== */
+.main { margin-left: 230px; min-height: 100vh; }
+
+.topbar { position: sticky; top: 0; background: rgba(250,250,249,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-light); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; z-index: 40; }
+.topbar h1 { font-family: var(--serif); font-size: 1.3rem; font-weight: 400; }
+.topbar-actions { display: flex; gap: 8px; }
+
+.btn { padding: 8px 18px; border-radius: var(--radius-xs); font-family: var(--sans); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-outline { background: transparent; color: var(--text-2); border: 1.5px solid var(--border); }
+.btn-outline:hover { border-color: var(--text-4); background: var(--surface); }
+.btn-sm { padding: 6px 12px; font-size: 0.75rem; }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #FECACA; }
+.btn-danger:hover { background: #FEE2E2; }
+
+.content { padding: 24px 28px; max-width: 900px; }
+
+/* ===== TAB NAV ===== */
+.tabs { display: flex; gap: 2px; background: var(--surface); border-radius: var(--radius-sm); padding: 3px; margin-bottom: 24px; width: fit-content; }
+.tab { padding: 8px 18px; border-radius: 8px; font-size: 0.8rem; font-weight: 500; color: var(--text-3); cursor: pointer; transition: all 0.15s; border: none; background: transparent; font-family: var(--sans); }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--white); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
+
+/* ===== TAB CONTENT ===== */
+.tab-content { display: none; }
+.tab-content.active { display: block; animation: fadeIn 0.3s both; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== CARD ===== */
+.card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border-light); margin-bottom: 16px; overflow: hidden; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; }
+.card-header h3 { font-size: 0.92rem; font-weight: 700; }
+.card-header .sub { font-size: 0.72rem; color: var(--text-4); font-weight: 400; margin-left: 8px; }
+.card-body { padding: 20px; }
+
+/* ===== FORM ===== */
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+.form-label .opt { font-weight: 400; color: var(--text-4); }
+.form-input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-xs); font-family: var(--sans); font-size: 0.85rem; color: var(--text); background: var(--white); transition: border-color 0.15s; outline: none; }
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.form-textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-hint { font-size: 0.68rem; color: var(--text-4); margin-top: 2px; }
+
+/* ===== TOGGLE ===== */
+.toggle { width: 38px; height: 22px; background: var(--surface-2); border-radius: 11px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+.toggle.on { background: var(--primary); }
+.toggle::after { content: ''; width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.toggle.on::after { transform: translateX(16px); }
+
+/* ===== SECTIONS TOGGLE ===== */
+.section-toggle-list { }
+.section-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+.section-toggle-row:last-child { border: none; }
+.section-toggle-row .label { font-size: 0.85rem; font-weight: 500; color: var(--text-2); }
+.section-toggle-row .desc { font-size: 0.7rem; color: var(--text-4); }
+.section-toggle-row .drag { cursor: grab; color: var(--text-4); font-size: 0.9rem; margin-right: 10px; }
+
+/* ===== TEAM CARD ===== */
+.team-card { display: flex; gap: 16px; padding: 16px; border-bottom: 1px solid var(--border-light); }
+.team-card:last-child { border: none; }
+.team-avatar { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.1rem; color: white; flex-shrink: 0; }
+.team-info { flex: 1; }
+.team-info h4 { font-size: 0.88rem; font-weight: 700; margin-bottom: 2px; }
+.team-info .title { font-size: 0.75rem; color: var(--text-4); margin-bottom: 6px; }
+.team-bio-preview { font-size: 0.8rem; color: var(--text-3); line-height: 1.5; margin-bottom: 8px; }
+.team-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.team-tag { padding: 2px 8px; background: var(--surface); border-radius: 12px; font-size: 0.68rem; font-weight: 600; color: var(--text-3); }
+.team-actions { display: flex; gap: 6px; flex-shrink: 0; align-self: flex-start; }
+
+/* ===== SPEC CARD ===== */
+.spec-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.spec-card { padding: 14px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); display: flex; align-items: flex-start; gap: 10px; transition: all 0.15s; }
+.spec-card:hover { border-color: var(--primary-border); }
+.spec-card .ico { font-size: 1.2rem; flex-shrink: 0; }
+.spec-card .name { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.spec-card .desc { font-size: 0.7rem; color: var(--text-4); }
+.spec-card .actions { margin-left: auto; display: flex; gap: 2px; }
+.spec-card .actions button { background: none; border: none; cursor: pointer; font-size: 0.75rem; padding: 2px 4px; border-radius: 4px; color: var(--text-4); }
+.spec-card .actions button:hover { background: var(--surface); color: var(--text-2); }
+
+/* ===== TESTIMONIAL ROW ===== */
+.testimonial-row { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-light); align-items: flex-start; }
+.testimonial-row:last-child { border: none; }
+.testimonial-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: var(--text-3); flex-shrink: 0; }
+.testimonial-content { flex: 1; }
+.testimonial-stars { color: #E8B931; font-size: 0.75rem; letter-spacing: 1px; margin-bottom: 3px; }
+.testimonial-text { font-size: 0.82rem; color: var(--text-2); font-style: italic; line-height: 1.5; margin-bottom: 4px; }
+.testimonial-author { font-size: 0.72rem; font-weight: 600; color: var(--text-3); }
+.testimonial-meta { font-size: 0.68rem; color: var(--text-4); }
+.testimonial-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* ===== VALUE ROW ===== */
+.value-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-light); align-items: center; }
+.value-row:last-child { border: none; }
+.value-icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+.value-icon.teal { background: var(--primary-light); }
+.value-icon.gold { background: var(--gold-bg); }
+.value-icon.green { background: var(--green-bg); }
+.value-icon.neutral { background: var(--surface); }
+.value-info { flex: 1; }
+.value-info h4 { font-size: 0.85rem; font-weight: 600; }
+.value-info p { font-size: 0.72rem; color: var(--text-4); }
+
+/* ===== PREVIEW BANNER ===== */
+.preview-banner { background: linear-gradient(135deg, var(--primary) 0%, #0A5E61 100%); border-radius: var(--radius); padding: 20px 24px; color: white; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.preview-banner .info h3 { font-family: var(--serif); font-size: 1.1rem; font-weight: 400; margin-bottom: 2px; }
+.preview-banner .info p { font-size: 0.78rem; opacity: 0.7; }
+.preview-banner .actions { display: flex; gap: 8px; }
+.preview-btn { padding: 8px 16px; border-radius: var(--radius-xs); font-family: var(--sans); font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid rgba(255,255,255,0.25); background: transparent; color: white; text-decoration: none; }
+.preview-btn:hover { background: rgba(255,255,255,0.1); }
+.preview-btn.white { background: white; color: var(--primary); border-color: white; }
+.preview-btn.white:hover { background: var(--surface); }
+
+/* ===== SEO PREVIEW ===== */
+.seo-preview { background: var(--surface); border-radius: var(--radius-sm); padding: 16px; }
+.seo-preview .google-title { font-size: 1.05rem; color: #1a0dab; font-weight: 400; margin-bottom: 2px; cursor: pointer; }
+.seo-preview .google-url { font-size: 0.78rem; color: #006621; margin-bottom: 3px; }
+.seo-preview .google-desc { font-size: 0.82rem; color: #545454; line-height: 1.4; }
+
+/* ===== DOMAIN SETUP ===== */
+.domain-steps { }
+.domain-step { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+.domain-step:last-child { border: none; }
+.domain-step .num { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
+.domain-step h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 2px; }
+.domain-step p { font-size: 0.78rem; color: var(--text-3); }
+
+.dns-record { background: var(--surface); border-radius: var(--radius-xs); padding: 10px 14px; margin-top: 6px; font-family: monospace; font-size: 0.75rem; color: var(--text-2); display: grid; grid-template-columns: 60px 1fr 1fr; gap: 8px; }
+.dns-record .label { color: var(--text-4); font-family: var(--sans); font-size: 0.65rem; font-weight: 600; text-transform: uppercase; }
+
+.status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+.status-badge.pending { background: var(--gold-bg); color: var(--gold); }
+.status-badge.verified { background: var(--green-bg); color: var(--green); }
+.status-badge.failed { background: var(--red-bg); color: var(--red); }
+
+/* ===== COMPLETION BANNER ===== */
+.completion-bar { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border-light); padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
+.completion-ring { width: 48px; height: 48px; border-radius: 50%; border: 4px solid var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 0.82rem; font-weight: 700; color: var(--primary); flex-shrink: 0; position: relative; }
+.completion-ring::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 4px solid transparent; border-top-color: var(--primary); border-right-color: var(--primary); border-bottom-color: var(--primary); }
+.completion-info h4 { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; }
+.completion-info p { font-size: 0.75rem; color: var(--text-3); }
+.completion-missing { display: flex; gap: 6px; margin-top: 4px; }
+.completion-chip { padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; font-weight: 600; background: var(--gold-bg); color: var(--gold); cursor: pointer; }
+.completion-chip:hover { background: var(--gold-border); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1000px) {
+  .sidebar { width: 60px; }
+  .sidebar-logo .wordmark, .sidebar-logo .pro, .nav-item span:not(.ico) { display: none; }
+  .sidebar-footer .user-name, .sidebar-footer .user-role { display: none; }
+  .main { margin-left: 60px; }
+  .spec-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo">B</div>
+    <span class="wordmark">Bookt</span>
+    <span class="pro">PRO</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a class="nav-item" href="#"><span class="ico">📊</span> <span>Dashboard</span></a>
+    <a class="nav-item" href="#"><span class="ico">📅</span> <span>Agenda</span></a>
+    <a class="nav-item" href="#"><span class="ico">👥</span> <span>Clients</span></a>
+    <a class="nav-item" href="#"><span class="ico">📋</span> <span>Prestations</span></a>
+    <a class="nav-item" href="#"><span class="ico">🕐</span> <span>Disponibilités</span></a>
+    <a class="nav-item active" href="#"><span class="ico">🌐</span> <span>Mon site</span></a>
+    <a class="nav-item" href="#"><span class="ico">📞</span> <span>Appels</span></a>
+    <a class="nav-item" href="#"><span class="ico">⚙️</span> <span>Paramètres</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-name">Pierre De Wit</div>
+    <div class="user-role">Owner · Plan Pro</div>
+  </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+  <div class="topbar">
+    <h1>Mon site</h1>
+    <div class="topbar-actions">
+      <a class="btn btn-outline" href="#" target="_blank">👁 Prévisualiser</a>
+      <button class="btn btn-primary">💾 Enregistrer</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- PREVIEW BANNER -->
+    <div class="preview-banner">
+      <div class="info">
+        <h3>Votre page est en ligne</h3>
+        <p>bookt.be/cabinet-dewit · Dernière mise à jour : il y a 2h</p>
+      </div>
+      <div class="actions">
+        <a class="preview-btn" href="#">📋 Copier le lien</a>
+        <a class="preview-btn" href="#">📱 QR Code</a>
+        <a class="preview-btn white" href="#" target="_blank">Voir ma page →</a>
+      </div>
+    </div>
+
+    <!-- COMPLETION -->
+    <div class="completion-bar">
+      <div class="completion-ring">90%</div>
+      <div class="completion-info">
+        <h4>Votre profil est presque complet</h4>
+        <p>Complétez les derniers éléments pour un site professionnel à 100%.</p>
+        <div class="completion-missing">
+          <span class="completion-chip" onclick="switchTab('team')">📸 Photo équipe</span>
+          <span class="completion-chip" onclick="switchTab('seo')">🔍 SEO personnalisé</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('general')">Général</button>
+      <button class="tab" onclick="switchTab('team')">Équipe</button>
+      <button class="tab" onclick="switchTab('specs')">Spécialisations</button>
+      <button class="tab" onclick="switchTab('testimonials')">Témoignages</button>
+      <button class="tab" onclick="switchTab('values')">Points forts</button>
+      <button class="tab" onclick="switchTab('sections')">Sections</button>
+      <button class="tab" onclick="switchTab('seo')">SEO & Domaine</button>
+    </div>
+
+    <!-- ===== TAB: GENERAL ===== -->
+    <div class="tab-content active" id="tab-general">
+
+      <div class="card">
+        <div class="card-header"><h3>Identité du cabinet</h3></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Nom du cabinet</label>
+            <input class="form-input" value="De Wit & Associés">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tagline <span class="opt">(sous le nom sur la page)</span></label>
+            <input class="form-input" value="Votre expert-comptable à Bruxelles">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Accréditation</label>
+              <input class="form-input" value="ITAA agréé">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Année de fondation</label>
+              <input class="form-input" type="number" value="2008">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">N° BCE</label>
+              <input class="form-input" value="0XXX.XXX.XXX">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Langues parlées</label>
+              <input class="form-input" value="Français, Nederlands">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Description <span class="sub">Section "À propos"</span></h3></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Bio du cabinet</label>
+            <textarea class="form-input form-textarea" rows="5">Fondé en 2008 par Pierre De Wit, notre cabinet accompagne les indépendants, PME et professions libérales dans leur gestion comptable et fiscale. Nous croyons qu'un bon comptable ne se contente pas de remplir des déclarations — il vous aide à prendre les bonnes décisions financières.
+
+Avec plus de 120 clients actifs et une expertise reconnue en fiscalité des sociétés, nous sommes agréés par l'ITAA et engagés dans une démarche de digitalisation responsable de nos services.</textarea>
+            <div class="form-hint">Astuce : mettez en avant ce qui vous différencie. Les prospects lisent cette section pour décider de vous contacter.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Contact & localisation</h3></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Téléphone</label>
+              <input class="form-input" value="+32 2 123 45 67">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input class="form-input" value="contact@dewit-compta.be">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Adresse</label>
+            <input class="form-input" value="Avenue Louise 142, 1050 Bruxelles">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Info parking <span class="opt">(optionnel)</span></label>
+            <input class="form-input" value="Parking gratuit derrière le bâtiment">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Logo & images</h3></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Logo du cabinet</label>
+              <div style="width:80px;height:80px;border-radius:14px;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.5rem;margin-bottom:8px;cursor:pointer;" title="Cliquer pour changer">DW</div>
+              <button class="btn btn-outline btn-sm">📸 Uploader un logo</button>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Image de couverture <span class="opt">(optionnel)</span></label>
+              <div style="width:100%;height:80px;border-radius:var(--radius-xs);background:var(--surface);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.78rem;color:var(--text-4);cursor:pointer;">+ Ajouter une image</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: TEAM ===== -->
+    <div class="tab-content" id="tab-team">
+      <div class="card">
+        <div class="card-header">
+          <h3>Membres de l'équipe <span class="sub">2 praticiens</span></h3>
+          <button class="btn btn-outline btn-sm">+ Ajouter</button>
+        </div>
+
+        <div class="team-card">
+          <div class="team-avatar" style="background:var(--primary);">PD</div>
+          <div class="team-info">
+            <h4>Pierre De Wit</h4>
+            <div class="title">Expert-comptable · Fondateur · 16 ans d'exp.</div>
+            <div class="team-bio-preview">16 ans d'expérience en fiscalité belge. Spécialisé dans l'accompagnement des sociétés (SRL, SA) et la structuration fiscale.</div>
+            <div class="team-tags">
+              <span class="team-tag">Fiscalité</span>
+              <span class="team-tag">Sociétés</span>
+              <span class="team-tag">Création</span>
+              <span class="team-tag">Optimisation</span>
+            </div>
+          </div>
+          <div class="team-actions">
+            <button class="btn btn-outline btn-sm">✏️ Éditer</button>
+          </div>
+        </div>
+
+        <div class="team-card">
+          <div class="team-avatar" style="background:#52B69A;">SL</div>
+          <div class="team-info">
+            <h4>Sophie Laurent</h4>
+            <div class="title">Comptable agréée · 8 ans d'exp.</div>
+            <div class="team-bio-preview">Spécialiste des déclarations IPP et TVA pour indépendants et professions libérales. Approche pédagogique.</div>
+            <div class="team-tags">
+              <span class="team-tag">TVA</span>
+              <span class="team-tag">IPP</span>
+              <span class="team-tag">Indépendants</span>
+            </div>
+          </div>
+          <div class="team-actions">
+            <button class="btn btn-outline btn-sm">✏️ Éditer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: SPECIALIZATIONS ===== -->
+    <div class="tab-content" id="tab-specs">
+      <div class="card">
+        <div class="card-header">
+          <h3>Spécialisations <span class="sub">6 domaines</span></h3>
+          <button class="btn btn-outline btn-sm">+ Ajouter</button>
+        </div>
+        <div class="card-body">
+          <div class="spec-grid">
+            <div class="spec-card"><span class="ico">📊</span><div><div class="name">Fiscalité des indépendants</div><div class="desc">IPP, avantages en nature, frais</div></div><div class="actions"><button>✏️</button><button>🗑️</button></div></div>
+            <div class="spec-card"><span class="ico">🏢</span><div><div class="name">Gestion de sociétés</div><div class="desc">SRL, SA, comptes annuels</div></div><div class="actions"><button>✏️</button><button>🗑️</button></div></div>
+            <div class="spec-card"><span class="ico">📝</span><div><div class="name">Obligations TVA</div><div class="desc">Déclarations, régularisations</div></div><div class="actions"><button>✏️</button><button>🗑️</button></div></div>
+            <div class="spec-card"><span class="ico">🚀</span><div><div class="name">Création d'entreprise</div><div class="desc">Plan financier, statuts, BCE</div></div><div class="actions"><button>✏️</button><button>🗑️</button></div></div>
+            <div class="spec-card"><span class="ico">💶</span><div><div class="name">Optimisation fiscale</div><div class="desc">Planification, épargne-pension</div></div><div class="actions"><button>✏️</button><button>🗑️</button></div></div>
+            <div class="spec-card"><span class="ico">🤝</span><div><div class="name">Conseil & accompagnement</div><div class="desc">Projections, décisions</div></div><div class="actions"><button>✏️</button><button>🗑️</button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: TESTIMONIALS ===== -->
+    <div class="tab-content" id="tab-testimonials">
+      <div class="card">
+        <div class="card-header">
+          <h3>Témoignages clients <span class="sub">4 avis</span></h3>
+          <button class="btn btn-outline btn-sm">+ Ajouter</button>
+        </div>
+        <div class="card-body">
+          <div class="testimonial-row">
+            <div class="testimonial-avatar">MH</div>
+            <div class="testimonial-content">
+              <div class="testimonial-stars">★★★★★</div>
+              <div class="testimonial-text">"Pierre m'a accompagné dans la création de ma SRL avec une clarté et une patience remarquables."</div>
+              <div class="testimonial-author">Marc Henrard</div>
+              <div class="testimonial-meta">Gérant, TechFlow SA · Lié à Pierre De Wit</div>
+            </div>
+            <div class="testimonial-actions">
+              <button class="btn btn-outline btn-sm">✏️</button>
+              <button class="btn btn-danger btn-sm">🗑️</button>
+            </div>
+          </div>
+
+          <div class="testimonial-row">
+            <div class="testimonial-avatar">CM</div>
+            <div class="testimonial-content">
+              <div class="testimonial-stars">★★★★★</div>
+              <div class="testimonial-text">"Sophie est toujours disponible pour répondre à mes questions TVA, même les plus basiques."</div>
+              <div class="testimonial-author">Claire Mertens</div>
+              <div class="testimonial-meta">Architecte d'intérieur · Liée à Sophie Laurent</div>
+            </div>
+            <div class="testimonial-actions">
+              <button class="btn btn-outline btn-sm">✏️</button>
+              <button class="btn btn-danger btn-sm">🗑️</button>
+            </div>
+          </div>
+
+          <div class="testimonial-row">
+            <div class="testimonial-avatar">KO</div>
+            <div class="testimonial-content">
+              <div class="testimonial-stars">★★★★★</div>
+              <div class="testimonial-text">"La différence est flagrante : proactivité, conseils d'optimisation, et une vraie disponibilité."</div>
+              <div class="testimonial-author">Karim Ouhadi</div>
+              <div class="testimonial-meta">Consultant IT, indépendant complémentaire</div>
+            </div>
+            <div class="testimonial-actions">
+              <button class="btn btn-outline btn-sm">✏️</button>
+              <button class="btn btn-danger btn-sm">🗑️</button>
+            </div>
+          </div>
+
+          <div class="testimonial-row">
+            <div class="testimonial-avatar">NB</div>
+            <div class="testimonial-content">
+              <div class="testimonial-stars">★★★★★</div>
+              <div class="testimonial-text">"La prise de rendez-vous en ligne est un vrai plus. Je réserve mon créneau le soir et c'est réglé."</div>
+              <div class="testimonial-author">Nathalie Bodart</div>
+              <div class="testimonial-meta">Gérante, SPRL NB Consulting</div>
+            </div>
+            <div class="testimonial-actions">
+              <button class="btn btn-outline btn-sm">✏️</button>
+              <button class="btn btn-danger btn-sm">🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: VALUES ===== -->
+    <div class="tab-content" id="tab-values">
+      <div class="card">
+        <div class="card-header">
+          <h3>Points forts <span class="sub">Section "À propos" · 4 max</span></h3>
+          <button class="btn btn-outline btn-sm">+ Ajouter</button>
+        </div>
+        <div class="card-body">
+          <div class="value-row">
+            <div class="value-icon teal">🎯</div>
+            <div class="value-info"><h4>Approche personnalisée</h4><p>Chaque dossier est unique. Nous adaptons nos conseils à votre situation.</p></div>
+            <button class="btn btn-outline btn-sm">✏️</button>
+          </div>
+          <div class="value-row">
+            <div class="value-icon gold">⚡</div>
+            <div class="value-info"><h4>Réactivité garantie</h4><p>Réponse sous 24h, suivi proactif des échéances.</p></div>
+            <button class="btn btn-outline btn-sm">✏️</button>
+          </div>
+          <div class="value-row">
+            <div class="value-icon green">🔒</div>
+            <div class="value-info"><h4>Conformité & rigueur</h4><p>Agréés ITAA, normes strictes de déontologie et confidentialité.</p></div>
+            <button class="btn btn-outline btn-sm">✏️</button>
+          </div>
+          <div class="value-row">
+            <div class="value-icon neutral">💡</div>
+            <div class="value-info"><h4>Conseils proactifs</h4><p>Optimisation fiscale, planification et anticipation.</p></div>
+            <button class="btn btn-outline btn-sm">✏️</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: SECTIONS ===== -->
+    <div class="tab-content" id="tab-sections">
+      <div class="card">
+        <div class="card-header"><h3>Sections visibles <span class="sub">Activez/désactivez les sections de votre page</span></h3></div>
+        <div class="card-body">
+          <div class="section-toggle-list">
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">🏛️ Hero</div><div class="desc">Titre, tagline, badges, CTA — toujours visible</div></div><div class="toggle on" style="opacity:0.5;pointer-events:none;"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">📖 À propos</div><div class="desc">Bio du cabinet + points forts</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">👥 Équipe</div><div class="desc">Cards praticiens avec bio et spécialisations</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">🎯 Spécialisations</div><div class="desc">Grille des domaines d'expertise</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">📋 Prestations</div><div class="desc">Liste des consultations et tarifs</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">⭐ Témoignages</div><div class="desc">Avis clients</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">📍 Localisation & Horaires</div><div class="desc">Carte, adresse, horaires d'ouverture</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="section-toggle-row"><span class="drag">⠿</span><div><div class="label">📅 CTA Booking</div><div class="desc">Section finale "Prendre rendez-vous" — toujours visible</div></div><div class="toggle on" style="opacity:0.5;pointer-events:none;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: SEO & DOMAIN ===== -->
+    <div class="tab-content" id="tab-seo">
+
+      <div class="card">
+        <div class="card-header"><h3>Référencement Google (SEO)</h3></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Titre de la page <span class="opt">(balise &lt;title&gt;)</span></label>
+            <input class="form-input" value="Cabinet De Wit & Associés — Expertise comptable à Bruxelles" id="seoTitle" oninput="updateSeoPreview()">
+            <div class="form-hint">60 caractères max recommandés</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Meta description</label>
+            <textarea class="form-input form-textarea" rows="2" id="seoDesc" oninput="updateSeoPreview()">Cabinet comptable ITAA agréé à Bruxelles. Fiscalité, sociétés, TVA, création d'entreprise. Prenez rendez-vous en ligne.</textarea>
+            <div class="form-hint">155 caractères max recommandés</div>
+          </div>
+
+          <div style="margin-top:14px;">
+            <label class="form-label" style="margin-bottom:8px;">Aperçu Google</label>
+            <div class="seo-preview">
+              <div class="google-title" id="seoPreviewTitle">Cabinet De Wit & Associés — Expertise comptable à Bruxelles</div>
+              <div class="google-url">https://bookt.be/cabinet-dewit</div>
+              <div class="google-desc" id="seoPreviewDesc">Cabinet comptable ITAA agréé à Bruxelles. Fiscalité, sociétés, TVA, création d'entreprise. Prenez rendez-vous en ligne.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Domaine personnalisé <span class="sub">Plan Team</span></h3>
+          <span class="status-badge pending">⏳ Non configuré</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:0.85rem;color:var(--text-3);margin-bottom:14px;">Utilisez votre propre nom de domaine au lieu de bookt.be/cabinet-dewit. Vos clients verront <strong>dewit-compta.be</strong> dans la barre d'adresse.</p>
+
+          <div class="form-group">
+            <label class="form-label">Votre domaine</label>
+            <input class="form-input" placeholder="dewit-compta.be">
+          </div>
+
+          <div class="domain-steps" style="margin-top:16px;">
+            <div class="domain-step">
+              <span class="num">1</span>
+              <div>
+                <h4>Ajoutez un enregistrement CNAME</h4>
+                <p>Chez votre registrar (OVH, Gandi, Cloudflare...), pointez votre domaine vers Bookt :</p>
+                <div class="dns-record">
+                  <div><div class="label">Type</div>CNAME</div>
+                  <div><div class="label">Nom</div>@</div>
+                  <div><div class="label">Valeur</div>sites.bookt.be</div>
+                </div>
+              </div>
+            </div>
+            <div class="domain-step">
+              <span class="num">2</span>
+              <div>
+                <h4>Vérification DNS</h4>
+                <p>Ajoutez un enregistrement TXT pour prouver la propriété du domaine :</p>
+                <div class="dns-record">
+                  <div><div class="label">Type</div>TXT</div>
+                  <div><div class="label">Nom</div>_bookt</div>
+                  <div><div class="label">Valeur</div>bkt_verify_a1b2c3d4e5f6</div>
+                </div>
+              </div>
+            </div>
+            <div class="domain-step">
+              <span class="num">3</span>
+              <div>
+                <h4>Certificat SSL</h4>
+                <p>Une fois vérifié, le certificat SSL est provisionné automatiquement (2-5 minutes).</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:16px;">
+            <button class="btn btn-primary btn-sm">🔍 Vérifier le DNS</button>
+            <button class="btn btn-outline btn-sm">Enregistrer le domaine</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Réseaux sociaux</h3></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">LinkedIn <span class="opt">(page entreprise)</span></label>
+            <input class="form-input" value="https://linkedin.com/company/dewit-associes" placeholder="https://linkedin.com/company/...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Site web existant <span class="opt">(lien dans le footer)</span></label>
+            <input class="form-input" placeholder="https://dewit-compta.be">
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  // Deactivate all
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+  // Activate target
+  const tab = document.querySelector(`.tab-content#tab-${name}`);
+  if (tab) tab.classList.add('active');
+
+  // Activate tab button
+  const tabNames = { general: 0, team: 1, specs: 2, testimonials: 3, values: 4, sections: 5, seo: 6 };
+  const idx = tabNames[name];
+  if (idx !== undefined) {
+    document.querySelectorAll('.tab')[idx].classList.add('active');
+  }
+}
+
+function updateSeoPreview() {
+  const title = document.getElementById('seoTitle').value;
+  const desc = document.getElementById('seoDesc').value;
+  document.getElementById('seoPreviewTitle').textContent = title || 'Titre de la page';
+  document.getElementById('seoPreviewDesc').textContent = desc || 'Description de la page';
+}
+</script>
+
+</body>
+</html>
