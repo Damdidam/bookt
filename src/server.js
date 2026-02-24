@@ -99,6 +99,11 @@ app.get('/:slug', (req, res, next) => {
   res.sendFile(path.join(__dirname, '../public/site.html'));
 });
 
+// /:slug/book → booking flow
+app.get('/:slug/book', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/book.html'));
+});
+
 // ===== ERROR HANDLER =====
 app.use(errorHandler);
 
