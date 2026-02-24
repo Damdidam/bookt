@@ -86,6 +86,19 @@ app.use('/api/site', siteRoutes);
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
 
+// ===== PUBLIC MINI-SITE =====
+// Catch-all for /:slug → serve site.html (the dynamic mini-site page)
+// Must be AFTER all API and static routes
+app.get('/:slug', (req, res, next) => {
+  // Skip if it looks like a file request
+  if (req.params.slug.includes('.')) return next();
+  // Skip known paths
+  const reserved = ['api', 'webhooks', 'health', 'login', 'signup', 'dashboard'];
+  if (reserved.includes(req.params.slug)) return next();
+  // Serve the dynamic mini-site page
+  res.sendFile(path.join(__dirname, '../public/site.html'));
+});
+
 // ===== ERROR HANDLER =====
 app.use(errorHandler);
 
