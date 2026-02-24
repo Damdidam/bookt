@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">Chargement...</title>
+<meta name="description" id="pageMeta" content="">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--primary-border:#B8DDD9;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--shadow-md:0 4px 16px rgba(0,0,0,.06);--radius:14px;--radius-sm:10px;--radius-xs:6px;--max-w:960px}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* Animations */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* Nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(250,250,249,.85);backdrop-filter:blur(16px);border-bottom:1px solid transparent;transition:border-color .3s,box-shadow .3s}
+.nav.scrolled{border-bottom-color:var(--border-light);box-shadow:0 1px 8px rgba(0,0,0,.03)}
+.nav-inner{max-width:var(--max-w);margin:0 auto;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo{width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem}
+.nav-name{font-size:.88rem;font-weight:600;color:var(--text)}
+.nav-links{display:flex;align-items:center;gap:4px}
+.nav-link{padding:6px 14px;font-size:.8rem;font-weight:500;color:var(--text-3);text-decoration:none;border-radius:8px;transition:all .15s}
+.nav-link:hover{color:var(--text);background:var(--surface)}
+.nav-cta{padding:8px 18px;background:var(--primary);color:#fff;font-family:var(--sans);font-size:.8rem;font-weight:600;border:none;border-radius:8px;cursor:pointer;text-decoration:none;transition:background .15s;margin-left:8px}
+.nav-cta:hover{background:var(--primary-hover)}
+
+/* Hero */
+.hero{max-width:var(--max-w);margin:0 auto;padding:100px 24px 56px}
+.hero-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.badge{padding:4px 12px;border-radius:16px;font-size:.7rem;font-weight:600}
+.badge-teal{background:var(--primary-light);color:var(--primary);border:1px solid var(--primary-border)}
+.badge-gold{background:var(--gold-bg);color:var(--gold);border:1px solid #E8DCBA}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid #B8E6C4}
+.hero h1{font-family:var(--serif);font-size:2.8rem;font-weight:400;line-height:1.12;margin-bottom:10px}
+.hero h1 em{font-style:italic;color:var(--primary)}
+.hero-tagline{font-size:1.1rem;color:var(--text-3);margin-bottom:20px;max-width:560px}
+.hero-cta{display:inline-flex;padding:14px 32px;background:var(--primary);color:#fff;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.95rem;font-weight:600;text-decoration:none;transition:all .15s;box-shadow:0 4px 14px rgba(13,115,119,.2)}
+.hero-cta:hover{background:var(--primary-hover);transform:translateY(-1px)}
+
+/* Section */
+.section{max-width:var(--max-w);margin:0 auto;padding:56px 24px}
+.section-title{font-family:var(--serif);font-size:1.8rem;font-weight:400;margin-bottom:6px}
+.section-sub{font-size:.88rem;color:var(--text-3);margin-bottom:24px}
+.divider{height:1px;background:var(--border-light);max-width:var(--max-w);margin:0 auto}
+
+/* About / Bio */
+.about-text{font-size:.95rem;color:var(--text-2);line-height:1.7;max-width:680px;margin-bottom:24px}
+.values-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.value-card{padding:18px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);display:flex;gap:12px;align-items:flex-start}
+.value-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.value-icon.teal{background:var(--primary-light)}.value-icon.gold{background:var(--gold-bg)}.value-icon.green{background:var(--green-bg)}.value-icon.neutral{background:var(--surface)}
+.value-card h4{font-size:.85rem;font-weight:700;margin-bottom:2px}
+.value-card p{font-size:.75rem;color:var(--text-4)}
+
+/* Team */
+.team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.team-card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:22px;text-align:center}
+.team-avatar{width:64px;height:64px;border-radius:16px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.3rem;margin:0 auto 12px}
+.team-card h4{font-size:.95rem;font-weight:700;margin-bottom:2px}
+.team-card .title{font-size:.78rem;color:var(--text-4);margin-bottom:8px}
+.team-card .bio{font-size:.82rem;color:var(--text-3);line-height:1.5;margin-bottom:10px}
+.team-tags{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.team-tag{padding:3px 10px;background:var(--surface);border-radius:12px;font-size:.68rem;font-weight:600;color:var(--text-3)}
+
+/* Specs */
+.specs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.spec-card{padding:18px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);display:flex;gap:10px;align-items:flex-start}
+.spec-card .ico{font-size:1.3rem;flex-shrink:0}
+.spec-card h4{font-size:.85rem;font-weight:700;margin-bottom:2px}
+.spec-card p{font-size:.73rem;color:var(--text-4)}
+
+/* Services */
+.svc-list{display:flex;flex-direction:column;gap:8px}
+.svc-row{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px 20px;display:flex;align-items:center;gap:14px;transition:border-color .15s}
+.svc-row:hover{border-color:var(--primary-border)}
+.svc-dot{width:8px;height:8px;border-radius:4px;flex-shrink:0}
+.svc-info{flex:1}
+.svc-info h4{font-size:.9rem;font-weight:600;margin-bottom:2px}
+.svc-info .meta{font-size:.75rem;color:var(--text-4)}
+.svc-price{font-size:.95rem;font-weight:700;color:var(--primary)}
+.svc-modes{display:flex;gap:3px}
+.svc-mode{padding:2px 7px;border-radius:4px;font-size:.6rem;font-weight:600;background:var(--surface);color:var(--text-3);text-transform:capitalize}
+
+/* Testimonials */
+.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.test-card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:20px}
+.test-stars{color:#E8B931;font-size:.8rem;letter-spacing:1px;margin-bottom:8px}
+.test-text{font-size:.88rem;color:var(--text-2);font-style:italic;line-height:1.5;margin-bottom:10px}
+.test-author{font-size:.8rem;font-weight:700;color:var(--text)}
+.test-role{font-size:.72rem;color:var(--text-4)}
+
+/* Hours */
+.hours-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.hour-card{padding:12px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-xs);text-align:center}
+.hour-card .day{font-size:.75rem;font-weight:700;color:var(--text);margin-bottom:3px}
+.hour-card .time{font-size:.78rem;color:var(--primary);font-weight:500}
+.hour-card.closed .day{color:var(--text-4)}.hour-card.closed .time{color:var(--text-4)}
+
+/* CTA Section */
+.cta-section{max-width:var(--max-w);margin:0 auto;padding:56px 24px}
+.cta-box{background:linear-gradient(135deg,var(--primary),#0A5E61);border-radius:var(--radius);padding:48px;text-align:center;color:#fff}
+.cta-box h2{font-family:var(--serif);font-size:2rem;font-weight:400;margin-bottom:8px}
+.cta-box p{font-size:.95rem;opacity:.7;margin-bottom:24px}
+.cta-btn{display:inline-flex;padding:14px 36px;background:#fff;color:var(--primary);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.95rem;font-weight:700;text-decoration:none;transition:all .15s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.15)}
+
+/* Footer */
+.footer{max-width:var(--max-w);margin:0 auto;padding:32px 24px;text-align:center;border-top:1px solid var(--border-light)}
+.footer p{font-size:.75rem;color:var(--text-4)}
+.footer a{color:var(--primary);text-decoration:none;font-weight:600}
+
+/* Loading */
+.loading-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text-3)}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Error */
+.error-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center}
+.error-page h1{font-family:var(--serif);font-size:2rem}
+.error-page p{color:var(--text-3);font-size:.95rem}
+.error-page a{color:var(--primary);font-weight:600;text-decoration:none}
+
+/* Responsive */
+@media(max-width:700px){
+  .hero h1{font-size:2rem}
+  .values-grid,.specs-grid{grid-template-columns:1fr}
+  .nav-links .nav-link{display:none}
+  .hours-grid{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div id="loadingState" class="loading-page">
+  <div class="spinner"></div>
+  <p>Chargement du cabinet...</p>
+</div>
+
+<div id="errorState" class="error-page" style="display:none">
+  <h1>Cabinet introuvable</h1>
+  <p>Ce lien ne correspond à aucun cabinet enregistré.</p>
+  <a href="/">← Retour à Bookt</a>
+</div>
+
+<div id="siteContent" style="display:none">
+
+  <!-- NAV -->
+  <nav class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-brand" href="#"><div class="nav-logo" id="navLogo">?</div><span class="nav-name" id="navName">—</span></a>
+      <div class="nav-links">
+        <a class="nav-link" href="#about">À propos</a>
+        <a class="nav-link" href="#team">Équipe</a>
+        <a class="nav-link" href="#services">Prestations</a>
+        <a class="nav-link" href="#hours">Horaires</a>
+        <a class="nav-cta" href="#booking">Prendre RDV →</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badges" id="heroBadges"></div>
+    <h1 id="heroTitle">—</h1>
+    <p class="hero-tagline" id="heroTagline">—</p>
+    <a class="hero-cta" href="#booking">Prendre rendez-vous →</a>
+  </section>
+  <div class="divider"></div>
+
+  <!-- ABOUT -->
+  <section class="section reveal" id="about">
+    <h2 class="section-title">À propos</h2>
+    <p class="about-text" id="aboutText">—</p>
+    <div class="values-grid" id="valuesGrid"></div>
+  </section>
+  <div class="divider"></div>
+
+  <!-- TEAM -->
+  <section class="section reveal" id="team">
+    <h2 class="section-title">L'équipe</h2>
+    <p class="section-sub" id="teamSub">—</p>
+    <div class="team-grid" id="teamGrid"></div>
+  </section>
+  <div class="divider"></div>
+
+  <!-- SPECIALIZATIONS -->
+  <section class="section reveal" id="specializations">
+    <h2 class="section-title">Domaines d'expertise</h2>
+    <div class="specs-grid" id="specsGrid"></div>
+  </section>
+  <div class="divider"></div>
+
+  <!-- SERVICES -->
+  <section class="section reveal" id="services">
+    <h2 class="section-title">Prestations</h2>
+    <p class="section-sub">Réservez directement en ligne.</p>
+    <div class="svc-list" id="svcList"></div>
+  </section>
+  <div class="divider"></div>
+
+  <!-- TESTIMONIALS -->
+  <section class="section reveal" id="testimonials" style="display:none">
+    <h2 class="section-title">Ce que disent nos clients</h2>
+    <div class="test-grid" id="testGrid"></div>
+  </section>
+  <div class="divider" id="testDivider" style="display:none"></div>
+
+  <!-- HOURS -->
+  <section class="section reveal" id="hours">
+    <h2 class="section-title">Horaires & contact</h2>
+    <p class="section-sub" id="addressLine">—</p>
+    <div class="hours-grid" id="hoursGrid"></div>
+    <p style="margin-top:12px;font-size:.82rem;color:var(--text-3)" id="contactLine"></p>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section" id="booking">
+    <div class="cta-box">
+      <h2>Prêt à prendre rendez-vous ?</h2>
+      <p id="ctaSub">Réservez en ligne en quelques clics.</p>
+      <a class="cta-btn" id="ctaBtn" href="#">Choisir un créneau →</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>Propulsé par <a href="/">Bookt</a> · Une solution belge 🇧🇪</p>
+  </footer>
+</div>
+
+<script>
+const DAYS_FR = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const MODE_LABELS = { cabinet:'Au cabinet', visio:'Visio', phone:'Téléphone' };
+
+// Get slug from URL
+const slug = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/').pop();
+
+if (!slug || slug === '' || slug.endsWith('.html')) {
+  // Not a slug URL, redirect to home
+  window.location.href = '/';
+} else {
+  loadSite(slug);
+}
+
+async function loadSite(slug) {
+  try {
+    const res = await fetch(`/api/public/${slug}`);
+    if (!res.ok) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('errorState').style.display = 'flex';
+      return;
+    }
+    const data = await res.json();
+    render(data);
+  } catch (err) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').style.display = 'flex';
+  }
+}
+
+function render(d) {
+  const b = d.business;
+
+  // Apply theme
+  if (b.theme?.primary_color) {
+    document.documentElement.style.setProperty('--primary', b.theme.primary_color);
+  }
+
+  // Page meta
+  document.getElementById('pageTitle').textContent = b.seo_title || `${b.name} — ${b.tagline || 'Prenez rendez-vous en ligne'}`;
+  document.getElementById('pageMeta').content = b.seo_description || b.description || '';
+
+  // Nav
+  const initials = b.name.split(' ').map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
+  document.getElementById('navLogo').textContent = initials;
+  document.getElementById('navName').textContent = b.name;
+
+  // Hero badges
+  const badges = [];
+  if (b.accreditation) badges.push(`<span class="badge badge-gold">${b.accreditation}</span>`);
+  if (b.founded_year) badges.push(`<span class="badge badge-teal">Depuis ${b.founded_year}</span>`);
+  badges.push(`<span class="badge badge-green">${d.practitioner_count} praticien${d.practitioner_count > 1 ? 's' : ''}</span>`);
+  document.getElementById('heroBadges').innerHTML = badges.join('');
+
+  // Hero
+  document.getElementById('heroTitle').innerHTML = `${b.name}`;
+  document.getElementById('heroTagline').textContent = b.tagline || '';
+
+  // About
+  if (b.description) {
+    document.getElementById('aboutText').textContent = b.description;
+  }
+
+  // Values
+  if (d.values?.length) {
+    document.getElementById('valuesGrid').innerHTML = d.values.map(v =>
+      `<div class="value-card">
+        <div class="value-icon ${v.icon_style || 'teal'}">${v.icon}</div>
+        <div><h4>${v.title}</h4><p>${v.description}</p></div>
+      </div>`
+    ).join('');
+  }
+
+  // Team
+  if (d.practitioners?.length) {
+    document.getElementById('teamSub').textContent = `${d.practitioners.length} professionnel${d.practitioners.length > 1 ? 's' : ''} à votre service`;
+    document.getElementById('teamGrid').innerHTML = d.practitioners.map(p => {
+      const pi = p.display_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+      const specs = (p.specializations || []).map(s => `<span class="team-tag">${s}</span>`).join('');
+      return `<div class="team-card">
+        <div class="team-avatar" style="background:${p.color || 'var(--primary)'}">${pi}</div>
+        <h4>${p.display_name}</h4>
+        <div class="title">${p.title || ''}${p.years_experience ? ' · ' + p.years_experience + ' ans d\'exp.' : ''}</div>
+        ${p.bio ? `<div class="bio">${p.bio}</div>` : ''}
+        <div class="team-tags">${specs}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Specializations
+  if (d.specializations?.length) {
+    document.getElementById('specsGrid').innerHTML = d.specializations.map(s =>
+      `<div class="spec-card">
+        <span class="ico">${s.icon || '📋'}</span>
+        <div><h4>${s.name}</h4><p>${s.description || ''}</p></div>
+      </div>`
+    ).join('');
+  } else {
+    document.getElementById('specializations').style.display = 'none';
+  }
+
+  // Services
+  if (d.services?.length) {
+    document.getElementById('svcList').innerHTML = d.services.map(s => {
+      const price = s.price_cents ? `${(s.price_cents / 100).toFixed(0)} €` : (s.price_label || 'Gratuit');
+      const modes = (s.mode_options || []).map(m => `<span class="svc-mode">${MODE_LABELS[m] || m}</span>`).join('');
+      return `<div class="svc-row">
+        <div class="svc-dot" style="background:${s.color || 'var(--primary)'}"></div>
+        <div class="svc-info"><h4>${s.name}</h4><div class="meta">${s.duration_min} min · ${modes}</div></div>
+        <div class="svc-price">${price}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Testimonials
+  if (d.testimonials?.length) {
+    document.getElementById('testimonials').style.display = 'block';
+    document.getElementById('testDivider').style.display = 'block';
+    document.getElementById('testGrid').innerHTML = d.testimonials.map(t =>
+      `<div class="test-card">
+        <div class="test-stars">${'★'.repeat(t.rating || 5)}</div>
+        <div class="test-text">"${t.content}"</div>
+        <div class="test-author">${t.author_name}</div>
+        <div class="test-role">${t.author_role || ''}</div>
+      </div>`
+    ).join('');
+  }
+
+  // Hours
+  const grid = document.getElementById('hoursGrid');
+  grid.innerHTML = DAYS_FR.map((day, i) => {
+    const h = d.hours?.[i];
+    if (h) {
+      return `<div class="hour-card"><div class="day">${day}</div><div class="time">${h.opens.slice(0,5)} – ${h.closes.slice(0,5)}</div></div>`;
+    }
+    return `<div class="hour-card closed"><div class="day">${day}</div><div class="time">Fermé</div></div>`;
+  }).join('');
+
+  // Address & contact
+  if (b.address) document.getElementById('addressLine').textContent = '📍 ' + b.address;
+  const contacts = [];
+  if (b.phone) contacts.push('📞 ' + b.phone);
+  if (b.email) contacts.push('✉️ ' + b.email);
+  document.getElementById('contactLine').textContent = contacts.join(' · ');
+
+  // CTA
+  document.getElementById('ctaSub').textContent = `Réservez chez ${b.name} en quelques clics.`;
+
+  // Hide sections based on page_sections
+  const sections = b.page_sections || {};
+  if (sections.about === false) document.getElementById('about').style.display = 'none';
+  if (sections.team === false) document.getElementById('team').style.display = 'none';
+  if (sections.specializations === false) document.getElementById('specializations').style.display = 'none';
+  if (sections.services === false) document.getElementById('services').style.display = 'none';
+  if (sections.testimonials === false) document.getElementById('testimonials').style.display = 'none';
+  if (sections.location === false) document.getElementById('hours').style.display = 'none';
+
+  // Show content
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('siteContent').style.display = 'block';
+
+  // Scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }});
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // Nav scroll effect
+  window.addEventListener('scroll', () => {
+    document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 20);
+  });
+}
+</script>
+
+</body>
+</html>
