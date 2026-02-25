@@ -180,6 +180,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .ev-completed{border-left:3px solid var(--text-4)!important;opacity:.6}
 .ev-no_show{border-left:3px solid var(--red)!important;opacity:.5}
 .ev-cancelled{border-left:3px solid var(--red)!important;opacity:.3;text-decoration:line-through}
+/* Group visual: connected blocks */
+.ev-group-first .fc-event-main{border-top-left-radius:6px;border-top-right-radius:6px}
+.ev-group-mid .fc-event-main{border-radius:0}
+.ev-group-last .fc-event-main{border-bottom-left-radius:6px;border-bottom-right-radius:6px}
+.ev-group-first,.ev-group-mid{margin-bottom:-1px!important}
+.ev-grouped{border-left:3px solid rgba(255,255,255,.5)!important;position:relative}
+.ev-grouped::after{content:'';position:absolute;left:-3px;top:0;bottom:0;width:3px;background:rgba(255,255,255,.25)}
+.ev-group-badge{display:inline-block;font-size:.55rem;background:rgba(255,255,255,.25);color:#fff;padding:0 4px;border-radius:3px;margin-left:4px;vertical-align:middle}
+/* Multi-service quick create */
+.qc-svc-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px}
+.qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
+.qc-svc-item .qc-svc-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.qc-svc-item .qc-svc-rm{background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--text-4);padding:2px 6px;border-radius:4px}
+.qc-svc-item .qc-svc-rm:hover{background:var(--red);color:#fff}
+.qc-svc-item .qc-svc-handle{cursor:grab;color:var(--text-4);font-size:.75rem;user-select:none}
 
 /* ===== CALENDAR DETAIL MODAL ===== */
 .cal-modal-overlay{position:fixed;inset:0;background:rgba(24,22,19,.45);backdrop-filter:blur(4px);z-index:300;display:none;align-items:center;justify-content:center;padding:24px}
@@ -631,12 +647,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 <!-- QUICK CREATE MODAL -->
 <div class="cal-modal-overlay" id="calCreateModal">
-  <div class="cal-modal" style="max-width:460px">
+  <div class="cal-modal" style="max-width:500px">
     <div class="cal-modal-head"><h2>Nouveau rendez-vous</h2><button class="cal-close" onclick="closeCalModal('calCreateModal')">✕</button></div>
     <div style="padding:20px 24px 24px">
       <div class="qc-row" style="position:relative"><div class="qc-label">Client</div><input class="qc-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)"><div id="qcAcResults" class="ac-results" style="display:none"></div><input type="hidden" id="qcClientId"></div>
       <div class="qc-row qc-row-2"><div><div class="qc-label">Date</div><input class="qc-input" type="date" id="qcDate"></div><div><div class="qc-label">Heure</div><input class="qc-input" type="time" id="qcTime" value="09:00"></div></div>
-      <div class="qc-row"><div class="qc-label">Prestation</div><select class="qc-input" id="qcService"></select></div>
+      <div class="qc-row">
+        <div class="qc-label">Prestations</div>
+        <div id="qcServiceList"></div>
+        <button class="btn-outline" style="margin-top:6px;font-size:.78rem;padding:5px 12px" onclick="qcAddService()">+ Ajouter une prestation</button>
+        <div id="qcTotalDuration" style="font-size:.75rem;color:var(--text-4);margin-top:6px"></div>
+      </div>
       <div class="qc-row"><div class="qc-label">Praticien</div><select class="qc-input" id="qcPrac"></select></div>
       <div class="qc-row"><div class="qc-label">Mode</div><select class="qc-input" id="qcMode"><option value="cabinet">🏢 Cabinet</option><option value="visio">💻 Visio</option><option value="phone">📞 Téléphone</option></select></div>
       <div class="qc-row"><div class="qc-label">Commentaire (optionnel)</div><input class="qc-input" id="qcComment" placeholder="Note ou contexte..."></div>
@@ -820,6 +841,9 @@ async function loadAgenda(){
 
     // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
+      // Same group → always allow (they chain sequentially)
+      const sg=stillEvent.extendedProps?.group_id, mg=movingEvent?.extendedProps?.group_id;
+      if(sg&&mg&&sg===mg)return true;
       const sp=stillEvent.extendedProps?.practitioner_id;
       const mp=movingEvent?.extendedProps?.practitioner_id;
       if(sp&&mp&&sp!==mp)return true;
@@ -831,12 +855,15 @@ async function loadAgenda(){
     // Full collision check before allowing drop
     eventAllow:function(dropInfo,draggedEvent){
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
+      const myGroup=draggedEvent.extendedProps?.group_id;
       if(!myPrac)return true;
       if(dropInfo.start<new Date())return false;
       const newStart=dropInfo.start,newEnd=dropInfo.end;
       const allEvents=fcCal.getEvents();
       for(const ev of allEvents){
         if(ev.id===draggedEvent.id)continue;
+        // Skip same-group siblings (they'll be moved together by backend)
+        if(myGroup&&ev.extendedProps?.group_id===myGroup)continue;
         if(ev.extendedProps?.practitioner_id!==myPrac)continue;
         const st=ev.extendedProps?.status;
         if(st==='cancelled'||st==='no_show'||st==='completed')continue;
@@ -858,9 +885,10 @@ async function loadAgenda(){
             title:b.client_name||'Sans nom',
             start:b.start_at,
             end:b.end_at,
-            backgroundColor:b.booking_color||b.practitioner_color||b.service_color||'#0D7377',
-            borderColor:b.booking_color||b.practitioner_color||b.service_color||'#0D7377',
+            backgroundColor:b.service_color||b.booking_color||b.practitioner_color||'#0D7377',
+            borderColor:b.service_color||b.booking_color||b.practitioner_color||'#0D7377',
             editable:!frozen,
+            durationEditable:!frozen&&!b.group_id, // Disable resize for grouped
             extendedProps:{...b}
           }});
           successCb(events);
@@ -871,11 +899,25 @@ async function loadAgenda(){
     eventContent:function(arg){
       const p=arg.event.extendedProps;
       const badges=[(p.internal_note?'<span class="ev-badge ev-badge-note"></span>':''),(p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':'')].filter(Boolean).join('');
-      return{html:`<div class="ev-inner"><span class="ev-client">${p.client_name||arg.event.title}</span><span class="ev-service">${p.service_name||''}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
+      const groupBadge=p.group_id?`<span class="ev-group-badge">🔗 ${(p.group_order||0)+1}</span>`:'';
+      return{html:`<div class="ev-inner"><span class="ev-client">${p.client_name||arg.event.title}${groupBadge}</span><span class="ev-service">${p.service_name||''}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
     },
 
     // Status-based CSS classes
-    eventClassNames:arg=>['ev-'+(arg.event.extendedProps.status||'confirmed')],
+    eventClassNames:function(arg){
+      const p=arg.event.extendedProps;
+      const cls=['ev-'+(p.status||'confirmed')];
+      if(p.group_id){
+        cls.push('ev-grouped');
+        // Find group bounds from all calendar events
+        const allEvts=fcCal.getEvents().filter(e=>e.extendedProps.group_id===p.group_id);
+        const maxOrder=Math.max(...allEvts.map(e=>e.extendedProps.group_order||0));
+        if(p.group_order===0)cls.push('ev-group-first');
+        else if(p.group_order===maxOrder)cls.push('ev-group-last');
+        else cls.push('ev-group-mid');
+      }
+      return cls;
+    },
 
     // Click → open detail modal
     eventClick:function(info){fcOpenDetail(info.event.id);},
@@ -893,7 +935,8 @@ async function loadAgenda(){
           body:JSON.stringify({start_at:ev.start.toISOString(),end_at:ev.end.toISOString(),practitioner_id:p.practitioner_id})
         });
         if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
-        gToast((p.client_name||'RDV')+' déplacé','success');
+        const result=await r.json();
+        gToast(result.group_moved?`Groupe (${result.count} prestations) déplacé`:(p.client_name||'RDV')+' déplacé','success');
         fcCal.refetchEvents(); // Sync recalculated duration from backend
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
     },
@@ -978,7 +1021,7 @@ async function fcLoadMobileList(){
       const prac=fcPractitioners.find(p=>p.id===b.practitioner_id);
       const stLabel=ST_LABELS[b.status]||b.status;
       const stClass='st-'+b.status;
-      const badges=[(b.internal_note?'📝':''),(b.status==='modified_pending'?'⚠️':'')].filter(Boolean);
+      const badges=[(b.internal_note?'📝':''),(b.status==='modified_pending'?'⚠️':''),(b.group_id?'🔗':'')].filter(Boolean);
       h+=`<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${b.id}')">
         ${badges.length?'<div class="mob-bk-badges">'+badges.map(x=>'<span>'+x+'</span>').join('')+'</div>':''}
         <div class="mob-bk-time"><div class="t">${t1}</div><div class="dur">${dur}min</div></div>
@@ -1061,6 +1104,24 @@ async function fcOpenDetail(bookingId){
       <div class="info-item"><div class="info-label">Email</div><div class="info-value"><a href="mailto:${b.client_email||''}">${b.client_email||'—'}</a></div></div>`;
     if(b.appointment_mode)ig+=`<div class="info-item"><div class="info-label">Mode</div><div class="info-value">${MODE_ICO[b.appointment_mode]||''} ${b.appointment_mode}</div></div>`;
     if(b.no_show_count>0)ig+=`<div class="info-item"><div class="info-label">⚠️ No-shows</div><div class="info-value" style="color:var(--red);font-weight:700">${b.no_show_count}</div></div>`;
+
+    // Group siblings
+    const siblings=d.group_siblings||[];
+    if(siblings.length>1){
+      ig+=`<div class="info-item" style="grid-column:1/-1;margin-top:8px"><div class="info-label">🔗 Groupe (${siblings.length} prestations)</div><div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">`;
+      siblings.forEach(sib=>{
+        const isCurrent=sib.id===bookingId;
+        const sT=new Date(sib.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        const eT=new Date(sib.end_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        ig+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;${isCurrent?'background:var(--primary);color:#fff':'background:var(--bg-card);border:1px solid var(--border)'}">
+          <span style="width:10px;height:10px;border-radius:50%;background:${sib.service_color||'var(--primary)'};flex-shrink:0"></span>
+          <span style="font-size:.78rem;font-weight:${isCurrent?'700':'400'}">${sib.service_name}</span>
+          <span style="font-size:.72rem;${isCurrent?'opacity:.8':'color:var(--text-4)'};margin-left:auto">${sT} – ${eT} (${sib.duration_min}min)</span>
+        </div>`;
+      });
+      ig+=`</div></div>`;
+    }
+
     document.getElementById('calInfoGrid').innerHTML=ig;
 
     // Internal note
@@ -1319,11 +1380,12 @@ async function fcDeleteReminder(remId){
 }
 
 // ── Quick Create ──
+let qcServiceCount=0;
+
 function fcOpenQuickCreate(startStr,endStr){
   let d;
   if(startStr){d=new Date(startStr);}
   else{
-    // From FAB: use mobile date or today, next round hour
     d=new Date(fcIsMobile()?fcMobileDate:new Date());
     const now=new Date();
     if(d.toDateString()===now.toDateString()){
@@ -1337,15 +1399,64 @@ function fcOpenQuickCreate(startStr,endStr){
   document.getElementById('qcComment').value='';
   document.getElementById('qcAcResults').style.display='none';
 
-  // Populate services dropdown
-  const svSel=document.getElementById('qcService');
-  svSel.innerHTML=fcServices.filter(s=>s.is_active!==false).map(s=>`<option value="${s.id}">${s.name} (${s.duration_min} min)</option>`).join('');
-
   // Populate practitioners dropdown
   const prSel=document.getElementById('qcPrac');
   prSel.innerHTML=fcPractitioners.map(p=>`<option value="${p.id}">${p.display_name}</option>`).join('');
 
+  // Init service list with one entry
+  qcServiceCount=0;
+  document.getElementById('qcServiceList').innerHTML='';
+  qcAddService();
+
   document.getElementById('calCreateModal').classList.add('open');
+}
+
+function qcAddService(){
+  const idx=qcServiceCount++;
+  const opts=fcServices.filter(s=>s.is_active!==false).map(s=>`<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min||0)+(s.buffer_after_min||0)}" data-color="${s.color||'#0D7377'}">${s.name} (${s.duration_min} min)</option>`).join('');
+  const html=`<div class="qc-svc-item" id="qcSvc${idx}">
+    <span class="qc-svc-handle">☰</span>
+    <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
+    <select onchange="qcUpdateTotal()" id="qcSvcSel${idx}">${opts}</select>
+    <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
+    <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer">✕</button>
+  </div>`;
+  document.getElementById('qcServiceList').insertAdjacentHTML('beforeend',html);
+  qcUpdateTotal();
+}
+
+function qcRemoveService(idx){
+  const el=document.getElementById('qcSvc'+idx);
+  if(el)el.remove();
+  // Must keep at least one
+  if(document.querySelectorAll('.qc-svc-item').length===0)qcAddService();
+  else qcUpdateTotal();
+}
+
+function qcUpdateTotal(){
+  let total=0;
+  document.querySelectorAll('.qc-svc-item').forEach(item=>{
+    const sel=item.querySelector('select');
+    if(!sel)return;
+    const opt=sel.options[sel.selectedIndex];
+    const dur=parseInt(opt?.dataset.dur||30);
+    const buf=parseInt(opt?.dataset.buf||0);
+    const color=opt?.dataset.color||'#0D7377';
+    total+=dur+buf;
+    // Update per-item display
+    const durEl=item.querySelector('.qc-svc-dur');
+    if(durEl)durEl.textContent=dur+'min';
+    const colEl=item.querySelector('.qc-svc-color');
+    if(colEl)colEl.style.background=color;
+  });
+  const el=document.getElementById('qcTotalDuration');
+  const items=document.querySelectorAll('.qc-svc-item');
+  if(items.length>1){
+    const h=Math.floor(total/60),m=total%60;
+    el.innerHTML=`⏱ Durée totale : <strong>${h?h+'h':''}${m?m+'min':''}</strong> · ${items.length} prestations (groupe lié)`;
+  }else{
+    el.innerHTML=`⏱ ${total} min`;
+  }
 }
 
 // Client autocomplete
@@ -1380,22 +1491,24 @@ function calNewClient(){
 async function calCreateBooking(){
   const clientName=document.getElementById('qcClient').value.trim();
   const clientId=document.getElementById('qcClientId').value;
-  const serviceId=document.getElementById('qcService').value;
   const pracId=document.getElementById('qcPrac').value;
   const date=document.getElementById('qcDate').value;
   const time=document.getElementById('qcTime').value;
   const mode=document.getElementById('qcMode').value;
   const comment=document.getElementById('qcComment').value.trim();
 
+  // Collect all services
+  const serviceItems=document.querySelectorAll('.qc-svc-item select');
+  const services=[...serviceItems].map(sel=>({service_id:sel.value}));
+
   if(!clientName){gToast('Nom du client requis','error');return;}
-  if(!serviceId){gToast('Choisissez une prestation','error');return;}
+  if(services.length===0){gToast('Choisissez au moins une prestation','error');return;}
   if(!date||!time){gToast('Date et heure requises','error');return;}
 
   const start_at=date+'T'+time+':00';
 
   try{
     let actualClientId=clientId;
-    // If new client, create first
     if(!clientId||clientId==='NEW'){
       const cr=await fetch('/api/clients',{
         method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
@@ -1406,13 +1519,29 @@ async function calCreateBooking(){
       actualClientId=cd.client?.id;
     }
 
+    const body={
+      practitioner_id:pracId,
+      client_id:actualClientId,
+      start_at,
+      appointment_mode:mode,
+      comment:comment||null
+    };
+    // Single service: backward compat. Multi: send services array
+    if(services.length===1){
+      body.service_id=services[0].service_id;
+    }else{
+      body.services=services;
+    }
+
     const r=await fetch('/api/bookings/manual',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({service_id:serviceId,practitioner_id:pracId,client_id:actualClientId,start_at,appointment_mode:mode,comment:comment||null})
+      body:JSON.stringify(body)
     });
     if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
-    gToast('RDV créé !','success');
+    const result=await r.json();
+    const count=result.bookings?.length||1;
+    gToast(count>1?`${count} prestations créées (groupe lié) !`:'RDV créé !','success');
     closeCalModal('calCreateModal');
     fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}

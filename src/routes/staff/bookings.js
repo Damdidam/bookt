@@ -22,6 +22,7 @@ router.get('/', async (req, res, next) => {
       SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
              b.channel, b.comment_client, b.public_token,
              b.internal_note, b.color AS booking_color,
+             b.group_id, b.group_order,
              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
@@ -73,62 +74,93 @@ router.get('/', async (req, res, next) => {
 router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment } = req.body;
+    const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment, services: multiServices } = req.body;
 
-    if (!service_id || !practitioner_id || !start_at) {
-      return res.status(400).json({ error: 'service_id, practitioner_id et start_at requis' });
+    // Support both single service (backward compat) and multi-service array
+    const serviceList = multiServices || [{ service_id }];
+
+    if (!practitioner_id || !start_at || serviceList.length === 0) {
+      return res.status(400).json({ error: 'practitioner_id, start_at et au moins une prestation requis' });
     }
 
-    // Get service duration
+    // Fetch all service durations
+    const svcIds = serviceList.map(s => s.service_id);
     const svcResult = await queryWithRLS(bid,
-      `SELECT duration_min, buffer_before_min, buffer_after_min
-       FROM services WHERE id = $1 AND business_id = $2`,
-      [service_id, bid]
+      `SELECT id, duration_min, buffer_before_min, buffer_after_min
+       FROM services WHERE business_id = $1 AND id = ANY($2)`,
+      [bid, svcIds]
     );
-    if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+    const svcMap = {};
+    for (const s of svcResult.rows) svcMap[s.id] = s;
 
-    const svc = svcResult.rows[0];
-    const totalDur = svc.buffer_before_min + svc.duration_min + svc.buffer_after_min;
-    const startDate = new Date(start_at);
-    const endDate = new Date(startDate.getTime() + totalDur * 60000);
+    // Validate all services exist
+    for (const s of serviceList) {
+      if (!svcMap[s.service_id]) return res.status(404).json({ error: `Prestation ${s.service_id} introuvable` });
+    }
 
-    const booking = await transactionWithRLS(bid, async (client) => {
-      // Check conflicts
+    // Calculate chained time slots
+    const isGroup = serviceList.length > 1;
+    const groupId = isGroup ? require('crypto').randomUUID() : null;
+    let cursor = new Date(start_at);
+    const slots = serviceList.map((s, i) => {
+      const svc = svcMap[s.service_id];
+      const totalDur = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+      const slotStart = new Date(cursor);
+      const slotEnd = new Date(slotStart.getTime() + totalDur * 60000);
+      cursor = slotEnd; // next service starts where this one ends
+      return {
+        service_id: s.service_id,
+        start_at: slotStart.toISOString(),
+        end_at: slotEnd.toISOString(),
+        group_order: i
+      };
+    });
+
+    const totalEnd = slots[slots.length - 1].end_at;
+
+    const bookings = await transactionWithRLS(bid, async (client) => {
+      // Check conflicts for the entire time range
       const conflict = await client.query(
         `SELECT id FROM bookings
          WHERE business_id = $1 AND practitioner_id = $2
          AND status IN ('pending', 'confirmed')
          AND start_at < $4 AND end_at > $3
          FOR UPDATE`,
-        [bid, practitioner_id, startDate.toISOString(), endDate.toISOString()]
+        [bid, practitioner_id, new Date(start_at).toISOString(), totalEnd]
       );
 
       if (conflict.rows.length > 0) {
         throw Object.assign(new Error('Créneau déjà pris'), { type: 'conflict' });
       }
 
-      const result = await client.query(
-        `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-          channel, appointment_mode, start_at, end_at, status, comment_client)
-         VALUES ($1, $2, $3, $4, 'manual', $5, $6, $7, 'confirmed', $8)
-         RETURNING *`,
-        [bid, practitioner_id, service_id, client_id || null,
-         appointment_mode || 'cabinet',
-         startDate.toISOString(), endDate.toISOString(),
-         comment || null]
-      );
+      const results = [];
+      for (const slot of slots) {
+        const result = await client.query(
+          `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+            channel, appointment_mode, start_at, end_at, status, comment_client,
+            group_id, group_order)
+           VALUES ($1, $2, $3, $4, 'manual', $5, $6, $7, 'confirmed', $8, $9, $10)
+           RETURNING *`,
+          [bid, practitioner_id, slot.service_id, client_id || null,
+           appointment_mode || 'cabinet',
+           slot.start_at, slot.end_at,
+           comment || null,
+           groupId, slot.group_order]
+        );
+        results.push(result.rows[0]);
 
-      // Audit
-      await client.query(
-        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action)
-         VALUES ($1, $2, 'booking', $3, 'create')`,
-        [bid, req.user.id, result.rows[0].id]
-      );
+        // Audit
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action)
+           VALUES ($1, $2, 'booking', $3, 'create')`,
+          [bid, req.user.id, result.rows[0].id]
+        );
+      }
 
-      return result.rows[0];
+      return results;
     });
 
-    res.status(201).json({ booking });
+    res.status(201).json({ booking: bookings[0], bookings, group_id: groupId });
   } catch (err) {
     next(err);
   }
@@ -264,9 +296,10 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
 
-    // Fetch old data + service info to recalculate duration
+    // Fetch dragged booking + service info + group info
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
+              b.group_id, b.group_order,
               s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
        JOIN services s ON s.id = b.service_id
@@ -275,13 +308,86 @@ router.patch('/:id/move', async (req, res, next) => {
     );
     if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
-    // Recalculate end_at from current service settings (not from FC's preserved duration)
-    const svc = old.rows[0];
-    const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+    const draggedBooking = old.rows[0];
+    const effectivePracId = practitioner_id || draggedBooking.practitioner_id;
     const newStart = new Date(start_at);
-    const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
 
-    const effectivePracId = practitioner_id || old.rows[0].practitioner_id;
+    // ── GROUP MOVE: recalculate all slots from the first booking's new start ──
+    if (draggedBooking.group_id) {
+      // Fetch all group members with their service durations, ordered
+      const groupRes = await queryWithRLS(bid,
+        `SELECT b.id, b.start_at, b.end_at, b.group_order,
+                s.duration_min, s.buffer_before_min, s.buffer_after_min
+         FROM bookings b
+         JOIN services s ON s.id = b.service_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order`,
+        [draggedBooking.group_id, bid]
+      );
+      const groupMembers = groupRes.rows;
+
+      // Calculate time delta from dragged booking's original start
+      const delta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
+
+      // Recalculate all slots: chain sequentially from the shifted first booking
+      const firstOrigStart = new Date(groupMembers[0].start_at);
+      let cursor = new Date(firstOrigStart.getTime() + delta);
+      const updates = groupMembers.map(m => {
+        const totalMin = (m.buffer_before_min || 0) + m.duration_min + (m.buffer_after_min || 0);
+        const s = new Date(cursor);
+        const e = new Date(s.getTime() + totalMin * 60000);
+        cursor = e;
+        return { id: m.id, start_at: s.toISOString(), end_at: e.toISOString() };
+      });
+
+      const totalStart = updates[0].start_at;
+      const totalEnd = updates[updates.length - 1].end_at;
+
+      // Check conflicts for entire group range (exclude all group members)
+      const groupIds = groupMembers.map(m => m.id);
+      const conflict = await queryWithRLS(bid,
+        `SELECT id FROM bookings
+         WHERE business_id = $1 AND practitioner_id = $2
+         AND id != ALL($3)
+         AND status IN ('pending', 'confirmed', 'modified_pending')
+         AND start_at < $5 AND end_at > $4`,
+        [bid, effectivePracId, groupIds, totalStart, totalEnd]
+      );
+      if (conflict.rows.length > 0) {
+        return res.status(409).json({ error: 'Créneau déjà pris — impossible de déplacer le groupe ici' });
+      }
+
+      // Update all group members
+      for (const u of updates) {
+        let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
+        const params = [u.start_at, u.end_at];
+        let idx = 3;
+        if (practitioner_id) {
+          sql += `, practitioner_id = $${idx}`;
+          params.push(practitioner_id);
+          idx++;
+        }
+        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1}`;
+        params.push(u.id, bid);
+        await queryWithRLS(bid, sql, params);
+      }
+
+      // Audit
+      await queryWithRLS(bid,
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'booking', $3, 'group_move', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ group_id: draggedBooking.group_id, original_start: draggedBooking.start_at }),
+         JSON.stringify({ new_start: totalStart, new_end: totalEnd })]
+      );
+
+      return res.json({ updated: true, group_moved: true, count: updates.length });
+    }
+
+    // ── SINGLE MOVE (no group) ──
+    const svc = draggedBooking;
+    const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+    const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
 
     // Check for conflicts (exclude self)
     const conflict = await queryWithRLS(bid,
@@ -338,12 +444,17 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
 
-    // Get current booking to know start_at and practitioner
+    // Get current booking to know start_at, practitioner, and group
     const current = await queryWithRLS(bid,
-      `SELECT start_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`,
+      `SELECT start_at, practitioner_id, group_id FROM bookings WHERE id = $1 AND business_id = $2`,
       [id, bid]
     );
     if (current.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Block resize for grouped bookings (durations are service-defined)
+    if (current.rows[0].group_id) {
+      return res.status(400).json({ error: 'Impossible de redimensionner un RDV groupé — les durées sont définies par les prestations' });
+    }
 
     // Check for conflicts (exclude self)
     const conflict = await queryWithRLS(bid,
@@ -570,11 +681,28 @@ router.get('/:id/detail', async (req, res, next) => {
       [id]
     );
 
+    // If part of a group, fetch siblings
+    let groupSiblings = [];
+    const bk = booking.rows[0];
+    if (bk.group_id) {
+      const grp = await queryWithRLS(bid,
+        `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
+                s.name AS service_name, s.duration_min, s.color AS service_color
+         FROM bookings b
+         JOIN services s ON s.id = b.service_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order`,
+        [bk.group_id, bid]
+      );
+      groupSiblings = grp.rows;
+    }
+
     res.json({
-      booking: booking.rows[0],
+      booking: bk,
       notes: notes.rows,
       todos: todos.rows,
-      reminders: reminders.rows
+      reminders: reminders.rows,
+      group_siblings: groupSiblings
     });
   } catch (err) {
     next(err);
