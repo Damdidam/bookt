@@ -19,6 +19,7 @@ const settingsRoutes = require('./routes/staff/settings');
 const callRoutes = require('./routes/staff/calls');
 const siteRoutes = require('./routes/staff/site');
 const signupRoutes = require('./routes/staff/signup');
+const practitionerRoutes = require('./routes/staff/practitioners');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 
 const app = express();
@@ -82,6 +83,7 @@ app.use('/api/availabilities', availabilityRoutes);
 app.use('/api/business', settingsRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/site', siteRoutes);
+app.use('/api/practitioners', practitionerRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
@@ -102,6 +104,11 @@ app.get('/:slug', (req, res, next) => {
 // /:slug/book → booking flow
 app.get('/:slug/book', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/book.html'));
+});
+
+// /booking/:token → manage booking (cancel/reschedule)
+app.get('/booking/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/manage-booking.html'));
 });
 
 // ===== ERROR HANDLER =====
