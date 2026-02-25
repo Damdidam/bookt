@@ -9,11 +9,12 @@ const { query } = require('../services/db');
 async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const queryToken = req.query.token; // Support ?token= for PDF downloads
+    if (!authHeader && !queryToken) {
       return res.status(401).json({ error: 'Token manquant' });
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader ? authHeader.split(' ')[1] : queryToken;
 
     let decoded;
     try {
