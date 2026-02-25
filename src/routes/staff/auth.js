@@ -180,6 +180,34 @@ router.get('/me', requireAuth, async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/auth/change-password
+// Change password (requires current password)
+// UI: Settings > Sécurité
+// ============================================================
+router.post('/change-password', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Utilisateur introuvable' });
+
+    const valid = await bcrypt.compare(current_password, result.rows[0].password_hash);
+    if (!valid) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
+
+    const hash = await bcrypt.hash(new_password, 12);
+    await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, req.user.id]);
+
+    res.json({ updated: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/auth/logout
 // Client-side only (clear JWT), but we can log it
 // ============================================================
