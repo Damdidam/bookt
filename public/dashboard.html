@@ -841,6 +841,8 @@ async function loadAgenda(){
 
     // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
+      // Client allows overlap → always permit
+      if(movingEvent?.extendedProps?.allow_overlap)return true;
       // Same group → always allow (they chain sequentially)
       const sg=stillEvent.extendedProps?.group_id, mg=movingEvent?.extendedProps?.group_id;
       if(sg&&mg&&sg===mg)return true;
@@ -854,6 +856,8 @@ async function loadAgenda(){
 
     // Full collision check before allowing drop
     eventAllow:function(dropInfo,draggedEvent){
+      // Client allows overlap → only block past
+      if(draggedEvent.extendedProps?.allow_overlap)return dropInfo.start>=new Date();
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
       const myGroup=draggedEvent.extendedProps?.group_id;
       if(!myPrac)return true;
@@ -1856,6 +1860,7 @@ async function openClientDetail(id){
     m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
     m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
     m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
+    m+=`<div style="margin-top:8px"><label style="font-size:.82rem;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="cl_overlap" ${cl.allow_overlap?'checked':''}> <span>Autoriser le chevauchement de RDV</span></label><div style="font-size:.72rem;color:var(--text-4);margin-left:26px">Permet de placer plusieurs RDV en même temps pour ce client (ex: coloration + soin en parallèle)</div></div>`;
     if(bks.length>0){
       m+=`<div style="margin-top:12px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)">Historique (${bks.length} RDV)</label>`;
       const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)'};
@@ -1876,7 +1881,7 @@ async function openClientDetail(id){
 
 async function saveClient(id){
   try{
-    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
+    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,allow_overlap:document.getElementById('cl_overlap').checked})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.querySelector('.modal-overlay')?.remove();
     GendaUI.toast('Client mis à jour','success');loadClients();

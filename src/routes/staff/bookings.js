@@ -25,7 +25,8 @@ router.get('/', async (req, res, next) => {
              b.group_id, b.group_order,
              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
-             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
+             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
+             c.allow_overlap
       FROM bookings b
       JOIN services s ON s.id = b.service_id
       JOIN practitioners p ON p.id = b.practitioner_id
@@ -118,19 +119,31 @@ router.post('/manual', async (req, res, next) => {
 
     const totalEnd = slots[slots.length - 1].end_at;
 
-    const bookings = await transactionWithRLS(bid, async (client) => {
-      // Check conflicts for the entire time range
-      const conflict = await client.query(
-        `SELECT id FROM bookings
-         WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('pending', 'confirmed')
-         AND start_at < $4 AND end_at > $3
-         FOR UPDATE`,
-        [bid, practitioner_id, new Date(start_at).toISOString(), totalEnd]
+    // Check if client allows overlap
+    let clientAllowOverlap = false;
+    if (client_id) {
+      const clRes = await queryWithRLS(bid,
+        `SELECT allow_overlap FROM clients WHERE id = $1 AND business_id = $2`,
+        [client_id, bid]
       );
+      if (clRes.rows.length > 0) clientAllowOverlap = clRes.rows[0].allow_overlap;
+    }
 
-      if (conflict.rows.length > 0) {
-        throw Object.assign(new Error('Créneau déjà pris'), { type: 'conflict' });
+    const bookings = await transactionWithRLS(bid, async (client) => {
+      // Check conflicts for the entire time range (skip if client allows overlap)
+      if (!clientAllowOverlap) {
+        const conflict = await client.query(
+          `SELECT id FROM bookings
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND status IN ('pending', 'confirmed')
+           AND start_at < $4 AND end_at > $3
+           FOR UPDATE`,
+          [bid, practitioner_id, new Date(start_at).toISOString(), totalEnd]
+        );
+
+        if (conflict.rows.length > 0) {
+          throw Object.assign(new Error('Créneau déjà pris'), { type: 'conflict' });
+        }
       }
 
       const results = [];
@@ -296,13 +309,15 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
 
-    // Fetch dragged booking + service info + group info
+    // Fetch dragged booking + service info + group info + client overlap pref
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
               b.group_id, b.group_order,
-              s.duration_min, s.buffer_before_min, s.buffer_after_min
+              s.duration_min, s.buffer_before_min, s.buffer_after_min,
+              c.allow_overlap
        FROM bookings b
        JOIN services s ON s.id = b.service_id
+       JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
@@ -343,18 +358,20 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalStart = updates[0].start_at;
       const totalEnd = updates[updates.length - 1].end_at;
 
-      // Check conflicts for entire group range (exclude all group members)
-      const groupIds = groupMembers.map(m => m.id);
-      const conflict = await queryWithRLS(bid,
-        `SELECT id FROM bookings
-         WHERE business_id = $1 AND practitioner_id = $2
-         AND id != ALL($3)
-         AND status IN ('pending', 'confirmed', 'modified_pending')
-         AND start_at < $5 AND end_at > $4`,
-        [bid, effectivePracId, groupIds, totalStart, totalEnd]
-      );
-      if (conflict.rows.length > 0) {
-        return res.status(409).json({ error: 'Créneau déjà pris — impossible de déplacer le groupe ici' });
+      // Check conflicts for entire group range (skip if client allows overlap)
+      if (!draggedBooking.allow_overlap) {
+        const groupIds = groupMembers.map(m => m.id);
+        const conflict = await queryWithRLS(bid,
+          `SELECT id FROM bookings
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND id != ALL($3)
+           AND status IN ('pending', 'confirmed', 'modified_pending')
+           AND start_at < $5 AND end_at > $4`,
+          [bid, effectivePracId, groupIds, totalStart, totalEnd]
+        );
+        if (conflict.rows.length > 0) {
+          return res.status(409).json({ error: 'Créneau déjà pris — impossible de déplacer le groupe ici' });
+        }
       }
 
       // Update all group members
@@ -389,17 +406,19 @@ router.patch('/:id/move', async (req, res, next) => {
     const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
     const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
 
-    // Check for conflicts (exclude self)
-    const conflict = await queryWithRLS(bid,
-      `SELECT id, start_at, end_at FROM bookings
-       WHERE business_id = $1 AND practitioner_id = $2
-       AND id != $3
-       AND status IN ('pending', 'confirmed', 'modified_pending')
-       AND start_at < $5 AND end_at > $4`,
-      [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
-    );
-    if (conflict.rows.length > 0) {
-      return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
+    // Check for conflicts (skip if client allows overlap)
+    if (!draggedBooking.allow_overlap) {
+      const conflict = await queryWithRLS(bid,
+        `SELECT id, start_at, end_at FROM bookings
+         WHERE business_id = $1 AND practitioner_id = $2
+         AND id != $3
+         AND status IN ('pending', 'confirmed', 'modified_pending')
+         AND start_at < $5 AND end_at > $4`,
+        [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
+      );
+      if (conflict.rows.length > 0) {
+        return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
+      }
     }
 
     let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
@@ -444,9 +463,12 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
 
-    // Get current booking to know start_at, practitioner, and group
+    // Get current booking to know start_at, practitioner, group, and client overlap pref
     const current = await queryWithRLS(bid,
-      `SELECT start_at, practitioner_id, group_id FROM bookings WHERE id = $1 AND business_id = $2`,
+      `SELECT b.start_at, b.practitioner_id, b.group_id, c.allow_overlap
+       FROM bookings b
+       JOIN clients c ON c.id = b.client_id
+       WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
     if (current.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
@@ -456,17 +478,19 @@ router.patch('/:id/resize', async (req, res, next) => {
       return res.status(400).json({ error: 'Impossible de redimensionner un RDV groupé — les durées sont définies par les prestations' });
     }
 
-    // Check for conflicts (exclude self)
-    const conflict = await queryWithRLS(bid,
-      `SELECT id FROM bookings
-       WHERE business_id = $1 AND practitioner_id = $2
-       AND id != $3
-       AND status IN ('pending', 'confirmed', 'modified_pending')
-       AND start_at < $5 AND end_at > $4`,
-      [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
-    );
-    if (conflict.rows.length > 0) {
-      return res.status(409).json({ error: 'Chevauchement — un autre RDV occupe ce créneau' });
+    // Check for conflicts (skip if client allows overlap)
+    if (!current.rows[0].allow_overlap) {
+      const conflict = await queryWithRLS(bid,
+        `SELECT id FROM bookings
+         WHERE business_id = $1 AND practitioner_id = $2
+         AND id != $3
+         AND status IN ('pending', 'confirmed', 'modified_pending')
+         AND start_at < $5 AND end_at > $4`,
+        [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
+      );
+      if (conflict.rows.length > 0) {
+        return res.status(409).json({ error: 'Chevauchement — un autre RDV occupe ce créneau' });
+      }
     }
 
     const result = await queryWithRLS(bid,

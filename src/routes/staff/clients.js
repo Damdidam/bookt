@@ -140,7 +140,7 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { full_name, phone, email, bce_number, notes, consent_sms, consent_marketing } = req.body;
+    const { full_name, phone, email, bce_number, notes, consent_sms, consent_marketing, allow_overlap } = req.body;
 
     const result = await queryWithRLS(bid,
       `UPDATE clients SET
@@ -151,10 +151,11 @@ router.patch('/:id', async (req, res, next) => {
         notes = COALESCE($5, notes),
         consent_sms = COALESCE($6, consent_sms),
         consent_marketing = COALESCE($7, consent_marketing),
+        allow_overlap = COALESCE($8, allow_overlap),
         updated_at = NOW()
-       WHERE id = $8 AND business_id = $9
+       WHERE id = $9 AND business_id = $10
        RETURNING *`,
-      [full_name, phone, email, bce_number, notes, consent_sms, consent_marketing,
+      [full_name, phone, email, bce_number, notes, consent_sms, consent_marketing, allow_overlap,
        req.params.id, bid]
     );
 
