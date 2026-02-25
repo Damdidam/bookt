@@ -733,7 +733,7 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 // ============================================================
 let fcCal=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
-let fcClientSearchTimer=null;
+let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
 let fcMobileView='grid'; // 'grid' or 'list'
 let fcMobileDate=new Date(); // for list view navigation
 let fcAllBookings=[]; // cache for list view
@@ -756,13 +756,36 @@ async function loadAgenda(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const [prRes,svRes]=await Promise.all([
+    const [prRes,svRes,avRes]=await Promise.all([
       fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}})
+      fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/availabilities',{headers:{'Authorization':'Bearer '+api.getToken()}})
     ]);
-    const prD=await prRes.json(), svD=await svRes.json();
+    const prD=await prRes.json(), svD=await svRes.json(), avD=await avRes.json();
     fcPractitioners=prD.practitioners||[];
     fcServices=svD.services||[];
+
+    // Compute calendar bounds from availability data
+    const avails=avD.availabilities||{};
+    const allStarts=[],allEnds=[];
+    for(const pracId of Object.keys(avails)){
+      const sched=avails[pracId].schedule||{};
+      for(const day of Object.keys(sched)){
+        for(const slot of sched[day]){
+          if(slot.start_time)allStarts.push(slot.start_time);
+          if(slot.end_time)allEnds.push(slot.end_time);
+        }
+      }
+    }
+    if(allStarts.length>0){
+      allStarts.sort();allEnds.sort();
+      const minH=Math.max(0,parseInt(allStarts[0].split(':')[0])-1);
+      const maxH=Math.min(23,parseInt(allEnds[allEnds.length-1].split(':')[0])+1);
+      fcSlotMin=String(minH).padStart(2,'0')+':00:00';
+      fcSlotMax=String(maxH).padStart(2,'0')+':00:00';
+    }else{
+      fcSlotMin='08:00:00';fcSlotMax='19:00:00';
+    }
   }catch(e){fcPractitioners=[];fcServices=[];}
 
   // Build filter pills
@@ -786,7 +809,7 @@ async function loadAgenda(){
     initialView:mobile?'timeGridDay':'timeGridWeek',
     headerToolbar:{left:'prev,today,next',center:'title',right:mobile?'':'timeGridDay,timeGridWeek,dayGridMonth'},
     buttonText:{today:"Aujourd'hui",day:'Jour',week:'Semaine',month:'Mois'},
-    slotMinTime:'07:00:00',slotMaxTime:'21:00:00',
+    slotMinTime:fcSlotMin,slotMaxTime:fcSlotMax,
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:!mobile,
     height:'auto',expandRows:true,stickyHeaderDates:true,firstDay:1,
