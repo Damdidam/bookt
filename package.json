@@ -18,7 +18,8 @@
     "express-rate-limit": "^7.1.5",
     "dotenv": "^16.3.1",
     "twilio": "^4.23.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "pdfkit": "^0.14.0"
   },
   "engines": {
     "node": ">=18.0.0"
