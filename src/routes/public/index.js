@@ -372,4 +372,107 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 // Booking lookup, cancel, reschedule, ICS — unchanged from v1
 // (import from separate file or keep inline)
 
+// ============================================================
+// GET /api/public/booking/:token
+// Lookup booking by public token (for cancel/reschedule page)
+// ============================================================
+router.get('/booking/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+              b.comment_client, b.public_token, b.created_at,
+              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+              p.display_name AS practitioner_name, p.title AS practitioner_title,
+              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
+              biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
+              biz.email AS business_email, biz.address AS business_address,
+              biz.settings AS business_settings, biz.theme AS business_theme
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN clients c ON c.id = b.client_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+    const bk = result.rows[0];
+    const cancelWindowHours = bk.business_settings?.cancellation_window_hours || 24;
+    const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+    const canCancel = bk.status === 'confirmed' && new Date() < deadline;
+
+    res.json({
+      booking: {
+        id: bk.id, token: bk.public_token,
+        start_at: bk.start_at, end_at: bk.end_at, status: bk.status,
+        appointment_mode: bk.appointment_mode, comment: bk.comment_client,
+        created_at: bk.created_at,
+        service: { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color },
+        practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
+        client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
+      },
+      business: {
+        name: bk.business_name, slug: bk.business_slug,
+        phone: bk.business_phone, email: bk.business_email,
+        address: bk.business_address, theme: bk.business_theme
+      },
+      cancellation: {
+        allowed: canCancel,
+        deadline: deadline.toISOString(),
+        window_hours: cancelWindowHours,
+        reason: !canCancel && bk.status === 'confirmed' ? 'Délai d\'annulation dépassé' : null
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/public/booking/:token/cancel
+// Client self-cancel
+// ============================================================
+router.post('/booking/:token/cancel', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { reason } = req.body;
+
+    const result = await query(
+      `SELECT b.id, b.status, b.start_at, b.business_id,
+              biz.settings AS business_settings
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+    const bk = result.rows[0];
+    if (bk.status !== 'confirmed') {
+      return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
+    }
+
+    const cancelWindowHours = bk.business_settings?.cancellation_window_hours || 24;
+    const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+    if (new Date() >= deadline) {
+      return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
+    }
+
+    await query(
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [reason || 'Annulé par le client', bk.id]
+    );
+
+    // Queue cancellation notification
+    await query(
+      `INSERT INTO notifications (business_id, booking_id, type, status)
+       VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+      [bk.business_id, bk.id]
+    );
+
+    res.json({ cancelled: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
