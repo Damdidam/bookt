@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon rendez-vous — Bookt</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;--gold:#A68B3C;--gold-bg:#FAF6EC;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--radius:14px;--radius-sm:10px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.container{width:100%;max-width:520px}
+.logo{text-align:center;margin-bottom:24px}
+.logo a{font-family:var(--serif);font-size:1.3rem;color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.logo .l{width:32px;height:32px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
+.card-header{padding:24px 28px;border-bottom:1px solid var(--border-light);text-align:center}
+.card-header .status{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:16px;font-size:.78rem;font-weight:700;margin-bottom:10px}
+.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}
+.card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
+.card-header .biz{font-size:.88rem;color:var(--text-3)}
+.details{padding:24px 28px}
+.detail-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-light)}
+.detail-row:last-child{border:none}
+.detail-row .icon{width:36px;height:36px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.detail-row .info{flex:1}
+.detail-row .label{font-size:.72rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px}
+.detail-row .value{font-size:.92rem;font-weight:600}
+.detail-row .sub{font-size:.78rem;color:var(--text-3)}
+.cancel-section{padding:20px 28px;border-top:1px solid var(--border-light)}
+.cancel-section h3{font-size:.88rem;font-weight:700;margin-bottom:8px;color:var(--red)}
+.cancel-section p{font-size:.82rem;color:var(--text-3);margin-bottom:12px}
+.cancel-section textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;resize:vertical;min-height:60px;margin-bottom:10px}
+.cancel-section textarea:focus{outline:none;border-color:var(--red)}
+.btn-cancel{width:100%;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn-cancel:hover{opacity:.9}
+.btn-cancel:disabled{opacity:.5;cursor:not-allowed}
+.deadline-info{padding:12px 16px;background:var(--gold-bg);border-radius:8px;font-size:.78rem;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.past-deadline{background:var(--red-bg);color:var(--red)}
+.cancelled-msg{padding:24px 28px;text-align:center}
+.cancelled-msg .check{font-size:2.5rem;margin-bottom:8px}
+.cancelled-msg h2{font-family:var(--serif);font-size:1.3rem;margin-bottom:4px}
+.cancelled-msg p{font-size:.88rem;color:var(--text-3)}
+.footer-link{text-align:center;margin-top:16px}
+.footer-link a{font-size:.82rem;color:var(--primary);text-decoration:none;font-weight:600}
+.footer-link a:hover{text-decoration:underline}
+.loading{text-align:center;padding:60px}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{text-align:center;padding:60px}
+.error .e-icon{font-size:3rem;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo"><a href="/"><span class="l">B</span>Bookt</a></div>
+  <div class="card" id="cardContent">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:12px;color:var(--text-4);font-size:.85rem">Chargement...</p></div>
+  </div>
+  <div class="footer-link" id="footerLink" style="display:none"></div>
+</div>
+
+<script>
+const token = window.location.pathname.split('/').pop();
+if (!token) { showError('Lien invalide'); }
+else { loadBooking(); }
+
+async function loadBooking() {
+  try {
+    const res = await fetch(`/api/public/booking/${token}`);
+    if (!res.ok) { showError('Rendez-vous introuvable'); return; }
+    const data = await res.json();
+    render(data);
+  } catch (err) { showError('Erreur de chargement'); }
+}
+
+function render(d) {
+  const bk = d.booking, biz = d.business, can = d.cancellation;
+  const start = new Date(bk.start_at), end = new Date(bk.end_at);
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const modeLabels = { cabinet: '🏢 Au cabinet', visio: '💻 En visio', phone: '📞 Par téléphone' };
+  const statusLabels = { confirmed: '✓ Confirmé', cancelled: '✕ Annulé', completed: '✓ Terminé', no_show: 'No-show', pending: '⏳ En attente' };
+  const price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(0)} €` : 'Gratuit';
+
+  // Apply theme
+  if (biz.theme?.primary_color) {
+    document.documentElement.style.setProperty('--primary', biz.theme.primary_color);
+  }
+
+  let html = `
+    <div class="card-header">
+      <div class="status ${bk.status}">${statusLabels[bk.status] || bk.status}</div>
+      <h1>Votre rendez-vous</h1>
+      <div class="biz">${biz.name}</div>
+    </div>
+    <div class="details">
+      <div class="detail-row">
+        <div class="icon">📅</div>
+        <div class="info"><div class="label">Date</div><div class="value">${dateStr}</div><div class="sub">${timeStr} – ${endStr}</div></div>
+      </div>
+      <div class="detail-row">
+        <div class="icon">💼</div>
+        <div class="info"><div class="label">Prestation</div><div class="value">${bk.service.name}</div><div class="sub">${bk.service.duration_min} min · ${price} · ${modeLabels[bk.appointment_mode] || bk.appointment_mode}</div></div>
+      </div>
+      <div class="detail-row">
+        <div class="icon">👤</div>
+        <div class="info"><div class="label">Praticien</div><div class="value">${bk.practitioner.name}</div>${bk.practitioner.title ? `<div class="sub">${bk.practitioner.title}</div>` : ''}</div>
+      </div>
+      ${biz.address ? `<div class="detail-row"><div class="icon">📍</div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div></div></div>` : ''}
+      ${biz.phone ? `<div class="detail-row"><div class="icon">📞</div><div class="info"><div class="label">Contact</div><div class="value">${biz.phone}</div>${biz.email ? `<div class="sub">${biz.email}</div>` : ''}</div></div>` : ''}
+      ${bk.comment ? `<div class="detail-row"><div class="icon">💬</div><div class="info"><div class="label">Votre remarque</div><div class="sub">${bk.comment}</div></div></div>` : ''}
+    </div>
+  `;
+
+  // Cancel section
+  if (bk.status === 'confirmed') {
+    const deadlineDate = new Date(can.deadline);
+    const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+    html += `<div class="cancel-section">
+      <h3>Annuler ce rendez-vous</h3>`;
+
+    if (can.allowed) {
+      html += `
+        <div class="deadline-info">⏰ Annulation gratuite jusqu'au ${deadlineStr}</div>
+        <p>Une fois annulé, le créneau sera libéré pour d'autres patients.</p>
+        <textarea id="cancelReason" placeholder="Raison de l'annulation (optionnel)"></textarea>
+        <button class="btn-cancel" id="cancelBtn" onclick="cancelBooking()">Annuler mon rendez-vous</button>
+      `;
+    } else {
+      html += `
+        <div class="deadline-info past-deadline">⚠️ Le délai d'annulation (${can.window_hours}h avant) est dépassé</div>
+        <p>Contactez directement le cabinet pour modifier ou annuler votre rendez-vous.</p>
+        ${biz.phone ? `<a href="tel:${biz.phone}" style="display:inline-block;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.88rem">📞 Appeler le cabinet</a>` : ''}
+      `;
+    }
+    html += `</div>`;
+  } else if (bk.status === 'cancelled') {
+    html += `<div class="cancelled-msg"><div class="check">✕</div><h2>Rendez-vous annulé</h2><p>Ce rendez-vous a été annulé. Vous pouvez en reprendre un nouveau.</p></div>`;
+  } else if (bk.status === 'completed') {
+    html += `<div class="cancelled-msg"><div class="check">✅</div><h2>Rendez-vous terminé</h2><p>Merci de votre visite !</p></div>`;
+  }
+
+  document.getElementById('cardContent').innerHTML = html;
+
+  // Footer link
+  const fl = document.getElementById('footerLink');
+  fl.style.display = 'block';
+  fl.innerHTML = `<a href="/${biz.slug}/book">Prendre un nouveau rendez-vous →</a>`;
+}
+
+async function cancelBooking() {
+  const btn = document.getElementById('cancelBtn');
+  const reason = document.getElementById('cancelReason')?.value || '';
+  btn.disabled = true; btn.textContent = 'Annulation en cours...';
+  try {
+    const res = await fetch(`/api/public/booking/${token}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason })
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      throw new Error(d.error);
+    }
+    // Reload to show cancelled state
+    loadBooking();
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Annuler mon rendez-vous';
+    alert('Erreur : ' + err.message);
+  }
+}
+
+function showError(msg) {
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">🔍</div><h2 style="font-family:var(--serif);font-size:1.3rem">${msg}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
+}
+</script>
+</body>
+</html>
