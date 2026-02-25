@@ -141,4 +141,133 @@ router.get('/summary', async (req, res, next) => {
   }
 });
 
+// ============================================================
+// GET /api/dashboard/analytics
+// Full analytics: revenue/bookings trends, peak hours, top services, status breakdown
+// UI: Dashboard > Analytics section (Pro feature)
+// ============================================================
+router.get('/analytics', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { period } = req.query; // '30d' (default), '7d', '90d'
+    const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const startStr = startDate.toISOString().split('T')[0];
+
+    // 1. Revenue + bookings by day
+    const dailyStats = await queryWithRLS(bid,
+      `SELECT
+        DATE(b.start_at AT TIME ZONE 'Europe/Brussels') AS day,
+        COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
+        COUNT(*) FILTER (WHERE b.status = 'no_show') AS no_shows,
+        COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
+        COALESCE(SUM(s.price_cents) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.business_id = $1 AND b.start_at >= $2
+       GROUP BY day ORDER BY day`,
+      [bid, startStr]
+    );
+
+    // 2. Peak hours heatmap (weekday 0-6 x hour 0-23)
+    const peakHours = await queryWithRLS(bid,
+      `SELECT
+        EXTRACT(DOW FROM b.start_at AT TIME ZONE 'Europe/Brussels')::int AS weekday,
+        EXTRACT(HOUR FROM b.start_at AT TIME ZONE 'Europe/Brussels')::int AS hour,
+        COUNT(*) AS count
+       FROM bookings b
+       WHERE b.business_id = $1
+       AND b.status IN ('confirmed', 'completed')
+       AND b.start_at >= $2
+       GROUP BY weekday, hour ORDER BY weekday, hour`,
+      [bid, startStr]
+    );
+
+    // 3. Top services
+    const topServices = await queryWithRLS(bid,
+      `SELECT s.name, s.color, COUNT(b.id) AS count,
+        COALESCE(SUM(s.price_cents), 0) AS revenue
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.business_id = $1
+       AND b.status IN ('confirmed', 'completed')
+       AND b.start_at >= $2
+       GROUP BY s.id, s.name, s.color
+       ORDER BY count DESC LIMIT 10`,
+      [bid, startStr]
+    );
+
+    // 4. Status breakdown
+    const statusBreakdown = await queryWithRLS(bid,
+      `SELECT b.status, COUNT(*) AS count
+       FROM bookings b
+       WHERE b.business_id = $1 AND b.start_at >= $2
+       GROUP BY b.status`,
+      [bid, startStr]
+    );
+
+    // 5. Monthly revenue (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const monthlyRevenue = await queryWithRLS(bid,
+      `SELECT
+        TO_CHAR(b.start_at AT TIME ZONE 'Europe/Brussels', 'YYYY-MM') AS month,
+        COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
+        COALESCE(SUM(s.price_cents) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.business_id = $1 AND b.start_at >= $2
+       GROUP BY month ORDER BY month`,
+      [bid, sixMonthsAgo.toISOString()]
+    );
+
+    // 6. New clients this period
+    const newClients = await queryWithRLS(bid,
+      `SELECT COUNT(*) AS count FROM clients
+       WHERE business_id = $1 AND created_at >= $2`,
+      [bid, startStr]
+    );
+
+    // 7. Totals for the period
+    const totals = dailyStats.rows.reduce((acc, d) => {
+      acc.bookings += parseInt(d.bookings);
+      acc.revenue += parseInt(d.revenue);
+      acc.no_shows += parseInt(d.no_shows);
+      acc.cancellations += parseInt(d.cancellations);
+      return acc;
+    }, { bookings: 0, revenue: 0, no_shows: 0, cancellations: 0 });
+
+    totals.avg_booking_value = totals.bookings > 0
+      ? Math.round(totals.revenue / totals.bookings) : 0;
+    totals.no_show_rate = (totals.bookings + totals.no_shows) > 0
+      ? Math.round(totals.no_shows / (totals.bookings + totals.no_shows) * 100) : 0;
+
+    res.json({
+      period: { days, start: startStr },
+      totals,
+      daily: dailyStats.rows.map(r => ({
+        day: r.day, bookings: parseInt(r.bookings),
+        no_shows: parseInt(r.no_shows), cancellations: parseInt(r.cancellations),
+        revenue: parseInt(r.revenue)
+      })),
+      peak_hours: peakHours.rows.map(r => ({
+        weekday: r.weekday, hour: r.hour, count: parseInt(r.count)
+      })),
+      top_services: topServices.rows.map(r => ({
+        name: r.name, color: r.color, count: parseInt(r.count),
+        revenue: parseInt(r.revenue)
+      })),
+      status_breakdown: statusBreakdown.rows.map(r => ({
+        status: r.status, count: parseInt(r.count)
+      })),
+      monthly: monthlyRevenue.rows.map(r => ({
+        month: r.month, bookings: parseInt(r.bookings),
+        revenue: parseInt(r.revenue)
+      })),
+      new_clients: parseInt(newClients.rows[0].count)
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
