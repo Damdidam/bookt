@@ -142,7 +142,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
       <div class="progress" id="prog">
         <div class="pbar"><div class="pfill" id="pFill" style="width:10%"></div></div>
-        <div class="pinfo"><span id="pLabel">Étape 1/10</span><span id="pPct">10%</span></div>
+        <div class="pinfo"><span id="pLabel">Étape 1/11</span><span id="pPct">9%</span></div>
       </div>
 
       <div class="err" id="errMsg"></div>
@@ -271,11 +271,64 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
           </div>
         </div>
         <div class="clo info">📞 Numéro activé après passage au plan Pro.</div>
-        <div class="snav"><button class="btn-back" onclick="go(8)">← Retour</button><div><button class="btn-skip" onclick="goLive()">Plus tard</button><button class="btn-next" onclick="goLive()">Publier mon site →</button></div></div>
+        <div class="snav"><button class="btn-back" onclick="go(8)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('call_filter',10)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('call_filter',10)">Continuer →</button></div></div>
       </div>
 
-      <!-- ===== STEP 10: GO LIVE ===== -->
+      <!-- ===== STEP 10: AGENDA / CALENDRIER ===== -->
       <div class="step" data-step="10">
+        <div class="step-hdr"><div class="lbl">Étape 10 · Agenda</div><h2>Synchronisez votre agenda</h2><p>Vos créneaux occupés seront automatiquement bloqués.</p></div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0">
+          <!-- Google Calendar -->
+          <div class="cal-opt" id="calOptGoogle" onclick="selectCalendar('google')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">📅</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Google Calendar</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Gmail, Google Workspace</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+
+          <!-- Outlook -->
+          <div class="cal-opt" id="calOptOutlook" onclick="selectCalendar('outlook')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">📧</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Outlook / Microsoft 365</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Hotmail, Office 365, Exchange</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+
+          <!-- Apple Calendar -->
+          <div class="cal-opt" id="calOptApple" onclick="selectCalendar('apple')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">🍎</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Apple Calendar (iCal)</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Export ICS · Pas de sync en temps réel</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+
+          <!-- Aucun -->
+          <div class="cal-opt" id="calOptNone" onclick="selectCalendar('none')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">❌</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Je n'utilise pas d'agenda en ligne</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Vous pourrez toujours en ajouter un plus tard</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+        </div>
+
+        <div id="calConnectBox" style="display:none;margin:10px 0">
+          <div class="clo info" id="calConnectMsg">📅 La connexion sera activée depuis votre dashboard après l'inscription.</div>
+        </div>
+
+        <div class="snav"><button class="btn-back" onclick="go(9)">← Retour</button><div><button class="btn-skip" onclick="goLive()">Plus tard</button><button class="btn-next" onclick="saveCalendarChoice()">Publier mon site →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 11: GO LIVE ===== -->
+      <div class="step" data-step="11">
         <div class="step-hdr"><div class="lbl">🎉 C'est prêt !</div><h2>Votre cabinet est en ligne</h2></div>
         <div class="golive">
           <div class="icon">🟢</div>
@@ -334,10 +387,10 @@ function go(n) {
   hideError();
 
   // Progress bar
-  if (n > 0 && n <= 10) {
-    const pct = Math.round((n / 10) * 100);
+  if (n > 0 && n <= 11) {
+    const pct = Math.round((n / 11) * 100);
     document.getElementById('pFill').style.width = pct + '%';
-    document.getElementById('pLabel').textContent = `Étape ${n}/10`;
+    document.getElementById('pLabel').textContent = `Étape ${n}/11`;
     document.getElementById('pPct').textContent = pct + '%';
     document.getElementById('prog').classList.add('show');
   } else {
@@ -368,7 +421,8 @@ const leftTexts = {
   7: ['La preuve <em>sociale</em>', 'Témoignages = facteur #1 de conversion.'],
   8: ['Zéro <em>no-show</em>', 'Les rappels réduisent les absences de 60%.'],
   9: ['Finies les <em>interruptions</em>', '78% des appels filtrés → RDV en ligne.'],
-  10: ['<em>Félicitations !</em>', 'Votre cabinet est en ligne. Partagez le lien.']
+  10: ['Synchronisez votre <em>agenda</em>', 'Vos créneaux occupés bloquent les réservations.'],
+  11: ['<em>Félicitations !</em>', 'Votre cabinet est en ligne. Partagez le lien.']
 };
 
 function updateLeftPanel(n) {
@@ -605,11 +659,63 @@ async function saveOnboardingStep(step, nextStep) {
 }
 
 // ============================================================
-// STEP 10: GO LIVE
+// STEP 10: CALENDAR CHOICE
+// ============================================================
+let selectedCalendar = null;
+
+function selectCalendar(type) {
+  selectedCalendar = type;
+  // Update visual selection
+  document.querySelectorAll('.cal-opt').forEach(el => {
+    el.style.borderColor = 'var(--border-light)';
+    el.querySelector('.cal-check').innerHTML = '';
+    el.querySelector('.cal-check').style.borderColor = 'var(--border-light)';
+    el.querySelector('.cal-check').style.background = 'transparent';
+  });
+  const sel = document.getElementById('calOpt' + type.charAt(0).toUpperCase() + type.slice(1));
+  if (sel) {
+    sel.style.borderColor = 'var(--primary)';
+    const check = sel.querySelector('.cal-check');
+    check.innerHTML = '✓';
+    check.style.borderColor = 'var(--primary)';
+    check.style.background = 'var(--primary)';
+    check.style.color = '#fff';
+  }
+
+  // Show info box
+  const box = document.getElementById('calConnectBox');
+  const msg = document.getElementById('calConnectMsg');
+  if (type === 'none') {
+    box.style.display = 'none';
+  } else if (type === 'apple') {
+    box.style.display = 'block';
+    msg.innerHTML = '🍎 Apple Calendar ne supporte pas la sync en temps réel. Vos RDV seront exportables en fichier .ics depuis le dashboard.';
+  } else if (type === 'google') {
+    box.style.display = 'block';
+    msg.innerHTML = '📅 Après l\'inscription, connectez votre Google Calendar en un clic depuis <strong>Paramètres → Synchronisation calendrier</strong>.';
+  } else if (type === 'outlook') {
+    box.style.display = 'block';
+    msg.innerHTML = '📧 Après l\'inscription, connectez votre Outlook en un clic depuis <strong>Paramètres → Synchronisation calendrier</strong>.';
+  }
+}
+
+async function saveCalendarChoice() {
+  try {
+    // Save calendar preference in business settings
+    if (selectedCalendar && selectedCalendar !== 'none') {
+      await api.updateSettings({
+        settings: { calendar_provider_preference: selectedCalendar }
+      });
+    }
+  } catch (e) { /* non-blocking */ }
+  goLive();
+}
+
+// ============================================================
+// STEP 11: GO LIVE
 // ============================================================
 async function goLive() {
   try {
-    await api.updateOnboarding('call_filter');
     await api.updateOnboarding('go_live');
   } catch (e) { /* non-blocking */ }
 
@@ -621,7 +727,7 @@ async function goLive() {
   document.getElementById('goliveUrl').textContent = `bookt.be/${slug}`;
   document.getElementById('goliveLinkPreview').href = `/api/public/${slug}`;
 
-  go(10);
+  go(11);
   BooktUI.toast('🎉 Votre cabinet est en ligne !', 'success', 6000);
 }
 
