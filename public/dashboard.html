@@ -220,6 +220,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .copy-input{display:flex;gap:6px}
 .copy-input input{flex:1;background:var(--surface);font-size:.78rem;font-family:monospace}
 .copy-input button{flex-shrink:0}
+/* Team */
+.team-grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.team-member{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:20px;position:relative}
+.team-member.inactive{opacity:.5}
+.team-member .tm-header{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.team-member .tm-avatar{width:48px;height:48px;border-radius:14px;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.1rem;flex-shrink:0}
+.team-member .tm-info h4{font-size:.95rem;font-weight:700}
+.team-member .tm-info .tm-title{font-size:.78rem;color:var(--text-3)}
+.team-member .tm-info .tm-email{font-size:.72rem;color:var(--text-4)}
+.team-member .tm-stats{display:flex;gap:12px;margin-bottom:10px;padding:8px 0;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light)}
+.team-member .tm-stat{text-align:center;flex:1}
+.team-member .tm-stat .v{font-weight:700;font-size:.88rem}
+.team-member .tm-stat .l{font-size:.65rem;color:var(--text-4);text-transform:uppercase}
+.team-member .tm-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.team-member .tm-badge{padding:2px 8px;border-radius:6px;font-size:.65rem;font-weight:600}
+.tm-badge.active{background:var(--green-bg);color:var(--green)}
+.tm-badge.inactive{background:var(--red-bg);color:var(--red)}
+.tm-badge.booking{background:var(--primary-light);color:var(--primary)}
+.tm-badge.no-booking{background:var(--surface);color:var(--text-4)}
+.tm-badge.has-login{background:var(--gold-bg);color:var(--gold)}
+.team-member .tm-actions{display:flex;gap:6px;flex-wrap:wrap}
 .theme-card{background:var(--white);border:2px solid var(--border-light);border-radius:var(--radius);padding:0;cursor:pointer;transition:all .2s;overflow:hidden;position:relative}
 .theme-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow-md)}
 .theme-card.active{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
@@ -254,9 +275,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   <nav class="sb-nav">
     <a class="ni active" href="#" data-section="home"><span class="ic">📊</span><span>Dashboard</span></a>
     <a class="ni" href="#" data-section="bookings"><span class="ic">📅</span><span>Agenda</span></a>
-    <a class="ni" href="#" data-section="clients"><span class="ic">👥</span><span>Clients</span></a>
+    <a class="ni" href="#" data-section="clients"><span class="ic">🗂️</span><span>Clients</span></a>
     <a class="ni" href="#" data-section="services"><span class="ic">📋</span><span>Prestations</span></a>
     <a class="ni" href="#" data-section="hours"><span class="ic">🕐</span><span>Disponibilités</span></a>
+    <a class="ni" href="#" data-section="team"><span class="ic">👥</span><span>Équipe</span></a>
     <a class="ni" href="#" data-section="site"><span class="ic">🌐</span><span>Mon site</span></a>
     <a class="ni" href="#" data-section="calls"><span class="ic">📞</span><span>Appels</span></a>
     <a class="ni" href="#" data-section="settings"><span class="ic">⚙️</span><span>Paramètres</span></a>
@@ -304,7 +326,7 @@ async function loadDashboard(){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',site:'Mon site',calls:'Appels',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // AGENDA
 const DF=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -1030,6 +1052,125 @@ async function saveCustomColor(){
       body:JSON.stringify({theme:{preset:currentThemePreset,primary_color:color}})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     BooktUI.toast('Couleur appliquée !','success');
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// ÉQUIPE (TEAM MANAGEMENT)
+// ============================================================
+async function loadTeam(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const r=await fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const practs=d.practitioners||[];
+    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${practs.length} membre${practs.length>1?'s':''} de l'équipe</h3><button class="btn-primary" onclick="openPractModal()">+ Ajouter un praticien</button></div>`;
+
+    if(practs.length===0){h+=`<div class="card"><div class="empty">Aucun praticien. Ajoutez votre premier membre !</div></div>`;}
+    else{
+      h+=`<div class="team-grid2">`;
+      practs.forEach(p=>{
+        const initials=p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)||'??';
+        const hasLogin=!!p.user_email;
+        h+=`<div class="team-member${p.is_active?'':' inactive'}">
+          <div class="tm-header">
+            <div class="tm-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>
+            <div class="tm-info">
+              <h4>${p.display_name}</h4>
+              <div class="tm-title">${p.title||'—'}${p.years_experience?' · '+p.years_experience+' ans':''}</div>
+              ${p.user_email?`<div class="tm-email">🔑 ${p.user_email}</div>`:`<div class="tm-email" style="color:var(--text-4)">Pas de compte</div>`}
+            </div>
+          </div>
+          <div class="tm-stats">
+            <div class="tm-stat"><div class="v">${p.bookings_30d||0}</div><div class="l">RDV / 30j</div></div>
+            <div class="tm-stat"><div class="v">${p.service_count||0}</div><div class="l">Prestations</div></div>
+            <div class="tm-stat"><div class="v">${p.last_login_at?new Date(p.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'}):'—'}</div><div class="l">Dern. connexion</div></div>
+          </div>
+          <div class="tm-badges">
+            <span class="tm-badge ${p.is_active?'active':'inactive'}">${p.is_active?'Actif':'Inactif'}</span>
+            <span class="tm-badge ${p.booking_enabled?'booking':'no-booking'}">${p.booking_enabled?'Réservable':'Non réservable'}</span>
+            ${hasLogin?'<span class="tm-badge has-login">Compte lié</span>':''}
+          </div>
+          <div class="tm-actions">
+            <button class="btn-outline btn-sm" onclick="openPractModal('${p.id}')">✏️ Modifier</button>
+            ${!hasLogin?`<button class="btn-outline btn-sm" onclick="openInviteModal('${p.id}','${esc(p.display_name)}')">🔑 Créer un accès</button>`:''}
+            ${p.is_active?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver ${esc(p.display_name)} ?'))deactivatePract('${p.id}')">Désactiver</button>`:`<button class="btn-outline btn-sm" onclick="reactivatePract('${p.id}')">Réactiver</button>`}
+          </div>
+        </div>`;
+      });
+      h+=`</div>`;
+    }
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+function openPractModal(editId){
+  if(editId){
+    fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}).then(r=>r.json()).then(d=>{
+      renderPractModal(d.practitioners.find(p=>p.id===editId));
+    });
+  }else{renderPractModal(null);}
+}
+
+function renderPractModal(p){
+  const isEdit=!!p;
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le praticien':'Nouveau praticien'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
+    <div class="field"><label>Nom complet *</label><input id="p_name" value="${p?.display_name||''}" placeholder="Ex: Dr. Sophie Laurent"></div>
+    <div class="field"><label>Titre / Spécialité</label><input id="p_title" value="${p?.title||''}" placeholder="Ex: Kinésithérapeute sportif"></div>
+    <div class="field-row"><div class="field"><label>Années d'expérience</label><input type="number" id="p_years" value="${p?.years_experience||''}" min="0"></div><div class="field"><label>Couleur agenda</label><input type="color" id="p_color" value="${p?.color||'#0D7377'}" style="width:50px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer"></div></div>
+    <div class="field-row"><div class="field"><label>Email</label><input id="p_email" type="email" value="${p?.email||''}"></div><div class="field"><label>Téléphone</label><input id="p_phone" value="${p?.phone||''}"></div></div>
+    <div class="field"><label>Bio</label><textarea id="p_bio">${p?.bio||''}</textarea></div>
+    <div class="field"><label>LinkedIn</label><input id="p_linkedin" value="${p?.linkedin_url||''}" placeholder="https://linkedin.com/in/..."></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="p_booking" ${p?.booking_enabled!==false?'checked':''}> Peut recevoir des réservations en ligne</label></div>
+  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="savePract(${isEdit?"'"+p.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function savePract(id){
+  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked};
+  try{
+    const url=id?`/api/practitioners/${id}`:'/api/practitioners';
+    const method=id?'PATCH':'POST';
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast(id?'Praticien modifié':'Praticien ajouté','success');loadTeam();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deactivatePract(id){
+  try{const r=await fetch(`/api/practitioners/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);BooktUI.toast('Praticien désactivé','success');loadTeam();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function reactivatePract(id){
+  try{const r=await fetch(`/api/practitioners/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true,booking_enabled:true})});
+    if(!r.ok)throw new Error((await r.json()).error);BooktUI.toast('Praticien réactivé','success');loadTeam();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+function openInviteModal(practId,name){
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:420px"><div class="modal-h"><h3>Créer un accès — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
+    <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte staff pour que <strong>${name}</strong> puisse se connecter au dashboard et gérer son agenda.</p>
+    <div class="field"><label>Email *</label><input id="inv_email" type="email" placeholder="email@exemple.com"></div>
+    <div class="field"><label>Mot de passe temporaire *</label><input id="inv_pwd" type="text" value="${generateTempPwd()}" style="font-family:monospace"><div class="hint">Communiquez ce mot de passe au praticien. Il pourra le changer dans ses paramètres.</div></div>
+  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="sendInvite('${practId}')">Créer le compte</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+function generateTempPwd(){const chars='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';let pwd='';for(let i=0;i<10;i++)pwd+=chars[Math.floor(Math.random()*chars.length)];return pwd;}
+
+async function sendInvite(practId){
+  const email=document.getElementById('inv_email').value;
+  const password=document.getElementById('inv_pwd').value;
+  if(!email||!password)return BooktUI.toast('Email et mot de passe requis','error');
+  try{
+    const r=await fetch(`/api/practitioners/${practId}/invite`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({email,password})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Compte créé ! Communiquez les identifiants au praticien.','success');loadTeam();
   }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
