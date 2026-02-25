@@ -936,7 +936,7 @@ async function loadAgenda(){
         });
         if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
         const result=await r.json();
-        gToast(result.group_moved?`Groupe (${result.count} prestations) déplacé`:(p.client_name||'RDV')+' déplacé','success');
+        gToast(result.group_moved?`${p.client_name||'Client'} — ${result.count} prestations déplacées`:(p.client_name||'RDV')+' déplacé','success');
         fcCal.refetchEvents(); // Sync recalculated duration from backend
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
     },
@@ -1563,7 +1563,7 @@ async function calCreateBooking(){
     if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
     const result=await r.json();
     const count=result.bookings?.length||1;
-    gToast(count>1?`${count} prestations créées (groupe lié) !`:'RDV créé !','success');
+    gToast(count>1?`${clientName} — ${count} prestations créées !`:`${clientName} — RDV créé !`,'success');
     closeCalModal('calCreateModal');
     fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
