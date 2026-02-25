@@ -659,7 +659,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div id="qcTotalDuration" style="font-size:.75rem;color:var(--text-4);margin-top:6px"></div>
       </div>
       <div class="qc-row"><div class="qc-label">Praticien</div><select class="qc-input" id="qcPrac"></select></div>
-      <div class="qc-row"><div class="qc-label">Mode</div><select class="qc-input" id="qcMode"><option value="cabinet">🏢 Cabinet</option><option value="visio">💻 Visio</option><option value="phone">📞 Téléphone</option></select></div>
+      <div class="qc-row" id="qcModeRow"><div class="qc-label">Mode</div><select class="qc-input" id="qcMode"><option value="cabinet">🏢 Cabinet</option></select></div>
       <div class="qc-row"><div class="qc-label">Commentaire (optionnel)</div><input class="qc-input" id="qcComment" placeholder="Note ou contexte..."></div>
       <div class="qc-actions"><button class="cal-btn" onclick="closeCalModal('calCreateModal')">Annuler</button><button class="cal-btn primary" onclick="calCreateBooking()">Créer le RDV</button></div>
     </div>
@@ -1102,7 +1102,8 @@ async function fcOpenDetail(bookingId){
       <div class="info-item"><div class="info-label">Horaire</div><div class="info-value">${s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} – ${e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} (${b.duration_min}min)</div></div>
       <div class="info-item"><div class="info-label">Téléphone</div><div class="info-value"><a href="tel:${b.client_phone||''}">${b.client_phone||'—'}</a></div></div>
       <div class="info-item"><div class="info-label">Email</div><div class="info-value"><a href="mailto:${b.client_email||''}">${b.client_email||'—'}</a></div></div>`;
-    if(b.appointment_mode)ig+=`<div class="info-item"><div class="info-label">Mode</div><div class="info-value">${MODE_ICO[b.appointment_mode]||''} ${b.appointment_mode}</div></div>`;
+    const physOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
+    if(b.appointment_mode&&!physOnlySectors.includes(userSector))ig+=`<div class="info-item"><div class="info-label">Mode</div><div class="info-value">${MODE_ICO[b.appointment_mode]||''} ${b.appointment_mode}</div></div>`;
     if(b.no_show_count>0)ig+=`<div class="info-item"><div class="info-label">⚠️ No-shows</div><div class="info-value" style="color:var(--red);font-weight:700">${b.no_show_count}</div></div>`;
 
     // Group siblings
@@ -1435,7 +1436,10 @@ function qcRemoveService(idx){
 
 function qcUpdateTotal(){
   let total=0;
-  document.querySelectorAll('.qc-svc-item').forEach(item=>{
+  const svcItems=document.querySelectorAll('.qc-svc-item');
+  // Collect mode_options intersection
+  let availModes=null;
+  svcItems.forEach(item=>{
     const sel=item.querySelector('select');
     if(!sel)return;
     const opt=sel.options[sel.selectedIndex];
@@ -1443,19 +1447,37 @@ function qcUpdateTotal(){
     const buf=parseInt(opt?.dataset.buf||0);
     const color=opt?.dataset.color||'#0D7377';
     total+=dur+buf;
-    // Update per-item display
     const durEl=item.querySelector('.qc-svc-dur');
     if(durEl)durEl.textContent=dur+'min';
     const colEl=item.querySelector('.qc-svc-color');
     if(colEl)colEl.style.background=color;
+    // Get this service's mode_options
+    const svcId=sel.value;
+    const svc=fcServices.find(s=>s.id===svcId);
+    const modes=svc?.mode_options||['cabinet'];
+    if(!availModes)availModes=new Set(modes);
+    else availModes=new Set([...availModes].filter(m=>modes.includes(m)));
   });
+  // Update total display
   const el=document.getElementById('qcTotalDuration');
-  const items=document.querySelectorAll('.qc-svc-item');
-  if(items.length>1){
+  if(svcItems.length>1){
     const h=Math.floor(total/60),m=total%60;
-    el.innerHTML=`⏱ Durée totale : <strong>${h?h+'h':''}${m?m+'min':''}</strong> · ${items.length} prestations (groupe lié)`;
+    el.innerHTML=`⏱ Durée totale : <strong>${h?h+'h':''}${m?m+'min':''}</strong> · ${svcItems.length} prestations (groupe lié)`;
   }else{
     el.innerHTML=`⏱ ${total} min`;
+  }
+  // Update mode selector
+  const modeRow=document.getElementById('qcModeRow');
+  const modeSel=document.getElementById('qcMode');
+  const modes=availModes?[...availModes]:['cabinet'];
+  if(modes.length<=1&&modes[0]==='cabinet'){
+    modeRow.style.display='none';
+    modeSel.value='cabinet';
+  }else{
+    modeRow.style.display='';
+    const curVal=modeSel.value;
+    modeSel.innerHTML=modes.map(m=>`<option value="${m}">${{cabinet:'🏢 Cabinet',visio:'💻 Visio',phone:'📞 Téléphone'}[m]||m}</option>`).join('');
+    if(modes.includes(curVal))modeSel.value=curVal;
   }
 }
 
@@ -1912,13 +1934,14 @@ async function loadServices(){
       svcs.forEach(s=>{
         const price=s.price_cents?`${(s.price_cents/100).toFixed(0)} €`:(s.price_label||'Gratuit');
         const modes=(s.mode_options||['cabinet']).map(m=>`<span class="mode-tag">${{cabinet:'🏢 Cabinet',visio:'💻 Visio',phone:'📞 Tél'}[m]||m}</span>`).join('');
+        const physOnly=['coiffeur','esthetique','kine','dentiste','veterinaire'].includes(userSector);
         const pIds=s.practitioner_ids||[];
         const pNames=pIds.length>0?pIds.map(pid=>{const p=allPractitioners.find(x=>x.id===pid);return p?p.display_name:'?';}).join(', '):'Tous les membres';
         h+=`<div class="svc-card${s.is_active===false?' inactive':''}" style="border-left-color:${s.color||'var(--primary)'}">
           <h4>${s.name}</h4>
           <div class="svc-meta">${s.duration_min}min · Buffer: ${s.buffer_before_min||0}+${s.buffer_after_min||0}min${s.category?' · '+s.category:''}</div>
           <div class="svc-price">${price}</div>
-          <div class="svc-modes">${modes}</div>
+          ${physOnly?'':`<div class="svc-modes">${modes}</div>`}
           <div style="font-size:.72rem;color:var(--text-4);margin-top:4px">👤 ${pNames}</div>
           <div class="svc-actions">
             <button class="btn-outline btn-sm" onclick="openServiceModal('${s.id}')">✏️ Modifier</button>
@@ -1949,11 +1972,18 @@ function renderServiceModal(svc){
   m+=`<div class="field"><label>Catégorie</label><input id="svc_cat" value="${svc?.category||''}" placeholder="Ex: Consultation, Soin..."></div>`;
   m+=`<div class="field"><label>Couleur</label><input type="color" id="svc_color" value="${svc?.color||'#0D7377'}" style="width:50px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer"></div>`;
   const modes=svc?.mode_options||['cabinet'];
+  // Only show mode options for sectors that can do remote consultations
+  const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
+  const showModes=!physicalOnlySectors.includes(userSector);
+  if(showModes){
   m+=`<div class="field"><label>Modes de consultation</label><div style="display:flex;gap:8px;margin-top:4px">
     <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> 🏢 Cabinet</label>
     <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> 💻 Visio</label>
     <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> 📞 Tél</label>
   </div></div>`;
+  }else{
+  // Physical-only sector: modes handled in saveService()
+  }
   m+=`<div class="field"><label>Label prix (si pas de montant)</label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
   // Practitioner assignment
   const assignedIds=svc?.practitioner_ids||[];
@@ -1970,10 +2000,16 @@ function renderServiceModal(svc){
 }
 
 async function saveService(id){
-  const modes=[];
-  if(document.getElementById('svc_m_cab').checked)modes.push('cabinet');
-  if(document.getElementById('svc_m_vis').checked)modes.push('visio');
-  if(document.getElementById('svc_m_tel').checked)modes.push('phone');
+  const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
+  let modes;
+  if(physicalOnlySectors.includes(userSector)){
+    modes=['cabinet'];
+  }else{
+    modes=[];
+    if(document.getElementById('svc_m_cab')?.checked)modes.push('cabinet');
+    if(document.getElementById('svc_m_vis')?.checked)modes.push('visio');
+    if(document.getElementById('svc_m_tel')?.checked)modes.push('phone');
+  }
   const priceVal=document.getElementById('svc_price').value;
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
   try{
