@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { query } = require('../../services/db');
 const { getAvailableSlots } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
+const { processWaitlistForCancellation } = require('../../services/waitlist');
 
 // ============================================================
 // GET /api/public/:slug
@@ -39,7 +40,7 @@ router.get('/:slug', async (req, res, next) => {
     // ===== PRACTITIONERS + their specializations =====
     const pracResult = await query(
       `SELECT p.id, p.display_name, p.title, p.bio, p.photo_url, p.color,
-              p.years_experience, p.email, p.linkedin_url,
+              p.years_experience, p.email, p.linkedin_url, p.waitlist_mode,
               ARRAY_AGG(DISTINCT ps.service_id) FILTER (WHERE ps.service_id IS NOT NULL) AS service_ids,
               ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS specialization_names
        FROM practitioners p
@@ -186,7 +187,8 @@ router.get('/:slug', async (req, res, next) => {
         email: p.email,
         linkedin_url: p.linkedin_url,
         service_ids: (p.service_ids || []).filter(Boolean),
-        specializations: (p.specialization_names || []).filter(Boolean)
+        specializations: (p.specialization_names || []).filter(Boolean),
+        waitlist_mode: p.waitlist_mode || 'off'
       })),
       services: svcResult.rows.map(s => ({
         id: s.id,
@@ -471,7 +473,13 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       [bk.business_id, bk.id]
     );
 
-    res.json({ cancelled: true });
+    // Trigger waitlist processing
+    let waitlistResult = null;
+    try {
+      waitlistResult = await processWaitlistForCancellation(bk.id);
+    } catch (e) { /* non-blocking */ }
+
+    res.json({ cancelled: true, waitlist: waitlistResult });
   } catch (err) { next(err); }
 });
 
@@ -582,6 +590,308 @@ router.post('/docs/:token/submit', async (req, res, next) => {
     );
 
     res.json({ submitted: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// WAITLIST — PUBLIC ENDPOINTS
+// ============================================================
+
+// POST /api/public/:slug/waitlist — client joins waitlist
+router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const { practitioner_id, service_id, client_name, client_email,
+            client_phone, preferred_days, preferred_time, note } = req.body;
+
+    if (!practitioner_id || !service_id || !client_name || !client_email) {
+      return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
+    }
+
+    const bizResult = await query(
+      `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
+    );
+    if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+    const businessId = bizResult.rows[0].id;
+
+    // Check practitioner has waitlist enabled
+    const pracResult = await query(
+      `SELECT waitlist_mode FROM practitioners WHERE id = $1 AND business_id = $2 AND is_active = true`,
+      [practitioner_id, businessId]
+    );
+    if (pracResult.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
+    if (pracResult.rows[0].waitlist_mode === 'off') {
+      return res.status(400).json({ error: 'La liste d\'attente n\'est pas activée pour ce praticien' });
+    }
+
+    // Check not already on waitlist
+    const existing = await query(
+      `SELECT id FROM waitlist_entries
+       WHERE practitioner_id = $1 AND service_id = $2 AND client_email = $3
+       AND status = 'waiting'`,
+      [practitioner_id, service_id, client_email]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Vous êtes déjà sur la liste d\'attente' });
+    }
+
+    // Get next priority
+    const maxP = await query(
+      `SELECT COALESCE(MAX(priority), 0) + 1 AS next_priority
+       FROM waitlist_entries
+       WHERE practitioner_id = $1 AND service_id = $2 AND status = 'waiting'`,
+      [practitioner_id, service_id]
+    );
+
+    const result = await query(
+      `INSERT INTO waitlist_entries
+        (business_id, practitioner_id, service_id, client_name, client_email,
+         client_phone, preferred_days, preferred_time, note, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, priority, created_at`,
+      [businessId, practitioner_id, service_id, client_name, client_email,
+       client_phone || null,
+       JSON.stringify(preferred_days || [0,1,2,3,4]),
+       preferred_time || 'any',
+       note || null,
+       maxP.rows[0].next_priority]
+    );
+
+    res.status(201).json({
+      waitlisted: true,
+      position: maxP.rows[0].next_priority,
+      entry_id: result.rows[0].id
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/public/waitlist/:token — get offer details
+router.get('/waitlist/:token', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT w.*,
+        p.display_name AS practitioner_name, p.title AS practitioner_title,
+        s.name AS service_name, s.duration_min, s.price_cents, s.price_label,
+        b.name AS business_name, b.slug AS business_slug, b.address AS business_address,
+        b.phone AS business_phone, b.email AS business_email, b.theme
+       FROM waitlist_entries w
+       JOIN practitioners p ON p.id = w.practitioner_id
+       JOIN services s ON s.id = w.service_id
+       JOIN businesses b ON b.id = w.business_id
+       WHERE w.offer_token = $1`,
+      [req.params.token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Offre introuvable' });
+    }
+
+    const entry = result.rows[0];
+
+    // Check expiry
+    const expired = entry.status === 'offered' && new Date() > new Date(entry.offer_expires_at);
+    if (expired) {
+      await query(
+        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+        [entry.id]
+      );
+    }
+
+    res.json({
+      offer: {
+        id: entry.id,
+        status: expired ? 'expired' : entry.status,
+        client_name: entry.client_name,
+        slot_start: entry.offer_booking_start,
+        slot_end: entry.offer_booking_end,
+        expires_at: entry.offer_expires_at,
+        expired: expired || entry.status !== 'offered'
+      },
+      service: {
+        name: entry.service_name,
+        duration_min: entry.duration_min,
+        price_cents: entry.price_cents,
+        price_label: entry.price_label
+      },
+      practitioner: {
+        name: entry.practitioner_name,
+        title: entry.practitioner_title
+      },
+      business: {
+        name: entry.business_name,
+        slug: entry.business_slug,
+        address: entry.business_address,
+        phone: entry.business_phone,
+        email: entry.business_email,
+        theme: entry.theme
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/waitlist/:token/accept — accept the offer → create booking
+router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) => {
+  try {
+    const entry = await query(
+      `SELECT w.*, s.duration_min, s.buffer_before_min, s.buffer_after_min
+       FROM waitlist_entries w
+       JOIN services s ON s.id = w.service_id
+       WHERE w.offer_token = $1 AND w.status = 'offered'`,
+      [req.params.token]
+    );
+
+    if (entry.rows.length === 0) {
+      return res.status(404).json({ error: 'Offre introuvable ou expirée' });
+    }
+
+    const e = entry.rows[0];
+
+    // Check not expired
+    if (new Date() > new Date(e.offer_expires_at)) {
+      await query(
+        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+        [e.id]
+      );
+      return res.status(410).json({ error: 'Cette offre a expiré' });
+    }
+
+    // Check slot still available (no new booking in that slot)
+    const conflict = await query(
+      `SELECT id FROM bookings
+       WHERE business_id = $1 AND practitioner_id = $2
+       AND status IN ('pending', 'confirmed')
+       AND start_at < $4 AND end_at > $3`,
+      [e.business_id, e.practitioner_id, e.offer_booking_start, e.offer_booking_end]
+    );
+
+    if (conflict.rows.length > 0) {
+      await query(
+        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+        [e.id]
+      );
+      return res.status(409).json({ error: 'Ce créneau vient d\'être pris' });
+    }
+
+    const { transactionWithRLS } = require('../../services/db');
+
+    const booking = await transactionWithRLS(e.business_id, async (client) => {
+      // Find or create client
+      let clientId;
+      const existing = await client.query(
+        `SELECT id FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+        [e.business_id, e.client_email]
+      );
+      if (existing.rows.length > 0) {
+        clientId = existing.rows[0].id;
+      } else {
+        const nc = await client.query(
+          `INSERT INTO clients (business_id, full_name, email, phone, created_from)
+           VALUES ($1, $2, $3, $4, 'booking') RETURNING id`,
+          [e.business_id, e.client_name, e.client_email, e.client_phone]
+        );
+        clientId = nc.rows[0].id;
+      }
+
+      // Create booking
+      const bk = await client.query(
+        `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+          channel, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed')
+         RETURNING id, public_token, start_at, end_at, status`,
+        [e.business_id, e.practitioner_id, e.service_id, clientId,
+         e.offer_booking_start, e.offer_booking_end]
+      );
+
+      // Update waitlist entry
+      await client.query(
+        `UPDATE waitlist_entries SET
+          status = 'booked', offer_booking_id = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [bk.rows[0].id, e.id]
+      );
+
+      // Queue confirmation notification
+      await client.query(
+        `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
+         VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
+        [e.business_id, bk.rows[0].id, e.client_email]
+      );
+
+      return bk.rows[0];
+    });
+
+    res.status(201).json({
+      booked: true,
+      booking: {
+        id: booking.id,
+        token: booking.public_token,
+        start_at: booking.start_at,
+        end_at: booking.end_at,
+        manage_url: `${process.env.BASE_URL || process.env.APP_BASE_URL}/booking/${booking.public_token}`
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/waitlist/:token/decline — decline the offer
+router.post('/waitlist/:token/decline', async (req, res, next) => {
+  try {
+    const result = await query(
+      `UPDATE waitlist_entries SET status = 'declined', updated_at = NOW()
+       WHERE offer_token = $1 AND status = 'offered'
+       RETURNING id, practitioner_id, service_id, business_id, offer_booking_start, offer_booking_end`,
+      [req.params.token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Offre introuvable' });
+    }
+
+    // If auto mode, try next person in queue
+    const entry = result.rows[0];
+    try {
+      const prac = await query(
+        `SELECT waitlist_mode FROM practitioners WHERE id = $1`,
+        [entry.practitioner_id]
+      );
+      if (prac.rows[0]?.waitlist_mode === 'auto') {
+        // Fake a cancellation to re-trigger the queue
+        // Build a temporary booking-like object
+        const { processWaitlistForCancellation } = require('../../services/waitlist');
+        // We need to find next waiting entry directly
+        const slotDate = new Date(entry.offer_booking_start);
+        const weekday = slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1;
+        const timeOfDay = slotDate.getHours() < 12 ? 'morning' : 'afternoon';
+        const crypto = require('crypto');
+
+        const next = await query(
+          `SELECT * FROM waitlist_entries
+           WHERE practitioner_id = $1 AND service_id = $2 AND business_id = $3
+           AND status = 'waiting'
+           AND (preferred_days @> $4::jsonb)
+           AND (preferred_time = 'any' OR preferred_time = $5)
+           ORDER BY priority ASC, created_at ASC LIMIT 1`,
+          [entry.practitioner_id, entry.service_id, entry.business_id,
+           JSON.stringify([weekday]), timeOfDay]
+        );
+
+        if (next.rows.length > 0) {
+          const token = crypto.randomBytes(20).toString('hex');
+          const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+          await query(
+            `UPDATE waitlist_entries SET
+              status = 'offered', offer_token = $1,
+              offer_booking_start = $2, offer_booking_end = $3,
+              offer_sent_at = NOW(), offer_expires_at = $4, updated_at = NOW()
+             WHERE id = $5`,
+            [token, entry.offer_booking_start, entry.offer_booking_end,
+             expiresAt.toISOString(), next.rows[0].id]
+          );
+        }
+      }
+    } catch (e) { /* non-blocking */ }
+
+    res.json({ declined: true });
   } catch (err) { next(err); }
 });
 

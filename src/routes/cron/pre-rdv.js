@@ -132,4 +132,24 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
   }
 });
 
+// ============================================================
+// GET /api/cron/waitlist-expired — process expired waitlist offers
+// Run every 5-10 min. Moves expired offers to next in queue (auto mode).
+// ============================================================
+router.get('/waitlist-expired', async (req, res) => {
+  if (req.query.key !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Invalid cron key' });
+  }
+
+  try {
+    const { processExpiredOffers } = require('../../services/waitlist');
+    const result = await processExpiredOffers();
+    console.log(`[CRON] Waitlist expired: ${result.processed} processed`);
+    res.json(result);
+  } catch (err) {
+    console.error('[CRON] Waitlist expired error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

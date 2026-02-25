@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Créneau disponible — Bookt</title>
+<style>
+:root{--primary:#0D7377;--accent:#A68B3C;--text:#1a1a1a;--text-2:#555;--text-3:#888;--surface:#f8f7f5;--white:#fff;--border:#e5e2db;--radius:12px;--green:#15803d;--red:#dc2626;--sans:'Plus Jakarta Sans',system-ui,sans-serif;--serif:'Instrument Serif',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:var(--white);border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:440px;width:100%;overflow:hidden}
+.header{padding:24px 24px 0;text-align:center}
+.badge{display:inline-block;background:var(--primary);color:#fff;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:5px 12px;border-radius:20px;margin-bottom:12px}
+.header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;color:var(--text);margin-bottom:4px}
+.header p{font-size:.85rem;color:var(--text-2)}
+.timer-box{text-align:center;padding:16px 24px;margin:16px 24px;background:var(--surface);border-radius:var(--radius)}
+.timer-label{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);margin-bottom:4px}
+.timer{font-size:2rem;font-weight:700;color:var(--primary);font-variant-numeric:tabular-nums}
+.timer.urgent{color:var(--red)}
+.details{padding:0 24px}
+.detail-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.detail-row:last-child{border-bottom:none}
+.detail-icon{width:36px;height:36px;border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.detail-label{font-size:.72rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px}
+.detail-value{font-size:.9rem;font-weight:600;color:var(--text)}
+.actions{padding:20px 24px 24px;display:flex;flex-direction:column;gap:10px}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:var(--radius);font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .2s}
+.btn-accept{background:var(--primary);color:#fff}
+.btn-accept:hover{opacity:.9}
+.btn-decline{background:transparent;color:var(--text-3);border:1.5px solid var(--border)}
+.btn-decline:hover{border-color:var(--text-3)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.footer{text-align:center;padding:0 24px 20px;font-size:.75rem;color:var(--text-3)}
+.state-msg{text-align:center;padding:30px 24px}
+.state-msg .icon{font-size:2.5rem;margin-bottom:12px}
+.state-msg h2{font-family:var(--serif);font-size:1.3rem;margin-bottom:6px}
+.state-msg p{font-size:.85rem;color:var(--text-2)}
+.state-msg a{color:var(--primary);text-decoration:none;font-weight:600}
+.loading{text-align:center;padding:60px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="loadingState" class="loading">Chargement...</div>
+  <div id="offerState" style="display:none">
+    <div class="header">
+      <div class="badge">🎉 Créneau libéré</div>
+      <h1 id="businessName">Cabinet</h1>
+      <p>Un créneau vient de se libérer pour vous !</p>
+    </div>
+
+    <div class="timer-box">
+      <div class="timer-label">Temps restant pour réserver</div>
+      <div class="timer" id="countdown">--:--:--</div>
+    </div>
+
+    <div class="details">
+      <div class="detail-row">
+        <div class="detail-icon">📅</div>
+        <div><div class="detail-label">Date & heure</div><div class="detail-value" id="slotDate">—</div></div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-icon">💼</div>
+        <div><div class="detail-label">Prestation</div><div class="detail-value" id="serviceName">—</div></div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-icon">👤</div>
+        <div><div class="detail-label">Praticien</div><div class="detail-value" id="pracName">—</div></div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-icon">📍</div>
+        <div><div class="detail-label">Adresse</div><div class="detail-value" id="address">—</div></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-accept" id="btnAccept" onclick="acceptOffer()">✓ Je réserve ce créneau</button>
+      <button class="btn btn-decline" id="btnDecline" onclick="declineOffer()">Non merci</button>
+    </div>
+
+    <div class="footer">
+      Si vous ne réservez pas avant la fin du timer, le créneau sera proposé à la personne suivante.
+    </div>
+  </div>
+
+  <div id="expiredState" style="display:none">
+    <div class="state-msg">
+      <div class="icon">⏰</div>
+      <h2>Offre expirée</h2>
+      <p>Ce créneau a été proposé à une autre personne. Vous restez sur la liste d'attente et serez notifié(e) au prochain créneau disponible.</p>
+    </div>
+  </div>
+
+  <div id="bookedState" style="display:none">
+    <div class="state-msg">
+      <div class="icon">✅</div>
+      <h2>C'est réservé !</h2>
+      <p>Votre rendez-vous est confirmé.<br><br>
+      <a id="manageLink" href="#">Gérer mon rendez-vous →</a></p>
+    </div>
+  </div>
+
+  <div id="declinedState" style="display:none">
+    <div class="state-msg">
+      <div class="icon">👋</div>
+      <h2>Pas de souci</h2>
+      <p>Le créneau sera proposé à la personne suivante. Vous restez sur la liste d'attente pour de futurs créneaux.</p>
+    </div>
+  </div>
+
+  <div id="errorState" style="display:none">
+    <div class="state-msg">
+      <div class="icon">❌</div>
+      <h2>Lien invalide</h2>
+      <p id="errorMsg">Cette offre est introuvable ou a expiré.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = window.location.pathname.split('/').pop();
+let offerData = null;
+let countdownInterval = null;
+
+async function loadOffer() {
+  try {
+    const res = await fetch(`/api/public/waitlist/${token}`);
+    if (!res.ok) {
+      const err = await res.json();
+      showState('errorState');
+      document.getElementById('errorMsg').textContent = err.error || 'Offre introuvable';
+      return;
+    }
+    offerData = await res.json();
+
+    if (offerData.offer.status === 'booked') {
+      showState('bookedState');
+      return;
+    }
+    if (offerData.offer.status === 'declined') {
+      showState('declinedState');
+      return;
+    }
+    if (offerData.offer.expired || offerData.offer.status === 'expired') {
+      showState('expiredState');
+      return;
+    }
+
+    // Apply theme
+    if (offerData.business.theme?.primary_color) {
+      document.documentElement.style.setProperty('--primary', offerData.business.theme.primary_color);
+    }
+
+    // Fill data
+    document.getElementById('businessName').textContent = offerData.business.name;
+    document.getElementById('serviceName').textContent = offerData.service.name +
+      (offerData.service.duration_min ? ` · ${offerData.service.duration_min} min` : '') +
+      (offerData.service.price_cents ? ` · ${(offerData.service.price_cents / 100).toFixed(0)} €` : '');
+    document.getElementById('pracName').textContent = offerData.practitioner.name +
+      (offerData.practitioner.title ? ` — ${offerData.practitioner.title}` : '');
+    document.getElementById('address').textContent = offerData.business.address || '—';
+
+    // Format date
+    const d = new Date(offerData.offer.slot_start);
+    const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    document.getElementById('slotDate').textContent =
+      `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} à ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+
+    // Start countdown
+    startCountdown(new Date(offerData.offer.expires_at));
+    showState('offerState');
+
+  } catch (e) {
+    showState('errorState');
+  }
+}
+
+function showState(id) {
+  ['loadingState','offerState','expiredState','bookedState','declinedState','errorState']
+    .forEach(s => document.getElementById(s).style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+}
+
+function startCountdown(expiresAt) {
+  function update() {
+    const now = new Date();
+    const diff = expiresAt - now;
+
+    if (diff <= 0) {
+      clearInterval(countdownInterval);
+      showState('expiredState');
+      return;
+    }
+
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const el = document.getElementById('countdown');
+    el.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+    if (diff < 600000) el.classList.add('urgent'); // < 10min = red
+  }
+  update();
+  countdownInterval = setInterval(update, 1000);
+}
+
+async function acceptOffer() {
+  const btn = document.getElementById('btnAccept');
+  btn.disabled = true;
+  btn.textContent = 'Réservation en cours...';
+
+  try {
+    const res = await fetch(`/api/public/waitlist/${token}/accept`, { method: 'POST' });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (res.status === 410) {
+        showState('expiredState');
+      } else {
+        btn.disabled = false;
+        btn.textContent = '✓ Je réserve ce créneau';
+        alert(data.error || 'Erreur lors de la réservation');
+      }
+      return;
+    }
+
+    clearInterval(countdownInterval);
+    if (data.booking?.manage_url) {
+      document.getElementById('manageLink').href = data.booking.manage_url;
+    }
+    showState('bookedState');
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '✓ Je réserve ce créneau';
+    alert('Erreur réseau. Réessayez.');
+  }
+}
+
+async function declineOffer() {
+  if (!confirm('Refuser ce créneau ? Il sera proposé à la personne suivante.')) return;
+
+  try {
+    await fetch(`/api/public/waitlist/${token}/decline`, { method: 'POST' });
+    clearInterval(countdownInterval);
+    showState('declinedState');
+  } catch (e) {
+    alert('Erreur réseau');
+  }
+}
+
+loadOffer();
+</script>
+</body>
+</html>
