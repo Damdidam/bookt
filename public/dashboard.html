@@ -2024,13 +2024,43 @@ function renderCallLogs(logs){
 
 function renderCallConfig(cs){
   const mode=cs.filter_mode||'off';
-  let h=`<div class="card"><div class="card-h"><h3>⚙️ Configuration du filtre d'appels</h3></div>`;
+  const hasNumber=!!cs.twilio_number;
+  let h='';
+
+  // Activation panel
+  if(!hasNumber){
+    h+=`<div class="card" style="border:2px dashed var(--primary);background:linear-gradient(135deg,#f0fdfa,#ecfdf5)">`;
+    h+=`<div style="text-align:center;padding:24px">`;
+    h+=`<div style="font-size:2.5rem;margin-bottom:12px">📞</div>`;
+    h+=`<h3 style="margin-bottom:8px">Activez le filtre d'appels intelligent</h3>`;
+    h+=`<p style="font-size:.85rem;color:var(--text-4);max-width:500px;margin:0 auto 20px">Vos patients reçoivent un SMS avec votre lien de réservation. Les VIP passent directement. Fini les appels qui interrompent vos consultations.</p>`;
+    h+=`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">`;
+    h+=`<button class="btn-primary" onclick="activateCallFilter('BE')">🇧🇪 Numéro belge</button>`;
+    h+=`<button class="btn-outline" onclick="activateCallFilter('FR')">🇫🇷 Numéro français</button>`;
+    h+=`<button class="btn-outline" onclick="activateCallFilter('NL')">🇳🇱 Numéro néerlandais</button>`;
+    h+=`</div>`;
+    h+=`<div style="font-size:.72rem;color:var(--text-4)">Un numéro virtuel est attribué à votre cabinet. Inclus dans l'abonnement Premium.</div>`;
+    h+=`</div></div>`;
+    return h;
+  }
+
+  // Active number banner
+  h+=`<div class="card" style="background:linear-gradient(135deg,#f0fdfa,#ecfdf5);margin-bottom:16px">`;
+  h+=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">`;
+  h+=`<div><span style="font-size:.75rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Numéro actif</span><div style="font-size:1.3rem;font-weight:700;font-family:monospace;color:var(--primary);margin-top:2px">${formatPhoneDisplay(cs.twilio_number)}</div></div>`;
+  h+=`<div style="display:flex;gap:8px;align-items:center">`;
+  h+=`<span style="font-size:.78rem;padding:4px 10px;border-radius:20px;font-weight:600;${mode==='off'?'background:#fef2f2;color:#dc2626':mode==='soft'?'background:#fffbeb;color:#B45309':mode==='strict'?'background:#f0fdf4;color:#15803d':'background:#eff6ff;color:#2563eb'}">${{off:'🔴 Désactivé',soft:'🟡 Soft',strict:'🟢 Strict',schedule_based:'📅 Horaires'}[mode]||mode}</span>`;
+  h+=`<button class="btn-outline btn-sm btn-danger" onclick="deactivateCallFilter()" style="font-size:.72rem">Désactiver</button>`;
+  h+=`</div></div></div>`;
+
+  // Config form
+  h+=`<div class="card"><div class="card-h"><h3>⚙️ Configuration</h3></div>`;
 
   // Mode
   h+=`<div class="field"><label>Mode de filtrage</label><select id="call_mode" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem">`;
-  h+=`<option value="off" ${mode==='off'?'selected':''}>🔴 Désactivé — Pas de filtrage</option>`;
-  h+=`<option value="soft" ${mode==='soft'?'selected':''}>🟡 Soft — Message + option de transfert</option>`;
-  h+=`<option value="strict" ${mode==='strict'?'selected':''}>🟢 Strict — SMS avec lien de réservation, pas de transfert</option>`;
+  h+=`<option value="off" ${mode==='off'?'selected':''}>🔴 Désactivé — Les appels passent directement</option>`;
+  h+=`<option value="soft" ${mode==='soft'?'selected':''}>🟡 Soft — Message + transfert automatique</option>`;
+  h+=`<option value="strict" ${mode==='strict'?'selected':''}>🟢 Strict — SMS seul, pas de transfert</option>`;
   h+=`<option value="schedule_based" ${mode==='schedule_based'?'selected':''}>📅 Horaires — Filtre actif hors disponibilités</option>`;
   h+=`</select></div>`;
 
@@ -2059,7 +2089,65 @@ function renderCallConfig(cs){
 
   h+=`<button class="btn-primary" onclick="saveCallSettings()" style="margin-top:8px">💾 Enregistrer</button>`;
   h+=`</div>`;
+
+  // Instructions card
+  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>📋 Instructions</h3></div>`;
+  h+=`<div style="font-size:.82rem;color:var(--text-3);line-height:1.6">`;
+  h+=`<strong>1.</strong> Communiquez ce numéro à vos patients : carte de visite, site web, Google Business.<br>`;
+  h+=`<strong>2.</strong> Renseignez votre vrai numéro en "Numéro de transfert" ci-dessus.<br>`;
+  h+=`<strong>3.</strong> Ajoutez vos contacts importants (labo, pharmacie, confrères) dans l'onglet VIP.<br>`;
+  h+=`<strong>4.</strong> Choisissez le mode de filtrage adapté à votre pratique.`;
+  h+=`</div></div>`;
+
   return h;
+}
+
+function formatPhoneDisplay(phone){
+  if(!phone)return '';
+  // Format +32470123456 → +32 470 12 34 56
+  const p=phone.replace(/\s/g,'');
+  if(p.startsWith('+32')&&p.length===12) return `+32 ${p.slice(3,6)} ${p.slice(6,8)} ${p.slice(8,10)} ${p.slice(10)}`;
+  if(p.startsWith('+33')&&p.length===12) return `+33 ${p.slice(3,4)} ${p.slice(4,6)} ${p.slice(6,8)} ${p.slice(8,10)} ${p.slice(10)}`;
+  return phone;
+}
+
+async function activateCallFilter(country){
+  if(!confirm(`Activer le filtre d'appels avec un numéro ${country==='BE'?'belge':country==='FR'?'français':'néerlandais'} ?\n\nUn numéro virtuel sera attribué à votre cabinet.`))return;
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div><p style="text-align:center;margin-top:12px;color:var(--text-4)">Recherche d'un numéro disponible...</p></div>`;
+  try{
+    // First search available numbers
+    const searchR=await fetch(`/api/calls/available-numbers?country=${country}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const searchD=await searchR.json();
+    if(!searchR.ok)throw new Error(searchD.error);
+    if(!searchD.numbers||searchD.numbers.length===0)throw new Error('Aucun numéro disponible pour ce pays');
+
+    c.innerHTML=`<div class="loading"><div class="spinner"></div><p style="text-align:center;margin-top:12px;color:var(--text-4)">Attribution du numéro ${searchD.numbers[0].friendly}...</p></div>`;
+
+    // Activate with first available
+    const actR=await fetch('/api/calls/activate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({phone_number:searchD.numbers[0].phone,country})});
+    const actD=await actR.json();
+    if(!actR.ok)throw new Error(actD.error);
+
+    BooktUI.toast(`Numéro ${actD.number} activé !`,'success');
+    callTab='config';
+    loadCalls();
+  }catch(e){
+    BooktUI.toast('Erreur: '+e.message,'error');
+    callTab='config';
+    loadCalls();
+  }
+}
+
+async function deactivateCallFilter(){
+  if(!confirm('⚠️ Désactiver le filtre d\'appels ?\n\nLe numéro virtuel sera libéré et les appels ne seront plus filtrés. Cette action est irréversible.'))return;
+  try{
+    const r=await fetch('/api/calls/deactivate',{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    BooktUI.toast('Filtre d\'appels désactivé','success');
+    callTab='config';
+    loadCalls();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
 function renderCallWhitelist(wl){

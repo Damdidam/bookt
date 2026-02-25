@@ -4,6 +4,173 @@ const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
+// ===== TWILIO PROVISIONING =====
+
+function getTwilioClient() {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) return null;
+  return require('twilio')(sid, token);
+}
+
+// GET /api/calls/available-numbers?country=BE
+// Search available phone numbers in a country
+router.get('/available-numbers', requireOwner, async (req, res, next) => {
+  try {
+    const client = getTwilioClient();
+    if (!client) return res.status(503).json({ error: 'Twilio non configuré. Contactez le support.' });
+
+    const country = (req.query.country || 'BE').toUpperCase();
+    const type = req.query.type || 'local'; // local, mobile, tollFree
+
+    const search = type === 'mobile'
+      ? client.availablePhoneNumbers(country).mobile
+      : client.availablePhoneNumbers(country).local;
+
+    const numbers = await search.list({
+      voiceEnabled: true,
+      smsEnabled: true,
+      limit: 5
+    });
+
+    res.json({
+      numbers: numbers.map(n => ({
+        phone: n.phoneNumber,
+        friendly: n.friendlyName,
+        locality: n.locality || null,
+        region: n.region || null,
+        capabilities: {
+          voice: n.capabilities.voice,
+          sms: n.capabilities.SMS
+        }
+      }))
+    });
+  } catch (err) {
+    if (err.code === 21452) return res.json({ numbers: [], message: 'Aucun numéro disponible pour ce pays.' });
+    next(err);
+  }
+});
+
+// POST /api/calls/activate
+// Provision a Twilio number and configure webhooks
+router.post('/activate', requireOwner, async (req, res, next) => {
+  try {
+    const client = getTwilioClient();
+    if (!client) return res.status(503).json({ error: 'Twilio non configuré. Contactez le support.' });
+
+    const bid = req.businessId;
+    const { phone_number, country } = req.body;
+
+    if (!phone_number && !country) {
+      return res.status(400).json({ error: 'phone_number ou country requis' });
+    }
+
+    // Check not already activated
+    const existing = await queryWithRLS(bid,
+      `SELECT twilio_number FROM call_settings WHERE business_id = $1 AND twilio_number IS NOT NULL`,
+      [bid]
+    );
+    if (existing.rows.length > 0 && existing.rows[0].twilio_number) {
+      return res.status(409).json({ error: 'Un numéro est déjà actif', number: existing.rows[0].twilio_number });
+    }
+
+    const baseUrl = process.env.APP_BASE_URL || `https://${req.headers.host}`;
+
+    let purchased;
+    if (phone_number) {
+      // Buy specific number
+      purchased = await client.incomingPhoneNumbers.create({
+        phoneNumber: phone_number,
+        voiceUrl: `${baseUrl}/webhooks/twilio/voice/incoming`,
+        voiceMethod: 'POST',
+        statusCallback: `${baseUrl}/webhooks/twilio/voice/status`,
+        statusCallbackMethod: 'POST',
+        smsUrl: `${baseUrl}/webhooks/twilio/sms/status`,
+        friendlyName: `Bookt - ${bid.slice(0, 8)}`
+      });
+    } else {
+      // Auto-pick first available in country
+      const countryCode = (country || 'BE').toUpperCase();
+      const available = await client.availablePhoneNumbers(countryCode).local.list({
+        voiceEnabled: true, smsEnabled: true, limit: 1
+      });
+      if (available.length === 0) {
+        return res.status(404).json({ error: 'Aucun numéro disponible pour ce pays' });
+      }
+      purchased = await client.incomingPhoneNumbers.create({
+        phoneNumber: available[0].phoneNumber,
+        voiceUrl: `${baseUrl}/webhooks/twilio/voice/incoming`,
+        voiceMethod: 'POST',
+        statusCallback: `${baseUrl}/webhooks/twilio/voice/status`,
+        statusCallbackMethod: 'POST',
+        smsUrl: `${baseUrl}/webhooks/twilio/sms/status`,
+        friendlyName: `Bookt - ${bid.slice(0, 8)}`
+      });
+    }
+
+    // Upsert call_settings
+    const result = await queryWithRLS(bid,
+      `INSERT INTO call_settings (business_id, twilio_number, twilio_number_sid, filter_mode, sms_after_call)
+       VALUES ($1, $2, $3, 'soft', true)
+       ON CONFLICT (business_id) DO UPDATE SET
+         twilio_number = $2,
+         twilio_number_sid = $3,
+         filter_mode = CASE WHEN call_settings.filter_mode = 'off' THEN 'soft' ELSE call_settings.filter_mode END,
+         updated_at = NOW()
+       RETURNING *`,
+      [bid, purchased.phoneNumber, purchased.sid]
+    );
+
+    res.status(201).json({
+      activated: true,
+      number: purchased.phoneNumber,
+      friendly: purchased.friendlyName,
+      settings: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Twilio provisioning error:', err);
+    if (err.code === 21422) return res.status(400).json({ error: 'Numéro invalide ou indisponible' });
+    next(err);
+  }
+});
+
+// POST /api/calls/deactivate
+// Release the Twilio number
+router.post('/deactivate', requireOwner, async (req, res, next) => {
+  try {
+    const client = getTwilioClient();
+    if (!client) return res.status(503).json({ error: 'Twilio non configuré' });
+
+    const bid = req.businessId;
+
+    const existing = await queryWithRLS(bid,
+      `SELECT twilio_number_sid FROM call_settings WHERE business_id = $1`,
+      [bid]
+    );
+
+    if (existing.rows.length > 0 && existing.rows[0].twilio_number_sid) {
+      // Release number from Twilio
+      await client.incomingPhoneNumbers(existing.rows[0].twilio_number_sid).remove();
+    }
+
+    // Clear from DB
+    await queryWithRLS(bid,
+      `UPDATE call_settings SET
+        twilio_number = NULL,
+        twilio_number_sid = NULL,
+        filter_mode = 'off',
+        updated_at = NOW()
+       WHERE business_id = $1`,
+      [bid]
+    );
+
+    res.json({ deactivated: true });
+  } catch (err) {
+    console.error('Twilio deactivation error:', err);
+    next(err);
+  }
+});
+
 // ===== CALL SETTINGS =====
 
 // GET /api/calls/settings
