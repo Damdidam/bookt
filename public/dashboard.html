@@ -758,7 +758,7 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 // ============================================================
 // FULLCALENDAR AGENDA
 // ============================================================
-let fcCal=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
+let fcCal=null, fcCalOptions=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
 let fcHiddenDays=[], fcBusinessHours=[];
@@ -772,9 +772,14 @@ function fcZoom(dir){
   let tag=document.getElementById('fcZoomStyle');
   if(!tag){tag=document.createElement('style');tag.id='fcZoomStyle';document.head.appendChild(tag);}
   tag.textContent=`.fc .fc-timegrid-slot,.fc .fc-timegrid-slot-lane{height:${h}px!important}`;
-  // Force FullCalendar to fully re-render the time grid (recalculates background positions)
-  if(fcCal){
-    fcCal.setOption('slotMinTime',fcCal.getOption('slotMinTime'));
+  // Destroy & recreate calendar to force full background recalculation
+  if(fcCal&&fcCalOptions){
+    const curView=fcCal.view.type;
+    const curDate=fcCal.getDate();
+    fcCal.destroy();
+    fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),fcCalOptions);
+    fcCal.render();
+    fcCal.changeView(curView,curDate);
   }
   const pct=Math.round(h/48*100);
   const lbl=document.getElementById('fcZoomLabel');
@@ -873,7 +878,7 @@ async function loadAgenda(){
     (mobile?`<button class="cal-fab" onclick="fcOpenQuickCreate()" title="Nouveau RDV">+</button>`:'');
 
   // Init FullCalendar
-  fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),{
+  fcCalOptions={
     locale:'fr',
     initialView:mobile?'timeGridDay':'timeGridWeek',
     headerToolbar:{left:'prev,today,next',center:'title',right:mobile?'':'timeGridDay,timeGridWeek,dayGridMonth'},
@@ -1060,7 +1065,8 @@ async function loadAgenda(){
         gToast('Durée → '+dur+' min','success');
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('créneau')?'🚫 Chevauchement — durée non modifiée':e.message,'error');}
     }
-  });
+  };
+  fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),fcCalOptions);
   fcCal.render();
   // Re-apply zoom if changed
   if(fcZoomIdx!==3)setTimeout(()=>fcZoom(0),100);
