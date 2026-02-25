@@ -328,7 +328,7 @@ async function loadDashboard(){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // AGENDA
 const DF=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -1957,6 +1957,181 @@ async function updateCalSyncDirection(direction){
     history.replaceState(null,'','/dashboard');
   }
 })();
+
+// ============================================================
+// APPELS (CALL FILTER)
+// ============================================================
+let callTab='logs';
+async function loadCalls(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const[setR,wlR,logR]=await Promise.all([
+      fetch('/api/calls/settings',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/calls/whitelist',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/calls/logs',{headers:{'Authorization':'Bearer '+api.getToken()}})
+    ]);
+    const setD=await setR.json(), wlD=await wlR.json(), logD=await logR.json();
+    const cs=setD.settings||{};
+    const wl=wlD.whitelist||[];
+    const logs=logD.logs||[];
+    const st=logD.stats||{};
+
+    // KPIs
+    let h=`<div class="kpis">`;
+    h+=`<div class="kpi"><div class="kpi-val">${st.total||0}</div><div class="kpi-label">Appels ce mois</div></div>`;
+    h+=`<div class="kpi"><div class="kpi-val" style="color:var(--primary)">${st.filtered||0}</div><div class="kpi-label">📱 SMS envoyés</div></div>`;
+    h+=`<div class="kpi"><div class="kpi-val" style="color:#15803d">${st.vip||0}</div><div class="kpi-label">⭐ VIP passés</div></div>`;
+    h+=`<div class="kpi"><div class="kpi-val" style="color:#B45309">${st.urgent||0}</div><div class="kpi-label">🚨 Urgents</div></div>`;
+    h+=`<div class="kpi"><div class="kpi-val" style="color:var(--primary)">${st.total>0?Math.round((st.converted||0)/st.total*100):0}%</div><div class="kpi-label">📅 Convertis</div></div>`;
+    h+=`</div>`;
+
+    // Tabs
+    h+=`<div style="display:flex;gap:6px;margin-bottom:16px">`;
+    h+=`<button class="btn-sm ${callTab==='logs'?'active':''}" onclick="callTab='logs';loadCalls()">📋 Journal</button>`;
+    h+=`<button class="btn-sm ${callTab==='config'?'active':''}" onclick="callTab='config';loadCalls()">⚙️ Configuration</button>`;
+    h+=`<button class="btn-sm ${callTab==='whitelist'?'active':''}" onclick="callTab='whitelist';loadCalls()">⭐ VIP (${wl.length})</button>`;
+    h+=`</div>`;
+
+    if(callTab==='logs') h+=renderCallLogs(logs);
+    else if(callTab==='config') h+=renderCallConfig(cs);
+    else if(callTab==='whitelist') h+=renderCallWhitelist(wl);
+
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+function renderCallLogs(logs){
+  let h=`<div class="card"><div class="card-h"><h3>Journal d'appels</h3><span class="badge badge-teal">${logs.length}</span></div>`;
+  if(logs.length===0){
+    h+=`<div class="empty">Aucun appel enregistré.<br><span style="font-size:.8rem;color:var(--text-4)">Les appels apparaîtront ici une fois le filtre Twilio activé.</span></div>`;
+  }else{
+    const actionLabels={'whitelist_pass':'⭐ VIP','played_message':'🔊 Message','forwarded':'📞 Transféré','sent_sms':'📱 SMS','urgent_key':'🚨 Urgent','voicemail':'📝 Messagerie','hung_up':'❌ Raccroché'};
+    const resultLabels={'ok':'✅','failed':'❌','no_answer':'⏳'};
+    h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Date</th><th>Numéro</th><th>Action</th><th>Résultat</th><th>Durée</th><th>RDV</th></tr></thead><tbody>`;
+    logs.forEach(l=>{
+      const dt=new Date(l.created_at);
+      const dateStr=dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})+' '+dt.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+      const durStr=l.duration_sec>0?`${Math.floor(l.duration_sec/60)}:${String(l.duration_sec%60).padStart(2,'0')}`:'—';
+      const booking=l.booking_id?'<span style="color:var(--primary)">📅 Oui</span>':'—';
+      h+=`<tr><td style="font-size:.78rem;white-space:nowrap">${dateStr}</td><td style="font-family:monospace;font-size:.78rem">${l.from_phone_masked||l.from_phone||'—'}</td><td>${actionLabels[l.action]||l.action}</td><td>${resultLabels[l.result]||l.result}</td><td>${durStr}</td><td>${booking}</td></tr>`;
+    });
+    h+=`</tbody></table></div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+function renderCallConfig(cs){
+  const mode=cs.filter_mode||'off';
+  let h=`<div class="card"><div class="card-h"><h3>⚙️ Configuration du filtre d'appels</h3></div>`;
+
+  // Mode
+  h+=`<div class="field"><label>Mode de filtrage</label><select id="call_mode" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem">`;
+  h+=`<option value="off" ${mode==='off'?'selected':''}>🔴 Désactivé — Pas de filtrage</option>`;
+  h+=`<option value="soft" ${mode==='soft'?'selected':''}>🟡 Soft — Message + option de transfert</option>`;
+  h+=`<option value="strict" ${mode==='strict'?'selected':''}>🟢 Strict — SMS avec lien de réservation, pas de transfert</option>`;
+  h+=`<option value="schedule_based" ${mode==='schedule_based'?'selected':''}>📅 Horaires — Filtre actif hors disponibilités</option>`;
+  h+=`</select></div>`;
+
+  // Explanation
+  h+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:.8rem;color:var(--text-4)">`;
+  h+=`<strong>Comment ça fonctionne :</strong><br>`;
+  h+=`Quand le filtre est actif, les appels entrants entendent un message vocal. Ils reçoivent un SMS avec votre lien de réservation. Les numéros VIP passent directement. En mode Soft, l'appelant peut taper 1 pour une urgence.`;
+  h+=`</div>`;
+
+  // Forward phone
+  h+=`<div class="field-row"><div class="field"><label>📞 Numéro de transfert</label><input id="call_forward" value="${cs.forward_default_phone||''}" placeholder="+32 470 12 34 56"><div style="font-size:.72rem;color:var(--text-4);margin-top:2px">Où transférer les appels VIP et urgents</div></div>`;
+  h+=`<div class="field"><label>🚨 Numéro urgences</label><input id="call_urgent_phone" value="${cs.urgent_target_phone||''}" placeholder="Idem si vide"><div style="font-size:.72rem;color:var(--text-4);margin-top:2px">Où vont les "Tapez 1" (par défaut = transfert)</div></div></div>`;
+
+  // Toggles
+  h+=`<div style="display:flex;flex-direction:column;gap:12px;margin:16px 0">`;
+  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_keypress" ${cs.allow_keypress_urgent!==false?'checked':''}><span><strong>Touche 1 = Urgence</strong><br><span style="font-size:.75rem;color:var(--text-4)">"Si c'est urgent, tapez 1 pour être transféré"</span></span></label>`;
+  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_sms" ${cs.sms_after_call!==false?'checked':''}><span><strong>SMS automatique</strong><br><span style="font-size:.75rem;color:var(--text-4)">Envoie le lien de réservation par SMS après l'appel</span></span></label>`;
+  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_voicemail" ${cs.voicemail_enabled?'checked':''} onchange="document.getElementById('call_vm_texts').style.display=this.checked?'block':'none'"><span><strong>Messagerie vocale</strong><br><span style="font-size:.75rem;color:var(--text-4)">Permet de laisser un message vocal</span></span></label>`;
+  h+=`</div>`;
+
+  // Voicemail texts
+  h+=`<div id="call_vm_texts" style="display:${cs.voicemail_enabled?'block':'none'}">`;
+  h+=`<div class="field"><label>🇫🇷 Message vocal FR</label><textarea id="call_vm_fr" rows="2" placeholder="Bonjour, vous êtes bien chez [cabinet]. Nous ne pouvons pas prendre votre appel. Réservez en ligne via le SMS que vous allez recevoir.">${cs.voicemail_text_fr||''}</textarea></div>`;
+  h+=`<div class="field"><label>🇳🇱 Message vocal NL</label><textarea id="call_vm_nl" rows="2" placeholder="Goedendag, u bent verbonden met [kabinet]. We kunnen uw oproep niet beantwoorden...">${cs.voicemail_text_nl||''}</textarea></div>`;
+  h+=`</div>`;
+
+  h+=`<button class="btn-primary" onclick="saveCallSettings()" style="margin-top:8px">💾 Enregistrer</button>`;
+  h+=`</div>`;
+  return h;
+}
+
+function renderCallWhitelist(wl){
+  let h=`<div class="card"><div class="card-h"><h3>⭐ Numéros VIP</h3><button class="btn-primary btn-sm" onclick="addWhitelistEntry()">+ Ajouter</button></div>`;
+  h+=`<div style="font-size:.8rem;color:var(--text-4);margin-bottom:12px">Ces numéros ne sont jamais filtrés — l'appel passe directement sur votre téléphone.</div>`;
+  if(wl.length===0){
+    h+=`<div class="empty">Aucun numéro VIP configuré</div>`;
+  }else{
+    h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Numéro</th><th>Label</th><th>Actif</th><th></th></tr></thead><tbody>`;
+    wl.forEach(w=>{
+      h+=`<tr><td style="font-family:monospace;font-size:.85rem">${w.phone_e164}</td><td>${w.label||'—'}</td><td>${w.is_active?'✅':'❌'}</td>`;
+      h+=`<td style="text-align:right"><button class="btn-outline btn-sm" onclick="editWhitelistEntry('${w.id}','${w.phone_e164}','${(w.label||'').replace(/'/g,"\\'")}',${w.is_active})">✏️</button> <button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ce numéro VIP ?'))deleteWhitelistEntry('${w.id}')">🗑️</button></td></tr>`;
+    });
+    h+=`</tbody></table></div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+async function saveCallSettings(){
+  try{
+    const body={
+      filter_mode:document.getElementById('call_mode').value,
+      forward_default_phone:document.getElementById('call_forward').value||null,
+      urgent_target_phone:document.getElementById('call_urgent_phone').value||null,
+      allow_keypress_urgent:document.getElementById('call_keypress').checked,
+      sms_after_call:document.getElementById('call_sms').checked,
+      voicemail_enabled:document.getElementById('call_voicemail').checked,
+      voicemail_text_fr:document.getElementById('call_vm_fr')?.value||null,
+      voicemail_text_nl:document.getElementById('call_vm_nl')?.value||null
+    };
+    const r=await fetch('/api/calls/settings',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    BooktUI.toast('Configuration sauvegardée','success');
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+function addWhitelistEntry(){
+  const phone=prompt('Numéro au format international (ex: +32 470 12 34 56):');
+  if(!phone)return;
+  const label=prompt('Label (ex: Labo, Pharmacie, Urgences):');
+  fetch('/api/calls/whitelist',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({phone_e164:phone.replace(/\s/g,''),label:label||null})})
+    .then(r=>{if(!r.ok)throw new Error('Erreur');BooktUI.toast('Numéro VIP ajouté','success');loadCalls();})
+    .catch(e=>BooktUI.toast('Erreur: '+e.message,'error'));
+}
+
+function editWhitelistEntry(id,phone,label,active){
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Modifier numéro VIP</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+  m+=`<div class="field"><label>Numéro</label><input id="wl_phone" value="${phone}"></div>`;
+  m+=`<div class="field"><label>Label</label><input id="wl_label" value="${label}"></div>`;
+  m+=`<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><input type="checkbox" id="wl_active" ${active?'checked':''}> Actif</label>`;
+  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveWhitelistEntry('${id}')">Enregistrer</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function saveWhitelistEntry(id){
+  try{
+    const body={phone_e164:document.getElementById('wl_phone').value.replace(/\s/g,''),label:document.getElementById('wl_label').value||null,is_active:document.getElementById('wl_active').checked};
+    const r=await fetch(`/api/calls/whitelist/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Numéro VIP modifié','success');loadCalls();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteWhitelistEntry(id){
+  try{
+    const r=await fetch(`/api/calls/whitelist/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    BooktUI.toast('Numéro VIP supprimé','success');loadCalls();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
 </script>
 </body>
 </html>
