@@ -832,6 +832,8 @@ async function loadAgenda(){
     }
 
     // Compute hidden days (no availability at all) and business hours
+    // DB weekday: 0=Monday...6=Sunday. FullCalendar: 0=Sunday...6=Saturday
+    const dbDayToFcDay = d => (d + 1) % 7; // 0(Mon)→1, 4(Fri)→5, 6(Sun)→0
     const activeDays=new Set();
     fcBusinessHours=[];
     for(const pracId of Object.keys(avails)){
@@ -839,9 +841,10 @@ async function loadAgenda(){
       for(const day of Object.keys(sched)){
         const slots=sched[day].filter(s=>s.is_active!==false);
         if(slots.length>0){
-          activeDays.add(parseInt(day));
+          const fcDay=dbDayToFcDay(parseInt(day));
+          activeDays.add(fcDay);
           slots.forEach(s=>{
-            fcBusinessHours.push({daysOfWeek:[parseInt(day)],startTime:s.start_time,endTime:s.end_time});
+            fcBusinessHours.push({daysOfWeek:[fcDay],startTime:s.start_time,endTime:s.end_time});
           });
         }
       }
