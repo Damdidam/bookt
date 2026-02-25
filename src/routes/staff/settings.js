@@ -63,6 +63,16 @@ router.patch('/', requireOwner, async (req, res, next) => {
       }
     }
 
+    // Ensure languages_spoken is a proper PG array literal
+    let langArray = null;
+    if (languages_spoken) {
+      if (Array.isArray(languages_spoken)) {
+        langArray = `{${languages_spoken.join(',')}}`;
+      } else if (typeof languages_spoken === 'string') {
+        langArray = languages_spoken.startsWith('{') ? languages_spoken : `{${languages_spoken}}`;
+      }
+    }
+
     const result = await queryWithRLS(bid,
       `UPDATE businesses SET
         name = COALESCE($1, name),
@@ -95,7 +105,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         tagline, description, logo_url, cover_image_url,
         founded_year ? parseInt(founded_year) : null,
         accreditation, bce_number, parking_info,
-        languages_spoken || null,
+        langArray,
         social_links ? JSON.stringify(social_links) : null,
         page_sections ? JSON.stringify(page_sections) : null,
         seo_title, seo_description,
