@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Créer mon cabinet — Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--primary-border:#B8DDD9;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--gold-border:#E8DCBA;--red:#DC2626;--red-bg:#FEF2F2;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+
+/* Layout */
+.page{display:flex;min-height:100vh}
+.left{width:400px;background:linear-gradient(160deg,#0F1110,#1A2421);color:#fff;padding:40px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.left-logo{display:flex;align-items:center;gap:8px;margin-bottom:auto}
+.left-logo .l{width:32px;height:32px;border-radius:9px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.95rem}
+.left-logo .w{font-family:var(--serif);font-size:1.15rem}
+.left-body{margin:auto 0}
+.left-body h2{font-family:var(--serif);font-size:1.7rem;line-height:1.2;margin-bottom:10px;font-weight:400}
+.left-body h2 em{font-style:italic;color:#5CB8B2}
+.left-body p{font-size:.85rem;color:rgba(255,255,255,.45);line-height:1.6}
+.left-foot{margin-top:auto;font-size:.7rem;color:rgba(255,255,255,.25)}
+
+.right{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px;overflow-y:auto}
+.container{width:100%;max-width:520px;padding-top:16px}
+
+/* Progress */
+.progress{display:none;margin-bottom:28px}
+.progress.show{display:block}
+.pbar{height:4px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-bottom:8px}
+.pfill{height:100%;background:var(--primary);border-radius:4px;transition:width .4s ease}
+.pinfo{display:flex;justify-content:space-between;font-size:.73rem;color:var(--text-4)}
+
+/* Steps */
+.step{display:none}
+.step.active{display:block;animation:fadeIn .35s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.step-hdr{margin-bottom:20px}
+.step-hdr .lbl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--primary);margin-bottom:4px}
+.step-hdr h2{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:3px}
+.step-hdr p{font-size:.85rem;color:var(--text-3)}
+
+/* Form */
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:.75rem;font-weight:600;color:var(--text-2);margin-bottom:4px}
+.fl .opt{font-weight:400;color:var(--text-4)}
+.fi{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;color:var(--text);background:var(--white);outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.fi::placeholder{color:var(--text-4)}
+.ft{resize:vertical;min-height:90px;line-height:1.5}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fh{font-size:.68rem;color:var(--text-4);margin-top:2px}
+.slug-prev{display:flex;gap:3px;margin-top:3px;font-size:.73rem}
+.slug-prev .d{color:var(--text-4)}.slug-prev .s{color:var(--primary);font-weight:600}
+
+/* Error */
+.err{display:none;padding:10px 14px;background:var(--red-bg);border:1px solid #FECACA;border-radius:var(--radius-xs);font-size:.8rem;color:var(--red);margin-bottom:14px}
+.err.show{display:block}
+
+/* Sector grid */
+.sectors{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:4px}
+.sec-btn{padding:12px 8px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;font-family:var(--sans)}
+.sec-btn:hover{border-color:var(--primary-border);background:var(--primary-light)}
+.sec-btn.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
+.sec-btn .i{font-size:1.2rem;margin-bottom:3px}
+.sec-btn .n{font-size:.75rem;font-weight:600;color:var(--text)}
+
+/* Toggles */
+.trow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-light)}
+.trow:last-child{border:none}
+.tlbl{font-size:.83rem;color:var(--text-2)}
+.tlbl .sub{display:block;font-size:.7rem;color:var(--text-4);font-weight:400}
+.tog{width:40px;height:22px;background:var(--surface-2);border-radius:11px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.tog.on{background:var(--primary)}
+.tog::after{content:'';width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.tog.on::after{transform:translateX(18px)}
+
+/* Schedule */
+.schrow{display:grid;grid-template-columns:90px 38px 1fr 1fr;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border-light)}
+.schday{font-size:.8rem;font-weight:600;color:var(--text-2)}
+.schi{padding:6px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.75rem;width:100%;text-align:center;outline:none}
+.schi:focus{border-color:var(--primary)}.schi:disabled{background:var(--surface);color:var(--text-4)}
+
+/* Service rows */
+.svc{display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-xs);margin-bottom:5px}
+.svc .dot{width:7px;height:7px;border-radius:3px;flex-shrink:0}
+.svc .inf{flex:1}.svc .inf .nm{font-size:.83rem;font-weight:600}.svc .inf .mt{font-size:.7rem;color:var(--text-4)}
+
+/* Spec tags */
+.stags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.stag{padding:5px 12px;border:1.5px solid var(--border);border-radius:18px;font-family:var(--sans);font-size:.75rem;font-weight:500;color:var(--text-3);cursor:pointer;transition:all .15s;background:var(--white)}
+.stag:hover{border-color:var(--primary-border)}.stag.sel{background:var(--primary-light);border-color:var(--primary);color:var(--primary);font-weight:600}
+
+/* Callout */
+.clo{padding:10px 14px;border-radius:var(--radius-xs);font-size:.8rem;margin:10px 0}
+.clo.info{background:var(--primary-light);color:var(--primary);border:1px solid var(--primary-border)}
+.clo.tip{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-border)}
+
+/* Go live */
+.golive{background:var(--white);border-radius:var(--radius);border:2px solid #B8E6C4;padding:28px;text-align:center}
+.golive .icon{font-size:2.8rem;margin-bottom:10px}
+.golive h3{font-family:var(--serif);font-size:1.4rem;margin-bottom:4px}
+.golive p{font-size:.85rem;color:var(--text-3)}
+.golive .url{display:inline-flex;padding:8px 16px;background:var(--surface);border-radius:var(--radius-xs);font-family:monospace;font-size:.85rem;color:var(--primary);font-weight:600;margin:14px 0;cursor:pointer}
+.golive .acts{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.golive .acts a{padding:8px 14px;border-radius:var(--radius-xs);font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);text-decoration:none;transition:all .15s}
+.golive .acts a:hover{background:var(--surface)}
+.golive .acts a.pri{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* Nav buttons */
+.snav{display:flex;justify-content:space-between;align-items:center;margin-top:24px;padding-top:18px;border-top:1px solid var(--border-light)}
+.btn-back{padding:8px 16px;font-family:var(--sans);font-size:.82rem;color:var(--text-3);background:none;border:none;cursor:pointer}
+.btn-back:hover{color:var(--text)}
+.btn-next{padding:11px 24px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-next:hover{background:var(--primary-hover)}.btn-next:disabled{background:var(--surface-2);color:var(--text-4);cursor:not-allowed}
+.btn-skip{padding:8px 14px;font-family:var(--sans);font-size:.78rem;color:var(--text-4);background:none;border:none;cursor:pointer}
+
+/* Add button */
+.add-btn{display:flex;align-items:center;gap:5px;padding:8px 14px;border:1.5px dashed var(--border);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-family:var(--sans);font-size:.8rem;color:var(--text-3);transition:all .15s;width:100%;justify-content:center;margin-top:8px}
+.add-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+
+@media(max-width:900px){.page{flex-direction:column}.left{width:100%;height:auto;position:relative;padding:24px}.right{padding:20px}}
+@media(max-width:500px){.sectors{grid-template-columns:1fr 1fr 1fr}.fr{grid-template-columns:1fr}.schrow{grid-template-columns:70px 34px 1fr 1fr;gap:3px}}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <aside class="left">
+    <div class="left-logo"><div class="l">G</div><span class="w">Genda</span></div>
+    <div class="left-body">
+      <h2 id="lTitle">Créez votre <em>cabinet en ligne</em></h2>
+      <p id="lDesc">En quelques minutes, vous aurez une page professionnelle avec prise de rendez-vous intégrée.</p>
+    </div>
+    <div class="left-foot">© 2026 Genda · Belgique 🇧🇪</div>
+  </aside>
+
+  <main class="right">
+    <div class="container">
+
+      <div class="progress" id="prog">
+        <div class="pbar"><div class="pfill" id="pFill" style="width:10%"></div></div>
+        <div class="pinfo"><span id="pLabel">Étape 1/11</span><span id="pPct">9%</span></div>
+      </div>
+
+      <div class="err" id="errMsg"></div>
+
+      <!-- ===== STEP 0: CREATE ACCOUNT ===== -->
+      <div class="step active" data-step="0">
+        <div class="step-hdr">
+          <h2>Créer votre compte</h2>
+          <p>30 secondes. Gratuit, sans engagement.</p>
+        </div>
+        <div class="fg"><label class="fl">Votre nom complet</label><input class="fi" id="f_name" placeholder="Pierre De Wit"></div>
+        <div class="fg"><label class="fl">Email professionnel</label><input class="fi" type="email" id="f_email" placeholder="pierre@dewit-compta.be"></div>
+        <div class="fg"><label class="fl">Nom du cabinet</label><input class="fi" id="f_biz" placeholder="De Wit & Associés" oninput="updSlug()"></div>
+        <div class="slug-prev"><span class="d">genda.be/</span><span class="s" id="slugPrev">votre-cabinet</span></div>
+        <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe <span class="opt">(optionnel)</span></label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères"></div>
+        <div class="fg"><label class="fl">Votre secteur</label>
+          <div class="sectors">
+            <button class="sec-btn" onclick="selSec(this,'coiffeur')"><div class="i">💇</div><div class="n">Coiffeur·se</div></button>
+            <button class="sec-btn" onclick="selSec(this,'esthetique')"><div class="i">💅</div><div class="n">Esthétique</div></button>
+            <button class="sec-btn" onclick="selSec(this,'massage')"><div class="i">💆</div><div class="n">Bien-être</div></button>
+            <button class="sec-btn" onclick="selSec(this,'osteo')"><div class="i">🧘</div><div class="n">Ostéopathe</div></button>
+            <button class="sec-btn" onclick="selSec(this,'medecin')"><div class="i">🩺</div><div class="n">Médecin</div></button>
+            <button class="sec-btn" onclick="selSec(this,'dentiste')"><div class="i">🦷</div><div class="n">Dentiste</div></button>
+            <button class="sec-btn" onclick="selSec(this,'kine')"><div class="i">💪</div><div class="n">Kiné</div></button>
+            <button class="sec-btn" onclick="selSec(this,'comptable')"><div class="i">📊</div><div class="n">Comptable</div></button>
+            <button class="sec-btn" onclick="selSec(this,'avocat')"><div class="i">⚖️</div><div class="n">Avocat</div></button>
+            <button class="sec-btn" onclick="selSec(this,'veterinaire')"><div class="i">🐾</div><div class="n">Vétérinaire</div></button>
+            <button class="sec-btn" onclick="selSec(this,'photographe')"><div class="i">📸</div><div class="n">Photographe</div></button>
+            <button class="sec-btn" onclick="selSec(this,'autre')"><div class="i">🤝</div><div class="n">Autre</div></button>
+          </div>
+        </div>
+        <div class="snav" style="border:none;padding-top:6px">
+          <span style="font-size:.75rem;color:var(--text-4)">Déjà inscrit ? <a href="/login.html" style="color:var(--primary);font-weight:600;text-decoration:none">Se connecter</a></span>
+          <button class="btn-next" id="btnSignup" onclick="doSignup()">Créer mon compte →</button>
+        </div>
+      </div>
+
+      <!-- ===== STEP 1: CABINET INFO ===== -->
+      <div class="step" data-step="1">
+        <div class="step-hdr"><div class="lbl">Étape 1 · Cabinet</div><h2>Informations du cabinet</h2><p>Apparaîtront sur votre page publique.</p></div>
+        <div class="fr">
+          <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" placeholder="+32 2 123 45 67"></div>
+          <div class="fg"><label class="fl">Langue</label><select class="fi" id="f_lang"><option value="fr">Français</option><option value="nl">Nederlands</option></select></div>
+        </div>
+        <div class="fg"><label class="fl">Adresse</label><input class="fi" id="f_addr" placeholder="Avenue Louise 142, 1050 Bruxelles"></div>
+        <div class="fg"><label class="fl">Info parking <span class="opt">(optionnel)</span></label><input class="fi" id="f_parking" placeholder="Parking gratuit derrière le bâtiment"></div>
+        <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveCabinetInfo()">Continuer →</button></div>
+      </div>
+
+      <!-- ===== STEP 2: SCHEDULE ===== -->
+      <div class="step" data-step="2">
+        <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Vos disponibilités</h2><p>Horaires par défaut. Modifiables à tout moment.</p></div>
+        <div id="schedGrid"></div>
+        <div class="clo tip" style="margin-top:12px">💡 Pause midi pré-configurée. Exceptions (congés) éditables depuis le dashboard.</div>
+        <div class="snav"><button class="btn-back" onclick="go(1)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
+      </div>
+
+      <!-- ===== STEP 3: SERVICES ===== -->
+      <div class="step" data-step="3">
+        <div class="step-hdr"><div class="lbl">Étape 3 · Prestations</div><h2>Vos consultations</h2><p>Pré-remplies pour votre secteur.</p></div>
+        <div id="svcList"></div>
+        <div class="clo info" style="margin-top:10px">Personnalisez durées, tarifs et modes depuis le dashboard.</div>
+        <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('services',4)">Continuer →</button></div>
+      </div>
+
+      <!-- ===== STEP 4: TEAM ===== -->
+      <div class="step" data-step="4">
+        <div class="step-hdr"><div class="lbl">Étape 4 · Équipe</div><h2>Votre équipe</h2><p>Vous êtes déjà ajouté. Complétez votre bio.</p></div>
+        <div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:42px;height:42px;border-radius:11px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem" id="ownerAvatar">PD</div>
+            <div><div style="font-size:.88rem;font-weight:700" id="ownerName">Votre nom</div><div style="font-size:.7rem;color:var(--text-4)" id="ownerTitle">Propriétaire</div></div>
+          </div>
+          <div class="fg"><label class="fl">Bio courte</label><textarea class="fi ft" id="f_bio" rows="3" placeholder="16 ans d'expérience en fiscalité belge..."></textarea></div>
+          <div class="fr">
+            <div class="fg"><label class="fl">Années d'exp.</label><input class="fi" type="number" id="f_exp" placeholder="16"></div>
+            <div class="fg"><label class="fl">LinkedIn <span class="opt">(opt.)</span></label><input class="fi" id="f_linkedin" placeholder="https://linkedin.com/in/..."></div>
+          </div>
+        </div>
+        <button class="add-btn">+ Ajouter un(e) collaborateur(rice)</button>
+        <div class="snav"><button class="btn-back" onclick="go(3)">← Retour</button><div><button class="btn-skip" onclick="go(5)">Plus tard</button><button class="btn-next" onclick="saveTeam()">Continuer →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 5: BIO ===== -->
+      <div class="step" data-step="5">
+        <div class="step-hdr"><div class="lbl">Étape 5 · À propos</div><h2>Présentez votre cabinet</h2><p>Texte visible sur votre page publique.</p></div>
+        <div class="fg"><label class="fl">Tagline</label><input class="fi" id="f_tagline" placeholder="Votre slogan en une phrase"></div>
+        <div class="fg"><label class="fl">Description</label><textarea class="fi ft" id="f_desc" rows="4" placeholder="Fondé en 2008, notre cabinet accompagne les indépendants..."></textarea><div class="fh">2-3 phrases suffisent. Enrichissable depuis le dashboard.</div></div>
+        <div class="fr">
+          <div class="fg"><label class="fl">Accréditation <span class="opt">(opt.)</span></label><input class="fi" id="f_accred" placeholder="ITAA agréé"></div>
+          <div class="fg"><label class="fl">Année de fondation <span class="opt">(opt.)</span></label><input class="fi" type="number" id="f_founded" placeholder="2008"></div>
+        </div>
+        <div class="snav"><button class="btn-back" onclick="go(4)">← Retour</button><div><button class="btn-skip" onclick="go(6)">Plus tard</button><button class="btn-next" onclick="saveBio()">Continuer →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 6: SPECIALIZATIONS ===== -->
+      <div class="step" data-step="6">
+        <div class="step-hdr"><div class="lbl">Étape 6 · Spécialisations</div><h2>Vos domaines d'expertise</h2><p>Sélectionnez ou personnalisez.</p></div>
+        <div class="stags" id="specTags"></div>
+        <div class="snav"><button class="btn-back" onclick="go(5)">← Retour</button><div><button class="btn-skip" onclick="go(7)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('specializations',7)">Continuer →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 7: TESTIMONIALS ===== -->
+      <div class="step" data-step="7">
+        <div class="step-hdr"><div class="lbl">Étape 7 · Témoignages</div><h2>Avis de vos clients</h2><p>Renforcent la confiance. Ajoutez-en ou passez.</p></div>
+        <div id="testimonialList"></div>
+        <button class="add-btn" onclick="addTestimonialForm()">+ Ajouter un témoignage</button>
+        <div class="clo tip" style="margin-top:10px">💡 Pas de témoignage ? Pas de souci, ajoutez-en plus tard.</div>
+        <div class="snav"><button class="btn-back" onclick="go(6)">← Retour</button><div><button class="btn-skip" onclick="go(8)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('testimonials',8)">Continuer →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 8: NOTIFICATIONS ===== -->
+      <div class="step" data-step="8">
+        <div class="step-hdr"><div class="lbl">Étape 8 · Notifications</div><h2>Rappels automatiques</h2><p>Réduisez les no-shows.</p></div>
+        <div class="trow"><div class="tlbl">Confirmation email<span class="sub">Dès la réservation</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="trow"><div class="tlbl">Rappel email J-1<span class="sub">24h avant</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="trow"><div class="tlbl">Rappel SMS J-1 <span style="padding:1px 5px;background:var(--gold-bg);border-radius:3px;font-size:.6rem;font-weight:700;color:var(--gold)">PRO</span><span class="sub">~0.05€/SMS</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="trow"><div class="tlbl">Notification nouveau RDV<span class="sub">Vous recevez un email</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="snav"><button class="btn-back" onclick="go(7)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('notifications',9)">Continuer →</button></div>
+      </div>
+
+      <!-- ===== STEP 9: CALL FILTER ===== -->
+      <div class="step" data-step="9">
+        <div class="step-hdr"><div class="lbl">Étape 9 · Filtre d'appels</div><h2>Arrêtez de décrocher</h2><p>Un numéro belge filtre vos appels.</p></div>
+        <div style="background:var(--surface);border-radius:var(--radius);padding:16px;margin:10px 0">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">1</span> Client appelle votre numéro Genda</div>
+            <div style="margin-left:30px;font-size:.7rem;color:var(--text-4)">↓</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">2</span> VIP → Transféré · Autres → SMS booking</div>
+            <div style="margin-left:30px;font-size:.7rem;color:var(--text-4)">↓</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">3</span> Urgence ? Tape 1 → Transféré</div>
+          </div>
+        </div>
+        <div class="clo info">📞 Numéro activé après passage au plan Pro.</div>
+        <div class="snav"><button class="btn-back" onclick="go(8)">← Retour</button><div><button class="btn-skip" onclick="saveOnboardingStep('call_filter',10)">Plus tard</button><button class="btn-next" onclick="saveOnboardingStep('call_filter',10)">Continuer →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 10: AGENDA / CALENDRIER ===== -->
+      <div class="step" data-step="10">
+        <div class="step-hdr"><div class="lbl">Étape 10 · Agenda</div><h2>Synchronisez votre agenda</h2><p>Vos créneaux occupés seront automatiquement bloqués.</p></div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0">
+          <!-- Google Calendar -->
+          <div class="cal-opt" id="calOptGoogle" onclick="selectCalendar('google')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">📅</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Google Calendar</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Gmail, Google Workspace</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+
+          <!-- Outlook -->
+          <div class="cal-opt" id="calOptOutlook" onclick="selectCalendar('outlook')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">📧</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Outlook / Microsoft 365</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Hotmail, Office 365, Exchange</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+
+          <!-- Apple Calendar -->
+          <div class="cal-opt" id="calOptApple" onclick="selectCalendar('apple')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">🍎</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Apple Calendar (iCal)</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Export ICS · Pas de sync en temps réel</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+
+          <!-- Aucun -->
+          <div class="cal-opt" id="calOptNone" onclick="selectCalendar('none')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface);border:2px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:border-color .2s">
+            <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem">❌</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem;color:var(--text-1)">Je n'utilise pas d'agenda en ligne</div>
+              <div style="font-size:.75rem;color:var(--text-3)">Vous pourrez toujours en ajouter un plus tard</div>
+            </div>
+            <div class="cal-check" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:.7rem;transition:all .2s"></div>
+          </div>
+        </div>
+
+        <div id="calConnectBox" style="display:none;margin:10px 0">
+          <div class="clo info" id="calConnectMsg">📅 La connexion sera activée depuis votre dashboard après l'inscription.</div>
+        </div>
+
+        <div class="snav"><button class="btn-back" onclick="go(9)">← Retour</button><div><button class="btn-skip" onclick="goLive()">Plus tard</button><button class="btn-next" onclick="saveCalendarChoice()">Publier mon site →</button></div></div>
+      </div>
+
+      <!-- ===== STEP 11: GO LIVE ===== -->
+      <div class="step" data-step="11">
+        <div class="step-hdr"><div class="lbl">🎉 C'est prêt !</div><h2>Votre cabinet est en ligne</h2></div>
+        <div class="golive">
+          <div class="icon">🟢</div>
+          <h3 id="goliveName">Votre cabinet</h3>
+          <p>Votre page pro est en ligne et prête à recevoir des réservations.</p>
+          <div class="url" id="goliveUrl" onclick="copyUrl()">genda.be/votre-cabinet</div>
+          <div class="acts">
+            <a onclick="copyUrl()">📋 Copier</a>
+            <a href="#" id="goliveLinkPreview" target="_blank">🧪 Tester</a>
+            <a href="/dashboard.html" class="pri">Mon dashboard →</a>
+          </div>
+        </div>
+        <div class="clo tip" style="margin-top:16px"><strong>Prochaines étapes :</strong><br>• Partagez le lien dans votre signature email<br>• Mettez-le sur Google My Business<br>• Testez une réservation vous-même</div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="/js/api-client.js"></script>
+<script>
+const api = new GendaAPI();
+let currentStep = 0;
+let sector = null;
+let bizData = {}; // Saved after signup
+
+// ============================================================
+// REDIRECT IF ALREADY LOGGED IN
+// ============================================================
+if (api.isLoggedIn() && !new URLSearchParams(location.search).get('onboarding')) {
+  window.location.href = '/dashboard.html';
+}
+
+// ============================================================
+// SECTOR SELECT
+// ============================================================
+function selSec(btn, s) {
+  document.querySelectorAll('.sec-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  sector = s;
+}
+
+function updSlug() {
+  const v = document.getElementById('f_biz').value;
+  const slug = v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,40);
+  document.getElementById('slugPrev').textContent = slug || 'votre-cabinet';
+}
+
+// ============================================================
+// STEP NAVIGATION
+// ============================================================
+function go(n) {
+  document.querySelector('.step.active')?.classList.remove('active');
+  document.querySelector(`.step[data-step="${n}"]`)?.classList.add('active');
+  currentStep = n;
+  hideError();
+
+  // Progress bar
+  if (n > 0 && n <= 11) {
+    const pct = Math.round((n / 11) * 100);
+    document.getElementById('pFill').style.width = pct + '%';
+    document.getElementById('pLabel').textContent = `Étape ${n}/11`;
+    document.getElementById('pPct').textContent = pct + '%';
+    document.getElementById('prog').classList.add('show');
+  } else {
+    document.getElementById('prog').classList.remove('show');
+  }
+
+  updateLeftPanel(n);
+  document.querySelector('.right').scrollTop = 0;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideError() {
+  document.getElementById('errMsg').classList.remove('show');
+}
+
+const leftTexts = {
+  0: ['Créez votre <em>cabinet en ligne</em>', 'En quelques minutes, une page pro + booking intégré.'],
+  1: ['<em>Identité</em> de votre cabinet', 'Visible sur votre page publique et confirmations.'],
+  2: ['Définissez vos <em>horaires</em>', 'Vos clients ne voient que les créneaux disponibles.'],
+  3: ['Configurez vos <em>prestations</em>', 'Templates adaptés à votre secteur.'],
+  4: ['Présentez votre <em>équipe</em>', 'Chaque praticien a son propre agenda.'],
+  5: ['Racontez votre <em>histoire</em>', 'Un cabinet avec description inspire 3x plus confiance.'],
+  6: ['Montrez votre <em>expertise</em>', 'Aide vos clients et votre référencement Google.'],
+  7: ['La preuve <em>sociale</em>', 'Témoignages = facteur #1 de conversion.'],
+  8: ['Zéro <em>no-show</em>', 'Les rappels réduisent les absences de 60%.'],
+  9: ['Finies les <em>interruptions</em>', '78% des appels filtrés → RDV en ligne.'],
+  10: ['Synchronisez votre <em>agenda</em>', 'Vos créneaux occupés bloquent les réservations.'],
+  11: ['<em>Félicitations !</em>', 'Votre cabinet est en ligne. Partagez le lien.']
+};
+
+function updateLeftPanel(n) {
+  const t = leftTexts[n] || leftTexts[0];
+  document.getElementById('lTitle').innerHTML = t[0];
+  document.getElementById('lDesc').textContent = t[1];
+}
+
+// ============================================================
+// STEP 0: SIGNUP → POST /api/auth/signup
+// ============================================================
+async function doSignup() {
+  hideError();
+  const name = document.getElementById('f_name').value.trim();
+  const email = document.getElementById('f_email').value.trim();
+  const bizName = document.getElementById('f_biz').value.trim();
+  const pass = document.getElementById('f_pass').value;
+
+  if (!name) return showError('Votre nom est requis.');
+  if (!email) return showError('Votre email est requis.');
+  if (!bizName) return showError('Le nom du cabinet est requis.');
+  if (!sector) return showError('Choisissez votre secteur d\'activité.');
+  if (pass && pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
+
+  const btn = document.getElementById('btnSignup');
+  GendaUI.btnLoading(btn, true);
+
+  try {
+    const result = await api.signup({
+      full_name: name,
+      email,
+      password: pass || undefined,
+      business_name: bizName,
+      sector
+    });
+
+    bizData = result;
+
+    // Pre-fill tagline from sector
+    document.getElementById('f_tagline').value = '';
+
+    // Pre-fill owner info
+    const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+    document.getElementById('ownerAvatar').textContent = initials;
+    document.getElementById('ownerName').textContent = name;
+
+    // Build sector-specific UI
+    buildScheduleGrid();
+    buildServiceList();
+    buildSpecTags();
+
+    GendaUI.toast('Compte créé ! Configurons votre cabinet.', 'success');
+    go(1);
+
+  } catch (err) {
+    showError(err.message || 'Erreur lors de la création du compte');
+  } finally {
+    GendaUI.btnLoading(btn, false);
+  }
+}
+
+// ============================================================
+// STEP 1: CABINET INFO → PATCH /api/business
+// ============================================================
+async function saveCabinetInfo() {
+  const phone = document.getElementById('f_phone').value.trim();
+  const address = document.getElementById('f_addr').value.trim();
+  const parking = document.getElementById('f_parking').value.trim();
+  const lang = document.getElementById('f_lang').value;
+
+  try {
+    await api.updateSettings({
+      phone: phone || undefined,
+      address: address || undefined,
+      parking_info: parking || undefined,
+      language_default: lang
+    });
+    await api.updateOnboarding('cabinet_info');
+    GendaUI.toast('Informations enregistrées', 'success');
+    go(2);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// ============================================================
+// STEP 2: SCHEDULE (display only — defaults already created)
+// ============================================================
+function buildScheduleGrid() {
+  const days = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+  const defaults = [
+    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
+    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
+    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
+    {on:true,am:'09:00 – 12:00',pm:'13:00 – 17:00'},
+    {on:true,am:'09:00 – 12:00',pm:'13:00 – 16:00'},
+    {on:false,am:'—',pm:'—'},
+    {on:false,am:'—',pm:'—'}
+  ];
+  const grid = document.getElementById('schedGrid');
+  grid.innerHTML = '';
+  days.forEach((d, i) => {
+    const r = defaults[i];
+    grid.innerHTML += `<div class="schrow">
+      <span class="schday" ${!r.on?'style="color:var(--text-4)"':''}>${d}</span>
+      <div class="tog ${r.on?'on':''}" onclick="this.classList.toggle('on')"></div>
+      <input class="schi" value="${r.am}" ${!r.on?'disabled':''}>
+      <input class="schi" value="${r.pm}" ${!r.on?'disabled':''}>
+    </div>`;
+  });
+}
+
+async function saveSchedule() {
+  try {
+    await api.updateOnboarding('schedule');
+    GendaUI.toast('Horaires confirmés', 'success');
+    go(3);
+  } catch (err) { showError(err.message); }
+}
+
+// ============================================================
+// STEP 3: SERVICES (display template, already created by signup)
+// ============================================================
+function buildServiceList() {
+  const colors = ['#15803D','#0D7377','#0D7377','#B45309','#1D4ED8','#78716C'];
+  // Services were already created by signup — just show them
+  const svcTemplates = {
+    coiffeur: [{n:'Coupe femme',m:'45 min · 35 €'},{n:'Coupe homme',m:'25 min · 22 €'},{n:'Coloration',m:'60 min · 55 €'},{n:'Mèches / Balayage',m:'90 min · 85 €'},{n:'Brushing',m:'30 min · 25 €'},{n:'Soin kératine',m:'90 min · 95 €'}],
+    esthetique: [{n:'Soin visage complet',m:'60 min · 65 €'},{n:'Manucure',m:'30 min · 28 €'},{n:'Pédicure',m:'45 min · 35 €'},{n:'Épilation jambes',m:'30 min · 30 €'},{n:'Extension cils',m:'90 min · 75 €'},{n:'Maquillage',m:'45 min · 45 €'}],
+    massage: [{n:'Massage relaxant',m:'60 min · 65 €'},{n:'Massage sportif',m:'45 min · 55 €'},{n:'Réflexologie plantaire',m:'45 min · 50 €'},{n:'Massage duo',m:'60 min · 120 €'},{n:'Aromathérapie',m:'75 min · 80 €'}],
+    osteo: [{n:'Première consultation',m:'60 min · 60 €'},{n:'Consultation suivi',m:'45 min · 55 €'},{n:'Urgence',m:'30 min · 60 €'},{n:'Ostéo pédiatrique',m:'30 min · 50 €'},{n:'Ostéo sportive',m:'45 min · 55 €'}],
+    medecin: [{n:'Consultation',m:'20 min · 30 €'},{n:'Consult longue',m:'40 min · 55 €'},{n:'Téléconsultation',m:'15 min · 25 €'},{n:'Certificat',m:'10 min · 20 €'}],
+    dentiste: [{n:'Contrôle annuel',m:'30 min · 40 €'},{n:'Détartrage',m:'30 min · 60 €'},{n:'Soin dentaire',m:'45 min · 80 €'},{n:'Urgence',m:'30 min · 75 €'}],
+    kine: [{n:'Première séance',m:'45 min · 45 €'},{n:'Séance classique',m:'30 min · 30 €'},{n:'Séance longue',m:'60 min · 55 €'},{n:'Rééducation',m:'45 min · 40 €'}],
+    comptable: [{n:'Premier contact',m:'30 min · Gratuit'},{n:'Déclaration IPP',m:'45 min · 120 €'},{n:'Consultation TVA',m:'30 min · 95 €'},{n:'Question société',m:'45 min · 150 €'},{n:'Création d\'activité',m:'60 min · 200 €'},{n:'Suivi dossier',m:'20 min · 75 €'}],
+    avocat: [{n:'Consult initiale',m:'30 min · Gratuit'},{n:'Consult juridique',m:'60 min · 150 €'},{n:'Rédaction contrat',m:'90 min · 250 €'},{n:'Suivi dossier',m:'30 min · 100 €'}],
+    veterinaire: [{n:'Consultation',m:'20 min · 40 €'},{n:'Vaccination',m:'15 min · 50 €'},{n:'Détartrage',m:'60 min · 150 €'},{n:'Consultation NAC',m:'30 min · 45 €'},{n:'Urgence',m:'30 min · 75 €'}],
+    photographe: [{n:'Portrait individuel',m:'60 min · 120 €'},{n:'Shooting couple',m:'90 min · 200 €'},{n:'Photo corporate',m:'120 min · 350 €'},{n:'Mini-session',m:'30 min · 75 €'}],
+    autre: [{n:'Première consult',m:'30 min · Gratuit'},{n:'Standard',m:'45 min · 100 €'},{n:'Suivi',m:'20 min · 50 €'}]
+  };
+  const svcs = svcTemplates[sector] || svcTemplates.autre;
+  const el = document.getElementById('svcList');
+  el.innerHTML = '';
+  svcs.forEach((s, i) => {
+    el.innerHTML += `<div class="svc">
+      <div class="dot" style="background:${colors[i%colors.length]}"></div>
+      <div class="inf"><div class="nm">${s.n}</div><div class="mt">${s.m}</div></div>
+      <div class="tog on" onclick="this.classList.toggle('on')"></div>
+    </div>`;
+  });
+}
+
+// ============================================================
+// STEP 4: TEAM → PATCH /api/site/practitioners/:id
+// ============================================================
+async function saveTeam() {
+  const bio = document.getElementById('f_bio').value.trim();
+  const exp = document.getElementById('f_exp').value;
+  const linkedin = document.getElementById('f_linkedin').value.trim();
+
+  try {
+    // We need the practitioner ID — get it from /api/auth/me or store it
+    // For now, the first practitioner is the owner, get it from dashboard
+    const dashboard = await api.getDashboard();
+    const pracId = dashboard.practitioners?.[0]?.id;
+    if (pracId) {
+      await api.updatePractitioner(pracId, {
+        bio: bio || undefined,
+        years_experience: exp ? parseInt(exp) : undefined,
+        linkedin_url: linkedin || undefined
+      });
+    }
+    await api.updateOnboarding('team');
+    GendaUI.toast('Profil mis à jour', 'success');
+    go(5);
+  } catch (err) { showError(err.message); }
+}
+
+// ============================================================
+// STEP 5: BIO → PATCH /api/business
+// ============================================================
+async function saveBio() {
+  const tagline = document.getElementById('f_tagline').value.trim();
+  const desc = document.getElementById('f_desc').value.trim();
+  const accred = document.getElementById('f_accred').value.trim();
+  const founded = document.getElementById('f_founded').value;
+
+  try {
+    await api.updateSettings({
+      tagline: tagline || undefined,
+      description: desc || undefined,
+      accreditation: accred || undefined,
+      founded_year: founded ? parseInt(founded) : undefined
+    });
+    await api.updateOnboarding('bio_description');
+    GendaUI.toast('Description enregistrée', 'success');
+    go(6);
+  } catch (err) { showError(err.message); }
+}
+
+// ============================================================
+// STEP 6: SPECIALIZATIONS (display template, already created)
+// ============================================================
+function buildSpecTags() {
+  const specTemplates = {
+    coiffeur: ['✂️ Coupe femme','💇‍♂️ Coupe homme','🎨 Coloriste','✨ Balayage & Mèches','💈 Barbier','🧴 Soins capillaires','👰 Coiffure événement','🪮 Extensions'],
+    esthetique: ['🧖 Soins visage','💅 Onglerie','🦵 Épilation','👁️ Regard (cils & sourcils)','💄 Maquillage','🧴 Anti-âge','✨ Beauté des mains','🦶 Pédicure médicale'],
+    massage: ['💆 Relaxation','🏃 Massage sportif','🦶 Réflexologie','🌿 Aromathérapie','🤲 Shiatsu','🧘 Ayurvéda','🔥 Pierres chaudes','👶 Massage prénatal'],
+    osteo: ['🦴 Structurel','🧠 Crânien','🫁 Viscéral','🏃 Ostéo sportive','👶 Pédiatrique','🤰 Femme enceinte'],
+    medecin: ['🩺 Médecine générale','🛡️ Prévention','💊 Maladies chroniques','👶 Pédiatrie','🫀 Cardiologie'],
+    dentiste: ['🦷 Soins conservateurs','✨ Prothèses','😁 Orthodontie','🔬 Radiologie'],
+    kine: ['💪 Rééducation musculaire','🫁 Respiratoire','🤲 Thérapie manuelle','🏃 Sport'],
+    comptable: ['📊 Fiscalité indépendants','🏢 Sociétés / SRL','📝 TVA','🚀 Création entreprise','💶 Optimisation fiscale','🤝 Conseil stratégique','📈 Comptes annuels','🏠 Immobilier'],
+    avocat: ['🏛️ Droit sociétés','⚖️ Droit travail','🏠 Immobilier','👨‍👩‍👧 Droit familial','📜 Contrats','💼 Commercial'],
+    veterinaire: ['🐕 Chiens & Chats','🐇 NAC','🦷 Dentaire','📡 Échographie','💉 Vaccination','🩹 Chirurgie'],
+    photographe: ['📷 Portrait','💒 Mariage','🏢 Corporate','👶 Naissance','🏠 Immobilier','🎓 Book professionnel'],
+    autre: ['📋 Consultation','🤝 Accompagnement','📈 Conseil']
+  };
+  const specs = specTemplates[sector] || specTemplates.autre;
+  const el = document.getElementById('specTags');
+  el.innerHTML = '';
+  specs.forEach((s, i) => {
+    el.innerHTML += `<div class="stag ${i<4?'sel':''}" onclick="this.classList.toggle('sel')">${s}</div>`;
+  });
+}
+
+// ============================================================
+// STEP 7: TESTIMONIALS (empty by default)
+// ============================================================
+function addTestimonialForm() {
+  const el = document.getElementById('testimonialList');
+  const n = el.children.length + 1;
+  el.innerHTML += `<div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:14px;margin-bottom:8px">
+    <div class="fr"><div class="fg"><label class="fl">Nom</label><input class="fi" placeholder="Marc Henrard"></div><div class="fg"><label class="fl">Rôle</label><input class="fi" placeholder="Gérant, TechFlow SA"></div></div>
+    <div class="fg"><label class="fl">Témoignage</label><textarea class="fi ft" rows="2" placeholder="Pierre m'a accompagné dans..."></textarea></div>
+  </div>`;
+}
+
+// ============================================================
+// GENERIC ONBOARDING STEP SAVE
+// ============================================================
+async function saveOnboardingStep(step, nextStep) {
+  try {
+    await api.updateOnboarding(step);
+    go(nextStep);
+  } catch (err) { showError(err.message); }
+}
+
+// ============================================================
+// STEP 10: CALENDAR CHOICE
+// ============================================================
+let selectedCalendar = null;
+
+function selectCalendar(type) {
+  selectedCalendar = type;
+  // Update visual selection
+  document.querySelectorAll('.cal-opt').forEach(el => {
+    el.style.borderColor = 'var(--border-light)';
+    el.querySelector('.cal-check').innerHTML = '';
+    el.querySelector('.cal-check').style.borderColor = 'var(--border-light)';
+    el.querySelector('.cal-check').style.background = 'transparent';
+  });
+  const sel = document.getElementById('calOpt' + type.charAt(0).toUpperCase() + type.slice(1));
+  if (sel) {
+    sel.style.borderColor = 'var(--primary)';
+    const check = sel.querySelector('.cal-check');
+    check.innerHTML = '✓';
+    check.style.borderColor = 'var(--primary)';
+    check.style.background = 'var(--primary)';
+    check.style.color = '#fff';
+  }
+
+  // Show info box
+  const box = document.getElementById('calConnectBox');
+  const msg = document.getElementById('calConnectMsg');
+  if (type === 'none') {
+    box.style.display = 'none';
+  } else if (type === 'apple') {
+    box.style.display = 'block';
+    msg.innerHTML = '🍎 Apple Calendar ne supporte pas la sync en temps réel. Vos RDV seront exportables en fichier .ics depuis le dashboard.';
+  } else if (type === 'google') {
+    box.style.display = 'block';
+    msg.innerHTML = '📅 Après l\'inscription, connectez votre Google Calendar en un clic depuis <strong>Paramètres → Synchronisation calendrier</strong>.';
+  } else if (type === 'outlook') {
+    box.style.display = 'block';
+    msg.innerHTML = '📧 Après l\'inscription, connectez votre Outlook en un clic depuis <strong>Paramètres → Synchronisation calendrier</strong>.';
+  }
+}
+
+async function saveCalendarChoice() {
+  try {
+    // Save calendar preference in business settings
+    if (selectedCalendar && selectedCalendar !== 'none') {
+      await api.updateSettings({
+        settings: { calendar_provider_preference: selectedCalendar }
+      });
+    }
+  } catch (e) { /* non-blocking */ }
+  goLive();
+}
+
+// ============================================================
+// STEP 11: GO LIVE
+// ============================================================
+async function goLive() {
+  try {
+    await api.updateOnboarding('go_live');
+  } catch (e) { /* non-blocking */ }
+
+  const biz = api.getBusiness();
+  const slug = biz?.slug || 'votre-cabinet';
+  const name = biz?.name || 'Votre cabinet';
+
+  document.getElementById('goliveName').textContent = name;
+  document.getElementById('goliveUrl').textContent = `genda.be/${slug}`;
+  document.getElementById('goliveLinkPreview').href = `/api/public/${slug}`;
+
+  go(11);
+  GendaUI.toast('🎉 Votre cabinet est en ligne !', 'success', 6000);
+}
+
+function copyUrl() {
+  const biz = api.getBusiness();
+  const url = `https://genda.be/${biz?.slug || 'votre-cabinet'}`;
+  navigator.clipboard?.writeText(url).then(() => {
+    GendaUI.toast('Lien copié !', 'success');
+  });
+}
+</script>
+
+</body>
+</html>
