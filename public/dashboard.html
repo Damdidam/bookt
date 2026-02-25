@@ -155,7 +155,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .fc td,.fc th{border-color:var(--border-light)}
 .fc .fc-daygrid-day-number{font-size:.8rem;font-weight:500;color:var(--text-2);padding:6px 8px}
 .fc .fc-day-today{background:var(--primary-light)!important}
-.fc .fc-timegrid-slot{height:var(--fc-slot-h,48px)}
+.fc .fc-timegrid-slot{height:48px}
 .fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:var(--text-4);font-weight:500}
 .fc-zoom{display:flex;align-items:center;gap:4px;margin-left:auto}
 .fc-zoom button{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg-card);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all .15s}
@@ -496,7 +496,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   .fc .fc-toolbar-chunk{display:flex;justify-content:center}
   .fc .fc-toolbar-title{font-size:1rem!important}
   .fc .fc-button{padding:5px 10px;font-size:.72rem}
-  .fc .fc-timegrid-slot{height:var(--fc-slot-h,40px)}
+  .fc .fc-timegrid-slot{height:40px}
   .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
   .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
 
@@ -762,13 +762,18 @@ let fcCal=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurr
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
 let fcHiddenDays=[], fcBusinessHours=[];
-const FC_ZOOM_LEVELS=[20,28,36,48,64,80];
+const FC_ZOOM_LEVELS=[18,24,32,48,64,80];
 let fcZoomIdx=3; // default 48px = 100%
 
 function fcZoom(dir){
   fcZoomIdx=Math.max(0,Math.min(FC_ZOOM_LEVELS.length-1,fcZoomIdx+dir));
   const h=FC_ZOOM_LEVELS[fcZoomIdx];
-  document.getElementById('fcCalendar')?.style.setProperty('--fc-slot-h',h+'px');
+  // Inject/update dynamic style (most reliable override for FC)
+  let tag=document.getElementById('fcZoomStyle');
+  if(!tag){tag=document.createElement('style');tag.id='fcZoomStyle';document.head.appendChild(tag);}
+  tag.textContent=`.fc .fc-timegrid-slot{height:${h}px!important}.fc .fc-timegrid-slot-lane{height:${h}px!important}`;
+  // Force FC to recalculate layout
+  if(fcCal)fcCal.updateSize();
   const pct=Math.round(h/48*100);
   const lbl=document.getElementById('fcZoomLabel');
   if(lbl)lbl.textContent=pct+'%';
@@ -873,7 +878,7 @@ async function loadAgenda(){
     selectConstraint:'businessHours',
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:!mobile,
-    height:'auto',expandRows:true,stickyHeaderDates:true,firstDay:1,
+    height:'auto',stickyHeaderDates:true,firstDay:1,
     editable:!fcIsTouch,eventDurationEditable:!fcIsTouch,eventStartEditable:!fcIsTouch,snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
@@ -1051,6 +1056,8 @@ async function loadAgenda(){
     }
   });
   fcCal.render();
+  // Re-apply zoom level if changed
+  if(fcZoomIdx!==3)fcZoom(0);
 
   // Mobile: load list view + setup swipe
   if(fcIsMobile()){
