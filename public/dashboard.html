@@ -894,6 +894,7 @@ async function loadAgenda(){
         });
         if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
         gToast((p.client_name||'RDV')+' déplacé','success');
+        fcCal.refetchEvents(); // Sync recalculated duration from backend
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
     },
 

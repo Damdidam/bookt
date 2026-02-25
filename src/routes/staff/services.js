@@ -104,6 +104,22 @@ router.patch('/:id', async (req, res, next) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
 
+    // If duration or buffers changed, recalculate end_at for future bookings
+    const durationChanged = fields.duration_min !== undefined || fields.buffer_before_min !== undefined || fields.buffer_after_min !== undefined;
+    if (durationChanged) {
+      const svc = result.rows[0];
+      const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+      await queryWithRLS(bid,
+        `UPDATE bookings SET
+          end_at = start_at + (interval '1 minute' * $1),
+          updated_at = NOW()
+         WHERE service_id = $2 AND business_id = $3
+         AND status IN ('pending', 'confirmed', 'modified_pending')
+         AND start_at > NOW()`,
+        [totalMin, id, bid]
+      );
+    }
+
     // Update practitioner links if provided
     if (fields.practitioner_ids) {
       await queryWithRLS(bid,

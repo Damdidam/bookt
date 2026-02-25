@@ -264,12 +264,22 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
 
-    // Fetch old data for audit
+    // Fetch old data + service info to recalculate duration
     const old = await queryWithRLS(bid,
-      `SELECT start_at, end_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`,
+      `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
+              s.duration_min, s.buffer_before_min, s.buffer_after_min
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
     if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Recalculate end_at from current service settings (not from FC's preserved duration)
+    const svc = old.rows[0];
+    const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+    const newStart = new Date(start_at);
+    const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
 
     const effectivePracId = practitioner_id || old.rows[0].practitioner_id;
 
@@ -280,14 +290,14 @@ router.patch('/:id/move', async (req, res, next) => {
        AND id != $3
        AND status IN ('pending', 'confirmed', 'modified_pending')
        AND start_at < $5 AND end_at > $4`,
-      [bid, effectivePracId, id, start_at, end_at]
+      [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
     );
     if (conflict.rows.length > 0) {
       return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
     }
 
     let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
-    const params = [start_at, end_at];
+    const params = [newStart.toISOString(), recalcEnd.toISOString()];
     let idx = 3;
 
     if (practitioner_id) {
@@ -307,7 +317,7 @@ router.patch('/:id/move', async (req, res, next) => {
        VALUES ($1, $2, 'booking', $3, 'move', $4, $5)`,
       [bid, req.user.id, id,
        JSON.stringify(old.rows[0]),
-       JSON.stringify({ start_at, end_at, practitioner_id })]
+       JSON.stringify({ start_at: newStart.toISOString(), end_at: recalcEnd.toISOString(), practitioner_id })]
     );
 
     res.json({ updated: true, booking: result.rows[0] });
