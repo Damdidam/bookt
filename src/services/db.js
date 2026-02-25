@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { validate: isUuid } = require('uuid');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -17,14 +18,13 @@ pool.on('error', (err) => {
  * Use this for all staff API queries
  */
 async function queryWithRLS(businessId, text, params = []) {
+  if (!isUuid(businessId)) throw new Error('Invalid business ID');
   const client = await pool.connect();
   try {
-    await client.query(`SET app.current_business_id = '${businessId}'`);
+    await client.query(`SELECT set_config('app.current_business_id', $1, true)`, [businessId]);
     const result = await client.query(text, params);
     return result;
   } finally {
-    // Reset the setting before returning to pool
-    await client.query("RESET app.current_business_id").catch(() => {});
     client.release();
   }
 }
@@ -34,10 +34,11 @@ async function queryWithRLS(businessId, text, params = []) {
  * Use for operations that need atomicity (booking creation, etc.)
  */
 async function transactionWithRLS(businessId, callback) {
+  if (!isUuid(businessId)) throw new Error('Invalid business ID');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(`SET app.current_business_id = '${businessId}'`);
+    await client.query(`SELECT set_config('app.current_business_id', $1, true)`, [businessId]);
     const result = await callback(client);
     await client.query('COMMIT');
     return result;
@@ -45,7 +46,6 @@ async function transactionWithRLS(businessId, callback) {
     await client.query('ROLLBACK');
     throw err;
   } finally {
-    await client.query("RESET app.current_business_id").catch(() => {});
     client.release();
   }
 }

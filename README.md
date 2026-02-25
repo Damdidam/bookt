@@ -1,159 +1,165 @@
-# Bookt 🇧🇪
+# 📅 Bookt — Votre cabinet en ligne en 10 minutes
 
-**Votre cabinet en ligne en 10 minutes.**
+SaaS multi-tenant de prise de rendez-vous pour professionnels libéraux en Belgique (salons de beauté, coiffeurs, praticiens santé, etc.).
 
-Plateforme SaaS multi-tenant pour professionnels libéraux (comptables, avocats, médecins, dentistes, kinés). Chaque professionnel obtient :
+## Stack
 
-- 🌐 **Mini-site cabinet** — page pro avec bio, équipe, spécialisations, témoignages, SEO
-- 📅 **Booking en ligne 24/7** — flow client en 30 sec, rappels SMS/email, anti double-booking
-- 📞 **Filtre d'appels intelligent** — numéro belge dédié, SMS auto avec lien booking, whitelist VIP
+- **Backend** : Node.js + Express
+- **Base de données** : PostgreSQL (Neon) — 29 tables, RLS multi-tenant
+- **Frontend** : HTML/CSS/JS vanilla (dashboard monolithique)
+- **PDF** : PDFKit (factures belges)
+- **Email** : Brevo (transactionnel)
+- **Calendrier** : Google Calendar + Outlook (OAuth2)
+- **SMS/Appels** : Twilio
+- **Hébergement** : Render
 
-## Stack technique
+## Fonctionnalités (v0.6)
 
-| Layer | Tech |
-|---|---|
-| Backend | Node.js, Express 4 |
-| Database | PostgreSQL 15+ (22 tables, RLS) |
-| Auth | JWT + Magic links + bcrypt |
-| SMS/Appels | Twilio webhooks |
-| Email | Brevo (Sendinblue) |
-| Frontend | HTML/CSS/JS vanilla (pas de framework) |
+### Core
+- 🏢 Multi-tenant avec Row Level Security
+- 📅 Slot engine (créneaux dispo, granularité configurable, buffers)
+- 📋 Booking flow client (mini-site → choix prestation → créneau → confirmation)
+- 👥 Gestion praticiens, services, disponibilités, exceptions
+- 🔐 Auth JWT + magic links
+- 📱 Page annulation/report client avec deadline
 
-## Structure du projet
+### Mini-site public (v2)
+- 🎨 6 thèmes (1 gratuit, 5 premium Pro)
+- 🏷️ SEO (title, description, slug personnalisé)
+- 🌐 Domaines personnalisés (CNAME + SSL)
+- 📊 Sections configurables (hero, équipe, témoignages, spécialisations)
+
+### Facturation (v3)
+- 🧾 PDF belge conforme (TVA 21/6/0%, BCE, communication structurée +++XXX/XXXX/XXXXX+++)
+- 💳 IBAN/BIC, échéance J+30
+- 📄 Factures, devis, notes de crédit
+- 🔄 Création depuis un RDV terminé
+
+### Documents pré-RDV (v4)
+- 📋 Templates : fiches d'info, formulaires, consentements
+- ✉️ Envoi automatique J-2 par email (Brevo)
+- 🔗 Lien sécurisé avec token pour le client
+- 📝 Réponses JSONB + consentement tracé
+
+### Calendrier (v5-v6)
+- 📅 Sync bidirectionnelle Google Calendar + Outlook
+- 🔄 Push RDV Bookt → agenda externe
+- ⬅️ Pull créneaux occupés → bloque slots dans le booking flow
+- 🔑 OAuth2 avec refresh automatique
+
+### Dashboard pro
+- 📊 Analytics (6 graphes Canvas)
+- 👥 Gestion équipe (invitation staff)
+- ⚙️ Settings (infos cabinet, SEO, widget/QR, sécurité, plans)
+- 📞 Filtre d'appels (Twilio)
+
+## Structure
 
 ```
 bookt/
-├── public/                     # Frontend
-│   ├── index.html              # Landing page marketing
-│   ├── login.html              # Connexion (email + password)
-│   ├── signup.html             # Inscription + onboarding 10 étapes
-│   ├── dashboard.html          # Dashboard pro (auth-protected)
-│   └── js/
-│       └── api-client.js       # Client API partagé (auth, fetch, helpers)
-│
+├── public/                    # Frontend
+│   ├── dashboard.html         # Dashboard pro (1900+ lignes)
+│   ├── book.html              # Booking flow client
+│   ├── site.html              # Mini-site public dynamique
+│   ├── manage-booking.html    # Page annulation client
+│   ├── pre-rdv.html           # Documents pré-RDV client
+│   ├── login.html / signup.html
+│   └── js/api-client.js
 ├── src/
-│   ├── server.js               # Express app, routes, middleware
-│   ├── routes/
-│   │   ├── public/index.js     # API publique (mini-site, slots, booking)
-│   │   ├── staff/auth.js       # Login, magic link, verify, /me
-│   │   ├── staff/signup.js     # Signup avec templates secteur
-│   │   ├── staff/dashboard.js  # Stats, today's bookings
-│   │   ├── staff/bookings.js   # CRUD bookings (staff)
-│   │   ├── staff/services.js   # CRUD prestations
-│   │   ├── staff/clients.js    # CRUD clients
-│   │   ├── staff/availability.js # Horaires + exceptions
-│   │   ├── staff/settings.js   # Business settings (v1 + v2 fields)
-│   │   ├── staff/site.js       # Mini-site management (testimonials, specs, values, domain, onboarding)
-│   │   ├── staff/calls.js      # Call logs, settings, whitelist
-│   │   └── webhooks/twilio.js  # Incoming call/SMS webhooks
-│   ├── middleware/
-│   │   ├── auth.js             # JWT verification + RLS
-│   │   ├── error-handler.js    # Global error handler
-│   │   └── rate-limiter.js     # Rate limiting (auth, API, webhooks)
+│   ├── server.js              # Express app + routes
 │   ├── services/
-│   │   ├── db.js               # PostgreSQL pool + queryWithRLS
-│   │   └── slot-engine.js      # Calcul des créneaux disponibles
-│   └── utils/
-│       └── db-init.js          # Schema initialization
-│
-├── schema.sql                  # 15 tables core (v1)
-├── schema-v2-migration.sql     # 7 tables mini-site (v2)
-├── docs/
-│   └── mockups/                # Maquettes HTML standalone
-│
+│   │   ├── db.js              # Pool PG + RLS helpers
+│   │   ├── slot-engine.js     # Calcul créneaux + busy blocks
+│   │   ├── invoice-pdf.js     # Génération PDF (PDFKit)
+│   │   ├── email.js           # Envoi email (Brevo API)
+│   │   └── calendar-sync.js   # Google + Outlook OAuth2 sync
+│   ├── routes/
+│   │   ├── public/index.js    # API publique (mini-site, slots, booking)
+│   │   ├── staff/             # API dashboard (auth required)
+│   │   │   ├── auth.js, bookings.js, clients.js, services.js
+│   │   │   ├── availability.js, settings.js, practitioners.js
+│   │   │   ├── invoices.js, documents.js, calendar.js
+│   │   │   ├── dashboard.js, site.js, calls.js, signup.js
+│   │   ├── cron/pre-rdv.js    # Cron envoi docs J-2
+│   │   └── webhooks/twilio.js
+│   ├── middleware/
+│   │   ├── auth.js, error-handler.js, rate-limiter.js
+│   └── utils/db-init.js
+├── schema.sql                 # Schema v1 (22 tables core)
+├── schema-v2-migration.sql    # Colonnes mini-site
+├── schema-v3-invoices.sql     # Tables invoices + invoice_items
+├── schema-v4-documents.sql    # Tables document_templates + pre_rdv_sends
+├── schema-v5-calendar.sql     # Tables calendar_connections + calendar_events
 ├── .env.example
 ├── .gitignore
 └── package.json
 ```
 
-## Installation
-
-### Prérequis
-
-- Node.js 18+
-- PostgreSQL 15+
-
-### Setup
+## Setup local
 
 ```bash
-# 1. Clone
-git clone git@github.com:YOUR_USER/Bookt.git
+git clone https://github.com/YOUR_USER/Bookt.git
 cd Bookt
-
-# 2. Dépendances
 npm install
-
-# 3. Environnement
 cp .env.example .env
-# Éditer .env : DATABASE_URL, JWT_SECRET (minimum)
-
-# 4. Base de données
-createdb bookt
-npm run db:init
-
-# 5. Lancer
+# Remplir les variables dans .env
 npm run dev
 ```
 
-Puis ouvrir `http://localhost:3000`
+## Variables d'environnement
 
-## Flow utilisateur
+Voir `.env.example` pour la liste complète. Variables critiques :
 
-```
-Landing (bookt.be)
-  → "Créer mon cabinet" → Signup + Onboarding 10 étapes
-  → Dashboard pro (gérer agenda, clients, prestations, appels)
-  → Dashboard "Mon site" (éditer bio, équipe, témoignages, SEO, domaine)
-  → bookt.be/cabinet-dewit (page publique mini-site)
-  → Client clique "Prendre RDV" → Flow booking 6 écrans
-  → Confirmation SMS + email → Rappels automatiques
-```
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Connection string PostgreSQL (Neon) |
+| `JWT_SECRET` | Secret pour tokens d'authentification |
+| `BREVO_API_KEY` | Clé API Brevo pour emails transactionnels |
+| `GOOGLE_CLIENT_ID` / `SECRET` | OAuth2 Google Calendar |
+| `OUTLOOK_CLIENT_ID` / `SECRET` | OAuth2 Microsoft 365 |
+| `CRON_SECRET` | Clé pour endpoints cron sécurisés |
 
-## API endpoints
+## Migrations DB
+
+Exécuter dans l'ordre sur Neon SQL Editor :
+1. `schema.sql` — tables core (22)
+2. `schema-v2-migration.sql` — colonnes mini-site sur businesses/practitioners
+3. `schema-v3-invoices.sql` — invoices + invoice_items
+4. `schema-v4-documents.sql` — document_templates + pre_rdv_sends
+5. `schema-v5-calendar.sql` — calendar_connections + calendar_events
+
+## API Endpoints
 
 ### Public (no auth)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/public/:slug` | Full mini-site data |
-| GET | `/api/public/:slug/slots` | Available slots |
-| POST | `/api/public/:slug/bookings` | Create booking |
-
-### Auth
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/auth/signup` | Create account + business |
-| POST | `/api/auth/login` | Login (password or magic link) |
-| GET | `/api/auth/me` | Current user info |
+- `GET /api/public/:slug` — données mini-site
+- `GET /api/public/:slug/slots` — créneaux disponibles
+- `POST /api/public/:slug/bookings` — créer un RDV
+- `GET /api/public/docs/:token` — document pré-RDV
+- `POST /api/public/docs/:token/submit` — soumettre formulaire
 
 ### Staff (JWT required)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/dashboard/summary` | Stats + today's bookings |
-| GET/POST/PATCH/DELETE | `/api/bookings` | Manage bookings |
-| GET/POST/PATCH/DELETE | `/api/services` | Manage services |
-| GET | `/api/clients` | Client list |
-| GET/POST | `/api/availabilities` | Weekly schedule |
-| PATCH | `/api/business` | Business settings |
-| GET/POST/PATCH/DELETE | `/api/site/testimonials` | Testimonials |
-| GET/POST/PATCH/DELETE | `/api/site/specializations` | Specializations |
-| PATCH | `/api/site/onboarding` | Mark step complete |
+- `/api/bookings` — CRUD RDV + statuts
+- `/api/clients` — CRUD clients
+- `/api/services` — CRUD prestations
+- `/api/availabilities` — horaires + exceptions
+- `/api/invoices` — factures PDF belges
+- `/api/documents` — templates pré-RDV
+- `/api/calendar` — sync Google/Outlook
+- `/api/practitioners` — gestion équipe
+- `/api/business` — settings cabinet
+- `/api/dashboard` — KPIs + analytics
 
-## Pricing model
+### Cron
+- `GET /api/cron/pre-rdv-docs?key=CRON_SECRET` — envoi docs J-2
 
-| Plan | Prix | Inclus |
-|---|---|---|
-| **Gratuit** | 0 € | Page pro, booking 1 praticien, email confirmations |
-| **Pro** | 39 €/mois | + Praticiens illimités, filtre appels, rappels SMS, stats |
-| **Team** | 59 €/mois | + Domaine personnalisé, multi-users, rôles, export |
+## Déploiement (Render)
 
-## Templates secteur
-
-Le signup génère automatiquement services, spécialisations, et valeurs adaptés au secteur : comptable, avocat, médecin, dentiste, kiné, ou autre.
+1. Connecter repo GitHub
+2. Build command : `npm install`
+3. Start command : `npm start`
+4. Ajouter toutes les env vars de `.env.example`
+5. Health check : `/health`
 
 ## Licence
 
-Propriétaire — tous droits réservés.
-
----
-
-*Une solution belge 🇧🇪 pour les professionnels libéraux.*
+Propriétaire — © Bookt 2026

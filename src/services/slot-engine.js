@@ -1,4 +1,5 @@
 const { query } = require('./db');
+const { getBusyBlocks } = require('./calendar-sync');
 
 /**
  * SLOT ENGINE — the heart of the booking app.
@@ -124,6 +125,26 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
       start: row.start_at,
       end: row.end_at
     });
+  }
+
+  // 6b. Fetch busy blocks from external calendars (Google/Outlook)
+  try {
+    for (const pracId of practitionerIds) {
+      const busyBlocks = await getBusyBlocks(query, businessId, pracId, startDate, endDate);
+      for (const block of busyBlocks) {
+        const dateStr = new Date(block.start_at).toISOString().split('T')[0];
+        const key = `${pracId}-${dateStr}`;
+        if (!bookingMap[key]) bookingMap[key] = [];
+        bookingMap[key].push({
+          start: new Date(block.start_at),
+          end: new Date(block.end_at)
+        });
+      }
+    }
+  } catch (e) {
+    // Non-critical: if calendar_events table doesn't exist yet or no connections,
+    // just continue without external busy blocks
+    console.warn('Calendar busy blocks unavailable:', e.message);
   }
 
   // 7. Generate slots
