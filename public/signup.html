@@ -60,7 +60,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .err.show{display:block}
 
 /* Sector grid */
-.sectors{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:4px}
+.sectors{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:4px}
 .sec-btn{padding:12px 8px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;font-family:var(--sans)}
 .sec-btn:hover{border-color:var(--primary-border);background:var(--primary-light)}
 .sec-btn.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
@@ -122,7 +122,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .add-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
 
 @media(max-width:900px){.page{flex-direction:column}.left{width:100%;height:auto;position:relative;padding:24px}.right{padding:20px}}
-@media(max-width:500px){.sectors{grid-template-columns:1fr 1fr}.fr{grid-template-columns:1fr}.schrow{grid-template-columns:70px 34px 1fr 1fr;gap:3px}}
+@media(max-width:500px){.sectors{grid-template-columns:1fr 1fr 1fr}.fr{grid-template-columns:1fr}.schrow{grid-template-columns:70px 34px 1fr 1fr;gap:3px}}
 </style>
 </head>
 <body>
@@ -160,11 +160,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe <span class="opt">(optionnel)</span></label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères"></div>
         <div class="fg"><label class="fl">Votre secteur</label>
           <div class="sectors">
-            <button class="sec-btn sel" onclick="selSec(this,'comptable')"><div class="i">📊</div><div class="n">Comptable</div></button>
-            <button class="sec-btn" onclick="selSec(this,'avocat')"><div class="i">⚖️</div><div class="n">Avocat</div></button>
+            <button class="sec-btn" onclick="selSec(this,'coiffeur')"><div class="i">💇</div><div class="n">Coiffeur·se</div></button>
+            <button class="sec-btn" onclick="selSec(this,'esthetique')"><div class="i">💅</div><div class="n">Esthétique</div></button>
+            <button class="sec-btn" onclick="selSec(this,'massage')"><div class="i">💆</div><div class="n">Bien-être</div></button>
+            <button class="sec-btn" onclick="selSec(this,'osteo')"><div class="i">🧘</div><div class="n">Ostéopathe</div></button>
             <button class="sec-btn" onclick="selSec(this,'medecin')"><div class="i">🩺</div><div class="n">Médecin</div></button>
             <button class="sec-btn" onclick="selSec(this,'dentiste')"><div class="i">🦷</div><div class="n">Dentiste</div></button>
             <button class="sec-btn" onclick="selSec(this,'kine')"><div class="i">💪</div><div class="n">Kiné</div></button>
+            <button class="sec-btn" onclick="selSec(this,'comptable')"><div class="i">📊</div><div class="n">Comptable</div></button>
+            <button class="sec-btn" onclick="selSec(this,'avocat')"><div class="i">⚖️</div><div class="n">Avocat</div></button>
+            <button class="sec-btn" onclick="selSec(this,'veterinaire')"><div class="i">🐾</div><div class="n">Vétérinaire</div></button>
+            <button class="sec-btn" onclick="selSec(this,'photographe')"><div class="i">📸</div><div class="n">Photographe</div></button>
             <button class="sec-btn" onclick="selSec(this,'autre')"><div class="i">🤝</div><div class="n">Autre</div></button>
           </div>
         </div>
@@ -208,7 +214,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
             <div style="width:42px;height:42px;border-radius:11px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem" id="ownerAvatar">PD</div>
-            <div><div style="font-size:.88rem;font-weight:700" id="ownerName">Pierre De Wit</div><div style="font-size:.7rem;color:var(--text-4)" id="ownerTitle">Expert-comptable</div></div>
+            <div><div style="font-size:.88rem;font-weight:700" id="ownerName">Votre nom</div><div style="font-size:.7rem;color:var(--text-4)" id="ownerTitle">Propriétaire</div></div>
           </div>
           <div class="fg"><label class="fl">Bio courte</label><textarea class="fi ft" id="f_bio" rows="3" placeholder="16 ans d'expérience en fiscalité belge..."></textarea></div>
           <div class="fr">
@@ -223,7 +229,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
       <!-- ===== STEP 5: BIO ===== -->
       <div class="step" data-step="5">
         <div class="step-hdr"><div class="lbl">Étape 5 · À propos</div><h2>Présentez votre cabinet</h2><p>Texte visible sur votre page publique.</p></div>
-        <div class="fg"><label class="fl">Tagline</label><input class="fi" id="f_tagline" placeholder="Votre expert-comptable à Bruxelles"></div>
+        <div class="fg"><label class="fl">Tagline</label><input class="fi" id="f_tagline" placeholder="Votre slogan en une phrase"></div>
         <div class="fg"><label class="fl">Description</label><textarea class="fi ft" id="f_desc" rows="4" placeholder="Fondé en 2008, notre cabinet accompagne les indépendants..."></textarea><div class="fh">2-3 phrases suffisent. Enrichissable depuis le dashboard.</div></div>
         <div class="fr">
           <div class="fg"><label class="fl">Accréditation <span class="opt">(opt.)</span></label><input class="fi" id="f_accred" placeholder="ITAA agréé"></div>
@@ -352,7 +358,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 <script>
 const api = new BooktAPI();
 let currentStep = 0;
-let sector = 'comptable';
+let sector = null;
 let bizData = {}; // Saved after signup
 
 // ============================================================
@@ -444,6 +450,7 @@ async function doSignup() {
   if (!name) return showError('Votre nom est requis.');
   if (!email) return showError('Votre email est requis.');
   if (!bizName) return showError('Le nom du cabinet est requis.');
+  if (!sector) return showError('Choisissez votre secteur d\'activité.');
   if (pass && pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
 
   const btn = document.getElementById('btnSignup');
@@ -549,11 +556,17 @@ function buildServiceList() {
   const colors = ['#15803D','#0D7377','#0D7377','#B45309','#1D4ED8','#78716C'];
   // Services were already created by signup — just show them
   const svcTemplates = {
-    comptable: [{n:'Premier contact',m:'30 min · Gratuit'},{n:'Déclaration IPP',m:'45 min · 120 €'},{n:'Consultation TVA',m:'30 min · 95 €'},{n:'Question société',m:'45 min · 150 €'},{n:'Création d\'activité',m:'60 min · 200 €'},{n:'Suivi dossier',m:'20 min · 75 €'}],
-    avocat: [{n:'Consult initiale',m:'30 min · Gratuit'},{n:'Consult juridique',m:'60 min · 150 €'},{n:'Rédaction contrat',m:'90 min · 250 €'},{n:'Suivi dossier',m:'30 min · 100 €'}],
+    coiffeur: [{n:'Coupe femme',m:'45 min · 35 €'},{n:'Coupe homme',m:'25 min · 22 €'},{n:'Coloration',m:'60 min · 55 €'},{n:'Mèches / Balayage',m:'90 min · 85 €'},{n:'Brushing',m:'30 min · 25 €'},{n:'Soin kératine',m:'90 min · 95 €'}],
+    esthetique: [{n:'Soin visage complet',m:'60 min · 65 €'},{n:'Manucure',m:'30 min · 28 €'},{n:'Pédicure',m:'45 min · 35 €'},{n:'Épilation jambes',m:'30 min · 30 €'},{n:'Extension cils',m:'90 min · 75 €'},{n:'Maquillage',m:'45 min · 45 €'}],
+    massage: [{n:'Massage relaxant',m:'60 min · 65 €'},{n:'Massage sportif',m:'45 min · 55 €'},{n:'Réflexologie plantaire',m:'45 min · 50 €'},{n:'Massage duo',m:'60 min · 120 €'},{n:'Aromathérapie',m:'75 min · 80 €'}],
+    osteo: [{n:'Première consultation',m:'60 min · 60 €'},{n:'Consultation suivi',m:'45 min · 55 €'},{n:'Urgence',m:'30 min · 60 €'},{n:'Ostéo pédiatrique',m:'30 min · 50 €'},{n:'Ostéo sportive',m:'45 min · 55 €'}],
     medecin: [{n:'Consultation',m:'20 min · 30 €'},{n:'Consult longue',m:'40 min · 55 €'},{n:'Téléconsultation',m:'15 min · 25 €'},{n:'Certificat',m:'10 min · 20 €'}],
     dentiste: [{n:'Contrôle annuel',m:'30 min · 40 €'},{n:'Détartrage',m:'30 min · 60 €'},{n:'Soin dentaire',m:'45 min · 80 €'},{n:'Urgence',m:'30 min · 75 €'}],
     kine: [{n:'Première séance',m:'45 min · 45 €'},{n:'Séance classique',m:'30 min · 30 €'},{n:'Séance longue',m:'60 min · 55 €'},{n:'Rééducation',m:'45 min · 40 €'}],
+    comptable: [{n:'Premier contact',m:'30 min · Gratuit'},{n:'Déclaration IPP',m:'45 min · 120 €'},{n:'Consultation TVA',m:'30 min · 95 €'},{n:'Question société',m:'45 min · 150 €'},{n:'Création d\'activité',m:'60 min · 200 €'},{n:'Suivi dossier',m:'20 min · 75 €'}],
+    avocat: [{n:'Consult initiale',m:'30 min · Gratuit'},{n:'Consult juridique',m:'60 min · 150 €'},{n:'Rédaction contrat',m:'90 min · 250 €'},{n:'Suivi dossier',m:'30 min · 100 €'}],
+    veterinaire: [{n:'Consultation',m:'20 min · 40 €'},{n:'Vaccination',m:'15 min · 50 €'},{n:'Détartrage',m:'60 min · 150 €'},{n:'Consultation NAC',m:'30 min · 45 €'},{n:'Urgence',m:'30 min · 75 €'}],
+    photographe: [{n:'Portrait individuel',m:'60 min · 120 €'},{n:'Shooting couple',m:'90 min · 200 €'},{n:'Photo corporate',m:'120 min · 350 €'},{n:'Mini-session',m:'30 min · 75 €'}],
     autre: [{n:'Première consult',m:'30 min · Gratuit'},{n:'Standard',m:'45 min · 100 €'},{n:'Suivi',m:'20 min · 50 €'}]
   };
   const svcs = svcTemplates[sector] || svcTemplates.autre;
@@ -621,11 +634,17 @@ async function saveBio() {
 // ============================================================
 function buildSpecTags() {
   const specTemplates = {
-    comptable: ['📊 Fiscalité indépendants','🏢 Sociétés / SRL','📝 TVA','🚀 Création entreprise','💶 Optimisation fiscale','🤝 Conseil stratégique','📈 Comptes annuels','🏠 Immobilier'],
-    avocat: ['🏛️ Droit sociétés','⚖️ Droit travail','🏠 Immobilier','👨‍👩‍👧 Droit familial','📜 Contrats','💼 Commercial'],
+    coiffeur: ['✂️ Coupe femme','💇‍♂️ Coupe homme','🎨 Coloriste','✨ Balayage & Mèches','💈 Barbier','🧴 Soins capillaires','👰 Coiffure événement','🪮 Extensions'],
+    esthetique: ['🧖 Soins visage','💅 Onglerie','🦵 Épilation','👁️ Regard (cils & sourcils)','💄 Maquillage','🧴 Anti-âge','✨ Beauté des mains','🦶 Pédicure médicale'],
+    massage: ['💆 Relaxation','🏃 Massage sportif','🦶 Réflexologie','🌿 Aromathérapie','🤲 Shiatsu','🧘 Ayurvéda','🔥 Pierres chaudes','👶 Massage prénatal'],
+    osteo: ['🦴 Structurel','🧠 Crânien','🫁 Viscéral','🏃 Ostéo sportive','👶 Pédiatrique','🤰 Femme enceinte'],
     medecin: ['🩺 Médecine générale','🛡️ Prévention','💊 Maladies chroniques','👶 Pédiatrie','🫀 Cardiologie'],
     dentiste: ['🦷 Soins conservateurs','✨ Prothèses','😁 Orthodontie','🔬 Radiologie'],
     kine: ['💪 Rééducation musculaire','🫁 Respiratoire','🤲 Thérapie manuelle','🏃 Sport'],
+    comptable: ['📊 Fiscalité indépendants','🏢 Sociétés / SRL','📝 TVA','🚀 Création entreprise','💶 Optimisation fiscale','🤝 Conseil stratégique','📈 Comptes annuels','🏠 Immobilier'],
+    avocat: ['🏛️ Droit sociétés','⚖️ Droit travail','🏠 Immobilier','👨‍👩‍👧 Droit familial','📜 Contrats','💼 Commercial'],
+    veterinaire: ['🐕 Chiens & Chats','🐇 NAC','🦷 Dentaire','📡 Échographie','💉 Vaccination','🩹 Chirurgie'],
+    photographe: ['📷 Portrait','💒 Mariage','🏢 Corporate','👶 Naissance','🏠 Immobilier','🎓 Book professionnel'],
     autre: ['📋 Consultation','🤝 Accompagnement','📈 Conseil']
   };
   const specs = specTemplates[sector] || specTemplates.autre;
