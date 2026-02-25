@@ -1183,12 +1183,15 @@ async function loadSettings(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const[br,ur,lr]=await Promise.all([
+    const[br,ur,lr,calr]=await Promise.all([
       fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/business/public-link',{headers:{'Authorization':'Bearer '+api.getToken()}})
+      fetch('/api/business/public-link',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/calendar/connections',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
     ]);
     const bd=await br.json(),ud=await ur.json(),ld=await lr.json();
+    const calData=calr.ok?await calr.json():{connections:[]};
+    const calConns=calData.connections||[];
     const b=bd.business, u=ud.user, lk=ld;
     let h='';
 
@@ -1255,7 +1258,62 @@ async function loadSettings(){
       </div>
     </div></div>`;
 
-    // 6. Danger zone
+    // 6. Synchronisation calendrier
+    const gConn=calConns.find(c=>c.provider==='google');
+    const oConn=calConns.find(c=>c.provider==='outlook');
+    h+=`<div class="settings-card"><div class="sc-h"><h3>📅 Synchronisation calendrier</h3></div><div class="sc-body">
+      <p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Synchronisez vos rendez-vous Bookt avec votre agenda externe. Les créneaux occupés dans votre calendrier bloqueront automatiquement les réservations.</p>
+
+      <div style="display:grid;gap:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 1px 3px rgba(0,0,0,.08)">📆</div>
+            <div>
+              <div style="font-size:.88rem;font-weight:600">Google Calendar</div>
+              ${gConn?`<div style="font-size:.72rem;color:var(--green)">✓ Connecté — ${esc(gConn.email||'')}${gConn.last_sync_at?' · Dernière synchro: '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+              :`<div style="font-size:.72rem;color:var(--text-4)">Non connecté</div>`}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${gConn?`
+              <button onclick="syncCalendar('${gConn.id}')" class="btn-outline btn-sm">🔄 Sync</button>
+              <button onclick="disconnectCalendar('${gConn.id}','google')" class="btn-outline btn-sm btn-danger">Déconnecter</button>
+            `:`<button onclick="connectCalendar('google')" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Connecter</button>`}
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 1px 3px rgba(0,0,0,.08)">📧</div>
+            <div>
+              <div style="font-size:.88rem;font-weight:600">Outlook / Microsoft 365</div>
+              ${oConn?`<div style="font-size:.72rem;color:var(--green)">✓ Connecté — ${esc(oConn.email||'')}${oConn.last_sync_at?' · Dernière synchro: '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+              :`<div style="font-size:.72rem;color:var(--text-4)">Non connecté</div>`}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${oConn?`
+              <button onclick="syncCalendar('${oConn.id}')" class="btn-outline btn-sm">🔄 Sync</button>
+              <button onclick="disconnectCalendar('${oConn.id}','outlook')" class="btn-outline btn-sm btn-danger">Déconnecter</button>
+            `:`<button onclick="connectCalendar('outlook')" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Connecter</button>`}
+          </div>
+        </div>
+      </div>
+
+      ${calConns.length>0?`<div style="margin-top:14px;padding:12px;background:var(--primary-light);border-radius:var(--radius-xs)">
+        <div style="font-size:.78rem;color:var(--text-2)">
+          <strong>Direction de synchro :</strong>
+          <select onchange="updateCalSyncDirection(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:.78rem;margin-left:6px">
+            <option value="both" ${(gConn||oConn)?.sync_direction==='both'?'selected':''}>↔ Bidirectionnelle (push + pull)</option>
+            <option value="push" ${(gConn||oConn)?.sync_direction==='push'?'selected':''}>→ Push uniquement (Bookt → Calendrier)</option>
+            <option value="pull" ${(gConn||oConn)?.sync_direction==='pull'?'selected':''}>← Pull uniquement (Calendrier → Bookt)</option>
+          </select>
+        </div>
+        <div style="font-size:.7rem;color:var(--text-4);margin-top:4px">Push = vos RDV Bookt apparaissent dans votre agenda. Pull = les créneaux occupés de votre agenda bloquent les réservations.</div>
+      </div>`:''}
+    </div></div>`;
+
+    // 7. Danger zone
     h+=`<div class="settings-card danger-zone"><div class="sc-h"><h3>⚠️ Zone danger</h3></div><div class="sc-body">
       <p style="font-size:.85rem;color:var(--text-2);margin-bottom:12px">Supprimer définitivement votre compte et toutes les données associées. Cette action est irréversible.</p>
       <button class="btn-outline btn-danger" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
@@ -1782,6 +1840,65 @@ async function deleteDoc(id){
   if(!confirm('Supprimer ce document ?'))return;
   try{await api.delete(`/api/documents/${id}`);BooktUI.toast('Supprim&eacute;','success');loadDocuments();}catch(e){BooktUI.toast(e.message||'Erreur','error');}
 }
+
+// ============================================================
+// CALENDAR SYNC
+// ============================================================
+
+async function connectCalendar(provider){
+  try{
+    const r=await api.get(`/api/calendar/${provider}/connect`);
+    if(r.url)window.location.href=r.url;
+    else BooktUI.toast('Erreur de connexion','error');
+  }catch(e){BooktUI.toast(e.message||'Erreur','error');}
+}
+
+async function disconnectCalendar(connId,provider){
+  if(!confirm('D\u00e9connecter '+(provider==='google'?'Google Calendar':'Outlook')+' ?'))return;
+  try{
+    await api.delete(`/api/calendar/connections/${connId}`);
+    BooktUI.toast('Calendrier d\u00e9connect\u00e9','success');
+    loadSettings();
+  }catch(e){BooktUI.toast(e.message||'Erreur','error');}
+}
+
+async function syncCalendar(connId){
+  try{
+    BooktUI.toast('Synchronisation en cours...','info');
+    const r=await api.post(`/api/calendar/connections/${connId}/sync`);
+    BooktUI.toast('Synchro termin\u00e9e : '+(r.pushed||0)+' pouss\u00e9s, '+(r.pulled||0)+' r\u00e9cup\u00e9r\u00e9s','success');
+    loadSettings();
+  }catch(e){BooktUI.toast(e.message||'Erreur synchro','error');}
+}
+
+async function updateCalSyncDirection(direction){
+  try{
+    const r=await api.get('/api/calendar/connections');
+    const conns=r.connections||[];
+    for(const c of conns){await api.patch('/api/calendar/connections/'+c.id,{sync_direction:direction});}
+    BooktUI.toast('Direction de synchro mise \u00e0 jour','success');
+  }catch(e){BooktUI.toast(e.message||'Erreur','error');}
+}
+
+// Handle OAuth callback params on page load
+(function(){
+  const p=new URLSearchParams(location.search);
+  if(p.get('cal_connected')){
+    const prov=p.get('cal_connected')==='google'?'Google Calendar':'Outlook';
+    setTimeout(function(){BooktUI.toast(prov+' connect\u00e9 !','success');},500);
+    history.replaceState(null,'','/dashboard');
+    setTimeout(function(){
+      document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
+      var el=document.querySelector('[data-section="settings"]');if(el)el.classList.add('active');
+      document.getElementById('pageTitle').textContent='Param\u00e8tres';
+      loadSettings();
+    },600);
+  }
+  if(p.get('cal_error')){
+    setTimeout(function(){BooktUI.toast('Erreur calendrier: '+p.get('cal_error'),'error');},500);
+    history.replaceState(null,'','/dashboard');
+  }
+})();
 </script>
 </body>
 </html>
