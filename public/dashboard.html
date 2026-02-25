@@ -687,6 +687,37 @@ async function loadAgenda(){
     height:'auto',expandRows:true,stickyHeaderDates:true,firstDay:1,
     editable:true,eventDurationEditable:true,eventStartEditable:true,snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
+    slotEventOverlap:false,
+
+    // Block overlap for same practitioner (allow different practitioners to overlap visually)
+    eventOverlap:function(stillEvent,movingEvent){
+      const sp=stillEvent.extendedProps?.practitioner_id;
+      const mp=movingEvent?.extendedProps?.practitioner_id;
+      // Different practitioners → allow visual overlap
+      if(sp&&mp&&sp!==mp)return true;
+      // Same practitioner → allow only if existing one is cancelled/completed/no_show
+      const st=stillEvent.extendedProps?.status;
+      if(['cancelled','completed','no_show'].includes(st))return true;
+      return false;
+    },
+
+    // Full collision check before allowing drop
+    eventAllow:function(dropInfo,draggedEvent){
+      const myPrac=draggedEvent.extendedProps?.practitioner_id;
+      if(!myPrac)return true;
+      // Prevent dropping in the past
+      if(dropInfo.start<new Date())return false;
+      const newStart=dropInfo.start,newEnd=dropInfo.end;
+      const allEvents=fcCal.getEvents();
+      for(const ev of allEvents){
+        if(ev.id===draggedEvent.id)continue;
+        if(ev.extendedProps?.practitioner_id!==myPrac)continue;
+        const st=ev.extendedProps?.status;
+        if(st==='cancelled'||st==='no_show'||st==='completed')continue;
+        if(ev.start<newEnd&&ev.end>newStart)return false;
+      }
+      return true;
+    },
 
     // Fetch events from API
     events:function(info,successCb,failCb){
@@ -694,15 +725,18 @@ async function loadAgenda(){
       if(fcCurrentFilter!=='all')params.set('practitioner_id',fcCurrentFilter);
       fetch('/api/bookings?'+params.toString(),{headers:{'Authorization':'Bearer '+api.getToken()}})
         .then(r=>r.json()).then(d=>{
-          const events=(d.bookings||[]).map(b=>({
+          const events=(d.bookings||[]).map(b=>{
+            const frozen=['completed','cancelled','no_show'].includes(b.status);
+            return {
             id:b.id,
             title:b.client_name||'Sans nom',
             start:b.start_at,
             end:b.end_at,
             backgroundColor:b.booking_color||b.practitioner_color||b.service_color||'#0D7377',
             borderColor:b.booking_color||b.practitioner_color||b.service_color||'#0D7377',
+            editable:!frozen,
             extendedProps:{...b}
-          }));
+          }});
           successCb(events);
         }).catch(e=>failCb(e));
     },
@@ -734,7 +768,8 @@ async function loadAgenda(){
         });
         if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
         gToast((p.client_name||'RDV')+' déplacé','success');
-      }catch(e){info.revert();gToast('Erreur: '+e.message,'error');}
+      }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
+    },
     },
 
     // Resize → update duration
@@ -749,7 +784,7 @@ async function loadAgenda(){
         if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
         const dur=Math.round((ev.end-ev.start)/60000);
         gToast('Durée → '+dur+' min','success');
-      }catch(e){info.revert();gToast('Erreur: '+e.message,'error');}
+      }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('créneau')?'🚫 Chevauchement — durée non modifiée':e.message,'error');}
     }
   });
   fcCal.render();

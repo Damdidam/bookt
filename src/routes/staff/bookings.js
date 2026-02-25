@@ -271,6 +271,21 @@ router.patch('/:id/move', async (req, res, next) => {
     );
     if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
+    const effectivePracId = practitioner_id || old.rows[0].practitioner_id;
+
+    // Check for conflicts (exclude self)
+    const conflict = await queryWithRLS(bid,
+      `SELECT id, start_at, end_at FROM bookings
+       WHERE business_id = $1 AND practitioner_id = $2
+       AND id != $3
+       AND status IN ('pending', 'confirmed', 'modified_pending')
+       AND start_at < $5 AND end_at > $4`,
+      [bid, effectivePracId, id, start_at, end_at]
+    );
+    if (conflict.rows.length > 0) {
+      return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
+    }
+
     let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
     const params = [start_at, end_at];
     let idx = 3;
@@ -313,13 +328,32 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
 
+    // Get current booking to know start_at and practitioner
+    const current = await queryWithRLS(bid,
+      `SELECT start_at, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+    if (current.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Check for conflicts (exclude self)
+    const conflict = await queryWithRLS(bid,
+      `SELECT id FROM bookings
+       WHERE business_id = $1 AND practitioner_id = $2
+       AND id != $3
+       AND status IN ('pending', 'confirmed', 'modified_pending')
+       AND start_at < $5 AND end_at > $4`,
+      [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
+    );
+    if (conflict.rows.length > 0) {
+      return res.status(409).json({ error: 'Chevauchement — un autre RDV occupe ce créneau' });
+    }
+
     const result = await queryWithRLS(bid,
       `UPDATE bookings SET end_at = $1, updated_at = NOW()
        WHERE id = $2 AND business_id = $3
        RETURNING id, start_at, end_at`,
       [end_at, id, bid]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
@@ -360,6 +394,20 @@ router.patch('/:id/modify', async (req, res, next) => {
     if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
     const oldBooking = old.rows[0];
+
+    // Check for conflicts (exclude self)
+    const conflict = await queryWithRLS(bid,
+      `SELECT id FROM bookings
+       WHERE business_id = $1 AND practitioner_id = $2
+       AND id != $3
+       AND status IN ('pending', 'confirmed', 'modified_pending')
+       AND start_at < $5 AND end_at > $4`,
+      [bid, oldBooking.practitioner_id, id, start_at, end_at]
+    );
+    if (conflict.rows.length > 0) {
+      return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
+    }
+
     const newStatus = notify ? 'modified_pending' : oldBooking.status;
 
     // Update booking
