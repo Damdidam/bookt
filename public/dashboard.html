@@ -757,6 +757,7 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 let fcCal=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
+let fcHiddenDays=[], fcBusinessHours=[];
 let fcMobileView='grid'; // 'grid' or 'list'
 let fcMobileDate=new Date(); // for list view navigation
 let fcAllBookings=[]; // cache for list view
@@ -809,6 +810,25 @@ async function loadAgenda(){
     }else{
       fcSlotMin='08:00:00';fcSlotMax='19:00:00';
     }
+
+    // Compute hidden days (no availability at all) and business hours
+    const activeDays=new Set();
+    fcBusinessHours=[];
+    for(const pracId of Object.keys(avails)){
+      const sched=avails[pracId].schedule||{};
+      for(const day of Object.keys(sched)){
+        const slots=sched[day].filter(s=>s.is_active!==false);
+        if(slots.length>0){
+          activeDays.add(parseInt(day));
+          slots.forEach(s=>{
+            fcBusinessHours.push({daysOfWeek:[parseInt(day)],startTime:s.start_time,endTime:s.end_time});
+          });
+        }
+      }
+    }
+    // Days 0-6 not in activeDays → hidden
+    fcHiddenDays=[];
+    for(let d=0;d<7;d++){if(!activeDays.has(d))fcHiddenDays.push(d);}
   }catch(e){fcPractitioners=[];fcServices=[];}
 
   // Build filter pills
@@ -833,6 +853,9 @@ async function loadAgenda(){
     headerToolbar:{left:'prev,today,next',center:'title',right:mobile?'':'timeGridDay,timeGridWeek,dayGridMonth'},
     buttonText:{today:"Aujourd'hui",day:'Jour',week:'Semaine',month:'Mois'},
     slotMinTime:fcSlotMin,slotMaxTime:fcSlotMax,
+    hiddenDays:fcHiddenDays,
+    businessHours:fcBusinessHours.length>0?fcBusinessHours:{daysOfWeek:[1,2,3,4,5],startTime:'09:00',endTime:'17:00'},
+    selectConstraint:'businessHours',
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:!mobile,
     height:'auto',expandRows:true,stickyHeaderDates:true,firstDay:1,
@@ -858,6 +881,22 @@ async function loadAgenda(){
 
     // Full collision check before allowing drop
     eventAllow:function(dropInfo,draggedEvent){
+      // Block drop on closed days
+      const dropDay=dropInfo.start.getDay();
+      if(fcHiddenDays.includes(dropDay))return false;
+      // Block drop outside business hours
+      if(fcBusinessHours.length>0){
+        const dropH=dropInfo.start.getHours()+dropInfo.start.getMinutes()/60;
+        const dayBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(dropDay));
+        if(dayBH.length>0){
+          const inBH=dayBH.some(bh=>{
+            const s=parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60;
+            const e=parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60;
+            return dropH>=s&&dropH<e;
+          });
+          if(!inBH)return false;
+        }
+      }
       // Client allows overlap → only block past
       if(draggedEvent.extendedProps?.allow_overlap)return dropInfo.start>=new Date();
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
