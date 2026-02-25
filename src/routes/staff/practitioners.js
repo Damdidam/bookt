@@ -21,7 +21,7 @@ router.get('/', async (req, res, next) => {
        LEFT JOIN practitioner_services ps ON ps.practitioner_id = p.id
        LEFT JOIN bookings bk ON bk.practitioner_id = p.id
        WHERE p.business_id = $1
-       GROUP BY p.id, u.email, u.last_login_at, u.is_active
+       GROUP BY p.id, u.email, u.role, u.last_login_at, u.is_active
        ORDER BY p.sort_order, p.display_name`,
       [bid]
     );
