@@ -4,21 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer mon cabinet — Genda</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--primary-border:#B8DDD9;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--gold-border:#E8DCBA;--red:#DC2626;--red-bg:#FEF2F2;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#E07A5F;--primary-hover:#C9684F;--primary-light:#FEF7F5;--primary-soft:#FDF0EC;--primary-border:#F2C4B5;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--gold-border:#E8DCBA;--red:#DC2626;--red-bg:#FEF2F2;--serif:'DM Serif Display',Georgia,serif;--sans:'Outfit',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
 
 /* Layout */
 .page{display:flex;min-height:100vh}
-.left{width:400px;background:linear-gradient(160deg,#0F1110,#1A2421);color:#fff;padding:40px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.left{width:400px;background:linear-gradient(160deg,#2C2420,#3D2F28);color:#fff;padding:40px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .left-logo{display:flex;align-items:center;gap:8px;margin-bottom:auto}
 .left-logo .l{width:32px;height:32px;border-radius:9px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.95rem}
 .left-logo .w{font-family:var(--serif);font-size:1.15rem}
 .left-body{margin:auto 0}
 .left-body h2{font-family:var(--serif);font-size:1.7rem;line-height:1.2;margin-bottom:10px;font-weight:400}
-.left-body h2 em{font-style:italic;color:#5CB8B2}
+.left-body h2 em{font-style:italic;color:#E8A090}
 .left-body p{font-size:.85rem;color:rgba(255,255,255,.45);line-height:1.6}
 .left-foot{margin-top:auto;font-size:.7rem;color:rgba(255,255,255,.25)}
 
@@ -553,7 +553,7 @@ async function saveSchedule() {
 // STEP 3: SERVICES (display template, already created by signup)
 // ============================================================
 function buildServiceList() {
-  const colors = ['#15803D','#0D7377','#0D7377','#B45309','#1D4ED8','#78716C'];
+  const colors = ['#15803D','#E07A5F','#E07A5F','#B45309','#1D4ED8','#78716C'];
   // Services were already created by signup — just show them
   const svcTemplates = {
     coiffeur: [{n:'Coupe femme',m:'45 min · 35 €'},{n:'Coupe homme',m:'25 min · 22 €'},{n:'Coloration',m:'60 min · 55 €'},{n:'Mèches / Balayage',m:'90 min · 85 €'},{n:'Brushing',m:'30 min · 25 €'},{n:'Soin kératine',m:'90 min · 95 €'}],
