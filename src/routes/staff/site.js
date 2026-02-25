@@ -350,10 +350,10 @@ router.post('/domain', requireOwner, async (req, res, next) => {
       dns_instructions: {
         type: 'CNAME',
         name: domain.toLowerCase(),
-        value: 'sites.bookt.be',
+        value: 'sites.genda.be',
         verification: {
           type: 'TXT',
-          name: `_bookt.${domain.toLowerCase()}`,
+          name: `_genda.${domain.toLowerCase()}`,
           value: cd.verification_token
         }
       }
@@ -375,7 +375,7 @@ router.post('/domain/verify', requireOwner, async (req, res, next) => {
 
     // In production: do actual DNS lookup
     // const dns = require('dns').promises;
-    // const txtRecords = await dns.resolveTxt(`_bookt.${cd.domain}`);
+    // const txtRecords = await dns.resolveTxt(`_genda.${cd.domain}`);
     // const cnameRecords = await dns.resolveCname(cd.domain);
 
     // For now: simulate

@@ -1,5 +1,5 @@
 -- ============================================================
--- BOOKT v0.7.1 — NO-SHOW STRIKE SYSTEM
+-- GENDA v0.7.1 — NO-SHOW STRIKE SYSTEM
 -- ============================================================
 
 -- 1. Add strike columns to clients

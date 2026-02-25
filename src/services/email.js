@@ -28,8 +28,8 @@ async function sendEmail(opts) {
   try {
     const payload = {
       sender: {
-        name: opts.fromName || 'Bookt',
-        email: opts.fromEmail || process.env.BREVO_FROM_EMAIL || 'noreply@bookt.be'
+        name: opts.fromName || 'Genda',
+        email: opts.fromEmail || process.env.BREVO_FROM_EMAIL || 'noreply@genda.be'
       },
       to: [{ email: opts.to, name: opts.toName || opts.to }],
       subject: opts.subject,
@@ -66,7 +66,7 @@ async function sendEmail(opts) {
 }
 
 /**
- * Build a styled HTML email using Bookt branding
+ * Build a styled HTML email using Genda branding
  */
 function buildEmailHTML({ title, preheader, bodyHTML, ctaText, ctaUrl, footerText, businessName, primaryColor }) {
   const color = primaryColor || '#0D7377';
@@ -81,7 +81,7 @@ ${preheader ? `<span style="display:none!important;font-size:1px;color:#fff;line
 
 <!-- Header -->
 <tr><td style="background:${color};padding:24px 32px;text-align:center">
-  <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-.3px">${businessName || 'Bookt'}</div>
+  <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-.3px">${businessName || 'Genda'}</div>
 </td></tr>
 
 <!-- Body -->
@@ -96,7 +96,7 @@ ${preheader ? `<span style="display:none!important;font-size:1px;color:#fff;line
 
 <!-- Footer -->
 <tr><td style="padding:20px 32px;border-top:1px solid #E0DDD8;text-align:center">
-  <p style="font-size:12px;color:#9C958E;margin:0">${footerText || 'Cet email a été envoyé automatiquement via Bookt.be'}</p>
+  <p style="font-size:12px;color:#9C958E;margin:0">${footerText || 'Cet email a été envoyé automatiquement via Genda.be'}</p>
 </td></tr>
 
 </table>
@@ -115,7 +115,7 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
     hour: '2-digit', minute: '2-digit'
   });
 
-  const baseUrl = process.env.BASE_URL || 'https://bookt-qgm2.onrender.com';
+  const baseUrl = process.env.BASE_URL || 'https://genda-qgm2.onrender.com';
   const docUrl = `${baseUrl}/docs/${token}`;
 
   const typeLabels = {
@@ -155,7 +155,7 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
     ctaUrl: docUrl,
     businessName: business.name,
     primaryColor: business.theme?.primary_color,
-    footerText: `${business.name} · ${business.address || ''} · Via Bookt.be`
+    footerText: `${business.name} · ${business.address || ''} · Via Genda.be`
   });
 
   return sendEmail({

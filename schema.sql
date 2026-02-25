@@ -1,5 +1,5 @@
 -- ============================================================
--- BOOKT MVP v1 — PostgreSQL Schema
+-- GENDA MVP v1 — PostgreSQL Schema
 -- Vertical: Comptables (Belgique)
 -- Derived from UI wireframes (client flow + dashboard pro)
 -- ============================================================
@@ -14,7 +14,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================
 CREATE TABLE businesses (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  slug          VARCHAR(80) UNIQUE NOT NULL,          -- URL: bookt.be/{slug}
+  slug          VARCHAR(80) UNIQUE NOT NULL,          -- URL: genda.be/{slug}
   name          VARCHAR(200) NOT NULL,                 -- "De Wit & Associés"
   phone         VARCHAR(30),                           -- Téléphone affiché
   email         VARCHAR(200),                          -- Email de contact

@@ -149,7 +149,7 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     const footerY = doc.page.height - 60;
     doc.moveTo(50, footerY).lineTo(W + 50, footerY).strokeColor(BORDER).lineWidth(0.5).stroke();
     doc.fontSize(7).font('Helvetica').fillColor(MUTED);
-    const footer = invoice.footer_text || `${invoice.business_name}${invoice.business_bce ? ' · ' + invoice.business_bce : ''} · Facture générée par Bookt.be`;
+    const footer = invoice.footer_text || `${invoice.business_name}${invoice.business_bce ? ' · ' + invoice.business_bce : ''} · Facture générée par Genda.be`;
     doc.text(footer, 50, footerY + 8, { width: W, align: 'center' });
 
     // Status watermark

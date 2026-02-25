@@ -1,22 +1,22 @@
 /**
- * BOOKT API CLIENT
+ * GENDA API CLIENT
  * Shared across all frontend pages.
  * Handles: auth tokens, API calls, error handling, session management.
  *
  * Usage:
  *   <script src="/js/api-client.js"></script>
- *   const api = new BooktAPI();
+ *   const api = new GendaAPI();
  *   const data = await api.signup({ ... });
  *   const dashboard = await api.getDashboard();
  */
 
-class BooktAPI {
+class GendaAPI {
   constructor(baseURL = '') {
     // Auto-detect base URL (same origin in production, configurable for dev)
     this.baseURL = baseURL || window.location.origin;
-    this.tokenKey = 'bookt_token';
-    this.userKey = 'bookt_user';
-    this.bizKey = 'bookt_business';
+    this.tokenKey = 'genda_token';
+    this.userKey = 'genda_user';
+    this.bizKey = 'genda_business';
   }
 
   // ============================================================
@@ -408,34 +408,34 @@ class APIError extends Error {
 // UI HELPERS
 // ============================================================
 
-const BooktUI = {
+const GendaUI = {
   /**
    * Show a toast notification
    */
   toast(message, type = 'info', duration = 4000) {
     // Remove existing toasts
-    document.querySelectorAll('.bookt-toast').forEach(t => t.remove());
+    document.querySelectorAll('.genda-toast').forEach(t => t.remove());
 
     const toast = document.createElement('div');
-    toast.className = `bookt-toast bookt-toast-${type}`;
+    toast.className = `genda-toast genda-toast-${type}`;
     toast.innerHTML = `
-      <span class="bookt-toast-icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ'}</span>
-      <span class="bookt-toast-msg">${message}</span>
+      <span class="genda-toast-icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ'}</span>
+      <span class="genda-toast-msg">${message}</span>
     `;
 
     // Add styles if not already present
-    if (!document.getElementById('bookt-toast-styles')) {
+    if (!document.getElementById('genda-toast-styles')) {
       const style = document.createElement('style');
-      style.id = 'bookt-toast-styles';
+      style.id = 'genda-toast-styles';
       style.textContent = `
-        .bookt-toast { position:fixed; top:20px; right:20px; z-index:10000; padding:12px 20px; border-radius:10px; font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:0.85rem; font-weight:500; display:flex; align-items:center; gap:8px; box-shadow:0 4px 20px rgba(0,0,0,0.12); animation:booktToastIn 0.3s ease-out; max-width:400px; }
-        .bookt-toast-success { background:#EEFAF1; color:#1B7A42; border:1px solid #B8E6C4; }
-        .bookt-toast-error { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; }
-        .bookt-toast-warning { background:#FAF6EC; color:#A68B3C; border:1px solid #E8DCBA; }
-        .bookt-toast-info { background:#EFF9F8; color:#0D7377; border:1px solid #B8DDD9; }
-        .bookt-toast-icon { font-weight:700; }
-        @keyframes booktToastIn { from { opacity:0; transform:translateY(-10px) translateX(20px); } to { opacity:1; transform:translateY(0) translateX(0); } }
-        @keyframes booktToastOut { from { opacity:1; } to { opacity:0; transform:translateX(20px); } }
+        .genda-toast { position:fixed; top:20px; right:20px; z-index:10000; padding:12px 20px; border-radius:10px; font-family:'Plus Jakarta Sans',-apple-system,sans-serif; font-size:0.85rem; font-weight:500; display:flex; align-items:center; gap:8px; box-shadow:0 4px 20px rgba(0,0,0,0.12); animation:gendaToastIn 0.3s ease-out; max-width:400px; }
+        .genda-toast-success { background:#EEFAF1; color:#1B7A42; border:1px solid #B8E6C4; }
+        .genda-toast-error { background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; }
+        .genda-toast-warning { background:#FAF6EC; color:#A68B3C; border:1px solid #E8DCBA; }
+        .genda-toast-info { background:#EFF9F8; color:#0D7377; border:1px solid #B8DDD9; }
+        .genda-toast-icon { font-weight:700; }
+        @keyframes gendaToastIn { from { opacity:0; transform:translateY(-10px) translateX(20px); } to { opacity:1; transform:translateY(0) translateX(0); } }
+        @keyframes gendaToastOut { from { opacity:1; } to { opacity:0; transform:translateX(20px); } }
       `;
       document.head.appendChild(style);
     }
@@ -443,7 +443,7 @@ const BooktUI = {
     document.body.appendChild(toast);
 
     setTimeout(() => {
-      toast.style.animation = 'booktToastOut 0.3s ease-in forwards';
+      toast.style.animation = 'gendaToastOut 0.3s ease-in forwards';
       setTimeout(() => toast.remove(), 300);
     }, duration);
   },
@@ -490,7 +490,7 @@ const BooktUI = {
    * Require auth — redirect to login if not logged in
    */
   requireAuth() {
-    const api = new BooktAPI();
+    const api = new GendaAPI();
     if (!api.isLoggedIn()) {
       window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
       return false;
@@ -501,5 +501,5 @@ const BooktUI = {
 
 // Export for module systems (if needed)
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { BooktAPI, APIError, BooktUI };
+  module.exports = { GendaAPI, APIError, GendaUI };
 }

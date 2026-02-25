@@ -1,5 +1,5 @@
 -- ============================================================
--- BOOKT v0.7 — WAITLIST (Liste d'attente)
+-- GENDA v0.7 — WAITLIST (Liste d'attente)
 -- ============================================================
 
 -- 1. Add waitlist_mode to practitioners

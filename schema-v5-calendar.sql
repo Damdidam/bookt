@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS calendar_connections (
 CREATE INDEX idx_cal_conn_business ON calendar_connections(business_id);
 CREATE INDEX idx_cal_conn_user ON calendar_connections(user_id);
 
--- Track synced events (link Bookt booking <-> external event)
+-- Track synced events (link Genda booking <-> external event)
 CREATE TABLE IF NOT EXISTS calendar_events (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   connection_id   UUID NOT NULL REFERENCES calendar_connections(id) ON DELETE CASCADE,
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   external_link   VARCHAR(500),                          -- Link to event in calendar
 
   -- Direction: did we push this or pull it?
-  direction       VARCHAR(4) NOT NULL DEFAULT 'push'     -- 'push' (Bookt→Cal) | 'pull' (Cal→Bookt)
+  direction       VARCHAR(4) NOT NULL DEFAULT 'push'     -- 'push' (Genda→Cal) | 'pull' (Cal→Genda)
     CHECK (direction IN ('push', 'pull')),
 
   -- For pulled events (external busy blocks)

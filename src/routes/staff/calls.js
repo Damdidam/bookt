@@ -86,7 +86,7 @@ router.post('/activate', requireOwner, async (req, res, next) => {
         statusCallback: `${baseUrl}/webhooks/twilio/voice/status`,
         statusCallbackMethod: 'POST',
         smsUrl: `${baseUrl}/webhooks/twilio/sms/status`,
-        friendlyName: `Bookt - ${bid.slice(0, 8)}`
+        friendlyName: `Genda - ${bid.slice(0, 8)}`
       });
     } else {
       // Auto-pick first available in country
@@ -104,7 +104,7 @@ router.post('/activate', requireOwner, async (req, res, next) => {
         statusCallback: `${baseUrl}/webhooks/twilio/voice/status`,
         statusCallbackMethod: 'POST',
         smsUrl: `${baseUrl}/webhooks/twilio/sms/status`,
-        friendlyName: `Bookt - ${bid.slice(0, 8)}`
+        friendlyName: `Genda - ${bid.slice(0, 8)}`
       });
     }
 

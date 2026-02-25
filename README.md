@@ -1,4 +1,4 @@
-# 📅 Bookt — Votre cabinet en ligne en 10 minutes
+# 📅 Genda — Votre cabinet en ligne en 10 minutes
 
 SaaS multi-tenant de prise de rendez-vous pour professionnels libéraux en Belgique (salons de beauté, coiffeurs, praticiens santé, etc.).
 
@@ -43,7 +43,7 @@ SaaS multi-tenant de prise de rendez-vous pour professionnels libéraux en Belgi
 
 ### Calendrier (v5-v6)
 - 📅 Sync bidirectionnelle Google Calendar + Outlook
-- 🔄 Push RDV Bookt → agenda externe
+- 🔄 Push RDV Genda → agenda externe
 - ⬅️ Pull créneaux occupés → bloque slots dans le booking flow
 - 🔑 OAuth2 avec refresh automatique
 
@@ -56,7 +56,7 @@ SaaS multi-tenant de prise de rendez-vous pour professionnels libéraux en Belgi
 ## Structure
 
 ```
-bookt/
+genda/
 ├── public/                    # Frontend
 │   ├── dashboard.html         # Dashboard pro (1900+ lignes)
 │   ├── book.html              # Booking flow client
@@ -98,8 +98,8 @@ bookt/
 ## Setup local
 
 ```bash
-git clone https://github.com/YOUR_USER/Bookt.git
-cd Bookt
+git clone https://github.com/YOUR_USER/Genda.git
+cd Genda
 npm install
 cp .env.example .env
 # Remplir les variables dans .env
@@ -162,4 +162,4 @@ Exécuter dans l'ordre sur Neon SQL Editor :
 
 ## Licence
 
-Propriétaire — © Bookt 2026
+Propriétaire — © Genda 2026

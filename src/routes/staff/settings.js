@@ -119,12 +119,12 @@ router.get('/public-link', async (req, res, next) => {
       [req.businessId]
     );
 
-    const baseUrl = process.env.BOOKING_BASE_URL || 'https://bookt.be';
+    const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
     const slug = result.rows[0].slug;
 
     res.json({
       booking_url: `${baseUrl}/${slug}`,
-      widget_code: `<script src="${baseUrl}/widget.js"></script>\n<div data-bookt="${slug}"></div>`,
+      widget_code: `<script src="${baseUrl}/widget.js"></script>\n<div data-genda="${slug}"></div>`,
       qr_data: `${baseUrl}/${slug}`
     });
   } catch (err) {

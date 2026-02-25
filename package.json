@@ -1,7 +1,7 @@
 {
-  "name": "bookt",
-  "version": "0.8.0",
-  "description": "Bookt — Votre cabinet en ligne en 10 minutes. SaaS multi-tenant pour professionnels libéraux (BE).",
+  "name": "genda",
+  "version": "0.9.0",
+  "description": "Genda — Votre cabinet en ligne en 10 minutes. SaaS multi-tenant pour professionnels libéraux (BE).",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

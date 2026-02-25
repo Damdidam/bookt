@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connexion — Bookt</title>
+<title>Connexion — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -33,7 +33,7 @@ h1{font-family:var(--serif);font-size:1.4rem;font-weight:400;text-align:center;m
 <body>
 
 <div class="login-card">
-  <div class="logo-row"><div class="logo">B</div><span class="wordmark">Bookt</span></div>
+  <div class="logo-row"><div class="logo">G</div><span class="wordmark">Genda</span></div>
   <h1>Connexion</h1>
   <p class="subtitle">Accédez à votre dashboard</p>
 
@@ -57,7 +57,7 @@ h1{font-family:var(--serif);font-size:1.4rem;font-weight:400;text-align:center;m
 
 <script src="/js/api-client.js"></script>
 <script>
-const api = new BooktAPI();
+const api = new GendaAPI();
 
 // If already logged in, redirect
 if (api.isLoggedIn()) {
@@ -84,7 +84,7 @@ async function handleLogin(e) {
     return;
   }
 
-  BooktUI.btnLoading(btn, true);
+  GendaUI.btnLoading(btn, true);
 
   try {
     await api.login(email, password);
@@ -97,7 +97,7 @@ async function handleLogin(e) {
     errorEl.textContent = err.message || 'Erreur de connexion';
     errorEl.classList.add('visible');
   } finally {
-    BooktUI.btnLoading(btn, false);
+    GendaUI.btnLoading(btn, false);
   }
 }
 </script>

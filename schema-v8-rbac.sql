@@ -1,5 +1,5 @@
 -- ============================================================
--- BOOKT v0.8 — RBAC (Role-Based Access Control)
+-- GENDA v0.8 — RBAC (Role-Based Access Control)
 -- Expand roles: owner | manager | practitioner | receptionist
 -- Add sector to businesses for label mapping
 -- ============================================================

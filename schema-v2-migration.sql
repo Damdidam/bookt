@@ -1,5 +1,5 @@
 -- ============================================================
--- BOOKT MVP v2 — Schema Migration
+-- GENDA MVP v2 — Schema Migration
 -- Adds: mini-site public page support (SaaS multi-tenant)
 -- Run AFTER schema.sql (v1)
 -- ============================================================

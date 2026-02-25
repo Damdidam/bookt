@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Créer mon cabinet — Bookt</title>
+<title>Créer mon cabinet — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -129,12 +129,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 <div class="page">
   <aside class="left">
-    <div class="left-logo"><div class="l">B</div><span class="w">Bookt</span></div>
+    <div class="left-logo"><div class="l">G</div><span class="w">Genda</span></div>
     <div class="left-body">
       <h2 id="lTitle">Créez votre <em>cabinet en ligne</em></h2>
       <p id="lDesc">En quelques minutes, vous aurez une page professionnelle avec prise de rendez-vous intégrée.</p>
     </div>
-    <div class="left-foot">© 2026 Bookt · Belgique 🇧🇪</div>
+    <div class="left-foot">© 2026 Genda · Belgique 🇧🇪</div>
   </aside>
 
   <main class="right">
@@ -156,7 +156,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="fg"><label class="fl">Votre nom complet</label><input class="fi" id="f_name" placeholder="Pierre De Wit"></div>
         <div class="fg"><label class="fl">Email professionnel</label><input class="fi" type="email" id="f_email" placeholder="pierre@dewit-compta.be"></div>
         <div class="fg"><label class="fl">Nom du cabinet</label><input class="fi" id="f_biz" placeholder="De Wit & Associés" oninput="updSlug()"></div>
-        <div class="slug-prev"><span class="d">bookt.be/</span><span class="s" id="slugPrev">votre-cabinet</span></div>
+        <div class="slug-prev"><span class="d">genda.be/</span><span class="s" id="slugPrev">votre-cabinet</span></div>
         <div class="fg" style="margin-top:10px"><label class="fl">Mot de passe <span class="opt">(optionnel)</span></label><input class="fi" type="password" id="f_pass" placeholder="Min. 8 caractères"></div>
         <div class="fg"><label class="fl">Votre secteur</label>
           <div class="sectors">
@@ -269,7 +269,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="step-hdr"><div class="lbl">Étape 9 · Filtre d'appels</div><h2>Arrêtez de décrocher</h2><p>Un numéro belge filtre vos appels.</p></div>
         <div style="background:var(--surface);border-radius:var(--radius);padding:16px;margin:10px 0">
           <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">1</span> Client appelle votre numéro Bookt</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">1</span> Client appelle votre numéro Genda</div>
             <div style="margin-left:30px;font-size:.7rem;color:var(--text-4)">↓</div>
             <div style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-2)"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700">2</span> VIP → Transféré · Autres → SMS booking</div>
             <div style="margin-left:30px;font-size:.7rem;color:var(--text-4)">↓</div>
@@ -340,7 +340,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
           <div class="icon">🟢</div>
           <h3 id="goliveName">Votre cabinet</h3>
           <p>Votre page pro est en ligne et prête à recevoir des réservations.</p>
-          <div class="url" id="goliveUrl" onclick="copyUrl()">bookt.be/votre-cabinet</div>
+          <div class="url" id="goliveUrl" onclick="copyUrl()">genda.be/votre-cabinet</div>
           <div class="acts">
             <a onclick="copyUrl()">📋 Copier</a>
             <a href="#" id="goliveLinkPreview" target="_blank">🧪 Tester</a>
@@ -356,7 +356,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 <script src="/js/api-client.js"></script>
 <script>
-const api = new BooktAPI();
+const api = new GendaAPI();
 let currentStep = 0;
 let sector = null;
 let bizData = {}; // Saved after signup
@@ -454,7 +454,7 @@ async function doSignup() {
   if (pass && pass.length < 8) return showError('Le mot de passe doit faire au moins 8 caractères.');
 
   const btn = document.getElementById('btnSignup');
-  BooktUI.btnLoading(btn, true);
+  GendaUI.btnLoading(btn, true);
 
   try {
     const result = await api.signup({
@@ -480,13 +480,13 @@ async function doSignup() {
     buildServiceList();
     buildSpecTags();
 
-    BooktUI.toast('Compte créé ! Configurons votre cabinet.', 'success');
+    GendaUI.toast('Compte créé ! Configurons votre cabinet.', 'success');
     go(1);
 
   } catch (err) {
     showError(err.message || 'Erreur lors de la création du compte');
   } finally {
-    BooktUI.btnLoading(btn, false);
+    GendaUI.btnLoading(btn, false);
   }
 }
 
@@ -507,7 +507,7 @@ async function saveCabinetInfo() {
       language_default: lang
     });
     await api.updateOnboarding('cabinet_info');
-    BooktUI.toast('Informations enregistrées', 'success');
+    GendaUI.toast('Informations enregistrées', 'success');
     go(2);
   } catch (err) {
     showError(err.message);
@@ -544,7 +544,7 @@ function buildScheduleGrid() {
 async function saveSchedule() {
   try {
     await api.updateOnboarding('schedule');
-    BooktUI.toast('Horaires confirmés', 'success');
+    GendaUI.toast('Horaires confirmés', 'success');
     go(3);
   } catch (err) { showError(err.message); }
 }
@@ -602,7 +602,7 @@ async function saveTeam() {
       });
     }
     await api.updateOnboarding('team');
-    BooktUI.toast('Profil mis à jour', 'success');
+    GendaUI.toast('Profil mis à jour', 'success');
     go(5);
   } catch (err) { showError(err.message); }
 }
@@ -624,7 +624,7 @@ async function saveBio() {
       founded_year: founded ? parseInt(founded) : undefined
     });
     await api.updateOnboarding('bio_description');
-    BooktUI.toast('Description enregistrée', 'success');
+    GendaUI.toast('Description enregistrée', 'success');
     go(6);
   } catch (err) { showError(err.message); }
 }
@@ -743,18 +743,18 @@ async function goLive() {
   const name = biz?.name || 'Votre cabinet';
 
   document.getElementById('goliveName').textContent = name;
-  document.getElementById('goliveUrl').textContent = `bookt.be/${slug}`;
+  document.getElementById('goliveUrl').textContent = `genda.be/${slug}`;
   document.getElementById('goliveLinkPreview').href = `/api/public/${slug}`;
 
   go(11);
-  BooktUI.toast('🎉 Votre cabinet est en ligne !', 'success', 6000);
+  GendaUI.toast('🎉 Votre cabinet est en ligne !', 'success', 6000);
 }
 
 function copyUrl() {
   const biz = api.getBusiness();
-  const url = `https://bookt.be/${biz?.slug || 'votre-cabinet'}`;
+  const url = `https://genda.be/${biz?.slug || 'votre-cabinet'}`;
   navigator.clipboard?.writeText(url).then(() => {
-    BooktUI.toast('Lien copié !', 'success');
+    GendaUI.toast('Lien copié !', 'success');
   });
 }
 </script>

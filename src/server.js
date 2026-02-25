@@ -37,7 +37,7 @@ app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://bookt.be', 'https://www.bookt.be', process.env.APP_BASE_URL].filter(Boolean)
+    ? ['https://genda.be', 'https://www.genda.be', process.env.APP_BASE_URL].filter(Boolean)
     : '*',
   credentials: true
 }));
@@ -136,7 +136,7 @@ app.use(errorHandler);
 
 // ===== START =====
 app.listen(PORT, () => {
-  console.log(`\n  🟢 Bookt server running on port ${PORT}`);
+  console.log(`\n  🟢 Genda server running on port ${PORT}`);
   console.log(`  📊 Dashboard: http://localhost:${PORT}`);
   console.log(`  📅 Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 });

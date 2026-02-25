@@ -193,7 +193,7 @@ async function getValidToken(connection, queryFn) {
 }
 
 // ============================================================
-// EVENT SYNC — PUSH (Bookt → Calendar)
+// EVENT SYNC — PUSH (Genda → Calendar)
 // ============================================================
 
 /**
@@ -301,7 +301,7 @@ function buildCalendarEvent(booking, provider) {
     booking.client_phone ? `📞 ${booking.client_phone}` : null,
     booking.client_email ? `📧 ${booking.client_email}` : null,
     booking.notes ? `📝 ${booking.notes}` : null,
-    '—\nGéré via Bookt.be'
+    '—\nGéré via Genda.be'
   ].filter(Boolean).join('\n');
 
   if (provider === 'google') {
@@ -327,7 +327,7 @@ function buildCalendarEvent(booking, provider) {
 }
 
 // ============================================================
-// EVENT SYNC — PULL (Calendar → Bookt busy times)
+// EVENT SYNC — PULL (Calendar → Genda busy times)
 // ============================================================
 
 /**

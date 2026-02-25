@@ -7,7 +7,7 @@ const { authLimiter } = require('../../middleware/rate-limiter');
 // ============================================================
 // POST /api/auth/signup
 // Self-service registration: professional creates their cabinet
-// UI: Landing page Bookt.be → "Créer mon cabinet" → formulaire
+// UI: Landing page Genda.be → "Créer mon cabinet" → formulaire
 //
 // Creates: business + user (owner) + default practitioner
 //          + default services (template comptable)
@@ -226,7 +226,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         { expiresIn: '24h' }
       );
 
-      console.log(`\n  🎉 New signup: ${business_name} (${email}) → bookt.be/${slug}\n`);
+      console.log(`\n  🎉 New signup: ${business_name} (${email}) → genda.be/${slug}\n`);
 
       res.status(201).json({
         token,
@@ -235,7 +235,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
           id: businessId,
           slug,
           name: business_name,
-          booking_url: `${process.env.BOOKING_BASE_URL || 'https://bookt.be'}/${slug}`
+          booking_url: `${process.env.BOOKING_BASE_URL || 'https://genda.be'}/${slug}`
         },
         onboarding_url: '/dashboard?onboarding=true'
       });
