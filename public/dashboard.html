@@ -810,11 +810,14 @@ async function loadServices(){
       svcs.forEach(s=>{
         const price=s.price_cents?`${(s.price_cents/100).toFixed(0)} €`:(s.price_label||'Gratuit');
         const modes=(s.mode_options||['cabinet']).map(m=>`<span class="mode-tag">${{cabinet:'🏢 Cabinet',visio:'💻 Visio',phone:'📞 Tél'}[m]||m}</span>`).join('');
+        const pIds=s.practitioner_ids||[];
+        const pNames=pIds.length>0?pIds.map(pid=>{const p=allPractitioners.find(x=>x.id===pid);return p?p.display_name:'?';}).join(', '):'Tous les membres';
         h+=`<div class="svc-card${s.is_active===false?' inactive':''}" style="border-left-color:${s.color||'var(--primary)'}">
           <h4>${s.name}</h4>
           <div class="svc-meta">${s.duration_min}min · Buffer: ${s.buffer_before_min||0}+${s.buffer_after_min||0}min${s.category?' · '+s.category:''}</div>
           <div class="svc-price">${price}</div>
           <div class="svc-modes">${modes}</div>
+          <div style="font-size:.72rem;color:var(--text-4);margin-top:4px">👤 ${pNames}</div>
           <div class="svc-actions">
             <button class="btn-outline btn-sm" onclick="openServiceModal('${s.id}')">✏️ Modifier</button>
             ${s.is_active!==false?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver cette prestation ?'))deleteService('${s.id}')">Désactiver</button>`:`<span style="font-size:.72rem;color:var(--text-4);padding:5px">Inactive</span>`}
@@ -850,6 +853,16 @@ function renderServiceModal(svc){
     <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> 📞 Tél</label>
   </div></div>`;
   m+=`<div class="field"><label>Label prix (si pas de montant)</label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
+  // Practitioner assignment
+  const assignedIds=svc?.practitioner_ids||[];
+  if(allPractitioners.length>0){
+    m+=`<div class="field"><label>Assigné à</label><div id="svc_practitioners" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">`;
+    allPractitioners.forEach(p=>{
+      const checked=assignedIds.includes(p.id)?'checked':'';
+      m+=`<label style="font-size:.82rem;display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" class="svc_pract_cb" value="${p.id}" ${checked}> ${p.display_name}</label>`;
+    });
+    m+=`</div><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Si aucun coché, la prestation sera disponible pour tous</div></div>`;
+  }
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
 }
@@ -860,7 +873,7 @@ async function saveService(id){
   if(document.getElementById('svc_m_vis').checked)modes.push('visio');
   if(document.getElementById('svc_m_tel').checked)modes.push('phone');
   const priceVal=document.getElementById('svc_price').value;
-  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet']};
+  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
   try{
     const url=id?`/api/services/${id}`:'/api/services';
     const method=id?'PATCH':'POST';
