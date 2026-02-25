@@ -570,6 +570,7 @@ async function submitBooking() {
       <div class="row"><span class="l">Heure</span><span class="v">${selectedSlot.start_time} – ${selectedSlot.end_time}</span></div>
       <div class="row"><span class="l">Mode</span><span class="v">${MODE_LABELS[selectedMode]||selectedMode}</span></div>
       <div class="row"><span class="l">Email</span><span class="v">${email}</span></div>
+      ${data.booking?.token ? `<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d'annuler ? <a href="/booking/${data.booking.token}" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>` : ''}
     `;
 
     goStep(5);
