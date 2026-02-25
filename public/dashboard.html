@@ -798,6 +798,7 @@ let fcMobileDate=new Date(); // for list view navigation
 let fcAllBookings=[]; // cache for list view
 
 const fcIsMobile=()=>window.innerWidth<=768;
+const fcIsTablet=()=>window.innerWidth>768&&window.innerWidth<=1180&&('ontouchstart' in window||navigator.maxTouchPoints>0);
 const fcIsTouch='ontouchstart' in window||navigator.maxTouchPoints>0;
 
 const MODE_ICO={cabinet:'🏢',visio:'💻',phone:'📞'};
@@ -899,10 +900,10 @@ async function loadAgenda(){
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:!mobile,
     height:'auto',stickyHeaderDates:false,firstDay:1,
-    editable:!fcIsTouch,eventDurationEditable:!fcIsTouch,eventStartEditable:!fcIsTouch,snapDuration:'00:15:00',
+    editable:!fcIsTouch||fcIsTablet(),eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:!fcIsTouch||fcIsTablet(),snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
-    longPressDelay:99999, // effectively disable long-press drag on touch
+    longPressDelay:fcIsTablet()?500:99999, // tablet: long-press 500ms to drag; phone: disabled
 
     // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
