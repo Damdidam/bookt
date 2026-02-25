@@ -20,6 +20,7 @@ const callRoutes = require('./routes/staff/calls');
 const siteRoutes = require('./routes/staff/site');
 const signupRoutes = require('./routes/staff/signup');
 const practitionerRoutes = require('./routes/staff/practitioners');
+const invoiceRoutes = require('./routes/staff/invoices');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/business', settingsRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/site', siteRoutes);
 app.use('/api/practitioners', practitionerRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
