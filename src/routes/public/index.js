@@ -475,4 +475,114 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// PRE-RDV DOCUMENTS — PUBLIC ACCESS
+// ============================================================
+
+// GET /api/public/docs/:token — fetch document for client
+router.get('/docs/:token', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT ps.*, dt.name AS template_name, dt.type AS template_type,
+              dt.content_html, dt.form_fields, dt.subject,
+              bk.start_at, bk.service_id,
+              s.name AS service_name,
+              p.display_name AS practitioner_name,
+              c.full_name AS client_name,
+              b.name AS business_name, b.slug AS business_slug,
+              b.address AS business_address, b.theme,
+              b.email AS business_email, b.phone AS business_phone
+       FROM pre_rdv_sends ps
+       JOIN document_templates dt ON dt.id = ps.template_id
+       JOIN bookings bk ON bk.id = ps.booking_id
+       JOIN services s ON s.id = bk.service_id
+       LEFT JOIN practitioners p ON p.id = bk.practitioner_id
+       JOIN clients c ON c.id = ps.client_id
+       JOIN businesses b ON b.id = ps.business_id
+       WHERE ps.token = $1`,
+      [req.params.token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Document introuvable ou lien expiré' });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      template: {
+        name: row.template_name,
+        type: row.template_type,
+        content_html: row.content_html,
+        form_fields: row.form_fields || [],
+        subject: row.subject
+      },
+      booking: {
+        start_at: row.start_at,
+        service_name: row.service_name,
+        practitioner_name: row.practitioner_name,
+        client_name: row.client_name
+      },
+      business: {
+        name: row.business_name,
+        slug: row.business_slug,
+        address: row.business_address,
+        primary_color: row.theme?.primary_color,
+        email: row.business_email,
+        phone: row.business_phone
+      },
+      send: {
+        status: row.status,
+        responded_at: row.responded_at,
+        sent_at: row.sent_at
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/docs/:token/view — mark as viewed
+router.post('/docs/:token/view', async (req, res, next) => {
+  try {
+    await query(
+      `UPDATE pre_rdv_sends SET status = 'viewed'
+       WHERE token = $1 AND status = 'sent'`,
+      [req.params.token]
+    );
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/docs/:token/submit — submit form responses
+router.post('/docs/:token/submit', async (req, res, next) => {
+  try {
+    const { response_data, consent_given } = req.body;
+
+    const check = await query(
+      `SELECT ps.id, ps.status, dt.type AS template_type
+       FROM pre_rdv_sends ps
+       JOIN document_templates dt ON dt.id = ps.template_id
+       WHERE ps.token = $1`,
+      [req.params.token]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Document introuvable' });
+    }
+    if (check.rows[0].status === 'completed') {
+      return res.status(400).json({ error: 'Ce formulaire a déjà été complété' });
+    }
+
+    await query(
+      `UPDATE pre_rdv_sends SET
+        response_data = $1::jsonb,
+        consent_given = $2,
+        responded_at = NOW(),
+        status = 'completed'
+       WHERE token = $3`,
+      [JSON.stringify(response_data || {}), consent_given, req.params.token]
+    );
+
+    res.json({ submitted: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
