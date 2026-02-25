@@ -21,6 +21,8 @@ const siteRoutes = require('./routes/staff/site');
 const signupRoutes = require('./routes/staff/signup');
 const practitionerRoutes = require('./routes/staff/practitioners');
 const invoiceRoutes = require('./routes/staff/invoices');
+const documentRoutes = require('./routes/staff/documents');
+const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 
 const app = express();
@@ -86,6 +88,8 @@ app.use('/api/calls', callRoutes);
 app.use('/api/site', siteRoutes);
 app.use('/api/practitioners', practitionerRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/cron', preRdvCron);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
@@ -111,6 +115,11 @@ app.get('/:slug/book', (req, res) => {
 // /booking/:token → manage booking (cancel/reschedule)
 app.get('/booking/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/manage-booking.html'));
+});
+
+// /docs/:token → pre-RDV document / form
+app.get('/docs/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/pre-rdv.html'));
 });
 
 // ===== ERROR HANDLER =====
