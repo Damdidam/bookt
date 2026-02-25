@@ -281,6 +281,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <a class="ni" href="#" data-section="team"><span class="ic">👥</span><span>Équipe</span></a>
     <a class="ni" href="#" data-section="site"><span class="ic">🌐</span><span>Mon site</span></a>
     <a class="ni" href="#" data-section="invoices"><span class="ic">🧾</span><span>Facturation</span></a>
+    <a class="ni" href="#" data-section="documents"><span class="ic">📋</span><span>Documents</span></a>
     <a class="ni" href="#" data-section="calls"><span class="ic">📞</span><span>Appels</span></a>
     <a class="ni" href="#" data-section="settings"><span class="ic">⚙️</span><span>Paramètres</span></a>
     <div style="height:1px;background:rgba(255,255,255,.06);margin:6px 12px"></div>
@@ -327,7 +328,7 @@ async function loadDashboard(){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // AGENDA
 const DF=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -1611,6 +1612,175 @@ async function createInvoiceFromBooking(bookingId){
     document.getElementById('pageTitle').textContent='Facturation';
     loadInvoices();
   }catch(e){BooktUI.toast(e.message||'Erreur','error');}
+}
+
+// ============================================================
+// DOCUMENTS PRÉ-RDV
+// ============================================================
+
+async function loadDocuments(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  try{
+    const[tRes,sRes]=await Promise.all([api.get('/api/documents'),api.get('/api/services')]);
+    const templates=tRes.templates||[];
+    const services=sRes.services||sRes||[];
+    let h='';
+
+    h+=`<div class="card" style="padding:18px 22px;background:var(--primary-light);border:1px solid var(--primary-soft)">
+      <p style="font-size:.85rem;color:var(--text-2);margin:0">
+        <strong>📋 Documents pré-rendez-vous</strong> — Créez des fiches d'information, formulaires d'anamnèse ou consentements éclairés. Envoi automatique par email J-2 (configurable) aux clients ayant un RDV confirmé.</p>
+    </div>`;
+
+    h+=`<div style="display:flex;gap:10px;margin:14px 0;flex-wrap:wrap">
+      <button onclick="openDocModal('info')" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer">+ Fiche d'info</button>
+      <button onclick="openDocModal('form')" style="padding:8px 16px;background:var(--gold);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer">+ Formulaire</button>
+      <button onclick="openDocModal('consent')" style="padding:8px 16px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer">+ Consentement</button>
+    </div>`;
+
+    if(templates.length===0){
+      h+=`<div class="card"><div class="empty" style="padding:40px">Aucun document configuré. Créez votre premier template !</div></div>`;
+    }else{
+      h+=`<div style="display:grid;gap:12px">`;
+      templates.forEach(t=>{
+        const typeLabels={info:'📄 Info',form:'📝 Formulaire',consent:'✍️ Consentement'};
+        const typeBg={info:'var(--primary-light)',form:'var(--gold-bg)',consent:'var(--red-bg)'};
+        const typeColor={info:'var(--primary)',form:'var(--gold)',consent:'var(--red)'};
+        const fields=t.form_fields||[];
+        h+=`<div class="card" style="padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:14px;padding:16px 20px">
+            <div style="width:42px;height:42px;border-radius:10px;background:${typeBg[t.type]};display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">
+              ${t.type==='info'?'📄':t.type==='form'?'📝':'✍️'}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.92rem;font-weight:700;color:var(--text)">${esc(t.name)}</div>
+              <div style="font-size:.75rem;color:var(--text-3);margin-top:2px">
+                <span style="padding:2px 6px;border-radius:6px;background:${typeBg[t.type]};color:${typeColor[t.type]};font-weight:600;font-size:.68rem">${typeLabels[t.type]||t.type}</span>
+                ${t.service_name?` · ${esc(t.service_name)}`:' · Toutes prestations'}
+                · J-${t.send_days_before}
+                ${fields.length>0?` · ${fields.length} champ${fields.length>1?'s':''}`:''} 
+              </div>
+            </div>
+            <div style="text-align:right">
+              <span style="font-size:.72rem;color:${t.is_active?'var(--green)':'var(--text-4)'};font-weight:600">${t.is_active?'Actif':'Inactif'}</span>
+              <div style="font-size:.68rem;color:var(--text-4)">${t.sends_count||0} envois · ${t.completed_count||0} complétés</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border-light);padding:8px 20px;display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="openDocModal('${t.type}','${t.id}')" style="font-size:.78rem;padding:5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);cursor:pointer">✏️ Modifier</button>
+            <button onclick="toggleDocActive('${t.id}',${!t.is_active})" style="font-size:.78rem;padding:5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);cursor:pointer">${t.is_active?'⏸ Désactiver':'▶️ Activer'}</button>
+            <button onclick="deleteDoc('${t.id}')" style="font-size:.78rem;padding:5px 12px;background:var(--red-bg);border:1px solid #F5C6C6;border-radius:var(--radius-xs);cursor:pointer;color:var(--red)">🗑️</button>
+          </div>
+        </div>`;
+      });
+      h+=`</div>`;
+    }
+    c.innerHTML=h;
+    window._docServices=services;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+async function openDocModal(type,editId){
+  let existing=null;
+  if(editId){try{const r=await api.get('/api/documents');existing=(r.templates||[]).find(t=>t.id===editId);}catch(e){}}
+  const services=window._docServices||[];
+  const isEdit=!!existing;
+  const title=isEdit?'Modifier le document':type==='info'?"Nouvelle fiche d'info":type==='form'?'Nouveau formulaire':'Nouveau consentement';
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`<div style="background:var(--white);border-radius:var(--radius);padding:28px;width:620px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="font-size:1.1rem;font-weight:700;margin:0">${title}</h3>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer">&times;</button>
+    </div>
+    <div style="display:grid;gap:12px">
+      <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Nom du document *</label>
+        <input id="docName" value="${esc(existing?.name||'')}" placeholder="Ex: Fiche anamn&egrave;se premi&egrave;re consultation" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Prestation li&eacute;e</label>
+          <select id="docService" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+            <option value="">Toutes les prestations</option>
+            ${services.map(s=>`<option value="${s.id}" ${existing?.service_id===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
+          </select></div>
+        <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Envoyer J-</label>
+          <input id="docDays" type="number" min="1" max="14" value="${existing?.send_days_before||2}" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+          <div style="font-size:.68rem;color:var(--text-4);margin-top:2px">Jours avant le RDV</div></div>
+      </div>
+      <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Objet email (optionnel)</label>
+        <input id="docSubject" value="${esc(existing?.subject||'')}" placeholder="Par d&eacute;faut: nom du document + nom du cabinet" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem"></div>
+      <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Contenu *</label>
+        <textarea id="docContent" rows="6" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;resize:vertical;font-family:inherit">${esc(existing?.content_html||'')}</textarea>
+        <div style="font-size:.68rem;color:var(--text-4);margin-top:2px">HTML accept&eacute; : h2, p, ul, li, strong</div></div>
+      ${type!=='info'?`<div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:6px">Champs du formulaire</label>
+        <div id="docFields"></div>
+        <button onclick="addDocField()" style="margin-top:6px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;cursor:pointer">+ Ajouter un champ</button></div>`:''}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;cursor:pointer">Annuler</button>
+      <button onclick="saveDoc('${type}','${editId||''}')" style="padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.82rem;font-weight:600;cursor:pointer">${isEdit?'Enregistrer':'Cr&eacute;er'}</button>
+    </div></div>`;
+  document.body.appendChild(modal);
+  if(type!=='info'&&existing?.form_fields?.length>0){existing.form_fields.forEach(f=>addDocField(f));}
+}
+
+let _docFieldIdx=0;
+function addDocField(preset){
+  const container=document.getElementById('docFields');if(!container)return;
+  const idx=_docFieldIdx++;const fid=preset?.id||('f'+idx);
+  const row=document.createElement('div');
+  row.style.cssText='display:grid;grid-template-columns:1fr 120px 30px 30px;gap:6px;align-items:center;margin-bottom:6px';
+  row.innerHTML=`<input class="df-label" value="${esc(preset?.label||'')}" placeholder="Libell&eacute; du champ" data-fid="${fid}" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem">
+    <select class="df-type" style="padding:7px 6px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem">
+      <option value="text" ${preset?.type==='text'?'selected':''}>Texte</option>
+      <option value="textarea" ${preset?.type==='textarea'?'selected':''}>Zone texte</option>
+      <option value="checkbox" ${preset?.type==='checkbox'?'selected':''}>Case</option>
+      <option value="select" ${preset?.type==='select'?'selected':''}>Choix</option>
+      <option value="date" ${preset?.type==='date'?'selected':''}>Date</option>
+      <option value="email" ${preset?.type==='email'?'selected':''}>Email</option>
+      <option value="phone" ${preset?.type==='phone'?'selected':''}>T&eacute;l</option>
+    </select>
+    <label style="font-size:.7rem;color:var(--text-4);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" class="df-req" ${preset?.required?'checked':''} style="width:14px;height:14px">*</label>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem">&times;</button>`;
+  container.appendChild(row);
+}
+
+function collectDocFields(){
+  const container=document.getElementById('docFields');if(!container)return[];
+  const fields=[];
+  container.querySelectorAll(':scope > div').forEach(row=>{
+    const label=row.querySelector('.df-label')?.value?.trim();
+    const type=row.querySelector('.df-type')?.value||'text';
+    const required=row.querySelector('.df-req')?.checked||false;
+    const fid=row.querySelector('.df-label')?.dataset.fid||('f'+Math.random().toString(36).slice(2,6));
+    if(label)fields.push({id:fid,label,type,required});
+  });
+  return fields;
+}
+
+async function saveDoc(type,editId){
+  const name=document.getElementById('docName')?.value?.trim();
+  const content_html=document.getElementById('docContent')?.value?.trim();
+  if(!name){BooktUI.toast('Nom requis','error');return;}
+  if(!content_html){BooktUI.toast('Contenu requis','error');return;}
+  const body={name,type,service_id:document.getElementById('docService')?.value||null,
+    subject:document.getElementById('docSubject')?.value?.trim()||null,content_html,
+    send_days_before:parseInt(document.getElementById('docDays')?.value||2),
+    form_fields:type!=='info'?collectDocFields():[]};
+  try{
+    if(editId){await api.patch(`/api/documents/${editId}`,body);}
+    else{await api.post('/api/documents',body);}
+    document.querySelector('div[style*="position:fixed"][style*="inset:0"]')?.remove();
+    BooktUI.toast(editId?'Document modifi&eacute;':'Document cr&eacute;&eacute; !','success');loadDocuments();
+  }catch(e){BooktUI.toast(e.message||'Erreur','error');}
+}
+
+async function toggleDocActive(id,active){
+  try{await api.patch(`/api/documents/${id}`,{is_active:active});BooktUI.toast(active?'Activ&eacute;':'D&eacute;sactiv&eacute;','success');loadDocuments();}catch(e){BooktUI.toast(e.message||'Erreur','error');}
+}
+
+async function deleteDoc(id){
+  if(!confirm('Supprimer ce document ?'))return;
+  try{await api.delete(`/api/documents/${id}`);BooktUI.toast('Supprim&eacute;','success');loadDocuments();}catch(e){BooktUI.toast(e.message||'Erreur','error');}
 }
 </script>
 </body>
