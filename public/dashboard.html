@@ -684,24 +684,32 @@ function drawHeatmap(id,data){
 // CLIENTS
 // ============================================================
 let clientSearch='';
+let clientFilter='';
 async function loadClients(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const q=clientSearch?`?search=${encodeURIComponent(clientSearch)}`:'';
+    const params=new URLSearchParams();
+    if(clientSearch)params.set('search',clientSearch);
+    if(clientFilter)params.set('filter',clientFilter);
+    const q=params.toString()?'?'+params.toString():'';
     const r=await fetch(`/api/clients${q}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     const d=await r.json();
     const clients=d.clients||[];
-    let h=`<div class="search-bar"><input type="text" placeholder="Rechercher un client..." value="${clientSearch}" id="clientSearchInput" onkeydown="if(event.key==='Enter'){clientSearch=this.value;loadClients()}"><button class="btn-primary" onclick="clientSearch=document.getElementById('clientSearchInput').value;loadClients()">Rechercher</button>${clientSearch?`<button class="btn-outline" onclick="clientSearch='';loadClients()">✕</button>`:''}</div>`;
-    h+=`<div class="card"><div class="card-h"><h3>Tous les clients</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
-    if(clients.length===0){h+=`<div class="empty">Aucun client${clientSearch?' trouvé':' encore'}</div>`;}
+    const stats=d.stats||{};
+    let h=`<div class="kpis"><div class="kpi" onclick="clientFilter='';loadClients()" style="cursor:pointer"><div class="kpi-val">${stats.total||0}</div><div class="kpi-label">Total clients</div></div><div class="kpi" onclick="clientFilter='blocked';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--red)">${stats.blocked||0}</div><div class="kpi-label">🚫 Bloqués</div></div><div class="kpi" onclick="clientFilter='flagged';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:#B45309">${stats.flagged||0}</div><div class="kpi-label">⚠️ No-shows</div></div><div class="kpi"><div class="kpi-val" style="color:var(--primary)">${stats.clean||0}</div><div class="kpi-label">✅ OK</div></div></div>`;
+    h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="text" placeholder="Rechercher un client..." value="${clientSearch}" id="clientSearchInput" onkeydown="if(event.key==='Enter'){clientSearch=this.value;clientFilter='';loadClients()}" style="flex:1;min-width:200px"><button class="btn-primary" onclick="clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button>${clientSearch||clientFilter?`<button class="btn-outline" onclick="clientSearch='';clientFilter='';loadClients()">✕ Reset</button>`:''}</div>`;
+    h+=`<div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn-sm ${!clientFilter?'active':''}" onclick="clientFilter='';loadClients()">Tous</button><button class="btn-sm ${clientFilter==='blocked'?'active':''}" onclick="clientFilter='blocked';loadClients()">🚫 Bloqués</button><button class="btn-sm ${clientFilter==='flagged'?'active':''}" onclick="clientFilter='flagged';loadClients()">⚠️ No-shows</button></div>`;
+    h+=`<div class="card"><div class="card-h"><h3>${clientFilter==='blocked'?'Clients bloqués':clientFilter==='flagged'?'Clients avec no-shows':'Tous les clients'}</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
+    if(clients.length===0){h+=`<div class="empty">Aucun client${clientSearch?' trouvé':clientFilter?' dans cette catégorie':' encore'}</div>`;}
     else{
-      h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>RDV</th><th>Dernière visite</th><th>Statut</th></tr></thead><tbody>`;
+      h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>RDV</th><th>No-shows</th><th>Dernière visite</th><th>Statut</th></tr></thead><tbody>`;
       clients.forEach(cl=>{
         const last=cl.last_visit?new Date(cl.last_visit).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'—';
-        const stCls=cl.status==='régulier'||cl.status==='regulier'?'regulier':cl.status==='no_show'?'no_show':'nouveau';
-        const stLabel=cl.status==='regulier'||cl.status==='régulier'?'Régulier':cl.status==='no_show'?'No-show':'Nouveau';
-        h+=`<tr><td class="client-name" onclick="openClientDetail('${cl.id}')">${cl.full_name}</td><td>${cl.phone||'—'}</td><td style="font-size:.78rem">${cl.email||'—'}</td><td>${cl.total_bookings}</td><td style="font-size:.78rem">${last}</td><td><span class="c-status ${stCls}">${stLabel}</span></td></tr>`;
+        const tagColors={'bloqué':'#dc2626','récidiviste':'#B45309','à surveiller':'#ca8a04','fidèle':'#15803d','actif':'#0D7377','nouveau':'#888'};
+        const tagColor=tagColors[cl.tag]||'#888';
+        const nsDisplay=cl.no_show_count>0?`<span style="color:#B45309;font-weight:600">${cl.no_show_count}</span>`:'0';
+        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${cl.full_name}${cl.is_blocked?' 🚫':''}</td><td>${cl.phone||'—'}</td><td style="font-size:.78rem">${cl.email||'—'}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${cl.tag}</span></td></tr>`;
       });
       h+=`</tbody></table></div>`;
     }
@@ -715,18 +723,27 @@ async function openClientDetail(id){
     const r=await fetch(`/api/clients/${id}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
-    let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${cl.full_name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+    let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${cl.full_name}${cl.is_blocked?' 🚫':''}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+    if(cl.is_blocked){
+      m+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#dc2626">🚫 Client bloqué</strong><br><span style="color:#666">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="unblockClient('${cl.id}')">Débloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
+    }else if(cl.no_show_count>0){
+      m+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#B45309">⚠️ ${cl.no_show_count} no-show${cl.no_show_count>1?'s':''}</strong>${cl.last_no_show_at?` <span style="color:#888">· dernier le ${new Date(cl.last_no_show_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')">Bloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset</button></div>`;
+    }
     m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
     m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
     m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
     if(bks.length>0){
       m+=`<div style="margin-top:12px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)">Historique (${bks.length} RDV)</label>`;
-      bks.slice(0,10).forEach(b=>{
+      const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)'};
+      const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente'};
+      bks.slice(0,15).forEach(b=>{
         const dt=new Date(b.start_at);
-        const stl=b.status==='completed'?'color:var(--text-4)':b.status==='cancelled'?'color:var(--red)':'';
-        m+=`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light);font-size:.8rem;${stl}"><span>${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name}</span><span>${b.status}</span></div>`;
+        m+=`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light);font-size:.8rem"><span>${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name}</span><span style="color:${stColors[b.status]||'inherit'};font-weight:${b.status==='no_show'?'600':'400'}">${stLabels[b.status]||b.status}</span></div>`;
       });
       m+=`</div>`;
+    }
+    if(!cl.is_blocked&&cl.no_show_count===0){
+      m+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)"><button style="font-size:.75rem;padding:4px 10px;background:transparent;color:#dc2626;border:1px solid #fecaca;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')">🚫 Bloquer ce client</button></div>`;
     }
     m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Fermer</button><button class="btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
@@ -735,15 +752,43 @@ async function openClientDetail(id){
 
 async function saveClient(id){
   try{
-    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
+    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.querySelector('.modal-overlay')?.remove();
     BooktUI.toast('Client mis à jour','success');loadClients();
   }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
-// ============================================================
+async function blockClient(id){
+  const reason=prompt('Raison du blocage (optionnel):');
+  if(reason===null)return;
+  try{
+    const r=await fetch(`/api/clients/${id}/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({reason:reason||'Bloqué manuellement'})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Client bloqué','success');loadClients();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function unblockClient(id){
+  if(!confirm('Débloquer ce client ? Il pourra à nouveau réserver en ligne.'))return;
+  try{
+    const r=await fetch(`/api/clients/${id}/unblock`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Client débloqué','success');loadClients();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function resetNoShow(id){
+  if(!confirm('Remettre le compteur no-show à zéro et débloquer ?'))return;
+  try{
+    const r=await fetch(`/api/clients/${id}/reset-noshow`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Compteur remis à zéro','success');loadClients();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
 // SERVICES (PRESTATIONS)
 // ============================================================
 let allPractitioners=[];
