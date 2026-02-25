@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Document pré-rendez-vous — Bookt</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#0D7377;--text:#1A1816;--text2:#3D3832;--text3:#6B6560;--text4:#9C958E;--bg:#F5F4F1;--white:#FFF;--border:#E0DDD8;--green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;--gold:#A68B3C;--gold-bg:#FAF6EC;--radius:14px;--radius-sm:10px}
+body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+.logo{margin:28px 0 8px;font-size:1.4rem;font-weight:700;color:var(--primary);letter-spacing:-.5px}
+.logo span{background:var(--primary);color:#fff;padding:2px 8px;border-radius:6px;margin-right:4px}
+.card{background:var(--white);border-radius:var(--radius);box-shadow:0 2px 12px rgba(0,0,0,.06);width:640px;max-width:95vw;margin:12px 0 32px;overflow:hidden}
+.card-header{padding:24px 28px;border-bottom:1px solid var(--border)}
+.card-header h1{font-size:1.15rem;font-weight:700;color:var(--text)}
+.card-header .sub{font-size:.82rem;color:var(--text3);margin-top:4px}
+.badge{display:inline-block;font-size:.7rem;font-weight:600;padding:3px 10px;border-radius:10px}
+.badge-info{background:#EFF9F8;color:var(--primary)}
+.badge-form{background:var(--gold-bg);color:var(--gold)}
+.badge-consent{background:var(--red-bg);color:var(--red)}
+.badge-done{background:var(--green-bg);color:var(--green)}
+
+/* Appointment info bar */
+.appt-bar{display:flex;gap:16px;flex-wrap:wrap;padding:16px 28px;background:#FAFAF9;border-bottom:1px solid var(--border);font-size:.82rem;color:var(--text2)}
+.appt-bar .item{display:flex;align-items:center;gap:5px}
+.appt-bar .ico{font-size:1rem}
+
+/* Content area */
+.doc-content{padding:28px;font-size:.92rem;line-height:1.7;color:var(--text2)}
+.doc-content h2{font-size:1rem;font-weight:700;color:var(--text);margin:18px 0 8px}
+.doc-content h3{font-size:.9rem;font-weight:600;color:var(--text);margin:14px 0 6px}
+.doc-content ul,.doc-content ol{padding-left:20px;margin:8px 0}
+.doc-content li{margin-bottom:4px}
+.doc-content p{margin-bottom:10px}
+.doc-content strong{color:var(--text)}
+
+/* Form fields */
+.form-section{padding:28px}
+.form-field{margin-bottom:18px}
+.form-field label{display:block;font-size:.78rem;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px}
+.form-field label .req{color:var(--red)}
+.form-field input,.form-field textarea,.form-field select{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.88rem;font-family:inherit;color:var(--text);background:var(--white)}
+.form-field input:focus,.form-field textarea:focus,.form-field select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.1)}
+.form-field textarea{resize:vertical;min-height:80px}
+.form-field .check-row{display:flex;align-items:center;gap:8px;padding:6px 0}
+.form-field .check-row input[type="checkbox"]{width:18px;height:18px;accent-color:var(--primary)}
+.form-field .check-row label{font-size:.88rem;font-weight:400;color:var(--text2);text-transform:none;letter-spacing:0;margin:0}
+.form-field .hint{font-size:.72rem;color:var(--text4);margin-top:3px}
+
+/* Consent */
+.consent-box{margin:20px 28px;padding:16px;border:2px solid var(--border);border-radius:var(--radius-sm);background:#FAFAF9}
+.consent-box .check-row{display:flex;align-items:flex-start;gap:10px}
+.consent-box input[type="checkbox"]{width:20px;height:20px;margin-top:2px;accent-color:var(--primary)}
+.consent-box .label-text{font-size:.88rem;line-height:1.5;color:var(--text2)}
+
+/* Submit area */
+.submit-area{padding:20px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.btn-primary{padding:12px 28px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-primary:hover{background:#0A5E61}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+/* States */
+.loading{text-align:center;padding:60px 20px;color:var(--text4);font-size:.88rem}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{text-align:center;padding:40px 20px;color:var(--red);font-size:.88rem}
+.success-state{text-align:center;padding:48px 28px}
+.success-state .check{font-size:3rem;margin-bottom:12px}
+.success-state h2{font-size:1.1rem;font-weight:700;color:var(--green);margin-bottom:6px}
+.success-state p{font-size:.85rem;color:var(--text3)}
+
+.footer-link{text-align:center;padding:12px;font-size:.82rem}
+.footer-link a{color:var(--primary);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+<div class="logo"><span>B</span> Bookt</div>
+<div class="card" id="docCard">
+  <div class="loading"><div class="spinner"></div><p>Chargement du document...</p></div>
+</div>
+<div class="footer-link" id="footerLink"></div>
+
+<script>
+const TOKEN = location.pathname.split('/').pop();
+let docData = null;
+
+async function loadDocument() {
+  const card = document.getElementById('docCard');
+  try {
+    const r = await fetch(`/api/public/docs/${TOKEN}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'Document introuvable');
+    }
+    docData = await r.json();
+    render();
+  } catch (e) {
+    card.innerHTML = `<div class="error">
+      <p style="font-size:2rem;margin-bottom:10px">📋</p>
+      <p><strong>${e.message}</strong></p>
+      <p style="margin-top:8px;color:var(--text4)">Ce lien n'est plus valide ou le document est introuvable.</p>
+    </div>`;
+  }
+}
+
+function render() {
+  const { template, booking, business, send } = docData;
+  const card = document.getElementById('docCard');
+  const primary = business.primary_color || '#0D7377';
+  document.documentElement.style.setProperty('--primary', primary);
+
+  const typeLabels = { info: 'Information', form: 'Formulaire', consent: 'Consentement' };
+  const typeBadge = { info: 'badge-info', form: 'badge-form', consent: 'badge-consent' };
+
+  // Already completed?
+  if (send.status === 'completed') {
+    card.innerHTML = `<div class="success-state">
+      <div class="check">✅</div>
+      <h2>Document complété</h2>
+      <p>Merci, vos réponses ont bien été enregistrées le ${new Date(send.responded_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.</p>
+    </div>`;
+    renderFooter(business);
+    return;
+  }
+
+  // Mark as viewed
+  fetch(`/api/public/docs/${TOKEN}/view`, { method: 'POST' }).catch(() => {});
+
+  const apptDate = new Date(booking.start_at);
+  const dateStr = apptDate.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const timeStr = apptDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+  let h = '';
+
+  // Header
+  h += `<div class="card-header">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <span class="badge ${typeBadge[template.type] || 'badge-info'}">${typeLabels[template.type] || template.type}</span>
+      ${send.status === 'viewed' ? '<span class="badge badge-done">Consulté</span>' : ''}
+    </div>
+    <h1>${esc(template.name)}</h1>
+    <div class="sub">${esc(business.name)}</div>
+  </div>`;
+
+  // Appointment bar
+  h += `<div class="appt-bar">
+    <div class="item"><span class="ico">📅</span> ${dateStr} à ${timeStr}</div>
+    <div class="item"><span class="ico">💼</span> ${esc(booking.service_name)}</div>
+    ${booking.practitioner_name ? `<div class="item"><span class="ico">👤</span> ${esc(booking.practitioner_name)}</div>` : ''}
+  </div>`;
+
+  // Content
+  if (template.content_html) {
+    h += `<div class="doc-content">${template.content_html}</div>`;
+  }
+
+  // Form fields
+  const fields = template.form_fields || [];
+  if (fields.length > 0 && (template.type === 'form' || template.type === 'consent')) {
+    h += `<div class="form-section">`;
+    fields.forEach((f, i) => {
+      h += `<div class="form-field">`;
+      if (f.type === 'checkbox') {
+        h += `<div class="check-row">
+          <input type="checkbox" id="field_${i}" data-field-id="${f.id}">
+          <label for="field_${i}">${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>
+        </div>`;
+      } else {
+        h += `<label for="field_${i}">${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>`;
+        if (f.type === 'textarea') {
+          h += `<textarea id="field_${i}" data-field-id="${f.id}" rows="3" placeholder="${esc(f.placeholder || '')}"></textarea>`;
+        } else if (f.type === 'select' && f.options) {
+          h += `<select id="field_${i}" data-field-id="${f.id}"><option value="">— Choisir —</option>${f.options.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+        } else if (f.type === 'date') {
+          h += `<input type="date" id="field_${i}" data-field-id="${f.id}">`;
+        } else {
+          h += `<input type="${f.type === 'email' ? 'email' : f.type === 'phone' ? 'tel' : 'text'}" id="field_${i}" data-field-id="${f.id}" placeholder="${esc(f.placeholder || '')}">`;
+        }
+      }
+      if (f.hint) h += `<div class="hint">${esc(f.hint)}</div>`;
+      h += `</div>`;
+    });
+    h += `</div>`;
+  }
+
+  // Consent checkbox
+  if (template.type === 'consent') {
+    h += `<div class="consent-box"><div class="check-row">
+      <input type="checkbox" id="consentCheck">
+      <div class="label-text">J'ai lu et j'accepte les conditions ci-dessus. Je donne mon consentement éclairé pour le traitement décrit.</div>
+    </div></div>`;
+  }
+
+  // Submit button (for forms and consents)
+  if (template.type === 'form' || template.type === 'consent') {
+    h += `<div class="submit-area">
+      <button class="btn-primary" onclick="submitForm()" id="submitBtn">
+        ${template.type === 'consent' ? 'Signer et envoyer' : 'Envoyer mes réponses'}
+      </button>
+    </div>`;
+  }
+
+  card.innerHTML = h;
+  renderFooter(business);
+}
+
+function renderFooter(business) {
+  const slug = business.slug || '';
+  document.getElementById('footerLink').innerHTML = slug
+    ? `<a href="/${slug}/book">Prendre un rendez-vous →</a>`
+    : '';
+}
+
+async function submitForm() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi en cours...';
+
+  try {
+    const { template } = docData;
+    const fields = template.form_fields || [];
+    const responseData = {};
+    let hasError = false;
+
+    // Collect field values
+    fields.forEach((f, i) => {
+      const el = document.getElementById(`field_${i}`);
+      if (!el) return;
+      const val = f.type === 'checkbox' ? el.checked : el.value;
+      responseData[f.id] = val;
+
+      if (f.required && !val && val !== true) {
+        el.style.borderColor = 'var(--red)';
+        hasError = true;
+      } else {
+        el.style.borderColor = '';
+      }
+    });
+
+    // Check consent
+    let consentGiven = null;
+    if (template.type === 'consent') {
+      const cb = document.getElementById('consentCheck');
+      if (!cb || !cb.checked) {
+        alert('Veuillez cocher la case de consentement pour continuer.');
+        btn.disabled = false;
+        btn.textContent = 'Signer et envoyer';
+        return;
+      }
+      consentGiven = true;
+    }
+
+    if (hasError) {
+      alert('Veuillez remplir tous les champs obligatoires.');
+      btn.disabled = false;
+      btn.textContent = template.type === 'consent' ? 'Signer et envoyer' : 'Envoyer mes réponses';
+      return;
+    }
+
+    const r = await fetch(`/api/public/docs/${TOKEN}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response_data: responseData, consent_given: consentGiven })
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'Erreur lors de l\'envoi');
+    }
+
+    // Show success
+    document.getElementById('docCard').innerHTML = `<div class="success-state">
+      <div class="check">✅</div>
+      <h2>Merci !</h2>
+      <p>Vos réponses ont bien été enregistrées. Votre praticien y aura accès avant le rendez-vous.</p>
+    </div>`;
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+    btn.disabled = false;
+    btn.textContent = template.type === 'consent' ? 'Signer et envoyer' : 'Envoyer mes réponses';
+  }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+loadDocument();
+</script>
+</body>
+</html>
