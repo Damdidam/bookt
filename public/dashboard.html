@@ -1296,6 +1296,7 @@ async function loadTeam(){
           </div>
           <div class="tm-actions">
             <button class="btn-outline btn-sm" onclick="openPractModal('${p.id}')">✏️ Modifier</button>
+            ${hasLogin?`<button class="btn-outline btn-sm" onclick="openRoleModal('${p.id}','${esc(p.display_name)}','${p.user_role||'practitioner'}')">🎭 Rôle</button>`:''}
             ${!hasLogin?`<button class="btn-outline btn-sm" onclick="openInviteModal('${p.id}','${esc(p.display_name)}')">🔑 Créer un accès</button>`:''}
             ${p.is_active?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver ${esc(p.display_name)} ?'))deactivatePract('${p.id}')">Désactiver</button>`:`<button class="btn-outline btn-sm" onclick="reactivatePract('${p.id}')">Réactiver</button>`}
           </div>
@@ -1380,6 +1381,39 @@ async function sendInvite(practId){
     if(!r.ok)throw new Error((await r.json()).error);
     document.querySelector('.modal-overlay')?.remove();
     BooktUI.toast('Compte créé ! Communiquez les identifiants.','success');loadTeam();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+function openRoleModal(practId,name,currentRole){
+  const sl=SECTOR_LABELS[userSector]||SECTOR_LABELS.autre;
+  const roles=[
+    {value:'practitioner',label:sl.practitioner,desc:'Voit uniquement son propre agenda et ses clients'},
+    {value:'receptionist',label:sl.receptionist,desc:'Voit l\'agenda de tous, gère les RDV et clients'},
+    {value:'manager',label:sl.manager,desc:'Agenda de tous, clients, documents, statistiques'}
+  ];
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:460px"><div class="modal-h"><h3>Modifier le rôle — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+  m+=`<div style="display:flex;flex-direction:column;gap:8px">`;
+  roles.forEach(r=>{
+    const checked=r.value===currentRole?'checked':'';
+    const borderColor=r.value===currentRole?'var(--primary)':'var(--border)';
+    m+=`<label style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1.5px solid ${borderColor};border-radius:10px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='${r.value===currentRole?'var(--primary)':'var(--border)'}'" onclick="this.parentElement.querySelectorAll('label').forEach(l=>l.style.borderColor='var(--border)');this.style.borderColor='var(--primary)'">
+      <input type="radio" name="role_pick" value="${r.value}" ${checked} style="margin-top:2px">
+      <div><div style="font-size:.88rem;font-weight:600">${r.label}</div><div style="font-size:.75rem;color:var(--text-4);margin-top:2px">${r.desc}</div></div>
+    </label>`;
+  });
+  m+=`</div>`;
+  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveRole('${practId}')">Enregistrer</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function saveRole(practId){
+  const picked=document.querySelector('input[name="role_pick"]:checked');
+  if(!picked)return BooktUI.toast('Sélectionnez un rôle','error');
+  try{
+    const r=await fetch(`/api/practitioners/${practId}/role`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({role:picked.value})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Rôle modifié','success');loadTeam();
   }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 

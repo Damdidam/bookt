@@ -160,4 +160,50 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// PATCH /api/practitioners/:id/role — change linked user's role
+// ============================================================
+router.patch('/:id/role', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { role } = req.body;
+
+    const validRoles = ['manager', 'practitioner', 'receptionist'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: `Rôle invalide. Valeurs acceptées : ${validRoles.join(', ')}` });
+    }
+
+    // Find practitioner + linked user
+    const pract = await queryWithRLS(bid,
+      `SELECT p.id, p.user_id, p.display_name, u.role AS current_role
+       FROM practitioners p
+       LEFT JOIN users u ON u.id = p.user_id
+       WHERE p.id = $1 AND p.business_id = $2`,
+      [id, bid]
+    );
+
+    if (pract.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
+    if (!pract.rows[0].user_id) return res.status(400).json({ error: 'Ce praticien n\'a pas de compte utilisateur' });
+
+    // Prevent changing owner role
+    if (pract.rows[0].current_role === 'owner') {
+      return res.status(403).json({ error: 'Impossible de modifier le rôle du propriétaire' });
+    }
+
+    // Update role
+    await query(
+      `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+      [role, pract.rows[0].user_id, bid]
+    );
+
+    res.json({
+      updated: true,
+      practitioner_id: id,
+      new_role: role,
+      message: `Rôle de ${pract.rows[0].display_name} modifié en ${role}`
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
