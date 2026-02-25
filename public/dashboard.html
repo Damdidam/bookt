@@ -180,16 +180,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .ev-completed{border-left:3px solid var(--text-4)!important;opacity:.6}
 .ev-no_show{border-left:3px solid var(--red)!important;opacity:.5}
 .ev-cancelled{border-left:3px solid var(--red)!important;opacity:.3;text-decoration:line-through}
-/* Group visual: connected blocks */
-.ev-group-first .fc-event-main{border-top-left-radius:6px;border-top-right-radius:6px}
-.ev-group-mid .fc-event-main{border-radius:0}
-.ev-group-last .fc-event-main{border-bottom-left-radius:6px;border-bottom-right-radius:6px}
-.ev-group-first,.ev-group-mid{margin-bottom:-1px!important}
-.ev-grouped{border-left:3px solid rgba(255,255,255,.5)!important;position:relative}
-.ev-grouped::after{content:'';position:absolute;left:-3px;top:0;bottom:0;width:3px;background:rgba(255,255,255,.25)}
 .ev-group-badge{display:inline-block;font-size:.55rem;background:rgba(255,255,255,.25);color:#fff;padding:0 4px;border-radius:3px;margin-left:4px;vertical-align:middle}
 /* Multi-service quick create */
 .qc-svc-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px}
+/* Group visual: thin divider between services */
+.ev-group-first .fc-event-main{border-top-left-radius:6px;border-top-right-radius:6px}
+.ev-group-mid .fc-event-main{border-radius:0}
+.ev-group-last .fc-event-main{border-bottom-left-radius:6px;border-bottom-right-radius:6px}
+.ev-group-first,.ev-group-mid{margin-bottom:0!important}
+.ev-grouped{position:relative}
+.ev-grouped:not(.ev-group-first)::before{content:'';position:absolute;top:0;left:4px;right:4px;height:1px;background:rgba(255,255,255,.35);z-index:1}
+/* Ghost block during group drag */
+.ev-group-ghost{opacity:.3!important;pointer-events:none!important;transition:none!important}
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
 .qc-svc-item .qc-svc-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
@@ -884,17 +886,32 @@ async function loadAgenda(){
         .then(r=>r.json()).then(d=>{
           const events=(d.bookings||[]).map(b=>{
             const frozen=['completed','cancelled','no_show'].includes(b.status);
+            let bgColor=b.service_color||b.booking_color||b.practitioner_color||'#0D7377';
             return {
             id:b.id,
             title:b.client_name||'Sans nom',
             start:b.start_at,
             end:b.end_at,
-            backgroundColor:b.service_color||b.booking_color||b.practitioner_color||'#0D7377',
-            borderColor:b.service_color||b.booking_color||b.practitioner_color||'#0D7377',
+            backgroundColor:bgColor,
+            borderColor:bgColor,
             editable:!frozen,
-            durationEditable:!frozen&&!b.group_id, // Disable resize for grouped
+            durationEditable:!frozen&&!b.group_id,
             extendedProps:{...b}
           }});
+          // Unified color for groups: first service's color for all members
+          const groupColors={};
+          events.forEach(ev=>{
+            const gid=ev.extendedProps.group_id;
+            if(!gid)return;
+            if(!groupColors[gid])groupColors[gid]=ev.backgroundColor;
+          });
+          events.forEach(ev=>{
+            const gid=ev.extendedProps.group_id;
+            if(gid&&groupColors[gid]){
+              ev.backgroundColor=groupColors[gid];
+              ev.borderColor=groupColors[gid];
+            }
+          });
           successCb(events);
         }).catch(e=>failCb(e));
     },
@@ -903,8 +920,8 @@ async function loadAgenda(){
     eventContent:function(arg){
       const p=arg.event.extendedProps;
       const badges=[(p.internal_note?'<span class="ev-badge ev-badge-note"></span>':''),(p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':'')].filter(Boolean).join('');
-      const groupBadge=p.group_id?`<span class="ev-group-badge">🔗 ${(p.group_order||0)+1}</span>`:'';
-      return{html:`<div class="ev-inner"><span class="ev-client">${p.client_name||arg.event.title}${groupBadge}</span><span class="ev-service">${p.service_name||''}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
+      const groupTag=p.group_id?'<span class="ev-group-badge">🔗</span>':'';
+      return{html:`<div class="ev-inner"><span class="ev-client">${p.client_name||arg.event.title}${groupTag}</span><span class="ev-service">${p.service_name||''}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
     },
 
     // Status-based CSS classes
@@ -926,11 +943,30 @@ async function loadAgenda(){
     // Click → open detail modal
     eventClick:function(info){fcOpenDetail(info.event.id);},
 
+    // Stamp event IDs on DOM for group drag
+    eventDidMount:function(info){
+      info.el.setAttribute('data-eid',info.event.id);
+      const gid=info.event.extendedProps?.group_id;
+      if(gid)info.el.setAttribute('data-gid',gid);
+    },
+
     // Select empty slot → quick create
     select:function(info){fcOpenQuickCreate(info.startStr,info.endStr);fcCal.unselect();},
 
+    // Group drag: ghost siblings during drag
+    eventDragStart:function(info){
+      const gid=info.event.extendedProps?.group_id;
+      if(!gid)return;
+      document.querySelectorAll(`.fc-event[data-gid="${gid}"]`).forEach(el=>{
+        if(el.getAttribute('data-eid')!==info.event.id){
+          el.classList.add('ev-group-ghost');
+        }
+      });
+    },
+
     // Drag & drop → move booking
     eventDrop:async function(info){
+      document.querySelectorAll('.ev-group-ghost').forEach(el=>el.classList.remove('ev-group-ghost'));
       const ev=info.event,p=ev.extendedProps;
       try{
         const r=await fetch(`/api/bookings/${ev.id}/move`,{
@@ -1098,7 +1134,7 @@ async function fcOpenDetail(bookingId){
     // Info tab
     const prac=fcPractitioners.find(p=>p.id===b.practitioner_id);
     const s=new Date(b.start_at),e=new Date(b.end_at);
-    let ig=`<div class="info-item"><div class="info-label">Client</div><div class="info-value">${b.client_name||'—'}</div></div>
+    let ig=`<div class="info-item"><div class="info-label">Client</div><div class="info-value"><a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${b.client_id}')" style="color:var(--primary);font-weight:600;text-decoration:none">${b.client_name||'—'}</a>${b.allow_overlap?' <span style="font-size:.65rem;background:var(--primary-light);color:var(--primary);padding:1px 6px;border-radius:10px;vertical-align:middle">chevauchement OK</span>':''}</div></div>
       <div class="info-item"><div class="info-label">Statut</div><div class="info-value"><span class="status-badge st-${b.status}">${ST_LABELS[b.status]||b.status}</span></div></div>
       <div class="info-item"><div class="info-label">Prestation</div><div class="info-value">${b.service_name}</div></div>
       <div class="info-item"><div class="info-label">Praticien</div><div class="info-value"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${prac?.color||'var(--primary)'};margin-right:4px"></span>${prac?.display_name||b.practitioner_name||'—'}</div></div>

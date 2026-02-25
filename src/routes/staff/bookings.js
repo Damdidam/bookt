@@ -672,7 +672,7 @@ router.get('/:id/detail', async (req, res, next) => {
       `SELECT b.*, s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
-              c.no_show_count, c.is_blocked
+              c.no_show_count, c.is_blocked, c.allow_overlap
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
