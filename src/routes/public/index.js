@@ -312,10 +312,17 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Find or create client
       let clientId;
       const existing = await client.query(
-        `SELECT id FROM clients WHERE business_id = $1 AND (phone = $2 OR email = $3) LIMIT 1`,
+        `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND (phone = $2 OR email = $3) LIMIT 1`,
         [businessId, client_phone, client_email]
       );
       if (existing.rows.length > 0) {
+        // Check if client is blocked
+        if (existing.rows[0].is_blocked) {
+          throw Object.assign(
+            new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
+            { type: 'blocked', status: 403 }
+          );
+        }
         clientId = existing.rows[0].id;
         await client.query(
           `UPDATE clients SET full_name=$1, email=$2, phone=$3, bce_number=COALESCE($4,bce_number),
@@ -367,6 +374,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
     });
   } catch (err) {
+    if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+    if (err.type === 'blocked') return res.status(403).json({ error: err.message, blocked: true });
     next(err);
   }
 });

@@ -9,12 +9,12 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { search, limit, offset } = req.query;
+    const { search, limit, offset, filter } = req.query;
 
     let sql = `
       SELECT c.*,
         COUNT(b.id) AS total_bookings,
-        COUNT(b.id) FILTER (WHERE b.status = 'no_show') AS no_show_count,
+        COUNT(b.id) FILTER (WHERE b.status = 'completed') AS completed_count,
         MAX(b.start_at) AS last_visit
       FROM clients c
       LEFT JOIN bookings b ON b.client_id = c.id AND b.business_id = c.business_id
@@ -27,6 +27,13 @@ router.get('/', async (req, res, next) => {
       sql += ` AND (c.full_name ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.email ILIKE $${idx})`;
       params.push(`%${search}%`);
       idx++;
+    }
+
+    // Filters
+    if (filter === 'blocked') {
+      sql += ` AND c.is_blocked = true`;
+    } else if (filter === 'flagged') {
+      sql += ` AND c.no_show_count > 0`;
     }
 
     sql += ` GROUP BY c.id ORDER BY last_visit DESC NULLS LAST`;
@@ -44,17 +51,31 @@ router.get('/', async (req, res, next) => {
     }
     const countResult = await queryWithRLS(bid, countSql, countParams);
 
+    // Stats
+    const statsResult = await queryWithRLS(bid,
+      `SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE is_blocked = true) AS blocked,
+        COUNT(*) FILTER (WHERE no_show_count > 0 AND is_blocked = false) AS flagged,
+        COUNT(*) FILTER (WHERE no_show_count = 0 AND is_blocked = false) AS clean
+       FROM clients WHERE business_id = $1`,
+      [bid]
+    );
+
     res.json({
       clients: result.rows.map(c => ({
         ...c,
         total_bookings: parseInt(c.total_bookings),
-        no_show_count: parseInt(c.no_show_count),
-        status: parseInt(c.no_show_count) >= 3 ? 'no_show'
-              : parseInt(c.total_bookings) === 0 ? 'nouveau'
-              : parseInt(c.total_bookings) >= 3 ? 'régulier'
-              : 'nouveau'
+        completed_count: parseInt(c.completed_count),
+        tag: c.is_blocked ? 'bloqué'
+           : c.no_show_count >= 3 ? 'récidiviste'
+           : c.no_show_count >= 1 ? 'à surveiller'
+           : parseInt(c.completed_count) >= 5 ? 'fidèle'
+           : parseInt(c.total_bookings) === 0 ? 'nouveau'
+           : 'actif'
       })),
-      total: parseInt(countResult.rows[0].count)
+      total: parseInt(countResult.rows[0].count),
+      stats: statsResult.rows[0]
     });
   } catch (err) {
     next(err);
@@ -116,6 +137,78 @@ router.patch('/:id', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// POST /api/clients/:id/block — block client from online booking
+// ============================================================
+router.post('/:id/block', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { reason } = req.body;
+
+    const result = await queryWithRLS(bid,
+      `UPDATE clients SET
+        is_blocked = true,
+        blocked_at = NOW(),
+        blocked_reason = $1,
+        updated_at = NOW()
+       WHERE id = $2 AND business_id = $3
+       RETURNING id, full_name, is_blocked`,
+      [reason || 'Bloqué manuellement', req.params.id, bid]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+    res.json({ blocked: true, client: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/clients/:id/unblock — unblock client
+// ============================================================
+router.post('/:id/unblock', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+
+    const result = await queryWithRLS(bid,
+      `UPDATE clients SET
+        is_blocked = false,
+        blocked_at = NULL,
+        blocked_reason = NULL,
+        updated_at = NOW()
+       WHERE id = $1 AND business_id = $2
+       RETURNING id, full_name, is_blocked`,
+      [req.params.id, bid]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+    res.json({ unblocked: true, client: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/clients/:id/reset-noshow — reset no-show counter
+// ============================================================
+router.post('/:id/reset-noshow', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+
+    const result = await queryWithRLS(bid,
+      `UPDATE clients SET
+        no_show_count = 0,
+        is_blocked = false,
+        blocked_at = NULL,
+        blocked_reason = NULL,
+        last_no_show_at = NULL,
+        updated_at = NOW()
+       WHERE id = $1 AND business_id = $2
+       RETURNING id, full_name, no_show_count, is_blocked`,
+      [req.params.id, bid]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+    res.json({ reset: true, client: result.rows[0] });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

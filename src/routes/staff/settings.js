@@ -32,18 +32,23 @@ router.patch('/', requireOwner, async (req, res, next) => {
       founded_year, accreditation, bce_number, parking_info,
       languages_spoken, social_links, page_sections, seo_title, seo_description, theme,
       // V3 invoice settings (merged into settings JSONB)
-      settings_iban, settings_bic, settings_invoice_footer
+      settings_iban, settings_bic, settings_invoice_footer,
+      // V7.1 no-show settings
+      settings_noshow_threshold, settings_noshow_action
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
     let mergedSettings = settings || null;
-    if (settings_iban !== undefined || settings_bic !== undefined || settings_invoice_footer !== undefined) {
+    if (settings_iban !== undefined || settings_bic !== undefined || settings_invoice_footer !== undefined
+        || settings_noshow_threshold !== undefined || settings_noshow_action !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
       if (settings_iban !== undefined) cur.iban = settings_iban;
       if (settings_bic !== undefined) cur.bic = settings_bic;
       if (settings_invoice_footer !== undefined) cur.invoice_footer = settings_invoice_footer;
+      if (settings_noshow_threshold !== undefined) cur.noshow_block_threshold = parseInt(settings_noshow_threshold);
+      if (settings_noshow_action !== undefined) cur.noshow_block_action = settings_noshow_action;
       mergedSettings = cur;
     }
 

@@ -157,6 +157,79 @@ router.patch('/:id/status', async (req, res, next) => {
       [status, cancel_reason || null, id, bid]
     );
 
+    // ===== NO-SHOW STRIKE SYSTEM =====
+    if (status === 'no_show') {
+      try {
+        // Get client_id + business settings
+        const bkInfo = await queryWithRLS(bid,
+          `SELECT b.client_id, biz.settings
+           FROM bookings b
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`,
+          [id]
+        );
+        if (bkInfo.rows.length > 0 && bkInfo.rows[0].client_id) {
+          const clientId = bkInfo.rows[0].client_id;
+          const settings = bkInfo.rows[0].settings || {};
+          const threshold = settings.noshow_block_threshold ?? 3;
+          const action = settings.noshow_block_action || 'block';
+
+          // Increment no_show_count
+          const updated = await queryWithRLS(bid,
+            `UPDATE clients SET
+              no_show_count = no_show_count + 1,
+              last_no_show_at = NOW(),
+              updated_at = NOW()
+             WHERE id = $1 AND business_id = $2
+             RETURNING no_show_count`,
+            [clientId, bid]
+          );
+
+          // Auto-block if threshold reached
+          const count = updated.rows[0]?.no_show_count || 0;
+          if (threshold > 0 && count >= threshold && action === 'block') {
+            await queryWithRLS(bid,
+              `UPDATE clients SET
+                is_blocked = true,
+                blocked_at = NOW(),
+                blocked_reason = $1,
+                updated_at = NOW()
+               WHERE id = $2 AND business_id = $3`,
+              [`Bloqué automatiquement : ${count} no-show(s)`, clientId, bid]
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('No-show strike error (non-blocking):', e.message);
+      }
+    }
+
+    // ===== UNDO: if reverting from no_show, decrement =====
+    if (old.rows[0].status === 'no_show' && status !== 'no_show') {
+      try {
+        const bkInfo = await queryWithRLS(bid,
+          `SELECT client_id FROM bookings WHERE id = $1`, [id]
+        );
+        if (bkInfo.rows[0]?.client_id) {
+          await queryWithRLS(bid,
+            `UPDATE clients SET
+              no_show_count = GREATEST(no_show_count - 1, 0),
+              updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [bkInfo.rows[0].client_id, bid]
+          );
+        }
+      } catch (e) { /* non-blocking */ }
+    }
+
+    // ===== WAITLIST TRIGGER ON CANCEL =====
+    if (status === 'cancelled') {
+      try {
+        const { processWaitlistForCancellation } = require('../../services/waitlist');
+        await processWaitlistForCancellation(id);
+      } catch (e) { /* non-blocking */ }
+    }
+
     // Audit
     await queryWithRLS(bid,
       `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
