@@ -140,6 +140,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 /* ===== FULLCALENDAR AGENDA ===== */
 .prac-filters{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+/* Agenda sticky toolbar: elements stick below the topbar during page scroll */
+.content.agenda-active{padding-bottom:0}
+.content.agenda-active .prac-filters{position:sticky;top:57px;z-index:30;background:var(--surface);padding:10px 0 8px;margin-bottom:0}
+.content.agenda-active .fc .fc-header-toolbar{position:sticky;top:99px;z-index:29;background:var(--surface);padding:6px 0;margin-bottom:0!important}
+.content.agenda-active .fc .fc-scrollgrid-section-header>td{position:sticky;top:143px;z-index:28;background:var(--white)}
 .prac-pill{padding:6px 14px;border-radius:100px;font-size:.73rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:var(--transition);display:flex;align-items:center;gap:6px}
 .prac-pill:hover{border-color:var(--text-4)}
 .prac-pill.active{border-color:var(--primary-soft);background:var(--primary-light);color:var(--primary)}
@@ -151,7 +156,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .fc .fc-button-primary:not(:disabled):active,.fc .fc-button-primary:not(:disabled).fc-button-active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
 .fc .fc-today-button{background:var(--primary);color:#fff;border-color:var(--primary)}.fc .fc-today-button:hover{background:var(--primary-hover)}.fc .fc-today-button:disabled{opacity:.5}
 .fc .fc-col-header-cell{font-size:.72rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0}
-.fc .fc-scrollgrid{border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
+.fc .fc-scrollgrid{border:1px solid var(--border-light);border-radius:var(--radius)}
 .fc td,.fc th{border-color:var(--border-light)}
 .fc .fc-daygrid-day-number{font-size:.8rem;font-weight:500;color:var(--text-2);padding:6px 8px}
 .fc .fc-day-today{background:var(--primary-light)!important}
@@ -504,6 +509,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   .prac-filters{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
   .prac-filters::-webkit-scrollbar{display:none}
   .prac-pill{flex-shrink:0;font-size:.68rem;padding:5px 11px}
+  .content.agenda-active .prac-filters{top:49px;padding:6px 0}
+  .content.agenda-active .fc .fc-header-toolbar{top:87px}
+  .content.agenda-active .fc .fc-scrollgrid-section-header>td{top:127px}
 
   /* Modal → full screen bottom sheet */
   .cal-modal-overlay{padding:0;align-items:flex-end}
@@ -753,7 +761,7 @@ async function loadDashboard(){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.getElementById('contentArea').classList.remove('agenda-active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // ============================================================
 // FULLCALENDAR AGENDA
@@ -805,6 +813,7 @@ function gToast(msg,type){
 
 async function loadAgenda(){
   const c=document.getElementById('contentArea');
+  c.classList.add('agenda-active');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
     const [prRes,svRes,avRes]=await Promise.all([
@@ -889,7 +898,7 @@ async function loadAgenda(){
     selectConstraint:'businessHours',
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:!mobile,
-    height:'auto',stickyHeaderDates:true,firstDay:1,
+    height:'auto',stickyHeaderDates:false,firstDay:1,
     editable:!fcIsTouch,eventDurationEditable:!fcIsTouch,eventStartEditable:!fcIsTouch,snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
