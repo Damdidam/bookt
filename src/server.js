@@ -22,6 +22,7 @@ const signupRoutes = require('./routes/staff/signup');
 const practitionerRoutes = require('./routes/staff/practitioners');
 const invoiceRoutes = require('./routes/staff/invoices');
 const documentRoutes = require('./routes/staff/documents');
+const calendarRoutes = require('./routes/staff/calendar');
 const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 
@@ -89,6 +90,7 @@ app.use('/api/site', siteRoutes);
 app.use('/api/practitioners', practitionerRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/calendar', calendarRoutes);
 app.use('/api/cron', preRdvCron);
 
 // Webhooks (Twilio)
