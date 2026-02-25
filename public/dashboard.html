@@ -104,6 +104,65 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 @media(max-width:1000px){.sidebar{width:60px}.sidebar .w,.sidebar .plan,.ni span:not(.ic),.sb-foot .nm,.sb-foot .rl,.sb-foot .logout{display:none}.main{margin-left:60px}.stats{grid-template-columns:1fr 1fr}.week-grid{grid-template-columns:repeat(3,1fr)}}
 /* Theme picker */
 .theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+/* CRUD sections */
+.search-bar{display:flex;gap:8px;margin-bottom:16px}
+.search-bar input{flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:border-color .15s}
+.search-bar input:focus{border-color:var(--primary)}
+.btn-primary{padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-outline{padding:8px 16px;background:var(--white);color:var(--text-2);border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer}
+.btn-outline:hover{background:var(--surface)}
+.btn-sm{padding:5px 10px;font-size:.75rem;border-radius:6px}
+.btn-danger{background:var(--red-bg);color:var(--red);border-color:#FECACA}
+.table{width:100%;border-collapse:collapse}
+.table th{text-align:left;padding:10px 14px;font-size:.72rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border-light)}
+.table td{padding:10px 14px;font-size:.85rem;border-bottom:1px solid var(--border-light)}
+.table tr:hover td{background:var(--surface)}
+.table .client-name{font-weight:600;cursor:pointer;color:var(--primary)}
+.table .client-name:hover{text-decoration:underline}
+.c-status{padding:2px 8px;border-radius:8px;font-size:.68rem;font-weight:600}
+.c-status.regulier{background:var(--green-bg);color:var(--green)}
+.c-status.nouveau{background:var(--primary-light);color:var(--primary)}
+.c-status.no_show{background:var(--red-bg);color:var(--red)}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s}
+.modal{background:var(--white);border-radius:var(--radius);width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15);animation:slideUp .2s ease}
+.modal-h{padding:16px 20px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
+.modal-h h3{font-size:.95rem;font-weight:700}
+.modal-h .close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-4);padding:4px}
+.modal-body{padding:20px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary)}
+.field textarea{resize:vertical;min-height:70px}
+.field-row{display:flex;gap:10px}
+.field-row .field{flex:1}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* Service cards */
+.svc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.svc-card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;position:relative;border-left:4px solid var(--primary)}
+.svc-card h4{font-size:.9rem;font-weight:700;margin-bottom:4px}
+.svc-card .svc-meta{font-size:.78rem;color:var(--text-4);margin-bottom:8px}
+.svc-card .svc-price{font-family:var(--serif);font-size:1.1rem;color:var(--primary)}
+.svc-card .svc-modes{display:flex;gap:4px;margin-top:6px}
+.svc-card .mode-tag{padding:2px 8px;border-radius:6px;font-size:.65rem;font-weight:600;background:var(--surface);color:var(--text-3)}
+.svc-card .svc-actions{display:flex;gap:4px;margin-top:10px}
+.svc-card.inactive{opacity:.5;border-left-color:var(--text-4)}
+/* Hours grid */
+.hours-schedule{margin-top:12px}
+.pract-block{margin-bottom:20px}
+.pract-block h4{font-size:.88rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.day-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.day-row .day-name{min-width:80px;font-size:.82rem;font-weight:600}
+.day-row .slots{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.slot-chip{display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--primary-light);border-radius:6px;font-size:.78rem;color:var(--primary);font-weight:600}
+.slot-chip .remove-slot{background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--primary);padding:0 2px;opacity:.5}
+.slot-chip .remove-slot:hover{opacity:1}
+.add-slot-btn{padding:4px 10px;border:1.5px dashed var(--border);border-radius:6px;font-size:.75rem;color:var(--text-4);cursor:pointer;background:transparent;font-family:var(--sans)}
+.add-slot-btn:hover{border-color:var(--primary);color:var(--primary)}
+.day-closed{font-size:.78rem;color:var(--text-4);font-style:italic}
 .theme-card{background:var(--white);border:2px solid var(--border-light);border-radius:var(--radius);padding:0;cursor:pointer;transition:all .2s;overflow:hidden;position:relative}
 .theme-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow-md)}
 .theme-card.active{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
@@ -186,7 +245,7 @@ async function loadDashboard(){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',site:'Mon site',calls:'Appels',settings:'Paramètres'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',site:'Mon site',calls:'Appels',settings:'Paramètres'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){agendaView='week';agendaDate=new Date();loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // AGENDA
 const DF=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
@@ -308,6 +367,265 @@ async function undoStatus(id,rs){
   try{await fetch(`/api/bookings/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({status:rs})});
     BooktUI.toast('Statut restauré','success');loadAgenda();
   }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// CLIENTS
+// ============================================================
+let clientSearch='';
+async function loadClients(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const q=clientSearch?`?search=${encodeURIComponent(clientSearch)}`:'';
+    const r=await fetch(`/api/clients${q}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const clients=d.clients||[];
+    let h=`<div class="search-bar"><input type="text" placeholder="Rechercher un client..." value="${clientSearch}" id="clientSearchInput" onkeydown="if(event.key==='Enter'){clientSearch=this.value;loadClients()}"><button class="btn-primary" onclick="clientSearch=document.getElementById('clientSearchInput').value;loadClients()">Rechercher</button>${clientSearch?`<button class="btn-outline" onclick="clientSearch='';loadClients()">✕</button>`:''}</div>`;
+    h+=`<div class="card"><div class="card-h"><h3>Tous les clients</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
+    if(clients.length===0){h+=`<div class="empty">Aucun client${clientSearch?' trouvé':' encore'}</div>`;}
+    else{
+      h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>RDV</th><th>Dernière visite</th><th>Statut</th></tr></thead><tbody>`;
+      clients.forEach(cl=>{
+        const last=cl.last_visit?new Date(cl.last_visit).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'—';
+        const stCls=cl.status==='régulier'||cl.status==='regulier'?'regulier':cl.status==='no_show'?'no_show':'nouveau';
+        const stLabel=cl.status==='regulier'||cl.status==='régulier'?'Régulier':cl.status==='no_show'?'No-show':'Nouveau';
+        h+=`<tr><td class="client-name" onclick="openClientDetail('${cl.id}')">${cl.full_name}</td><td>${cl.phone||'—'}</td><td style="font-size:.78rem">${cl.email||'—'}</td><td>${cl.total_bookings}</td><td style="font-size:.78rem">${last}</td><td><span class="c-status ${stCls}">${stLabel}</span></td></tr>`;
+      });
+      h+=`</tbody></table></div>`;
+    }
+    h+=`</div>`;
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+async function openClientDetail(id){
+  try{
+    const r=await fetch(`/api/clients/${id}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const cl=d.client, bks=d.bookings||[];
+    let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${cl.full_name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+    m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
+    m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
+    m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
+    if(bks.length>0){
+      m+=`<div style="margin-top:12px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)">Historique (${bks.length} RDV)</label>`;
+      bks.slice(0,10).forEach(b=>{
+        const dt=new Date(b.start_at);
+        const stl=b.status==='completed'?'color:var(--text-4)':b.status==='cancelled'?'color:var(--red)':'';
+        m+=`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light);font-size:.8rem;${stl}"><span>${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name}</span><span>${b.status}</span></div>`;
+      });
+      m+=`</div>`;
+    }
+    m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Fermer</button><button class="btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
+    document.body.insertAdjacentHTML('beforeend',m);
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveClient(id){
+  try{
+    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast('Client mis à jour','success');loadClients();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// SERVICES (PRESTATIONS)
+// ============================================================
+let allPractitioners=[];
+async function loadServices(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const[sr,pr]=await Promise.all([
+      fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/dashboard',{headers:{'Authorization':'Bearer '+api.getToken()}})
+    ]);
+    const sd=await sr.json(), pd=await pr.json();
+    const svcs=sd.services||[];
+    allPractitioners=pd.practitioners||[];
+    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${svcs.length} prestation${svcs.length>1?'s':''}</h3><button class="btn-primary" onclick="openServiceModal()">+ Nouvelle prestation</button></div>`;
+    if(svcs.length===0){h+=`<div class="card"><div class="empty">Aucune prestation. Créez votre première !</div></div>`;}
+    else{
+      h+=`<div class="svc-grid">`;
+      svcs.forEach(s=>{
+        const price=s.price_cents?`${(s.price_cents/100).toFixed(0)} €`:(s.price_label||'Gratuit');
+        const modes=(s.mode_options||['cabinet']).map(m=>`<span class="mode-tag">${{cabinet:'🏢 Cabinet',visio:'💻 Visio',phone:'📞 Tél'}[m]||m}</span>`).join('');
+        h+=`<div class="svc-card${s.is_active===false?' inactive':''}" style="border-left-color:${s.color||'var(--primary)'}">
+          <h4>${s.name}</h4>
+          <div class="svc-meta">${s.duration_min}min · Buffer: ${s.buffer_before_min||0}+${s.buffer_after_min||0}min${s.category?' · '+s.category:''}</div>
+          <div class="svc-price">${price}</div>
+          <div class="svc-modes">${modes}</div>
+          <div class="svc-actions">
+            <button class="btn-outline btn-sm" onclick="openServiceModal('${s.id}')">✏️ Modifier</button>
+            ${s.is_active!==false?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver cette prestation ?'))deleteService('${s.id}')">Désactiver</button>`:`<span style="font-size:.72rem;color:var(--text-4);padding:5px">Inactive</span>`}
+          </div>
+        </div>`;
+      });
+      h+=`</div>`;
+    }
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+function openServiceModal(editId){
+  if(editId){
+    fetch(`/api/services`,{headers:{'Authorization':'Bearer '+api.getToken()}}).then(r=>r.json()).then(d=>{
+      renderServiceModal(d.services.find(s=>s.id===editId));
+    });
+  }else{renderServiceModal(null);}
+}
+
+function renderServiceModal(svc){
+  const isEdit=!!svc;
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+  m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${svc?.name||''}" placeholder="Ex: Consultation initiale"></div>`;
+  m+=`<div class="field-row"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${svc?.duration_min||30}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${svc?.price_cents?(svc.price_cents/100):''}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
+  m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  m+=`<div class="field"><label>Catégorie</label><input id="svc_cat" value="${svc?.category||''}" placeholder="Ex: Consultation, Soin..."></div>`;
+  m+=`<div class="field"><label>Couleur</label><input type="color" id="svc_color" value="${svc?.color||'#0D7377'}" style="width:50px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer"></div>`;
+  const modes=svc?.mode_options||['cabinet'];
+  m+=`<div class="field"><label>Modes de consultation</label><div style="display:flex;gap:8px;margin-top:4px">
+    <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> 🏢 Cabinet</label>
+    <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> 💻 Visio</label>
+    <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> 📞 Tél</label>
+  </div></div>`;
+  m+=`<div class="field"><label>Label prix (si pas de montant)</label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
+  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function saveService(id){
+  const modes=[];
+  if(document.getElementById('svc_m_cab').checked)modes.push('cabinet');
+  if(document.getElementById('svc_m_vis').checked)modes.push('visio');
+  if(document.getElementById('svc_m_tel').checked)modes.push('phone');
+  const priceVal=document.getElementById('svc_price').value;
+  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet']};
+  try{
+    const url=id?`/api/services/${id}`:'/api/services';
+    const method=id?'PATCH':'POST';
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    BooktUI.toast(id?'Prestation modifiée':'Prestation créée','success');loadServices();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteService(id){
+  try{
+    const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    BooktUI.toast('Prestation désactivée','success');loadServices();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// DISPONIBILITÉS (HOURS)
+// ============================================================
+const DAYS_WEEK=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+let scheduleData={};
+
+async function loadHours(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const[ar,pr,er]=await Promise.all([
+      fetch('/api/availabilities',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/dashboard',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/availabilities/exceptions',{headers:{'Authorization':'Bearer '+api.getToken()}})
+    ]);
+    const ad=await ar.json(),pd=await pr.json(),ed=await er.json();
+    const avails=ad.availabilities||{};
+    const practs=pd.practitioners||[];
+    const excepts=ed.exceptions||[];
+    scheduleData={};
+    practs.forEach(p=>{
+      const pa=avails[p.id];
+      scheduleData[p.id]={name:p.display_name,color:p.color,schedule:{}};
+      for(let d=0;d<7;d++){scheduleData[p.id].schedule[d]=pa?.schedule?.[d]||[];}
+    });
+
+    let h=`<p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Gérez les créneaux de disponibilité par praticien. Les modifications s'appliquent aux prochaines réservations.</p>`;
+    practs.forEach(p=>{
+      const sc=scheduleData[p.id].schedule;
+      h+=`<div class="card pract-block" style="margin-bottom:16px"><div class="card-h"><h3 style="display:flex;align-items:center;gap:8px"><span style="width:24px;height:24px;border-radius:6px;background:${p.color||'var(--primary)'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;font-family:var(--serif)">${p.display_name?.charAt(0)||'?'}</span>${p.display_name}</h3><button class="btn-primary btn-sm" onclick="saveSchedule('${p.id}')">💾 Enregistrer</button></div><div style="padding:14px 18px">`;
+      for(let d=0;d<7;d++){
+        const slots=sc[d]||[];
+        h+=`<div class="day-row"><span class="day-name">${DAYS_WEEK[d]}</span><div class="slots">`;
+        if(slots.length===0){h+=`<span class="day-closed">Fermé</span>`;}
+        else{slots.forEach((s,i)=>{h+=`<span class="slot-chip">${s.start_time?.slice(0,5)} – ${s.end_time?.slice(0,5)}<button class="remove-slot" onclick="removeSlot('${p.id}',${d},${i})">✕</button></span>`;});}
+        h+=`<button class="add-slot-btn" onclick="addSlot('${p.id}',${d})">+ Ajouter</button></div></div>`;
+      }
+      h+=`</div></div>`;
+    });
+
+    h+=`<div class="card"><div class="card-h"><h3>Exceptions & congés</h3><button class="btn-primary btn-sm" onclick="openExceptionModal()">+ Ajouter</button></div>`;
+    if(excepts.length===0){h+=`<div class="empty">Aucune exception planifiée</div>`;}
+    else{h+=`<div style="padding:10px 18px">`;excepts.forEach(ex=>{
+      const dt=new Date(ex.date).toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'});
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><div><span style="font-size:.85rem;font-weight:600">${dt}</span><span style="font-size:.78rem;color:var(--text-4);margin-left:8px">${ex.practitioner_name} — ${ex.type==='closed'?'Fermé':ex.start_time?.slice(0,5)+' – '+ex.end_time?.slice(0,5)}</span>${ex.note?`<span style="font-size:.72rem;color:var(--text-4);margin-left:8px">(${ex.note})</span>`:''}</div><button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ?'))deleteException('${ex.id}')">✕</button></div>`;
+    });h+=`</div>`;}
+    h+=`</div>`;
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+function addSlot(pid,day){
+  const last=scheduleData[pid].schedule[day].slice(-1)[0];
+  const ds=last?last.end_time:'09:00:00';
+  const hr=parseInt(ds.split(':')[0]);
+  const de=`${String(Math.min(hr+4,20)).padStart(2,'0')}:00`;
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:340px"><div class="modal-h"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
+    <div class="field-row"><div class="field"><label>Début</label><input type="time" id="slot_start" value="${ds.slice(0,5)}"></div><div class="field"><label>Fin</label><input type="time" id="slot_end" value="${de}"></div></div>
+  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="confirmAddSlot('${pid}',${day})">Ajouter</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+function confirmAddSlot(pid,day){
+  const st=document.getElementById('slot_start').value+':00',en=document.getElementById('slot_end').value+':00';
+  if(!scheduleData[pid].schedule[day])scheduleData[pid].schedule[day]=[];
+  scheduleData[pid].schedule[day].push({start_time:st,end_time:en});
+  scheduleData[pid].schedule[day].sort((a,b)=>a.start_time.localeCompare(b.start_time));
+  document.querySelector('.modal-overlay')?.remove();loadHours();
+}
+
+function removeSlot(pid,day,idx){scheduleData[pid].schedule[day].splice(idx,1);loadHours();}
+
+async function saveSchedule(pid){
+  const schedule={};
+  for(let d=0;d<7;d++){const sl=scheduleData[pid].schedule[d]||[];if(sl.length>0)schedule[d]=sl.map(s=>({start_time:s.start_time?.slice(0,5),end_time:s.end_time?.slice(0,5)}));}
+  try{const r=await fetch('/api/availabilities',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({practitioner_id:pid,schedule})});
+    if(!r.ok)throw new Error((await r.json()).error);BooktUI.toast('Horaires enregistrés','success');loadHours();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+function openExceptionModal(){
+  const pids=Object.entries(scheduleData).map(([id,d])=>`<option value="${id}">${d.name}</option>`).join('');
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:400px"><div class="modal-h"><h3>Nouvelle exception</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
+    <div class="field"><label>Praticien</label><select id="exc_pract">${pids}</select></div>
+    <div class="field"><label>Date</label><input type="date" id="exc_date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div class="field"><label>Type</label><select id="exc_type" onchange="document.getElementById('exc_times').style.display=this.value==='custom'?'flex':'none'"><option value="closed">Fermé toute la journée</option><option value="custom">Horaires modifiés</option></select></div>
+    <div class="field-row" id="exc_times" style="display:none"><div class="field"><label>Début</label><input type="time" id="exc_start" value="09:00"></div><div class="field"><label>Fin</label><input type="time" id="exc_end" value="17:00"></div></div>
+    <div class="field"><label>Note</label><input id="exc_note" placeholder="Ex: Congé, formation..."></div>
+  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveException()">Enregistrer</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function saveException(){
+  const type=document.getElementById('exc_type').value;
+  const body={practitioner_id:document.getElementById('exc_pract').value,date:document.getElementById('exc_date').value,type,note:document.getElementById('exc_note').value||null};
+  if(type==='custom'){body.start_time=document.getElementById('exc_start').value;body.end_time=document.getElementById('exc_end').value;}
+  try{const r=await fetch('/api/availabilities/exceptions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);document.querySelector('.modal-overlay')?.remove();BooktUI.toast('Exception ajoutée','success');loadHours();
+  }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteException(id){
+  try{await fetch(`/api/availabilities/exceptions/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});BooktUI.toast('Exception supprimée','success');loadHours();}catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
 // ============================================================
