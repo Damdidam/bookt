@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon rendez-vous — Genda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #FAFAF8; --white: #FFF; --surface: #F5F3EF; --surface-2: #EDEAE4;
+  --border: #DDD9D1; --border-light: #ECEAE4;
+  --text: #2C2824; --text-2: #4A4440; --text-3: #7A7470; --text-4: #A09A94;
+  --coral: #E07A5F; --coral-dark: #C9684F; --coral-light: #FDF0EC; --coral-glow: rgba(224,122,95,0.15);
+  --green: #3A9E5C; --green-bg: #EEFAF1; --green-border: #B8E6C8;
+  --gold: #C9A84C; --gold-bg: #FBF7ED; --gold-border: #E5D5A0;
+  --red: #DC4444; --red-bg: #FEF1F1;
+  --orange: #D97706; --orange-bg: #FFF7ED; --orange-border: #FBBF24;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --sans: 'Outfit', -apple-system, sans-serif;
+  --radius: 16px; --radius-sm: 12px; --radius-xs: 8px;
+  --shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+body { background: var(--bg); font-family: var(--sans); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; -webkit-font-smoothing: antialiased; }
+
+.card { background: var(--white); border-radius: 24px; max-width: 480px; width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.08); overflow: hidden; }
+
+/* Header */
+.card-header { padding: 28px 28px 0; display: flex; align-items: center; gap: 14px; }
+.logo { width: 44px; height: 44px; border-radius: 12px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.3rem; font-weight: 400; }
+.biz-info h1 { font-family: var(--serif); font-size: 1.1rem; font-weight: 400; }
+.biz-info p { font-size: 0.75rem; color: var(--text-3); }
+
+/* Alert banner */
+.alert { margin: 20px 28px 0; padding: 14px 16px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 500; display: none; }
+.alert svg { width: 18px; height: 18px; flex-shrink: 0; vertical-align: middle; margin-right: 6px; }
+.alert-modified { background: var(--orange-bg); border: 1.5px solid var(--orange-border); color: var(--orange); display: flex; align-items: flex-start; gap: 10px; }
+.alert-modified .alert-text { flex: 1; }
+.alert-modified .alert-text strong { display: block; margin-bottom: 2px; }
+.alert-confirmed { background: var(--green-bg); border: 1.5px solid var(--green-border); color: var(--green); }
+.alert-cancelled { background: var(--red-bg); border: 1.5px solid #F5C4C4; color: var(--red); }
+.alert-pending { background: var(--gold-bg); border: 1.5px solid var(--gold-border); color: var(--gold); }
+
+/* Booking details */
+.details { padding: 24px 28px; }
+.detail-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+.detail-row:last-child { border-bottom: none; }
+.detail-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--surface); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.detail-icon svg { width: 18px; height: 18px; color: var(--text-3); stroke: var(--text-3); }
+.detail-content { flex: 1; }
+.detail-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-4); margin-bottom: 2px; }
+.detail-value { font-size: 0.95rem; color: var(--text); font-weight: 500; }
+.detail-sub { font-size: 0.78rem; color: var(--text-3); margin-top: 1px; }
+
+/* Change highlight */
+.changed { position: relative; }
+.changed::after { content: 'Modifié'; position: absolute; top: 0; right: 0; background: var(--orange-bg); color: var(--orange); font-size: 0.62rem; font-weight: 700; padding: 2px 8px; border-radius: 100px; letter-spacing: 0.5px; text-transform: uppercase; }
+.changed .detail-value { color: var(--coral-dark); }
+
+/* Old value strikethrough */
+.old-value { text-decoration: line-through; color: var(--text-4); font-size: 0.82rem; font-weight: 400; }
+
+/* Status badge */
+.status-pill { display: inline-flex; padding: 4px 14px; border-radius: 100px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.3px; }
+.st-confirmed { background: var(--green-bg); color: var(--green); }
+.st-modified_pending { background: var(--orange-bg); color: var(--orange); }
+.st-pending { background: var(--gold-bg); color: var(--gold); }
+.st-cancelled { background: var(--red-bg); color: var(--red); }
+.st-completed { background: var(--surface); color: var(--text-4); }
+
+/* Actions */
+.actions { padding: 0 28px 28px; display: flex; gap: 10px; }
+.btn { flex: 1; padding: 14px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; text-align: center; }
+.btn-confirm { background: var(--green); color: white; }
+.btn-confirm:hover { background: #2F8A4E; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(58,158,92,0.3); }
+.btn-cancel { background: var(--white); color: var(--red); border: 1.5px solid #F5C4C4; }
+.btn-cancel:hover { background: var(--red-bg); }
+.btn-rebook { background: var(--coral); color: white; }
+.btn-rebook:hover { background: var(--coral-dark); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+/* Success/error states */
+.result-msg { padding: 0 28px 28px; text-align: center; display: none; }
+.result-msg .check { width: 56px; height: 56px; border-radius: 50%; background: var(--green-bg); color: var(--green); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 1.5rem; }
+.result-msg .cross { width: 56px; height: 56px; border-radius: 50%; background: var(--red-bg); color: var(--red); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 1.5rem; }
+.result-msg h3 { font-family: var(--serif); font-size: 1.1rem; font-weight: 400; margin-bottom: 6px; }
+.result-msg p { font-size: 0.85rem; color: var(--text-3); }
+
+/* Footer */
+.card-footer { padding: 16px 28px; background: var(--surface); border-top: 1px solid var(--border-light); text-align: center; }
+.card-footer p { font-size: 0.72rem; color: var(--text-4); }
+.card-footer a { color: var(--coral); text-decoration: none; font-weight: 600; }
+
+/* Loading */
+.loading { text-align: center; padding: 60px 28px; }
+.loading .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--coral); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Error */
+.error-state { text-align: center; padding: 48px 28px; }
+.error-state .err-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+.error-state h3 { font-family: var(--serif); font-size: 1.1rem; margin-bottom: 6px; }
+.error-state p { font-size: 0.85rem; color: var(--text-3); }
+
+/* Cancel confirm */
+.cancel-confirm { padding: 20px 28px 28px; display: none; }
+.cancel-confirm p { font-size: 0.88rem; color: var(--text-2); margin-bottom: 14px; }
+.cancel-confirm textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-xs); font-family: var(--sans); font-size: 0.85rem; resize: none; min-height: 60px; outline: none; margin-bottom: 12px; }
+.cancel-confirm textarea:focus { border-color: var(--coral); }
+.cancel-confirm .btns { display: flex; gap: 10px; }
+
+@media (max-width: 520px) {
+  body { padding: 12px; }
+  .card { border-radius: 20px; }
+  .card-header, .details, .actions, .result-msg, .cancel-confirm { padding-left: 20px; padding-right: 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="card" id="bookingCard">
+  <!-- Loading state -->
+  <div id="loadingState" class="loading">
+    <div class="spinner"></div>
+    <p style="color:var(--text-3);font-size:0.85rem">Chargement de votre rendez-vous...</p>
+  </div>
+
+  <!-- Error state -->
+  <div id="errorState" class="error-state" style="display:none">
+    <div class="err-icon">🔍</div>
+    <h3>Rendez-vous introuvable</h3>
+    <p>Ce lien n'est plus valide ou le rendez-vous a été supprimé.</p>
+  </div>
+
+  <!-- Content (hidden until loaded) -->
+  <div id="bookingContent" style="display:none">
+    <div class="card-header">
+      <div class="logo" id="bizLogo">G</div>
+      <div class="biz-info">
+        <h1 id="bizName">—</h1>
+        <p id="bizAddress">—</p>
+      </div>
+    </div>
+
+    <div id="alertBanner" class="alert" style="display:none"></div>
+
+    <div class="details">
+      <div class="detail-row" id="rowStatus">
+        <div class="detail-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="detail-content">
+          <div class="detail-label">Statut</div>
+          <div class="detail-value" id="valStatus"></div>
+        </div>
+      </div>
+
+      <div class="detail-row" id="rowDate">
+        <div class="detail-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </div>
+        <div class="detail-content">
+          <div class="detail-label">Date & heure</div>
+          <div class="detail-value" id="valDate"></div>
+          <div class="detail-sub" id="valDuration"></div>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="detail-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg>
+        </div>
+        <div class="detail-content">
+          <div class="detail-label">Prestation</div>
+          <div class="detail-value" id="valService"></div>
+          <div class="detail-sub" id="valPrice"></div>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="detail-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="detail-content">
+          <div class="detail-label">Praticien</div>
+          <div class="detail-value" id="valPractitioner"></div>
+          <div class="detail-sub" id="valPracTitle"></div>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="detail-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div class="detail-content">
+          <div class="detail-label">Lieu</div>
+          <div class="detail-value" id="valMode"></div>
+          <div class="detail-sub" id="valAddress"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action buttons (shown for modified_pending / confirmed) -->
+    <div class="actions" id="actionButtons" style="display:none"></div>
+
+    <!-- Cancel confirmation -->
+    <div class="cancel-confirm" id="cancelConfirm">
+      <p>Êtes-vous sûr de vouloir annuler ce rendez-vous ?</p>
+      <textarea id="cancelReason" placeholder="Raison (optionnel)"></textarea>
+      <div class="btns">
+        <button class="btn btn-cancel" onclick="goBack()" style="border:1.5px solid var(--border)">Retour</button>
+        <button class="btn" style="background:var(--red);color:white" onclick="confirmCancel()">Confirmer l'annulation</button>
+      </div>
+    </div>
+
+    <!-- Result messages -->
+    <div class="result-msg" id="confirmResult">
+      <div class="check">✓</div>
+      <h3>Rendez-vous confirmé</h3>
+      <p>Merci ! Votre praticien a été notifié.</p>
+    </div>
+    <div class="result-msg" id="cancelResult">
+      <div class="cross">✕</div>
+      <h3>Rendez-vous annulé</h3>
+      <p>Vous pouvez reprendre rendez-vous à tout moment.</p>
+    </div>
+
+    <div class="card-footer">
+      <p>Propulsé par <a href="https://genda.be">Genda</a> · <span id="bizContact"></span></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = window.location.pathname.split('/').pop();
+let bookingData = null;
+
+async function loadBooking() {
+  try {
+    const r = await fetch(`/api/public/booking/${token}`);
+    if (!r.ok) throw new Error('Not found');
+    const data = await r.json();
+    bookingData = data;
+    renderBooking(data);
+  } catch (e) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').style.display = 'block';
+  }
+}
+
+function renderBooking(data) {
+  const { booking, business, cancellation } = data;
+
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('bookingContent').style.display = 'block';
+
+  // Business info
+  document.getElementById('bizLogo').textContent = (business.name || 'G')[0].toUpperCase();
+  document.getElementById('bizName').textContent = business.name;
+  document.getElementById('bizAddress').textContent = business.address || '';
+  document.getElementById('bizContact').textContent = [business.phone, business.email].filter(Boolean).join(' · ');
+
+  // Apply business theme color if available
+  const themeColor = business.theme?.primary_color;
+  if (themeColor) {
+    document.getElementById('bizLogo').style.background = themeColor;
+  }
+
+  // Status
+  const statusLabels = {
+    confirmed: 'Confirmé', modified_pending: 'Modification en attente',
+    pending: 'En attente', cancelled: 'Annulé', completed: 'Terminé', no_show: 'Absent'
+  };
+  document.getElementById('valStatus').innerHTML =
+    `<span class="status-pill st-${booking.status}">${statusLabels[booking.status] || booking.status}</span>`;
+
+  // Alert banner
+  const alert = document.getElementById('alertBanner');
+  if (booking.status === 'modified_pending') {
+    alert.className = 'alert alert-modified';
+    alert.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="alert-text">
+        <strong>Votre rendez-vous a été modifié</strong>
+        Votre praticien a ajusté l'horaire. Veuillez confirmer ou annuler ci-dessous.
+      </div>`;
+    alert.style.display = 'flex';
+  } else if (booking.status === 'confirmed') {
+    alert.className = 'alert alert-confirmed';
+    alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Rendez-vous confirmé`;
+    alert.style.display = 'block';
+  } else if (booking.status === 'cancelled') {
+    alert.className = 'alert alert-cancelled';
+    alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Ce rendez-vous a été annulé`;
+    alert.style.display = 'block';
+  }
+
+  // Date & time
+  const start = new Date(booking.start_at);
+  const end = new Date(booking.end_at);
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const timeStr = `${start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`;
+  document.getElementById('valDate').textContent = `${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}, ${timeStr}`;
+
+  const durationMin = Math.round((end - start) / 60000);
+  document.getElementById('valDuration').textContent = `Durée : ${durationMin} min`;
+
+  // Mark as changed if modified_pending
+  if (booking.status === 'modified_pending') {
+    document.getElementById('rowDate').classList.add('changed');
+  }
+
+  // Service
+  document.getElementById('valService').textContent = booking.service.name;
+  document.getElementById('valPrice').textContent = booking.service.price_cents
+    ? `${(booking.service.price_cents / 100).toFixed(0)} €`
+    : 'Gratuit';
+
+  // Practitioner
+  document.getElementById('valPractitioner').textContent = booking.practitioner.name;
+  document.getElementById('valPracTitle').textContent = booking.practitioner.title || '';
+
+  // Mode / address
+  const modes = { cabinet: 'Au cabinet', domicile: 'À domicile', video: 'En visio', phone: 'Par téléphone' };
+  document.getElementById('valMode').textContent = modes[booking.appointment_mode] || 'Au cabinet';
+  document.getElementById('valAddress').textContent = business.address || '';
+
+  // Action buttons
+  const actionsEl = document.getElementById('actionButtons');
+  if (booking.status === 'modified_pending') {
+    actionsEl.innerHTML = `
+      <button class="btn btn-confirm" onclick="confirmBooking()">Ça me convient ✓</button>
+      <button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler</button>`;
+    actionsEl.style.display = 'flex';
+  } else if (booking.status === 'confirmed' && cancellation.allowed) {
+    actionsEl.innerHTML = `
+      <button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler mon rendez-vous</button>`;
+    actionsEl.style.display = 'flex';
+  } else if (booking.status === 'cancelled') {
+    actionsEl.innerHTML = `
+      <button class="btn btn-rebook" onclick="rebook()">Reprendre rendez-vous</button>`;
+    actionsEl.style.display = 'flex';
+  }
+}
+
+async function confirmBooking() {
+  const btn = document.querySelector('.btn-confirm');
+  btn.disabled = true;
+  btn.textContent = 'Confirmation...';
+
+  try {
+    const r = await fetch(`/api/public/booking/${token}/confirm`, { method: 'POST' });
+    if (!r.ok) throw new Error('Failed');
+
+    document.getElementById('actionButtons').style.display = 'none';
+    document.getElementById('alertBanner').style.display = 'none';
+    document.getElementById('confirmResult').style.display = 'block';
+
+    // Update status visually
+    document.getElementById('valStatus').innerHTML =
+      '<span class="status-pill st-confirmed">Confirmé</span>';
+    document.getElementById('rowDate').classList.remove('changed');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Ça me convient ✓';
+    alert('Erreur lors de la confirmation. Veuillez réessayer.');
+  }
+}
+
+function showCancelConfirm() {
+  document.getElementById('actionButtons').style.display = 'none';
+  document.getElementById('cancelConfirm').style.display = 'block';
+}
+
+function goBack() {
+  document.getElementById('cancelConfirm').style.display = 'none';
+  document.getElementById('actionButtons').style.display = 'flex';
+}
+
+async function confirmCancel() {
+  const reason = document.getElementById('cancelReason').value.trim();
+  const btns = document.querySelectorAll('.cancel-confirm .btn');
+  btns.forEach(b => b.disabled = true);
+
+  try {
+    const r = await fetch(`/api/public/booking/${token}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || 'Annulé par le client' })
+    });
+    if (!r.ok) {
+      const data = await r.json();
+      throw new Error(data.error || 'Failed');
+    }
+
+    document.getElementById('cancelConfirm').style.display = 'none';
+    document.getElementById('cancelResult').style.display = 'block';
+    document.getElementById('valStatus').innerHTML =
+      '<span class="status-pill st-cancelled">Annulé</span>';
+    document.getElementById('alertBanner').style.display = 'none';
+  } catch (e) {
+    btns.forEach(b => b.disabled = false);
+    alert(e.message || 'Erreur lors de l\'annulation.');
+  }
+}
+
+function rebook() {
+  if (bookingData?.business?.slug) {
+    window.location.href = '/' + bookingData.business.slug;
+  }
+}
+
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') goBack();
+});
+
+// Init
+loadBooking();
+</script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genda — Calendrier Pro (Preview v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF8;--white:#FFF;--surface:#F5F3EF;--surface-2:#EDEAE4;--border:#DDD9D1;--border-light:#ECEAE4;--text:#2C2824;--text-2:#4A4440;--text-3:#7A7470;--text-4:#A09A94;--coral:#E07A5F;--coral-dark:#C9684F;--coral-light:#FDF0EC;--coral-border:#F2C4B5;--green:#3A9E5C;--green-bg:#EEFAF1;--green-border:#B8E6C8;--gold:#C9A84C;--gold-bg:#FBF7ED;--blue:#3B82F6;--blue-bg:#EFF6FF;--red:#DC4444;--red-bg:#FEF1F1;--orange:#D97706;--orange-bg:#FFF7ED;--orange-border:#FBBF24;--purple:#8B5CF6;--serif:'DM Serif Display',Georgia,serif;--sans:'Outfit',-apple-system,sans-serif;--shadow:0 4px 16px rgba(0,0,0,0.06);--shadow-md:0 8px 32px rgba(0,0,0,0.08);--shadow-lg:0 20px 60px rgba(0,0,0,0.12);--radius:14px;--radius-sm:10px;--radius-xs:6px}
+body{background:var(--bg);font-family:var(--sans);color:var(--text);-webkit-font-smoothing:antialiased}
+
+.cal-page{max-width:1200px;margin:0 auto;padding:24px}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.cal-header h1{font-family:var(--serif);font-size:1.6rem;font-weight:400}
+.cal-btn{padding:8px 16px;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:all .15s}
+.cal-btn:hover{border-color:var(--text-4);background:var(--surface)}
+.cal-btn.primary{background:var(--coral);color:#fff;border-color:var(--coral)}
+.cal-btn.primary:hover{background:var(--coral-dark)}
+.cal-btn.green{background:var(--green);color:#fff;border-color:var(--green)}
+.cal-btn.green:hover{background:#2F8A4E}
+.cal-btn:disabled{opacity:.5;cursor:not-allowed}
+
+.prac-filters{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.prac-pill{padding:6px 14px;border-radius:100px;font-size:.75rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s;display:flex;align-items:center;gap:6px}
+.prac-pill:hover{border-color:var(--text-4)}
+.prac-pill.active{border-color:var(--coral-border);background:var(--coral-light);color:var(--coral-dark)}
+.prac-pill .dot{width:8px;height:8px;border-radius:50%}
+
+/* FC overrides */
+.fc{font-family:var(--sans)}.fc .fc-toolbar-title{font-family:var(--serif);font-size:1.2rem!important;font-weight:400;color:var(--text)}
+.fc .fc-button{font-family:var(--sans);font-weight:600;font-size:.78rem;text-transform:none;padding:6px 14px;border-radius:var(--radius-xs);border:1.5px solid var(--border);background:var(--white);color:var(--text-2);box-shadow:none}
+.fc .fc-button:hover{background:var(--surface);border-color:var(--text-4)}
+.fc .fc-button-active,.fc .fc-button:active{background:var(--coral-light)!important;color:var(--coral-dark)!important;border-color:var(--coral-border)!important;box-shadow:none!important}
+.fc .fc-button-primary:not(:disabled):active,.fc .fc-button-primary:not(:disabled).fc-button-active{background:var(--coral-light);color:var(--coral-dark);border-color:var(--coral-border)}
+.fc .fc-today-button{background:var(--coral);color:#fff;border-color:var(--coral)}.fc .fc-today-button:hover{background:var(--coral-dark)}.fc .fc-today-button:disabled{opacity:.5}
+.fc .fc-col-header-cell{font-size:.72rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0}
+.fc .fc-scrollgrid{border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
+.fc td,.fc th{border-color:var(--border-light)}
+.fc .fc-daygrid-day-number{font-size:.8rem;font-weight:500;color:var(--text-2);padding:6px 8px}
+.fc .fc-day-today{background:var(--coral-light)!important}
+.fc .fc-timegrid-slot{height:48px}
+.fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:var(--text-4);font-weight:500}
+.fc .fc-timegrid-now-indicator-line{border-color:var(--coral);border-width:2px}
+.fc .fc-timegrid-now-indicator-arrow{border-color:var(--coral)}
+
+.fc .fc-event{border:none;border-radius:6px;padding:2px 6px;font-size:.72rem;cursor:pointer;transition:transform .1s,box-shadow .1s;overflow:hidden}
+.fc .fc-event:hover{transform:scale(1.02);box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:10!important}
+.fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9}
+.fc .fc-timegrid-event .fc-event-main{padding:4px 6px}
+.fc .fc-daygrid-event{margin:1px 3px}
+
+.ev-inner{display:flex;flex-direction:column;gap:1px;overflow:hidden;position:relative}
+.ev-inner .ev-client{font-weight:700;font-size:.72rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-inner .ev-service{font-size:.62rem;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:2px}
+.ev-inner .ev-badge{width:6px;height:6px;border-radius:50%;opacity:.8}
+.ev-inner .ev-badge-note{background:#fff}.ev-inner .ev-badge-todo{background:#FBBF24}.ev-inner .ev-badge-mod{background:var(--orange)}
+
+.ev-pending{border-left:3px solid var(--gold)!important}
+.ev-confirmed{border-left:3px solid var(--green)!important}
+.ev-modified_pending{border-left:3px solid var(--orange)!important;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.07) 4px,rgba(217,119,6,.07) 8px)!important}
+.ev-completed{border-left:3px solid var(--text-4)!important;opacity:.6}
+.ev-no_show{border-left:3px solid var(--red)!important;opacity:.5}
+.ev-cancelled{border-left:3px solid var(--red)!important;opacity:.3;text-decoration:line-through}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:24px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--white);border-radius:20px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .25s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.modal-head{padding:24px 24px 0;display:flex;align-items:flex-start;justify-content:space-between}
+.modal-head h2{font-family:var(--serif);font-size:1.3rem;font-weight:400}
+.modal-close{width:32px;height:32px;border-radius:8px;background:var(--surface);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--text-3);transition:all .15s}
+.modal-close:hover{background:var(--surface-2);color:var(--text)}
+
+.modal-tabs{display:flex;gap:0;padding:16px 24px 0;border-bottom:1px solid var(--border-light);overflow-x:auto}
+.modal-tab{padding:10px 14px;font-size:.78rem;font-weight:600;color:var(--text-4);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px;white-space:nowrap}
+.modal-tab:hover{color:var(--text-2)}.modal-tab.active{color:var(--coral);border-bottom-color:var(--coral)}
+.modal-body{padding:20px 24px 24px}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.info-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-4);margin-bottom:3px}
+.info-value{font-size:.9rem;color:var(--text);font-weight:500}.info-value a{color:var(--coral);text-decoration:none}
+
+.status-badge{display:inline-flex;padding:4px 12px;border-radius:100px;font-size:.72rem;font-weight:700}
+.st-pending{background:var(--gold-bg);color:var(--gold)}.st-confirmed{background:var(--green-bg);color:var(--green)}.st-modified_pending{background:var(--orange-bg);color:var(--orange)}.st-completed{background:var(--surface);color:var(--text-4)}.st-cancelled,.st-no_show{background:var(--red-bg);color:var(--red)}
+
+.status-actions{display:flex;gap:6px;margin-top:16px;flex-wrap:wrap}
+.st-btn{padding:8px 14px;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:all .15s}
+.st-btn:hover{border-color:var(--text-4)}.st-btn.green{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}.st-btn.red{background:var(--red-bg);color:var(--red);border-color:#F5C4C4}
+
+/* Edit section */
+.edit-section-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-4);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.edit-section-title svg{width:14px;height:14px;stroke:var(--text-4)}
+.edit-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+.edit-input{padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;outline:none;width:100%;color:var(--text)}
+.edit-input:focus{border-color:var(--coral);box-shadow:0 0 0 3px rgba(224,122,95,.1)}
+.edit-input-label{font-size:.65rem;font-weight:600;color:var(--text-4);margin-bottom:3px}
+.edit-col{display:flex;flex-direction:column}
+.duration-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.dur-chip{padding:5px 12px;border-radius:100px;font-size:.72rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s}
+.dur-chip:hover{border-color:var(--coral-border);color:var(--coral)}
+.dur-chip.active{background:var(--coral-light);color:var(--coral-dark);border-color:var(--coral-border)}
+.edit-actions{display:flex;gap:8px;align-items:center}
+.diff{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;padding:2px 8px;border-radius:4px;margin-top:4px}
+.diff-old{background:var(--red-bg);color:var(--red);text-decoration:line-through}.diff-new{background:var(--green-bg);color:var(--green);font-weight:600}.diff-arrow{color:var(--text-4);font-size:.65rem}
+
+/* Notify panel */
+.notify-panel{background:var(--surface);border-radius:var(--radius-sm);padding:16px;margin-top:14px;display:none;animation:slideD .2s ease}
+@keyframes slideD{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.notify-panel h4{font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:10px}
+.notify-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.notify-opt{padding:8px 14px;border-radius:var(--radius-xs);font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:all .15s;display:flex;align-items:center;gap:6px}
+.notify-opt:hover{border-color:var(--coral-border)}
+.notify-opt.selected{background:var(--coral-light);color:var(--coral-dark);border-color:var(--coral-border)}
+.notify-opt svg{width:16px;height:16px}
+.notify-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+
+/* Internal note */
+.int-note{margin-top:16px}
+.int-note textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;resize:vertical;min-height:60px;outline:none;color:var(--text)}
+.int-note textarea:focus{border-color:var(--coral);box-shadow:0 0 0 3px rgba(224,122,95,.1)}
+
+/* Notes */
+.note-list{display:flex;flex-direction:column;gap:10px}
+.note-card{background:var(--surface);border-radius:var(--radius-sm);padding:12px 14px;position:relative}.note-card.pinned{border-left:3px solid var(--coral)}
+.note-content{font-size:.85rem;color:var(--text);line-height:1.5}.note-meta{font-size:.68rem;color:var(--text-4);margin-top:6px}
+.note-delete{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:4px;background:transparent;border:none;cursor:pointer;color:var(--text-4);font-size:.7rem}.note-delete:hover{background:var(--red-bg);color:var(--red)}
+.add-note{margin-top:12px}.add-note textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;resize:none;min-height:70px;outline:none}.add-note textarea:focus{border-color:var(--coral)}
+.add-note-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end}
+
+/* Todos */
+.todo-list{display:flex;flex-direction:column;gap:4px}
+.todo-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-xs);background:var(--white);border:1px solid var(--border-light);transition:all .15s}
+.todo-item.done{opacity:.5}.todo-item.done .todo-text{text-decoration:line-through}
+.todo-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;font-size:.6rem;color:transparent}
+.todo-check:hover{border-color:var(--green)}.todo-item.done .todo-check{background:var(--green);border-color:var(--green);color:#fff}
+.todo-text{flex:1;font-size:.85rem;color:var(--text)}
+.todo-delete{background:none;border:none;cursor:pointer;color:var(--text-4);font-size:.75rem;padding:4px}.todo-delete:hover{color:var(--red)}
+.add-todo{display:flex;gap:8px;margin-top:10px}
+.add-todo input{flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;outline:none}.add-todo input:focus{border-color:var(--coral)}
+
+/* Reminders */
+.reminder-list{display:flex;flex-direction:column;gap:8px}
+.reminder-card{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border-radius:var(--radius-sm)}
+.reminder-icon{width:32px;height:32px;border-radius:8px;background:var(--coral-light);color:var(--coral);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.reminder-info{flex:1}.ri-time{font-size:.85rem;font-weight:600;color:var(--text)}.ri-channel{font-size:.68rem;color:var(--text-4)}
+.reminder-delete{background:none;border:none;cursor:pointer;color:var(--text-4);padding:4px;font-size:.75rem}.reminder-delete:hover{color:var(--red)}
+.add-reminder{display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap}
+.add-reminder select{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;outline:none;background:var(--white)}
+
+/* Quick create */
+.quick-create{padding:24px}.qc-row{margin-bottom:14px}.qc-label{font-size:.72rem;font-weight:700;color:var(--text-3);margin-bottom:4px}
+.qc-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;outline:none}.qc-input:focus{border-color:var(--coral)}
+.qc-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qc-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.color-dots{display:flex;gap:6px;margin-top:6px}
+.color-dot{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}.color-dot:hover{transform:scale(1.15)}.color-dot.active{border-color:var(--text);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--text-3)}
+
+.empty-state{text-align:center;padding:24px;color:var(--text-4);font-size:.85rem}.empty-state .empty-icon{font-size:2rem;margin-bottom:8px;opacity:.4}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;padding:12px 20px;border-radius:var(--radius-sm);font-size:.85rem;font-weight:500;box-shadow:var(--shadow-md);z-index:2000;transform:translateY(100px);opacity:0;transition:all .3s ease;display:flex;align-items:center;gap:8px}.toast.show{transform:translateY(0);opacity:1}.toast.success{background:var(--green)}.toast.warning{background:var(--orange)}
+
+@media(max-width:768px){.cal-page{padding:12px}.cal-header{flex-direction:column;gap:12px}.info-grid{grid-template-columns:1fr}.modal{max-width:100%;margin:12px}.edit-row{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="cal-page">
+  <div class="cal-header"><h1>Agenda</h1><div class="cal-toolbar"><button class="cal-btn primary" onclick="openQuickCreate()">+ Nouveau RDV</button></div></div>
+  <div class="prac-filters" id="pracFilters">
+    <span class="prac-pill active" data-id="all" onclick="filterPractitioner('all',this)">Tous</span>
+    <span class="prac-pill" data-id="p1" onclick="filterPractitioner('p1',this)"><span class="dot" style="background:#E07A5F"></span>Pierre De Wit</span>
+    <span class="prac-pill" data-id="p2" onclick="filterPractitioner('p2',this)"><span class="dot" style="background:#3B82F6"></span>Sophie Vermeer</span>
+  </div>
+  <div id="calendar"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal"><div class="modal">
+  <div class="modal-head"><h2 id="modalTitle">Détail</h2><button class="modal-close" onclick="closeModal('detailModal')">✕</button></div>
+  <div class="modal-tabs">
+    <div class="modal-tab active" data-tab="info" onclick="switchTab(this,'info')">Infos</div>
+    <div class="modal-tab" data-tab="edit" onclick="switchTab(this,'edit')">Modifier</div>
+    <div class="modal-tab" data-tab="notes" onclick="switchTab(this,'notes')">Notes</div>
+    <div class="modal-tab" data-tab="todos" onclick="switchTab(this,'todos')">Tâches</div>
+    <div class="modal-tab" data-tab="reminders" onclick="switchTab(this,'reminders')">Rappels</div>
+  </div>
+  <div class="modal-body">
+    <div class="tab-panel active" id="tabInfo">
+      <div class="info-grid" id="infoGrid"></div>
+      <div class="int-note" id="intNoteSection"><div class="info-label" style="margin-bottom:6px">Note interne</div><textarea id="intNoteInput" placeholder="Note visible uniquement par l'équipe..."></textarea></div>
+      <div class="status-actions" id="statusActions"></div>
+    </div>
+    <div class="tab-panel" id="tabEdit">
+      <div class="edit-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier l'horaire</div>
+      <div class="edit-row"><div class="edit-col"><div class="edit-input-label">Date</div><input type="date" class="edit-input" id="editDate"></div><div class="edit-col"><div class="edit-input-label">Début</div><input type="time" class="edit-input" id="editStart"></div><div class="edit-col"><div class="edit-input-label">Fin</div><input type="time" class="edit-input" id="editEnd"></div></div>
+      <div class="edit-input-label">Durée rapide</div>
+      <div class="duration-chips" id="durationChips"><span class="dur-chip" data-min="15" onclick="setDuration(15,this)">15 min</span><span class="dur-chip" data-min="30" onclick="setDuration(30,this)">30 min</span><span class="dur-chip" data-min="45" onclick="setDuration(45,this)">45 min</span><span class="dur-chip" data-min="60" onclick="setDuration(60,this)">1h</span><span class="dur-chip" data-min="90" onclick="setDuration(90,this)">1h30</span><span class="dur-chip" data-min="120" onclick="setDuration(120,this)">2h</span></div>
+      <div id="editDiff" style="display:none;margin:10px 0"></div>
+      <div class="edit-actions"><button class="cal-btn primary" onclick="saveTimeChange()">Enregistrer</button></div>
+      <div class="notify-panel" id="notifyPanel">
+        <h4>📨 Prévenir le client ?</h4>
+        <div class="notify-options">
+          <div class="notify-opt" onclick="selectNotify('email',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</div>
+          <div class="notify-opt" onclick="selectNotify('sms',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> SMS</div>
+          <div class="notify-opt" onclick="selectNotify('both',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Les deux</div>
+          <div class="notify-opt" onclick="selectNotify('none',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Non</div>
+        </div>
+        <div class="notify-actions"><button class="cal-btn" onclick="closeNotifyPanel()">Terminé</button><button class="cal-btn green" id="sendNotifyBtn" onclick="sendNotification()" style="display:none">Envoyer</button></div>
+      </div>
+    </div>
+    <div class="tab-panel" id="tabNotes"><div class="note-list" id="noteList"></div><div class="add-note"><textarea id="newNoteInput" placeholder="Ajouter une note..."></textarea><div class="add-note-actions"><label style="font-size:.75rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="notePinned"> Épinglée</label><button class="cal-btn primary" onclick="addNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button></div></div></div>
+    <div class="tab-panel" id="tabTodos"><div class="todo-list" id="todoList"></div><div class="add-todo"><input id="newTodoInput" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')addTodo()"><button class="cal-btn primary" onclick="addTodo()" style="padding:6px 14px;font-size:.78rem">+</button></div></div>
+    <div class="tab-panel" id="tabReminders"><div class="reminder-list" id="reminderList"></div><div class="add-reminder"><select id="reminderOffset"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 heure</option><option value="120">2 heures</option><option value="1440">La veille</option></select><select id="reminderChannel"><option value="browser">Notif</option><option value="email">Email</option><option value="both">Les deux</option></select><button class="cal-btn primary" onclick="addReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button></div></div>
+  </div>
+</div></div>
+
+<!-- CREATE MODAL -->
+<div class="modal-overlay" id="createModal"><div class="modal" style="max-width:460px">
+  <div class="modal-head"><h2>Nouveau rendez-vous</h2><button class="modal-close" onclick="closeModal('createModal')">✕</button></div>
+  <div class="quick-create">
+    <div class="qc-row"><div class="qc-label">Client</div><input class="qc-input" id="qcClient" placeholder="Nom du client"></div>
+    <div class="qc-row qc-row-2"><div><div class="qc-label">Date</div><input class="qc-input" type="date" id="qcDate"></div><div><div class="qc-label">Heure</div><input class="qc-input" type="time" id="qcTime" value="09:00"></div></div>
+    <div class="qc-row"><div class="qc-label">Prestation</div><select class="qc-input" id="qcService"><option>Consultation initiale (60 min)</option><option>Déclaration fiscale (45 min)</option><option>Suivi trimestriel (30 min)</option></select></div>
+    <div class="qc-row"><div class="qc-label">Praticien</div><select class="qc-input" id="qcPrac"><option value="p1">Pierre De Wit</option><option value="p2">Sophie Vermeer</option></select></div>
+    <div class="qc-row"><div class="qc-label">Note interne</div><input class="qc-input" id="qcNote" placeholder="Préparer le dossier fiscal..."></div>
+    <div class="qc-row"><div class="qc-label">Couleur</div><div class="color-dots"><div class="color-dot" style="background:#E07A5F" onclick="selectColor(this,'#E07A5F')"></div><div class="color-dot" style="background:#3B82F6" onclick="selectColor(this,'#3B82F6')"></div><div class="color-dot" style="background:#3A9E5C" onclick="selectColor(this,'#3A9E5C')"></div><div class="color-dot" style="background:#D97706" onclick="selectColor(this,'#D97706')"></div><div class="color-dot" style="background:#8B5CF6" onclick="selectColor(this,'#8B5CF6')"></div><div class="color-dot" style="background:#EC4899" onclick="selectColor(this,'#EC4899')"></div></div></div>
+    <div class="qc-actions"><button class="cal-btn" onclick="closeModal('createModal')">Annuler</button><button class="cal-btn primary" onclick="createBooking()">Créer le RDV</button></div>
+  </div>
+</div></div>
+
+<script>
+const practitioners=[{id:'p1',name:'Pierre De Wit',color:'#E07A5F'},{id:'p2',name:'Sophie Vermeer',color:'#3B82F6'}];
+const today=new Date(),td=d=>{const r=new Date(today);r.setDate(r.getDate()+d);return r.toISOString().split('T')[0]};
+
+let mockEvents=[
+  {id:'1',title:'Marc Henrard',start:td(0)+'T09:00',end:td(0)+'T10:00',extendedProps:{client:'Marc Henrard',service:'Consultation initiale',practitioner_id:'p1',status:'confirmed',phone:'+32 470 123 456',email:'marc@techflow.be',internal_note:'Préparer dossier SRL',booking_color:null},backgroundColor:'#E07A5F',borderColor:'#E07A5F'},
+  {id:'2',title:'Claire Mertens',start:td(0)+'T10:30',end:td(0)+'T11:15',extendedProps:{client:'Claire Mertens',service:'Déclaration TVA',practitioner_id:'p2',status:'confirmed',phone:'+32 485 987 654',email:'claire@archi.be',internal_note:'',booking_color:null},backgroundColor:'#3B82F6',borderColor:'#3B82F6'},
+  {id:'3',title:'Karim Ouhadi',start:td(0)+'T14:00',end:td(0)+'T15:00',extendedProps:{client:'Karim Ouhadi',service:'Suivi trimestriel',practitioner_id:'p1',status:'pending',phone:'+32 496 111 222',email:'karim@consult.be',internal_note:'',booking_color:null},backgroundColor:'#E07A5F',borderColor:'#E07A5F'},
+  {id:'4',title:'Nathalie Bodart',start:td(1)+'T09:00',end:td(1)+'T09:45',extendedProps:{client:'Nathalie Bodart',service:'Bilan annuel',practitioner_id:'p2',status:'modified_pending',phone:'+32 2 345 67 89',email:'nat@nbconsulting.be',internal_note:'Rappeler factures impayées',booking_color:'#8B5CF6',original_start:td(1)+'T10:00',original_end:td(1)+'T11:00'},backgroundColor:'#8B5CF6',borderColor:'#8B5CF6'},
+  {id:'5',title:'Jean Dupont',start:td(-1)+'T11:00',end:td(-1)+'T12:00',extendedProps:{client:'Jean Dupont',service:'Consultation initiale',practitioner_id:'p1',status:'completed',phone:'+32 470 555 666',email:'jean@dupont.be',internal_note:'',booking_color:null},backgroundColor:'#E07A5F',borderColor:'#E07A5F'},
+  {id:'6',title:'Sara Janssen',start:td(2)+'T10:00',end:td(2)+'T11:00',extendedProps:{client:'Sara Janssen',service:'Création entreprise',practitioner_id:'p1',status:'confirmed',phone:'+32 489 333 444',email:'sara@janssen.be',internal_note:'Vérifier statuts SRL',booking_color:null},backgroundColor:'#E07A5F',borderColor:'#E07A5F'},
+  {id:'7',title:'Thomas Peeters',start:td(2)+'T14:30',end:td(2)+'T15:15',extendedProps:{client:'Thomas Peeters',service:'Déclaration IPP',practitioner_id:'p2',status:'pending',phone:'+32 477 222 888',email:'thomas@peeters.be',internal_note:'',booking_color:null},backgroundColor:'#3B82F6',borderColor:'#3B82F6'}
+];
+let mockNotes={'1':[{id:'n1',content:'Client fidèle depuis 2019. Toujours ponctuel.',is_pinned:true,author_email:'pierre@dewit.be',created_at:'2026-02-24T10:00:00Z'}]};
+let mockTodos={'1':[{id:'t1',content:'Préparer dossier fiscal 2025',is_done:false},{id:'t2',content:'Demander relevé bancaire à Sophie',is_done:true}]};
+let mockReminders={'1':[{id:'r1',offset_minutes:30,channel:'browser',is_sent:false}]};
+
+let calendar,currentFilter='all',currentEventId=null,selectedColor=null,editOriginal={},selectedNotifyChannel=null;
+
+document.addEventListener('DOMContentLoaded',()=>{
+  calendar=new FullCalendar.Calendar(document.getElementById('calendar'),{
+    locale:'fr',initialView:'timeGridWeek',
+    headerToolbar:{left:'prev,today,next',center:'title',right:'timeGridDay,timeGridWeek,dayGridMonth'},
+    buttonText:{today:"Aujourd'hui",day:'Jour',week:'Semaine',month:'Mois'},
+    slotMinTime:'07:00:00',slotMaxTime:'20:00:00',slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
+    allDaySlot:false,nowIndicator:true,navLinks:true,height:'auto',expandRows:true,stickyHeaderDates:true,firstDay:1,
+    editable:true,eventDurationEditable:true,eventStartEditable:true,snapDuration:'00:15:00',
+    selectable:true,selectMirror:true,events:mockEvents,
+    eventContent:function(arg){
+      const p=arg.event.extendedProps,ht=(mockTodos[arg.event.id]||[]).some(t=>!t.is_done);
+      const bd=[p.internal_note?'<span class="ev-badge ev-badge-note"></span>':'',ht?'<span class="ev-badge ev-badge-todo"></span>':'',p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':''].filter(Boolean).join('');
+      return{html:`<div class="ev-inner"><span class="ev-client">${p.client||arg.event.title}</span><span class="ev-service">${p.service||''}</span>${bd?'<div class="ev-badges">'+bd+'</div>':''}</div>`};
+    },
+    eventClassNames:arg=>['ev-'+(arg.event.extendedProps.status||'confirmed')],
+    eventClick:info=>openDetail(info.event),
+    select:info=>{openQuickCreate(info.startStr);calendar.unselect()},
+    eventDrop:info=>{showToast(info.event.extendedProps.client+' déplacé','success')},
+    eventResize:info=>{const d=Math.round((info.event.end-info.event.start)/60000);showToast('Durée → '+d+' min','success')}
+  });
+  calendar.render();
+});
+
+function showToast(m,t=''){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+t;setTimeout(()=>e.className='toast',3000)}
+function filterPractitioner(id,el){currentFilter=id;document.querySelectorAll('.prac-pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');calendar.getEvents().forEach(ev=>ev.setProp('display',(id==='all'||ev.extendedProps.practitioner_id===id)?'auto':'none'))}
+
+function openDetail(event){
+  currentEventId=event.id;const p=event.extendedProps,s=new Date(event.start),e=event.end?new Date(event.end):null;
+  document.getElementById('modalTitle').textContent=p.client||event.title;
+  const prac=practitioners.find(pr=>pr.id===p.practitioner_id);
+  const sl={pending:'En attente',confirmed:'Confirmé',completed:'Terminé',cancelled:'Annulé',no_show:'No-show',modified_pending:'Modifié · en attente'};
+  let ih=`<div class="info-item"><div class="info-label">Client</div><div class="info-value">${p.client}</div></div>
+    <div class="info-item"><div class="info-label">Statut</div><div class="info-value"><span class="status-badge st-${p.status}">${sl[p.status]||p.status}</span></div></div>
+    <div class="info-item"><div class="info-label">Prestation</div><div class="info-value">${p.service}</div></div>
+    <div class="info-item"><div class="info-label">Praticien</div><div class="info-value"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${prac?.color};margin-right:4px"></span>${prac?.name||'—'}</div></div>
+    <div class="info-item"><div class="info-label">Date</div><div class="info-value">${s.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}</div></div>
+    <div class="info-item"><div class="info-label">Horaire</div><div class="info-value">${s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}${e?' – '+e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):''}</div></div>
+    <div class="info-item"><div class="info-label">Téléphone</div><div class="info-value"><a href="tel:${p.phone}">${p.phone||'—'}</a></div></div>
+    <div class="info-item"><div class="info-label">Email</div><div class="info-value"><a href="mailto:${p.email}">${p.email||'—'}</a></div></div>`;
+  if(p.status==='modified_pending'&&p.original_start){
+    const os=new Date(p.original_start),oe=new Date(p.original_end);
+    ih+=`<div class="info-item" style="grid-column:1/-1"><div class="info-label">Modification</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px"><span class="diff diff-old">${os.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} – ${oe.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</span><span class="diff-arrow">→</span><span class="diff diff-new">${s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} – ${e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</span></div></div>`;
+  }
+  document.getElementById('infoGrid').innerHTML=ih;
+  document.getElementById('intNoteInput').value=p.internal_note||'';
+  const a=[];
+  if(p.status==='pending')a.push('<button class="st-btn green" onclick="setStatus(\'confirmed\')">✓ Confirmer</button>');
+  if(p.status==='confirmed')a.push('<button class="st-btn green" onclick="setStatus(\'completed\')">✓ Terminé</button>');
+  if(p.status==='modified_pending')a.push('<button class="st-btn green" onclick="setStatus(\'confirmed\')">✓ Forcer confirmation</button>');
+  if(!['cancelled','completed'].includes(p.status)){a.push('<button class="st-btn red" onclick="setStatus(\'no_show\')">✗ No-show</button>');a.push('<button class="st-btn red" onclick="setStatus(\'cancelled\')">Annuler</button>')}
+  if(['completed','cancelled'].includes(p.status))a.push('<button class="st-btn" onclick="setStatus(\'confirmed\')">↩ Rétablir</button>');
+  document.getElementById('statusActions').innerHTML=a.join('');
+
+  // Edit tab
+  const ds=s.toISOString().split('T')[0],st=s.toTimeString().slice(0,5),et=e?e.toTimeString().slice(0,5):'';
+  document.getElementById('editDate').value=ds;document.getElementById('editStart').value=st;document.getElementById('editEnd').value=et;
+  editOriginal={date:ds,start:st,end:et};
+  const dm=e?Math.round((e-s)/60000):0;
+  document.querySelectorAll('.dur-chip').forEach(c=>c.classList.toggle('active',parseInt(c.dataset.min)===dm));
+  document.getElementById('editDiff').style.display='none';
+  document.getElementById('notifyPanel').style.display='none';selectedNotifyChannel=null;
+  ['editDate','editStart','editEnd'].forEach(id=>document.getElementById(id).onchange=updateEditDiff);
+
+  renderNotes();renderTodos();renderReminders();
+  switchTab(document.querySelector('.modal-tab[data-tab="info"]'),'info');
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function setDuration(min,el){document.querySelectorAll('.dur-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');const sv=document.getElementById('editStart').value;if(!sv)return;const[h,m]=sv.split(':').map(Number),em=h*60+m+min;document.getElementById('editEnd').value=String(Math.floor(em/60)).padStart(2,'0')+':'+String(em%60).padStart(2,'0');updateEditDiff()}
+function timeDiffMin(s,e){const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);return(eh*60+em)-(sh*60+sm)}
+function updateEditDiff(){
+  const nd=document.getElementById('editDate').value,ns=document.getElementById('editStart').value,ne=document.getElementById('editEnd').value,d=document.getElementById('editDiff');
+  const ch=nd!==editOriginal.date||ns!==editOriginal.start||ne!==editOriginal.end;
+  if(!ch){d.style.display='none';return}
+  let p=[];
+  if(nd!==editOriginal.date)p.push(`Date: ${editOriginal.date} → ${nd}`);
+  if(ns!==editOriginal.start||ne!==editOriginal.end)p.push(`Horaire: ${editOriginal.start}–${editOriginal.end} → ${ns}–${ne}`);
+  const od=timeDiffMin(editOriginal.start,editOriginal.end),nw=timeDiffMin(ns,ne);
+  if(od!==nw)p.push(`Durée: ${od} min → ${nw} min`);
+  d.innerHTML=p.map(x=>{const[l,v]=x.split(': '),vs=v.split(' → ');return`<div style="margin-bottom:4px"><span style="font-size:.72rem;font-weight:600;color:var(--text-3)">${l}:</span> <span class="diff diff-old">${vs[0]}</span> <span class="diff-arrow">→</span> <span class="diff diff-new">${vs[1]}</span></div>`}).join('');
+  d.style.display='block';
+}
+
+function saveTimeChange(){
+  const nd=document.getElementById('editDate').value,ns=document.getElementById('editStart').value,ne=document.getElementById('editEnd').value;
+  if(!nd||!ns||!ne)return;if(timeDiffMin(ns,ne)<=0){showToast("Fin doit être après début","warning");return}
+  const ch=nd!==editOriginal.date||ns!==editOriginal.start||ne!==editOriginal.end;
+  if(!ch){showToast('Aucun changement','');return}
+  const ev=calendar.getEventById(currentEventId);
+  if(ev){ev.setExtendedProp('original_start',ev.start.toISOString());ev.setExtendedProp('original_end',ev.end?.toISOString());ev.setStart(nd+'T'+ns);ev.setEnd(nd+'T'+ne);editOriginal={date:nd,start:ns,end:ne};document.getElementById('editDiff').style.display='none';showToast('Horaire mis à jour','success');document.getElementById('notifyPanel').style.display='block';document.getElementById('notifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});selectedNotifyChannel=null;document.querySelectorAll('.notify-opt').forEach(o=>o.classList.remove('selected'));document.getElementById('sendNotifyBtn').style.display='none'}
+}
+
+function selectNotify(ch,el){selectedNotifyChannel=ch;document.querySelectorAll('.notify-opt').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');document.getElementById('sendNotifyBtn').style.display=ch==='none'?'none':'inline-flex'}
+function sendNotification(){
+  if(!selectedNotifyChannel||selectedNotifyChannel==='none')return;
+  const ev=calendar.getEventById(currentEventId);if(ev){ev.setExtendedProp('status','modified_pending');calendar.render()}
+  const ch={email:'Email envoyé',sms:'SMS envoyé',both:'Email + SMS envoyés'};
+  showToast(ch[selectedNotifyChannel]+' au client','success');
+  closeNotifyPanel();if(ev)openDetail(ev);
+}
+function closeNotifyPanel(){document.getElementById('notifyPanel').style.display='none'}
+
+function setStatus(st){const ev=calendar.getEventById(currentEventId);if(ev){ev.setExtendedProp('status',st);openDetail(ev);const l={confirmed:'confirmé',completed:'terminé',cancelled:'annulé',no_show:'no-show',pending:'en attente'};showToast('RDV '+l[st]||st,['confirmed','completed'].includes(st)?'success':'warning')}}
+
+function closeModal(id){document.getElementById(id).classList.remove('open');if(id==='detailModal'&&currentEventId){const n=document.getElementById('intNoteInput').value,ev=calendar.getEventById(currentEventId);if(ev)ev.setExtendedProp('internal_note',n)}}
+function switchTab(el,tab){document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));el.classList.add('active');document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1)).classList.add('active')}
+
+// Notes
+function renderNotes(){const n=mockNotes[currentEventId]||[],el=document.getElementById('noteList');if(!n.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📝</div>Aucune note</div>';return}el.innerHTML=n.map(x=>`<div class="note-card ${x.is_pinned?'pinned':''}"><div class="note-content">${x.content}</div><div class="note-meta">${x.author_email||'Vous'} · ${new Date(x.created_at).toLocaleDateString('fr-BE')}${x.is_pinned?' · 📌':''}</div><button class="note-delete" onclick="deleteNote('${x.id}')">✕</button></div>`).join('')}
+function addNote(){const c=document.getElementById('newNoteInput').value.trim();if(!c)return;const p=document.getElementById('notePinned').checked;if(!mockNotes[currentEventId])mockNotes[currentEventId]=[];mockNotes[currentEventId].unshift({id:'n'+Date.now(),content:c,is_pinned:p,author_email:'vous',created_at:new Date().toISOString()});document.getElementById('newNoteInput').value='';document.getElementById('notePinned').checked=false;renderNotes();showToast('Note ajoutée','success')}
+function deleteNote(id){mockNotes[currentEventId]=(mockNotes[currentEventId]||[]).filter(n=>n.id!==id);renderNotes()}
+
+// Todos
+function renderTodos(){const t=mockTodos[currentEventId]||[],el=document.getElementById('todoList');if(!t.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">☑️</div>Aucune tâche</div>';return}el.innerHTML=t.map(x=>`<div class="todo-item ${x.is_done?'done':''}"><div class="todo-check" onclick="toggleTodo('${x.id}')">${x.is_done?'✓':''}</div><span class="todo-text">${x.content}</span><button class="todo-delete" onclick="deleteTodo('${x.id}')">✕</button></div>`).join('')}
+function addTodo(){const c=document.getElementById('newTodoInput').value.trim();if(!c)return;if(!mockTodos[currentEventId])mockTodos[currentEventId]=[];mockTodos[currentEventId].push({id:'t'+Date.now(),content:c,is_done:false});document.getElementById('newTodoInput').value='';renderTodos();showToast('Tâche ajoutée','success')}
+function toggleTodo(id){const t=(mockTodos[currentEventId]||[]).find(x=>x.id===id);if(t)t.is_done=!t.is_done;renderTodos()}
+function deleteTodo(id){mockTodos[currentEventId]=(mockTodos[currentEventId]||[]).filter(t=>t.id!==id);renderTodos()}
+
+// Reminders
+function renderReminders(){const r=mockReminders[currentEventId]||[],el=document.getElementById('reminderList');if(!r.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">🔔</div>Aucun rappel</div>';return}const l={15:'15 min',30:'30 min',60:'1h',120:'2h',1440:'Veille'},ch={browser:'🖥 Notif',email:'✉️ Email',both:'🖥+✉️'};el.innerHTML=r.map(x=>`<div class="reminder-card"><div class="reminder-icon">🔔</div><div class="reminder-info"><div class="ri-time">${l[x.offset_minutes]||x.offset_minutes+' min'} avant</div><div class="ri-channel">${ch[x.channel]||x.channel}${x.is_sent?' · ✓':''}</div></div><button class="reminder-delete" onclick="deleteReminder('${x.id}')">✕</button></div>`).join('')}
+function addReminder(){const o=parseInt(document.getElementById('reminderOffset').value),c=document.getElementById('reminderChannel').value;if(!mockReminders[currentEventId])mockReminders[currentEventId]=[];mockReminders[currentEventId].push({id:'r'+Date.now(),offset_minutes:o,channel:c,is_sent:false});renderReminders();showToast('Rappel ajouté','success')}
+function deleteReminder(id){mockReminders[currentEventId]=(mockReminders[currentEventId]||[]).filter(r=>r.id!==id);renderReminders()}
+
+// Quick create
+function openQuickCreate(start){if(start){const d=new Date(start);document.getElementById('qcDate').value=d.toISOString().split('T')[0];document.getElementById('qcTime').value=d.toTimeString().slice(0,5)}else{document.getElementById('qcDate').value=new Date().toISOString().split('T')[0];document.getElementById('qcTime').value='09:00'}document.getElementById('qcClient').value='';document.getElementById('qcNote').value='';selectedColor=null;document.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('active'));document.getElementById('createModal').classList.add('open')}
+function selectColor(el,c){document.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('active'));el.classList.add('active');selectedColor=c}
+function createBooking(){const cl=document.getElementById('qcClient').value.trim();if(!cl)return;const dt=document.getElementById('qcDate').value,tm=document.getElementById('qcTime').value,pr=document.getElementById('qcPrac').value,pd=practitioners.find(p=>p.id===pr),co=selectedColor||pd?.color||'#E07A5F',st=new Date(dt+'T'+tm),en=new Date(st.getTime()+60*60000);calendar.addEvent({id:'new-'+Date.now(),title:cl,start:st.toISOString(),end:en.toISOString(),backgroundColor:co,borderColor:co,extendedProps:{client:cl,service:document.getElementById('qcService').value,practitioner_id:pr,status:'confirmed',phone:'',email:'',internal_note:document.getElementById('qcNote').value.trim(),booking_color:co}});closeModal('createModal');showToast('RDV créé','success')}
+
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeModal(o.id)}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(m=>closeModal(m.id))});
+</script>
+</body>
+</html>

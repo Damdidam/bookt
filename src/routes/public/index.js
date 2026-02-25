@@ -493,6 +493,43 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/public/booking/:token/confirm
+// Client confirms a modified booking (modified_pending → confirmed)
+// UI: /booking/:token page → "Ça me convient" button
+// ============================================================
+router.post('/booking/:token/confirm', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `UPDATE bookings SET status = 'confirmed', updated_at = NOW()
+       WHERE public_token = $1 AND status = 'modified_pending'
+       RETURNING id, status, start_at, end_at, business_id`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      // Maybe it's already confirmed or doesn't exist
+      const check = await query(
+        `SELECT status FROM bookings WHERE public_token = $1`, [token]
+      );
+      if (check.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+      if (check.rows[0].status === 'confirmed') return res.json({ confirmed: true, already: true });
+      return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être confirmé dans son état actuel' });
+    }
+
+    // Queue notification to practitioner
+    await query(
+      `INSERT INTO notifications (business_id, booking_id, type, status)
+       VALUES ($1, $2, 'email_modification_confirmed', 'queued')`,
+      [result.rows[0].business_id, result.rows[0].id]
+    );
+
+    res.json({ confirmed: true, booking: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // PRE-RDV DOCUMENTS — PUBLIC ACCESS
 // ============================================================
 
