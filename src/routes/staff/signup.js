@@ -79,13 +79,15 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
       // 1. Create business
       const bizResult = await client.query(
-        `INSERT INTO businesses (slug, name, phone, email, address, language_default, plan,
+        `INSERT INTO businesses (slug, name, phone, email, address, language_default, plan, sector,
           tagline, settings, page_sections, theme)
-         VALUES ($1, $2, $3, $4, $5, $6, 'free', $7, $8::jsonb, $9::jsonb, $10::jsonb)
+         VALUES ($1, $2, $3, $4, $5, $6, 'free', $7, $8, $9::jsonb, $10::jsonb, $11::jsonb)
          RETURNING id, slug`,
         [
           slug, business_name, business_phone || null, email, business_address || null,
           language || 'fr',
+          // Sector
+          sector || 'autre',
           // Auto tagline
           getSectorTagline(sector, business_name, language || 'fr'),
           // Default settings

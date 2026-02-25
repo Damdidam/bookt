@@ -13,7 +13,7 @@ router.get('/', async (req, res, next) => {
     const bid = req.businessId;
     const result = await queryWithRLS(bid,
       `SELECT p.*,
-        u.email AS user_email, u.last_login_at, u.is_active AS user_active,
+        u.email AS user_email, u.role AS user_role, u.last_login_at, u.is_active AS user_active,
         COUNT(DISTINCT ps.service_id) AS service_count,
         COUNT(DISTINCT bk.id) FILTER (WHERE bk.status IN ('confirmed','completed') AND bk.start_at >= NOW() - INTERVAL '30 days') AS bookings_30d
        FROM practitioners p
@@ -112,9 +112,13 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     if (!email) return res.status(400).json({ error: 'Email requis' });
+
+    // Validate role
+    const validRoles = ['manager', 'practitioner', 'receptionist'];
+    const userRole = validRoles.includes(role) ? role : 'practitioner';
 
     // Check practitioner exists
     const pract = await queryWithRLS(bid,
@@ -135,9 +139,9 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
     const hash = password ? await bcrypt.hash(password, 12) : null;
     const userResult = await query(
       `INSERT INTO users (business_id, email, password_hash, role)
-       VALUES ($1, $2, $3, 'staff')
+       VALUES ($1, $2, $3, $4)
        RETURNING id, email, role`,
-      [bid, email.toLowerCase().trim(), hash]
+      [bid, email.toLowerCase().trim(), hash, userRole]
     );
     const userId = userResult.rows[0].id;
 

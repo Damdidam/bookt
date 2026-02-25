@@ -396,8 +396,56 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 const api=new BooktAPI();
 if(!api.isLoggedIn())window.location.href='/login.html';
 const user=api.getUser(),biz=api.getBusiness();
+
+// ===== RBAC CONFIG =====
+const ROLE_ACCESS={
+  owner:['home','bookings','clients','services','hours','team','site','calls','invoices','documents','analytics','settings'],
+  manager:['home','bookings','clients','services','hours','documents','analytics'],
+  receptionist:['home','bookings','clients'],
+  practitioner:['home','bookings','clients']
+};
+
+const SECTOR_LABELS={
+  coiffeur:{owner:'Gérant·e',practitioner:'Coiffeur·se',manager:'Responsable salon',receptionist:'Réceptionniste'},
+  esthetique:{owner:'Gérant·e',practitioner:'Esthéticien·ne',manager:'Responsable',receptionist:'Réceptionniste'},
+  bien_etre:{owner:'Gérant·e',practitioner:'Praticien·ne',manager:'Responsable',receptionist:'Réceptionniste'},
+  osteopathe:{owner:'Gérant·e',practitioner:'Ostéopathe',manager:'Responsable',receptionist:'Secrétaire'},
+  veterinaire:{owner:'Gérant·e',practitioner:'Vétérinaire',manager:'Responsable',receptionist:'Secrétaire'},
+  photographe:{owner:'Gérant·e',practitioner:'Photographe',manager:'Responsable',receptionist:'Assistant·e'},
+  medecin:{owner:'Gérant·e',practitioner:'Médecin',manager:'Responsable',receptionist:'Secrétaire médicale'},
+  dentiste:{owner:'Gérant·e',practitioner:'Dentiste',manager:'Responsable',receptionist:'Secrétaire'},
+  kine:{owner:'Gérant·e',practitioner:'Kinésithérapeute',manager:'Responsable',receptionist:'Secrétaire'},
+  comptable:{owner:'Gérant·e',practitioner:'Collaborateur·rice',manager:'Office Manager',receptionist:'Secrétaire'},
+  avocat:{owner:'Associé·e gérant·e',practitioner:'Avocat·e',manager:'Office Manager',receptionist:'Secrétaire juridique'},
+  autre:{owner:'Gérant·e',practitioner:'Membre',manager:'Responsable',receptionist:'Réceptionniste'}
+};
+
+const userRole=user?.role||'owner';
+const userSector=biz?.sector||'autre';
+const sectorLabels=SECTOR_LABELS[userSector]||SECTOR_LABELS.autre;
+const allowedSections=ROLE_ACCESS[userRole]||ROLE_ACCESS.owner;
+
+// Display user info in sidebar
 document.getElementById('userName').textContent=user?.business_name||user?.email||'—';
-document.getElementById('userRole').textContent=user?.role==='owner'?'Propriétaire':'Staff';
+document.getElementById('userRole').textContent=sectorLabels[userRole]||userRole;
+
+// Hide sidebar items not allowed for this role
+document.querySelectorAll('.ni[data-section]').forEach(item=>{
+  const section=item.dataset.section;
+  if(!allowedSections.includes(section)){
+    item.style.display='none';
+  }
+});
+// Hide empty sidebar groups (if all children are hidden)
+document.querySelectorAll('.sb-label').forEach(label=>{
+  let next=label.nextElementSibling;
+  let hasVisible=false;
+  while(next&&!next.classList.contains('sb-label')){
+    if(next.classList.contains('ni')&&next.style.display!=='none')hasVisible=true;
+    next=next.nextElementSibling;
+  }
+  if(!hasVisible)label.style.display='none';
+});
 document.getElementById('todayDate').textContent=new Date().toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
 if(biz)document.getElementById('planBadge').textContent=(biz.plan||'free').toUpperCase();
 if(new URLSearchParams(location.search).get('onboarding'))BooktUI.toast('🎉 Bienvenue !','success',5000);
@@ -1244,7 +1292,7 @@ async function loadTeam(){
           <div class="tm-badges">
             <span class="tm-badge ${p.is_active?'active':'inactive'}">${p.is_active?'Actif':'Inactif'}</span>
             <span class="tm-badge ${p.booking_enabled?'booking':'no-booking'}">${p.booking_enabled?'Réservable':'Non réservable'}</span>
-            ${hasLogin?'<span class="tm-badge has-login">Compte lié</span>':''}
+            ${hasLogin?`<span class="tm-badge has-login">${sectorLabels[p.user_role]||p.user_role||'Compte lié'}</span>`:''}
           </div>
           <div class="tm-actions">
             <button class="btn-outline btn-sm" onclick="openPractModal('${p.id}')">✏️ Modifier</button>
@@ -1306,10 +1354,16 @@ async function reactivatePract(id){
 }
 
 function openInviteModal(practId,name){
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:420px"><div class="modal-h"><h3>Créer un accès — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
-    <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte staff pour que <strong>${name}</strong> puisse se connecter au dashboard et gérer son agenda.</p>
+  const sl=SECTOR_LABELS[userSector]||SECTOR_LABELS.autre;
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:440px"><div class="modal-h"><h3>Créer un accès — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
+    <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
     <div class="field"><label>Email *</label><input id="inv_email" type="email" placeholder="email@exemple.com"></div>
-    <div class="field"><label>Mot de passe temporaire *</label><input id="inv_pwd" type="text" value="${generateTempPwd()}" style="font-family:monospace"><div class="hint">Communiquez ce mot de passe au praticien. Il pourra le changer dans ses paramètres.</div></div>
+    <div class="field"><label>Mot de passe temporaire *</label><input id="inv_pwd" type="text" value="${generateTempPwd()}" style="font-family:monospace"><div class="hint">Communiquez ce mot de passe. Il pourra être changé plus tard.</div></div>
+    <div class="field"><label>Rôle *</label><select id="inv_role" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem">
+      <option value="practitioner">${sl.practitioner} — Voit uniquement son propre agenda et ses clients</option>
+      <option value="receptionist">${sl.receptionist} — Voit l'agenda de tous, gère les RDV et clients</option>
+      <option value="manager">${sl.manager} — Agenda de tous, clients, documents, statistiques</option>
+    </select></div>
   </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="sendInvite('${practId}')">Créer le compte</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
 }
@@ -1319,12 +1373,13 @@ function generateTempPwd(){const chars='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrst
 async function sendInvite(practId){
   const email=document.getElementById('inv_email').value;
   const password=document.getElementById('inv_pwd').value;
+  const role=document.getElementById('inv_role').value;
   if(!email||!password)return BooktUI.toast('Email et mot de passe requis','error');
   try{
-    const r=await fetch(`/api/practitioners/${practId}/invite`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({email,password})});
+    const r=await fetch(`/api/practitioners/${practId}/invite`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({email,password,role})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.querySelector('.modal-overlay')?.remove();
-    BooktUI.toast('Compte créé ! Communiquez les identifiants au praticien.','success');loadTeam();
+    BooktUI.toast('Compte créé ! Communiquez les identifiants.','success');loadTeam();
   }catch(e){BooktUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -1378,7 +1433,7 @@ async function loadSettings(){
 
     // 4. Sécurité
     h+=`<div class="settings-card"><div class="sc-h"><h3>🔒 Sécurité</h3></div><div class="sc-body">
-      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${u.email}</strong> · Rôle : ${u.role==='owner'?'Propriétaire':'Staff'}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${u.email}</strong> · Rôle : ${sectorLabels[u.role]||u.role}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
       <div class="field"><label>Mot de passe actuel</label><input id="s_pwd_current" type="password"></div>
       <div class="field-row"><div class="field"><label>Nouveau mot de passe</label><input id="s_pwd_new" type="password" placeholder="Min. 8 caractères"></div><div class="field"><label>Confirmer</label><input id="s_pwd_confirm" type="password"></div></div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="changePassword()">Changer le mot de passe</button></div></div>`;

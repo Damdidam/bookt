@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
+router.use(resolvePractitionerScope);
 
 // ============================================================
 // GET /api/bookings
@@ -13,6 +14,9 @@ router.get('/', async (req, res, next) => {
   try {
     const { from, to, status, practitioner_id } = req.query;
     const bid = req.businessId;
+
+    // Force practitioner scope: practitioners only see their own bookings
+    const effectivePractitionerId = req.practitionerFilter || practitioner_id;
 
     let sql = `
       SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
@@ -44,9 +48,9 @@ router.get('/', async (req, res, next) => {
       params.push(status);
       idx++;
     }
-    if (practitioner_id) {
+    if (effectivePractitionerId) {
       sql += ` AND b.practitioner_id = $${idx}`;
-      params.push(practitioner_id);
+      params.push(effectivePractitionerId);
       idx++;
     }
 

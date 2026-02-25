@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, requireRole, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
+router.use(resolvePractitionerScope);
 
 // GET /api/clients — list clients with search + stats
 // UI: Dashboard > Clients table
@@ -22,6 +23,13 @@ router.get('/', async (req, res, next) => {
 
     const params = [bid];
     let idx = 2;
+
+    // Practitioner scope: only show clients who have bookings with this practitioner
+    if (req.practitionerFilter) {
+      sql += ` AND c.id IN (SELECT DISTINCT client_id FROM bookings WHERE practitioner_id = $${idx} AND business_id = $1)`;
+      params.push(req.practitionerFilter);
+      idx++;
+    }
 
     if (search) {
       sql += ` AND (c.full_name ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.email ILIKE $${idx})`;
@@ -142,7 +150,7 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/block — block client from online booking
 // ============================================================
-router.post('/:id/block', async (req, res, next) => {
+router.post('/:id/block', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { reason } = req.body;
@@ -166,7 +174,7 @@ router.post('/:id/block', async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/unblock — unblock client
 // ============================================================
-router.post('/:id/unblock', async (req, res, next) => {
+router.post('/:id/unblock', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
 
@@ -189,7 +197,7 @@ router.post('/:id/unblock', async (req, res, next) => {
 // ============================================================
 // POST /api/clients/:id/reset-noshow — reset no-show counter
 // ============================================================
-router.post('/:id/reset-noshow', async (req, res, next) => {
+router.post('/:id/reset-noshow', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
 
