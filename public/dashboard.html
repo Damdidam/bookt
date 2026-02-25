@@ -873,7 +873,6 @@ async function loadAgenda(){
         gToast((p.client_name||'RDV')+' déplacé','success');
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
     },
-    },
 
     // Resize → update duration
     eventResize:async function(info){
