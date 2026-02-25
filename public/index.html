@@ -12,39 +12,39 @@
 
 :root {
   --bg: #FAFAF8;
-  --dark: #0C0C0B;
-  --dark-2: #161614;
-  --dark-3: #1E1E1C;
   --white: #FFFFFF;
-  --surface: #F3F2EE;
-  --surface-2: #E8E6E0;
-  --border: #DBD8D0;
+  --surface: #F5F3EF;
+  --surface-2: #EDEAE4;
+  --surface-warm: #FBF8F5;
+  --border: #DDD9D1;
   --border-light: #ECEAE4;
-  --text: #1A1816;
-  --text-2: #3D3832;
-  --text-3: #6B6560;
-  --text-4: #9C958E;
-  --text-inv: rgba(255,255,255,0.85);
-  --text-inv-2: rgba(255,255,255,0.55);
-  --text-inv-3: rgba(255,255,255,0.35);
+  --text: #2C2824;
+  --text-2: #4A4440;
+  --text-3: #7A7470;
+  --text-4: #A09A94;
   --coral: #E07A5F;
   --coral-dark: #C9684F;
   --coral-light: #FDF0EC;
-  --coral-glow: rgba(224,122,95,0.25);
+  --coral-lighter: #FEF7F5;
+  --coral-glow: rgba(224,122,95,0.2);
+  --coral-border: #F2C4B5;
   --gold: #C9A84C;
   --gold-bg: #FBF7ED;
   --gold-border: #E8DCBA;
-  --green: #22A352;
+  --green: #3A9E5C;
   --green-bg: #EEFAF1;
-  --red: #E04040;
+  --green-border: #B8E6C8;
+  --red: #DC4444;
   --red-bg: #FEF1F1;
+  --red-border: #F5C4C4;
   --serif: 'DM Serif Display', Georgia, serif;
   --sans: 'Outfit', -apple-system, sans-serif;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
   --shadow: 0 4px 16px rgba(0,0,0,0.06);
   --shadow-md: 0 8px 32px rgba(0,0,0,0.08);
-  --shadow-lg: 0 20px 60px rgba(0,0,0,0.12);
-  --shadow-glow: 0 0 60px rgba(224,122,95,0.15);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.1);
+  --shadow-glow: 0 8px 40px rgba(224,122,95,0.18);
   --radius: 16px;
   --radius-sm: 10px;
   --radius-xs: 6px;
@@ -54,104 +54,105 @@
 html { scroll-behavior: smooth; }
 body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 
-/* ===== ANIMATIONS ===== */
-@keyframes fadeUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+.icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.icon svg { width: 100%; height: 100%; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(36px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-8px) rotate(0.5deg); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes grain { 0%, 100% { transform: translate(0,0); } 10% { transform: translate(-5%,-10%); } 30% { transform: translate(3%,-15%); } 50% { transform: translate(12%,9%); } 70% { transform: translate(9%,4%); } 90% { transform: translate(-1%,7%); } }
 
 .rv { opacity: 0; transform: translateY(36px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
 .rv.vis { opacity: 1; transform: translateY(0); }
 .d1 { transition-delay: 0.08s; } .d2 { transition-delay: 0.16s; } .d3 { transition-delay: 0.24s; } .d4 { transition-delay: 0.32s; }
 
-/* ===== NAV ===== */
-.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; padding: 0 24px; transition: all 0.4s; }
-.nav.scrolled { background: rgba(250,250,248,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border-light); }
-.nav-inner { max-width: var(--max-w); margin: 0 auto; height: 64px; display: flex; align-items: center; justify-content: space-between; }
-
+/* NAV */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: rgba(250,250,248,0.95); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-light); }
+.nav.scrolled { box-shadow: var(--shadow-xs); }
+.nav-inner { max-width: var(--max-w); margin: 0 auto; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
 .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.nav-logo { width: 36px; height: 36px; border-radius: 10px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.05rem; font-weight: 400; letter-spacing: -0.02em; transition: transform 0.2s; }
+.nav-logo { width: 36px; height: 36px; border-radius: 10px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.05rem; transition: transform 0.2s; }
 .nav-brand:hover .nav-logo { transform: scale(1.05); }
-.nav-wm { font-family: var(--serif); font-size: 1.25rem; color: var(--text); transition: color 0.3s; }
-.nav.hero-mode .nav-wm { color: white; }
-
-.nav-right { display: flex; align-items: center; gap: 6px; }
-.nav-link { padding: 7px 16px; font-size: 0.82rem; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 8px; transition: all 0.15s; }
-.nav-link:hover { color: var(--text); background: rgba(0,0,0,0.04); }
-.nav.hero-mode .nav-link { color: var(--text-inv-2); }
-.nav.hero-mode .nav-link:hover { color: white; background: rgba(255,255,255,0.08); }
-
-.nav-login { padding: 7px 16px; font-size: 0.82rem; font-weight: 500; color: var(--text-2); text-decoration: none; border-radius: 8px; transition: all 0.15s; }
-.nav-login:hover { background: rgba(0,0,0,0.04); }
-.nav.hero-mode .nav-login { color: var(--text-inv-2); }
-.nav.hero-mode .nav-login:hover { color: white; }
-
-.nav-cta { padding: 9px 22px; background: var(--coral); color: white; font-size: 0.82rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+.nav-wm { font-family: var(--serif); font-size: 1.25rem; color: var(--text); }
+.nav-right { display: flex; align-items: center; gap: 4px; }
+.nav-link { padding: 7px 14px; font-size: 0.82rem; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 8px; transition: all 0.15s; }
+.nav-link:hover { color: var(--text); background: var(--surface); }
+.nav-login { padding: 7px 14px; font-size: 0.82rem; font-weight: 500; color: var(--text-2); text-decoration: none; border-radius: 8px; transition: all 0.15s; }
+.nav-login:hover { background: var(--surface); }
+.nav-cta { padding: 9px 22px; background: var(--coral); color: white; font-size: 0.82rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; transition: all 0.2s; margin-left: 4px; }
 .nav-cta:hover { background: var(--coral-dark); transform: translateY(-1px); box-shadow: 0 4px 12px var(--coral-glow); }
-
 .nav-mobile { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-.nav-mobile svg { width: 24px; height: 24px; stroke: var(--text-2); }
-.nav.hero-mode .nav-mobile svg { stroke: white; }
+.nav-mobile svg { width: 24px; height: 24px; stroke: var(--text-2); stroke-width: 2; fill: none; stroke-linecap: round; }
 
-/* ===== HERO ===== */
-.hero { background: var(--dark); position: relative; overflow: hidden; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
-.hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(224,122,95,0.12) 0%, transparent 70%), radial-gradient(ellipse 50% 50% at 80% 20%, rgba(201,168,76,0.06) 0%, transparent 60%); pointer-events: none; }
-.hero::after { content: ''; position: absolute; inset: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 128px; animation: grain 8s steps(10) infinite; pointer-events: none; }
+/* HERO */
+.hero { max-width: var(--max-w); margin: 0 auto; padding: 140px 32px 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+.hero-text { animation: fadeUp 0.8s both; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 10px; background: var(--coral-lighter); border: 1px solid var(--coral-border); border-radius: 100px; margin-bottom: 24px; }
+.hero-badge .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--coral); animation: pulse 2s infinite; }
+.hero-badge span { font-size: 0.75rem; font-weight: 600; color: var(--coral-dark); }
+.hero h1 { font-family: var(--serif); font-size: clamp(2.6rem, 5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: var(--text); margin-bottom: 20px; letter-spacing: -0.03em; }
+.hero h1 .accent { color: var(--coral); font-style: italic; }
+.hero-sub { font-size: 1.08rem; color: var(--text-3); max-width: 480px; line-height: 1.7; margin-bottom: 32px; font-weight: 300; }
+.hero-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 32px; }
+.btn { padding: 15px 30px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.92rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+.btn-primary { background: var(--coral); color: white; border: none; }
+.btn-primary:hover { background: var(--coral-dark); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+.btn-outline { background: var(--white); color: var(--text-2); border: 1.5px solid var(--border); }
+.btn-outline:hover { border-color: var(--text-4); background: var(--surface); }
+.hero-proof { display: flex; gap: 24px; flex-wrap: wrap; }
+.hero-proof-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--text-4); }
+.hero-proof-item .tick { width: 18px; height: 18px; border-radius: 50%; background: var(--green-bg); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800; }
 
-.hero-content { position: relative; z-index: 2; max-width: var(--max-w); margin: 0 auto; padding: 140px 32px 80px; width: 100%; }
+/* Hero visual */
+.hero-visual { position: relative; animation: fadeUp 1s 0.2s both; }
+.hero-mockup { background: var(--white); border-radius: 20px; border: 1px solid var(--border-light); box-shadow: var(--shadow-lg); overflow: hidden; }
+.hm-bar { background: var(--surface); padding: 10px 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-light); }
+.hm-dots { display: flex; gap: 5px; }
+.hm-dot { width: 9px; height: 9px; border-radius: 50%; }
+.hm-dot.r { background: #FECACA; } .hm-dot.y { background: #FDE68A; } .hm-dot.g { background: #BBF7D0; }
+.hm-url { flex: 1; background: var(--white); border-radius: 6px; padding: 5px 12px; font-size: 0.68rem; color: var(--text-4); font-family: monospace; border: 1px solid var(--border-light); }
+.hm-body { padding: 24px; background: linear-gradient(180deg, var(--coral-lighter) 0%, var(--white) 100%); }
+.hm-hero-card { background: var(--white); border-radius: 14px; padding: 24px; text-align: center; box-shadow: var(--shadow-sm); border: 1px solid var(--border-light); }
+.hm-logo { width: 44px; height: 44px; border-radius: 12px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1rem; margin: 0 auto 10px; }
+.hm-name { font-family: var(--serif); font-size: 1.1rem; color: var(--text); }
+.hm-tag { font-size: 0.72rem; color: var(--text-4); margin-bottom: 12px; }
+.hm-badges { display: flex; gap: 6px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+.hm-badge { padding: 3px 10px; border-radius: 100px; font-size: 0.62rem; font-weight: 700; }
+.hm-badge.gold { background: var(--gold-bg); color: var(--gold); }
+.hm-badge.green { background: var(--green-bg); color: var(--green); }
+.hm-badge.neutral { background: var(--surface); color: var(--text-3); }
+.hm-cta { display: inline-block; padding: 8px 20px; background: var(--coral); color: white; border-radius: 8px; font-size: 0.78rem; font-weight: 700; }
+.hm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.hm-card { background: var(--surface-warm); border-radius: 10px; padding: 12px; text-align: left; border: 1px solid var(--border-light); }
+.hm-card .hmc-icon { width: 28px; height: 28px; border-radius: 7px; background: var(--coral-light); display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.hm-card .hmc-icon svg { width: 14px; height: 14px; stroke: var(--coral); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hm-card .hmc-t { font-size: 0.72rem; font-weight: 600; color: var(--text); }
+.hm-card .hmc-d { font-size: 0.62rem; color: var(--text-4); margin-top: 1px; }
 
-.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 100px; margin-bottom: 28px; animation: fadeUp 0.7s both; }
-.hero-badge .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: pulse 2s infinite; }
-.hero-badge span { font-size: 0.75rem; font-weight: 500; color: var(--text-inv-2); letter-spacing: 0.02em; }
+.hero-float { position: absolute; }
+.hf-card { background: var(--white); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow-md); border: 1px solid var(--border-light); }
+.hf1 { top: -16px; right: -12px; animation: float 5s ease-in-out infinite; z-index: 2; }
+.hf2 { bottom: 24px; left: -20px; animation: float 6s ease-in-out 1s infinite; z-index: 2; }
+.hf-card .hf-num { font-family: var(--serif); font-size: 1.4rem; color: var(--coral); }
+.hf-card .hf-label { font-size: 0.65rem; color: var(--text-4); }
+.hf-card .hf-row { display: flex; align-items: center; gap: 8px; }
+.hf-card .hf-ico { width: 28px; height: 28px; border-radius: 8px; background: var(--green-bg); display: flex; align-items: center; justify-content: center; }
+.hf-card .hf-ico svg { width: 14px; height: 14px; stroke: var(--green); fill: none; stroke-width: 2; }
+.hf-card .hf-txt { font-size: 0.72rem; font-weight: 600; color: var(--text-2); }
+.hf-card .hf-sub { font-size: 0.62rem; color: var(--text-4); }
 
-.hero h1 { font-family: var(--serif); font-size: clamp(2.8rem, 6vw, 4.5rem); font-weight: 400; line-height: 1.08; color: white; margin-bottom: 24px; letter-spacing: -0.03em; animation: fadeUp 0.8s 0.1s both; }
-.hero h1 .accent { color: var(--coral); font-style: italic; position: relative; }
-.hero h1 .accent::after { content: ''; position: absolute; bottom: 4px; left: 0; right: 0; height: 3px; background: var(--coral); opacity: 0.3; border-radius: 2px; }
-
-.hero-sub { font-size: 1.15rem; color: var(--text-inv-2); max-width: 540px; line-height: 1.7; margin-bottom: 36px; font-weight: 300; animation: fadeUp 0.8s 0.2s both; }
-
-.hero-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 40px; animation: fadeUp 0.8s 0.3s both; }
-.btn-hero { padding: 16px 32px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.95rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-.btn-hero.primary { background: var(--coral); color: white; border: none; }
-.btn-hero.primary:hover { background: var(--coral-dark); transform: translateY(-2px); box-shadow: 0 8px 30px var(--coral-glow); }
-.btn-hero.ghost { background: rgba(255,255,255,0.06); color: var(--text-inv); border: 1px solid rgba(255,255,255,0.12); }
-.btn-hero.ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
-
-.hero-proof { display: flex; gap: 32px; animation: fadeUp 0.8s 0.4s both; }
-.hero-proof-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-inv-3); font-weight: 400; }
-.hero-proof-item .tick { width: 18px; height: 18px; border-radius: 50%; background: rgba(34,163,82,0.15); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800; }
-
-/* Hero floating cards */
-.hero-visual { position: absolute; right: -40px; top: 50%; transform: translateY(-50%); width: 480px; z-index: 1; animation: fadeIn 1.2s 0.5s both; pointer-events: none; }
-
-.float-card { position: absolute; background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 16px 20px; }
-.float-card.c1 { top: 0; left: 20px; animation: float 6s ease-in-out infinite; }
-.float-card.c2 { top: 140px; left: 100px; animation: float 5s ease-in-out 1s infinite; }
-.float-card.c3 { top: 280px; left: 40px; animation: float 7s ease-in-out 0.5s infinite; }
-
-.fc-label { font-size: 0.62rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-inv-3); margin-bottom: 6px; }
-.fc-value { font-family: var(--serif); font-size: 1.6rem; color: white; }
-.fc-sub { font-size: 0.72rem; color: var(--text-inv-3); margin-top: 2px; }
-.fc-row { display: flex; align-items: center; gap: 10px; }
-.fc-avatar { width: 32px; height: 32px; border-radius: 8px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
-.fc-info .name { font-size: 0.82rem; font-weight: 600; color: white; }
-.fc-info .role { font-size: 0.68rem; color: var(--text-inv-3); }
-.fc-time { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-.fc-slot { padding: 4px 10px; background: rgba(224,122,95,0.15); border: 1px solid rgba(224,122,95,0.2); border-radius: 6px; font-size: 0.68rem; font-weight: 600; color: var(--coral); }
-.fc-slot.active { background: var(--coral); color: white; border-color: var(--coral); }
-
-/* ===== SECTORS BAR ===== */
-.sectors-bar { background: var(--dark-2); border-top: 1px solid rgba(255,255,255,0.04); padding: 20px 24px; }
+/* SECTORS */
+.sectors { background: var(--surface); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); padding: 20px 24px; }
 .sectors-inner { max-width: var(--max-w); margin: 0 auto; display: flex; align-items: center; gap: 20px; }
-.sectors-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-inv-3); white-space: nowrap; flex-shrink: 0; }
-.sectors-scroll { display: flex; gap: 8px; overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none; }
+.sectors-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-4); white-space: nowrap; flex-shrink: 0; }
+.sectors-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .sectors-scroll::-webkit-scrollbar { display: none; }
-.sector-tag { padding: 8px 18px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 100px; font-size: 0.78rem; font-weight: 500; color: var(--text-inv-2); white-space: nowrap; transition: all 0.2s; cursor: default; }
-.sector-tag:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); color: white; }
+.sector-tag { padding: 8px 16px; background: var(--white); border: 1px solid var(--border-light); border-radius: 100px; font-size: 0.78rem; font-weight: 500; color: var(--text-2); white-space: nowrap; transition: all 0.2s; cursor: default; display: flex; align-items: center; gap: 7px; }
+.sector-tag:hover { border-color: var(--coral-border); background: var(--coral-lighter); color: var(--coral-dark); }
+.sector-tag .icon { width: 16px; height: 16px; }
+.sector-tag .icon svg { stroke: var(--text-3); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sector-tag:hover .icon svg { stroke: var(--coral); }
 
-/* ===== SECTION SYSTEM ===== */
+/* SECTIONS */
 section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .s-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--coral); margin-bottom: 10px; }
 .s-title { font-family: var(--serif); font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 400; color: var(--text); margin-bottom: 12px; letter-spacing: -0.02em; line-height: 1.15; }
@@ -159,173 +160,157 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .s-center { text-align: center; }
 .s-center .s-desc { margin: 0 auto; }
 
-/* ===== PAIN SECTION ===== */
-.pain-section { background: var(--surface); border-radius: 0; margin: 0; max-width: 100%; padding: 100px 32px; }
+/* PAIN */
+.pain-section { background: var(--surface-warm); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); margin: 0; max-width: 100%; padding: 100px 32px; }
 .pain-wrap { max-width: var(--max-w); margin: 0 auto; }
 .pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
-
 .pain-card { background: var(--white); border-radius: var(--radius); padding: 32px 28px; border: 1px solid var(--border-light); position: relative; overflow: hidden; transition: all 0.3s; }
 .pain-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
-.pain-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--red) 0%, rgba(224,64,64,0.3) 100%); }
-
-.pain-ico { width: 48px; height: 48px; border-radius: 12px; background: var(--red-bg); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-bottom: 16px; }
+.pain-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--red) 0%, rgba(220,68,68,0.2) 100%); }
+.pain-ico { width: 48px; height: 48px; border-radius: 12px; background: var(--red-bg); border: 1px solid var(--red-border); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.pain-ico svg { width: 22px; height: 22px; stroke: var(--red); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .pain-card h3 { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
 .pain-card p { font-size: 0.85rem; color: var(--text-3); line-height: 1.6; }
-.pain-stat { font-family: var(--serif); font-size: 2rem; color: var(--red); margin-top: 16px; letter-spacing: -0.02em; }
+.pain-stat { font-family: var(--serif); font-size: 2rem; color: var(--red); margin-top: 16px; }
 .pain-stat-label { font-size: 0.72rem; color: var(--text-4); margin-top: 2px; }
 
-/* ===== FEATURES ===== */
+/* FEATURES */
 .feat-block { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-bottom: 80px; }
 .feat-block.reverse { direction: rtl; }
 .feat-block.reverse > * { direction: ltr; }
 .feat-block:last-child { margin-bottom: 0; }
-
 .feat-text .s-label { margin-bottom: 8px; }
 .feat-text h3 { font-family: var(--serif); font-size: 1.7rem; color: var(--text); margin-bottom: 14px; letter-spacing: -0.02em; line-height: 1.2; }
-.feat-text p { font-size: 0.92rem; color: var(--text-3); line-height: 1.7; margin-bottom: 20px; font-weight: 300; }
-
+.feat-text > p { font-size: 0.92rem; color: var(--text-3); line-height: 1.7; margin-bottom: 20px; font-weight: 300; }
 .feat-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.feat-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; color: var(--text-2); font-weight: 400; }
-.feat-list .ck { width: 20px; height: 20px; border-radius: 6px; background: var(--green-bg); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+.feat-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; color: var(--text-2); }
+.feat-list .ck { width: 20px; height: 20px; border-radius: 6px; background: var(--green-bg); border: 1px solid var(--green-border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.feat-list .ck svg { width: 11px; height: 11px; stroke: var(--green); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.feat-visual { background: var(--surface); border-radius: 20px; border: 1px solid var(--border-light); overflow: hidden; min-height: 380px; display: flex; align-items: center; justify-content: center; padding: 32px; }
 
-.feat-visual { background: var(--surface); border-radius: 20px; border: 1px solid var(--border-light); overflow: hidden; min-height: 360px; display: flex; align-items: center; justify-content: center; padding: 32px; position: relative; }
-
-/* Phone mockup */
-.phone { width: 240px; background: var(--dark); border-radius: 28px; padding: 8px; box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.1); }
-.phone-notch { width: 80px; height: 24px; background: var(--dark); border-radius: 0 0 14px 14px; margin: 0 auto; position: relative; z-index: 2; margin-top: -4px; }
+/* Phone */
+.phone { width: 240px; background: var(--text); border-radius: 28px; padding: 8px; box-shadow: var(--shadow-lg); }
+.phone-notch { width: 80px; height: 22px; background: var(--text); border-radius: 0 0 14px 14px; margin: -4px auto 0; position: relative; z-index: 2; }
 .phone-screen { background: var(--white); border-radius: 22px; overflow: hidden; }
-.ps-header { background: var(--coral); padding: 16px; text-align: center; }
+.ps-header { background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dark) 100%); padding: 16px; text-align: center; }
 .ps-header .ps-day { font-size: 0.7rem; font-weight: 500; color: rgba(255,255,255,0.7); }
-.ps-header .ps-date { font-family: var(--serif); font-size: 1.1rem; color: white; }
-.ps-slots { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
-.ps-slot { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-light); font-size: 0.75rem; transition: all 0.2s; }
-.ps-slot .t { font-weight: 700; color: var(--text); }
-.ps-slot .s { font-weight: 500; color: var(--text-4); }
-.ps-slot.selected { background: var(--coral-light); border-color: var(--coral); }
-.ps-slot.selected .t { color: var(--coral); }
-.ps-slot.selected .s { color: var(--coral); font-weight: 600; }
-.ps-slot.taken { opacity: 0.35; }
-.ps-slot.taken .s { text-decoration: line-through; }
+.ps-header .ps-date { font-family: var(--serif); font-size: 1.05rem; color: white; }
+.ps-slots { padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.ps-slot { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-light); font-size: 0.75rem; }
+.ps-slot .t { font-weight: 700; color: var(--text); } .ps-slot .s { font-weight: 500; color: var(--text-4); }
+.ps-slot.sel { background: var(--coral-light); border-color: var(--coral-border); }
+.ps-slot.sel .t, .ps-slot.sel .s { color: var(--coral-dark); } .ps-slot.sel .s { font-weight: 600; }
+.ps-slot.taken { opacity: 0.35; } .ps-slot.taken .s { text-decoration: line-through; }
 
-/* Dashboard mockup */
+/* Dashboard mock */
 .dash-mock { width: 100%; background: var(--white); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-md); border: 1px solid var(--border-light); }
-.dm-top { background: var(--dark); padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
-.dm-top .dots { display: flex; gap: 5px; }
-.dm-top .dot { width: 9px; height: 9px; border-radius: 50%; }
-.dm-top .dot.r { background: #FF6058; } .dm-top .dot.y { background: #FFBD2E; } .dm-top .dot.g { background: #28CA42; }
-.dm-top .url { flex: 1; background: rgba(255,255,255,0.08); border-radius: 6px; padding: 5px 12px; font-size: 0.68rem; color: var(--text-inv-3); font-family: monospace; }
+.dm-top { background: var(--surface); padding: 10px 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-light); }
+.dm-dots { display: flex; gap: 5px; }
+.dm-dot { width: 9px; height: 9px; border-radius: 50%; }
+.dm-dot.r { background: #FECACA; } .dm-dot.y { background: #FDE68A; } .dm-dot.g { background: #BBF7D0; }
+.dm-url { flex: 1; background: var(--white); border-radius: 6px; padding: 5px 12px; font-size: 0.68rem; color: var(--text-4); font-family: monospace; border: 1px solid var(--border-light); }
 .dm-body { padding: 16px; }
-.dm-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 0.75rem; }
+.dm-status { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 0.72rem; font-weight: 600; color: var(--text-2); }
+.dm-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.dm-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border-light); font-size: 0.75rem; }
 .dm-row:last-child { border: none; }
 .dm-row .time { color: var(--text-4); min-width: 42px; font-weight: 500; }
 .dm-row .num { color: var(--text-2); flex: 1; font-weight: 500; }
-.dm-row .badge { padding: 3px 10px; border-radius: 100px; font-size: 0.62rem; font-weight: 700; }
-.dm-row .badge.b-sms { background: #EFF6FF; color: #2563EB; }
-.dm-row .badge.b-vip { background: var(--green-bg); color: var(--green); }
-.dm-row .badge.b-rdv { background: var(--coral-light); color: var(--coral); }
-.dm-row .badge.b-urg { background: #FFF7ED; color: #D97706; }
+.badge { padding: 3px 10px; border-radius: 100px; font-size: 0.62rem; font-weight: 700; }
+.badge.sms { background: #EFF6FF; color: #2563EB; } .badge.vip { background: var(--green-bg); color: var(--green); }
+.badge.rdv { background: var(--coral-light); color: var(--coral-dark); } .badge.urg { background: #FFF7ED; color: #D97706; }
 
-/* Site preview mockup */
-.site-mock { width: 100%; }
-.sm-hero { background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dark) 100%); border-radius: 14px; padding: 32px 24px; text-align: center; color: white; box-shadow: var(--shadow-md); }
-.sm-logo { width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1rem; margin: 0 auto 12px; }
-.sm-name { font-family: var(--serif); font-size: 1.2rem; margin-bottom: 4px; }
-.sm-tag { font-size: 0.72rem; opacity: 0.7; margin-bottom: 14px; }
-.sm-badges { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
-.sm-badge { padding: 4px 10px; background: rgba(255,255,255,0.12); border-radius: 100px; font-size: 0.65rem; font-weight: 600; }
-.sm-btn { display: inline-block; padding: 10px 24px; background: white; color: var(--coral); border-radius: 8px; font-size: 0.8rem; font-weight: 700; }
-.sm-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
-.sm-card { background: rgba(255,255,255,0.08); border-radius: 10px; padding: 14px; text-align: left; }
-.sm-card .ic { font-size: 1rem; margin-bottom: 6px; }
-.sm-card .ct { font-size: 0.72rem; font-weight: 600; }
-.sm-card .cd { font-size: 0.62rem; opacity: 0.6; margin-top: 2px; }
+/* Site mock */
+.sm-hero { background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dark) 100%); border-radius: 14px; padding: 28px 24px; text-align: center; color: white; box-shadow: var(--shadow-md); }
+.sm-logo { width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1rem; margin: 0 auto 10px; }
+.sm-name { font-family: var(--serif); font-size: 1.15rem; margin-bottom: 4px; }
+.sm-tag { font-size: 0.72rem; opacity: 0.7; margin-bottom: 12px; }
+.sm-badges { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+.sm-badge { padding: 3px 10px; background: rgba(255,255,255,0.15); border-radius: 100px; font-size: 0.62rem; font-weight: 600; }
+.sm-btn { display: inline-block; padding: 9px 22px; background: white; color: var(--coral-dark); border-radius: 8px; font-size: 0.78rem; font-weight: 700; }
+.sm-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.sm-card { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; text-align: left; }
+.sm-card .smc-ico svg { width: 18px; height: 18px; stroke: rgba(255,255,255,0.8); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sm-card .smc-t { font-size: 0.72rem; font-weight: 600; }
+.sm-card .smc-d { font-size: 0.6rem; opacity: 0.6; margin-top: 1px; }
 
-/* ===== STEPS ===== */
-.steps-section { background: var(--dark); margin: 0; max-width: 100%; border-radius: 0; padding: 100px 32px; position: relative; overflow: hidden; }
-.steps-section::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 40% at 30% 80%, rgba(224,122,95,0.08), transparent); pointer-events: none; }
-.steps-wrap { max-width: var(--max-w); margin: 0 auto; position: relative; z-index: 1; }
-.steps-section .s-label { color: rgba(224,122,95,0.7); }
-.steps-section .s-title { color: white; }
-.steps-section .s-desc { color: var(--text-inv-3); }
-
+/* STEPS */
+.steps-section { background: var(--surface); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); margin: 0; max-width: 100%; padding: 100px 32px; }
+.steps-wrap { max-width: var(--max-w); margin: 0 auto; }
 .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 56px; }
-
 .step { text-align: center; position: relative; }
-.step-num { width: 52px; height: 52px; border-radius: 14px; background: rgba(224,122,95,0.12); border: 1px solid rgba(224,122,95,0.2); color: var(--coral); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.3rem; margin: 0 auto 16px; transition: all 0.3s; }
-.step:hover .step-num { background: var(--coral); color: white; transform: scale(1.08); }
-.step h4 { font-size: 0.95rem; font-weight: 700; color: white; margin-bottom: 6px; }
-.step p { font-size: 0.8rem; color: var(--text-inv-3); line-height: 1.5; }
-.step-arrow { position: absolute; top: 26px; right: -18px; color: rgba(255,255,255,0.1); font-size: 1.2rem; }
+.step-num { width: 52px; height: 52px; border-radius: 14px; background: var(--coral-light); border: 1px solid var(--coral-border); color: var(--coral); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.3rem; margin: 0 auto 16px; transition: all 0.3s; }
+.step:hover .step-num { background: var(--coral); color: white; transform: scale(1.08); border-color: var(--coral); }
+.step h4 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.step p { font-size: 0.8rem; color: var(--text-3); line-height: 1.5; }
+.step-arrow { position: absolute; top: 26px; right: -18px; color: var(--border); font-size: 1.2rem; }
 
-/* ===== STATS BAR ===== */
+/* STATS */
 .stats-bar { background: var(--coral); padding: 48px 32px; }
 .stats-inner { max-width: var(--max-w); margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; text-align: center; }
-.stat-item .stat-num { font-family: var(--serif); font-size: 2.2rem; color: white; }
-.stat-item .stat-label { font-size: 0.78rem; color: rgba(255,255,255,0.6); font-weight: 400; margin-top: 2px; }
+.stat-num { font-family: var(--serif); font-size: 2.2rem; color: white; }
+.stat-label { font-size: 0.78rem; color: rgba(255,255,255,0.65); margin-top: 2px; }
 
-/* ===== PRICING ===== */
+/* PRICING */
 .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
-
 .price-card { background: var(--white); border-radius: var(--radius); padding: 36px 28px; border: 1px solid var(--border-light); transition: all 0.3s; position: relative; }
 .price-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
 .price-card.feat { border-color: var(--coral); box-shadow: var(--shadow-glow); }
 .price-card.feat::before { content: 'Le plus populaire'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--coral); color: white; padding: 4px 18px; border-radius: 100px; font-size: 0.68rem; font-weight: 700; white-space: nowrap; }
-
 .plan-name { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-4); margin-bottom: 8px; }
 .plan-price { font-family: var(--serif); font-size: 2.8rem; color: var(--text); letter-spacing: -0.03em; }
 .plan-price span { font-family: var(--sans); font-size: 0.85rem; color: var(--text-4); font-weight: 400; }
 .plan-desc { font-size: 0.82rem; color: var(--text-3); margin: 6px 0 24px; }
-
 .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
 .plan-features li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.84rem; color: var(--text-2); }
 .plan-features .ck { color: var(--green); font-weight: 800; font-size: 0.75rem; flex-shrink: 0; margin-top: 3px; }
 .plan-features .x { color: var(--text-4); flex-shrink: 0; margin-top: 3px; }
-
 .plan-btn { display: block; width: 100%; padding: 14px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.88rem; font-weight: 600; text-align: center; cursor: pointer; transition: all 0.2s; text-decoration: none; }
 .plan-btn.primary { background: var(--coral); color: white; border: none; }
-.plan-btn.primary:hover { background: var(--coral-dark); transform: translateY(-1px); }
+.plan-btn.primary:hover { background: var(--coral-dark); }
 .plan-btn.outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
 .plan-btn.outline:hover { border-color: var(--text-4); background: var(--surface); }
-
 .pricing-note { text-align: center; font-size: 0.76rem; color: var(--text-4); margin-top: 20px; }
 
-/* ===== FAQ ===== */
+/* FAQ */
 .faq-list { max-width: 700px; margin: 48px auto 0; }
 .faq-item { border-bottom: 1px solid var(--border-light); }
-.faq-q { padding: 20px 0; font-size: 0.95rem; font-weight: 600; color: var(--text); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: color 0.15s; }
+.faq-q { padding: 20px 0; font-size: 0.95rem; font-weight: 600; color: var(--text); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: color 0.15s; gap: 16px; }
 .faq-q:hover { color: var(--coral); }
-.faq-q .arr { width: 24px; height: 24px; border-radius: 6px; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-4); transition: all 0.3s; flex-shrink: 0; }
-.faq-item.open .faq-q .arr { transform: rotate(180deg); background: var(--coral-light); color: var(--coral); }
+.faq-q .arr { width: 28px; height: 28px; border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s; }
+.faq-q .arr svg { width: 14px; height: 14px; stroke: var(--text-4); fill: none; stroke-width: 2; stroke-linecap: round; transition: transform 0.3s; }
+.faq-item.open .faq-q .arr { background: var(--coral-light); }
+.faq-item.open .faq-q .arr svg { stroke: var(--coral); transform: rotate(180deg); }
 .faq-a { font-size: 0.88rem; color: var(--text-3); line-height: 1.7; padding-bottom: 20px; display: none; font-weight: 300; }
 .faq-item.open .faq-a { display: block; }
 
-/* ===== FINAL CTA ===== */
-.final-cta { margin: 0 32px 80px; max-width: calc(var(--max-w) - 64px); margin-left: auto; margin-right: auto; background: var(--dark); border-radius: 24px; padding: 80px 48px; text-align: center; position: relative; overflow: hidden; }
-.final-cta::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 50% 100%, var(--coral-glow), transparent); pointer-events: none; }
+/* CTA */
+.final-cta { margin: 0 32px 80px; max-width: calc(var(--max-w) - 64px); margin-left: auto; margin-right: auto; background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dark) 100%); border-radius: 24px; padding: 80px 48px; text-align: center; position: relative; overflow: hidden; }
+.final-cta::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 60% at 50% 100%, rgba(255,255,255,0.1), transparent); pointer-events: none; }
 .final-cta h2 { font-family: var(--serif); font-size: clamp(1.8rem, 3.5vw, 2.6rem); color: white; margin-bottom: 14px; position: relative; }
-.final-cta p { font-size: 1rem; color: var(--text-inv-3); margin-bottom: 32px; position: relative; font-weight: 300; }
-.final-cta .btn-hero { position: relative; font-size: 1rem; padding: 18px 40px; }
+.final-cta p { font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 32px; position: relative; font-weight: 300; }
+.btn-white { padding: 16px 36px; background: white; color: var(--coral-dark); border-radius: var(--radius-sm); font-family: var(--sans); font-size: 0.95rem; font-weight: 700; cursor: pointer; text-decoration: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; position: relative; border: none; }
+.btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
 
-/* ===== FOOTER ===== */
+/* FOOTER */
 .footer { padding: 48px 32px; border-top: 1px solid var(--border-light); }
 .footer-inner { max-width: var(--max-w); margin: 0 auto; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 48px; }
 .footer-brand .f-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .footer-brand .f-logo .nav-logo { width: 30px; height: 30px; font-size: 0.85rem; }
-.footer-brand .f-logo .nav-wm { font-size: 1.1rem; }
 .footer-brand .f-tagline { font-size: 0.82rem; color: var(--text-3); max-width: 260px; line-height: 1.5; font-weight: 300; }
-
 .footer-col h4 { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-4); margin-bottom: 14px; }
-.footer-col a { display: block; font-size: 0.84rem; color: var(--text-3); text-decoration: none; padding: 4px 0; transition: color 0.15s; font-weight: 400; }
+.footer-col a { display: block; font-size: 0.84rem; color: var(--text-3); text-decoration: none; padding: 4px 0; transition: color 0.15s; }
 .footer-col a:hover { color: var(--coral); }
-
 .footer-bottom { max-width: var(--max-w); margin: 0 auto; padding: 24px 0 0; font-size: 0.72rem; color: var(--text-4); display: flex; justify-content: space-between; border-top: 1px solid var(--border-light); margin-top: 32px; }
 
-/* ===== RESPONSIVE ===== */
+/* RESPONSIVE */
 @media (max-width: 900px) {
-  .hero-visual { display: none; }
+  .hero { grid-template-columns: 1fr; padding: 120px 24px 60px; }
+  .hero-visual { max-width: 420px; margin: 0 auto; }
+  .hf1, .hf2 { display: none; }
   .feat-block, .feat-block.reverse { grid-template-columns: 1fr; direction: ltr; gap: 32px; }
   .feat-block.reverse > * { direction: ltr; }
-  .feat-visual { min-height: 280px; }
+  .feat-visual { min-height: 300px; }
   .steps-grid { grid-template-columns: 1fr 1fr; gap: 20px; }
   .step-arrow { display: none; }
   .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; margin-top: 48px; }
@@ -335,32 +320,27 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 
 @media (max-width: 640px) {
   section { padding: 72px 20px; }
-  .hero-content { padding: 120px 20px 60px; }
-  .hero-actions { flex-direction: column; }
-  .hero-proof { flex-direction: column; gap: 10px; }
+  .hero { padding: 100px 20px 48px; }
+  .hero-actions { flex-direction: column; align-items: stretch; }
+  .hero-proof { flex-direction: column; gap: 8px; }
   .pain-grid { grid-template-columns: 1fr; }
   .steps-grid { grid-template-columns: 1fr; max-width: 280px; margin-left: auto; margin-right: auto; }
-  .stats-inner { grid-template-columns: 1fr 1fr; }
   .nav-right .nav-link, .nav-right .nav-login { display: none; }
   .nav-mobile { display: block; }
-  .sectors-inner { gap: 12px; }
   .sectors-label { display: none; }
   .footer-inner { grid-template-columns: 1fr; gap: 28px; }
   .footer-bottom { flex-direction: column; gap: 6px; }
   .final-cta { margin: 0 16px 60px; padding: 56px 24px; }
   .pain-section, .steps-section, .stats-bar { padding-left: 20px; padding-right: 20px; }
+  .stats-inner { grid-template-columns: 1fr 1fr; }
 }
 </style>
 </head>
 <body>
 
-<!-- ===== NAV ===== -->
-<nav class="nav hero-mode" id="nav">
+<nav class="nav" id="nav">
   <div class="nav-inner">
-    <a class="nav-brand" href="#">
-      <div class="nav-logo">G</div>
-      <span class="nav-wm">Genda</span>
-    </a>
+    <a class="nav-brand" href="#"><div class="nav-logo">G</div><span class="nav-wm">Genda</span></a>
     <div class="nav-right">
       <a class="nav-link" href="#features">Fonctionnalités</a>
       <a class="nav-link" href="#how">Comment ça marche</a>
@@ -368,443 +348,249 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
       <a class="nav-link" href="#faq">FAQ</a>
       <a class="nav-login" href="/login.html">Se connecter</a>
       <a class="nav-cta" href="/signup.html">Créer mon cabinet</a>
-      <button class="nav-mobile" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <button class="nav-mobile" aria-label="Menu"><svg viewBox="0 0 24 24"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg></button>
     </div>
   </div>
 </nav>
 
-<!-- ===== HERO ===== -->
 <header class="hero">
-  <div class="hero-content">
-    <div class="hero-badge">
-      <span class="pulse-dot"></span>
-      <span>Conçu pour les professions libérales en Belgique</span>
-    </div>
-
+  <div class="hero-text">
+    <div class="hero-badge"><span class="pulse-dot"></span><span>Conçu pour les professions libérales en Belgique</span></div>
     <h1>Votre cabinet<br>mérite d'être<br><span class="accent">en ligne</span></h1>
-
     <p class="hero-sub">Page professionnelle, prise de rendez-vous 24/7 et filtre d'appels intelligent. Tout ce qu'il faut pour que vos clients vous trouvent — et réservent sans vous appeler.</p>
-
     <div class="hero-actions">
-      <a class="btn-hero primary" href="/signup.html">Créer mon cabinet gratuitement →</a>
-      <a class="btn-hero ghost" href="#features">Découvrir</a>
+      <a class="btn btn-primary" href="/signup.html">Créer mon cabinet gratuitement →</a>
+      <a class="btn btn-outline" href="#features">Découvrir</a>
     </div>
-
     <div class="hero-proof">
       <div class="hero-proof-item"><span class="tick">✓</span> Gratuit pour commencer</div>
       <div class="hero-proof-item"><span class="tick">✓</span> En ligne en 10 min</div>
       <div class="hero-proof-item"><span class="tick">✓</span> Sans engagement</div>
-      <div class="hero-proof-item"><span class="tick">✓</span> RGPD compliant</div>
     </div>
   </div>
-
-  <!-- Floating cards -->
   <div class="hero-visual">
-    <div class="float-card c1">
-      <div class="fc-label">Aujourd'hui</div>
-      <div class="fc-value">14 RDV</div>
-      <div class="fc-sub">3 nouveaux clients</div>
-    </div>
-    <div class="float-card c2">
-      <div class="fc-row">
-        <div class="fc-avatar">CM</div>
-        <div class="fc-info">
-          <div class="name">Claire Mertens</div>
-          <div class="role">Consultation fiscale</div>
+    <div class="hero-float hf1"><div class="hf-card"><div class="hf-num">14 RDV</div><div class="hf-label">aujourd'hui · 3 nouveaux</div></div></div>
+    <div class="hero-float hf2"><div class="hf-card"><div class="hf-row"><div class="hf-ico"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="hf-txt">Appel filtré → RDV</div><div class="hf-sub">il y a 3 min</div></div></div></div></div>
+    <div class="hero-mockup">
+      <div class="hm-bar"><div class="hm-dots"><div class="hm-dot r"></div><div class="hm-dot y"></div><div class="hm-dot g"></div></div><div class="hm-url">genda.be/cabinet-dewit</div></div>
+      <div class="hm-body">
+        <div class="hm-hero-card">
+          <div class="hm-logo">DW</div>
+          <div class="hm-name">De Wit & Associés</div>
+          <div class="hm-tag">Expert-comptable à Bruxelles · ITAA agréé</div>
+          <div class="hm-badges"><span class="hm-badge gold">ITAA agréé</span><span class="hm-badge green">★ 4.9/5</span><span class="hm-badge neutral">FR · NL</span></div>
+          <div class="hm-cta">Prendre rendez-vous</div>
+          <div class="hm-grid">
+            <div class="hm-card"><div class="hmc-icon"><svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg></div><div class="hmc-t">Fiscalité</div><div class="hmc-d">IPP, sociétés, TVA</div></div>
+            <div class="hm-card"><div class="hmc-icon"><svg viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></div><div class="hmc-t">Sociétés</div><div class="hmc-d">SRL, SA, bilans</div></div>
+            <div class="hm-card"><div class="hmc-icon"><svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></div><div class="hmc-t">Création</div><div class="hmc-d">Plan financier</div></div>
+            <div class="hm-card"><div class="hmc-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div><div class="hmc-t">Conseil</div><div class="hmc-d">Optimisation</div></div>
+          </div>
         </div>
       </div>
-      <div class="fc-time">
-        <span class="fc-slot">09:00</span>
-        <span class="fc-slot active">09:45</span>
-        <span class="fc-slot">10:30</span>
-      </div>
-    </div>
-    <div class="float-card c3">
-      <div class="fc-label">Appels filtrés</div>
-      <div class="fc-value" style="font-size:1.3rem;">+32 470 *** → SMS envoyé</div>
-      <div class="fc-sub" style="color:var(--coral);">✓ Converti en RDV</div>
     </div>
   </div>
 </header>
 
-<!-- ===== SECTORS BAR ===== -->
-<div class="sectors-bar">
+<div class="sectors">
   <div class="sectors-inner">
     <span class="sectors-label">Conçu pour</span>
     <div class="sectors-scroll">
-      <span class="sector-tag">📊 Comptables</span>
-      <span class="sector-tag">⚖️ Avocats</span>
-      <span class="sector-tag">🩺 Médecins</span>
-      <span class="sector-tag">🦷 Dentistes</span>
-      <span class="sector-tag">💪 Kinésithérapeutes</span>
-      <span class="sector-tag">🦴 Ostéopathes</span>
-      <span class="sector-tag">✂️ Coiffeurs</span>
-      <span class="sector-tag">💅 Esthéticiennes</span>
-      <span class="sector-tag">📸 Photographes</span>
-      <span class="sector-tag">🐾 Vétérinaires</span>
-      <span class="sector-tag">🧘 Bien-être</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>Comptables</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/></svg></span>Avocats</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2c0 1.1.9 2 2 2h5v5c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2z"/></svg></span>Médecins</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span>Dentistes</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><path d="M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14"/><path d="M2 20h20"/></svg></span>Kinés</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></svg></span>Coiffeurs</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg></span>Photographes</span>
+      <span class="sector-tag"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>Bien-être</span>
     </div>
   </div>
 </div>
 
-<!-- ===== PAIN POINTS ===== -->
 <div class="pain-section">
   <div class="pain-wrap">
-    <div class="s-center rv">
-      <div class="s-label">Le problème</div>
-      <div class="s-title">Votre quotidien, sans Genda</div>
-      <p class="s-desc">Des heures perdues chaque semaine entre les appels, les agendas papier et les rendez-vous ratés.</p>
-    </div>
-
+    <div class="s-center rv"><div class="s-label">Le problème</div><div class="s-title">Votre quotidien, sans Genda</div><p class="s-desc">Des heures perdues chaque semaine entre les appels, les agendas papier et les rendez-vous ratés.</p></div>
     <div class="pain-grid">
       <div class="pain-card rv d1">
-        <div class="pain-ico">📞</div>
-        <h3>Le téléphone qui n'arrête pas</h3>
-        <p>Les appels interrompent vos consultations. Vous rappelez entre deux clients, et ça recommence.</p>
-        <div class="pain-stat">~18</div>
-        <div class="pain-stat-label">appels par jour en moyenne</div>
+        <div class="pain-ico"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+        <h3>Le téléphone qui n'arrête pas</h3><p>Les appels interrompent vos consultations. Vous rappelez entre deux clients, et ça recommence.</p>
+        <div class="pain-stat">~18</div><div class="pain-stat-label">appels par jour en moyenne</div>
       </div>
       <div class="pain-card rv d2">
-        <div class="pain-ico">📅</div>
-        <h3>L'agenda-casse-tête</h3>
-        <p>Post-it, Excel, carnet papier... Les doubles réservations et les oublis sont fréquents.</p>
-        <div class="pain-stat">3h</div>
-        <div class="pain-stat-label">perdues chaque semaine</div>
+        <div class="pain-ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <h3>L'agenda-casse-tête</h3><p>Post-it, Excel, carnet papier... Les doubles réservations et les oublis sont fréquents.</p>
+        <div class="pain-stat">3h</div><div class="pain-stat-label">perdues chaque semaine</div>
       </div>
       <div class="pain-card rv d3">
-        <div class="pain-ico">🌐</div>
-        <h3>L'invisibilité en ligne</h3>
-        <p>Pas de site web, ou un site de 2014. Vos futurs clients ne vous trouvent pas sur Google.</p>
-        <div class="pain-stat">62%</div>
-        <div class="pain-stat-label">des cabinets sans présence web</div>
+        <div class="pain-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <h3>L'invisibilité en ligne</h3><p>Pas de site web, ou un site de 2014. Vos futurs clients ne vous trouvent pas sur Google.</p>
+        <div class="pain-stat">62%</div><div class="pain-stat-label">des cabinets sans présence web</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ===== FEATURES ===== -->
 <section id="features">
-  <!-- Feature 1: Page pro -->
   <div class="feat-block rv">
     <div class="feat-text">
-      <div class="s-label">Page professionnelle</div>
-      <h3>Votre vitrine en ligne, sans effort</h3>
+      <div class="s-label">Page professionnelle</div><h3>Votre vitrine en ligne, sans effort</h3>
       <p>Une page complète qui vous représente : bio, équipe, spécialisations, tarifs et témoignages clients. Design professionnel, optimisé Google, prêt en 10 minutes.</p>
       <ul class="feat-list">
-        <li><span class="ck">✓</span> Bio du cabinet et de chaque membre</li>
-        <li><span class="ck">✓</span> Spécialisations et domaines d'expertise</li>
-        <li><span class="ck">✓</span> Témoignages clients vérifiés</li>
-        <li><span class="ck">✓</span> Optimisé pour Google (SEO)</li>
-        <li><span class="ck">✓</span> Domaine personnalisé possible</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Bio du cabinet et de chaque membre</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Spécialisations et domaines d'expertise</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Témoignages clients vérifiés</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Optimisé pour Google (SEO)</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Domaine personnalisé possible</li>
       </ul>
     </div>
     <div class="feat-visual">
-      <div class="site-mock">
-        <div class="sm-hero">
-          <div class="sm-logo">DW</div>
-          <div class="sm-name">De Wit & Associés</div>
-          <div class="sm-tag">Expert-comptable à Bruxelles · ITAA agréé</div>
-          <div class="sm-badges">
-            <span class="sm-badge">★ 4.9/5</span>
-            <span class="sm-badge">FR · NL</span>
-            <span class="sm-badge">Depuis 2008</span>
-          </div>
-          <div class="sm-btn">Prendre rendez-vous</div>
-          <div class="sm-cards">
-            <div class="sm-card"><div class="ic">📊</div><div class="ct">Fiscalité</div><div class="cd">IPP, sociétés, TVA</div></div>
-            <div class="sm-card"><div class="ic">🏢</div><div class="ct">Sociétés</div><div class="cd">SRL, SA, bilans</div></div>
-            <div class="sm-card"><div class="ic">🚀</div><div class="ct">Création</div><div class="cd">Plan financier, statuts</div></div>
-            <div class="sm-card"><div class="ic">💡</div><div class="ct">Conseil</div><div class="cd">Optimisation fiscale</div></div>
-          </div>
+      <div class="site-mock"><div class="sm-hero">
+        <div class="sm-logo">DW</div><div class="sm-name">De Wit & Associés</div><div class="sm-tag">Expert-comptable à Bruxelles · ITAA agréé</div>
+        <div class="sm-badges"><span class="sm-badge">★ 4.9/5</span><span class="sm-badge">FR · NL</span><span class="sm-badge">Depuis 2008</span></div>
+        <div class="sm-btn">Prendre rendez-vous</div>
+        <div class="sm-cards">
+          <div class="sm-card"><div class="smc-ico"><svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg></div><div class="smc-t">Fiscalité</div><div class="smc-d">IPP, sociétés, TVA</div></div>
+          <div class="sm-card"><div class="smc-ico"><svg viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></div><div class="smc-t">Sociétés</div><div class="smc-d">SRL, SA, bilans</div></div>
+          <div class="sm-card"><div class="smc-ico"><svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></div><div class="smc-t">Création</div><div class="smc-d">Plan financier</div></div>
+          <div class="sm-card"><div class="smc-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div><div class="smc-t">Conseil</div><div class="smc-d">Optimisation</div></div>
         </div>
-      </div>
+      </div></div>
     </div>
   </div>
 
-  <!-- Feature 2: Booking -->
   <div class="feat-block reverse rv">
     <div class="feat-text">
-      <div class="s-label">Prise de rendez-vous</div>
-      <h3>Vos clients réservent en 30 secondes</h3>
-      <p>Un flow de booking fluide : choix du service, du praticien, du créneau. Confirmation instantanée par email, rappel SMS 24h avant. Fini les appels.</p>
+      <div class="s-label">Prise de rendez-vous</div><h3>Vos clients réservent en 30 secondes</h3>
+      <p>Un flow de booking fluide : choix du service, du praticien, du créneau. Confirmation instantanée par email, rappel SMS 24h avant.</p>
       <ul class="feat-list">
-        <li><span class="ck">✓</span> Disponibilités en temps réel</li>
-        <li><span class="ck">✓</span> Rappels SMS et email automatiques</li>
-        <li><span class="ck">✓</span> Cabinet, visio ou téléphone</li>
-        <li><span class="ck">✓</span> Annulation et replanification en 1 clic</li>
-        <li><span class="ck">✓</span> Anti double-booking garanti</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Disponibilités en temps réel</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Rappels SMS et email automatiques</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Cabinet, visio ou téléphone</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Annulation et replanification en 1 clic</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Anti double-booking garanti</li>
       </ul>
     </div>
     <div class="feat-visual">
-      <div class="phone">
-        <div class="phone-notch"></div>
-        <div class="phone-screen">
-          <div class="ps-header">
-            <div class="ps-day">Mardi</div>
-            <div class="ps-date">25 février 2026</div>
-          </div>
-          <div class="ps-slots">
-            <div class="ps-slot"><span class="t">09:00</span><span class="s">Disponible</span></div>
-            <div class="ps-slot selected"><span class="t">09:45</span><span class="s">✓ Sélectionné</span></div>
-            <div class="ps-slot"><span class="t">10:30</span><span class="s">Disponible</span></div>
-            <div class="ps-slot"><span class="t">11:15</span><span class="s">Disponible</span></div>
-            <div class="ps-slot taken"><span class="t">14:00</span><span class="s">Réservé</span></div>
-            <div class="ps-slot"><span class="t">14:45</span><span class="s">Disponible</span></div>
-          </div>
+      <div class="phone"><div class="phone-notch"></div><div class="phone-screen">
+        <div class="ps-header"><div class="ps-day">Mardi</div><div class="ps-date">25 février 2026</div></div>
+        <div class="ps-slots">
+          <div class="ps-slot"><span class="t">09:00</span><span class="s">Disponible</span></div>
+          <div class="ps-slot sel"><span class="t">09:45</span><span class="s">✓ Sélectionné</span></div>
+          <div class="ps-slot"><span class="t">10:30</span><span class="s">Disponible</span></div>
+          <div class="ps-slot"><span class="t">11:15</span><span class="s">Disponible</span></div>
+          <div class="ps-slot taken"><span class="t">14:00</span><span class="s">Réservé</span></div>
+          <div class="ps-slot"><span class="t">14:45</span><span class="s">Disponible</span></div>
         </div>
-      </div>
+      </div></div>
     </div>
   </div>
 
-  <!-- Feature 3: Call filter -->
   <div class="feat-block rv">
     <div class="feat-text">
-      <div class="s-label">Filtre d'appels intelligent</div>
-      <h3>Votre téléphone ne sonne plus en consultation</h3>
-      <p>Un numéro belge dédié filtre les appels. Vos VIP passent toujours, les autres reçoivent un SMS avec votre lien de booking. Les urgences pressent "1" pour être transférées.</p>
+      <div class="s-label">Filtre d'appels intelligent</div><h3>Votre téléphone ne sonne plus en consultation</h3>
+      <p>Un numéro belge dédié filtre les appels. Vos VIP passent toujours, les autres reçoivent un SMS avec votre lien de booking.</p>
       <ul class="feat-list">
-        <li><span class="ck">✓</span> Numéro belge dédié (+32)</li>
-        <li><span class="ck">✓</span> Whitelist VIP (contacts prioritaires)</li>
-        <li><span class="ck">✓</span> SMS automatique avec lien de réservation</li>
-        <li><span class="ck">✓</span> Option "Tapez 1" pour les urgences</li>
-        <li><span class="ck">✓</span> Conversion appels → RDV</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Numéro belge dédié (+32)</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Whitelist VIP (contacts prioritaires)</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> SMS automatique avec lien de réservation</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Option "Tapez 1" pour les urgences</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Conversion appels → RDV</li>
       </ul>
     </div>
     <div class="feat-visual">
       <div class="dash-mock">
-        <div class="dm-top">
-          <div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
-          <div class="url">genda.be/dashboard → Appels</div>
-        </div>
+        <div class="dm-top"><div class="dm-dots"><div class="dm-dot r"></div><div class="dm-dot y"></div><div class="dm-dot g"></div></div><div class="dm-url">genda.be/dashboard → Appels</div></div>
         <div class="dm-body">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span>
-            <span style="font-size:0.72rem;font-weight:600;color:var(--text-2);">Filtre actif — Mode soft</span>
-          </div>
-          <div class="dm-row"><span class="time">14:32</span><span class="num">+32 470 ***</span><span class="badge b-sms">SMS envoyé</span><span class="badge b-rdv" style="margin-left:4px;">→ RDV</span></div>
-          <div class="dm-row"><span class="time">11:15</span><span class="num">+32 2 345 ***</span><span class="badge b-vip">VIP passé</span></div>
-          <div class="dm-row"><span class="time">09:45</span><span class="num">+32 485 ***</span><span class="badge b-sms">SMS envoyé</span><span class="badge b-rdv" style="margin-left:4px;">→ RDV</span></div>
-          <div class="dm-row"><span class="time">09:02</span><span class="num">+32 496 ***</span><span class="badge b-urg">Urgence</span></div>
+          <div class="dm-status"><span class="dot"></span> Filtre actif — Mode soft</div>
+          <div class="dm-row"><span class="time">14:32</span><span class="num">+32 470 ***</span><span class="badge sms">SMS envoyé</span><span class="badge rdv" style="margin-left:4px;">→ RDV</span></div>
+          <div class="dm-row"><span class="time">11:15</span><span class="num">+32 2 345 ***</span><span class="badge vip">VIP passé</span></div>
+          <div class="dm-row"><span class="time">09:45</span><span class="num">+32 485 ***</span><span class="badge sms">SMS envoyé</span><span class="badge rdv" style="margin-left:4px;">→ RDV</span></div>
+          <div class="dm-row"><span class="time">09:02</span><span class="num">+32 496 ***</span><span class="badge urg">Urgence</span></div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===== STEPS ===== -->
 <div class="steps-section" id="how">
   <div class="steps-wrap">
-    <div class="s-center rv">
-      <div class="s-label">Comment ça marche</div>
-      <div class="s-title">En ligne en 4 étapes</div>
-      <p class="s-desc">Pas besoin de compétences techniques. Votre page est prête en 10 minutes.</p>
-    </div>
-
+    <div class="s-center rv"><div class="s-label">Comment ça marche</div><div class="s-title">En ligne en 4 étapes</div><p class="s-desc">Pas besoin de compétences techniques. Votre page est prête en 10 minutes.</p></div>
     <div class="steps-grid">
-      <div class="step rv d1">
-        <div class="step-num">1</div>
-        <h4>Créez votre compte</h4>
-        <p>Email, nom du cabinet, secteur. 30 secondes, c'est tout.</p>
-        <div class="step-arrow">→</div>
-      </div>
-      <div class="step rv d2">
-        <div class="step-num">2</div>
-        <h4>Complétez votre profil</h4>
-        <p>Bio, équipe, horaires. Templates pré-remplis par secteur.</p>
-        <div class="step-arrow">→</div>
-      </div>
-      <div class="step rv d3">
-        <div class="step-num">3</div>
-        <h4>Ajoutez vos prestations</h4>
-        <p>Services, durées, tarifs. Tout est personnalisable.</p>
-        <div class="step-arrow">→</div>
-      </div>
-      <div class="step rv d4">
-        <div class="step-num">4</div>
-        <h4>Publiez votre page</h4>
-        <p>Votre cabinet est en ligne. Partagez le lien, c'est parti.</p>
-      </div>
+      <div class="step rv d1"><div class="step-num">1</div><h4>Créez votre compte</h4><p>Email, nom du cabinet, secteur. 30 secondes.</p><div class="step-arrow">→</div></div>
+      <div class="step rv d2"><div class="step-num">2</div><h4>Complétez votre profil</h4><p>Bio, équipe, horaires. Templates pré-remplis.</p><div class="step-arrow">→</div></div>
+      <div class="step rv d3"><div class="step-num">3</div><h4>Ajoutez vos prestations</h4><p>Services, durées, tarifs. Tout est personnalisable.</p><div class="step-arrow">→</div></div>
+      <div class="step rv d4"><div class="step-num">4</div><h4>Publiez votre page</h4><p>Votre cabinet est en ligne. Partagez le lien.</p></div>
     </div>
   </div>
 </div>
 
-<!-- ===== STATS BAR ===== -->
 <div class="stats-bar rv">
   <div class="stats-inner">
-    <div class="stat-item"><div class="stat-num">78%</div><div class="stat-label">des appels filtrés → RDV en ligne</div></div>
-    <div class="stat-item"><div class="stat-num">10 min</div><div class="stat-label">pour être en ligne</div></div>
-    <div class="stat-item"><div class="stat-num">3h</div><div class="stat-label">gagnées par semaine</div></div>
-    <div class="stat-item"><div class="stat-num">24/7</div><div class="stat-label">réservation en ligne</div></div>
+    <div><div class="stat-num">78%</div><div class="stat-label">des appels filtrés → RDV</div></div>
+    <div><div class="stat-num">10 min</div><div class="stat-label">pour être en ligne</div></div>
+    <div><div class="stat-num">3h</div><div class="stat-label">gagnées par semaine</div></div>
+    <div><div class="stat-num">24/7</div><div class="stat-label">réservation en ligne</div></div>
   </div>
 </div>
 
-<!-- ===== PRICING ===== -->
 <section id="pricing" class="s-center">
-  <div class="rv">
-    <div class="s-label">Tarifs</div>
-    <div class="s-title">Simple, transparent, sans surprise</div>
-    <p class="s-desc">Commencez gratuitement. Passez au Pro quand vous êtes prêt.</p>
-  </div>
-
+  <div class="rv"><div class="s-label">Tarifs</div><div class="s-title">Simple, transparent, sans surprise</div><p class="s-desc">Commencez gratuitement. Passez au Pro quand vous êtes prêt.</p></div>
   <div class="pricing-grid">
     <div class="price-card rv d1">
-      <div class="plan-name">Gratuit</div>
-      <div class="plan-price">0 € <span>/mois</span></div>
-      <p class="plan-desc">Pour tester et démarrer</p>
-      <ul class="plan-features">
-        <li><span class="ck">✓</span> Page professionnelle</li>
-        <li><span class="ck">✓</span> Booking en ligne (1 praticien)</li>
-        <li><span class="ck">✓</span> Confirmation email</li>
-        <li><span class="ck">✓</span> 3 prestations max</li>
-        <li><span class="x">—</span> <span style="color:var(--text-4);">Filtre d'appels</span></li>
-        <li><span class="x">—</span> <span style="color:var(--text-4);">Rappels SMS</span></li>
-      </ul>
+      <div class="plan-name">Gratuit</div><div class="plan-price">0 € <span>/mois</span></div><p class="plan-desc">Pour tester et démarrer</p>
+      <ul class="plan-features"><li><span class="ck">✓</span> Page professionnelle</li><li><span class="ck">✓</span> Booking en ligne (1 praticien)</li><li><span class="ck">✓</span> Confirmation email</li><li><span class="ck">✓</span> 3 prestations max</li><li><span class="x">—</span> <span style="color:var(--text-4);">Filtre d'appels</span></li><li><span class="x">—</span> <span style="color:var(--text-4);">Rappels SMS</span></li></ul>
       <a class="plan-btn outline" href="/signup.html">Commencer gratuitement</a>
     </div>
-
     <div class="price-card feat rv d2">
-      <div class="plan-name">Pro</div>
-      <div class="plan-price">39 € <span>/mois</span></div>
-      <p class="plan-desc">Pour les cabinets établis</p>
-      <ul class="plan-features">
-        <li><span class="ck">✓</span> Tout du plan Gratuit</li>
-        <li><span class="ck">✓</span> Praticiens illimités</li>
-        <li><span class="ck">✓</span> Prestations illimitées</li>
-        <li><span class="ck">✓</span> <strong>Filtre d'appels intelligent</strong></li>
-        <li><span class="ck">✓</span> <strong>Rappels SMS automatiques</strong></li>
-        <li><span class="ck">✓</span> Statistiques avancées</li>
-      </ul>
+      <div class="plan-name">Pro</div><div class="plan-price">39 € <span>/mois</span></div><p class="plan-desc">Pour les cabinets établis</p>
+      <ul class="plan-features"><li><span class="ck">✓</span> Tout du plan Gratuit</li><li><span class="ck">✓</span> Praticiens illimités</li><li><span class="ck">✓</span> Prestations illimitées</li><li><span class="ck">✓</span> <strong>Filtre d'appels intelligent</strong></li><li><span class="ck">✓</span> <strong>Rappels SMS automatiques</strong></li><li><span class="ck">✓</span> Statistiques avancées</li></ul>
       <a class="plan-btn primary" href="/signup.html">Essai gratuit 14 jours →</a>
     </div>
-
     <div class="price-card rv d3">
-      <div class="plan-name">Team</div>
-      <div class="plan-price">59 € <span>/mois</span></div>
-      <p class="plan-desc">Pour les cabinets multi-associés</p>
-      <ul class="plan-features">
-        <li><span class="ck">✓</span> Tout du plan Pro</li>
-        <li><span class="ck">✓</span> <strong>Domaine personnalisé</strong></li>
-        <li><span class="ck">✓</span> Multi-utilisateurs & rôles</li>
-        <li><span class="ck">✓</span> Export données CSV</li>
-        <li><span class="ck">✓</span> Support prioritaire</li>
-        <li><span class="ck">✓</span> Branding personnalisé</li>
-      </ul>
+      <div class="plan-name">Team</div><div class="plan-price">59 € <span>/mois</span></div><p class="plan-desc">Pour les cabinets multi-associés</p>
+      <ul class="plan-features"><li><span class="ck">✓</span> Tout du plan Pro</li><li><span class="ck">✓</span> <strong>Domaine personnalisé</strong></li><li><span class="ck">✓</span> Multi-utilisateurs & rôles</li><li><span class="ck">✓</span> Export données CSV</li><li><span class="ck">✓</span> Support prioritaire</li><li><span class="ck">✓</span> Branding personnalisé</li></ul>
       <a class="plan-btn outline" href="/signup.html">Essai gratuit 14 jours →</a>
     </div>
   </div>
-
   <p class="pricing-note">Tous les prix sont HTVA. SMS facturés à l'usage (~0.05€/SMS). Annulable à tout moment.</p>
 </section>
 
-<!-- ===== FAQ ===== -->
 <section id="faq">
-  <div class="s-center rv">
-    <div class="s-label">Questions fréquentes</div>
-    <div class="s-title">Tout ce que vous devez savoir</div>
-  </div>
-
+  <div class="s-center rv"><div class="s-label">Questions fréquentes</div><div class="s-title">Tout ce que vous devez savoir</div></div>
   <div class="faq-list">
-    <div class="faq-item open">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce que mes clients doivent créer un compte ? <span class="arr">▾</span></div>
-      <div class="faq-a">Non. Vos clients remplissent simplement leur nom, téléphone et email pour réserver. Pas de compte, pas de mot de passe, zéro friction.</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment fonctionne le filtre d'appels ? <span class="arr">▾</span></div>
-      <div class="faq-a">Vous recevez un numéro belge dédié. Les contacts VIP sont transférés directement. Les autres entendent une courte annonce et reçoivent un SMS avec votre lien de booking. En cas d'urgence, ils pressent "1" pour être transférés.</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Puis-je utiliser mon propre nom de domaine ? <span class="arr">▾</span></div>
-      <div class="faq-a">Oui, avec le plan Team. Vous pointez votre domaine existant (ex: dewit-compta.be) vers votre page Genda. Le certificat SSL est provisionné automatiquement.</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce conforme au RGPD ? <span class="arr">▾</span></div>
-      <div class="faq-a">Oui. Données hébergées en Europe, consentements explicites, droit à la suppression. Tout est conforme dès le premier jour.</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Combien de temps pour être en ligne ? <span class="arr">▾</span></div>
-      <div class="faq-a">10 minutes. L'inscription prend 30 secondes, l'onboarding vous guide avec des templates pré-remplis pour votre secteur.</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Je peux annuler à tout moment ? <span class="arr">▾</span></div>
-      <div class="faq-a">Oui. Sans engagement. Si vous annulez, votre page reste active en mode gratuit. Vos données ne sont jamais supprimées sans votre demande.</div>
-    </div>
+    <div class="faq-item open"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce que mes clients doivent créer un compte ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Non. Vos clients remplissent simplement leur nom, téléphone et email pour réserver. Pas de compte, pas de mot de passe, zéro friction.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment fonctionne le filtre d'appels ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Vous recevez un numéro belge dédié. Les contacts VIP sont transférés directement. Les autres entendent une courte annonce et reçoivent un SMS avec votre lien de booking. En cas d'urgence, ils pressent "1" pour être transférés.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Puis-je utiliser mon propre nom de domaine ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui, avec le plan Team. Vous pointez votre domaine existant vers votre page Genda. Le certificat SSL est provisionné automatiquement.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce conforme au RGPD ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui. Données hébergées en Europe, consentements explicites, droit à la suppression. Conforme dès le premier jour.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Combien de temps pour être en ligne ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">10 minutes. L'inscription prend 30 secondes, l'onboarding vous guide avec des templates pré-remplis pour votre secteur.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Je peux annuler à tout moment ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui. Sans engagement. Votre page reste active en mode gratuit. Vos données ne sont jamais supprimées sans votre demande.</div></div>
   </div>
 </section>
 
-<!-- ===== FINAL CTA ===== -->
 <div class="final-cta rv">
   <h2>Prêt à simplifier votre quotidien ?</h2>
   <p>Créez votre page professionnelle en 10 minutes. Gratuit, sans engagement.</p>
-  <a class="btn-hero primary" href="/signup.html">Créer mon cabinet gratuitement →</a>
+  <a class="btn-white" href="/signup.html">Créer mon cabinet gratuitement →</a>
 </div>
 
-<!-- ===== FOOTER ===== -->
 <footer class="footer">
   <div class="footer-inner">
-    <div class="footer-brand">
-      <div class="f-logo">
-        <div class="nav-logo">G</div>
-        <span class="nav-wm">Genda</span>
-      </div>
-      <p class="f-tagline">Votre cabinet en ligne. Page pro, booking 24/7 et filtre d'appels pour les professions libérales en Belgique.</p>
-    </div>
-    <div class="footer-col">
-      <h4>Produit</h4>
-      <a href="#features">Fonctionnalités</a>
-      <a href="#pricing">Tarifs</a>
-      <a href="#faq">FAQ</a>
-      <a href="#">Changelog</a>
-    </div>
-    <div class="footer-col">
-      <h4>Secteurs</h4>
-      <a href="#">Comptables</a>
-      <a href="#">Avocats</a>
-      <a href="#">Médecins</a>
-      <a href="#">Dentistes</a>
-      <a href="#">Kinés</a>
-      <a href="#">Coiffeurs</a>
-    </div>
-    <div class="footer-col">
-      <h4>Légal</h4>
-      <a href="#">Conditions d'utilisation</a>
-      <a href="#">Politique de confidentialité</a>
-      <a href="#">RGPD</a>
-      <a href="#">Contact</a>
-    </div>
+    <div class="footer-brand"><div class="f-logo"><div class="nav-logo">G</div><span class="nav-wm">Genda</span></div><p class="f-tagline">Votre cabinet en ligne. Page pro, booking 24/7 et filtre d'appels pour les professions libérales en Belgique.</p></div>
+    <div class="footer-col"><h4>Produit</h4><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a><a href="#">Changelog</a></div>
+    <div class="footer-col"><h4>Secteurs</h4><a href="#">Comptables</a><a href="#">Avocats</a><a href="#">Médecins</a><a href="#">Dentistes</a><a href="#">Kinés</a><a href="#">Coiffeurs</a></div>
+    <div class="footer-col"><h4>Légal</h4><a href="#">Conditions d'utilisation</a><a href="#">Politique de confidentialité</a><a href="#">RGPD</a><a href="#">Contact</a></div>
   </div>
-  <div class="footer-bottom">
-    <span>© 2026 Genda · Une solution belge 🇧🇪</span>
-    <span>Fait avec soin à Charleroi</span>
-  </div>
+  <div class="footer-bottom"><span>© 2026 Genda · Une solution belge 🇧🇪</span><span>Fait avec soin à Charleroi</span></div>
 </footer>
 
 <script>
-// Scroll reveal
 const obs = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); obs.unobserve(e.target); } });
 }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
 document.querySelectorAll('.rv').forEach(el => obs.observe(el));
-
-// Nav behavior
-const nav = document.getElementById('nav');
-const heroEl = document.querySelector('.hero');
-function updateNav() {
-  const scrolled = window.scrollY > 20;
-  const inHero = window.scrollY < heroEl.offsetHeight - 80;
-  nav.classList.toggle('scrolled', scrolled && !inHero);
-  nav.classList.toggle('hero-mode', inHero);
-}
-window.addEventListener('scroll', updateNav, { passive: true });
-updateNav();
-
-// Smooth scroll
-document.querySelectorAll('a[href^="#"]').forEach(a => {
-  a.addEventListener('click', (e) => {
-    const t = document.querySelector(a.getAttribute('href'));
-    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  });
-});
+window.addEventListener('scroll', () => { document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 10); }, { passive: true });
+document.querySelectorAll('a[href^="#"]').forEach(a => { a.addEventListener('click', (e) => { const t = document.querySelector(a.getAttribute('href')); if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }); });
 </script>
-
 </body>
 </html>
