@@ -16,7 +16,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 .card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
 .card-header{padding:24px 28px;border-bottom:1px solid var(--border-light);text-align:center}
 .card-header .status{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:16px;font-size:.78rem;font-weight:700;margin-bottom:10px}
-.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}
+.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}.status.modified_pending{background:#FFF7ED;color:#D97706}
 .card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
 .card-header .biz{font-size:.88rem;color:var(--text-3)}
 .details{padding:24px 28px}
@@ -81,7 +81,7 @@ function render(d) {
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const modeLabels = { cabinet: '🏢 Au cabinet', visio: '💻 En visio', phone: '📞 Par téléphone' };
-  const statusLabels = { confirmed: '✓ Confirmé', cancelled: '✕ Annulé', completed: '✓ Terminé', no_show: 'No-show', pending: '⏳ En attente' };
+  const statusLabels = { confirmed: '✓ Confirmé', cancelled: '✕ Annulé', completed: '✓ Terminé', no_show: 'No-show', pending: '⏳ En attente', modified_pending: '⚠️ Modification proposée' };
   const price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(0)} €` : 'Gratuit';
 
   // Apply theme
@@ -115,7 +115,19 @@ function render(d) {
   `;
 
   // Cancel section
-  if (bk.status === 'confirmed') {
+  if (bk.status === 'modified_pending') {
+    html += `<div class="cancel-section" style="border-top-color:var(--gold);background:var(--gold-bg)">
+      <h3 style="color:var(--gold)">⚠️ Horaire modifié par votre praticien</h3>
+      <p>Le nouvel horaire proposé est :</p>
+      <div style="padding:12px;background:var(--white);border-radius:8px;border:1.5px solid var(--gold);margin-bottom:14px;font-weight:600;text-align:center">
+        ${dateStr} · ${timeStr} – ${endStr}
+      </div>
+      <div style="display:flex;gap:10px">
+        <button style="flex:1;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="acceptBtn" onclick="acceptModification()">✓ Ça me convient</button>
+        <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()">✕ Refuser</button>
+      </div>
+    </div>`;
+  } else if (bk.status === 'confirmed') {
     const deadlineDate = new Date(can.deadline);
     const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 
@@ -149,6 +161,27 @@ function render(d) {
   const fl = document.getElementById('footerLink');
   fl.style.display = 'block';
   fl.innerHTML = `<a href="/${biz.slug}/book">Prendre un nouveau rendez-vous →</a>`;
+}
+
+async function acceptModification() {
+  const btn = document.getElementById('acceptBtn');
+  btn.disabled = true; btn.textContent = 'Confirmation...';
+  try {
+    const res = await fetch(`/api/public/booking/${token}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check">✅</div><h2>Nouvel horaire confirmé</h2><p>Votre rendez-vous est confirmé au nouvel horaire. À bientôt !</p></div>`;
+  } catch (e) { btn.disabled = false; btn.textContent = '✓ Ça me convient'; alert('Erreur: ' + e.message); }
+}
+
+async function refuseModification() {
+  if (!confirm('Refuser cette modification annulera le rendez-vous. Continuer ?')) return;
+  const btn = document.getElementById('refuseBtn');
+  btn.disabled = true; btn.textContent = 'Annulation...';
+  try {
+    const res = await fetch(`/api/public/booking/${token}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Client a refusé la modification d\'horaire' }) });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check">✕</div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
+  } catch (e) { btn.disabled = false; btn.textContent = '✕ Refuser'; alert('Erreur: ' + e.message); }
 }
 
 async function cancelBooking() {

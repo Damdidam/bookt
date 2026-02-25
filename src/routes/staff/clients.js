@@ -90,6 +90,24 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// POST /api/clients — quick create client (from calendar quick-create)
+router.post('/', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { full_name, phone, email } = req.body;
+    if (!full_name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+
+    const result = await queryWithRLS(bid,
+      `INSERT INTO clients (business_id, full_name, phone, email)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [bid, full_name.trim(), phone || null, email || null]
+    );
+    res.status(201).json({ client: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/clients/:id — client detail with booking history
 router.get('/:id', async (req, res, next) => {
   try {
