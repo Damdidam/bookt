@@ -455,10 +455,100 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   .field-row{flex-direction:column;gap:0}
   .team-grid2{grid-template-columns:1fr}
   .plan-card{flex-direction:column}
+  /* Calendar modal → almost full screen */
+  .cal-modal{max-width:100%;border-radius:14px 14px 0 0;max-height:95vh}
+  .cal-modal-body{padding:16px}
+  .info-grid{grid-template-columns:1fr}
+  .edit-row{grid-template-columns:1fr 1fr;gap:8px}
+  .notify-options{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:500px){
   .theme-grid{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr}
+}
+
+/* ===== MOBILE CALENDAR OPTIMIZATIONS ===== */
+@media(max-width:768px){
+  /* Smaller FC buttons */
+  .fc .fc-toolbar{flex-direction:column;gap:8px}
+  .fc .fc-toolbar-chunk{display:flex;justify-content:center}
+  .fc .fc-toolbar-title{font-size:1rem!important}
+  .fc .fc-button{padding:5px 10px;font-size:.72rem}
+  .fc .fc-timegrid-slot{height:40px}
+  .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
+  .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
+
+  /* Practitioner pills → scrollable row */
+  .prac-filters{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
+  .prac-filters::-webkit-scrollbar{display:none}
+  .prac-pill{flex-shrink:0;font-size:.68rem;padding:5px 11px}
+
+  /* Modal → full screen bottom sheet */
+  .cal-modal-overlay{padding:0;align-items:flex-end}
+  .cal-modal{max-width:100%;max-height:92vh;border-radius:18px 18px 0 0;animation:slideUp .3s cubic-bezier(.4,0,.2,1)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
+  .cal-modal-head{padding:16px 18px 0}
+  .cal-modal-head h2{font-size:1.1rem}
+  .cal-tabs{padding:12px 18px 0}
+  .cal-tab{padding:8px 10px;font-size:.72rem}
+  .cal-modal-body{padding:16px 18px}
+  .edit-row{grid-template-columns:1fr}
+  .info-grid{grid-template-columns:1fr}
+  .status-actions{justify-content:stretch}
+  .status-actions .st-btn{flex:1;text-align:center;font-size:.74rem;padding:10px 8px}
+
+  /* FAB — floating action button */
+  .cal-fab{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 16px rgba(13,115,119,.4);z-index:100;display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
+  .cal-fab:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(13,115,119,.5)}
+  .cal-fab:active{transform:scale(.95)}
+
+  /* Mobile list view */
+  .mob-view-toggle{display:flex;gap:2px;background:var(--surface);border-radius:8px;padding:2px;margin-bottom:12px}
+  .mob-vt{flex:1;padding:7px;border-radius:6px;font-size:.72rem;font-weight:600;text-align:center;cursor:pointer;border:none;background:transparent;color:var(--text-3);font-family:var(--sans);transition:var(--transition)}
+  .mob-vt.active{background:var(--white);color:var(--text);box-shadow:var(--shadow-xs)}
+
+  .mob-list{display:none}
+  .mob-list.active{display:block}
+  .mob-list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .mob-list-date{font-family:var(--serif);font-size:1.1rem;color:var(--text)}
+  .mob-list-count{font-size:.72rem;font-weight:700;background:var(--primary-light);color:var(--primary);padding:3px 10px;border-radius:100px}
+  .mob-list-nav{display:flex;gap:6px;margin-bottom:12px}
+  .mob-nav-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:var(--transition)}
+  .mob-nav-btn:hover{background:var(--surface);color:var(--text)}
+  .mob-today-btn{padding:6px 14px;border-radius:7px;border:1.5px solid var(--border);background:var(--white);font-size:.72rem;font-weight:600;color:var(--text-3);cursor:pointer;font-family:var(--sans)}
+
+  .mob-bk{display:flex;gap:12px;padding:14px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-xs);margin-bottom:8px;cursor:pointer;transition:var(--transition);position:relative;overflow:hidden}
+  .mob-bk:hover{border-color:var(--primary-soft);box-shadow:var(--shadow-xs)}
+  .mob-bk:active{transform:scale(.985)}
+  .mob-bk::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+  .mob-bk.st-confirmed::before{background:var(--green)}
+  .mob-bk.st-pending::before{background:var(--gold)}
+  .mob-bk.st-modified_pending::before{background:#D97706}
+  .mob-bk.st-completed::before{background:var(--text-4)}
+  .mob-bk.st-cancelled::before,.mob-bk.st-no_show::before{background:var(--red)}
+  .mob-bk.st-completed,.mob-bk.st-cancelled{opacity:.5}
+  .mob-bk-time{min-width:52px;text-align:center;flex-shrink:0}
+  .mob-bk-time .t{font-size:.88rem;font-weight:700;color:var(--primary);line-height:1.2}
+  .mob-bk-time .dur{font-size:.62rem;color:var(--text-4)}
+  .mob-bk-info{flex:1;min-width:0}
+  .mob-bk-info .name{font-size:.88rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mob-bk-info .svc{font-size:.72rem;color:var(--text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mob-bk-info .prac{font-size:.65rem;color:var(--text-4);margin-top:2px;display:flex;align-items:center;gap:4px}
+  .mob-bk-info .prac .pdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .mob-bk-status{font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:100px;align-self:center;flex-shrink:0;white-space:nowrap}
+  .mob-bk-badges{position:absolute;top:6px;right:6px;display:flex;gap:3px}
+  .mob-bk-badges span{font-size:.55rem}
+
+  .mob-empty{text-align:center;padding:40px 20px;color:var(--text-4)}
+  .mob-empty-icon{font-size:2rem;margin-bottom:8px}
+  .mob-empty-text{font-size:.88rem}
+  .mob-empty-sub{font-size:.78rem;margin-top:4px}
+}
+/* Hide FAB and mobile toggle on desktop */
+@media(min-width:769px){
+  .cal-fab{display:none!important}
+  .mob-view-toggle{display:none!important}
+  .mob-list{display:none!important}
 }
 </style>
 </head>
@@ -644,9 +734,17 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 let fcCal=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null;
+let fcMobileView='grid'; // 'grid' or 'list'
+let fcMobileDate=new Date(); // for list view navigation
+let fcAllBookings=[]; // cache for list view
+
+const fcIsMobile=()=>window.innerWidth<=768;
+const fcIsTouch='ontouchstart' in window||navigator.maxTouchPoints>0;
 
 const MODE_ICO={cabinet:'🏢',visio:'💻',phone:'📞'};
 const ST_LABELS={pending:'En attente',confirmed:'Confirmé',completed:'Terminé',cancelled:'Annulé',no_show:'No-show',modified_pending:'Modifié · en attente'};
+const DAY_NAMES=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const MONTH_NAMES=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 
 function gToast(msg,type){
   const t=document.getElementById('gToast');t.textContent=msg;t.style.display='flex';
@@ -658,7 +756,6 @@ async function loadAgenda(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    // Load practitioners + services in parallel
     const [prRes,svRes]=await Promise.all([
       fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}})
@@ -673,29 +770,36 @@ async function loadAgenda(){
   fcPractitioners.forEach(p=>{pills+=`<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)"><span class="dot" style="background:${p.color||'var(--primary)'}"></span>${p.display_name}</div>`;});
   pills+=`</div>`;
 
-  c.innerHTML=pills+`<div id="fcCalendar"></div>`;
+  // Mobile: view toggle + list container
+  const mobile=fcIsMobile();
+  let mobToggle='';
+  if(mobile){
+    mobToggle=`<div class="mob-view-toggle"><button class="mob-vt ${fcMobileView==='list'?'active':''}" onclick="fcSwitchMobView('list')">📋 Liste</button><button class="mob-vt ${fcMobileView==='grid'?'active':''}" onclick="fcSwitchMobView('grid')">📅 Grille</button></div>`;
+  }
+
+  c.innerHTML=pills+mobToggle+`<div id="fcCalendar" style="${mobile&&fcMobileView==='list'?'display:none':''}"></div><div id="fcMobList" class="mob-list ${mobile&&fcMobileView==='list'?'active':''}"></div>`+
+    (mobile?`<button class="cal-fab" onclick="fcOpenQuickCreate()" title="Nouveau RDV">+</button>`:'');
 
   // Init FullCalendar
   fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),{
     locale:'fr',
-    initialView:'timeGridWeek',
-    headerToolbar:{left:'prev,today,next',center:'title',right:'timeGridDay,timeGridWeek,dayGridMonth'},
+    initialView:mobile?'timeGridDay':'timeGridWeek',
+    headerToolbar:{left:'prev,today,next',center:'title',right:mobile?'':'timeGridDay,timeGridWeek,dayGridMonth'},
     buttonText:{today:"Aujourd'hui",day:'Jour',week:'Semaine',month:'Mois'},
     slotMinTime:'07:00:00',slotMaxTime:'21:00:00',
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
-    allDaySlot:false,nowIndicator:true,navLinks:true,
+    allDaySlot:false,nowIndicator:true,navLinks:!mobile,
     height:'auto',expandRows:true,stickyHeaderDates:true,firstDay:1,
-    editable:true,eventDurationEditable:true,eventStartEditable:true,snapDuration:'00:15:00',
+    editable:!fcIsTouch,eventDurationEditable:!fcIsTouch,eventStartEditable:!fcIsTouch,snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
+    longPressDelay:99999, // effectively disable long-press drag on touch
 
-    // Block overlap for same practitioner (allow different practitioners to overlap visually)
+    // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
       const sp=stillEvent.extendedProps?.practitioner_id;
       const mp=movingEvent?.extendedProps?.practitioner_id;
-      // Different practitioners → allow visual overlap
       if(sp&&mp&&sp!==mp)return true;
-      // Same practitioner → allow only if existing one is cancelled/completed/no_show
       const st=stillEvent.extendedProps?.status;
       if(['cancelled','completed','no_show'].includes(st))return true;
       return false;
@@ -705,7 +809,6 @@ async function loadAgenda(){
     eventAllow:function(dropInfo,draggedEvent){
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
       if(!myPrac)return true;
-      // Prevent dropping in the past
       if(dropInfo.start<new Date())return false;
       const newStart=dropInfo.start,newEnd=dropInfo.end;
       const allEvents=fcCal.getEvents();
@@ -788,14 +891,125 @@ async function loadAgenda(){
     }
   });
   fcCal.render();
+
+  // Mobile: load list view + setup swipe
+  if(fcIsMobile()){
+    fcMobileDate=new Date();
+    fcLoadMobileList();
+    fcSetupSwipe();
+
+    // Sync list date when calendar navigates
+    fcCal.on('datesSet',function(info){
+      fcMobileDate=info.start;
+      if(fcMobileView==='list')fcLoadMobileList();
+    });
+  }
+}
+
+// ── Mobile: Switch grid/list view ──
+function fcSwitchMobView(view){
+  fcMobileView=view;
+  document.querySelectorAll('.mob-vt').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.mob-vt:${view==='list'?'first':'last'}-child`)?.classList.add('active');
+  const cal=document.getElementById('fcCalendar');
+  const list=document.getElementById('fcMobList');
+  if(view==='list'){
+    cal.style.display='none';
+    list.classList.add('active');
+    fcLoadMobileList();
+  }else{
+    cal.style.display='';
+    list.classList.remove('active');
+    fcCal.updateSize();
+  }
+}
+
+// ── Mobile: List view ──
+async function fcLoadMobileList(){
+  const el=document.getElementById('fcMobList');
+  if(!el)return;
+  const ds=fcMobileDate.toISOString().split('T')[0];
+  const from=ds+'T00:00:00',to=ds+'T23:59:59';
+  try{
+    const params=new URLSearchParams({from,to});
+    if(fcCurrentFilter!=='all')params.set('practitioner_id',fcCurrentFilter);
+    const r=await fetch('/api/bookings?'+params.toString(),{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    fcAllBookings=d.bookings||[];
+  }catch(e){fcAllBookings=[];}
+
+  const isToday=ds===new Date().toISOString().split('T')[0];
+  const dayLabel=isToday?"Aujourd'hui":`${DAY_NAMES[fcMobileDate.getDay()]} ${fcMobileDate.getDate()} ${MONTH_NAMES[fcMobileDate.getMonth()]}`;
+
+  let h=`<div class="mob-list-nav"><button class="mob-nav-btn" onclick="fcMobShift(-1)">‹</button><button class="mob-today-btn" onclick="fcMobToday()">Aujourd'hui</button><button class="mob-nav-btn" onclick="fcMobShift(1)">›</button></div>`;
+  h+=`<div class="mob-list-header"><span class="mob-list-date">${dayLabel}</span><span class="mob-list-count">${fcAllBookings.length} RDV</span></div>`;
+
+  if(!fcAllBookings.length){
+    h+=`<div class="mob-empty"><div class="mob-empty-icon">📅</div><div class="mob-empty-text">Aucun rendez-vous</div><div class="mob-empty-sub">${dayLabel}</div></div>`;
+  }else{
+    const sorted=[...fcAllBookings].sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
+    sorted.forEach(b=>{
+      const s=new Date(b.start_at),e=new Date(b.end_at);
+      const t1=s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+      const dur=Math.round((e-s)/60000);
+      const prac=fcPractitioners.find(p=>p.id===b.practitioner_id);
+      const stLabel=ST_LABELS[b.status]||b.status;
+      const stClass='st-'+b.status;
+      const badges=[(b.internal_note?'📝':''),(b.status==='modified_pending'?'⚠️':'')].filter(Boolean);
+      h+=`<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${b.id}')">
+        ${badges.length?'<div class="mob-bk-badges">'+badges.map(x=>'<span>'+x+'</span>').join('')+'</div>':''}
+        <div class="mob-bk-time"><div class="t">${t1}</div><div class="dur">${dur}min</div></div>
+        <div class="mob-bk-info"><div class="name">${escH(b.client_name)}</div><div class="svc">${b.service_name} · ${MODE_ICO[b.appointment_mode]||''}</div><div class="prac"><span class="pdot" style="background:${prac?.color||'var(--primary)'}"></span>${prac?.display_name||b.practitioner_name||''}</div></div>
+        <div class="mob-bk-status status-badge ${stClass}">${stLabel}</div>
+      </div>`;
+    });
+  }
+  el.innerHTML=h;
+}
+
+function fcMobShift(dir){
+  fcMobileDate.setDate(fcMobileDate.getDate()+dir);
+  fcLoadMobileList();
+  // Sync calendar too
+  fcCal.gotoDate(fcMobileDate);
+}
+
+function fcMobToday(){
+  fcMobileDate=new Date();
+  fcLoadMobileList();
+  fcCal.today();
+}
+
+// ── Mobile: Swipe navigation ──
+function fcSetupSwipe(){
+  let startX=0,startY=0,swiping=false;
+  const content=document.getElementById('contentArea');
+  content.addEventListener('touchstart',e=>{
+    startX=e.touches[0].clientX;startY=e.touches[0].clientY;swiping=true;
+  },{passive:true});
+  content.addEventListener('touchend',e=>{
+    if(!swiping)return;swiping=false;
+    const dx=e.changedTouches[0].clientX-startX;
+    const dy=e.changedTouches[0].clientY-startY;
+    if(Math.abs(dx)<60||Math.abs(dy)>Math.abs(dx)*0.7)return; // too short or too vertical
+    if(dx<-60){
+      // Swipe left → next day
+      if(fcMobileView==='list'){fcMobShift(1);}else{fcCal.next();}
+    }else if(dx>60){
+      // Swipe right → prev day
+      if(fcMobileView==='list'){fcMobShift(-1);}else{fcCal.prev();}
+    }
+  },{passive:true});
 }
 
 // ── Practitioner filter ──
+function fcRefresh(){fcCal.refetchEvents();if(fcIsMobile()&&fcMobileView==='list')fcLoadMobileList();}
+
 function fcFilterPractitioner(id,el){
   fcCurrentFilter=id;
   document.querySelectorAll('.prac-pill').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
-  fcCal.refetchEvents();
+  fcRefresh();
 }
 
 // ── Detail Modal ──
@@ -897,7 +1111,7 @@ async function fcSetStatus(newStatus){
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     gToast('Statut mis à jour','success');
     closeCalModal('calDetailModal');
-    fcCal.refetchEvents();
+    fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
 
@@ -971,7 +1185,7 @@ async function calDoSaveTime(notify,channel){
     calCloseNotify();
     fcEditOriginal={date:nd,start:ns,end:ne};
     document.getElementById('calEditDiff').style.display='none';
-    fcCal.refetchEvents();
+    fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
 
@@ -995,7 +1209,7 @@ async function calAddNote(){
     fcDetailData.notes.unshift(d.note);
     document.getElementById('calNewNote').value='';document.getElementById('calNotePinned').checked=false;
     fcRenderNotes();gToast('Note ajoutée','success');
-    fcCal.refetchEvents();
+    fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
 
@@ -1083,7 +1297,16 @@ async function fcDeleteReminder(remId){
 
 // ── Quick Create ──
 function fcOpenQuickCreate(startStr,endStr){
-  const d=new Date(startStr);
+  let d;
+  if(startStr){d=new Date(startStr);}
+  else{
+    // From FAB: use mobile date or today, next round hour
+    d=new Date(fcIsMobile()?fcMobileDate:new Date());
+    const now=new Date();
+    if(d.toDateString()===now.toDateString()){
+      d.setHours(now.getHours()+1,0,0,0);
+    }else{d.setHours(9,0,0,0);}
+  }
   document.getElementById('qcDate').value=d.toISOString().split('T')[0];
   document.getElementById('qcTime').value=d.toTimeString().slice(0,5);
   document.getElementById('qcClient').value='';
@@ -1168,7 +1391,7 @@ async function calCreateBooking(){
     if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
     gToast('RDV créé !','success');
     closeCalModal('calCreateModal');
-    fcCal.refetchEvents();
+    fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
 
