@@ -413,31 +413,28 @@ router.patch('/:id/move', async (req, res, next) => {
 
       // Check the group's first member doesn't start before business hours
       const firstNewStart = new Date(totalStart);
+      const lastNewEnd = new Date(totalEnd);
+      // Convert JS day (0=Sun) to DB weekday (0=Mon)
+      const jsDay = firstNewStart.getDay();
+      const dbDay = jsDay === 0 ? 6 : jsDay - 1;
       const avCheck = await queryWithRLS(bid,
-        `SELECT schedule FROM availabilities
-         WHERE practitioner_id = $1 AND business_id = $2`,
-        [effectivePracId, bid]
+        `SELECT MIN(start_time) AS earliest, MAX(end_time) AS latest
+         FROM availabilities
+         WHERE practitioner_id = $1 AND business_id = $2 AND weekday = $3 AND is_active = true`,
+        [effectivePracId, bid, dbDay]
       );
-      if (avCheck.rows.length > 0) {
-        const sched = avCheck.rows[0].schedule || {};
-        // Convert JS day (0=Sun) to DB day (0=Mon)
-        const jsDay = firstNewStart.getDay();
-        const dbDay = jsDay === 0 ? 6 : jsDay - 1;
-        const daySlots = sched[dbDay] || [];
-        if (daySlots.length > 0) {
-          const earliest = daySlots.reduce((min, s) => s.start_time < min ? s.start_time : min, '23:59');
-          const latest = daySlots.reduce((max, s) => s.end_time > max ? s.end_time : max, '00:00');
-          const startH = firstNewStart.getHours() + firstNewStart.getMinutes() / 60;
-          const lastNewEnd = new Date(totalEnd);
-          const endH = lastNewEnd.getHours() + lastNewEnd.getMinutes() / 60;
-          const earlyH = parseInt(earliest.split(':')[0]) + parseInt(earliest.split(':')[1] || 0) / 60;
-          const lateH = parseInt(latest.split(':')[0]) + parseInt(latest.split(':')[1] || 0) / 60;
-          if (startH < earlyH) {
-            return res.status(400).json({ error: `Le groupe commencerait à ${firstNewStart.toTimeString().slice(0,5)}, avant l'ouverture (${earliest.slice(0,5)})` });
-          }
-          if (endH > lateH) {
-            return res.status(400).json({ error: `Le groupe finirait à ${lastNewEnd.toTimeString().slice(0,5)}, après la fermeture (${latest.slice(0,5)})` });
-          }
+      if (avCheck.rows.length > 0 && avCheck.rows[0].earliest) {
+        const earliest = avCheck.rows[0].earliest; // e.g. "09:00:00"
+        const latest = avCheck.rows[0].latest;
+        const startH = firstNewStart.getHours() + firstNewStart.getMinutes() / 60;
+        const endH = lastNewEnd.getHours() + lastNewEnd.getMinutes() / 60;
+        const earlyH = parseInt(earliest.split(':')[0]) + parseInt(earliest.split(':')[1] || 0) / 60;
+        const lateH = parseInt(latest.split(':')[0]) + parseInt(latest.split(':')[1] || 0) / 60;
+        if (startH < earlyH) {
+          return res.status(400).json({ error: `Le groupe commencerait à ${firstNewStart.toTimeString().slice(0,5)}, avant l'ouverture (${earliest.slice(0,5)})` });
+        }
+        if (endH > lateH) {
+          return res.status(400).json({ error: `Le groupe finirait à ${lastNewEnd.toTimeString().slice(0,5)}, après la fermeture (${latest.slice(0,5)})` });
         }
       }
 
