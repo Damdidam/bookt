@@ -1081,10 +1081,29 @@ async function loadAgenda(){
       // Block drop on closed days
       const dropDay=dropInfo.start.getDay();
       if(fcHiddenDays.includes(dropDay))return false;
-      // Block drop outside business hours
+
+      // For groups: calculate where the FIRST member would land
+      const myGroup=draggedEvent.extendedProps?.group_id;
+      let effectiveStart=dropInfo.start;
+      let effectiveEnd=dropInfo.end;
+      if(myGroup){
+        const allEvts=fcCal.getEvents().filter(e=>e.extendedProps?.group_id===myGroup);
+        allEvts.sort((a,b)=>a.start-b.start);
+        if(allEvts.length>0){
+          const draggedOrig=draggedEvent.start;
+          const delta=dropInfo.start.getTime()-draggedOrig.getTime();
+          const firstStart=new Date(allEvts[0].start.getTime()+delta);
+          const lastEnd=new Date(allEvts[allEvts.length-1].end.getTime()+delta);
+          effectiveStart=firstStart;
+          effectiveEnd=lastEnd;
+        }
+      }
+
+      // Block drop outside business hours (check effective group start)
       if(fcBusinessHours.length>0){
-        const dropH=dropInfo.start.getHours()+dropInfo.start.getMinutes()/60;
-        const dayBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(dropDay));
+        const checkDay=effectiveStart.getDay();
+        const dropH=effectiveStart.getHours()+effectiveStart.getMinutes()/60;
+        const dayBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(checkDay));
         if(dayBH.length>0){
           const inBH=dayBH.some(bh=>{
             const s=parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60;
@@ -1093,13 +1112,25 @@ async function loadAgenda(){
           });
           if(!inBH)return false;
         }
+        // Also check effective group end doesn't exceed business hours
+        if(myGroup){
+          const endH=effectiveEnd.getHours()+effectiveEnd.getMinutes()/60;
+          const endDay=effectiveEnd.getDay();
+          const endBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(endDay));
+          if(endBH.length>0){
+            const inEndBH=endBH.some(bh=>{
+              const e=parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60;
+              return endH<=e;
+            });
+            if(!inEndBH)return false;
+          }
+        }
       }
       // Business allows overlap → only block past
-      if(fcAllowOverlap)return dropInfo.start>=new Date();
+      if(fcAllowOverlap)return effectiveStart>=new Date();
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
-      const myGroup=draggedEvent.extendedProps?.group_id;
       if(!myPrac)return true;
-      if(dropInfo.start<new Date())return false;
+      if(effectiveStart<new Date())return false;
       const newStart=dropInfo.start,newEnd=dropInfo.end;
       const allEvents=fcCal.getEvents();
       for(const ev of allEvents){
@@ -1109,7 +1140,12 @@ async function loadAgenda(){
         if(ev.extendedProps?.practitioner_id!==myPrac)continue;
         const st=ev.extendedProps?.status;
         if(st==='cancelled'||st==='no_show'||st==='completed')continue;
-        if(ev.start<newEnd&&ev.end>newStart)return false;
+        // For groups, check the whole group range vs other events
+        if(myGroup){
+          if(ev.start<effectiveEnd&&ev.end>effectiveStart)return false;
+        }else{
+          if(ev.start<newEnd&&ev.end>newStart)return false;
+        }
       }
       return true;
     },
