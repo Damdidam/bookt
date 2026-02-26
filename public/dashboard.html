@@ -160,7 +160,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .fc .fc-col-header-cell{font-size:.72rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0}
 .fc .fc-scrollgrid{border:1px solid var(--border-light);border-radius:var(--radius)}
 .fc td,.fc th{border-color:var(--border-light)}
-.fc .fc-daygrid-day-number{font-size:.8rem;font-weight:500;color:var(--text-2);padding:6px 8px}
 .fc .fc-day-today{background:var(--primary-light)!important}
 .fc .fc-timegrid-slot{height:18px}
 .fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:var(--text-4);font-weight:500}
@@ -171,6 +170,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9}
 .fc .fc-timegrid-event .fc-event-main{padding:4px 6px}
 .fc .fc-daygrid-event{margin:1px 3px}
+/* Month view compact pills */
+.ev-month-pill{font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;padding:1px 4px;line-height:1.4}
+.ev-month-pill strong{font-weight:700}
+.fc .fc-daygrid-day-frame{min-height:80px}
+.fc .fc-daygrid-day-top{display:flex;justify-content:flex-end}
+.fc .fc-daygrid-day-number{font-size:.78rem;font-weight:600;color:var(--text-3);padding:4px 8px;cursor:pointer;text-decoration:none}
+.fc .fc-daygrid-day-number:hover{color:var(--primary)}
+.fc .fc-day-today .fc-daygrid-day-number{background:var(--primary);color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;padding:0;margin:4px 4px 0 0}
+.fc .fc-daygrid-more-link{font-size:.68rem;font-weight:600;color:var(--primary);padding:2px 6px}
+.fc .fc-daygrid-event-harness{margin-bottom:1px}
+/* Popover for "+X more" */
+.fc .fc-popover{border-radius:var(--radius);border:1px solid var(--border-light);box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.fc .fc-popover-header{font-size:.78rem;font-weight:600;padding:8px 12px;background:var(--surface);border-radius:var(--radius) var(--radius) 0 0}
+.fc .fc-popover-body{padding:4px 8px}
 
 /* Event inner */
 .ev-inner{display:flex;flex-direction:column;gap:1px;overflow:hidden;position:relative}
@@ -947,8 +960,9 @@ async function loadAgenda(){
     businessHours:fcBusinessHours.length>0?fcBusinessHours:{daysOfWeek:[1,2,3,4,5],startTime:'09:00',endTime:'17:00'},
     selectConstraint:'businessHours',
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
-    allDaySlot:false,nowIndicator:true,navLinks:!mobile,
+    allDaySlot:false,nowIndicator:true,navLinks:true,
     height:'auto',stickyHeaderDates:true,firstDay:1,
+    dayMaxEvents:3, // month view: show max 3 events, then "+X more"
     editable:!fcIsTouch||fcIsTablet(),eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:!fcIsTouch||fcIsTablet(),snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
@@ -971,6 +985,8 @@ async function loadAgenda(){
 
     // Full collision check before allowing drop
     eventAllow:function(dropInfo,draggedEvent){
+      // Block drag in month view
+      if(fcCal?.view?.type==='dayGridMonth')return false;
       // Block drop on closed days
       const dropDay=dropInfo.start.getDay();
       if(fcHiddenDays.includes(dropDay))return false;
@@ -1048,6 +1064,15 @@ async function loadAgenda(){
     // Custom event rendering with badges
     eventContent:function(arg){
       const p=arg.event.extendedProps;
+      const isMonth=arg.view.type==='dayGridMonth';
+      if(isMonth){
+        // Compact pill: "09:00 Dupont"
+        const t=arg.event.start?arg.event.start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
+        const name=(p.client_name||arg.event.title||'').split(' ')[0]; // first name only
+        const freeIco=!p.service_name?' ✦':'';
+        return{html:`<span class="ev-month-pill">${t} <strong>${name}</strong>${freeIco}</span>`};
+      }
+      // Week/Day: full rendering
       const svcLabel=p.service_name||p.custom_label||'RDV libre';
       const badges=[(p.internal_note?'<span class="ev-badge ev-badge-note"></span>':''),(p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':'')].filter(Boolean).join('');
       const groupTag=p.group_id?'<span class="ev-group-badge">🔗</span>':'';
@@ -1074,6 +1099,11 @@ async function loadAgenda(){
     // Click → open detail modal
     eventClick:function(info){fcOpenDetail(info.event.id);},
 
+    // Click day number in month view → switch to day view
+    navLinkDayClick:function(date){
+      fcCal.changeView('timeGridDay',date);
+    },
+
     // Stamp event IDs on DOM for group drag
     eventDidMount:function(info){
       info.el.setAttribute('data-eid',info.event.id);
@@ -1084,8 +1114,9 @@ async function loadAgenda(){
     // Select empty slot → quick create
     select:function(info){fcOpenQuickCreate(info.startStr,info.endStr);fcCal.unselect();},
 
-    // Group drag: ghost siblings during drag
+    // Group drag: ghost siblings during drag (skip in month view)
     eventDragStart:function(info){
+      if(fcCal.view.type==='dayGridMonth')return;
       const gid=info.event.extendedProps?.group_id;
       if(!gid)return;
       document.querySelectorAll(`.fc-event[data-gid="${gid}"]`).forEach(el=>{
