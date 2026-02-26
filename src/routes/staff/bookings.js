@@ -414,7 +414,7 @@ router.patch('/:id/move', async (req, res, next) => {
       // Check the group's first member doesn't start before business hours
       const firstNewStart = new Date(totalStart);
       const avCheck = await queryWithRLS(bid,
-        `SELECT schedule FROM practitioner_availability
+        `SELECT schedule FROM availabilities
          WHERE practitioner_id = $1 AND business_id = $2`,
         [effectivePracId, bid]
       );
