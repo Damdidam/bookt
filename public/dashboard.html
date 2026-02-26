@@ -1761,17 +1761,30 @@ async function calDoSaveTime(notify,channel){
   const nd=document.getElementById('calEditDate').value,ns=document.getElementById('calEditStart').value,ne=document.getElementById('calEditEnd').value;
   const start_at=nd+'T'+ns+':00',end_at=nd+'T'+ne+':00';
   try{
-    const r=await fetch(`/api/bookings/${fcCurrentEventId}/modify`,{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({start_at,end_at,notify:!!notify,notify_channel:channel})
-    });
+    const isGrouped=!!fcCurrentBooking?.group_id;
+    let r;
+    if(isGrouped){
+      // Use /move for grouped bookings → moves entire group with delta
+      r=await fetch(`/api/bookings/${fcCurrentEventId}/move`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({start_at,end_at,practitioner_id:fcCurrentBooking.practitioner_id})
+      });
+    }else{
+      r=await fetch(`/api/bookings/${fcCurrentEventId}/modify`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({start_at,end_at,notify:!!notify,notify_channel:channel})
+      });
+    }
     if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
-    const label=notify?{email:'Email envoyé',sms:'SMS envoyé',both:'Email + SMS envoyés'}[channel]:'Horaire mis à jour';
+    const result=await r.json();
+    const label=isGrouped
+      ?`Groupe déplacé (${result.count||fcCurrentBooking.group_order+1} prestations)`
+      :(notify?{email:'Email envoyé',sms:'SMS envoyé',both:'Email + SMS envoyés'}[channel]:'Horaire mis à jour');
     gToast(label,'success');
     calCloseNotify();
-    fcEditOriginal={date:nd,start:ns,end:ne};
-    document.getElementById('calEditDiff').style.display='none';
+    closeCalModal('calDetailModal');
     fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
