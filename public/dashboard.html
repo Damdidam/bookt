@@ -2994,6 +2994,7 @@ async function loadTeam(){
             ${hasLogin?`<span class="tm-badge has-login">${sectorLabels[p.user_role]||p.user_role||'Compte lié'}</span>`:''}
           </div>
           <div class="tm-actions">
+            <button class="btn-outline btn-sm" onclick="openPracTasks('${p.id}','${esc(p.display_name)}')">📋 Tâches</button>
             <button class="btn-outline btn-sm" onclick="openPractModal('${p.id}')">✏️ Modifier</button>
             ${hasLogin?`<button class="btn-outline btn-sm" onclick="openRoleModal('${p.id}','${esc(p.display_name)}','${p.user_role||'practitioner'}')">🎭 Rôle</button>`:''}
             ${!hasLogin?`<button class="btn-outline btn-sm" onclick="openInviteModal('${p.id}','${esc(p.display_name)}')">🔑 Créer un accès</button>`:''}
@@ -3094,6 +3095,78 @@ async function savePract(id){
 }
 
 async function deactivatePract(id){
+
+}
+
+async function openPracTasks(pracId,pracName){
+  try{
+    const r=await fetch(`/api/practitioners/${pracId}/tasks`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    const data=await r.json();
+    const todos=data.todos||[], reminders=data.reminders||[];
+    const pendingTodos=todos.filter(t=>!t.is_done), doneTodos=todos.filter(t=>t.is_done);
+    const pendingReminders=reminders.filter(r=>!r.is_sent), sentReminders=reminders.filter(r=>r.is_sent);
+
+    let h=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:560px"><div class="modal-h"><h3>📋 ${pracName}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body" style="max-height:70vh;overflow-y:auto">`;
+
+    // Todos
+    h+=`<div style="font-size:.82rem;font-weight:700;margin-bottom:8px">Tâches en cours (${pendingTodos.length})</div>`;
+    if(pendingTodos.length===0){h+=`<div style="font-size:.8rem;color:var(--text-4);margin-bottom:16px">Aucune tâche en cours</div>`;}
+    else{pendingTodos.forEach(t=>{
+      const dt=t.booking_start?new Date(t.booking_start).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+      h+=`<div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:flex-start">
+        <input type="checkbox" onchange="togglePracTodo('${t.id}','${t.booking_id}',this.checked,'${pracId}','${esc(pracName)}')" style="margin-top:3px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem">${escH(t.content)}</div>
+          <div style="font-size:.7rem;color:var(--text-4)">${t.client_name||''} ${t.service_name?'· '+t.service_name:''} ${dt?'· '+dt:''}</div>
+        </div>
+      </div>`;
+    });}
+
+    if(doneTodos.length>0){
+      h+=`<div style="font-size:.82rem;font-weight:700;margin:16px 0 8px;color:var(--text-4)">Terminées (${doneTodos.length})</div>`;
+      doneTodos.slice(0,10).forEach(t=>{
+        h+=`<div style="padding:6px 0;border-bottom:1px solid var(--border-light);opacity:.5">
+          <div style="font-size:.8rem;text-decoration:line-through">${escH(t.content)}</div>
+          <div style="font-size:.68rem;color:var(--text-4)">${t.client_name||''} · ${t.done_at?new Date(t.done_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'}):''}</div>
+        </div>`;
+      });
+      if(doneTodos.length>10)h+=`<div style="font-size:.72rem;color:var(--text-4);padding:4px 0">+ ${doneTodos.length-10} autres</div>`;
+    }
+
+    // Reminders
+    h+=`<div style="font-size:.82rem;font-weight:700;margin:20px 0 8px">Rappels à venir (${pendingReminders.length})</div>`;
+    if(pendingReminders.length===0){h+=`<div style="font-size:.8rem;color:var(--text-4)">Aucun rappel en attente</div>`;}
+    else{pendingReminders.forEach(r=>{
+      const dt=new Date(r.remind_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+      const ch=r.channel==='email'?'📧':r.channel==='both'?'📧+🔔':'🔔';
+      h+=`<div style="padding:8px 0;border-bottom:1px solid var(--border-light)">
+        <div style="font-size:.82rem">${ch} ${dt}</div>
+        <div style="font-size:.7rem;color:var(--text-4)">${r.client_name||''} ${r.service_name?'· '+r.service_name:''} ${r.message?'· '+escH(r.message):''}</div>
+      </div>`;
+    });}
+
+    if(sentReminders.length>0){
+      h+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:8px">${sentReminders.length} rappel${sentReminders.length>1?'s':''} déjà envoyé${sentReminders.length>1?'s':''}</div>`;
+    }
+
+    h+=`</div></div></div>`;
+    document.body.insertAdjacentHTML('beforeend',h);
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function togglePracTodo(todoId,bookingId,done,pracId,pracName){
+  try{
+    await fetch(`/api/bookings/${bookingId}/todos/${todoId}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({is_done:done})
+    });
+    // Refresh the modal
+    document.querySelector('.modal-overlay')?.remove();
+    openPracTasks(pracId,pracName);
+  }catch(e){GendaUI.toast('Erreur','error');}
+}
   try{const r=await fetch(`/api/practitioners/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Praticien désactivé','success');loadTeam();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}

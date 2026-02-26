@@ -108,6 +108,52 @@ router.get('/', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/practitioners/:id/tasks — todos + reminders for a practitioner
+// UI: Team page → "📋 Tâches" button
+// ============================================================
+router.get('/:id/tasks', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    // Todos linked to this practitioner's bookings
+    const todos = await queryWithRLS(bid,
+      `SELECT t.id, t.content, t.is_done, t.done_at, t.created_at, t.booking_id,
+              b.start_at AS booking_start, b.end_at AS booking_end,
+              c.full_name AS client_name,
+              s.name AS service_name
+       FROM practitioner_todos t
+       LEFT JOIN bookings b ON b.id = t.booking_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       WHERE t.business_id = $1
+         AND (b.practitioner_id = $2 OR t.user_id IN (
+           SELECT user_id FROM practitioners WHERE id = $2 AND business_id = $1
+         ))
+       ORDER BY t.is_done ASC, b.start_at ASC NULLS LAST, t.created_at DESC`,
+      [bid, id]
+    );
+
+    // Reminders for this practitioner's bookings
+    const reminders = await queryWithRLS(bid,
+      `SELECT r.id, r.remind_at, r.message, r.channel, r.is_sent, r.sent_at, r.booking_id,
+              b.start_at AS booking_start,
+              c.full_name AS client_name,
+              s.name AS service_name
+       FROM booking_reminders r
+       JOIN bookings b ON b.id = r.booking_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       WHERE r.business_id = $1 AND b.practitioner_id = $2
+       ORDER BY r.is_sent ASC, r.remind_at ASC`,
+      [bid, id]
+    );
+
+    res.json({ todos: todos.rows, reminders: reminders.rows });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/practitioners — create new practitioner
 // ============================================================
 router.post('/', requireOwner, async (req, res, next) => {
