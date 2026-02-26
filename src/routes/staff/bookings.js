@@ -22,15 +22,15 @@ router.get('/', async (req, res, next) => {
       SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
              b.channel, b.comment_client, b.public_token,
              b.internal_note, b.color AS booking_color,
-             b.group_id, b.group_order,
+             b.group_id, b.group_order, b.custom_label,
              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
              c.allow_overlap
       FROM bookings b
-      JOIN services s ON s.id = b.service_id
+      LEFT JOIN services s ON s.id = b.service_id
       JOIN practitioners p ON p.id = b.practitioner_id
-      JOIN clients c ON c.id = b.client_id
+      LEFT JOIN clients c ON c.id = b.client_id
       WHERE b.business_id = $1`;
 
     const params = [bid];
@@ -75,9 +75,70 @@ router.get('/', async (req, res, next) => {
 router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment, services: multiServices } = req.body;
+    const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color } = req.body;
 
-    // Support both single service (backward compat) and multi-service array
+    if (!practitioner_id || !start_at) {
+      return res.status(400).json({ error: 'practitioner_id et start_at requis' });
+    }
+
+    // ── FREESTYLE MODE: no predefined service ──
+    if (freestyle) {
+      if (!end_at) return res.status(400).json({ error: 'end_at requis en mode libre' });
+      const bufBefore = parseInt(buffer_before_min) || 0;
+      const bufAfter = parseInt(buffer_after_min) || 0;
+      const realStart = new Date(new Date(start_at).getTime() - bufBefore * 60000);
+      const realEnd = new Date(new Date(end_at).getTime() + bufAfter * 60000);
+
+      // Check if client allows overlap
+      let clientAllowOverlap = false;
+      if (client_id) {
+        const clRes = await queryWithRLS(bid,
+          `SELECT allow_overlap FROM clients WHERE id = $1 AND business_id = $2`,
+          [client_id, bid]
+        );
+        if (clRes.rows.length > 0) clientAllowOverlap = clRes.rows[0].allow_overlap;
+      }
+
+      const bookings = await transactionWithRLS(bid, async (client) => {
+        if (!clientAllowOverlap) {
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND status IN ('pending', 'confirmed')
+             AND start_at < $4 AND end_at > $3
+             FOR UPDATE`,
+            [bid, practitioner_id, realStart.toISOString(), realEnd.toISOString()]
+          );
+          if (conflict.rows.length > 0) {
+            throw Object.assign(new Error('Créneau déjà pris'), { type: 'conflict' });
+          }
+        }
+
+        const result = await client.query(
+          `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color)
+           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, 'confirmed', $7, $8, $9)
+           RETURNING *`,
+          [bid, practitioner_id, client_id || null,
+           appointment_mode || 'cabinet',
+           realStart.toISOString(), realEnd.toISOString(),
+           comment || null, custom_label || null, color || null]
+        );
+
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action)
+           VALUES ($1, $2, 'booking', $3, 'create')`,
+          [bid, req.user.id, result.rows[0].id]
+        );
+
+        return [result.rows[0]];
+      });
+
+      return res.status(201).json({ booking: bookings[0], bookings });
+    }
+
+    // ── NORMAL MODE: predefined service(s) ──
     const serviceList = multiServices || [{ service_id }];
 
     if (!practitioner_id || !start_at || serviceList.length === 0) {
@@ -316,7 +377,7 @@ router.patch('/:id/move', async (req, res, next) => {
               s.duration_min, s.buffer_before_min, s.buffer_after_min,
               c.allow_overlap
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
@@ -334,7 +395,7 @@ router.patch('/:id/move', async (req, res, next) => {
         `SELECT b.id, b.start_at, b.end_at, b.group_order,
                 s.duration_min, s.buffer_before_min, s.buffer_after_min
          FROM bookings b
-         JOIN services s ON s.id = b.service_id
+         LEFT JOIN services s ON s.id = b.service_id
          WHERE b.group_id = $1 AND b.business_id = $2
          ORDER BY b.group_order`,
         [draggedBooking.group_id, bid]
@@ -530,7 +591,7 @@ router.patch('/:id/modify', async (req, res, next) => {
               biz.name AS business_name, biz.slug
        FROM bookings b
        JOIN clients c ON c.id = b.client_id
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.id = $1 AND b.business_id = $2`,
@@ -674,7 +735,7 @@ router.get('/:id/detail', async (req, res, next) => {
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               c.no_show_count, c.is_blocked, c.allow_overlap
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
@@ -713,7 +774,7 @@ router.get('/:id/detail', async (req, res, next) => {
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
                 s.name AS service_name, s.duration_min, s.color AS service_color
          FROM bookings b
-         JOIN services s ON s.id = b.service_id
+         LEFT JOIN services s ON s.id = b.service_id
          WHERE b.group_id = $1 AND b.business_id = $2
          ORDER BY b.group_order`,
         [bk.group_id, bid]

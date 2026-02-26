@@ -666,11 +666,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <div style="padding:20px 24px 24px">
       <div class="qc-row" style="position:relative"><div class="qc-label">Client</div><input class="qc-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)"><div id="qcAcResults" class="ac-results" style="display:none"></div><input type="hidden" id="qcClientId"></div>
       <div class="qc-row qc-row-2"><div><div class="qc-label">Date</div><input class="qc-input" type="date" id="qcDate"></div><div><div class="qc-label">Heure</div><input class="qc-input" type="time" id="qcTime" value="09:00"></div></div>
-      <div class="qc-row">
+      <!-- Mode libre toggle -->
+      <div class="qc-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text-3)">
+          <input type="checkbox" id="qcFreestyle" onchange="qcToggleFreestyle()" style="accent-color:var(--primary);width:16px;height:16px"> Mode libre <span style="font-weight:400;color:var(--text-4)">(sans prestation prédéfinie)</span>
+        </label>
+      </div>
+      <!-- Normal: service picker -->
+      <div class="qc-row" id="qcNormalMode">
         <div class="qc-label">Prestations</div>
         <div id="qcServiceList"></div>
         <button class="btn-outline" style="margin-top:6px;font-size:.78rem;padding:5px 12px" onclick="qcAddService()">+ Ajouter une prestation</button>
         <div id="qcTotalDuration" style="font-size:.75rem;color:var(--text-4);margin-top:6px"></div>
+      </div>
+      <!-- Freestyle: manual fields -->
+      <div id="qcFreestyleMode" style="display:none">
+        <div class="qc-row"><div class="qc-label">Intitulé du RDV</div><input class="qc-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin, Remplacement créneau..."></div>
+        <div class="qc-row qc-row-2"><div><div class="qc-label">Heure fin</div><input class="qc-input" type="time" id="qcFreeEnd" value="10:00"></div><div><div class="qc-label">Couleur</div><input type="color" id="qcFreeColor" value="#0D7377" style="width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;padding:2px"></div></div>
+        <div class="qc-row qc-row-2"><div><div class="qc-label">Buffer avant (min)</div><input class="qc-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div><div><div class="qc-label">Buffer après (min)</div><input class="qc-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div></div>
+        <div id="qcFreeDuration" style="font-size:.75rem;color:var(--text-4);margin-top:2px;margin-bottom:10px"></div>
       </div>
       <div class="qc-row"><div class="qc-label">Praticien</div><select class="qc-input" id="qcPrac"></select></div>
       <div class="qc-row" id="qcModeRow"><div class="qc-label">Mode</div><select class="qc-input" id="qcMode"><option value="cabinet">🏢 Cabinet</option></select></div>
@@ -999,9 +1013,11 @@ async function loadAgenda(){
     // Custom event rendering with badges
     eventContent:function(arg){
       const p=arg.event.extendedProps;
+      const svcLabel=p.service_name||p.custom_label||'RDV libre';
       const badges=[(p.internal_note?'<span class="ev-badge ev-badge-note"></span>':''),(p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':'')].filter(Boolean).join('');
       const groupTag=p.group_id?'<span class="ev-group-badge">🔗</span>':'';
-      return{html:`<div class="ev-inner"><span class="ev-client">${p.client_name||arg.event.title}${groupTag}</span><span class="ev-service">${p.service_name||''}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
+      const freeTag=!p.service_name?'<span style="font-size:.58rem;opacity:.7;margin-left:3px">✦</span>':'';
+      return{html:`<div class="ev-inner"><span class="ev-client">${p.client_name||arg.event.title}${groupTag}${freeTag}</span><span class="ev-service">${svcLabel}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
     },
 
     // Status-based CSS classes
@@ -1148,7 +1164,7 @@ async function fcLoadMobileList(){
       h+=`<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${b.id}')">
         ${badges.length?'<div class="mob-bk-badges">'+badges.map(x=>'<span>'+x+'</span>').join('')+'</div>':''}
         <div class="mob-bk-time"><div class="t">${t1}</div><div class="dur">${dur}min</div></div>
-        <div class="mob-bk-info"><div class="name">${escH(b.client_name)}</div><div class="svc">${b.service_name} · ${MODE_ICO[b.appointment_mode]||''}</div><div class="prac"><span class="pdot" style="background:${prac?.color||'var(--primary)'}"></span>${prac?.display_name||b.practitioner_name||''}</div></div>
+        <div class="mob-bk-info"><div class="name">${escH(b.client_name)}</div><div class="svc">${b.service_name||b.custom_label||'RDV libre'} · ${MODE_ICO[b.appointment_mode]||''}</div><div class="prac"><span class="pdot" style="background:${prac?.color||'var(--primary)'}"></span>${prac?.display_name||b.practitioner_name||''}</div></div>
         <div class="mob-bk-status status-badge ${stClass}">${stLabel}</div>
       </div>`;
     });
@@ -1219,10 +1235,10 @@ async function fcOpenDetail(bookingId){
     const s=new Date(b.start_at),e=new Date(b.end_at);
     let ig=`<div class="info-item"><div class="info-label">Client</div><div class="info-value"><a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${b.client_id}')" style="color:var(--primary);font-weight:600;text-decoration:none">${b.client_name||'—'}</a>${b.allow_overlap?' <span style="font-size:.65rem;background:var(--primary-light);color:var(--primary);padding:1px 6px;border-radius:10px;vertical-align:middle">chevauchement OK</span>':''}</div></div>
       <div class="info-item"><div class="info-label">Statut</div><div class="info-value"><span class="status-badge st-${b.status}">${ST_LABELS[b.status]||b.status}</span></div></div>
-      <div class="info-item"><div class="info-label">Prestation</div><div class="info-value">${b.service_name}</div></div>
+      <div class="info-item"><div class="info-label">Prestation</div><div class="info-value">${b.service_name||b.custom_label||'<span style="color:var(--text-4)">RDV libre ✦</span>'}</div></div>
       <div class="info-item"><div class="info-label">Praticien</div><div class="info-value"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${prac?.color||'var(--primary)'};margin-right:4px"></span>${prac?.display_name||b.practitioner_name||'—'}</div></div>
       <div class="info-item"><div class="info-label">Date</div><div class="info-value">${s.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}</div></div>
-      <div class="info-item"><div class="info-label">Horaire</div><div class="info-value">${s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} – ${e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} (${b.duration_min}min)</div></div>
+      <div class="info-item"><div class="info-label">Horaire</div><div class="info-value">${s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} – ${e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} (${b.duration_min||Math.round((e-s)/60000)}min)</div></div>
       <div class="info-item"><div class="info-label">Téléphone</div><div class="info-value"><a href="tel:${b.client_phone||''}">${b.client_phone||'—'}</a></div></div>
       <div class="info-item"><div class="info-label">Email</div><div class="info-value"><a href="mailto:${b.client_email||''}">${b.client_email||'—'}</a></div></div>`;
     const physOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
@@ -1522,6 +1538,14 @@ function fcOpenQuickCreate(startStr,endStr){
   document.getElementById('qcClientId').value='';
   document.getElementById('qcComment').value='';
   document.getElementById('qcAcResults').style.display='none';
+  // Reset freestyle mode
+  document.getElementById('qcFreestyle').checked=false;
+  document.getElementById('qcNormalMode').style.display='';
+  document.getElementById('qcFreestyleMode').style.display='none';
+  document.getElementById('qcFreeLabel').value='';
+  document.getElementById('qcFreeBufBefore').value='0';
+  document.getElementById('qcFreeBufAfter').value='0';
+  document.getElementById('qcFreeColor').value='#0D7377';
 
   // Populate practitioners dropdown
   const prSel=document.getElementById('qcPrac');
@@ -1534,6 +1558,47 @@ function fcOpenQuickCreate(startStr,endStr){
 
   document.getElementById('calCreateModal').classList.add('open');
 }
+
+function qcToggleFreestyle(){
+  const on=document.getElementById('qcFreestyle').checked;
+  document.getElementById('qcNormalMode').style.display=on?'none':'';
+  document.getElementById('qcFreestyleMode').style.display=on?'':'none';
+  document.getElementById('qcModeRow').style.display=on?'none':'';
+  if(on){
+    // Auto-set end time = start + 1h
+    const t=document.getElementById('qcTime').value;
+    if(t){
+      const [h,m]=t.split(':').map(Number);
+      const endH=Math.min(h+1,23);
+      document.getElementById('qcFreeEnd').value=String(endH).padStart(2,'0')+':'+String(m).padStart(2,'0');
+    }
+    qcUpdateFreeDuration();
+  }
+}
+
+function qcUpdateFreeDuration(){
+  const t=document.getElementById('qcTime').value;
+  const e=document.getElementById('qcFreeEnd').value;
+  if(!t||!e)return;
+  const [sh,sm]=t.split(':').map(Number);
+  const [eh,em]=e.split(':').map(Number);
+  let dur=(eh*60+em)-(sh*60+sm);
+  if(dur<=0)dur+=24*60;
+  const bb=parseInt(document.getElementById('qcFreeBufBefore').value)||0;
+  const ba=parseInt(document.getElementById('qcFreeBufAfter').value)||0;
+  const total=dur+bb+ba;
+  const el=document.getElementById('qcFreeDuration');
+  const h=Math.floor(dur/60),m=dur%60;
+  el.innerHTML=`⏱ Durée : <strong>${h?h+'h':''}${m?m+'min':''}</strong>${(bb||ba)?' + buffers '+(bb?bb+'min avant ':' ')+(ba?ba+'min après':''):''}`;
+}
+
+// Auto-update freestyle duration on input changes
+document.addEventListener('change',e=>{
+  if(['qcFreeEnd','qcFreeBufBefore','qcFreeBufAfter'].includes(e.target?.id))qcUpdateFreeDuration();
+});
+document.addEventListener('input',e=>{
+  if(e.target?.id==='qcTime'&&document.getElementById('qcFreestyle')?.checked)qcUpdateFreeDuration();
+});
 
 function qcAddService(){
   const idx=qcServiceCount++;
@@ -1641,13 +1706,9 @@ async function calCreateBooking(){
   const time=document.getElementById('qcTime').value;
   const mode=document.getElementById('qcMode').value;
   const comment=document.getElementById('qcComment').value.trim();
-
-  // Collect all services
-  const serviceItems=document.querySelectorAll('.qc-svc-item select');
-  const services=[...serviceItems].map(sel=>({service_id:sel.value}));
+  const isFreestyle=document.getElementById('qcFreestyle').checked;
 
   if(!clientName){gToast('Nom du client requis','error');return;}
-  if(services.length===0){gToast('Choisissez au moins une prestation','error');return;}
   if(!date||!time){gToast('Date et heure requises','error');return;}
 
   const start_at=date+'T'+time+':00';
@@ -1664,18 +1725,42 @@ async function calCreateBooking(){
       actualClientId=cd.client?.id;
     }
 
-    const body={
-      practitioner_id:pracId,
-      client_id:actualClientId,
-      start_at,
-      appointment_mode:mode,
-      comment:comment||null
-    };
-    // Single service: backward compat. Multi: send services array
-    if(services.length===1){
-      body.service_id=services[0].service_id;
+    let body;
+    if(isFreestyle){
+      const endTime=document.getElementById('qcFreeEnd').value;
+      if(!endTime){gToast('Heure de fin requise','error');return;}
+      const end_at=date+'T'+endTime+':00';
+      body={
+        freestyle:true,
+        practitioner_id:pracId,
+        client_id:actualClientId,
+        start_at,
+        end_at,
+        buffer_before_min:parseInt(document.getElementById('qcFreeBufBefore').value)||0,
+        buffer_after_min:parseInt(document.getElementById('qcFreeBufAfter').value)||0,
+        custom_label:document.getElementById('qcFreeLabel').value.trim()||null,
+        color:document.getElementById('qcFreeColor').value,
+        appointment_mode:'cabinet',
+        comment:comment||null
+      };
     }else{
-      body.services=services;
+      // Collect all services
+      const serviceItems=document.querySelectorAll('.qc-svc-item select');
+      const services=[...serviceItems].map(sel=>({service_id:sel.value}));
+      if(services.length===0){gToast('Choisissez au moins une prestation','error');return;}
+
+      body={
+        practitioner_id:pracId,
+        client_id:actualClientId,
+        start_at,
+        appointment_mode:mode,
+        comment:comment||null
+      };
+      if(services.length===1){
+        body.service_id=services[0].service_id;
+      }else{
+        body.services=services;
+      }
     }
 
     const r=await fetch('/api/bookings/manual',{
@@ -1686,7 +1771,7 @@ async function calCreateBooking(){
     if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
     const result=await r.json();
     const count=result.bookings?.length||1;
-    gToast(count>1?`${clientName} — ${count} prestations créées !`:`${clientName} — RDV créé !`,'success');
+    gToast(isFreestyle?`${clientName} — RDV libre créé !`:count>1?`${clientName} — ${count} prestations créées !`:`${clientName} — RDV créé !`,'success');
     closeCalModal('calCreateModal');
     fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}
