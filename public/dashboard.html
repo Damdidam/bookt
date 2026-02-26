@@ -219,6 +219,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .qc-svc-item .qc-svc-rm:hover{background:var(--red);color:#fff}
 .qc-svc-item .qc-svc-handle{cursor:grab;color:var(--text-4);font-size:.75rem;user-select:none}
 
+/* ===== COLOR SWATCHES (replaces color pickers) ===== */
+.csw{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.csw-dot{width:24px;height:24px;border-radius:8px;cursor:pointer;border:2.5px solid transparent;transition:all .12s;flex-shrink:0;position:relative}
+.csw-dot:hover{transform:scale(1.15)}
+.csw-dot.active{border-color:var(--text);box-shadow:0 0 0 2px var(--white),0 0 0 4px currentColor}
+.csw-inline{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;vertical-align:middle}
+.csw-inline .csw-dot{width:20px;height:20px;border-radius:6px;border-width:2px}
+
 /* ===== CALENDAR DETAIL MODAL ===== */
 .cal-modal-overlay{position:fixed;inset:0;background:rgba(24,22,19,.45);backdrop-filter:blur(4px);z-index:300;display:none;align-items:center;justify-content:center;padding:24px}
 .cal-modal-overlay.open{display:flex}
@@ -275,7 +283,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .m-svc-price{margin-left:auto;font-size:.88rem;font-weight:700;color:var(--text)}
 
 /* ── Freestyle card ── */
-.m-free-card{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#FFFEF5;border:1.5px dashed #E8D48B;border-radius:10px;margin-bottom:16px}
+.m-free-card{padding:12px 16px;background:#FFFEF5;border:1.5px dashed #E8D48B;border-radius:10px;margin-bottom:16px}
 .m-free-badge{padding:3px 8px;border-radius:6px;font-size:.62rem;font-weight:800;background:#F5ECD0;color:#8B6914;letter-spacing:.5px}
 .m-free-title{flex:1;font-size:.88rem;font-weight:700;color:var(--text);border:none;background:transparent;outline:none;font-family:var(--sans)}
 .m-free-color{width:24px;height:24px;border-radius:8px;border:2px solid rgba(0,0,0,.08);cursor:pointer;flex-shrink:0;padding:0}
@@ -729,9 +737,13 @@ textarea.m-input{resize:vertical;min-height:38px}
         <div class="m-svc-card" id="mSvcCard" style="display:none"></div>
         <!-- Freestyle card -->
         <div class="m-free-card" id="mFreeCard" style="display:none">
-          <span class="m-free-badge">✦ LIBRE</span>
-          <input class="m-free-title" id="uFreeLabel" placeholder="Intitulé du RDV...">
-          <input type="color" id="uFreeColor" value="#0D7377" class="m-free-color">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span class="m-free-badge">✦ LIBRE</span>
+              <input class="m-free-title" id="uFreeLabel" placeholder="Intitulé du RDV...">
+            </div>
+            <div id="uFreeColorWrap"></div>
+          </div>
         </div>
         <!-- Group siblings -->
         <div id="mGroupSiblings" style="display:none"></div>
@@ -831,7 +843,7 @@ textarea.m-input{resize:vertical;min-height:38px}
       <!-- Freestyle: manual fields -->
       <div id="qcFreestyleMode" style="display:none">
         <div class="qc-row"><div class="qc-label">Intitulé du RDV</div><input class="qc-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin, Remplacement créneau..."></div>
-        <div class="qc-row qc-row-2"><div><div class="qc-label">Heure fin</div><input class="qc-input" type="time" id="qcFreeEnd" value="10:00"></div><div><div class="qc-label">Couleur</div><input type="color" id="qcFreeColor" value="#0D7377" style="width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;padding:2px"></div></div>
+        <div class="qc-row qc-row-2"><div><div class="qc-label">Heure fin</div><input class="qc-input" type="time" id="qcFreeEnd" value="10:00"></div><div><div class="qc-label">Couleur</div><div id="qcFreeColorWrap"></div></div></div>
         <div class="qc-row qc-row-2"><div><div class="qc-label">Buffer avant (min)</div><input class="qc-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div><div><div class="qc-label">Buffer après (min)</div><input class="qc-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div></div>
         <div id="qcFreeDuration" style="font-size:.75rem;color:var(--text-4);margin-top:2px;margin-bottom:10px"></div>
       </div>
@@ -1359,6 +1371,36 @@ function fcFilterPractitioner(id,el){
   fcRefresh();
 }
 
+// ── Color Swatches (replaces native color pickers) ──
+const CSW_PALETTE=['#0D7377','#2196F3','#3F51B5','#9C27B0','#E91E63','#F44336','#FF9800','#FFB300','#4CAF50','#00BCD4','#795548','#607D8B'];
+function cswHTML(hiddenId,selected,inline){
+  const cls=inline?'csw-inline':'csw';
+  let h=`<div class="${cls}">`;
+  CSW_PALETTE.forEach(c=>{
+    const act=c.toLowerCase()===((selected||'#0D7377').toLowerCase())?'active':'';
+    h+=`<span class="csw-dot ${act}" style="background:${c}" data-color="${c}" onclick="cswPick(this,'${hiddenId}')"></span>`;
+  });
+  h+=`</div><input type="hidden" id="${hiddenId}" value="${selected||'#0D7377'}">`;
+  return h;
+}
+function cswPick(el,hiddenId){
+  el.closest('.csw,.csw-inline').querySelectorAll('.csw-dot').forEach(d=>d.classList.remove('active'));
+  el.classList.add('active');
+  const inp=document.getElementById(hiddenId);
+  if(inp)inp.value=el.dataset.color;
+  // Trigger change event for any listeners
+  inp?.dispatchEvent(new Event('change'));
+}
+function cswSelect(hiddenId,color){
+  const inp=document.getElementById(hiddenId);
+  if(inp)inp.value=color||'#0D7377';
+  const wrap=inp?.previousElementSibling;
+  if(!wrap)return;
+  wrap.querySelectorAll('.csw-dot').forEach(d=>{
+    d.classList.toggle('active',d.dataset.color.toLowerCase()===(color||'#0D7377').toLowerCase());
+  });
+}
+
 // ── Detail Modal (Unified) ──
 let fcCurrentBooking=null; // store booking data for save
 async function fcOpenDetail(bookingId){
@@ -1435,11 +1477,20 @@ async function fcOpenDetail(bookingId){
     const svcCard=document.getElementById('mSvcCard');
     const bufSec=document.getElementById('mBufferSec');
     if(isFreestyle){
-      freeCard.style.display='flex';
+      freeCard.style.display='block';
       svcCard.style.display='none';
       bufSec.style.display='';
       document.getElementById('uFreeLabel').value=b.custom_label||'';
-      document.getElementById('uFreeColor').value=b.booking_color||b.practitioner_color||'#0D7377';
+      const freeColor=b.booking_color||b.practitioner_color||'#0D7377';
+      document.getElementById('uFreeColorWrap').innerHTML=cswHTML('uFreeColor',freeColor,false);
+      // Live update header + save button on color change
+      document.getElementById('uFreeColor').addEventListener('change',function(){
+        const c=this.value;
+        document.getElementById('mHeaderBg').style.background=`linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
+        document.querySelector('.m-avatar').style.background=`linear-gradient(135deg,${c},${c}CC)`;
+        const sb=document.getElementById('mBtnSave');
+        sb.style.background=c;sb.style.boxShadow=`0 2px 8px ${c}40`;
+      });
       document.getElementById('uBufBefore').value=0;
       document.getElementById('uBufAfter').value=0;
     }else{
@@ -1816,7 +1867,7 @@ function fcOpenQuickCreate(startStr,endStr){
   document.getElementById('qcFreeLabel').value='';
   document.getElementById('qcFreeBufBefore').value='0';
   document.getElementById('qcFreeBufAfter').value='0';
-  document.getElementById('qcFreeColor').value='#0D7377';
+  document.getElementById('qcFreeColorWrap').innerHTML=cswHTML('qcFreeColor','#0D7377',false);
 
   // Populate practitioners dropdown
   const prSel=document.getElementById('qcPrac');
@@ -2450,7 +2501,7 @@ function renderServiceModal(svc){
   m+=`<div class="field-row"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${svc?.duration_min||30}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${svc?.price_cents?(svc.price_cents/100):''}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
   m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
   m+=`<div class="field"><label>Catégorie</label><input id="svc_cat" value="${svc?.category||''}" placeholder="Ex: Consultation, Soin..."></div>`;
-  m+=`<div class="field"><label>Couleur</label><input type="color" id="svc_color" value="${svc?.color||'#0D7377'}" style="width:50px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer"></div>`;
+  m+=`<div class="field"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
   const modes=svc?.mode_options||['cabinet'];
   // Only show mode options for sectors that can do remote consultations
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
@@ -2477,6 +2528,7 @@ function renderServiceModal(svc){
   }
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  document.getElementById('svc_color_wrap').innerHTML=cswHTML('svc_color',svc?.color||'#0D7377',false);
 }
 
 async function saveService(id){
@@ -2699,15 +2751,23 @@ async function loadSiteSection(){
     // Custom color (Pro only)
     const curColor=b.theme?.primary_color||THEMES[currentThemePreset]?.colors?.primary||'#0D7377';
     h+=`<div class="card"><div class="card-h"><h3>Couleur personnalisée</h3>${businessPlan==='free'?'<span class="th-badge th-pro">Pro</span>':''}</div>
-      <div style="padding:18px;display:flex;align-items:center;gap:14px">
-        <input type="color" id="customColor" value="${curColor}" ${businessPlan==='free'?'disabled':''} style="width:44px;height:44px;border:2px solid var(--border);border-radius:8px;cursor:${businessPlan==='free'?'not-allowed':'pointer'};padding:2px">
+      <div style="padding:18px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
         <div><p style="font-size:.85rem;font-weight:600">Remplacer la couleur primaire du thème</p>
         <p style="font-size:.75rem;color:var(--text-4)">${businessPlan==='free'?'Disponible avec le plan Pro':'Choisissez une couleur qui représente votre marque'}</p></div>
         ${businessPlan!=='free'?'<button onclick="saveCustomColor()" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-family:var(--sans);font-size:.8rem;font-weight:600;cursor:pointer;margin-left:auto">Appliquer</button>':''}
+        </div>
+        <div id="customColor_wrap"></div>
       </div>
     </div>`;
 
     c.innerHTML=h;
+    // Init branding color swatches
+    const cwWrap=document.getElementById('customColor_wrap');
+    if(cwWrap){
+      cwWrap.innerHTML=cswHTML('customColor',curColor,false);
+      if(businessPlan==='free'){cwWrap.style.opacity='.4';cwWrap.style.pointerEvents='none';}
+    }
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
@@ -2797,13 +2857,14 @@ function renderPractModal(p){
   let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le praticien':'Nouveau praticien'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
     <div class="field"><label>Nom complet *</label><input id="p_name" value="${p?.display_name||''}" placeholder="Ex: Dr. Sophie Laurent"></div>
     <div class="field"><label>Titre / Spécialité</label><input id="p_title" value="${p?.title||''}" placeholder="Ex: Kinésithérapeute sportif"></div>
-    <div class="field-row"><div class="field"><label>Années d'expérience</label><input type="number" id="p_years" value="${p?.years_experience||''}" min="0"></div><div class="field"><label>Couleur agenda</label><input type="color" id="p_color" value="${p?.color||'#0D7377'}" style="width:50px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer"></div></div>
+    <div class="field-row"><div class="field"><label>Années d'expérience</label><input type="number" id="p_years" value="${p?.years_experience||''}" min="0"></div><div class="field"><label>Couleur agenda</label><div id="p_color_wrap"></div></div></div>
     <div class="field-row"><div class="field"><label>Email</label><input id="p_email" type="email" value="${p?.email||''}"></div><div class="field"><label>Téléphone</label><input id="p_phone" value="${p?.phone||''}"></div></div>
     <div class="field"><label>Bio</label><textarea id="p_bio">${p?.bio||''}</textarea></div>
     <div class="field"><label>LinkedIn</label><input id="p_linkedin" value="${p?.linkedin_url||''}" placeholder="https://linkedin.com/in/..."></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="p_booking" ${p?.booking_enabled!==false?'checked':''}> Peut recevoir des réservations en ligne</label></div>
   </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="savePract(${isEdit?"'"+p.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  document.getElementById('p_color_wrap').innerHTML=cswHTML('p_color',p?.color||'#0D7377',false);
 }
 
 async function savePract(id){
