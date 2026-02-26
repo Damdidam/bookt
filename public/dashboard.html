@@ -514,7 +514,7 @@ textarea.m-input{resize:vertical;min-height:38px}
 .team-member:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
 .team-member.inactive{opacity:.45}
 .team-member .tm-header{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.team-member .tm-avatar{width:50px;height:50px;border-radius:14px;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.15rem;flex-shrink:0;box-shadow:var(--shadow-xs)}
+.team-member .tm-avatar{width:50px;height:50px;border-radius:14px;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.15rem;flex-shrink:0;box-shadow:var(--shadow-xs);overflow:hidden}
 .team-member .tm-info h4{font-size:.95rem;font-weight:700;color:var(--text)}
 .team-member .tm-info .tm-title{font-size:.78rem;color:var(--text-3)}
 .team-member .tm-info .tm-email{font-size:.72rem;color:var(--text-4)}
@@ -2952,9 +2952,12 @@ async function loadTeam(){
       practs.forEach(p=>{
         const initials=p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)||'??';
         const hasLogin=!!p.user_email;
+        const avatarContent=p.photo_url
+          ?`<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
+          :initials;
         h+=`<div class="team-member${p.is_active?'':' inactive'}">
           <div class="tm-header">
-            <div class="tm-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>
+            <div class="tm-avatar" style="background:${p.color||'var(--primary)'}">${avatarContent}</div>
             <div class="tm-info">
               <h4>${p.display_name}</h4>
               <div class="tm-title">${p.title||'—'}${p.years_experience?' · '+p.years_experience+' ans':''}</div>
@@ -2994,8 +2997,19 @@ function openPractModal(editId){
 }
 
 function renderPractModal(p){
+  pPendingPhoto=null;
   const isEdit=!!p;
+  const photoSrc=p?.photo_url||'';
+  const initials=p?.display_name?p.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase():'';
   let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le praticien':'Nouveau praticien'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">
+    <div style="text-align:center;margin-bottom:16px">
+      <div id="p_photo_preview" style="width:80px;height:80px;border-radius:50%;margin:0 auto 10px;overflow:hidden;background:${p?.color||'var(--primary)'};display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative" onclick="document.getElementById('p_photo_input').click()" title="Cliquer pour changer la photo">
+        ${photoSrc?`<img src="${photoSrc}" style="width:100%;height:100%;object-fit:cover">`:`<span style="color:#fff;font-size:1.5rem;font-weight:600">${initials||'+'}</span>`}
+      </div>
+      <input type="file" id="p_photo_input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="pPhotoPreview(this)">
+      <div style="font-size:.7rem;color:var(--text-4)">Cliquer pour ${photoSrc?'changer':'ajouter'} la photo</div>
+      ${photoSrc?`<button onclick="pRemovePhoto('${p.id}')" style="font-size:.7rem;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px">Supprimer la photo</button>`:''}
+    </div>
     <div class="field"><label>Nom complet *</label><input id="p_name" value="${p?.display_name||''}" placeholder="Ex: Dr. Sophie Laurent"></div>
     <div class="field"><label>Titre / Spécialité</label><input id="p_title" value="${p?.title||''}" placeholder="Ex: Kinésithérapeute sportif"></div>
     <div class="field-row"><div class="field"><label>Années d'expérience</label><input type="number" id="p_years" value="${p?.years_experience||''}" min="0"></div><div class="field"><label>Couleur agenda</label><div id="p_color_wrap"></div></div></div>
@@ -3011,6 +3025,30 @@ function renderPractModal(p){
   document.getElementById('p_color_wrap').innerHTML=cswHTML('p_color',p?.color||'#0D7377',false);
 }
 
+let pPendingPhoto=null; // base64 data URI to upload after save
+
+function pPhotoPreview(input){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>2*1024*1024){GendaUI.toast('Photo trop lourde (max 2 Mo)','error');return;}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    pPendingPhoto=e.target.result;
+    document.getElementById('p_photo_preview').innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function pRemovePhoto(id){
+  if(!confirm('Supprimer la photo ?'))return;
+  try{
+    await fetch(`/api/practitioners/${id}/photo`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    GendaUI.toast('Photo supprimée','success');
+    document.querySelector('.modal-overlay')?.remove();
+    loadTeam();
+  }catch(e){GendaUI.toast('Erreur','error');}
+}
+
 async function savePract(id){
   const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15};
   try{
@@ -3018,6 +3056,19 @@ async function savePract(id){
     const method=id?'PATCH':'POST';
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);
+    const data=await r.json();
+    const pracId=id||data.practitioner?.id;
+
+    // Upload photo if one was selected
+    if(pPendingPhoto&&pracId){
+      await fetch(`/api/practitioners/${pracId}/photo`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({photo:pPendingPhoto})
+      });
+      pPendingPhoto=null;
+    }
+
     document.querySelector('.modal-overlay')?.remove();
     GendaUI.toast(id?'Praticien modifié':'Praticien ajouté','success');loadTeam();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}

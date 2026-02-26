@@ -52,7 +52,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 /* Team */
 .team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 .team-card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:24px;text-align:center}
-.team-avatar{width:60px;height:60px;border-radius:16px;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.2rem;margin:0 auto 12px}
+.team-avatar{width:60px;height:60px;border-radius:16px;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.2rem;margin:0 auto 12px;overflow:hidden}
 .team-card h4{font-size:.95rem;font-weight:700;margin-bottom:2px}
 .team-card .title{font-size:.78rem;color:var(--text-3);margin-bottom:8px}
 .team-card .bio{font-size:.78rem;color:var(--text-4);line-height:1.5;margin-bottom:10px}
@@ -351,7 +351,10 @@ function render(d) {
     document.getElementById('teamGrid').innerHTML = d.practitioners.map(p => {
       const pi = p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
       const specs = (p.specializations||[]).map(s=>`<span class="team-tag">${s}</span>`).join('');
-      return `<div class="team-card"><div class="team-avatar" style="background:${p.color||'var(--primary)'}">${pi}</div><h4>${p.display_name}</h4><div class="title">${p.title||''}${p.years_experience?' · '+p.years_experience+" ans d'exp.":''}</div>${p.bio?`<div class="bio">${p.bio}</div>`:''}<div class="team-tags">${specs}</div></div>`;
+      const avatar = p.photo_url
+        ? `<div class="team-avatar" style="background:${p.color||'var(--primary)'}"><img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>`
+        : `<div class="team-avatar" style="background:${p.color||'var(--primary)'}">${pi}</div>`;
+      return `<div class="team-card">${avatar}<h4>${p.display_name}</h4><div class="title">${p.title||''}${p.years_experience?' · '+p.years_experience+" ans d'exp.":''}</div>${p.bio?`<div class="bio">${p.bio}</div>`:''}<div class="team-tags">${specs}</div></div>`;
     }).join('');
   }
 

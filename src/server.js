@@ -47,7 +47,7 @@ app.use(cors({
 // Twilio webhooks need raw body for signature validation
 // so we parse them differently
 app.use('/webhooks/twilio', express.urlencoded({ extended: false }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '5mb' }));
 
 // Static files (frontend dashboard + client booking pages)
 app.use(express.static(path.join(__dirname, '../public')));

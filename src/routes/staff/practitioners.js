@@ -1,9 +1,87 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
 const { queryWithRLS, query } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
+
+// ============================================================
+// POST /api/practitioners/:id/photo — Upload practitioner photo
+// Accepts: { photo: "data:image/jpeg;base64,..." }
+// Saves to /public/uploads/practitioners/<id>.<ext>
+// ============================================================
+router.post('/:id/photo', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { photo } = req.body;
+
+    if (!photo) return res.status(400).json({ error: 'Photo requise' });
+
+    // Parse data URI
+    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP requis)' });
+
+    const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+
+    // Max 2MB
+    if (buffer.length > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
+    }
+
+    // Ensure dir exists
+    const uploadDir = path.join(__dirname, '../../../public/uploads/practitioners');
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    // Delete old photo if exists
+    const old = await queryWithRLS(bid,
+      `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
+    );
+    if (old.rows[0]?.photo_url) {
+      const oldPath = path.join(__dirname, '../../../public', old.rows[0].photo_url);
+      try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+    }
+
+    // Save file
+    const filename = `${id}.${ext}`;
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+
+    // Update DB
+    const photoUrl = `/uploads/practitioners/${filename}?t=${Date.now()}`;
+    await queryWithRLS(bid,
+      `UPDATE practitioners SET photo_url = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+      [photoUrl, id, bid]
+    );
+
+    res.json({ photo_url: photoUrl });
+  } catch (err) { next(err); }
+});
+
+// DELETE photo
+router.delete('/:id/photo', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    const old = await queryWithRLS(bid,
+      `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
+    );
+    if (old.rows[0]?.photo_url) {
+      const oldPath = path.join(__dirname, '../../../public', old.rows[0].photo_url.split('?')[0]);
+      try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+    }
+
+    await queryWithRLS(bid,
+      `UPDATE practitioners SET photo_url = NULL, updated_at = NOW() WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
 
 // ============================================================
 // GET /api/practitioners — list all practitioners with stats

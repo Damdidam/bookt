@@ -48,7 +48,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .prac-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white);display:flex;gap:14px;align-items:center}
 .prac-card:hover{border-color:var(--primary-border)}
 .prac-card.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
-.prac-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;color:#fff;flex-shrink:0}
+.prac-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;color:#fff;flex-shrink:0;overflow:hidden}
 .prac-info h4{font-size:.88rem;font-weight:700;margin-bottom:1px}
 .prac-info p{font-size:.73rem;color:var(--text-4)}
 
@@ -320,8 +320,11 @@ function buildPractitioners() {
   const list = document.getElementById('pracList');
   list.innerHTML = pracs.map(p => {
     const initials = p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const avatar = p.photo_url
+      ? `<div class="prac-avatar" style="background:${p.color||'var(--primary)'}"><img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>`
+      : `<div class="prac-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>`;
     return `<div class="prac-card" data-id="${p.id}" onclick="selectPractitioner('${p.id}')">
-      <div class="prac-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>
+      ${avatar}
       <div class="prac-info"><h4>${p.display_name}</h4><p>${p.title||''}${p.years_experience ? ' · '+p.years_experience+' ans' : ''}</p></div>
     </div>`;
   }).join('');
