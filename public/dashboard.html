@@ -943,7 +943,7 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 let fcCal=null, fcCalOptions=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
-let fcHiddenDays=[], fcBusinessHours=[], fcAllowOverlap=false;
+let fcHiddenDays=[], fcBusinessHours=[], fcAllowOverlap=false, fcPracBusinessHours={};
 let fcMobileView='grid'; // 'grid' or 'list'
 let fcMobileDate=new Date(); // for list view navigation
 let fcAllBookings=[]; // cache for list view
@@ -1007,15 +1007,19 @@ async function loadAgenda(){
     const normTime = t => { if(!t)return '09:00'; const s=String(t); return s.slice(0,5); }; // "09:00:00" → "09:00"
     const activeDays=new Set();
     fcBusinessHours=[];
+    fcPracBusinessHours={};
     for(const pracId of Object.keys(avails)){
       const sched=avails[pracId].schedule||{};
+      if(!fcPracBusinessHours[pracId])fcPracBusinessHours[pracId]=[];
       for(const day of Object.keys(sched)){
         const slots=sched[day].filter(s=>s.is_active!==false);
         if(slots.length>0){
           const fcDay=dbDayToFcDay(parseInt(day));
           activeDays.add(fcDay);
           slots.forEach(s=>{
-            fcBusinessHours.push({daysOfWeek:[fcDay],startTime:normTime(s.start_time),endTime:normTime(s.end_time)});
+            const entry={daysOfWeek:[fcDay],startTime:normTime(s.start_time),endTime:normTime(s.end_time)};
+            fcBusinessHours.push(entry);
+            fcPracBusinessHours[pracId].push(entry);
           });
         }
       }
@@ -1082,7 +1086,7 @@ async function loadAgenda(){
       const dropDay=dropInfo.start.getDay();
       if(fcHiddenDays.includes(dropDay))return false;
 
-      // For groups: calculate where the FIRST member would land
+      // For groups: calculate where the FIRST and LAST member would land
       const myGroup=draggedEvent.extendedProps?.group_id;
       let effectiveStart=dropInfo.start;
       let effectiveEnd=dropInfo.end;
@@ -1090,42 +1094,16 @@ async function loadAgenda(){
         const allEvts=fcCal.getEvents().filter(e=>e.extendedProps?.group_id===myGroup);
         allEvts.sort((a,b)=>a.start-b.start);
         if(allEvts.length>0){
-          const draggedOrig=draggedEvent.start;
-          const delta=dropInfo.start.getTime()-draggedOrig.getTime();
-          const firstStart=new Date(allEvts[0].start.getTime()+delta);
-          const lastEnd=new Date(allEvts[allEvts.length-1].end.getTime()+delta);
-          effectiveStart=firstStart;
-          effectiveEnd=lastEnd;
+          const delta=dropInfo.start.getTime()-draggedEvent.start.getTime();
+          effectiveStart=new Date(allEvts[0].start.getTime()+delta);
+          effectiveEnd=new Date(allEvts[allEvts.length-1].end.getTime()+delta);
         }
       }
 
-      // Block drop outside business hours (check effective group start)
-      if(fcBusinessHours.length>0){
-        const checkDay=effectiveStart.getDay();
-        const dropH=effectiveStart.getHours()+effectiveStart.getMinutes()/60;
-        const dayBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(checkDay));
-        if(dayBH.length>0){
-          const inBH=dayBH.some(bh=>{
-            const s=parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60;
-            const e=parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60;
-            return dropH>=s&&dropH<e;
-          });
-          if(!inBH)return false;
-        }
-        // Also check effective group end doesn't exceed business hours
-        if(myGroup){
-          const endH=effectiveEnd.getHours()+effectiveEnd.getMinutes()/60;
-          const endDay=effectiveEnd.getDay();
-          const endBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(endDay));
-          if(endBH.length>0){
-            const inEndBH=endBH.some(bh=>{
-              const e=parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60;
-              return endH<=e;
-            });
-            if(!inEndBH)return false;
-          }
-        }
-      }
+      // Block if range doesn't fit in practitioner's work slot (respects lunch break)
+      const pracId=draggedEvent.extendedProps?.practitioner_id;
+      if(!fcCheckBusinessHours(effectiveStart,effectiveEnd,pracId))return false;
+
       // Business allows overlap → only block past
       if(fcAllowOverlap)return effectiveStart>=new Date();
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
@@ -1135,12 +1113,10 @@ async function loadAgenda(){
       const allEvents=fcCal.getEvents();
       for(const ev of allEvents){
         if(ev.id===draggedEvent.id)continue;
-        // Skip same-group siblings (they'll be moved together by backend)
         if(myGroup&&ev.extendedProps?.group_id===myGroup)continue;
         if(ev.extendedProps?.practitioner_id!==myPrac)continue;
         const st=ev.extendedProps?.status;
         if(st==='cancelled'||st==='no_show'||st==='completed')continue;
-        // For groups, check the whole group range vs other events
         if(myGroup){
           if(ev.start<effectiveEnd&&ev.end>effectiveStart)return false;
         }else{
@@ -1758,21 +1734,19 @@ async function calSendNotification(){
 }
 
 // Helper: check if a time range fits within business hours for a given day
-// Handles gaps like lunch breaks (e.g. 9-12 + 13-17)
-function fcCheckBusinessHours(startDate,endDate){
-  if(fcBusinessHours.length===0)return true;
+// Uses practitioner-specific hours if pracId provided, otherwise global
+function fcCheckBusinessHours(startDate,endDate,pracId){
+  const bh=pracId&&fcPracBusinessHours[pracId]?fcPracBusinessHours[pracId]:fcBusinessHours;
+  if(bh.length===0)return true;
   const day=startDate.getDay();
-  const dayBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(day));
-  if(dayBH.length===0)return false; // closed day
+  const dayBH=bh.filter(b=>b.daysOfWeek.includes(day));
+  if(dayBH.length===0)return false;
   const startH=startDate.getHours()+startDate.getMinutes()/60;
   const endH=endDate.getHours()+endDate.getMinutes()/60;
-  // Build sorted list of work slots for this day
-  const slots=dayBH.map(bh=>({
-    s:parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60,
-    e:parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60
+  const slots=dayBH.map(b=>({
+    s:parseInt(b.startTime.split(':')[0])+parseInt(b.startTime.split(':')[1]||0)/60,
+    e:parseInt(b.endTime.split(':')[0])+parseInt(b.endTime.split(':')[1]||0)/60
   })).sort((a,b)=>a.s-b.s);
-  // Check if the entire range [startH, endH] fits within ONE continuous slot
-  // (merge adjacent/overlapping slots first)
   const merged=[];
   for(const sl of slots){
     if(merged.length>0&&sl.s<=merged[merged.length-1].e){
@@ -1803,13 +1777,13 @@ async function calDoSaveTime(notify,channel){
         const delta=newStart.getTime()-origStart.getTime();
         const groupStart=new Date(groupEvts[0].start.getTime()+delta);
         const groupEnd=new Date(groupEvts[groupEvts.length-1].end.getTime()+delta);
-        if(!fcCheckBusinessHours(groupStart,groupEnd)){
+        if(!fcCheckBusinessHours(groupStart,groupEnd,fcCurrentBooking.practitioner_id)){
           gToast('Le groupe entier ne rentre pas dans les heures de travail','error');
           return;
         }
       }
     }else{
-      if(!fcCheckBusinessHours(newStart,new Date(end_at))){
+      if(!fcCheckBusinessHours(newStart,new Date(end_at),fcCurrentBooking.practitioner_id)){
         gToast('Horaire en dehors des heures de travail','error');
         return;
       }
