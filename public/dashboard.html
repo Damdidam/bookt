@@ -1316,17 +1316,19 @@ async function loadAgenda(){
     };
   }catch(e){}
 
-  // Mobile: load list view + setup swipe
-  if(fcIsMobile()){
-    fcMobileDate=new Date();
-    fcLoadMobileList();
-    fcSetupSwipe();
+  // Touch devices: setup swipe navigation
+  if(fcIsTouch){
+    if(fcIsMobile()){
+      fcMobileDate=new Date();
+      fcLoadMobileList();
 
-    // Sync list date when calendar navigates
-    fcCal.on('datesSet',function(info){
-      fcMobileDate=info.start;
-      if(fcMobileView==='list')fcLoadMobileList();
-    });
+      // Sync list date when calendar navigates
+      fcCal.on('datesSet',function(info){
+        fcMobileDate=info.start;
+        if(fcMobileView==='list')fcLoadMobileList();
+      });
+    }
+    fcSetupSwipe();
   }
 }
 
@@ -1409,19 +1411,26 @@ function fcSetupSwipe(){
   let startX=0,startY=0,swiping=false;
   const content=document.getElementById('contentArea');
   content.addEventListener('touchstart',e=>{
+    // Don't swipe if touching an event (user might be dragging)
+    if(e.target.closest('.fc-event'))return;
     startX=e.touches[0].clientX;startY=e.touches[0].clientY;swiping=true;
+  },{passive:true});
+  content.addEventListener('touchmove',e=>{
+    if(!swiping)return;
+    const dy=Math.abs(e.touches[0].clientY-startY);
+    // If scrolling vertically, cancel swipe
+    if(dy>30)swiping=false;
   },{passive:true});
   content.addEventListener('touchend',e=>{
     if(!swiping)return;swiping=false;
     const dx=e.changedTouches[0].clientX-startX;
-    const dy=e.changedTouches[0].clientY-startY;
-    if(Math.abs(dx)<60||Math.abs(dy)>Math.abs(dx)*0.7)return; // too short or too vertical
-    if(dx<-60){
-      // Swipe left → next day
-      if(fcMobileView==='list'){fcMobShift(1);}else{fcCal.next();}
-    }else if(dx>60){
-      // Swipe right → prev day
-      if(fcMobileView==='list'){fcMobShift(-1);}else{fcCal.prev();}
+    if(Math.abs(dx)<80)return; // too short
+    if(dx<-80){
+      // Swipe left → next
+      if(fcIsMobile()&&fcMobileView==='list'){fcMobShift(1);}else{fcCal.next();}
+    }else if(dx>80){
+      // Swipe right → prev
+      if(fcIsMobile()&&fcMobileView==='list'){fcMobShift(-1);}else{fcCal.prev();}
     }
   },{passive:true});
 }
