@@ -463,13 +463,9 @@ router.patch('/:id/move', async (req, res, next) => {
     }
 
     // ── SINGLE MOVE (no group) ──
-    const svc = draggedBooking;
-    // Freestyle bookings have no service → preserve original duration
-    const origDur = (new Date(svc.end_at).getTime() - new Date(svc.start_at).getTime()) / 60000;
-    const totalMin = svc.duration_min != null
-      ? (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0)
-      : origDur;
-    const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
+    // Preserve the actual duration from the calendar (frontend sends correct end_at)
+    const newEnd = new Date(end_at);
+    const recalcEnd = newEnd;
 
     // Check for conflicts (skip if business allows overlap)
     if (!globalAllowOverlap) {
