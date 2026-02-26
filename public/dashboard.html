@@ -2114,7 +2114,7 @@ async function calCreateBooking(){
   if(!clientName){gToast('Nom du client requis','error');return;}
   if(!date||!time){gToast('Date et heure requises','error');return;}
 
-  const start_at=date+'T'+time+':00';
+  const start_at=new Date(date+'T'+time).toISOString();
 
   try{
     let actualClientId=clientId;
@@ -2132,7 +2132,7 @@ async function calCreateBooking(){
     if(isFreestyle){
       const endTime=document.getElementById('qcFreeEnd').value;
       if(!endTime){gToast('Heure de fin requise','error');return;}
-      const end_at=date+'T'+endTime+':00';
+      const end_at=new Date(date+'T'+endTime).toISOString();
       body={
         freestyle:true,
         practitioner_id:pracId,
