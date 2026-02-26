@@ -253,7 +253,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .m-client-name a{color:inherit;text-decoration:none}.m-client-name a:hover{color:var(--primary)}
 .m-client-meta{font-size:.72rem;color:var(--text-4);margin-top:2px;display:flex;gap:8px;align-items:center}
 .m-client-meta a{color:var(--text-4);text-decoration:none}.m-client-meta a:hover{color:var(--primary)}
-.m-overlap-tag{font-size:.58rem;font-family:var(--sans);background:var(--primary-light);color:var(--primary);padding:2px 7px;border-radius:10px;font-weight:700}
 .m-free-tag{font-size:.55rem;font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.5px}
 .m-quick-actions{display:flex;gap:4px;margin-left:auto;flex-shrink:0;align-self:center}
 .m-qbtn{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.78rem;color:var(--text-3);transition:all .15s;text-decoration:none}
@@ -944,7 +943,7 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 let fcCal=null, fcCalOptions=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
-let fcHiddenDays=[], fcBusinessHours=[];
+let fcHiddenDays=[], fcBusinessHours=[], fcAllowOverlap=false;
 let fcMobileView='grid'; // 'grid' or 'list'
 let fcMobileDate=new Date(); // for list view navigation
 let fcAllBookings=[]; // cache for list view
@@ -969,14 +968,16 @@ async function loadAgenda(){
   c.classList.add('agenda-active');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const [prRes,svRes,avRes]=await Promise.all([
+    const [prRes,svRes,avRes,bizRes]=await Promise.all([
       fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/availabilities',{headers:{'Authorization':'Bearer '+api.getToken()}})
+      fetch('/api/availabilities',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}})
     ]);
-    const prD=await prRes.json(), svD=await svRes.json(), avD=await avRes.json();
+    const prD=await prRes.json(), svD=await svRes.json(), avD=await avRes.json(), bizD=await bizRes.json();
     fcPractitioners=prD.practitioners||[];
     fcServices=svD.services||[];
+    fcAllowOverlap=!!(bizD.business?.settings?.allow_overlap);
 
     // Compute calendar bounds from availability data
     const avails=avD.availabilities||{};
@@ -1060,8 +1061,8 @@ async function loadAgenda(){
 
     // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
-      // Client allows overlap → always permit
-      if(movingEvent?.extendedProps?.allow_overlap)return true;
+      // Business allows overlap → always permit
+      if(fcAllowOverlap)return true;
       // Same group → always allow (they chain sequentially)
       const sg=stillEvent.extendedProps?.group_id, mg=movingEvent?.extendedProps?.group_id;
       if(sg&&mg&&sg===mg)return true;
@@ -1093,8 +1094,8 @@ async function loadAgenda(){
           if(!inBH)return false;
         }
       }
-      // Client allows overlap → only block past
-      if(draggedEvent.extendedProps?.allow_overlap)return dropInfo.start>=new Date();
+      // Business allows overlap → only block past
+      if(fcAllowOverlap)return dropInfo.start>=new Date();
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
       const myGroup=draggedEvent.extendedProps?.group_id;
       if(!myPrac)return true;
@@ -1428,14 +1429,13 @@ async function fcOpenDetail(bookingId){
     // ── Client hero ──
     const initials=(b.client_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const heroEl=document.getElementById('mClientHero');
-    const overlapTag=b.allow_overlap?'<span class="m-overlap-tag">chevauchement OK</span>':'';
     const freeTag=isFreestyle?`<span class="m-free-tag" style="background:${accentColor}18;color:${accentColor}">✦ LIBRE</span>`:'';
     heroEl.innerHTML=`
       <div class="m-avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC)">${initials}</div>
       <div class="m-client-info">
         <div class="m-client-name">
           <a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${b.client_id}')">${escH(b.client_name||'—')}</a>
-          ${freeTag}${overlapTag}
+          ${freeTag}
         </div>
         <div class="m-client-meta">
           ${b.client_phone?`<a href="tel:${b.client_phone}">${escH(b.client_phone)}</a>`:''}
@@ -2386,7 +2386,7 @@ async function openClientDetail(id){
     m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
     m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
     m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
-    m+=`<div style="margin-top:8px"><label style="font-size:.82rem;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="cl_overlap" ${cl.allow_overlap?'checked':''}> <span>Autoriser le chevauchement de RDV</span></label><div style="font-size:.72rem;color:var(--text-4);margin-left:26px">Permet de placer plusieurs RDV en même temps pour ce client (ex: coloration + soin en parallèle)</div></div>`;
+    m+=`</div><div class="modal-foot">`;
     if(bks.length>0){
       m+=`<div style="margin-top:12px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)">Historique (${bks.length} RDV)</label>`;
       const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)'};
@@ -2407,7 +2407,7 @@ async function openClientDetail(id){
 
 async function saveClient(id){
   try{
-    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,allow_overlap:document.getElementById('cl_overlap').checked})});
+    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.querySelector('.modal-overlay')?.remove();
     GendaUI.toast('Client mis à jour','success');loadClients();
@@ -2995,7 +2995,23 @@ async function loadSettings(){
       <div class="field"><label>Meta description</label><textarea id="s_seo_desc" style="min-height:60px">${esc(b.seo_description||'')}</textarea><div class="hint">Description affichée dans Google (max 160 car.)</div></div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveSEO()">Enregistrer</button></div></div>`;
 
-    // 3. Lien public & widget
+    // 3. Politique agenda
+    const overlapOn=!!(b.settings?.allow_overlap);
+    h+=`<div class="settings-card"><div class="sc-h"><h3>📅 Politique agenda</h3></div><div class="sc-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Autoriser les chevauchements</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Permet de placer plusieurs RDV en même temps pour le même praticien (ex: coloration + soin en parallèle)</div>
+        </div>
+        <label style="position:relative;display:inline-flex;width:44px;height:24px;flex-shrink:0;margin-left:16px">
+          <input type="checkbox" id="s_overlap" ${overlapOn?'checked':''} onchange="saveOverlapPolicy()" style="opacity:0;width:0;height:0">
+          <span style="position:absolute;inset:0;border-radius:100px;background:${overlapOn?'var(--primary)':'var(--border)'};transition:all .2s;cursor:pointer"></span>
+          <span style="position:absolute;left:${overlapOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+        </label>
+      </div>
+    </div></div>`;
+
+    // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3>🔗 Lien public & Widget</h3></div><div class="sc-body">
       <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')">📋 Copier</button></div></div>
       <div class="field"><label>Code widget embeddable</label><div class="copy-input"><input id="s_widget" value='${esc(lk.widget_code||'')}' readonly style="font-size:.72rem"><button class="btn-outline btn-sm" onclick="copyField('s_widget')">📋 Copier</button></div><div class="hint">Collez ce code sur votre site existant pour ajouter un bouton de réservation</div></div>
@@ -3105,6 +3121,20 @@ async function loadSettings(){
 }
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function saveOverlapPolicy(){
+  const on=document.getElementById('s_overlap').checked;
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_allow_overlap:on})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    fcAllowOverlap=on;
+    GendaUI.toast(on?'Chevauchements autorisés':'Chevauchements bloqués','success');
+    // Update toggle visual
+    const span=document.getElementById('s_overlap').parentElement;
+    span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
+    span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
 
 async function saveBusiness(){
   const body={name:document.getElementById('s_name').value,slug:document.getElementById('s_slug').value,email:document.getElementById('s_email').value,phone:document.getElementById('s_phone').value,address:document.getElementById('s_address').value,bce_number:document.getElementById('s_bce').value,accreditation:document.getElementById('s_accred').value,tagline:document.getElementById('s_tagline').value,description:document.getElementById('s_desc').value,founded_year:document.getElementById('s_year').value||null,languages_spoken:document.getElementById('s_langs').value,parking_info:document.getElementById('s_parking').value,settings_iban:document.getElementById('s_iban').value,settings_bic:document.getElementById('s_bic').value,settings_invoice_footer:document.getElementById('s_inv_footer').value};

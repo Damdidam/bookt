@@ -34,13 +34,16 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // V3 invoice settings (merged into settings JSONB)
       settings_iban, settings_bic, settings_invoice_footer,
       // V7.1 no-show settings
-      settings_noshow_threshold, settings_noshow_action
+      settings_noshow_threshold, settings_noshow_action,
+      // V12 overlap policy
+      settings_allow_overlap
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
     let mergedSettings = settings || null;
     if (settings_iban !== undefined || settings_bic !== undefined || settings_invoice_footer !== undefined
-        || settings_noshow_threshold !== undefined || settings_noshow_action !== undefined) {
+        || settings_noshow_threshold !== undefined || settings_noshow_action !== undefined
+        || settings_allow_overlap !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -49,6 +52,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_invoice_footer !== undefined) cur.invoice_footer = settings_invoice_footer;
       if (settings_noshow_threshold !== undefined) cur.noshow_block_threshold = parseInt(settings_noshow_threshold);
       if (settings_noshow_action !== undefined) cur.noshow_block_action = settings_noshow_action;
+      if (settings_allow_overlap !== undefined) cur.allow_overlap = !!settings_allow_overlap;
       mergedSettings = cur;
     }
 

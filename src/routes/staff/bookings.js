@@ -5,6 +5,13 @@ const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth
 router.use(requireAuth);
 router.use(resolvePractitionerScope);
 
+// Helper: get global overlap policy from business settings
+async function businessAllowsOverlap(bid) {
+  const r = await queryWithRLS(bid,
+    `SELECT COALESCE((settings->>'allow_overlap')::boolean, false) AS allow_overlap FROM businesses WHERE id = $1`, [bid]);
+  return r.rows.length > 0 && r.rows[0].allow_overlap;
+}
+
 // ============================================================
 // GET /api/bookings
 // List bookings with filters (agenda view + today list)
@@ -25,8 +32,7 @@ router.get('/', async (req, res, next) => {
              b.group_id, b.group_order, b.custom_label,
              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
-             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
-             c.allow_overlap
+             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
       FROM bookings b
       LEFT JOIN services s ON s.id = b.service_id
       JOIN practitioners p ON p.id = b.practitioner_id
@@ -82,6 +88,9 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et start_at requis' });
     }
 
+    // Check global overlap policy
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
+
     // ── FREESTYLE MODE: no predefined service ──
     if (freestyle) {
       if (!end_at) return res.status(400).json({ error: 'end_at requis en mode libre' });
@@ -90,18 +99,8 @@ router.post('/manual', async (req, res, next) => {
       const realStart = new Date(new Date(start_at).getTime() - bufBefore * 60000);
       const realEnd = new Date(new Date(end_at).getTime() + bufAfter * 60000);
 
-      // Check if client allows overlap
-      let clientAllowOverlap = false;
-      if (client_id) {
-        const clRes = await queryWithRLS(bid,
-          `SELECT allow_overlap FROM clients WHERE id = $1 AND business_id = $2`,
-          [client_id, bid]
-        );
-        if (clRes.rows.length > 0) clientAllowOverlap = clRes.rows[0].allow_overlap;
-      }
-
       const bookings = await transactionWithRLS(bid, async (client) => {
-        if (!clientAllowOverlap) {
+        if (!globalAllowOverlap) {
           const conflict = await client.query(
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
@@ -180,19 +179,9 @@ router.post('/manual', async (req, res, next) => {
 
     const totalEnd = slots[slots.length - 1].end_at;
 
-    // Check if client allows overlap
-    let clientAllowOverlap = false;
-    if (client_id) {
-      const clRes = await queryWithRLS(bid,
-        `SELECT allow_overlap FROM clients WHERE id = $1 AND business_id = $2`,
-        [client_id, bid]
-      );
-      if (clRes.rows.length > 0) clientAllowOverlap = clRes.rows[0].allow_overlap;
-    }
-
     const bookings = await transactionWithRLS(bid, async (client) => {
-      // Check conflicts for the entire time range (skip if client allows overlap)
-      if (!clientAllowOverlap) {
+      // Check conflicts for the entire time range (skip if business allows overlap)
+      if (!globalAllowOverlap) {
         const conflict = await client.query(
           `SELECT id FROM bookings
            WHERE business_id = $1 AND practitioner_id = $2
@@ -370,15 +359,13 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
 
-    // Fetch dragged booking + service info + group info + client overlap pref
+    // Fetch dragged booking + service info + group info
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
               b.group_id, b.group_order,
-              s.duration_min, s.buffer_before_min, s.buffer_after_min,
-              c.allow_overlap
+              s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
-       JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
@@ -387,6 +374,7 @@ router.patch('/:id/move', async (req, res, next) => {
     const draggedBooking = old.rows[0];
     const effectivePracId = practitioner_id || draggedBooking.practitioner_id;
     const newStart = new Date(start_at);
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
 
     // ── GROUP MOVE: recalculate all slots from the first booking's new start ──
     if (draggedBooking.group_id) {
@@ -423,8 +411,8 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalStart = updates[0].start_at;
       const totalEnd = updates[updates.length - 1].end_at;
 
-      // Check conflicts for entire group range (skip if client allows overlap)
-      if (!draggedBooking.allow_overlap) {
+      // Check conflicts for entire group range (skip if business allows overlap)
+      if (!globalAllowOverlap) {
         const groupIds = groupMembers.map(m => m.id);
         const conflict = await queryWithRLS(bid,
           `SELECT id FROM bookings
@@ -475,8 +463,8 @@ router.patch('/:id/move', async (req, res, next) => {
       : origDur;
     const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
 
-    // Check for conflicts (skip if client allows overlap)
-    if (!draggedBooking.allow_overlap) {
+    // Check for conflicts (skip if business allows overlap)
+    if (!globalAllowOverlap) {
       const conflict = await queryWithRLS(bid,
         `SELECT id, start_at, end_at FROM bookings
          WHERE business_id = $1 AND practitioner_id = $2
@@ -577,11 +565,10 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
 
-    // Get current booking to know start_at, practitioner, group, and client overlap pref
+    // Get current booking to know start_at, practitioner, group
     const current = await queryWithRLS(bid,
-      `SELECT b.start_at, b.practitioner_id, b.group_id, c.allow_overlap
+      `SELECT b.start_at, b.practitioner_id, b.group_id
        FROM bookings b
-       JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
@@ -592,8 +579,9 @@ router.patch('/:id/resize', async (req, res, next) => {
       return res.status(400).json({ error: 'Impossible de redimensionner un RDV groupé — les durées sont définies par les prestations' });
     }
 
-    // Check for conflicts (skip if client allows overlap)
-    if (!current.rows[0].allow_overlap) {
+    // Check for conflicts (skip if business allows overlap)
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
+    if (!globalAllowOverlap) {
       const conflict = await queryWithRLS(bid,
         `SELECT id FROM bookings
          WHERE business_id = $1 AND practitioner_id = $2
@@ -786,7 +774,7 @@ router.get('/:id/detail', async (req, res, next) => {
       `SELECT b.*, s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
-              c.no_show_count, c.is_blocked, c.allow_overlap
+              c.no_show_count, c.is_blocked
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
