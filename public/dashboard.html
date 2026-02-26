@@ -1270,6 +1270,18 @@ async function loadAgenda(){
   fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),fcCalOptions);
   fcCal.render();
 
+  // ── SSE: real-time calendar updates ──
+  if(window.fcEventSource){try{window.fcEventSource.close();}catch(e){}}
+  try{
+    window.fcEventSource=new EventSource('/api/events/stream?token='+encodeURIComponent(api.getToken()));
+    window.fcEventSource.addEventListener('booking_update',function(){
+      fcRefresh();
+    });
+    window.fcEventSource.onerror=function(){
+      // Browser auto-reconnects, nothing to do
+    };
+  }catch(e){}
+
   // Mobile: load list view + setup swipe
   if(fcIsMobile()){
     fcMobileDate=new Date();

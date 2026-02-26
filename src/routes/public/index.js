@@ -3,6 +3,7 @@ const { query } = require('../../services/db');
 const { getAvailableSlots } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
+const { broadcast } = require('../../services/sse');
 
 // ============================================================
 // GET /api/public/:slug
@@ -366,6 +367,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return booking.rows[0];
     });
 
+    broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
     res.status(201).json({
       booking: {
         id: result.id, token: result.public_token,
@@ -488,6 +490,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       waitlistResult = await processWaitlistForCancellation(bk.id);
     } catch (e) { /* non-blocking */ }
 
+    broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
     res.json({ cancelled: true, waitlist: waitlistResult });
   } catch (err) { next(err); }
 });
@@ -525,6 +528,7 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       [result.rows[0].business_id, result.rows[0].id]
     );
 
+    broadcast(result.rows[0].business_id, 'booking_update', { action: 'confirmed', source: 'public' });
     res.json({ confirmed: true, booking: result.rows[0] });
   } catch (err) { next(err); }
 });

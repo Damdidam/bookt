@@ -5,6 +5,8 @@ const helmet = require('helmet');
 const path = require('path');
 
 const { pool } = require('./services/db');
+const { addClient } = require('./services/sse');
+const { requireAuth } = require('./middleware/auth');
 const errorHandler = require('./middleware/error-handler');
 
 // Routes
@@ -68,6 +70,23 @@ app.get('/health', async (req, res) => {
   } catch (err) {
     res.status(500).json({ status: 'error', db: 'disconnected', error: err.message });
   }
+});
+
+// ===== SSE — Real-time calendar updates =====
+app.get('/api/events/stream', requireAuth, (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no' // Nginx/Cloudflare: don't buffer SSE
+  });
+  res.write(':\n\n'); // Initial ping
+
+  addClient(req.businessId, res);
+
+  // Heartbeat every 30s to keep connection alive through proxies
+  const hb = setInterval(() => { try { res.write(':\n\n'); } catch(e) { clearInterval(hb); } }, 30000);
+  res.on('close', () => clearInterval(hb));
 });
 
 // ===== API ROUTES =====

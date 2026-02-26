@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { broadcast } = require('../../services/sse');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -134,6 +135,7 @@ router.post('/manual', async (req, res, next) => {
         return [result.rows[0]];
       });
 
+      broadcast(bid, 'booking_update', { action: 'created' });
       return res.status(201).json({ booking: bookings[0], bookings });
     }
 
@@ -223,6 +225,7 @@ router.post('/manual', async (req, res, next) => {
       return results;
     });
 
+    broadcast(bid, 'booking_update', { action: 'created' });
     res.status(201).json({ booking: bookings[0], bookings, group_id: groupId });
   } catch (err) {
     next(err);
@@ -339,6 +342,7 @@ router.patch('/:id/status', async (req, res, next) => {
        JSON.stringify({ status, cancel_reason })]
     );
 
+    broadcast(bid, 'booking_update', { action: 'status_changed', status });
     res.json({ updated: true, status });
   } catch (err) {
     next(err);
@@ -454,6 +458,7 @@ router.patch('/:id/move', async (req, res, next) => {
          JSON.stringify({ new_start: totalStart, new_end: totalEnd })]
       );
 
+      broadcast(bid, 'booking_update', { action: 'moved' });
       return res.json({ updated: true, group_moved: true, count: updates.length });
     }
 
@@ -505,6 +510,7 @@ router.patch('/:id/move', async (req, res, next) => {
        JSON.stringify({ start_at: newStart.toISOString(), end_at: recalcEnd.toISOString(), practitioner_id })]
     );
 
+    broadcast(bid, 'booking_update', { action: 'moved' });
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     next(err);
@@ -550,6 +556,7 @@ router.patch('/:id/edit', async (req, res, next) => {
       [bid, req.user.id, id]
     );
 
+    broadcast(bid, 'booking_update', { action: 'edited' });
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     next(err);
@@ -605,6 +612,7 @@ router.patch('/:id/resize', async (req, res, next) => {
       [end_at, id, bid]
     );
 
+    broadcast(bid, 'booking_update', { action: 'resized' });
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     next(err);
@@ -708,6 +716,7 @@ router.patch('/:id/modify', async (req, res, next) => {
       }
     }
 
+    broadcast(bid, 'booking_update', { action: 'modified' });
     res.json({
       updated: true,
       booking: result.rows[0],
@@ -801,6 +810,7 @@ router.delete('/:id', async (req, res, next) => {
       [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status })]
     );
 
+    broadcast(bid, 'booking_update', { action: 'deleted' });
     res.json({ deleted: true });
   } catch (err) {
     next(err);
