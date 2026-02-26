@@ -1758,6 +1758,7 @@ async function calSendNotification(){
 }
 
 // Helper: check if a time range fits within business hours for a given day
+// Handles gaps like lunch breaks (e.g. 9-12 + 13-17)
 function fcCheckBusinessHours(startDate,endDate){
   if(fcBusinessHours.length===0)return true;
   const day=startDate.getDay();
@@ -1765,11 +1766,22 @@ function fcCheckBusinessHours(startDate,endDate){
   if(dayBH.length===0)return false; // closed day
   const startH=startDate.getHours()+startDate.getMinutes()/60;
   const endH=endDate.getHours()+endDate.getMinutes()/60;
-  const earliest=Math.min(...dayBH.map(bh=>parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60));
-  const latest=Math.max(...dayBH.map(bh=>parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60));
-  if(startH<earliest)return false;
-  if(endH>latest)return false;
-  return true;
+  // Build sorted list of work slots for this day
+  const slots=dayBH.map(bh=>({
+    s:parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60,
+    e:parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60
+  })).sort((a,b)=>a.s-b.s);
+  // Check if the entire range [startH, endH] fits within ONE continuous slot
+  // (merge adjacent/overlapping slots first)
+  const merged=[];
+  for(const sl of slots){
+    if(merged.length>0&&sl.s<=merged[merged.length-1].e){
+      merged[merged.length-1].e=Math.max(merged[merged.length-1].e,sl.e);
+    }else{
+      merged.push({s:sl.s,e:sl.e});
+    }
+  }
+  return merged.some(sl=>startH>=sl.s&&endH<=sl.e);
 }
 
 async function calDoSaveTime(notify,channel){
