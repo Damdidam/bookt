@@ -1757,14 +1757,55 @@ async function calSendNotification(){
   await calDoSaveTime(true,fcSelectedNotifyChannel);
 }
 
+// Helper: check if a time range fits within business hours for a given day
+function fcCheckBusinessHours(startDate,endDate){
+  if(fcBusinessHours.length===0)return true;
+  const day=startDate.getDay();
+  const dayBH=fcBusinessHours.filter(bh=>bh.daysOfWeek.includes(day));
+  if(dayBH.length===0)return false; // closed day
+  const startH=startDate.getHours()+startDate.getMinutes()/60;
+  const endH=endDate.getHours()+endDate.getMinutes()/60;
+  const earliest=Math.min(...dayBH.map(bh=>parseInt(bh.startTime.split(':')[0])+parseInt(bh.startTime.split(':')[1]||0)/60));
+  const latest=Math.max(...dayBH.map(bh=>parseInt(bh.endTime.split(':')[0])+parseInt(bh.endTime.split(':')[1]||0)/60));
+  if(startH<earliest)return false;
+  if(endH>latest)return false;
+  return true;
+}
+
 async function calDoSaveTime(notify,channel){
   const nd=document.getElementById('calEditDate').value,ns=document.getElementById('calEditStart').value,ne=document.getElementById('calEditEnd').value;
-  const start_at=nd+'T'+ns+':00',end_at=nd+'T'+ne+':00';
+  // Build proper ISO strings (browser local → UTC) so backend delta calc is correct
+  const start_at=new Date(nd+'T'+ns).toISOString();
+  const end_at=new Date(nd+'T'+ne).toISOString();
   try{
     const isGrouped=!!fcCurrentBooking?.group_id;
+    const newStart=new Date(start_at);
+
+    // ── Validate business hours ──
+    if(isGrouped){
+      // Calculate where the full group would land
+      const groupEvts=fcCal.getEvents().filter(e=>e.extendedProps?.group_id===fcCurrentBooking.group_id);
+      groupEvts.sort((a,b)=>a.start-b.start);
+      if(groupEvts.length>0){
+        const origStart=new Date(fcCurrentBooking.start_at);
+        const delta=newStart.getTime()-origStart.getTime();
+        const groupStart=new Date(groupEvts[0].start.getTime()+delta);
+        const groupEnd=new Date(groupEvts[groupEvts.length-1].end.getTime()+delta);
+        if(!fcCheckBusinessHours(groupStart,groupEnd)){
+          gToast('Le groupe entier ne rentre pas dans les heures de travail','error');
+          return;
+        }
+      }
+    }else{
+      if(!fcCheckBusinessHours(newStart,new Date(end_at))){
+        gToast('Horaire en dehors des heures de travail','error');
+        return;
+      }
+    }
+
+    // ── Save ──
     let r;
     if(isGrouped){
-      // Use /move for grouped bookings → moves entire group with delta
       r=await fetch(`/api/bookings/${fcCurrentEventId}/move`,{
         method:'PATCH',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
