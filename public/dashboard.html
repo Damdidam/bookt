@@ -1045,6 +1045,11 @@ async function loadAgenda(){
   c.innerHTML=pills+mobToggle+`<div id="fcCalendar" style="${mobile&&fcMobileView==='list'?'display:none':''}"></div><div id="fcMobList" class="mob-list ${mobile&&fcMobileView==='list'?'active':''}"></div>`+
     (mobile?`<button class="cal-fab" onclick="fcOpenQuickCreate()" title="Nouveau RDV">+</button>`:'');
 
+  // Compute initial slot increment from all practitioners
+  const allIncs=fcPractitioners.map(p=>p.slot_increment_min||15);
+  const initInc=allIncs.length>0?Math.min(...allIncs):15;
+  const initSlotDur=fcSlotDuration(initInc);
+
   // Init FullCalendar
   fcCalOptions={
     locale:'fr',
@@ -1054,12 +1059,12 @@ async function loadAgenda(){
     slotMinTime:fcSlotMin,slotMaxTime:fcSlotMax,
     hiddenDays:fcHiddenDays,
     businessHours:fcBusinessHours.length>0?fcBusinessHours:{daysOfWeek:[1,2,3,4,5],startTime:'09:00',endTime:'17:00'},
-    selectConstraint:'businessHours',
-    slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
+    // businessHours: visual indicator only, not a constraint for manual bookings
+    slotDuration:initSlotDur,slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:true,
     height:'auto',stickyHeaderDates:true,firstDay:1,
     dayMaxEvents:3, // month view: show max 3 events, then "+X more"
-    editable:true,eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:true,snapDuration:'00:15:00',
+    editable:true,eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:true,snapDuration:initSlotDur,
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
     longPressDelay:500, // all touch devices: hold 500ms to drag
@@ -1102,8 +1107,8 @@ async function loadAgenda(){
       }
 
       // Block if range doesn't fit in practitioner's work slot (respects lunch break)
-      const pracId=draggedEvent.extendedProps?.practitioner_id;
-      if(!fcCheckBusinessHours(effectiveStart,effectiveEnd,pracId))return false;
+      // NOTE: Removed — practitioners can manually place bookings during breaks.
+      // Business hours are visual indicators only; public booking API enforces availability.
 
       // Business allows overlap → only block past
       if(fcAllowOverlap)return effectiveStart>=new Date();
@@ -1414,10 +1419,31 @@ function fcSetupSwipe(){
 // ── Practitioner filter ──
 function fcRefresh(){fcCal.refetchEvents();if(fcIsMobile()&&fcMobileView==='list')fcLoadMobileList();}
 
+function fcSlotDuration(min){
+  const h=String(Math.floor(min/60)).padStart(2,'0');
+  const m=String(min%60).padStart(2,'0');
+  return h+':'+m+':00';
+}
+
 function fcFilterPractitioner(id,el){
   fcCurrentFilter=id;
   document.querySelectorAll('.prac-pill').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
+
+  // Adapt slot grid to practitioner's increment
+  let inc=15;
+  if(id==='all'){
+    // Use smallest increment across all practitioners
+    const incs=fcPractitioners.map(p=>p.slot_increment_min||15);
+    if(incs.length>0)inc=Math.min(...incs);
+  }else{
+    const prac=fcPractitioners.find(p=>p.id===id);
+    inc=prac?.slot_increment_min||15;
+  }
+  const dur=fcSlotDuration(inc);
+  fcCal.setOption('slotDuration',dur);
+  fcCal.setOption('snapDuration',dur);
+
   fcRefresh();
 }
 
@@ -1818,29 +1844,10 @@ async function calDoSaveTime(notify,channel){
   const end_at=new Date(nd+'T'+ne).toISOString();
   try{
     const isGrouped=!!fcCurrentBooking?.group_id;
-    const newStart=new Date(start_at);
 
-    // ── Validate business hours ──
-    if(isGrouped){
-      // Calculate where the full group would land
-      const groupEvts=fcCal.getEvents().filter(e=>e.extendedProps?.group_id===fcCurrentBooking.group_id);
-      groupEvts.sort((a,b)=>a.start-b.start);
-      if(groupEvts.length>0){
-        const origStart=new Date(fcCurrentBooking.start_at);
-        const delta=newStart.getTime()-origStart.getTime();
-        const groupStart=new Date(groupEvts[0].start.getTime()+delta);
-        const groupEnd=new Date(groupEvts[groupEvts.length-1].end.getTime()+delta);
-        if(!fcCheckBusinessHours(groupStart,groupEnd,fcCurrentBooking.practitioner_id)){
-          gToast('Le groupe entier ne rentre pas dans les heures de travail','error');
-          return;
-        }
-      }
-    }else{
-      if(!fcCheckBusinessHours(newStart,new Date(end_at),fcCurrentBooking.practitioner_id)){
-        gToast('Horaire en dehors des heures de travail','error');
-        return;
-      }
-    }
+    // NOTE: Business hours validation removed for manual bookings.
+    // Practitioners can place bookings during breaks at their discretion.
+    // Public booking API enforces availability constraints for clients.
 
     // ── Save ──
     let r;
@@ -2992,6 +2999,9 @@ function renderPractModal(p){
     <div class="field"><label>Nom complet *</label><input id="p_name" value="${p?.display_name||''}" placeholder="Ex: Dr. Sophie Laurent"></div>
     <div class="field"><label>Titre / Spécialité</label><input id="p_title" value="${p?.title||''}" placeholder="Ex: Kinésithérapeute sportif"></div>
     <div class="field-row"><div class="field"><label>Années d'expérience</label><input type="number" id="p_years" value="${p?.years_experience||''}" min="0"></div><div class="field"><label>Couleur agenda</label><div id="p_color_wrap"></div></div></div>
+    <div class="field"><label>Incrément agenda</label><select id="p_slot_inc" style="width:100%;padding:8px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.85rem">
+      ${[5,10,15,20,30,45,60].map(v=>`<option value="${v}"${(p?.slot_increment_min||15)===v?' selected':''}>${v} min</option>`).join('')}
+    </select><span style="font-size:.7rem;color:var(--text-4)">Granularité de la grille horaire pour ce praticien</span></div>
     <div class="field-row"><div class="field"><label>Email</label><input id="p_email" type="email" value="${p?.email||''}"></div><div class="field"><label>Téléphone</label><input id="p_phone" value="${p?.phone||''}"></div></div>
     <div class="field"><label>Bio</label><textarea id="p_bio">${p?.bio||''}</textarea></div>
     <div class="field"><label>LinkedIn</label><input id="p_linkedin" value="${p?.linkedin_url||''}" placeholder="https://linkedin.com/in/..."></div>
@@ -3002,7 +3012,7 @@ function renderPractModal(p){
 }
 
 async function savePract(id){
-  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked};
+  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15};
   try{
     const url=id?`/api/practitioners/${id}`:'/api/practitioners';
     const method=id?'PATCH':'POST';

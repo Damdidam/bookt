@@ -63,7 +63,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const { id } = req.params;
     const fields = req.body;
     const allowed = ['display_name', 'title', 'bio', 'color', 'email', 'phone',
-      'years_experience', 'linkedin_url', 'booking_enabled', 'is_active', 'sort_order', 'waitlist_mode'];
+      'years_experience', 'linkedin_url', 'booking_enabled', 'is_active', 'sort_order', 'waitlist_mode', 'slot_increment_min'];
 
     const sets = [];
     const params = [id, bid];
