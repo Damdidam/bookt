@@ -409,7 +409,11 @@ router.patch('/:id/move', async (req, res, next) => {
       const firstOrigStart = new Date(groupMembers[0].start_at);
       let cursor = new Date(firstOrigStart.getTime() + delta);
       const updates = groupMembers.map(m => {
-        const totalMin = (m.buffer_before_min || 0) + m.duration_min + (m.buffer_after_min || 0);
+        // Freestyle members have no service → preserve original duration
+        const origDur = (new Date(m.end_at).getTime() - new Date(m.start_at).getTime()) / 60000;
+        const totalMin = m.duration_min != null
+          ? (m.buffer_before_min || 0) + m.duration_min + (m.buffer_after_min || 0)
+          : origDur;
         const s = new Date(cursor);
         const e = new Date(s.getTime() + totalMin * 60000);
         cursor = e;
@@ -464,7 +468,11 @@ router.patch('/:id/move', async (req, res, next) => {
 
     // ── SINGLE MOVE (no group) ──
     const svc = draggedBooking;
-    const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+    // Freestyle bookings have no service → preserve original duration
+    const origDur = (new Date(svc.end_at).getTime() - new Date(svc.start_at).getTime()) / 60000;
+    const totalMin = svc.duration_min != null
+      ? (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0)
+      : origDur;
     const recalcEnd = new Date(newStart.getTime() + totalMin * 60000);
 
     // Check for conflicts (skip if client allows overlap)
