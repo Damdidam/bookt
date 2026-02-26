@@ -805,8 +805,9 @@ textarea.m-input{resize:vertical;min-height:38px}
         <!-- Bottom bar -->
         <div class="m-bottom" id="mBottom">
           <button class="m-btn m-btn-primary" id="mBtnSave" onclick="calSaveAll()">Enregistrer</button>
-          <button class="m-btn m-btn-ghost" onclick="document.getElementById('calNotifyPanel').style.display='block';document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'})">Notifier</button>
-          <button class="m-btn m-btn-danger" onclick="fcSetStatus('cancelled')">Supprimer</button>
+          <button class="m-btn m-btn-ghost" id="mBtnNotify" onclick="document.getElementById('calNotifyPanel').style.display='block';document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'})">Notifier</button>
+          <button class="m-btn m-btn-danger" id="mBtnCancel" onclick="fcSetStatus('cancelled')">Annuler le RDV</button>
+          <button class="m-btn m-btn-danger" id="mBtnPurge" onclick="fcPurgeBooking()" style="display:none">🗑️ Supprimer définitivement</button>
         </div>
       </div>
       <!-- NOTES TAB -->
@@ -1586,6 +1587,13 @@ async function fcOpenDetail(bookingId){
     // ── Render sub-tabs ──
     fcRenderNotes();fcRenderTodos();fcRenderReminders();
 
+    // ── Bottom bar: show/hide buttons based on status ──
+    const isFrozen=['cancelled','no_show'].includes(b.status);
+    document.getElementById('mBtnSave').style.display=isFrozen?'none':'';
+    document.getElementById('mBtnNotify').style.display=isFrozen?'none':'';
+    document.getElementById('mBtnCancel').style.display=isFrozen?'none':'';
+    document.getElementById('mBtnPurge').style.display=isFrozen?'':'none';
+
     // ── Show modal ──
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'),'rdv');
     modal.classList.add('open');
@@ -1626,6 +1634,20 @@ async function fcSetStatus(newStatus){
     });
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     gToast('Statut mis à jour','success');
+    closeCalModal('calDetailModal');
+    fcRefresh();
+  }catch(e){gToast('Erreur: '+e.message,'error');}
+}
+
+async function fcPurgeBooking(){
+  if(!confirm('Supprimer définitivement ce RDV ? Cette action est irréversible.'))return;
+  try{
+    const r=await fetch(`/api/bookings/${fcCurrentEventId}`,{
+      method:'DELETE',
+      headers:{'Authorization':'Bearer '+api.getToken()}
+    });
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    gToast('RDV supprimé définitivement','success');
     closeCalModal('calDetailModal');
     fcRefresh();
   }catch(e){gToast('Erreur: '+e.message,'error');}

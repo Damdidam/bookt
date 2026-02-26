@@ -765,6 +765,49 @@ router.patch('/:id/note', async (req, res, next) => {
 });
 
 // ============================================================
+// DELETE /api/bookings/:id — Permanently delete a cancelled/no-show booking
+// UI: Calendar → event detail → "Supprimer définitivement" (only for cancelled/no_show)
+// ============================================================
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    // Only allow deletion of cancelled or no_show bookings
+    const check = await queryWithRLS(bid,
+      `SELECT status, group_id FROM bookings WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+    if (check.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    if (!['cancelled', 'no_show'].includes(check.rows[0].status)) {
+      return res.status(400).json({ error: 'Seuls les RDV annulés ou no-show peuvent être supprimés' });
+    }
+
+    // Delete related data first (cascade may handle this, but be explicit)
+    await queryWithRLS(bid, `DELETE FROM booking_notes WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+    await queryWithRLS(bid, `DELETE FROM practitioner_todos WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+    await queryWithRLS(bid, `DELETE FROM booking_reminders WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+
+    // Delete the booking
+    await queryWithRLS(bid,
+      `DELETE FROM bookings WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+
+    // Audit
+    await queryWithRLS(bid,
+      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data)
+       VALUES ($1, $2, 'booking', $3, 'permanent_delete', $4)`,
+      [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status })]
+    );
+
+    res.json({ deleted: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
 // GET /api/bookings/:id/detail — Full detail with notes, todos, reminders
 // UI: Calendar → double-click event → detail modal
 // ============================================================
