@@ -1059,10 +1059,10 @@ async function loadAgenda(){
     allDaySlot:false,nowIndicator:true,navLinks:true,
     height:'auto',stickyHeaderDates:true,firstDay:1,
     dayMaxEvents:3, // month view: show max 3 events, then "+X more"
-    editable:!fcIsTouch||fcIsTablet(),eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:!fcIsTouch||fcIsTablet(),snapDuration:'00:15:00',
+    editable:true,eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:true,snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
-    longPressDelay:fcIsTablet()?500:99999, // tablet: long-press 500ms to drag; phone: disabled
+    longPressDelay:500, // all touch devices: hold 500ms to drag
 
     // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
@@ -1200,19 +1200,38 @@ async function loadAgenda(){
       return cls;
     },
 
-    // Click → open detail modal
-    eventClick:function(info){fcOpenDetail(info.event.id);},
+    // Double-click / double-tap → open detail modal (single click reserved for drag)
+    eventClick:function(){}, // absorb single click (no-op)
 
     // Click day number in month view → switch to day view
     navLinkDayClick:function(date){
       fcCal.changeView('timeGridDay',date);
     },
 
-    // Stamp event IDs on DOM for group drag
+    // Stamp event IDs on DOM + attach dblclick/doubletap
     eventDidMount:function(info){
       info.el.setAttribute('data-eid',info.event.id);
       const gid=info.event.extendedProps?.group_id;
       if(gid)info.el.setAttribute('data-gid',gid);
+
+      // Desktop: native dblclick
+      info.el.addEventListener('dblclick',function(e){
+        e.stopPropagation();
+        fcOpenDetail(info.event.id);
+      });
+
+      // Mobile: double-tap detection
+      let lastTap=0;
+      info.el.addEventListener('touchend',function(e){
+        const now=Date.now();
+        if(now-lastTap<350){
+          e.preventDefault();
+          fcOpenDetail(info.event.id);
+          lastTap=0;
+        }else{
+          lastTap=now;
+        }
+      },{passive:false});
     },
 
     // Select empty slot → quick create
