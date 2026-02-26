@@ -1253,6 +1253,11 @@ async function loadAgenda(){
       });
     },
 
+    // Always clean up ghosts when drag ends (drop, cancel, or revert)
+    eventDragStop:function(){
+      document.querySelectorAll('.ev-group-ghost').forEach(el=>el.classList.remove('ev-group-ghost'));
+    },
+
     // Drag & drop → move booking
     eventDrop:async function(info){
       document.querySelectorAll('.ev-group-ghost').forEach(el=>el.classList.remove('ev-group-ghost'));
