@@ -411,32 +411,8 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalStart = updates[0].start_at;
       const totalEnd = updates[updates.length - 1].end_at;
 
-      // Check the group's first member doesn't start before business hours
-      const firstNewStart = new Date(totalStart);
-      const lastNewEnd = new Date(totalEnd);
-      // Convert JS day (0=Sun) to DB weekday (0=Mon)
-      const jsDay = firstNewStart.getDay();
-      const dbDay = jsDay === 0 ? 6 : jsDay - 1;
-      const avCheck = await queryWithRLS(bid,
-        `SELECT MIN(start_time) AS earliest, MAX(end_time) AS latest
-         FROM availabilities
-         WHERE practitioner_id = $1 AND business_id = $2 AND weekday = $3 AND is_active = true`,
-        [effectivePracId, bid, dbDay]
-      );
-      if (avCheck.rows.length > 0 && avCheck.rows[0].earliest) {
-        const earliest = avCheck.rows[0].earliest; // e.g. "09:00:00"
-        const latest = avCheck.rows[0].latest;
-        const startH = firstNewStart.getHours() + firstNewStart.getMinutes() / 60;
-        const endH = lastNewEnd.getHours() + lastNewEnd.getMinutes() / 60;
-        const earlyH = parseInt(earliest.split(':')[0]) + parseInt(earliest.split(':')[1] || 0) / 60;
-        const lateH = parseInt(latest.split(':')[0]) + parseInt(latest.split(':')[1] || 0) / 60;
-        if (startH < earlyH) {
-          return res.status(400).json({ error: `Le groupe commencerait à ${firstNewStart.toTimeString().slice(0,5)}, avant l'ouverture (${earliest.slice(0,5)})` });
-        }
-        if (endH > lateH) {
-          return res.status(400).json({ error: `Le groupe finirait à ${lastNewEnd.toTimeString().slice(0,5)}, après la fermeture (${latest.slice(0,5)})` });
-        }
-      }
+      // Note: business hours validation is handled by frontend eventAllow
+      // which checks the entire group range against practitioner availability
 
       // Check conflicts for entire group range (skip if business allows overlap)
       if (!globalAllowOverlap) {
