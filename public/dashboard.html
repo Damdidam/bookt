@@ -144,7 +144,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .content.agenda-active{padding-bottom:0}
 .content.agenda-active .prac-filters{position:sticky;top:57px;z-index:30;background:var(--surface);padding:10px 0 8px;margin-bottom:0}
 .content.agenda-active .fc .fc-header-toolbar{position:sticky;top:99px;z-index:29;background:var(--surface);padding:6px 0;margin-bottom:0!important}
-.content.agenda-active .fc .fc-scrollgrid-section-header>td{position:sticky;top:143px;z-index:28;background:var(--white)}
+.content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:139px;z-index:28}
+.content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:139px!important;z-index:28;background:var(--white)}
+.content.agenda-active .fc .fc-col-header{background:var(--white)}
 .prac-pill{padding:6px 14px;border-radius:100px;font-size:.73rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:var(--transition);display:flex;align-items:center;gap:6px}
 .prac-pill:hover{border-color:var(--text-4)}
 .prac-pill.active{border-color:var(--primary-soft);background:var(--primary-light);color:var(--primary)}
@@ -160,12 +162,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .fc td,.fc th{border-color:var(--border-light)}
 .fc .fc-daygrid-day-number{font-size:.8rem;font-weight:500;color:var(--text-2);padding:6px 8px}
 .fc .fc-day-today{background:var(--primary-light)!important}
-.fc .fc-timegrid-slot{height:48px}
+.fc .fc-timegrid-slot{height:18px}
 .fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:var(--text-4);font-weight:500}
-.fc-zoom{display:flex;align-items:center;gap:4px;margin-left:auto}
-.fc-zoom button{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg-card);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all .15s}
-.fc-zoom button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
-.fc-zoom-label{font-size:.65rem;color:var(--text-4);min-width:28px;text-align:center}
 .fc .fc-timegrid-now-indicator-line{border-color:var(--primary);border-width:2px}
 .fc .fc-timegrid-now-indicator-arrow{border-color:var(--primary)}
 .fc .fc-event{border:none;border-radius:6px;padding:2px 6px;font-size:.72rem;cursor:pointer;transition:transform .1s,box-shadow .1s;overflow:hidden}
@@ -523,7 +521,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   .fc .fc-toolbar-chunk{display:flex;justify-content:center}
   .fc .fc-toolbar-title{font-size:1rem!important}
   .fc .fc-button{padding:5px 10px;font-size:.72rem}
-  .fc .fc-timegrid-slot{height:40px}
+  .fc .fc-timegrid-slot{height:18px}
   .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
   .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
 
@@ -532,8 +530,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   .prac-filters::-webkit-scrollbar{display:none}
   .prac-pill{flex-shrink:0;font-size:.68rem;padding:5px 11px}
   .content.agenda-active .prac-filters{top:49px;padding:6px 0}
-  .content.agenda-active .fc .fc-header-toolbar{top:87px}
-  .content.agenda-active .fc .fc-scrollgrid-section-header>td{top:127px}
+  .content.agenda-active .fc .fc-header-toolbar{top:85px}
+  .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:125px!important}
 
   /* Modal → full screen bottom sheet */
   .cal-modal-overlay{padding:0;align-items:flex-end}
@@ -844,29 +842,6 @@ let fcCal=null, fcCalOptions=null, fcPractitioners=[], fcServices=[], fcCurrentF
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
 let fcHiddenDays=[], fcBusinessHours=[];
-const FC_ZOOM_LEVELS=[18,24,32,48,64,80];
-let fcZoomIdx=3; // default 48px = 100%
-
-function fcZoom(dir){
-  fcZoomIdx=Math.max(0,Math.min(FC_ZOOM_LEVELS.length-1,fcZoomIdx+dir));
-  const h=FC_ZOOM_LEVELS[fcZoomIdx];
-  // Inject/update dynamic style
-  let tag=document.getElementById('fcZoomStyle');
-  if(!tag){tag=document.createElement('style');tag.id='fcZoomStyle';document.head.appendChild(tag);}
-  tag.textContent=`.fc .fc-timegrid-slot,.fc .fc-timegrid-slot-lane{height:${h}px!important}`;
-  // Destroy & recreate calendar to force full background recalculation
-  if(fcCal&&fcCalOptions){
-    const curView=fcCal.view.type;
-    const curDate=fcCal.getDate();
-    fcCal.destroy();
-    fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),fcCalOptions);
-    fcCal.render();
-    fcCal.changeView(curView,curDate);
-  }
-  const pct=Math.round(h/48*100);
-  const lbl=document.getElementById('fcZoomLabel');
-  if(lbl)lbl.textContent=pct+'%';
-}
 let fcMobileView='grid'; // 'grid' or 'list'
 let fcMobileDate=new Date(); // for list view navigation
 let fcAllBookings=[]; // cache for list view
@@ -949,7 +924,7 @@ async function loadAgenda(){
   // Build filter pills
   let pills=`<div class="prac-filters"><div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous</div>`;
   fcPractitioners.forEach(p=>{pills+=`<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)"><span class="dot" style="background:${p.color||'var(--primary)'}"></span>${p.display_name}</div>`;});
-  pills+=`<div class="fc-zoom"><button onclick="fcZoom(-1)" title="Zoom arrière (voir plus)">−</button><span class="fc-zoom-label" id="fcZoomLabel">100%</span><button onclick="fcZoom(1)" title="Zoom avant (voir détails)">+</button></div></div>`;
+  pills+=`</div>`;
 
   // Mobile: view toggle + list container
   const mobile=fcIsMobile();
@@ -973,7 +948,7 @@ async function loadAgenda(){
     selectConstraint:'businessHours',
     slotDuration:'00:15:00',slotLabelInterval:'01:00:00',
     allDaySlot:false,nowIndicator:true,navLinks:!mobile,
-    height:'auto',stickyHeaderDates:false,firstDay:1,
+    height:'auto',stickyHeaderDates:true,firstDay:1,
     editable:!fcIsTouch||fcIsTablet(),eventDurationEditable:!fcIsTouch||fcIsTablet(),eventStartEditable:!fcIsTouch||fcIsTablet(),snapDuration:'00:15:00',
     selectable:true,selectMirror:true,
     slotEventOverlap:false,
@@ -1154,8 +1129,6 @@ async function loadAgenda(){
   };
   fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),fcCalOptions);
   fcCal.render();
-  // Re-apply zoom if changed
-  if(fcZoomIdx!==3)setTimeout(()=>fcZoom(0),100);
 
   // Mobile: load list view + setup swipe
   if(fcIsMobile()){
