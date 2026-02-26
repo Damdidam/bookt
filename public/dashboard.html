@@ -256,6 +256,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .notify-opt.selected{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
 .notify-opt svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
 .notify-actions{display:flex;gap:8px;justify-content:flex-end}
+/* Unified RDV tab */
+.u-client-bar{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border-radius:10px;margin-bottom:14px}
+.u-client-bar .u-avatar{width:36px;height:36px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);font-size:.82rem;flex-shrink:0}
+.u-client-bar .u-name{font-size:.88rem;font-weight:700;color:var(--primary);cursor:pointer;text-decoration:none}
+.u-client-bar .u-meta{font-size:.72rem;color:var(--text-4)}
+.u-client-bar .u-actions{margin-left:auto;display:flex;gap:4px}
+.u-icon-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.78rem;color:var(--text-3);transition:var(--transition)}
+.u-icon-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.u-freestyle-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#FFFDE7;border:1px dashed #FFD54F;border-radius:10px;margin-bottom:14px}
+.u-free-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:.65rem;font-weight:700;background:#FFF8E1;color:#F57F17}
+.u-free-label{flex:1;border:none;background:transparent;font-size:.85rem;font-weight:600;color:var(--text);outline:none;padding:2px 4px;border-bottom:1.5px dashed #FFD54F;font-family:var(--sans)}
+.u-free-label:focus{border-bottom-color:var(--primary)}
+.u-free-color{width:28px;height:28px;border:2px solid rgba(0,0,0,.1);border-radius:50%;cursor:pointer;padding:0;overflow:hidden;flex-shrink:0}
+.u-svc-card{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-radius:8px;margin-bottom:14px}
+.u-svc-card .u-svc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.u-svc-card .u-svc-name{font-size:.85rem;font-weight:600}
+.u-svc-card .u-svc-meta{font-size:.72rem;color:var(--text-4)}
+.u-sec{margin-bottom:14px}
+.u-sec-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.u-sec-ico{font-size:.82rem}
+.u-sec-title{font-size:.68rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px}
+.u-bottom{display:flex;gap:8px;padding-top:14px;border-top:1px solid var(--border-light);margin-top:16px}
 .cal-btn{padding:8px 16px;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:var(--transition)}
 .cal-btn:hover{border-color:var(--text-4);background:var(--surface)}
 .cal-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}.cal-btn.primary:hover{background:var(--primary-hover)}
@@ -617,27 +639,60 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   <div class="cal-modal">
     <div class="cal-modal-head"><h2 id="calModalTitle">—</h2><button class="cal-close" onclick="closeCalModal('calDetailModal')">✕</button></div>
     <div class="cal-tabs">
-      <div class="cal-tab active" data-tab="info" onclick="switchCalTab(this,'info')">Infos</div>
-      <div class="cal-tab" data-tab="edit" onclick="switchCalTab(this,'edit')">Modifier</div>
+      <div class="cal-tab active" data-tab="rdv" onclick="switchCalTab(this,'rdv')">RDV</div>
       <div class="cal-tab" data-tab="notes" onclick="switchCalTab(this,'notes')">Notes</div>
       <div class="cal-tab" data-tab="todos" onclick="switchCalTab(this,'todos')">Tâches</div>
       <div class="cal-tab" data-tab="reminders" onclick="switchCalTab(this,'reminders')">Rappels</div>
     </div>
     <div class="cal-modal-body">
-      <!-- INFO TAB -->
-      <div class="cal-panel active" id="calPanelInfo">
-        <div class="info-grid" id="calInfoGrid"></div>
-        <div id="calIntNoteWrap" style="margin-top:14px;display:none"><div class="info-label">Note interne</div><input class="edit-input" id="calIntNote" placeholder="Ajouter une note rapide..." style="margin-top:4px"></div>
+      <!-- UNIFIED RDV TAB -->
+      <div class="cal-panel active" id="calPanelRdv">
+        <!-- Client bar -->
+        <div class="u-client-bar" id="uClientBar"></div>
+        <!-- Status buttons -->
         <div class="status-actions" id="calStatusActions"></div>
-      </div>
-      <!-- EDIT TAB -->
-      <div class="cal-panel" id="calPanelEdit">
-        <div class="edit-section-title">Modifier l'horaire</div>
-        <div class="edit-row"><div><div class="edit-input-label">Date</div><input type="date" class="edit-input" id="calEditDate"></div><div><div class="edit-input-label">Début</div><input type="time" class="edit-input" id="calEditStart"></div><div><div class="edit-input-label">Fin</div><input type="time" class="edit-input" id="calEditEnd"></div></div>
-        <div class="edit-input-label">Durée rapide</div>
-        <div class="dur-chips" id="calDurChips"><span class="dur-chip" onclick="calSetDuration(15,this)">15 min</span><span class="dur-chip" onclick="calSetDuration(30,this)">30 min</span><span class="dur-chip" onclick="calSetDuration(45,this)">45 min</span><span class="dur-chip" onclick="calSetDuration(60,this)">1h</span><span class="dur-chip" onclick="calSetDuration(90,this)">1h30</span><span class="dur-chip" onclick="calSetDuration(120,this)">2h</span></div>
-        <div id="calEditDiff" style="display:none;margin:10px 0"></div>
-        <div style="display:flex;gap:8px;margin-top:12px"><button class="cal-btn primary" onclick="calSaveTimeChange()">Enregistrer</button></div>
+        <!-- Freestyle header (hidden for normal) -->
+        <div class="u-freestyle-bar" id="uFreestyleBar" style="display:none">
+          <span class="u-free-badge">✦</span>
+          <input class="u-free-label" id="uFreeLabel" placeholder="Intitulé du RDV...">
+          <input type="color" id="uFreeColor" value="#0D7377" class="u-free-color">
+        </div>
+        <!-- Service card (hidden for freestyle) -->
+        <div class="u-svc-card" id="uSvcCard" style="display:none"></div>
+        <!-- Group siblings -->
+        <div id="uGroupSiblings" style="display:none"></div>
+        <!-- Horaire -->
+        <div class="u-sec">
+          <div class="u-sec-head"><span class="u-sec-ico">🕐</span><span class="u-sec-title">Horaire</span></div>
+          <div class="edit-row"><div><div class="edit-input-label">Date</div><input type="date" class="edit-input" id="calEditDate"></div><div><div class="edit-input-label">Début</div><input type="time" class="edit-input" id="calEditStart"></div><div><div class="edit-input-label">Fin</div><input type="time" class="edit-input" id="calEditEnd"></div></div>
+          <div class="dur-chips" id="calDurChips"><span class="dur-chip" onclick="calSetDuration(15,this)">15</span><span class="dur-chip" onclick="calSetDuration(30,this)">30</span><span class="dur-chip" onclick="calSetDuration(45,this)">45</span><span class="dur-chip" onclick="calSetDuration(60,this)">1h</span><span class="dur-chip" onclick="calSetDuration(90,this)">1h30</span><span class="dur-chip" onclick="calSetDuration(120,this)">2h</span></div>
+        </div>
+        <!-- Praticien -->
+        <div class="u-sec">
+          <div class="u-sec-head"><span class="u-sec-ico">👤</span><span class="u-sec-title">Praticien</span></div>
+          <select class="edit-input" id="uPracSelect"></select>
+        </div>
+        <!-- Buffers (freestyle only) -->
+        <div class="u-sec" id="uBufferSec" style="display:none">
+          <div class="u-sec-head"><span class="u-sec-ico">⏸️</span><span class="u-sec-title">Buffers</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div><div class="edit-input-label">Avant (min)</div><input class="edit-input" type="number" id="uBufBefore" value="0" min="0" step="5"></div>
+            <div><div class="edit-input-label">Après (min)</div><input class="edit-input" type="number" id="uBufAfter" value="0" min="0" step="5"></div>
+          </div>
+        </div>
+        <!-- Commentaire -->
+        <div class="u-sec">
+          <div class="u-sec-head"><span class="u-sec-ico">💬</span><span class="u-sec-title">Commentaire</span></div>
+          <textarea class="edit-input" id="uComment" rows="2" placeholder="Ajouter un commentaire..." style="resize:vertical"></textarea>
+        </div>
+        <!-- Note interne -->
+        <div class="u-sec">
+          <div class="u-sec-head"><span class="u-sec-ico">📝</span><span class="u-sec-title">Note interne</span></div>
+          <textarea class="edit-input" id="calIntNote" rows="2" placeholder="Note visible uniquement par l'équipe..." style="resize:vertical;background:#FFFDE7;border-color:#FFE082"></textarea>
+        </div>
+        <!-- Diff banner -->
+        <div id="calEditDiff" style="display:none;margin:8px 0"></div>
+        <!-- Notify panel -->
         <div class="notify-panel" id="calNotifyPanel">
           <h4>📨 Prévenir le client ?</h4>
           <div class="notify-options">
@@ -647,6 +702,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
             <div class="notify-opt" onclick="calSelectNotify('none',this)"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Non</div>
           </div>
           <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
+        </div>
+        <!-- Bottom bar -->
+        <div class="u-bottom">
+          <button class="cal-btn primary" onclick="calSaveAll()">Enregistrer</button>
+          <button class="cal-btn" onclick="closeCalModal('calDetailModal')">Fermer</button>
         </div>
       </div>
       <!-- NOTES TAB -->
@@ -1217,7 +1277,8 @@ function fcFilterPractitioner(id,el){
   fcRefresh();
 }
 
-// ── Detail Modal ──
+// ── Detail Modal (Unified) ──
+let fcCurrentBooking=null; // store booking data for save
 async function fcOpenDetail(bookingId){
   fcCurrentEventId=bookingId;
   const modal=document.getElementById('calDetailModal');
@@ -1227,47 +1288,28 @@ async function fcOpenDetail(bookingId){
     const d=await r.json();
     fcDetailData={notes:d.notes||[],todos:d.todos||[],reminders:d.reminders||[]};
     const b=d.booking;
-
-    document.getElementById('calModalTitle').textContent=b.client_name||'RDV';
-
-    // Info tab
-    const prac=fcPractitioners.find(p=>p.id===b.practitioner_id);
+    fcCurrentBooking=b;
+    const isFreestyle=!b.service_name;
     const s=new Date(b.start_at),e=new Date(b.end_at);
-    let ig=`<div class="info-item"><div class="info-label">Client</div><div class="info-value"><a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${b.client_id}')" style="color:var(--primary);font-weight:600;text-decoration:none">${b.client_name||'—'}</a>${b.allow_overlap?' <span style="font-size:.65rem;background:var(--primary-light);color:var(--primary);padding:1px 6px;border-radius:10px;vertical-align:middle">chevauchement OK</span>':''}</div></div>
-      <div class="info-item"><div class="info-label">Statut</div><div class="info-value"><span class="status-badge st-${b.status}">${ST_LABELS[b.status]||b.status}</span></div></div>
-      <div class="info-item"><div class="info-label">Prestation</div><div class="info-value">${b.service_name||b.custom_label||'<span style="color:var(--text-4)">RDV libre ✦</span>'}</div></div>
-      <div class="info-item"><div class="info-label">Praticien</div><div class="info-value"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${prac?.color||'var(--primary)'};margin-right:4px"></span>${prac?.display_name||b.practitioner_name||'—'}</div></div>
-      <div class="info-item"><div class="info-label">Date</div><div class="info-value">${s.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'})}</div></div>
-      <div class="info-item"><div class="info-label">Horaire</div><div class="info-value">${s.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} – ${e.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})} (${b.duration_min||Math.round((e-s)/60000)}min)</div></div>
-      <div class="info-item"><div class="info-label">Téléphone</div><div class="info-value"><a href="tel:${b.client_phone||''}">${b.client_phone||'—'}</a></div></div>
-      <div class="info-item"><div class="info-label">Email</div><div class="info-value"><a href="mailto:${b.client_email||''}">${b.client_email||'—'}</a></div></div>`;
-    const physOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
-    if(b.appointment_mode&&!physOnlySectors.includes(userSector))ig+=`<div class="info-item"><div class="info-label">Mode</div><div class="info-value">${MODE_ICO[b.appointment_mode]||''} ${b.appointment_mode}</div></div>`;
-    if(b.no_show_count>0)ig+=`<div class="info-item"><div class="info-label">⚠️ No-shows</div><div class="info-value" style="color:var(--red);font-weight:700">${b.no_show_count}</div></div>`;
 
-    // Group siblings
-    const siblings=d.group_siblings||[];
-    if(siblings.length>1){
-      ig+=`<div class="info-item" style="grid-column:1/-1;margin-top:8px"><div class="info-label">🔗 Groupe (${siblings.length} prestations)</div><div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">`;
-      siblings.forEach(sib=>{
-        const isCurrent=sib.id===bookingId;
-        const sT=new Date(sib.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
-        const eT=new Date(sib.end_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
-        ig+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;${isCurrent?'background:var(--primary);color:#fff':'background:var(--bg-card);border:1px solid var(--border)'}">
-          <span style="width:10px;height:10px;border-radius:50%;background:${sib.service_color||'var(--primary)'};flex-shrink:0"></span>
-          <span style="font-size:.78rem;font-weight:${isCurrent?'700':'400'}">${sib.service_name}</span>
-          <span style="font-size:.72rem;${isCurrent?'opacity:.8':'color:var(--text-4)'};margin-left:auto">${sT} – ${eT} (${sib.duration_min}min)</span>
-        </div>`;
-      });
-      ig+=`</div></div>`;
-    }
+    // Modal title
+    const titleBadge=isFreestyle?' <span style="font-size:.62rem;padding:2px 8px;border-radius:100px;background:#FFF8E1;color:#F57F17;font-weight:700;vertical-align:middle;font-family:var(--sans)">✦ Libre</span>':'';
+    document.getElementById('calModalTitle').innerHTML=escH(b.client_name||'RDV')+titleBadge;
 
-    document.getElementById('calInfoGrid').innerHTML=ig;
-
-    // Internal note
-    const noteWrap=document.getElementById('calIntNoteWrap');
-    noteWrap.style.display='block';
-    document.getElementById('calIntNote').value=b.internal_note||'';
+    // Client bar
+    const initials=(b.client_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    document.getElementById('uClientBar').innerHTML=`
+      <div class="u-avatar">${initials}</div>
+      <div>
+        <a class="u-name" href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${b.client_id}')">${escH(b.client_name||'—')}</a>
+        ${b.allow_overlap?'<span style="font-size:.6rem;background:var(--primary-light);color:var(--primary);padding:1px 6px;border-radius:10px;margin-left:4px">chevauchement OK</span>':''}
+        <div class="u-meta">${b.client_phone||''} ${b.client_phone&&b.client_email?'·':''} ${b.client_email||''}</div>
+      </div>
+      <div class="u-actions">
+        ${b.client_phone?`<a class="u-icon-btn" href="tel:${b.client_phone}" title="Appeler">📞</a>`:''}
+        ${b.client_email?`<a class="u-icon-btn" href="mailto:${b.client_email}" title="Email">✉️</a>`:''}
+        <button class="u-icon-btn" onclick="closeCalModal('calDetailModal');openClientDetail('${b.client_id}')" title="Fiche client">👤</button>
+      </div>`;
 
     // Status actions
     const acts=[];
@@ -1278,24 +1320,79 @@ async function fcOpenDetail(bookingId){
     if(['completed','cancelled','no_show'].includes(b.status))acts.push('<button class="st-btn" onclick="fcSetStatus(\'confirmed\')">↩ Rétablir</button>');
     document.getElementById('calStatusActions').innerHTML=acts.join('');
 
-    // Edit tab
+    // Freestyle vs Normal
+    const freeBar=document.getElementById('uFreestyleBar');
+    const svcCard=document.getElementById('uSvcCard');
+    const bufSec=document.getElementById('uBufferSec');
+    if(isFreestyle){
+      freeBar.style.display='flex';
+      svcCard.style.display='none';
+      bufSec.style.display='';
+      document.getElementById('uFreeLabel').value=b.custom_label||'';
+      document.getElementById('uFreeColor').value=b.booking_color||b.practitioner_color||'#0D7377';
+      // TODO: parse buffers from booking if stored separately
+      document.getElementById('uBufBefore').value=0;
+      document.getElementById('uBufAfter').value=0;
+    }else{
+      freeBar.style.display='none';
+      bufSec.style.display='none';
+      const svcColor=b.service_color||'var(--primary)';
+      svcCard.style.display='flex';
+      svcCard.innerHTML=`
+        <span class="u-svc-dot" style="background:${svcColor}"></span>
+        <div>
+          <div class="u-svc-name">${escH(b.service_name)}</div>
+          <div class="u-svc-meta">${b.duration_min||Math.round((e-s)/60000)} min${b.price_cents?' · '+(b.price_cents/100).toFixed(2)+'€':''}</div>
+        </div>`;
+    }
+
+    // Group siblings
+    const siblings=d.group_siblings||[];
+    const groupEl=document.getElementById('uGroupSiblings');
+    if(siblings.length>1){
+      let gh=`<div class="u-sec" style="margin-bottom:14px"><div class="u-sec-head"><span class="u-sec-ico">🔗</span><span class="u-sec-title">Groupe (${siblings.length} prestations)</span></div><div style="display:flex;flex-direction:column;gap:4px">`;
+      siblings.forEach(sib=>{
+        const isCur=sib.id===bookingId;
+        const sT=new Date(sib.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        const eT=new Date(sib.end_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        gh+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;${isCur?'background:var(--primary);color:#fff':'background:var(--bg-card);border:1px solid var(--border)'}">
+          <span style="width:10px;height:10px;border-radius:50%;background:${sib.service_color||'var(--primary)'};flex-shrink:0"></span>
+          <span style="font-size:.78rem;font-weight:${isCur?'700':'400'}">${sib.service_name||'RDV libre'}</span>
+          <span style="font-size:.72rem;${isCur?'opacity:.8':'color:var(--text-4)'};margin-left:auto">${sT} – ${eT}</span>
+        </div>`;
+      });
+      gh+=`</div></div>`;
+      groupEl.innerHTML=gh;
+      groupEl.style.display='block';
+    }else{groupEl.style.display='none';}
+
+    // Horaire
     const ds=s.toISOString().split('T')[0],st=s.toTimeString().slice(0,5),et=e.toTimeString().slice(0,5);
     document.getElementById('calEditDate').value=ds;
     document.getElementById('calEditStart').value=st;
     document.getElementById('calEditEnd').value=et;
-    fcEditOriginal={date:ds,start:st,end:et};
+    fcEditOriginal={date:ds,start:st,end:et,practitioner_id:b.practitioner_id,comment:b.comment_client||'',internal_note:b.internal_note||'',custom_label:b.custom_label||'',color:b.booking_color||''};
     const dm=Math.round((e-s)/60000);
     document.querySelectorAll('.dur-chip').forEach(c=>c.classList.toggle('active',parseInt(c.textContent)===dm||({'1h':60,'1h30':90,'2h':120}[c.textContent.trim()]===dm)));
     document.getElementById('calEditDiff').style.display='none';
     document.getElementById('calNotifyPanel').style.display='none';
     fcSelectedNotifyChannel=null;
-    ['calEditDate','calEditStart','calEditEnd'].forEach(id=>document.getElementById(id).onchange=fcUpdateEditDiff);
+
+    // Praticien dropdown
+    const pracSel=document.getElementById('uPracSelect');
+    pracSel.innerHTML=fcPractitioners.map(p=>`<option value="${p.id}"${p.id===b.practitioner_id?' selected':''}>${p.display_name}</option>`).join('');
+
+    // Comment
+    document.getElementById('uComment').value=b.comment_client||'';
+
+    // Internal note
+    document.getElementById('calIntNote').value=b.internal_note||'';
 
     // Render sub-tabs
     fcRenderNotes();fcRenderTodos();fcRenderReminders();
 
     // Show
-    switchCalTab(document.querySelector('.cal-tab[data-tab="info"]'),'info');
+    switchCalTab(document.querySelector('.cal-tab[data-tab="rdv"]'),'rdv');
     modal.classList.add('open');
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
@@ -1320,7 +1417,7 @@ function switchCalTab(el,tab){
   document.querySelectorAll('.cal-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.cal-panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap={info:'calPanelInfo',edit:'calPanelEdit',notes:'calPanelNotes',todos:'calPanelTodos',reminders:'calPanelReminders'};
+  const panelMap={rdv:'calPanelRdv',notes:'calPanelNotes',todos:'calPanelTodos',reminders:'calPanelReminders'};
   document.getElementById(panelMap[tab])?.classList.add('active');
 }
 
@@ -1364,19 +1461,66 @@ function fcUpdateEditDiff(){
   d.style.display='block';
 }
 
-async function calSaveTimeChange(){
-  const nd=document.getElementById('calEditDate').value,ns=document.getElementById('calEditStart').value,ne=document.getElementById('calEditEnd').value;
+async function calSaveAll(){
+  const nd=document.getElementById('calEditDate').value;
+  const ns=document.getElementById('calEditStart').value;
+  const ne=document.getElementById('calEditEnd').value;
   if(!nd||!ns||!ne)return;
   if(fcTimeDiffMin(ns,ne)<=0){gToast("Fin doit être après début","error");return;}
-  const ch=nd!==fcEditOriginal.date||ns!==fcEditOriginal.start||ne!==fcEditOriginal.end;
-  if(!ch){gToast('Aucun changement');return;}
-  // Show notify panel
-  document.getElementById('calNotifyPanel').style.display='block';
-  document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
-  fcSelectedNotifyChannel=null;
-  document.querySelectorAll('.notify-opt').forEach(o=>o.classList.remove('selected'));
-  document.getElementById('calSendNotifyBtn').style.display='none';
+
+  const newPrac=document.getElementById('uPracSelect').value;
+  const newComment=document.getElementById('uComment').value.trim();
+  const newNote=document.getElementById('calIntNote').value.trim();
+  const isFreestyle=!fcCurrentBooking?.service_name;
+  const newLabel=isFreestyle?document.getElementById('uFreeLabel').value.trim():'';
+  const newColor=isFreestyle?document.getElementById('uFreeColor').value:'';
+
+  // Check if time changed (needs notify flow)
+  const timeChanged=nd!==fcEditOriginal.date||ns!==fcEditOriginal.start||ne!==fcEditOriginal.end;
+
+  // Build edit payload (non-time fields)
+  const editPayload={};
+  if(newPrac!==fcEditOriginal.practitioner_id)editPayload.practitioner_id=newPrac;
+  if(newComment!==(fcEditOriginal.comment||''))editPayload.comment=newComment;
+  if(newNote!==(fcEditOriginal.internal_note||''))editPayload.internal_note=newNote;
+  if(isFreestyle){
+    if(newLabel!==(fcEditOriginal.custom_label||''))editPayload.custom_label=newLabel;
+    if(newColor!==(fcEditOriginal.color||''))editPayload.color=newColor;
+  }
+
+  const hasFieldChanges=Object.keys(editPayload).length>0;
+
+  // Save non-time fields first
+  if(hasFieldChanges){
+    try{
+      const r=await fetch(`/api/bookings/${fcCurrentEventId}/edit`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify(editPayload)
+      });
+      if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    }catch(e){gToast('Erreur: '+e.message,'error');return;}
+  }
+
+  // If time changed → show notify panel
+  if(timeChanged){
+    document.getElementById('calNotifyPanel').style.display='block';
+    document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+    fcSelectedNotifyChannel=null;
+    document.querySelectorAll('.notify-opt').forEach(o=>o.classList.remove('selected'));
+    document.getElementById('calSendNotifyBtn').style.display='none';
+    return; // Wait for notify selection
+  }
+
+  // No time change → just close
+  if(hasFieldChanges)gToast('RDV mis à jour','success');
+  else gToast('Aucun changement');
+  closeCalModal('calDetailModal');
+  fcRefresh();
 }
+
+// Keep old alias for backward compat
+function calSaveTimeChange(){calSaveAll();}
 
 function calSelectNotify(ch,el){
   fcSelectedNotifyChannel=ch;

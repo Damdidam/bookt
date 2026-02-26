@@ -521,6 +521,51 @@ router.patch('/:id/move', async (req, res, next) => {
 });
 
 // ============================================================
+// PATCH /api/bookings/:id/edit — Edit booking fields (unified modal)
+// UI: Calendar → detail modal → Enregistrer
+// ============================================================
+router.patch('/:id/edit', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { practitioner_id, comment, internal_note, custom_label, color } = req.body;
+
+    const sets = [];
+    const params = [];
+    let idx = 1;
+
+    if (practitioner_id !== undefined) { sets.push(`practitioner_id = $${idx++}`); params.push(practitioner_id); }
+    if (comment !== undefined) { sets.push(`comment_client = $${idx++}`); params.push(comment || null); }
+    if (internal_note !== undefined) { sets.push(`internal_note = $${idx++}`); params.push(internal_note || null); }
+    if (custom_label !== undefined) { sets.push(`custom_label = $${idx++}`); params.push(custom_label || null); }
+    if (color !== undefined) { sets.push(`color = $${idx++}`); params.push(color || null); }
+
+    if (sets.length === 0) return res.json({ updated: false });
+
+    sets.push('updated_at = NOW()');
+    params.push(id, bid);
+
+    const result = await queryWithRLS(bid,
+      `UPDATE bookings SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Audit
+    await queryWithRLS(bid,
+      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action)
+       VALUES ($1, $2, 'booking', $3, 'edit')`,
+      [bid, req.user.id, id]
+    );
+
+    res.json({ updated: true, booking: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
 // PATCH /api/bookings/:id/resize — Resize duration
 // UI: Calendar → drag event bottom edge
 // ============================================================
