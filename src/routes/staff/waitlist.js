@@ -105,6 +105,43 @@ router.post('/', async (req, res, next) => {
 });
 
 // ============================================================
+// PATCH /api/waitlist/:id — update entry (notes, status)
+// ============================================================
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { staff_notes, status } = req.body;
+
+    const sets = ['updated_at = NOW()'];
+    const params = [id, bid];
+    let idx = 3;
+
+    if (staff_notes !== undefined) {
+      sets.push(`staff_notes = $${idx}`);
+      params.push(staff_notes);
+      idx++;
+    }
+    if (status) {
+      const valid = ['waiting', 'offered', 'booked', 'expired', 'cancelled', 'declined'];
+      if (!valid.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+      sets.push(`status = $${idx}`);
+      params.push(status);
+      idx++;
+    }
+
+    const result = await queryWithRLS(bid,
+      `UPDATE waitlist_entries SET ${sets.join(', ')}
+       WHERE id = $1 AND business_id = $2 RETURNING *`,
+      params
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Entrée introuvable' });
+
+    res.json({ entry: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // DELETE /api/waitlist/:id — remove entry
 // ============================================================
 router.delete('/:id', async (req, res, next) => {
