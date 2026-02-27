@@ -224,4 +224,32 @@ async function sendModificationEmail({ booking, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail };
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendPasswordResetEmail };
+
+/**
+ * Send password reset email
+ */
+async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
+  const bodyHTML = `
+    <p>Bonjour${name ? ' <strong>' + name + '</strong>' : ''},</p>
+    <p>Vous avez demandé à réinitialiser votre mot de passe.</p>
+    <p>Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe. Ce lien est valable <strong>1 heure</strong>.</p>
+    <p style="font-size:13px;color:#9C958E;margin-top:20px">Si vous n'avez pas fait cette demande, ignorez simplement cet email.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Réinitialiser votre mot de passe',
+    preheader: 'Cliquez pour choisir un nouveau mot de passe',
+    bodyHTML,
+    ctaText: 'Réinitialiser mon mot de passe',
+    ctaUrl: resetUrl,
+    businessName: businessName || 'Genda',
+    footerText: 'Cet email a été envoyé automatiquement via Genda.be'
+  });
+
+  return sendEmail({
+    to: email,
+    toName: name || email,
+    subject: '🔑 Réinitialisation de mot de passe — ' + (businessName || 'Genda'),
+    html
+  });
+}
