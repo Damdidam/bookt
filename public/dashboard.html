@@ -3857,6 +3857,18 @@ async function loadSettings(){
             `:`<button onclick="connectCalendar('outlook')" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Connecter</button>`}
           </div>
         </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 1px 3px rgba(0,0,0,.08)">🍎</div>
+            <div>
+              <div style="font-size:.88rem;font-weight:600">Apple Calendar / iCal</div>
+              <div style="font-size:.72rem;color:var(--text-4)">URL d'abonnement — compatible Apple, Thunderbird, etc.</div>
+            </div>
+          </div>
+          <button onclick="generateIcalFeed()" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Générer le lien</button>
+        </div>
+        <div id="icalFeedUrl" style="display:none;margin-top:8px;padding:10px 14px;background:var(--surface);border-radius:var(--radius-xs);font-size:.75rem;word-break:break-all"></div>
       </div>
 
       ${calConns.length>0?`<div style="margin-top:14px;padding:12px;background:var(--primary-light);border-radius:var(--radius-xs)">
@@ -4450,6 +4462,25 @@ async function updateCalSyncDirection(direction){
     const conns=r.connections||[];
     for(const c of conns){await api.patch('/api/calendar/connections/'+c.id,{sync_direction:direction});}
     GendaUI.toast('Direction de synchro mise \u00e0 jour','success');
+  }catch(e){GendaUI.toast(e.message||'Erreur','error');}
+}
+
+async function generateIcalFeed(){
+  try{
+    const r=await fetch('/api/calendar/ical/generate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'Erreur');
+    const el=document.getElementById('icalFeedUrl');
+    el.style.display='block';
+    el.innerHTML=`
+      <div style="margin-bottom:8px"><strong>📋 URL du calendrier :</strong></div>
+      <div style="padding:8px 12px;background:var(--white);border:1px solid var(--border);border-radius:6px;font-family:monospace;font-size:.72rem;user-select:all;cursor:text;margin-bottom:8px">${d.ical_url}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="navigator.clipboard.writeText('${d.ical_url}');GendaUI.toast('URL copiée !','success')" class="btn-outline btn-sm">📋 Copier</button>
+        <a href="${d.webcal_url}" class="btn-outline btn-sm" style="text-decoration:none;color:var(--primary)">🍎 Ouvrir dans Apple Calendar</a>
+      </div>
+      <div style="font-size:.68rem;color:var(--text-4);margin-top:8px">Dans Apple Calendar : Fichier → Nouvel abonnement → collez l'URL ci-dessus. Le calendrier se rafraîchira automatiquement.</div>
+    `;
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
