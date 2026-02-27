@@ -1,5 +1,6 @@
 const { query } = require('./db');
 const crypto = require('crypto');
+const { broadcast } = require('./sse');
 
 /**
  * WAITLIST PROCESSOR
@@ -74,6 +75,15 @@ async function processWaitlistForCancellation(bookingId) {
       );
     } catch (e) { /* notification type might not exist in CHECK constraint yet */ }
 
+    broadcast(bk.business_id, 'waitlist_match', {
+      mode: 'manual',
+      matches_count: matches.rows.length,
+      practitioner_name: bk.practitioner_name,
+      service_name: bk.service_name,
+      slot_start: bk.start_at,
+      slot_end: bk.end_at
+    });
+
     return {
       processed: true,
       mode: 'manual',
@@ -107,6 +117,16 @@ async function processWaitlistForCancellation(bookingId) {
     //   - Service, date/heure
     //   - Link: /waitlist/{token}
     //   - "Vous avez 2h pour réserver"
+
+    broadcast(bk.business_id, 'waitlist_match', {
+      mode: 'auto',
+      offered_to: entry.client_name,
+      offered_email: entry.client_email,
+      practitioner_name: bk.practitioner_name,
+      service_name: bk.service_name,
+      slot_start: bk.start_at,
+      next_in_queue: matches.rows.length - 1
+    });
 
     return {
       processed: true,
@@ -186,6 +206,13 @@ async function processExpiredOffers() {
         );
 
         // TODO: Send email to next person
+
+        broadcast(entry.business_id, 'waitlist_match', {
+          mode: 'auto_cascade',
+          offered_to: next.rows[0].client_name,
+          expired_from: entry.client_name,
+          slot_start: entry.offer_booking_start
+        });
       }
     }
 
