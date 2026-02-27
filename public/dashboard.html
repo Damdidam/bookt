@@ -1409,7 +1409,7 @@ function fcMobToday(){
 
 // ── Mobile: Swipe navigation ──
 function fcSetupSwipe(){
-  let startX=0,startY=0,swiping=false;
+  let startX=0,startY=0,swiping=false,lastSwipe=0;
   const content=document.getElementById('contentArea');
   content.addEventListener('touchstart',e=>{
     // Don't swipe if touching an event (user might be dragging)
@@ -1424,14 +1424,25 @@ function fcSetupSwipe(){
   },{passive:true});
   content.addEventListener('touchend',e=>{
     if(!swiping)return;swiping=false;
+    // Debounce: ignore swipes within 400ms of last one
+    const now=Date.now();
+    if(now-lastSwipe<400)return;
     const dx=e.changedTouches[0].clientX-startX;
     if(Math.abs(dx)<80)return; // too short
-    if(dx<-80){
-      // Swipe left → next
-      if(fcIsMobile()&&fcMobileView==='list'){fcMobShift(1);}else{fcCal.next();}
-    }else if(dx>80){
-      // Swipe right → prev
-      if(fcIsMobile()&&fcMobileView==='list'){fcMobShift(-1);}else{fcCal.prev();}
+    lastSwipe=now;
+    const dir=dx<-80?1:-1; // 1=next, -1=prev
+
+    if(fcIsMobile()&&fcMobileView==='list'){
+      fcMobShift(dir);
+    }else{
+      const view=fcCal?.view?.type||'';
+      if(view==='dayGridMonth'){
+        // Month view → next/prev month
+        if(dir===1)fcCal.next();else fcCal.prev();
+      }else{
+        // Day or Week view → move 1 day
+        fcCal.incrementDate({days:dir});
+      }
     }
   },{passive:true});
 }
