@@ -480,6 +480,7 @@ textarea.m-input{resize:vertical;min-height:38px}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .g-toast button{padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-family:var(--sans);font-size:.8rem;font-weight:700;cursor:pointer;transition:var(--transition)}
 .g-toast button:hover{background:var(--primary-hover)}
+.g-toast.info{background:#1E3A5F;border-left:4px solid #60A5FA}
 .g-toast .dismiss{background:transparent;color:rgba(255,255,255,.4);font-size:.75rem;padding:4px 8px}
 
 /* ===== SERVICES ===== */
@@ -1491,6 +1492,19 @@ async function loadAgenda(){
     window.fcEventSource=new EventSource('/api/events/stream?token='+encodeURIComponent(api.getToken()));
     window.fcEventSource.addEventListener('booking_update',function(){
       fcRefresh();
+    });
+    window.fcEventSource.addEventListener('waitlist_match',function(ev){
+      try{
+        const d=JSON.parse(ev.data);
+        const slot=d.slot_start?new Date(d.slot_start).toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})+' à '+new Date(d.slot_start).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
+        if(d.mode==='manual'){
+          gToast(`⏳ ${d.matches_count} personne(s) en attente pour le créneau du ${slot} (${d.practitioner_name})`,'info',{label:'Voir la liste →',fn:"document.querySelector('[data-section=waitlist]').click()"});
+        }else if(d.mode==='auto'){
+          gToast(`⏳ Offre auto envoyée à ${d.offered_to} pour le ${slot}`,'info',{label:'Voir →',fn:"document.querySelector('[data-section=waitlist]').click()"});
+        }else if(d.mode==='auto_cascade'){
+          gToast(`🔄 Offre expirée de ${d.expired_from} → relancée à ${d.offered_to}`,'info',{label:'Voir →',fn:"document.querySelector('[data-section=waitlist]').click()"});
+        }
+      }catch(e){}
     });
     window.fcEventSource.onerror=function(){
       // Browser auto-reconnects, nothing to do
