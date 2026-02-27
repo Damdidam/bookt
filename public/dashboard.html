@@ -3355,8 +3355,13 @@ async function loadTeam(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const r=await fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const [r,calR]=await Promise.all([
+      fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/calendar/connections',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
+    ]);
     const d=await r.json();
+    const calData=calR.ok?await calR.json():{connections:[]};
+    const calConns=calData.connections||[];
     const practs=d.practitioners||[];
     let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${practs.length} membre${practs.length>1?'s':''} de l'équipe</h3><button class="btn-primary" onclick="openPractModal()">+ Ajouter un praticien</button></div>`;
 
@@ -3387,6 +3392,7 @@ async function loadTeam(){
             <span class="tm-badge ${p.is_active?'active':'inactive'}">${p.is_active?'Actif':'Inactif'}</span>
             <span class="tm-badge ${p.booking_enabled?'booking':'no-booking'}">${p.booking_enabled?'Réservable':'Non réservable'}</span>
             ${p.waitlist_mode&&p.waitlist_mode!=='off'?`<span class="tm-badge" style="background:${p.waitlist_mode==='auto'?'#DCFCE7;color:#15803D':'#FEF3C7;color:#92400E'}">${p.waitlist_mode==='auto'?'⏳ Waitlist auto':'⏳ Waitlist manuelle'}</span>`:''}
+            ${(()=>{const pc=calConns.filter(c=>c.practitioner_id===p.id);if(pc.length===0)return'';const providers=pc.map(c=>c.provider==='google'?'Google':c.provider==='outlook'?'Outlook':'iCal').join(', ');return`<span class="tm-badge" style="background:#EFF9F8;color:#0D7377">📅 ${providers}</span>`;})()}
             ${hasLogin?`<span class="tm-badge has-login">${sectorLabels[p.user_role]||p.user_role||'Compte lié'}</span>`:''}
           </div>
           <div class="tm-actions">
@@ -3441,9 +3447,14 @@ function renderPractModal(p){
       <option value="manual"${p?.waitlist_mode==='manual'?' selected':''}>🟡 Manuelle — je contacte le client moi-même</option>
       <option value="auto"${p?.waitlist_mode==='auto'?' selected':''}>🟢 Automatique — offre envoyée au 1er en file</option>
     </select><span style="font-size:.7rem;color:var(--text-4)">Quand un RDV est annulé, propose le créneau aux personnes en liste d'attente</span></div>
+    ${isEdit?`<div style="margin-top:16px;padding:16px;border:1.5px solid var(--border-light);border-radius:var(--radius-sm);background:var(--surface)">
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:10px">📅 Synchronisation calendrier</div>
+      <div id="p_cal_area" style="font-size:.82rem;color:var(--text-4)">Chargement...</div>
+    </div>`:''}
   </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="savePract(${isEdit?"'"+p.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   document.getElementById('p_color_wrap').innerHTML=cswHTML('p_color',p?.color||'#0D7377',false);
+  if(isEdit) loadPracCalSync(p.id);
 }
 
 let pPendingPhoto=null; // base64 data URI to upload after save
@@ -3726,15 +3737,12 @@ async function loadSettings(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const[br,ur,lr,calr]=await Promise.all([
+    const[br,ur,lr]=await Promise.all([
       fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/business/public-link',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/calendar/connections',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
+      fetch('/api/business/public-link',{headers:{'Authorization':'Bearer '+api.getToken()}})
     ]);
     const bd=await br.json(),ud=await ur.json(),ld=await lr.json();
-    const calData=calr.ok?await calr.json():{connections:[]};
-    const calConns=calData.connections||[];
     const b=bd.business, u=ud.user, lk=ld;
     let h='';
 
@@ -3817,72 +3825,7 @@ async function loadSettings(){
       </div>
     </div></div>`;
 
-    // 6. Synchronisation calendrier
-    const gConn=calConns.find(c=>c.provider==='google');
-    const oConn=calConns.find(c=>c.provider==='outlook');
-    h+=`<div class="settings-card"><div class="sc-h"><h3>📅 Synchronisation calendrier</h3></div><div class="sc-body">
-      <p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Synchronisez vos rendez-vous Genda avec votre agenda externe. Les créneaux occupés dans votre calendrier bloqueront automatiquement les réservations.</p>
-
-      <div style="display:grid;gap:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 1px 3px rgba(0,0,0,.08)">📆</div>
-            <div>
-              <div style="font-size:.88rem;font-weight:600">Google Calendar</div>
-              ${gConn?`<div style="font-size:.72rem;color:var(--green)">✓ Connecté — ${esc(gConn.email||'')}${gConn.last_sync_at?' · Dernière synchro: '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
-              :`<div style="font-size:.72rem;color:var(--text-4)">Non connecté</div>`}
-            </div>
-          </div>
-          <div style="display:flex;gap:6px">
-            ${gConn?`
-              <button onclick="syncCalendar('${gConn.id}')" class="btn-outline btn-sm">🔄 Sync</button>
-              <button onclick="disconnectCalendar('${gConn.id}','google')" class="btn-outline btn-sm btn-danger">Déconnecter</button>
-            `:`<button onclick="connectCalendar('google')" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Connecter</button>`}
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 1px 3px rgba(0,0,0,.08)">📧</div>
-            <div>
-              <div style="font-size:.88rem;font-weight:600">Outlook / Microsoft 365</div>
-              ${oConn?`<div style="font-size:.72rem;color:var(--green)">✓ Connecté — ${esc(oConn.email||'')}${oConn.last_sync_at?' · Dernière synchro: '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
-              :`<div style="font-size:.72rem;color:var(--text-4)">Non connecté</div>`}
-            </div>
-          </div>
-          <div style="display:flex;gap:6px">
-            ${oConn?`
-              <button onclick="syncCalendar('${oConn.id}')" class="btn-outline btn-sm">🔄 Sync</button>
-              <button onclick="disconnectCalendar('${oConn.id}','outlook')" class="btn-outline btn-sm btn-danger">Déconnecter</button>
-            `:`<button onclick="connectCalendar('outlook')" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Connecter</button>`}
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 1px 3px rgba(0,0,0,.08)">🍎</div>
-            <div>
-              <div style="font-size:.88rem;font-weight:600">Apple Calendar / iCal</div>
-              <div style="font-size:.72rem;color:var(--text-4)">URL d'abonnement — compatible Apple, Thunderbird, etc.</div>
-            </div>
-          </div>
-          <button onclick="generateIcalFeed()" class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary)">Générer le lien</button>
-        </div>
-        <div id="icalFeedUrl" style="display:none;margin-top:8px;padding:10px 14px;background:var(--surface);border-radius:var(--radius-xs);font-size:.75rem;word-break:break-all"></div>
-      </div>
-
-      ${calConns.length>0?`<div style="margin-top:14px;padding:12px;background:var(--primary-light);border-radius:var(--radius-xs)">
-        <div style="font-size:.78rem;color:var(--text-2)">
-          <strong>Direction de synchro :</strong>
-          <select onchange="updateCalSyncDirection(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:.78rem;margin-left:6px">
-            <option value="both" ${(gConn||oConn)?.sync_direction==='both'?'selected':''}>↔ Bidirectionnelle (push + pull)</option>
-            <option value="push" ${(gConn||oConn)?.sync_direction==='push'?'selected':''}>→ Push uniquement (Genda → Calendrier)</option>
-            <option value="pull" ${(gConn||oConn)?.sync_direction==='pull'?'selected':''}>← Pull uniquement (Calendrier → Genda)</option>
-          </select>
-        </div>
-        <div style="font-size:.7rem;color:var(--text-4);margin-top:4px">Push = vos RDV Genda apparaissent dans votre agenda. Pull = les créneaux occupés de votre agenda bloquent les réservations.</div>
-      </div>`:''}
-    </div></div>`;
+    // 6. Synchronisation calendrier — moved to Équipe (per practitioner)
 
     // 7. Danger zone
     h+=`<div class="settings-card danger-zone"><div class="sc-h"><h3>⚠️ Zone danger</h3></div><div class="sc-body">
@@ -4430,20 +4373,106 @@ async function deleteDoc(id){
 // CALENDAR SYNC
 // ============================================================
 
-async function connectCalendar(provider){
+// ============================================================
+// CALENDAR SYNC (per practitioner)
+// ============================================================
+async function loadPracCalSync(pracId){
+  const area=document.getElementById('p_cal_area');
+  if(!area)return;
   try{
-    const r=await api.get(`/api/calendar/${provider}/connect`);
+    const r=await fetch(`/api/calendar/connections?practitioner_id=${pracId}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=r.ok?await r.json():{connections:[]};
+    const conns=d.connections||[];
+    const gConn=conns.find(c=>c.provider==='google');
+    const oConn=conns.find(c=>c.provider==='outlook');
+    const iConn=conns.find(c=>c.provider==='ical');
+
+    let h=`<div style="display:grid;gap:8px">`;
+
+    // Google
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--white);border:1px solid var(--border-light);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.1rem">📆</span>
+        <div>
+          <div style="font-size:.82rem;font-weight:600">Google Calendar</div>
+          ${gConn?`<div style="font-size:.68rem;color:var(--green)">✓ ${esc(gConn.email||'Connecté')}${gConn.last_sync_at?' · '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+          :`<div style="font-size:.68rem;color:var(--text-4)">Non connecté</div>`}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px">
+        ${gConn?`
+          <button onclick="syncCalendar('${gConn.id}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px">🔄</button>
+          <button onclick="disconnectCalendar('${gConn.id}','google','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px">✕</button>
+        `:`<button onclick="connectCalendar('google','${pracId}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px;color:var(--primary);border-color:var(--primary)">Connecter</button>`}
+      </div>
+    </div>`;
+
+    // Outlook
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--white);border:1px solid var(--border-light);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.1rem">📧</span>
+        <div>
+          <div style="font-size:.82rem;font-weight:600">Outlook</div>
+          ${oConn?`<div style="font-size:.68rem;color:var(--green)">✓ ${esc(oConn.email||'Connecté')}${oConn.last_sync_at?' · '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+          :`<div style="font-size:.68rem;color:var(--text-4)">Non connecté</div>`}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px">
+        ${oConn?`
+          <button onclick="syncCalendar('${oConn.id}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px">🔄</button>
+          <button onclick="disconnectCalendar('${oConn.id}','outlook','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px">✕</button>
+        `:`<button onclick="connectCalendar('outlook','${pracId}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px;color:var(--primary);border-color:var(--primary)">Connecter</button>`}
+      </div>
+    </div>`;
+
+    // iCal
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--white);border:1px solid var(--border-light);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.1rem">🍎</span>
+        <div>
+          <div style="font-size:.82rem;font-weight:600">Apple / iCal</div>
+          <div style="font-size:.68rem;color:var(--text-4)">URL d'abonnement</div>
+        </div>
+      </div>
+      <button onclick="generateIcalFeed('${pracId}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px;color:var(--primary);border-color:var(--primary)">${iConn?'Regénérer':'Générer'}</button>
+    </div>`;
+
+    h+=`</div>`;
+    h+=`<div id="p_ical_url" style="display:none;margin-top:8px"></div>`;
+
+    // Sync direction (if any connection exists)
+    if(gConn||oConn){
+      const dir=(gConn||oConn).sync_direction||'both';
+      h+=`<div style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:.78rem">
+        <span style="color:var(--text-3)">Direction :</span>
+        <select onchange="updateCalSyncDirection(this.value,'${pracId}')" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;font-size:.75rem">
+          <option value="both"${dir==='both'?' selected':''}>↔ Bidirectionnelle</option>
+          <option value="push"${dir==='push'?' selected':''}>→ Push (Genda → Cal)</option>
+          <option value="pull"${dir==='pull'?' selected':''}>← Pull (Cal → Genda)</option>
+        </select>
+      </div>`;
+    }
+
+    area.innerHTML=h;
+  }catch(e){
+    area.innerHTML=`<div style="font-size:.78rem;color:var(--text-4)">Impossible de charger les connexions calendrier.</div>`;
+  }
+}
+
+async function connectCalendar(provider,pracId){
+  try{
+    const r=await api.get(`/api/calendar/${provider}/connect?practitioner_id=${pracId||''}`);
     if(r.url)window.location.href=r.url;
     else GendaUI.toast('Erreur de connexion','error');
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
-async function disconnectCalendar(connId,provider){
-  if(!confirm('D\u00e9connecter '+(provider==='google'?'Google Calendar':'Outlook')+' ?'))return;
+async function disconnectCalendar(connId,provider,pracId){
+  if(!confirm('Déconnecter '+(provider==='google'?'Google Calendar':'Outlook')+' ?'))return;
   try{
     await api.delete(`/api/calendar/connections/${connId}`);
-    GendaUI.toast('Calendrier d\u00e9connect\u00e9','success');
-    loadSettings();
+    GendaUI.toast('Calendrier déconnecté','success');
+    if(pracId)loadPracCalSync(pracId);
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
@@ -4451,36 +4480,37 @@ async function syncCalendar(connId){
   try{
     GendaUI.toast('Synchronisation en cours...','info');
     const r=await api.post(`/api/calendar/connections/${connId}/sync`);
-    GendaUI.toast('Synchro termin\u00e9e : '+(r.pushed||0)+' pouss\u00e9s, '+(r.pulled||0)+' r\u00e9cup\u00e9r\u00e9s','success');
-    loadSettings();
+    GendaUI.toast('Synchro terminée : '+(r.pushed||0)+' poussés, '+(r.pulled||0)+' récupérés','success');
   }catch(e){GendaUI.toast(e.message||'Erreur synchro','error');}
 }
 
-async function updateCalSyncDirection(direction){
+async function updateCalSyncDirection(direction,pracId){
   try{
-    const r=await api.get('/api/calendar/connections');
-    const conns=r.connections||[];
-    for(const c of conns){await api.patch('/api/calendar/connections/'+c.id,{sync_direction:direction});}
-    GendaUI.toast('Direction de synchro mise \u00e0 jour','success');
+    const r=await fetch(`/api/calendar/connections?practitioner_id=${pracId}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=r.ok?await r.json():{connections:[]};
+    for(const c of (d.connections||[])){
+      if(c.provider!=='ical')await api.patch('/api/calendar/connections/'+c.id,{sync_direction:direction});
+    }
+    GendaUI.toast('Direction de synchro mise à jour','success');
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
-async function generateIcalFeed(){
+async function generateIcalFeed(pracId){
   try{
-    const r=await fetch('/api/calendar/ical/generate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({})});
+    const r=await fetch('/api/calendar/ical/generate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({practitioner_id:pracId||null})});
     const d=await r.json();
     if(!r.ok)throw new Error(d.error||'Erreur');
-    const el=document.getElementById('icalFeedUrl');
+    const el=document.getElementById('p_ical_url');
+    if(!el)return;
     el.style.display='block';
     el.innerHTML=`
-      <div style="margin-bottom:8px"><strong>📋 URL du calendrier :</strong></div>
-      <div style="padding:8px 12px;background:var(--white);border:1px solid var(--border);border-radius:6px;font-family:monospace;font-size:.72rem;user-select:all;cursor:text;margin-bottom:8px">${d.ical_url}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="navigator.clipboard.writeText('${d.ical_url}');GendaUI.toast('URL copiée !','success')" class="btn-outline btn-sm">📋 Copier</button>
-        <a href="${d.webcal_url}" class="btn-outline btn-sm" style="text-decoration:none;color:var(--primary)">🍎 Ouvrir dans Apple Calendar</a>
-      </div>
-      <div style="font-size:.68rem;color:var(--text-4);margin-top:8px">Dans Apple Calendar : Fichier → Nouvel abonnement → collez l'URL ci-dessus. Le calendrier se rafraîchira automatiquement.</div>
-    `;
+      <div style="padding:10px 12px;background:var(--white);border:1px solid var(--border-light);border-radius:6px">
+        <div style="font-family:monospace;font-size:.68rem;word-break:break-all;user-select:all;cursor:text;color:var(--text-2);margin-bottom:6px">${d.ical_url}</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="navigator.clipboard.writeText('${d.ical_url}');GendaUI.toast('URL copiée !','success')" class="btn-outline btn-sm" style="font-size:.7rem;padding:3px 10px">📋 Copier</button>
+          <a href="${d.webcal_url}" class="btn-outline btn-sm" style="font-size:.7rem;padding:3px 10px;text-decoration:none;color:var(--primary)">🍎 Ouvrir</a>
+        </div>
+      </div>`;
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
@@ -4489,13 +4519,14 @@ async function generateIcalFeed(){
   const p=new URLSearchParams(location.search);
   if(p.get('cal_connected')){
     const prov=p.get('cal_connected')==='google'?'Google Calendar':'Outlook';
-    setTimeout(function(){GendaUI.toast(prov+' connect\u00e9 !','success');},500);
+    setTimeout(function(){GendaUI.toast(prov+' connecté avec succès !','success');},500);
     history.replaceState(null,'','/dashboard');
+    // Navigate to Team section where calendar sync now lives
     setTimeout(function(){
       document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
-      var el=document.querySelector('[data-section="settings"]');if(el)el.classList.add('active');
-      document.getElementById('pageTitle').textContent='Param\u00e8tres';
-      loadSettings();
+      var el=document.querySelector('[data-section="team"]');if(el)el.classList.add('active');
+      document.getElementById('pageTitle').textContent='Équipe';
+      loadTeam();
     },600);
   }
   if(p.get('cal_error')){
