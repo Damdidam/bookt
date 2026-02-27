@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Document partagé — Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#F5F4F1;--white:#FFF;--surface:#FAFAF9;--border:#E8E6E2;--text:#1A1816;--text2:#3D3832;--text3:#6B6560;--text4:#9C958E;--primary:#0D7377;--primary-dk:#0A5E61;--red:#DC2626;--sans:'Plus Jakarta Sans',-apple-system,sans-serif}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+.wrap{display:flex;flex-direction:column;height:100vh}
+.header{background:var(--white);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.header .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary-dk));display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.header .info{flex:1}
+.header .info h1{font-size:.92rem;font-weight:700}
+.header .info p{font-size:.72rem;color:var(--text4);font-weight:500}
+.viewer{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:20px}
+.viewer img{max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+.footer{background:var(--white);border-top:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.footer .shield{display:flex;align-items:center;gap:8px;flex:1}
+.footer .shield svg{flex-shrink:0}
+.footer .shield span{font-size:.72rem;color:var(--text4);line-height:1.4}
+.dl-btn{padding:10px 20px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--primary),var(--primary-dk));color:#fff;font-size:.85rem;font-weight:700;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(13,115,119,.2)}
+
+/* Error / Loading */
+.center{display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;padding:32px}
+.center h2{font-size:1.1rem;font-weight:800;margin-bottom:8px}
+.center p{font-size:.88rem;color:var(--text4);line-height:1.5}
+.center .icon{margin-bottom:16px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="center">
+    <div><div class="spinner"></div><p>Chargement du document...</p></div>
+  </div>
+</div>
+
+<script>
+function svg(paths,s=20,c='currentColor',w=1.8){
+  const ps=(Array.isArray(paths)?paths:[paths]).map(d=>`<path d="${d}"/>`).join('');
+  return`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${ps}</svg>`;
+}
+const ic={
+  shield:s=>svg(["M12 2l7 4v5c0 5.25-3.5 9.74-7 11-3.5-1.26-7-5.75-7-11V6Z"],s||16,'#0D7377'),
+  dl:    s=>svg(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"],s||16,'#fff',2),
+  pen:   s=>svg(["M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z","M15 5l4 4"],s||18,'#fff',2),
+  lock:  s=>svg(["M5 11a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z","M8 9V6a4 4 0 0 1 8 0v3"],s||16,'var(--red)'),
+  clock: s=>svg(["M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z","M12 6v6l4 2"],s||16,'var(--red)'),
+};
+
+const token = location.pathname.split('/').pop();
+
+(async function(){
+  try {
+    const r = await fetch(`/api/public/wb/${token}`);
+    if (r.status === 410) {
+      const d = await r.json();
+      document.getElementById('app').innerHTML = `<div class="center"><div>
+        <div class="icon">${ic.clock(48)}</div>
+        <h2>Lien expiré</h2>
+        <p>${d.error || 'Ce lien de partage a expiré ou a atteint le nombre maximum d\'accès.'}</p>
+      </div></div>`;
+      return;
+    }
+    if (!r.ok) throw new Error('not found');
+
+    const d = await r.json();
+    let imgHtml = '';
+
+    if (d.canvas_data) {
+      // Composite: draw canvas + text layers
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const tmp = document.createElement('canvas');
+        tmp.width = img.width; tmp.height = img.height;
+        const ctx = tmp.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        // Burn text layers
+        if (d.text_layers && Array.isArray(d.text_layers)) {
+          d.text_layers.forEach(t => {
+            if (!t.value) return;
+            ctx.font = `${t.fontWeight||600} ${t.fontSize}px 'Plus Jakarta Sans',sans-serif`;
+            ctx.fillStyle = t.color;
+            ctx.textBaseline = 'top';
+            t.value.split('\\n').forEach((l, i) => ctx.fillText(l, t.x, t.y + i * t.fontSize * 1.35));
+          });
+        }
+        const dataUrl = tmp.toDataURL('image/png');
+        document.getElementById('wbImg').src = dataUrl;
+        document.getElementById('dlBtn').onclick = () => {
+          const a = document.createElement('a');
+          a.href = dataUrl; a.download = `${d.title || 'whiteboard'}.png`; a.click();
+        };
+      };
+      img.src = d.canvas_data;
+      imgHtml = `<img id="wbImg" alt="${d.title||'Whiteboard'}" />`;
+    }
+
+    const expDate = new Date(d.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'long',year:'numeric'});
+
+    document.getElementById('app').innerHTML = `
+      <div class="wrap">
+        <div class="header">
+          <div class="logo">${ic.pen(16)}</div>
+          <div class="info">
+            <h1>${d.title || 'Document partagé'}</h1>
+            <p>${d.business_name || 'Genda'}${d.client_name ? ' — ' + d.client_name : ''}</p>
+          </div>
+        </div>
+        <div class="viewer">${imgHtml}</div>
+        <div class="footer">
+          <div class="shield">
+            ${ic.shield(16)}
+            <span>Document sécurisé. Valable jusqu'au ${expDate}.</span>
+          </div>
+          <button class="dl-btn" id="dlBtn">${ic.dl(16)} Télécharger</button>
+        </div>
+      </div>`;
+  } catch (e) {
+    document.getElementById('app').innerHTML = `<div class="center"><div>
+      <div class="icon">${ic.lock(48)}</div>
+      <h2>Document introuvable</h2>
+      <p>Ce lien est invalide ou le document a été supprimé.</p>
+    </div></div>`;
+  }
+})();
+</script>
+</body>
+</html>

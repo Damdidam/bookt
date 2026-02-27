@@ -1,6 +1,6 @@
 {
   "name": "genda",
-  "version": "0.9.0",
+  "version": "3.0.0",
   "description": "Genda — Votre cabinet en ligne en 10 minutes. SaaS multi-tenant pour professionnels libéraux (BE).",
   "main": "src/server.js",
   "scripts": {

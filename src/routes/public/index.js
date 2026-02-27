@@ -1116,4 +1116,43 @@ router.get('/booking/:token/ics', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// GET /api/public/wb/:token — view shared whiteboard (no auth)
+// ============================================================
+router.get('/wb/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const link = await query(
+      `SELECT wl.*, w.canvas_data, w.text_layers, w.title, w.bg_type,
+              biz.name AS business_name,
+              c.full_name AS client_name
+       FROM whiteboard_links wl
+       JOIN whiteboards w ON w.id = wl.whiteboard_id AND w.deleted_at IS NULL
+       JOIN businesses biz ON biz.id = w.business_id
+       LEFT JOIN clients c ON c.id = w.client_id
+       WHERE wl.token = $1`,
+      [token]
+    );
+
+    if (link.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+
+    const row = link.rows[0];
+    if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Ce lien a expiré' });
+    if (row.accessed_count >= row.max_accesses) return res.status(410).json({ error: 'Nombre maximum d\'accès atteint' });
+
+    // Increment access count
+    await query(`UPDATE whiteboard_links SET accessed_count = accessed_count + 1 WHERE id = $1`, [row.id]);
+
+    res.json({
+      title: row.title,
+      business_name: row.business_name,
+      client_name: row.client_name,
+      canvas_data: row.canvas_data,
+      text_layers: row.text_layers,
+      bg_type: row.bg_type,
+      expires_at: row.expires_at
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

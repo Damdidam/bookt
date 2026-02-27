@@ -26,6 +26,7 @@ const invoiceRoutes = require('./routes/staff/invoices');
 const documentRoutes = require('./routes/staff/documents');
 const calendarRoutes = require('./routes/staff/calendar');
 const waitlistRoutes = require('./routes/staff/waitlist');
+const whiteboardRoutes = require('./routes/staff/whiteboards');
 const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 
@@ -112,6 +113,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/whiteboards', whiteboardRoutes);
 app.use('/api/cron', preRdvCron);
 
 // Webhooks (Twilio)
@@ -143,6 +145,16 @@ app.get('/booking/:token', (req, res) => {
 // /docs/:token → pre-RDV document / form
 app.get('/docs/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pre-rdv.html'));
+});
+
+// /whiteboard/:id → staff whiteboard editor
+app.get('/whiteboard/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/whiteboard.html'));
+});
+
+// /wb/:token → public shared whiteboard view (read-only)
+app.get('/wb/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/wb-view.html'));
 });
 
 // /waitlist/:token → waitlist offer page

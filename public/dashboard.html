@@ -1880,6 +1880,7 @@ async function fcOpenDetail(bookingId){
         ${b.client_phone?`<a class="m-qbtn" href="tel:${b.client_phone}" title="Appeler">📞</a>`:''}
         ${b.client_email?`<a class="m-qbtn" href="mailto:${b.client_email}" title="Email">✉️</a>`:''}
         <button class="m-qbtn" onclick="closeCalModal('calDetailModal');openClientDetail('${b.client_id}')" title="Fiche client">👤</button>
+        <button class="m-qbtn" onclick="openWhiteboard('${b.id}','${b.client_id}')" title="Whiteboard" style="position:relative">${svgIcon('pen',14,'var(--text3)')}</button>
       </div>`;
 
     // ── Status strip ──
@@ -2657,6 +2658,47 @@ async function calCreateBooking(){
 // Escape HTML helper
 function escH(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
 
+// ─── SVG Icon helper ──────────────────────────────────────────
+function svgIcon(name,s,c,w){
+  s=s||16;c=c||'currentColor';w=w||1.8;
+  const icons={
+    pen:["M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z","M15 5l4 4"],
+    board:["M3 3h18v18H3Z","M3 9h18","M9 3v18"],
+    plus:["M12 5v14","M5 12h14"],
+  };
+  const paths=(icons[name]||[]).map(function(d){return '<path d="'+d+'"/>';}).join('');
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="'+w+'" stroke-linecap="round" stroke-linejoin="round">'+paths+'</svg>';
+}
+
+// ─── Whiteboard integration ───────────────────────────────────
+async function openWhiteboard(bookingId, clientId){
+  try{
+    const r=await fetch('/api/whiteboards?booking_id='+bookingId,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    if(d.whiteboards&&d.whiteboards.length>0){window.open('/whiteboard/'+d.whiteboards[0].id,'_blank');return;}
+    const cr=await fetch('/api/whiteboards',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({booking_id:bookingId,client_id:clientId,consent_confirmed:true,title:'Whiteboard'})});
+    if(!cr.ok){const e=await cr.json();throw new Error(e.error||'Erreur');}
+    const cd=await cr.json();
+    window.open('/whiteboard/'+cd.whiteboard.id,'_blank');
+  }catch(e){GendaUI.toast('Erreur whiteboard: '+e.message,'error');}
+}
+
+async function openWhiteboardForClient(clientId){
+  try{
+    const cr=await fetch('/api/whiteboards',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({client_id:clientId,consent_confirmed:true,title:'Whiteboard'})});
+    if(!cr.ok){const e=await cr.json();throw new Error(e.error||'Erreur');}
+    const cd=await cr.json();
+    window.open('/whiteboard/'+cd.whiteboard.id,'_blank');
+  }catch(e){GendaUI.toast('Erreur whiteboard: '+e.message,'error');}
+}
+
+async function loadClientWhiteboards(clientId){
+  try{
+    const r=await fetch('/api/whiteboards?client_id='+clientId,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();return d.whiteboards||[];
+  }catch(e){return [];}
+}
+
 // Close modals on overlay click / Escape
 document.querySelectorAll('.cal-modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeCalModal(o.id);}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.cal-modal-overlay.open').forEach(m=>closeCalModal(m.id));});
@@ -2955,8 +2997,20 @@ async function openClientDetail(id){
     if(!cl.is_blocked&&cl.no_show_count===0){
       m+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)"><button style="font-size:.75rem;padding:4px 10px;background:transparent;color:#dc2626;border:1px solid #fecaca;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')">🚫 Bloquer ce client</button></div>`;
     }
+    // Whiteboards section
+    m+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)">${svgIcon('board',14,'var(--text-3)',1.5)} Whiteboards</label><button style="font-size:.72rem;padding:4px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:600" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.78rem;color:var(--text-4)">Chargement...</div></div>`;
     m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Fermer</button><button class="btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
+    // Load whiteboards for this client
+    loadClientWhiteboards(cl.id).then(wbs=>{
+      const el=document.getElementById('clientWbList');
+      if(!el)return;
+      if(wbs.length===0){el.textContent='Aucun whiteboard';return;}
+      el.innerHTML=wbs.map(w=>{
+        const dt=new Date(w.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-light)"><span style="cursor:pointer;color:var(--primary);font-weight:500" onclick="window.open('/whiteboard/${w.id}','_blank')">${w.title||'Whiteboard'}</span><span style="font-size:.72rem;color:var(--text-4)">${dt}</span></div>`;
+      }).join('');
+    });
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
