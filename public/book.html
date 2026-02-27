@@ -75,6 +75,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .slot-btn.sel{border-color:var(--primary);background:var(--primary);color:#fff}
 .no-slots{padding:24px;text-align:center;color:var(--text-4);font-size:.85rem;background:var(--surface);border-radius:var(--radius-xs)}
 
+/* Waitlist CTA */
+.wl-cta{margin-top:16px;padding:20px;background:linear-gradient(135deg,#F5F0FF 0%,#EDE9FE 100%);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm);text-align:center}
+.wl-cta-icon{font-size:1.5rem;margin-bottom:6px}
+.wl-cta-title{font-family:var(--serif);font-size:1.05rem;color:var(--text);margin-bottom:4px}
+.wl-cta-sub{font-size:.78rem;color:var(--text-3);margin-bottom:12px;line-height:1.4}
+.wl-cta-btn{display:inline-block;padding:10px 24px;background:#7C3AED;color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
+.wl-cta-btn:hover{background:#6D28D9}
+.wl-form{margin-top:16px;padding:20px;background:var(--white);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm);text-align:left}
+.wl-form h3{font-family:var(--serif);font-size:1.1rem;font-weight:400;margin-bottom:4px}
+.wl-form .wl-form-sub{font-size:.78rem;color:var(--text-3);margin-bottom:16px}
+.wl-form .wl-days{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.wl-form .wl-day{font-size:.75rem;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;font-family:var(--sans);font-weight:600;color:var(--text-3);transition:all .15s}
+.wl-form .wl-day.on{background:#7C3AED;color:#fff;border-color:#7C3AED}
+.wl-form .wl-submit{width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.88rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:4px}
+.wl-form .wl-submit:hover{background:#6D28D9}
+.wl-form .wl-submit:disabled{opacity:.6;cursor:not-allowed}
+.wl-form .wl-cancel{width:100%;padding:10px;background:none;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text-3);cursor:pointer;margin-top:8px}
+.wl-success{padding:24px;text-align:center;background:linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%);border:1.5px solid #BBF7D0;border-radius:var(--radius-sm);margin-top:16px}
+.wl-success-icon{font-size:2rem;margin-bottom:8px}
+.wl-success h3{font-family:var(--serif);font-size:1.1rem;margin-bottom:4px}
+.wl-success p{font-size:.82rem;color:var(--text-3);line-height:1.4}
+.wl-success .position{display:inline-block;margin-top:8px;padding:4px 14px;background:#15803D;color:#fff;border-radius:20px;font-size:.78rem;font-weight:700}
+
 /* Form */
 .fg{margin-bottom:12px}
 .fl{display:block;font-size:.75rem;font-weight:600;color:var(--text-2);margin-bottom:3px}
@@ -421,7 +444,7 @@ async function loadSlots() {
   if (!selectedDate) {
     const firstDate = Object.keys(slotsData).find(k => slotsData[k]?.length > 0);
     if (firstDate) selectDate(firstDate);
-    else document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible cette semaine. Essayez la semaine suivante.</div>';
+    else document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible cette semaine. Essayez la semaine suivante.</div>' + wlCTA();
   } else {
     renderSlots();
   }
@@ -438,7 +461,7 @@ function selectDate(key) {
 function renderSlots() {
   const slots = slotsData[selectedDate] || [];
   if (slots.length === 0) {
-    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour.</div>';
+    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour.</div>' + wlCTA();
     return;
   }
   document.getElementById('slotsArea').innerHTML = `<div class="slots-grid">${
@@ -595,6 +618,112 @@ function showError(msg) {
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function hideError() { document.getElementById('errMsg').classList.remove('show'); }
+
+// ============================================================
+// WAITLIST — Rejoindre la liste d'attente
+// ============================================================
+const WL_DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+function wlCTA() {
+  if (!selectedPractitioner || !selectedPractitioner.waitlist_mode || selectedPractitioner.waitlist_mode === 'off') return '';
+  return `<div class="wl-cta" id="wlCTA">
+    <div class="wl-cta-icon">⏳</div>
+    <div class="wl-cta-title">Pas de créneau disponible ?</div>
+    <div class="wl-cta-sub">Inscrivez-vous sur la liste d'attente et soyez prévenu·e dès qu'une place se libère.</div>
+    <button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d'attente</button>
+  </div>`;
+}
+
+function wlShowForm() {
+  const cta = document.getElementById('wlCTA');
+  if (!cta) return;
+  cta.outerHTML = `<div class="wl-form" id="wlForm">
+    <h3>Liste d'attente</h3>
+    <p class="wl-form-sub">Nous vous contacterons dès qu'un créneau se libère pour <strong>${selectedService?.name || 'cette prestation'}</strong> avec <strong>${selectedPractitioner?.display_name || 'ce praticien'}</strong>.</p>
+    <div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>
+    <div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>
+    <div class="fg"><label class="fl">Téléphone</label><input class="fi" type="tel" id="wlPhone" placeholder="+32 4XX XX XX XX"></div>
+    <div class="fg"><label class="fl">Jours qui vous conviennent</label>
+      <div class="wl-days">${WL_DAYS.map((d,i) => `<button type="button" class="wl-day ${i<5?'on':''}" data-day="${i}" onclick="wlToggleDay(this)">${d}</button>`).join('')}</div>
+    </div>
+    <div class="fg"><label class="fl">Préférence horaire</label>
+      <select class="fi" id="wlTime" style="padding:8px 12px">
+        <option value="any">Toute la journée</option>
+        <option value="morning">Matin (avant 12h)</option>
+        <option value="afternoon">Après-midi (après 12h)</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Remarque <span class="opt">(opt.)</span></label><input class="fi" id="wlNote" placeholder="Info utile..." maxlength="300"></div>
+    <button class="wl-submit" id="wlSubmitBtn" onclick="wlSubmit()">S'inscrire sur la liste d'attente →</button>
+    <button class="wl-cancel" onclick="wlCancel()">Annuler</button>
+  </div>`;
+}
+
+function wlToggleDay(btn) {
+  btn.classList.toggle('on');
+}
+
+function wlCancel() {
+  const form = document.getElementById('wlForm');
+  if (form) form.outerHTML = wlCTA();
+}
+
+async function wlSubmit() {
+  const name = document.getElementById('wlName').value.trim();
+  const email = document.getElementById('wlEmail').value.trim();
+  const phone = document.getElementById('wlPhone').value.trim();
+  const note = document.getElementById('wlNote').value.trim();
+  const time = document.getElementById('wlTime').value;
+
+  if (!name || !email) {
+    showError('Nom et email requis pour la liste d\'attente.');
+    return;
+  }
+
+  const days = [];
+  document.querySelectorAll('.wl-day.on').forEach(b => days.push(parseInt(b.dataset.day)));
+  if (days.length === 0) {
+    showError('Sélectionnez au moins un jour.');
+    return;
+  }
+
+  const btn = document.getElementById('wlSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Inscription...';
+  hideError();
+
+  try {
+    const res = await fetch(`/api/public/${slug}/waitlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        practitioner_id: selectedPractitioner.id,
+        service_id: selectedService.id,
+        client_name: name,
+        client_email: email,
+        client_phone: phone || null,
+        preferred_days: days,
+        preferred_time: time,
+        note: note || null
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+
+    // Show success
+    const form = document.getElementById('wlForm');
+    form.outerHTML = `<div class="wl-success">
+      <div class="wl-success-icon">✅</div>
+      <h3>Vous êtes inscrit·e !</h3>
+      <p>Nous vous préviendrons par email à <strong>${email}</strong> dès qu'un créneau se libère pour <strong>${selectedService?.name || ''}</strong>.</p>
+      <div class="position">#${data.position} dans la file</div>
+    </div>`;
+  } catch (err) {
+    showError(err.message);
+    btn.disabled = false;
+    btn.textContent = 'S\'inscrire sur la liste d\'attente →';
+  }
+}
 </script>
 
 </body>
