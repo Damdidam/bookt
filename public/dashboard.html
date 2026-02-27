@@ -197,6 +197,18 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .fc .fc-timegrid-now-indicator-line::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .fc .fc-event{border-top:none;border-right:none;border-bottom:none;border-left:3px solid transparent;border-radius:6px;padding:0;font-size:.74rem;cursor:pointer;transition:transform .15s,box-shadow .15s;overflow:hidden}
 .fc .fc-event:hover{transform:scale(1.02);box-shadow:0 3px 12px rgba(0,0,0,.08);z-index:10!important}
+.fc-tooltip{position:fixed;z-index:9999;background:var(--sidebar-bg);color:#fff;padding:12px 16px;border-radius:10px;font-size:.78rem;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.25);pointer-events:none;max-width:280px;animation:ttIn .15s ease}
+@keyframes ttIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.fc-tooltip .tt-name{font-size:.88rem;font-weight:700;margin-bottom:4px}
+.fc-tooltip .tt-row{display:flex;align-items:center;gap:6px;opacity:.85}
+.fc-tooltip .tt-row .tt-icon{width:14px;text-align:center;flex-shrink:0}
+.fc-tooltip .tt-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700;margin-top:6px}
+.fc-tooltip .tt-badge.confirmed{background:#15803D;color:#fff}
+.fc-tooltip .tt-badge.pending{background:#D97706;color:#fff}
+.fc-tooltip .tt-badge.completed{background:#6B7280;color:#fff}
+.fc-tooltip .tt-badge.cancelled{background:#DC2626;color:#fff}
+.fc-tooltip .tt-badge.no_show{background:#7C3AED;color:#fff}
+.fc-tooltip .tt-badge.modified_pending{background:#EA580C;color:#fff}
 .fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9;transform:scale(1.03)}
 .fc .fc-timegrid-event .fc-event-main{padding:4px 8px}
 .fc .fc-daygrid-event{margin:1px 3px}
@@ -1398,22 +1410,42 @@ async function loadAgenda(){
       // Resolve booking ID (for groups → first member)
       const bookingId=p._isGroup?p._members?.[0]?.id:info.event.id;
 
+      // ── Tooltip (hover desktop / tap mobile) ──
+      info.el.addEventListener('mouseenter',function(e){
+        fcShowTooltip(info.event,e.clientX,e.clientY);
+      });
+      info.el.addEventListener('mousemove',function(e){
+        fcMoveTooltip(e.clientX,e.clientY);
+      });
+      info.el.addEventListener('mouseleave',function(){
+        fcHideTooltip();
+      });
+
       // Desktop: native dblclick
       info.el.addEventListener('dblclick',function(e){
         e.stopPropagation();
+        fcHideTooltip();
         fcOpenDetail(bookingId);
       });
 
-      // Mobile: double-tap detection
+      // Mobile: single tap → tooltip, double tap → detail
       let lastTap=0;
       info.el.addEventListener('touchend',function(e){
         const now=Date.now();
         if(now-lastTap<600){
           e.preventDefault();
+          fcHideTooltip();
           fcOpenDetail(bookingId);
           lastTap=0;
         }else{
           lastTap=now;
+          // Single tap → show tooltip briefly
+          const touch=e.changedTouches?.[0];
+          if(touch){
+            fcShowTooltip(info.event,touch.clientX,touch.clientY);
+            clearTimeout(window._ttAutoHide);
+            window._ttAutoHide=setTimeout(fcHideTooltip,4000);
+          }
         }
       },{passive:false});
     },
@@ -1477,6 +1509,69 @@ async function loadAgenda(){
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('créneau')?'🚫 Chevauchement — durée non modifiée':e.message,'error');}
     }
   };
+
+  // ── Tooltip helpers ──
+  const STATUS_FR={confirmed:'Confirmé',pending:'En attente',completed:'Terminé',cancelled:'Annulé',no_show:'Absent',modified_pending:'Modifié'};
+  const MODE_FR={cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone'};
+
+  function fcShowTooltip(event,x,y){
+    fcHideTooltip();
+    const p=event.extendedProps;
+    const start=event.start;
+    const end=event.end;
+    if(!start)return;
+
+    const timeStr=start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})+(end?' – '+end.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'');
+    const dateStr=start.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'});
+    const dur=end?Math.round((end-start)/60000):p.duration_min||0;
+
+    let html=`<div class="tt-name">${esc(p.client_name||event.title||'—')}</div>`;
+    html+=`<div class="tt-row"><span class="tt-icon">📋</span>${esc(p.service_name||p.custom_label||'RDV libre')}</div>`;
+    html+=`<div class="tt-row"><span class="tt-icon">📅</span>${dateStr}</div>`;
+    html+=`<div class="tt-row"><span class="tt-icon">🕐</span>${timeStr} (${dur} min)</div>`;
+    if(p.practitioner_name)html+=`<div class="tt-row"><span class="tt-icon">👤</span>${esc(p.practitioner_name)}</div>`;
+    if(p.appointment_mode)html+=`<div class="tt-row"><span class="tt-icon">${p.appointment_mode==='visio'?'💻':p.appointment_mode==='phone'?'📞':'🏢'}</span>${MODE_FR[p.appointment_mode]||p.appointment_mode}</div>`;
+    if(p.client_phone)html+=`<div class="tt-row"><span class="tt-icon">📱</span>${esc(p.client_phone)}</div>`;
+    const st=p.status||'confirmed';
+    html+=`<div class="tt-badge ${st}">${STATUS_FR[st]||st}</div>`;
+
+    // Group: list members
+    if(p._isGroup&&p._members){
+      html+=`<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.15)">`;
+      p._members.forEach(m=>{
+        html+=`<div class="tt-row"><span class="tt-icon">•</span>${esc(m.service_name||'RDV')} — ${esc(m.client_name||'')}</div>`;
+      });
+      html+=`</div>`;
+    }
+
+    const tt=document.createElement('div');
+    tt.className='fc-tooltip';
+    tt.id='fcTooltip';
+    tt.innerHTML=html;
+    document.body.appendChild(tt);
+    fcMoveTooltip(x,y);
+  }
+
+  function fcMoveTooltip(x,y){
+    const tt=document.getElementById('fcTooltip');
+    if(!tt)return;
+    const r=tt.getBoundingClientRect();
+    let left=x+12,top=y+12;
+    if(left+r.width>window.innerWidth-8)left=x-r.width-12;
+    if(top+r.height>window.innerHeight-8)top=y-r.height-12;
+    if(left<8)left=8;
+    if(top<8)top=8;
+    tt.style.left=left+'px';
+    tt.style.top=top+'px';
+  }
+
+  function fcHideTooltip(){
+    document.getElementById('fcTooltip')?.remove();
+  }
+
+  // Hide tooltip when scrolling calendar
+  document.getElementById('fcCalendar')?.addEventListener('scroll',fcHideTooltip,true);
+
   fcCal=new FullCalendar.Calendar(document.getElementById('fcCalendar'),fcCalOptions);
   fcCal.render();
 
