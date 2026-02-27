@@ -3263,6 +3263,7 @@ async function loadTeam(){
           <div class="tm-badges">
             <span class="tm-badge ${p.is_active?'active':'inactive'}">${p.is_active?'Actif':'Inactif'}</span>
             <span class="tm-badge ${p.booking_enabled?'booking':'no-booking'}">${p.booking_enabled?'Réservable':'Non réservable'}</span>
+            ${p.waitlist_mode&&p.waitlist_mode!=='off'?`<span class="tm-badge" style="background:${p.waitlist_mode==='auto'?'#DCFCE7;color:#15803D':'#FEF3C7;color:#92400E'}">${p.waitlist_mode==='auto'?'⏳ Waitlist auto':'⏳ Waitlist manuelle'}</span>`:''}
             ${hasLogin?`<span class="tm-badge has-login">${sectorLabels[p.user_role]||p.user_role||'Compte lié'}</span>`:''}
           </div>
           <div class="tm-actions">
@@ -3312,6 +3313,11 @@ function renderPractModal(p){
     <div class="field"><label>Bio</label><textarea id="p_bio">${p?.bio||''}</textarea></div>
     <div class="field"><label>LinkedIn</label><input id="p_linkedin" value="${p?.linkedin_url||''}" placeholder="https://linkedin.com/in/..."></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="p_booking" ${p?.booking_enabled!==false?'checked':''}> Peut recevoir des réservations en ligne</label></div>
+    <div class="field"><label>Liste d'attente</label><select id="p_waitlist" style="width:100%;padding:8px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.85rem">
+      <option value="off"${(p?.waitlist_mode||'off')==='off'?' selected':''}>🔴 Désactivée</option>
+      <option value="manual"${p?.waitlist_mode==='manual'?' selected':''}>🟡 Manuelle — je contacte le client moi-même</option>
+      <option value="auto"${p?.waitlist_mode==='auto'?' selected':''}>🟢 Automatique — offre envoyée au 1er en file</option>
+    </select><span style="font-size:.7rem;color:var(--text-4)">Quand un RDV est annulé, propose le créneau aux personnes en liste d'attente</span></div>
   </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="savePract(${isEdit?"'"+p.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   document.getElementById('p_color_wrap').innerHTML=cswHTML('p_color',p?.color||'#0D7377',false);
@@ -3342,7 +3348,7 @@ async function pRemovePhoto(id){
 }
 
 async function savePract(id){
-  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15};
+  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15,waitlist_mode:document.getElementById('p_waitlist').value};
   try{
     const url=id?`/api/practitioners/${id}`:'/api/practitioners';
     const method=id?'PATCH':'POST';
@@ -4633,8 +4639,15 @@ async function loadWaitlist(){
     const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
     const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
 
+    // Warning if no practitioner has waitlist enabled
+    const wlEnabled=pracs.filter(p=>p.waitlist_mode&&p.waitlist_mode!=='off');
+    let h='';
+    if(!wlEnabled.length){
+      h+=`<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:.82rem"><span style="font-size:1.2rem">⚠️</span><div><strong>Aucun praticien n'a la liste d'attente activée.</strong><br><span style="color:var(--text-3)">Allez dans <strong>Équipe → Modifier</strong> un praticien pour activer le mode <em>manuelle</em> ou <em>automatique</em>.</span></div></div>`;
+    }
+
     // KPIs
-    let h=`<div class="kpis">`;
+    h+=`<div class="kpis">`;
     h+=`<div class="kpi" onclick="wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:#6D28D9">${stats.waiting||0}</div><div class="kpi-label">⏳ En attente</div></div>`;
     h+=`<div class="kpi" onclick="wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:#D97706">${stats.offered||0}</div><div class="kpi-label">📨 Offre envoyée</div></div>`;
     h+=`<div class="kpi" onclick="wlFilter='booked';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label">✅ Réservé</div></div>`;
