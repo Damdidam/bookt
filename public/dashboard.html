@@ -289,6 +289,34 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .m-st-btn.green{color:var(--green);border-color:#B8E6C8;background:var(--green-bg)}.m-st-btn.green:hover{background:#D4F0DC}
 .m-st-btn.red{color:var(--red);border-color:#F5C4C4;background:var(--red-bg)}.m-st-btn.red:hover{background:#FDE8E8}
 .st-pending{background:var(--gold-bg);color:var(--gold)}.st-confirmed{background:var(--green-bg);color:var(--green)}.st-modified_pending{background:#FFF7ED;color:#D97706}.st-completed{background:var(--surface);color:var(--text-4)}.st-cancelled,.st-no_show{background:var(--red-bg);color:var(--red)}
+.st-waiting{background:#EDE9FE;color:#6D28D9}.st-offered{background:#FFF7ED;color:#D97706}.st-booked{background:var(--green-bg);color:var(--green)}.st-expired{background:var(--surface);color:var(--text-4)}.st-declined{background:var(--red-bg);color:var(--red)}
+
+/* ===== WAITLIST SECTION ===== */
+.wl-row{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid #F0F2F4;transition:background .15s;position:relative}
+.wl-row:last-child{border-bottom:none}
+.wl-row:hover{background:var(--surface)}
+.wl-priority{width:26px;height:26px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;color:var(--text-3);flex-shrink:0}
+.wl-priority.top{background:#EDE9FE;color:#6D28D9}
+.wl-info{flex:1;min-width:0}
+.wl-name{font-size:.88rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.wl-name .email{font-weight:400;font-size:.75rem;color:var(--text-4)}
+.wl-meta{font-size:.72rem;color:var(--text-4);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.wl-meta .dot-sep{opacity:.4}
+.wl-prefs{display:flex;gap:4px;margin-top:4px}
+.wl-pref{font-size:.62rem;font-weight:600;padding:2px 7px;border-radius:4px;background:var(--surface);color:var(--text-3)}
+.wl-actions{display:flex;gap:6px;flex-shrink:0}
+.wl-btn{padding:6px 12px;border-radius:7px;font-size:.72rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-family:var(--sans);transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.wl-btn:hover{background:var(--surface);border-color:var(--border)}
+.wl-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.wl-btn.primary:hover{background:var(--primary-hover)}
+.wl-btn.danger{color:var(--red);border-color:var(--red-bg)}
+.wl-btn.danger:hover{background:var(--red-bg)}
+.wl-offer-info{font-size:.68rem;color:#D97706;display:flex;align-items:center;gap:4px;margin-top:3px}
+.wl-offer-info .timer{font-weight:700;font-variant-numeric:tabular-nums}
+@media(max-width:768px){
+  .wl-row{flex-wrap:wrap;gap:8px;padding:12px 16px}
+  .wl-actions{width:100%;justify-content:flex-end}
+}
 
 /* ── Tabs ── */
 .m-tabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--border-light);flex-shrink:0}
@@ -714,6 +742,7 @@ textarea.m-input{resize:vertical;min-height:38px}
     <a class="ni" href="#" data-section="clients"><span class="ic">👤</span><span>Clients</span></a>
     <a class="ni" href="#" data-section="services"><span class="ic">💼</span><span>Prestations</span></a>
     <a class="ni" href="#" data-section="hours"><span class="ic">🕐</span><span>Disponibilités</span></a>
+    <a class="ni" href="#" data-section="waitlist"><span class="ic">⏳</span><span>Liste d'attente</span></a>
     <div class="sb-label">Cabinet</div>
     <a class="ni" href="#" data-section="team"><span class="ic">👥</span><span>Équipe</span></a>
     <a class="ni" href="#" data-section="site"><span class="ic">🌐</span><span>Mon site</span></a>
@@ -998,7 +1027,7 @@ async function openBookingDetail(bookingId){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.getElementById('contentArea').classList.remove('agenda-active');document.querySelector('.main').classList.remove('agenda-mode');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques',profile:'Mon profil'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else if(s==='profile')loadProfile();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.getElementById('contentArea').classList.remove('agenda-active');document.querySelector('.main').classList.remove('agenda-mode');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',waitlist:'Liste d\'attente',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques',profile:'Mon profil'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='waitlist')loadWaitlist();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else if(s==='profile')loadProfile();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // ============================================================
 // FULLCALENDAR AGENDA
@@ -3727,7 +3756,7 @@ async function loadSettings(){
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 async function saveOverlapPolicy(){
   const on=document.getElementById('s_overlap').checked;
@@ -4575,6 +4604,231 @@ async function deleteWhitelistEntry(id){
     const r=await fetch(`/api/calls/whitelist/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
     GendaUI.toast('Numéro VIP supprimé','success');loadCalls();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// WAITLIST (Liste d'attente)
+// ============================================================
+let wlFilter='waiting';
+let wlPracFilter='';
+
+async function loadWaitlist(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const qs=new URLSearchParams();
+    if(wlFilter)qs.set('status',wlFilter);
+    if(wlPracFilter)qs.set('practitioner_id',wlPracFilter);
+    const [wRes,pRes,sRes]=await Promise.all([
+      fetch('/api/waitlist?'+qs,{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}})
+    ]);
+    const wData=await wRes.json();
+    const pData=await pRes.json();
+    const sData=await sRes.json();
+    const entries=wData.entries||[];
+    const stats=wData.stats||{};
+    const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
+    const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
+
+    // KPIs
+    let h=`<div class="kpis">`;
+    h+=`<div class="kpi" onclick="wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:#6D28D9">${stats.waiting||0}</div><div class="kpi-label">⏳ En attente</div></div>`;
+    h+=`<div class="kpi" onclick="wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:#D97706">${stats.offered||0}</div><div class="kpi-label">📨 Offre envoyée</div></div>`;
+    h+=`<div class="kpi" onclick="wlFilter='booked';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label">✅ Réservé</div></div>`;
+    h+=`<div class="kpi" onclick="wlFilter='expired';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--text-4)">${stats.expired||0}</div><div class="kpi-label">⌛ Expiré</div></div>`;
+    h+=`</div>`;
+
+    // Filter bar
+    h+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">`;
+    h+=`<div style="display:flex;gap:4px">`;
+    h+=`<button class="btn-sm ${wlFilter==='waiting'?'active':''}" onclick="wlFilter='waiting';loadWaitlist()">En attente</button>`;
+    h+=`<button class="btn-sm ${wlFilter==='offered'?'active':''}" onclick="wlFilter='offered';loadWaitlist()">Offre envoyée</button>`;
+    h+=`<button class="btn-sm ${wlFilter===''?'active':''}" onclick="wlFilter='';loadWaitlist()">Tous</button>`;
+    h+=`</div>`;
+    if(pracs.length>1){
+      h+=`<select onchange="wlPracFilter=this.value;loadWaitlist()" style="padding:6px 12px;border-radius:7px;border:1.5px solid var(--border);font-size:.75rem;font-family:var(--sans);background:var(--white);color:var(--text-2)">`;
+      h+=`<option value="" ${!wlPracFilter?'selected':''}>Tous les praticiens</option>`;
+      pracs.forEach(p=>{h+=`<option value="${p.id}" ${wlPracFilter===p.id?'selected':''}>${p.display_name}</option>`;});
+      h+=`</select>`;
+    }
+    h+=`<button class="btn-primary" onclick="wlOpenAdd()" style="margin-left:auto">+ Ajouter</button>`;
+    h+=`</div>`;
+
+    // Entries list
+    h+=`<div class="card"><div class="card-h"><h3>Liste d'attente</h3><span class="badge badge-teal">${entries.length}</span></div>`;
+    if(!entries.length){
+      h+=`<div class="empty">Aucune entrée ${wlFilter==='waiting'?'en attente':wlFilter==='offered'?'avec offre en cours':''}</div>`;
+    }else{
+      const WL_ST={waiting:'En attente',offered:'Offre envoyée',booked:'Réservé',expired:'Expiré',cancelled:'Annulé',declined:'Décliné'};
+      const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+      const TIME_L={any:'Toute la journée',morning:'Matin',afternoon:'Après-midi'};
+      entries.forEach((e,i)=>{
+        const prio=e.priority||i+1;
+        h+=`<div class="wl-row">`;
+        h+=`<div class="wl-priority ${prio<=3?'top':''}">${prio}</div>`;
+        h+=`<div class="wl-info">`;
+        h+=`<div class="wl-name">${esc(e.client_name)} <span class="email">${esc(e.client_email)}</span></div>`;
+        h+=`<div class="wl-meta"><span>${esc(e.service_name||'—')}</span><span class="dot-sep">·</span><span>${esc(e.practitioner_name||'—')}</span>`;
+        if(e.client_phone)h+=`<span class="dot-sep">·</span><span>${esc(e.client_phone)}</span>`;
+        h+=`<span class="dot-sep">·</span><span class="badge st-${e.status}" style="font-size:.6rem;padding:2px 7px">${WL_ST[e.status]||e.status}</span>`;
+        h+=`</div>`;
+        // Day preferences
+        const days=e.preferred_days||[];
+        if(days.length>0&&days.length<7){
+          h+=`<div class="wl-prefs">`;
+          days.forEach(d=>{h+=`<span class="wl-pref">${DAY_S[d]||d}</span>`;});
+          h+=`<span class="wl-pref">${TIME_L[e.preferred_time]||'Toute la journée'}</span>`;
+          h+=`</div>`;
+        }
+        // Offer timer
+        if(e.status==='offered'&&e.offer_expires_at){
+          const mins=Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000));
+          h+=`<div class="wl-offer-info">⏱ Expire dans <span class="timer">${mins>60?Math.floor(mins/60)+'h'+String(mins%60).padStart(2,'0'):mins+' min'}</span>`;
+          if(e.offer_booking_start){
+            const d=new Date(e.offer_booking_start);
+            h+=` — créneau : ${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})} à ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}`;
+          }
+          h+=`</div>`;
+        }
+        if(e.note)h+=`<div style="font-size:.68rem;color:var(--text-4);margin-top:2px;font-style:italic">"${esc(e.note)}"</div>`;
+        h+=`</div>`;
+        // Actions
+        h+=`<div class="wl-actions">`;
+        if(e.status==='waiting'){
+          h+=`<button class="wl-btn primary" onclick="wlOffer('${e.id}','${esc(e.client_name).replace(/'/g,"\\'")}','${e.practitioner_id}','${e.service_id}')">📨 Proposer</button>`;
+          h+=`<button class="wl-btn" onclick="wlContact('${e.id}','booked')">✅ Réservé</button>`;
+          h+=`<button class="wl-btn danger" onclick="wlRemove('${e.id}')">✕</button>`;
+        }else if(e.status==='offered'){
+          h+=`<button class="wl-btn" onclick="wlContact('${e.id}','booked')">✅ Confirmé</button>`;
+          h+=`<button class="wl-btn danger" onclick="wlContact('${e.id}','declined')">Décliné</button>`;
+        }
+        h+=`</div></div>`;
+      });
+    }
+    h+=`</div>`;
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty">Erreur: ${e.message}</div>`;}
+}
+
+// ── Add to waitlist modal ──
+function wlOpenAdd(){
+  Promise.all([
+    fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}}).then(r=>r.json()),
+    fetch('/api/services',{headers:{'Authorization':'Bearer '+api.getToken()}}).then(r=>r.json())
+  ]).then(([pData,sData])=>{
+    const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
+    const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
+    const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+    let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Ajouter à la liste d'attente</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+    m+=`<div class="field"><label>Nom du client *</label><input id="wla_name" placeholder="Nom complet"></div>`;
+    m+=`<div class="field"><label>Email *</label><input id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
+    m+=`<div class="field"><label>Téléphone</label><input id="wla_phone" placeholder="+32..."></div>`;
+    m+=`<div class="field"><label>Praticien *</label><select id="wla_prac">`;
+    pracs.forEach(p=>{m+=`<option value="${p.id}">${p.display_name}</option>`;});
+    m+=`</select></div>`;
+    m+=`<div class="field"><label>Prestation *</label><select id="wla_svc">`;
+    services.forEach(s=>{m+=`<option value="${s.id}">${s.name} (${s.duration_min} min)</option>`;});
+    m+=`</select></div>`;
+    m+=`<div class="field"><label>Jours préférés</label><div style="display:flex;gap:4px;flex-wrap:wrap" id="wla_days">`;
+    for(let i=0;i<7;i++){
+      m+=`<label style="display:flex;align-items:center;gap:3px;font-size:.78rem;background:var(--surface);padding:4px 8px;border-radius:6px;cursor:pointer"><input type="checkbox" value="${i}" ${i<5?'checked':''}> ${DAY_S[i]}</label>`;
+    }
+    m+=`</div></div>`;
+    m+=`<div class="field"><label>Créneau préféré</label><select id="wla_time"><option value="any">Toute la journée</option><option value="morning">Matin (avant 12h)</option><option value="afternoon">Après-midi (après 12h)</option></select></div>`;
+    m+=`<div class="field"><label>Note</label><input id="wla_note" placeholder="Info supplémentaire..." maxlength="300"></div>`;
+    m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="wlSaveAdd()">Ajouter</button></div></div></div>`;
+    document.body.insertAdjacentHTML('beforeend',m);
+  });
+}
+
+async function wlSaveAdd(){
+  const name=document.getElementById('wla_name').value.trim();
+  const email=document.getElementById('wla_email').value.trim();
+  if(!name||!email){GendaUI.toast('Nom et email requis','error');return;}
+  const days=[];
+  document.querySelectorAll('#wla_days input:checked').forEach(c=>days.push(parseInt(c.value)));
+  try{
+    const r=await fetch('/api/waitlist',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({
+        practitioner_id:document.getElementById('wla_prac').value,
+        service_id:document.getElementById('wla_svc').value,
+        client_name:name,client_email:email,
+        client_phone:document.getElementById('wla_phone').value.trim()||null,
+        preferred_days:days,
+        preferred_time:document.getElementById('wla_time').value,
+        note:document.getElementById('wla_note').value.trim()||null
+      })
+    });
+    if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast("Ajouté à la liste d'attente",'success');
+    loadWaitlist();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ── Offer a slot ──
+function wlOffer(entryId,clientName,pracId,svcId){
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Proposer un créneau à ${clientName}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+  m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou décliner. L'offre expire après <strong>2 heures</strong>.</p>`;
+  m+=`<div class="field"><label>Date</label><input type="date" id="wlo_date" value="${new Date().toISOString().split('T')[0]}"></div>`;
+  m+=`<div class="field"><label>Heure de début</label><input type="time" id="wlo_start" value="09:00" step="900"></div>`;
+  m+=`<div class="field"><label>Heure de fin</label><input type="time" id="wlo_end" value="10:00" step="900"></div>`;
+  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="wlSendOffer('${entryId}')">📨 Envoyer l'offre</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function wlSendOffer(entryId){
+  const date=document.getElementById('wlo_date').value;
+  const start=document.getElementById('wlo_start').value;
+  const end=document.getElementById('wlo_end').value;
+  if(!date||!start||!end){GendaUI.toast('Date et heures requises','error');return;}
+  try{
+    const r=await fetch(`/api/waitlist/${entryId}/offer`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({start_at:date+'T'+start+':00',end_at:date+'T'+end+':00'})
+    });
+    if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    const result=await r.json();
+    document.querySelector('.modal-overlay')?.remove();
+    if(result.offer_url){
+      const fullUrl=window.location.origin+result.offer_url;
+      navigator.clipboard?.writeText(fullUrl).catch(()=>{});
+      GendaUI.toast('Offre créée — lien copié !','success');
+    }else{
+      GendaUI.toast('Offre envoyée','success');
+    }
+    loadWaitlist();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ── Mark outcome ──
+async function wlContact(entryId,outcome){
+  try{
+    const r=await fetch(`/api/waitlist/${entryId}/contact`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({outcome})
+    });
+    if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    GendaUI.toast(`Marqué comme ${outcome==='booked'?'réservé':'décliné'}`,'success');
+    loadWaitlist();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ── Remove entry ──
+async function wlRemove(entryId){
+  if(!confirm("Retirer cette personne de la liste d'attente ?"))return;
+  try{
+    const r=await fetch(`/api/waitlist/${entryId}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    GendaUI.toast('Retiré de la liste','success');
+    loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 </script>
