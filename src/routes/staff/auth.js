@@ -226,6 +226,123 @@ router.post('/change-password', requireAuth, async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/auth/forgot-password
+// Send password reset email
+// UI: Login > "Mot de passe oublié ?"
+// ============================================================
+router.post('/forgot-password', authLimiter, async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requis' });
+
+    // Always return same message (don't reveal if email exists)
+    const genericMsg = 'Si ce compte existe, un email de réinitialisation a été envoyé.';
+
+    const result = await query(
+      `SELECT u.id, u.email, u.role, b.name AS business_name
+       FROM users u
+       JOIN businesses b ON b.id = u.business_id
+       WHERE u.email = $1 AND u.is_active = true`,
+      [email.toLowerCase().trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ message: genericMsg });
+    }
+
+    const user = result.rows[0];
+
+    // Invalidate previous unused tokens
+    await query(
+      `UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+      [user.id]
+    );
+
+    // Create new token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+
+    await query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
+      [user.id, token]
+    );
+
+    // Send email
+    const baseUrl = process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda-qgm2.onrender.com';
+    const resetUrl = `${baseUrl}/reset-password.html?token=${token}`;
+
+    const { sendPasswordResetEmail } = require('../../services/email');
+    await sendPasswordResetEmail({
+      email: user.email,
+      name: user.email.split('@')[0],
+      resetUrl,
+      businessName: user.business_name
+    });
+
+    console.log(`\n  🔑 Password reset for ${email}: ${resetUrl}\n`);
+
+    res.json({ message: genericMsg });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/auth/reset-password
+// Reset password using token
+// UI: /reset-password.html
+// ============================================================
+router.post('/reset-password', authLimiter, async (req, res, next) => {
+  try {
+    const { token, new_password } = req.body;
+    if (!token || !new_password) {
+      return res.status(400).json({ error: 'Token et nouveau mot de passe requis' });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    // Find valid token
+    const result = await query(
+      `SELECT t.id, t.user_id, t.expires_at, t.used_at, u.email
+       FROM password_reset_tokens t
+       JOIN users u ON u.id = t.user_id
+       WHERE t.token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Lien invalide ou expiré' });
+    }
+
+    const rt = result.rows[0];
+
+    if (rt.used_at) {
+      return res.status(400).json({ error: 'Ce lien a déjà été utilisé' });
+    }
+
+    if (new Date(rt.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Ce lien a expiré. Demandez-en un nouveau.' });
+    }
+
+    // Update password
+    const hash = await bcrypt.hash(new_password, 12);
+    await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, rt.user_id]);
+
+    // Mark token as used
+    await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [rt.id]);
+
+    // Invalidate all other tokens for this user
+    await query(
+      'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
+      [rt.user_id]
+    );
+
+    console.log(`[AUTH] Password reset successful for ${rt.email}`);
+
+    res.json({ success: true, message: 'Mot de passe modifié avec succès' });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/auth/logout
 // Client-side only (clear JWT), but we can log it
 // ============================================================
