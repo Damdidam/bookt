@@ -158,6 +158,19 @@ app.listen(PORT, () => {
   console.log(`\n  🟢 Genda server running on port ${PORT}`);
   console.log(`  📊 Dashboard: http://localhost:${PORT}`);
   console.log(`  📅 Public booking: http://localhost:${PORT}/api/public/:slug\n`);
+
+  // ===== WAITLIST CRON — check expired offers every 5 min =====
+  setInterval(async () => {
+    try {
+      const { processExpiredOffers } = require('./services/waitlist');
+      const result = await processExpiredOffers();
+      if (result.processed > 0) {
+        console.log(`[WAITLIST CRON] ${result.processed} expired offer(s) processed`);
+      }
+    } catch (e) {
+      console.error('[WAITLIST CRON] Error:', e.message);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
 });
 
 module.exports = app;
