@@ -160,6 +160,8 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .prac-pill{padding:6px 16px;border-radius:100px;font-size:.74rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .prac-pill:hover{border-color:var(--text-4);background:var(--surface)}
 .prac-pill.active{border-color:#B2DFE0;background:var(--primary-light);color:var(--primary)}
+.prac-pill.st-toggle{opacity:.55;border-style:dashed}
+.prac-pill.st-toggle.active{opacity:1;border-style:solid;border-color:var(--border);background:var(--surface);color:var(--text-2)}
 .prac-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .fc{font-family:var(--sans)}.fc .fc-toolbar-title{font-family:var(--serif);font-size:1.25rem!important;font-weight:400;color:var(--text);letter-spacing:.2px}
 .fc .fc-button{font-family:var(--sans);font-weight:600;font-size:.78rem;text-transform:none;padding:6px 16px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);box-shadow:none;transition:all .15s}
@@ -972,6 +974,7 @@ document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.pr
 // FULLCALENDAR AGENDA
 // ============================================================
 let fcCal=null, fcCalOptions=null, fcPractitioners=[], fcServices=[], fcCurrentFilter='all', fcCurrentEventId=null;
+let fcShowCancelled=false, fcShowNoShow=false;
 let fcEditOriginal={}, fcSelectedNotifyChannel=null, fcDetailData={notes:[],todos:[],reminders:[]};
 let fcClientSearchTimer=null, fcSlotMin='08:00:00', fcSlotMax='19:00:00';
 let fcHiddenDays=[], fcBusinessHours=[], fcAllowOverlap=false, fcPracBusinessHours={};
@@ -1068,6 +1071,9 @@ async function loadAgenda(){
   // Build filter pills
   let pills=`<div class="prac-filters"><div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous</div>`;
   fcPractitioners.forEach(p=>{pills+=`<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)"><span class="dot" style="background:${p.color||'var(--primary)'}"></span>${p.display_name}</div>`;});
+  pills+=`<span style="width:1px;height:22px;background:var(--border-light);margin:0 4px;flex-shrink:0"></span>`;
+  pills+=`<div class="prac-pill st-toggle ${fcShowCancelled?'active':''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)">●</span>Annulés</div>`;
+  pills+=`<div class="prac-pill st-toggle ${fcShowNoShow?'active':''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)">●</span>No-show</div>`;
   pills+=`</div>`;
 
   // Mobile: view toggle + list container
@@ -1200,7 +1206,23 @@ async function loadAgenda(){
             });
           });
 
-          successCb(events);
+          // Filter by status visibility toggles
+          const filtered=events.filter(ev=>{
+            const p=ev.extendedProps;
+            if(p._isGroup){
+              // Keep group if at least one member passes filter
+              const members=p._members||[];
+              const allCancelled=members.every(m=>m.status==='cancelled');
+              const allNoShow=members.every(m=>m.status==='no_show');
+              if(allCancelled&&!fcShowCancelled)return false;
+              if(allNoShow&&!fcShowNoShow)return false;
+              return true;
+            }
+            if(p.status==='cancelled'&&!fcShowCancelled)return false;
+            if(p.status==='no_show'&&!fcShowNoShow)return false;
+            return true;
+          });
+          successCb(filtered);
         }).catch(e=>failCb(e));
     },
 
@@ -1406,6 +1428,13 @@ async function fcLoadMobileList(){
     fcAllBookings=d.bookings||[];
   }catch(e){fcAllBookings=[];}
 
+  // Apply status visibility filter
+  fcAllBookings=fcAllBookings.filter(b=>{
+    if(b.status==='cancelled'&&!fcShowCancelled)return false;
+    if(b.status==='no_show'&&!fcShowNoShow)return false;
+    return true;
+  });
+
   const isToday=ds===new Date().toISOString().split('T')[0];
   const dayLabel=isToday?"Aujourd'hui":`${DAY_NAMES[fcMobileDate.getDay()]} ${fcMobileDate.getDate()} ${MONTH_NAMES[fcMobileDate.getMonth()]}`;
 
@@ -1468,13 +1497,12 @@ function fcSlotDuration(min){
 
 function fcFilterPractitioner(id,el){
   fcCurrentFilter=id;
-  document.querySelectorAll('.prac-pill').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.prac-pill:not(.st-toggle)').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
 
   // Adapt slot grid to practitioner's increment
   let inc=15;
   if(id==='all'){
-    // Use smallest increment across all practitioners
     const incs=fcPractitioners.map(p=>p.slot_increment_min||15);
     if(incs.length>0)inc=Math.min(...incs);
   }else{
@@ -1485,6 +1513,13 @@ function fcFilterPractitioner(id,el){
   fcCal.setOption('slotDuration',dur);
   fcCal.setOption('snapDuration',dur);
 
+  fcRefresh();
+}
+
+function fcToggleStatus(status,el){
+  if(status==='cancelled'){fcShowCancelled=!fcShowCancelled;}
+  else if(status==='no_show'){fcShowNoShow=!fcShowNoShow;}
+  el.classList.toggle('active');
   fcRefresh();
 }
 

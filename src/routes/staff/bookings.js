@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
+const { sendModificationEmail } = require('../../services/email');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -636,7 +637,7 @@ router.patch('/:id/modify', async (req, res, next) => {
     const old = await queryWithRLS(bid,
       `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
               s.name AS service_name, p.display_name AS practitioner_name,
-              biz.name AS business_name, biz.slug
+              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
        FROM bookings b
        JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -687,12 +688,26 @@ router.patch('/:id/modify', async (req, res, next) => {
     let notificationResult = null;
     if (notify && (notify_channel === 'email' || notify_channel === 'both')) {
       try {
-        // Brevo email — will be wired when Brevo is configured
-        const baseUrl = process.env.PUBLIC_URL || `https://genda.be`;
-        const link = `${baseUrl}/booking/${oldBooking.public_token}`;
-        console.log(`[NOTIFY] Email to ${oldBooking.client_email}: booking modified → ${link}`);
-        // TODO: Brevo transactional email
-        notificationResult = { email: 'queued' };
+        const emailResult = await sendModificationEmail({
+          booking: {
+            client_name: oldBooking.client_name,
+            client_email: oldBooking.client_email,
+            public_token: oldBooking.public_token,
+            service_name: oldBooking.service_name,
+            practitioner_name: oldBooking.practitioner_name,
+            old_start_at: oldBooking.start_at,
+            old_end_at: oldBooking.end_at,
+            new_start_at: start_at,
+            new_end_at: end_at
+          },
+          business: {
+            name: oldBooking.business_name,
+            email: oldBooking.business_email,
+            theme: oldBooking.theme || {},
+            address: oldBooking.address
+          }
+        });
+        notificationResult = { email: emailResult.success ? 'sent' : 'error', detail: emailResult.error || emailResult.messageId };
       } catch (e) {
         console.warn('Email notification error:', e.message);
         notificationResult = { email: 'error', detail: e.message };
@@ -704,7 +719,6 @@ router.patch('/:id/modify', async (req, res, next) => {
         const baseUrl = process.env.PUBLIC_URL || `https://genda.be`;
         const link = `${baseUrl}/booking/${oldBooking.public_token}`;
         console.log(`[NOTIFY] SMS to ${oldBooking.client_phone}: booking modified → ${link}`);
-        // TODO: Twilio SMS
         notificationResult = { ...notificationResult, sms: 'queued' };
       } catch (e) {
         console.warn('SMS notification error:', e.message);

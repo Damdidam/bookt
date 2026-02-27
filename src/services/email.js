@@ -168,4 +168,60 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail };
+/**
+ * Send modification notification email with Confirm/Reject buttons
+ */
+async function sendModificationEmail({ booking, business }) {
+  const oldDate = new Date(booking.old_start_at).toLocaleDateString('fr-BE', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+  const oldTime = new Date(booking.old_start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const newDate = new Date(booking.new_start_at).toLocaleDateString('fr-BE', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+  const newTime = new Date(booking.new_start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const newEndTime = new Date(booking.new_end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+  const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm`;
+  const rejectUrl = `${baseUrl}/api/public/booking/${booking.public_token}/reject`;
+  const color = business.theme?.primary_color || '#0D7377';
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${booking.client_name}</strong>,</p>
+    <p>Votre rendez-vous a été modifié :</p>
+    <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
+      <div style="font-size:13px;color:#92700C;margin-bottom:4px"><strong>Avant :</strong> ${oldDate} à ${oldTime}</div>
+      <div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6">${booking.service_name || 'Rendez-vous'}</div>
+    </div>
+    <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
+      <div style="font-size:13px;color:#15613A;margin-bottom:4px"><strong>Nouveau :</strong> ${newDate} à ${newTime} – ${newEndTime}</div>
+      <div style="font-size:13px;color:#15613A;font-weight:600">${booking.service_name || 'Rendez-vous'} · ${booking.practitioner_name}</div>
+    </div>
+    <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
+    <div style="text-align:center;margin:28px 0">
+      <a href="${confirmUrl}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px">✅ Oui, ça me va</a>
+      <a href="${rejectUrl}" style="display:inline-block;padding:14px 36px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;border:2px solid #E57373">❌ Non</a>
+    </div>
+    <p style="font-size:12px;color:#9C958E;text-align:center">Si vous ne répondez pas, le nouveau créneau sera automatiquement confirmé.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Modification de votre rendez-vous',
+    preheader: `Nouveau créneau : ${newDate} à ${newTime}`,
+    bodyHTML,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name}${business.address ? ' · ' + business.address : ''} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `📅 Modification de votre RDV — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail };

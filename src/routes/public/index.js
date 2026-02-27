@@ -534,6 +534,134 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/public/booking/:token/reject
+// Client rejects a modified booking (modified_pending → cancelled)
+// UI: email button → "Non" → landing page
+// ============================================================
+router.post('/booking/:token/reject', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification', updated_at = NOW()
+       WHERE public_token = $1 AND status = 'modified_pending'
+       RETURNING id, status, start_at, end_at, business_id`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      const check = await query(
+        `SELECT status FROM bookings WHERE public_token = $1`, [token]
+      );
+      if (check.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+      if (check.rows[0].status === 'cancelled') return res.json({ rejected: true, already: true });
+      return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être refusé dans son état actuel' });
+    }
+
+    // Notify practitioner
+    await query(
+      `INSERT INTO notifications (business_id, booking_id, type, status)
+       VALUES ($1, $2, 'email_modification_rejected', 'queued')`,
+      [result.rows[0].business_id, result.rows[0].id]
+    );
+
+    broadcast(result.rows[0].business_id, 'booking_update', { action: 'rejected', source: 'public' });
+    res.json({ rejected: true, booking: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/public/booking/:token/confirm — landing page (redirect from email button)
+// ============================================================
+router.get('/booking/:token/confirm', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.status, b.start_at, b.end_at, s.name AS service_name, biz.name AS business_name, biz.theme
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`, [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+
+    const bk = result.rows[0];
+    const color = bk.theme?.primary_color || '#0D7377';
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+    if (bk.status === 'confirmed') {
+      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
+    }
+    if (bk.status !== 'modified_pending') {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk.business_name));
+    }
+
+    // Auto-confirm via GET
+    await query(`UPDATE bookings SET status = 'confirmed', updated_at = NOW() WHERE public_token = $1`, [token]);
+    await query(
+      `INSERT INTO notifications (business_id, booking_id, type, status) SELECT business_id, id, 'email_modification_confirmed', 'queued' FROM bookings WHERE public_token = $1`, [token]
+    );
+    const bid = (await query(`SELECT business_id FROM bookings WHERE public_token = $1`, [token])).rows[0]?.business_id;
+    if (bid) broadcast(bid, 'booking_update', { action: 'confirmed', source: 'public' });
+
+    res.send(confirmationPage('Rendez-vous confirmé ✅', `${bk.service_name || 'Votre rendez-vous'} le <strong>${dt} à ${tm}</strong> est confirmé. Merci !`, color, bk.business_name));
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/public/booking/:token/reject — landing page (redirect from email button)
+// ============================================================
+router.get('/booking/:token/reject', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.status, b.start_at, biz.name AS business_name, biz.theme, biz.phone AS business_phone
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`, [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+
+    const bk = result.rows[0];
+    const color = bk.theme?.primary_color || '#0D7377';
+
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a été annulé.', '#C62828', bk.business_name));
+    }
+    if (bk.status !== 'modified_pending') {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', bk.business_name));
+    }
+
+    await query(`UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification', updated_at = NOW() WHERE public_token = $1`, [token]);
+    await query(
+      `INSERT INTO notifications (business_id, booking_id, type, status) SELECT business_id, id, 'email_modification_rejected', 'queued' FROM bookings WHERE public_token = $1`, [token]
+    );
+    const bid = (await query(`SELECT business_id FROM bookings WHERE public_token = $1`, [token])).rows[0]?.business_id;
+    if (bid) broadcast(bid, 'booking_update', { action: 'rejected', source: 'public' });
+
+    const phone = bk.business_phone ? ` au <strong>${bk.business_phone}</strong>` : '';
+    res.send(confirmationPage('Rendez-vous refusé', `Le nouveau créneau ne vous convient pas. N'hésitez pas à nous contacter${phone} pour trouver un autre horaire.`, '#C62828', bk.business_name));
+  } catch (err) { next(err); }
+});
+
+// Helper: build a standalone HTML confirmation/rejection page
+function confirmationPage(title, message, color, businessName) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} — ${businessName || 'Genda'}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
+<div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
+  <div style="width:56px;height:56px;border-radius:50%;background:${color}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+    <div style="font-size:24px">${title.includes('✅') ? '✅' : title.includes('refusé') || title.includes('annulé') ? '❌' : 'ℹ️'}</div>
+  </div>
+  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title.replace(/[✅❌]/g, '').trim()}</h1>
+  <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0">${message}</p>
+  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${businessName} · Via Genda</p>` : ''}
+</div></body></html>`;
+}
+
+// ============================================================
 // PRE-RDV DOCUMENTS — PUBLIC ACCESS
 // ============================================================
 
