@@ -212,6 +212,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <!-- Slots -->
     <div id="slotsArea"><div class="no-slots">Sélectionnez une date</div></div>
 
+    <!-- Waitlist CTA (always visible if practitioner has it enabled) -->
+    <div id="wlArea"></div>
+
     <button class="btn-next" id="btnStep3" disabled onclick="goStep(4)">Continuer →</button>
     <button class="btn-outline" onclick="goStep(2)">← Retour</button>
   </div>
@@ -444,10 +447,12 @@ async function loadSlots() {
   if (!selectedDate) {
     const firstDate = Object.keys(slotsData).find(k => slotsData[k]?.length > 0);
     if (firstDate) selectDate(firstDate);
-    else document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible cette semaine. Essayez la semaine suivante.</div>' + wlCTA();
+    else document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible cette semaine. Essayez la semaine suivante.</div>';
   } else {
     renderSlots();
   }
+  // Always show waitlist CTA if practitioner has it enabled
+  renderWlCTA();
 }
 
 function selectDate(key) {
@@ -461,7 +466,7 @@ function selectDate(key) {
 function renderSlots() {
   const slots = slotsData[selectedDate] || [];
   if (slots.length === 0) {
-    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour.</div>' + wlCTA();
+    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour.</div>';
     return;
   }
   document.getElementById('slotsArea').innerHTML = `<div class="slots-grid">${
@@ -624,20 +629,27 @@ function hideError() { document.getElementById('errMsg').classList.remove('show'
 // ============================================================
 const WL_DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 
-function wlCTA() {
-  if (!selectedPractitioner || !selectedPractitioner.waitlist_mode || selectedPractitioner.waitlist_mode === 'off') return '';
-  return `<div class="wl-cta" id="wlCTA">
+function renderWlCTA() {
+  const area = document.getElementById('wlArea');
+  if (!area) return;
+  if (!selectedPractitioner || !selectedPractitioner.waitlist_mode || selectedPractitioner.waitlist_mode === 'off') {
+    area.innerHTML = '';
+    return;
+  }
+  // Don't overwrite if form or success is showing
+  if (area.querySelector('.wl-form') || area.querySelector('.wl-success')) return;
+  area.innerHTML = `<div class="wl-cta" id="wlCTA">
     <div class="wl-cta-icon">⏳</div>
-    <div class="wl-cta-title">Pas de créneau disponible ?</div>
+    <div class="wl-cta-title">Aucun horaire ne vous convient ?</div>
     <div class="wl-cta-sub">Inscrivez-vous sur la liste d'attente et soyez prévenu·e dès qu'une place se libère.</div>
     <button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d'attente</button>
   </div>`;
 }
 
 function wlShowForm() {
-  const cta = document.getElementById('wlCTA');
-  if (!cta) return;
-  cta.outerHTML = `<div class="wl-form" id="wlForm">
+  const area = document.getElementById('wlArea');
+  if (!area) return;
+  area.innerHTML = `<div class="wl-form" id="wlForm">
     <h3>Liste d'attente</h3>
     <p class="wl-form-sub">Nous vous contacterons dès qu'un créneau se libère pour <strong>${selectedService?.name || 'cette prestation'}</strong> avec <strong>${selectedPractitioner?.display_name || 'ce praticien'}</strong>.</p>
     <div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>
@@ -664,8 +676,7 @@ function wlToggleDay(btn) {
 }
 
 function wlCancel() {
-  const form = document.getElementById('wlForm');
-  if (form) form.outerHTML = wlCTA();
+  renderWlCTA();
 }
 
 async function wlSubmit() {
