@@ -20,6 +20,11 @@
   --transition:all .2s cubic-bezier(.4,0,.2,1)
 }
 body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5}
+/* Prevent Chrome tablet annoyances: context menu, text selection, callouts */
+.sidebar,.topbar,.fc,.prac-filters,.mob-list,.mob-view-toggle,.mob-list-nav,.bk-row,.stat-card,.card-h,.ni,.btn,.btn-outline,.m-chip,.fc-touch-nav,.mob-bk,.mob-nav-btn,.mob-today-btn{
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent
+}
+input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 /* ===== SIDEBAR ===== */
 .sidebar{position:fixed;top:0;left:0;bottom:0;width:234px;background:var(--sidebar-bg);color:#fff;display:flex;flex-direction:column;z-index:50;border-right:1px solid rgba(255,255,255,.06)}
@@ -171,7 +176,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .fc .fc-timegrid-now-indicator-line{border:none;height:2px;background:var(--red);z-index:5}
 .fc .fc-timegrid-now-indicator-arrow{display:none}
 .fc .fc-timegrid-now-indicator-line::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
-.fc .fc-event{border:none!important;border-radius:6px;padding:0;font-size:.74rem;cursor:pointer;transition:transform .15s,box-shadow .15s;overflow:hidden}
+.fc .fc-event{border-top:none;border-right:none;border-bottom:none;border-left:3px solid transparent;border-radius:6px;padding:0;font-size:.74rem;cursor:pointer;transition:transform .15s,box-shadow .15s;overflow:hidden}
 .fc .fc-event:hover{transform:scale(1.02);box-shadow:0 3px 12px rgba(0,0,0,.08);z-index:10!important}
 .fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9;transform:scale(1.03)}
 .fc .fc-timegrid-event .fc-event-main{padding:4px 8px}
@@ -202,9 +207,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 /* Event status borders — override inline accent border */
 .ev-pending{border-left-color:var(--gold)!important}
-.ev-confirmed{} /* keep accent color */
+.ev-confirmed{} /* keep accent color from inline */
 .ev-modified_pending{border-left-color:#D97706!important;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.06) 4px,rgba(217,119,6,.06) 8px)!important}
-.ev-completed{opacity:.5;filter:grayscale(.3)}
+.ev-completed{opacity:.5;filter:grayscale(.3);border-left-color:var(--text-4)!important}
 .ev-no_show{border-left-color:var(--red)!important;opacity:.45;filter:grayscale(.2)}
 .ev-cancelled{border-left-color:var(--red)!important;opacity:.25;text-decoration:line-through}
 .ev-group-badge{display:inline-block;font-size:.55rem;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle}
@@ -986,6 +991,11 @@ let fcAllBookings=[]; // cache for list view
 const fcIsMobile=()=>window.innerWidth<=768;
 const fcIsTablet=()=>window.innerWidth>768&&window.innerWidth<=1180&&('ontouchstart' in window||navigator.maxTouchPoints>0);
 const fcIsTouch='ontouchstart' in window||navigator.maxTouchPoints>0;
+// Block Chrome tablet context menu on interactive areas
+if(fcIsTouch){document.addEventListener('contextmenu',function(e){
+  if(e.target.closest('input,textarea,select,[contenteditable]'))return;
+  if(e.target.closest('.fc,.sidebar,.prac-filters,.mob-list,.bk-row,.card-h,.topbar,.mob-bk,.fc-touch-nav,.m-chip,.btn,.btn-outline'))e.preventDefault();
+},true);}
 
 const MODE_ICO={cabinet:'🏢',visio:'💻',phone:'📞'};
 const ST_LABELS={pending:'En attente',confirmed:'Confirmé',completed:'Terminé',cancelled:'Annulé',no_show:'No-show',modified_pending:'Modifié · en attente'};
@@ -1180,8 +1190,8 @@ async function loadAgenda(){
             title:b.client_name||'Sans nom',
             start:b.start_at,
             end:b.end_at,
-            backgroundColor:accent+'18',
-            borderColor:'transparent',
+            backgroundColor:fcHexAlpha(accent,0.1),
+            borderColor:accent,
             textColor:accent,
             editable:!frozen,
             durationEditable:!frozen&&!b.group_id,
@@ -1198,7 +1208,8 @@ async function loadAgenda(){
             const gid=ev.extendedProps.group_id;
             if(gid&&groupColors[gid]){
               ev.extendedProps._accent=groupColors[gid];
-              ev.backgroundColor=groupColors[gid]+'18';
+              ev.backgroundColor=fcHexAlpha(groupColors[gid],0.1);
+              ev.borderColor=groupColors[gid];
               ev.textColor=groupColors[gid];
             }
           });
@@ -1254,8 +1265,15 @@ async function loadAgenda(){
       const p=info.event.extendedProps;
       const accent=p._accent||'#0D7377';
 
-      // Apply accent left border (status overrides via CSS classes still work)
-      info.el.style.borderLeft='3px solid '+accent;
+      // Ensure left border shows: FC sets border-color inline, CSS hides top/right/bottom
+      // Force left border structure in case FC overrides
+      info.el.style.borderLeftWidth='3px';
+      info.el.style.borderLeftStyle='solid';
+      info.el.style.borderLeftColor=accent;
+      // Hide other borders explicitly (inline beats CSS)
+      info.el.style.borderTopWidth='0';
+      info.el.style.borderRightWidth='0';
+      info.el.style.borderBottomWidth='0';
 
       info.el.setAttribute('data-eid',info.event.id);
       const gid=p?.group_id;
@@ -1492,6 +1510,14 @@ function fcSetupSwipe(){
 
 // ── Practitioner filter ──
 function fcRefresh(){if(fcCal)fcCal.refetchEvents();if(fcIsMobile()&&fcMobileView==='list')fcLoadMobileList();}
+
+// Convert hex to rgba with alpha
+function fcHexAlpha(hex,alpha){
+  hex=hex.replace('#','');
+  if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  const r=parseInt(hex.substring(0,2),16),g=parseInt(hex.substring(2,4),16),b=parseInt(hex.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 function fcSlotDuration(min){
   const h=String(Math.floor(min/60)).padStart(2,'0');
