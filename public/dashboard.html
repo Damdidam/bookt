@@ -149,28 +149,28 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 
 /* ===== FULLCALENDAR AGENDA ===== */
 .prac-filters{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-/* Agenda: hide topbar, compact single toolbar */
-.content.agenda-active{padding-bottom:0;padding-top:0}
+/* Agenda: hide topbar, compact 2-row toolbar */
+.content.agenda-active{padding-bottom:0;padding-top:0;max-width:none}
 .main.agenda-mode>.topbar{display:none}
-.agenda-toolbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid #E8ECF0;padding:8px 20px;display:flex;align-items:center;gap:10px;margin:0 -32px;width:calc(100% + 64px)}
-.agenda-toolbar .at-nav{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.agenda-toolbar .at-nav-btn{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-size:.82rem;display:flex;align-items:center;justify-content:center;font-family:var(--sans);transition:all .15s}
+.agenda-toolbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid #E8ECF0;padding:10px 32px 8px;margin:0 -32px;width:calc(100% + 64px)}
+.at-row-nav{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.agenda-toolbar .at-nav{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.agenda-toolbar .at-nav-btn{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-nav-btn:hover{background:var(--surface);border-color:var(--text-4)}
-.agenda-toolbar .at-today{padding:5px 14px;border-radius:7px;font-size:.72rem;font-weight:600;background:var(--primary);color:#fff;border:none;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.agenda-toolbar .at-today{padding:6px 16px;border-radius:8px;font-size:.74rem;font-weight:600;background:var(--primary);color:#fff;border:none;cursor:pointer;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-today:hover{background:var(--primary-hover)}
-.agenda-toolbar .at-title{font-family:var(--serif);font-size:1.05rem;font-weight:400;color:var(--text);white-space:nowrap;flex-shrink:0}
-.agenda-toolbar .at-filters{display:flex;gap:5px;flex:1;justify-content:center;overflow-x:auto;padding:0 8px;scrollbar-width:none}
-.agenda-toolbar .at-filters::-webkit-scrollbar{display:none}
-.agenda-toolbar .at-views{display:flex;gap:3px;flex-shrink:0}
-.agenda-toolbar .at-view-btn{padding:5px 13px;border-radius:7px;font-size:.73rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-family:var(--sans);transition:all .15s}
+.agenda-toolbar .at-title{font-family:var(--serif);font-size:1.15rem;font-weight:400;color:var(--text);white-space:nowrap;flex:1}
+.agenda-toolbar .at-views{display:flex;gap:4px;flex-shrink:0}
+.agenda-toolbar .at-view-btn{padding:6px 16px;border-radius:8px;font-size:.76rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-view-btn:hover{background:var(--surface);border-color:var(--text-4)}
 .agenda-toolbar .at-view-btn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
-.agenda-toolbar .at-date{font-size:.72rem;color:var(--text-4);white-space:nowrap;flex-shrink:0}
-.agenda-toolbar .at-sep{width:1px;height:18px;background:var(--border-light);flex-shrink:0}
-/* Sticky day headers — now only 1 level above */
+.agenda-toolbar .at-date{font-size:.76rem;color:var(--text-4);white-space:nowrap;flex-shrink:0;margin-left:4px}
+.at-row-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.agenda-toolbar .at-sep{width:1px;height:20px;background:var(--border-light);flex-shrink:0}
+/* Sticky day headers — below 2-row toolbar (~82px) */
 .content.agenda-active .fc .fc-header-toolbar{display:none!important}
-.content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:48px;z-index:28}
-.content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:48px!important;z-index:28;background:var(--white)}
+.content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:82px;z-index:28}
+.content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:82px!important;z-index:28;background:var(--white)}
 .content.agenda-active .fc .fc-col-header{background:var(--white)}
 .fc .fc-scrollgrid-section-header .fc-non-business{display:none!important}
 .prac-pill{padding:6px 16px;border-radius:100px;font-size:.74rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s;display:flex;align-items:center;gap:7px;white-space:nowrap}
@@ -589,11 +589,11 @@ textarea.m-input{resize:vertical;min-height:38px}
   .stats{grid-template-columns:1fr 1fr}
   .kpis{grid-template-columns:repeat(2,1fr)}
   /* Agenda toolbar tablet compaction */
-  .agenda-toolbar{padding:8px 12px;gap:8px;margin:0 -16px;width:calc(100% + 32px)}
-  .agenda-toolbar .at-title{font-size:.95rem}
-  .agenda-toolbar .at-today{padding:4px 10px;font-size:.68rem}
-  .agenda-toolbar .at-view-btn{padding:4px 10px;font-size:.68rem}
-  .agenda-toolbar .prac-pill{padding:4px 11px;font-size:.66rem}
+  .agenda-toolbar{padding:8px 16px 6px;margin:0 -16px;width:calc(100% + 32px)}
+  .agenda-toolbar .at-title{font-size:1.05rem}
+  .agenda-toolbar .at-today{padding:5px 12px;font-size:.7rem}
+  .agenda-toolbar .at-view-btn{padding:5px 12px;font-size:.7rem}
+  .agenda-toolbar .prac-pill{padding:5px 12px;font-size:.68rem}
 }
 @media(max-width:800px){
   .an-kpi{grid-template-columns:repeat(2,1fr)}
@@ -619,13 +619,15 @@ textarea.m-input{resize:vertical;min-height:38px}
   .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
   .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
 
-  /* Agenda toolbar → 2-row compact layout */
-  .agenda-toolbar{flex-wrap:wrap;padding:8px 12px 6px;gap:0;margin:0 -16px;width:calc(100% + 32px)}
+  /* Agenda toolbar → 2-row compact layout on mobile */
+  .agenda-toolbar{padding:8px 12px 6px;margin:0 -16px;width:calc(100% + 32px)}
+  /* Hide desktop rows on mobile */
+  .agenda-toolbar .at-row-nav,.agenda-toolbar .at-row-filters{display:none}
   .agenda-toolbar .at-row1{display:flex;align-items:center;gap:6px;width:100%;margin-bottom:5px}
-  .agenda-toolbar .at-nav{gap:3px}
-  .agenda-toolbar .at-nav-btn{width:26px;height:26px;font-size:.78rem;border-radius:6px}
-  .agenda-toolbar .at-today{padding:4px 10px;font-size:.68rem}
-  .agenda-toolbar .at-title{font-size:.92rem;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis}
+  .agenda-toolbar .at-row1 .at-nav{gap:3px}
+  .agenda-toolbar .at-row1 .at-nav-btn{width:26px;height:26px;font-size:.78rem;border-radius:6px}
+  .agenda-toolbar .at-row1 .at-today{padding:4px 10px;font-size:.68rem}
+  .agenda-toolbar .at-title-mob{font-family:var(--serif);font-size:.92rem;font-weight:400;color:var(--text);flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .agenda-toolbar .at-mob-views{display:flex;gap:2px;flex-shrink:0}
   .agenda-toolbar .at-mob-vbtn{width:30px;height:26px;border-radius:6px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-4);cursor:pointer;font-size:.72rem;display:flex;align-items:center;justify-content:center}
   .agenda-toolbar .at-mob-vbtn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
@@ -633,10 +635,9 @@ textarea.m-input{resize:vertical;min-height:38px}
   .agenda-toolbar .at-row2::-webkit-scrollbar{display:none}
   .agenda-toolbar .at-row2 .prac-pill{padding:3px 10px;font-size:.64rem;gap:4px}
   .agenda-toolbar .at-row2 .prac-pill .dot{width:6px;height:6px}
-  /* Hide desktop-only parts */
-  .agenda-toolbar .at-filters,.agenda-toolbar .at-views,.agenda-toolbar .at-date,.agenda-toolbar .at-sep{display:none}
-  /* Sticky day headers below toolbar */
-  .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:62px!important}
+  /* Sticky day headers below mobile toolbar (~64px) */
+  .content.agenda-active .fc .fc-scrollgrid-section-header{top:64px}
+  .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:64px!important}
 
   /* Modal → full screen bottom sheet */
   .cal-modal-overlay{padding:0;align-items:flex-end}
@@ -699,6 +700,7 @@ textarea.m-input{resize:vertical;min-height:38px}
 @media(min-width:769px){
   .cal-fab{display:none!important}
   .agenda-toolbar .at-row1,.agenda-toolbar .at-row2,.agenda-toolbar .at-mob-views{display:none!important}
+  .mob-list{display:none!important}
 }
 </style>
 </head>
@@ -1116,14 +1118,13 @@ async function loadAgenda(){
   const mobile=fcIsMobile();
   const initView=mobile?'timeGridDay':'timeGridWeek';
   let toolbar=`<div class="agenda-toolbar">`;
-  // Desktop row (hidden on mobile via CSS)
-  toolbar+=`<div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">‹</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">›</button></div>`;
-  toolbar+=`<span class="at-title" id="atTitle"></span>`;
-  toolbar+=`<div class="at-filters">${pillsHtml}</div>`;
-  toolbar+=`<div class="at-views"><button class="at-view-btn" data-view="timeGridDay" onclick="atView('timeGridDay')">Jour</button><button class="at-view-btn${initView==='timeGridWeek'?' active':''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button></div>`;
-  toolbar+=`<span class="at-date" id="atDate"></span>`;
-  // Mobile rows (hidden on desktop via CSS)
-  toolbar+=`<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">‹</button><button class="at-today" onclick="atNav('today')">Auj.</button><button class="at-nav-btn" onclick="atNav('next')">›</button></div><span class="at-title" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${fcMobileView==='list'?'active':''}" onclick="atMobView('list')">☰</button><button class="at-mob-vbtn ${fcMobileView!=='list'?'active':''}" onclick="atMobView('grid')">▦</button></div></div>`;
+  // Desktop: Row 1 — nav + title + views + date
+  toolbar+=`<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">‹</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">›</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="timeGridDay" onclick="atView('timeGridDay')">Jour</button><button class="at-view-btn${initView==='timeGridWeek'?' active':''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button></div><span class="at-date" id="atDate"></span></div>`;
+  // Desktop: Row 2 — filter pills
+  toolbar+=`<div class="at-row-filters">${pillsHtml}</div>`;
+  // Mobile: Row 1 — nav + title + list/grid icons (hidden on desktop via CSS)
+  toolbar+=`<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">‹</button><button class="at-today" onclick="atNav('today')">Auj.</button><button class="at-nav-btn" onclick="atNav('next')">›</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${fcMobileView==='list'?'active':''}" onclick="atMobView('list')">☰</button><button class="at-mob-vbtn ${fcMobileView!=='list'?'active':''}" onclick="atMobView('grid')">▦</button></div></div>`;
+  // Mobile: Row 2 — pills scrollable
   toolbar+=`<div class="at-row2">${pillsHtml}</div>`;
   toolbar+=`</div>`;
 
