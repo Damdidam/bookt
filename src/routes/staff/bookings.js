@@ -1,11 +1,51 @@
 const router = require('express').Router();
-const { queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
 router.use(resolvePractitionerScope);
+
+// ── Calendar auto-sync helper (non-blocking) ──
+async function calSyncPush(businessId, bookingId) {
+  try {
+    const { pushBookingToCalendar } = require('../../services/calendar-sync');
+    const conns = await query(
+      `SELECT * FROM calendar_connections
+       WHERE business_id = $1 AND status = 'active' AND sync_enabled = true
+       AND (sync_direction = 'push' OR sync_direction = 'both')`, [businessId]
+    );
+    if (conns.rows.length === 0) return;
+    const bk = await query(
+      `SELECT b.*, s.name AS service_name, s.duration_min, c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
+       FROM bookings b JOIN services s ON s.id = b.service_id JOIN clients c ON c.id = b.client_id
+       WHERE b.id = $1`, [bookingId]
+    );
+    if (bk.rows.length === 0) return;
+    const qFn = (sql, params) => query(sql, params);
+    for (const conn of conns.rows) {
+      try { await pushBookingToCalendar(conn, bk.rows[0], qFn); }
+      catch (e) { console.warn('[CAL-SYNC] Push failed:', e.message); }
+    }
+  } catch (e) { /* non-blocking */ }
+}
+
+async function calSyncDelete(businessId, bookingId) {
+  try {
+    const { deleteCalendarEvent } = require('../../services/calendar-sync');
+    const conns = await query(
+      `SELECT * FROM calendar_connections
+       WHERE business_id = $1 AND status = 'active' AND sync_enabled = true
+       AND (sync_direction = 'push' OR sync_direction = 'both')`, [businessId]
+    );
+    const qFn = (sql, params) => query(sql, params);
+    for (const conn of conns.rows) {
+      try { await deleteCalendarEvent(conn, bookingId, qFn); }
+      catch (e) { console.warn('[CAL-SYNC] Delete failed:', e.message); }
+    }
+  } catch (e) { /* non-blocking */ }
+}
 
 // Helper: get global overlap policy from business settings
 async function businessAllowsOverlap(bid) {
@@ -137,6 +177,7 @@ router.post('/manual', async (req, res, next) => {
       });
 
       broadcast(bid, 'booking_update', { action: 'created' });
+      calSyncPush(bid, bookings[0].id).catch(() => {});
       return res.status(201).json({ booking: bookings[0], bookings });
     }
 
@@ -227,6 +268,7 @@ router.post('/manual', async (req, res, next) => {
     });
 
     broadcast(bid, 'booking_update', { action: 'created' });
+    bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
     res.status(201).json({ booking: bookings[0], bookings, group_id: groupId });
   } catch (err) {
     next(err);
@@ -344,6 +386,8 @@ router.patch('/:id/status', async (req, res, next) => {
     );
 
     broadcast(bid, 'booking_update', { action: 'status_changed', status });
+    if (status === 'cancelled') calSyncDelete(bid, id).catch(() => {});
+    else calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, status });
   } catch (err) {
     next(err);
@@ -460,6 +504,7 @@ router.patch('/:id/move', async (req, res, next) => {
       );
 
       broadcast(bid, 'booking_update', { action: 'moved' });
+      updates.forEach(u => calSyncPush(bid, u.id).catch(() => {}));
       return res.json({ updated: true, group_moved: true, count: updates.length });
     }
 
@@ -508,6 +553,7 @@ router.patch('/:id/move', async (req, res, next) => {
     );
 
     broadcast(bid, 'booking_update', { action: 'moved' });
+    calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     next(err);
@@ -554,6 +600,7 @@ router.patch('/:id/edit', async (req, res, next) => {
     );
 
     broadcast(bid, 'booking_update', { action: 'edited' });
+    calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     next(err);
@@ -610,6 +657,7 @@ router.patch('/:id/resize', async (req, res, next) => {
     );
 
     broadcast(bid, 'booking_update', { action: 'resized' });
+    calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
     next(err);
@@ -727,6 +775,8 @@ router.patch('/:id/modify', async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'modified' });
+    broadcast(bid, 'booking_update', { action: 'moved' });
+    calSyncPush(bid, id).catch(() => {});
     res.json({
       updated: true,
       booking: result.rows[0],
