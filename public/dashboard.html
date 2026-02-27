@@ -922,9 +922,9 @@ const user=api.getUser(),biz=api.getBusiness();
 
 // ===== RBAC CONFIG =====
 const ROLE_ACCESS={
-  owner:['home','bookings','clients','services','hours','team','site','calls','invoices','documents','analytics','settings'],
-  manager:['home','bookings','clients','services','hours','documents','analytics'],
-  receptionist:['home','bookings','clients'],
+  owner:['home','bookings','clients','services','hours','waitlist','team','site','calls','invoices','documents','analytics','settings'],
+  manager:['home','bookings','clients','services','hours','waitlist','documents','analytics'],
+  receptionist:['home','bookings','clients','waitlist'],
   practitioner:['home','bookings','clients','profile']
 };
 
