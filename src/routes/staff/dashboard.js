@@ -39,9 +39,12 @@ router.get('/summary', async (req, res, next) => {
     // Today's bookings
     const todayBookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+              b.internal_note,
               s.name AS service_name, s.duration_min,
-              p.display_name AS practitioner_name,
-              c.full_name AS client_name
+              p.display_name AS practitioner_name, p.color AS practitioner_color,
+              c.full_name AS client_name,
+              (SELECT COUNT(*) FROM practitioner_todos t WHERE t.booking_id = b.id AND t.is_done = false) AS todo_count,
+              (SELECT COUNT(*) FROM booking_notes n WHERE n.booking_id = b.id) AS note_count
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
@@ -108,7 +111,11 @@ router.get('/summary', async (req, res, next) => {
           service_name: b.service_name,
           duration_min: b.duration_min,
           practitioner_name: b.practitioner_name,
-          client_name: b.client_name
+          practitioner_color: b.practitioner_color,
+          client_name: b.client_name,
+          todo_count: parseInt(b.todo_count) || 0,
+          note_count: parseInt(b.note_count) || 0,
+          has_internal_note: !!b.internal_note
         })),
         count: todayBookings.rows.length
       },

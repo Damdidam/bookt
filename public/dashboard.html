@@ -77,9 +77,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .qlink a:hover{background:rgba(255,255,255,.25)}
 
 /* ===== BOOKINGS / ROWS ===== */
-.bk-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border-light);transition:background .1s}
+.bk-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border-light);transition:background .1s;cursor:pointer}
 .bk-row:last-child{border:none}
 .bk-row:hover{background:var(--surface)}
+.bk-badges{display:flex;gap:4px;align-items:center}
+.bk-badge{font-size:.65rem;padding:2px 6px;border-radius:6px;white-space:nowrap}
+.bk-badge.todo{background:#E3F2FD;color:#1565C0}
+.bk-badge.note{background:#FFF3E0;color:#E65100}
 .bk-status{padding:3px 10px;border-radius:10px;font-size:.68rem;font-weight:600;white-space:nowrap}
 .bk-status.confirmed{background:var(--green-bg);color:var(--green)}
 .bk-status.pending{background:var(--gold-bg);color:var(--gold)}
@@ -928,12 +932,38 @@ async function loadDashboard(){
     if(sum){const m=sum.month||{},cl=sum.clients||{},ca=sum.calls||{};
       h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">CA ce mois</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">${cl.total||0}</div></div><div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div></div>`;
       h+=`<div class="card"><div class="card-h"><h3>RDV du jour</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
-      if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});h+=`<div class="bk-row"><span style="font-size:.85rem;font-weight:700;color:var(--primary);min-width:50px">${t}</span><div style="flex:1"><div style="font-size:.85rem;font-weight:600">${b.client_name}</div><div style="font-size:.72rem;color:var(--text-4)">${b.service_name} · ${b.duration_min}min</div></div><span class="bk-status ${b.status}">${b.status==='confirmed'?'Confirmé':b.status}</span></div>`});}
+      if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{
+        const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        let badges='';
+        if(b.todo_count>0)badges+=`<span class="bk-badge todo">📋 ${b.todo_count}</span>`;
+        if(b.note_count>0||b.has_internal_note)badges+=`<span class="bk-badge note">📝</span>`;
+        h+=`<div class="bk-row" onclick="openBookingDetail('${b.id}')">
+          <span style="font-size:.85rem;font-weight:700;color:var(--primary);min-width:50px">${t}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:6px">${b.client_name}<span class="bk-badges">${badges}</span></div>
+            <div style="font-size:.72rem;color:var(--text-4)">${b.service_name} · ${b.duration_min}min${b.practitioner_name?' · '+b.practitioner_name:''}</div>
+          </div>
+          <span class="bk-status ${b.status}">${b.status==='confirmed'?'Confirmé':b.status==='pending'?'En attente':b.status}</span>
+        </div>`;
+      });}
       else h+=`<div class="empty">Aucun RDV aujourd'hui</div>`;
       h+=`</div>`;
     }else{h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">CA</div><div class="val">0 €</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div><div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div></div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;}
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}<br><button onclick="loadDashboard()" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;}
+}
+
+// Open booking detail modal from anywhere (dashboard, clients, etc.)
+// Loads practitioners on demand if calendar hasn't been opened yet
+async function openBookingDetail(bookingId){
+  try{
+    // Ensure practitioners are loaded (needed for practitioner dropdown in modal)
+    if(!fcPractitioners||fcPractitioners.length===0){
+      const r=await fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}});
+      if(r.ok){const d=await r.json();fcPractitioners=d.practitioners||[];}
+    }
+    await fcOpenDetail(bookingId);
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 // NAV
@@ -1459,7 +1489,7 @@ function fcSetupSwipe(){
 }
 
 // ── Practitioner filter ──
-function fcRefresh(){fcCal.refetchEvents();if(fcIsMobile()&&fcMobileView==='list')fcLoadMobileList();}
+function fcRefresh(){if(fcCal)fcCal.refetchEvents();if(fcIsMobile()&&fcMobileView==='list')fcLoadMobileList();}
 
 function fcSlotDuration(min){
   const h=String(Math.floor(min/60)).padStart(2,'0');
