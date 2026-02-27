@@ -49,6 +49,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 @keyframes spin{to{transform:rotate(360deg)}}
 .error{text-align:center;padding:60px}
 .error .e-icon{font-size:3rem;margin-bottom:12px}
+.cal-row{display:flex;gap:8px;flex-wrap:wrap;padding:16px 28px;border-top:1px solid var(--border-light)}
+.cal-row .cal-title{width:100%;font-size:.72rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.cal-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1.5px solid var(--border-light);border-radius:8px;background:var(--white);font-family:var(--sans);font-size:.78rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s;text-decoration:none}
+.cal-btn:hover{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.cal-btn .ci{font-size:.95rem}
+.maps-link{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;color:var(--primary);text-decoration:none;font-weight:600;margin-top:2px}
+.maps-link:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -108,11 +115,23 @@ function render(d) {
         <div class="icon">👤</div>
         <div class="info"><div class="label">Praticien</div><div class="value">${bk.practitioner.name}</div>${bk.practitioner.title ? `<div class="sub">${bk.practitioner.title}</div>` : ''}</div>
       </div>
-      ${biz.address ? `<div class="detail-row"><div class="icon">📍</div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div></div></div>` : ''}
+      ${biz.address ? `<div class="detail-row"><div class="icon">📍</div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
       ${biz.phone ? `<div class="detail-row"><div class="icon">📞</div><div class="info"><div class="label">Contact</div><div class="value">${biz.phone}</div>${biz.email ? `<div class="sub">${biz.email}</div>` : ''}</div></div>` : ''}
       ${bk.comment ? `<div class="detail-row"><div class="icon">💬</div><div class="info"><div class="label">Votre remarque</div><div class="sub">${bk.comment}</div></div></div>` : ''}
     </div>
   `;
+
+  // Calendar buttons (for active bookings)
+  if (['confirmed','pending','modified_pending'].includes(bk.status)) {
+    const gcalUrl = buildGCalUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
+    const outlookUrl = buildOutlookUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
+    html += `<div class="cal-row">
+      <div class="cal-title">Ajouter à votre calendrier</div>
+      <a class="cal-btn" href="${gcalUrl}" target="_blank" rel="noopener"><span class="ci">📆</span>Google</a>
+      <a class="cal-btn" href="${outlookUrl}" target="_blank" rel="noopener"><span class="ci">📧</span>Outlook</a>
+      <a class="cal-btn" href="/api/public/booking/${token}/ics" download="rdv-genda.ics"><span class="ci">🍎</span>Apple / iCal</a>
+    </div>`;
+  }
 
   // Cancel section
   if (bk.status === 'modified_pending') {
@@ -208,6 +227,17 @@ async function cancelBooking() {
 
 function showError(msg) {
   document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">🔍</div><h2 style="font-family:var(--serif);font-size:1.3rem">${msg}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
+}
+
+function buildGCalUrl(start, end, title, location, bizName) {
+  function fmt(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+  const desc = title + ' — ' + bizName;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${fmt(start)}/${fmt(end)}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(location || '')}&ctz=Europe/Brussels`;
+}
+
+function buildOutlookUrl(start, end, title, location, bizName) {
+  const desc = title + ' — ' + bizName;
+  return `https://outlook.live.com/calendar/0/action/compose?subject=${encodeURIComponent(title)}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${encodeURIComponent(desc)}&location=${encodeURIComponent(location || '')}`;
 }
 </script>
 </body>
