@@ -1073,4 +1073,47 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// GET /api/public/booking/:token/ics — download .ics file
+// Used for "Add to Calendar" button in emails
+// ============================================================
+router.get('/booking/:token/ics', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT b.id, b.start_at, b.end_at, b.appointment_mode,
+              s.name AS service_name, s.duration_min,
+              c.full_name AS client_name,
+              p.display_name AS practitioner_name,
+              biz.name AS business_name, biz.address AS business_address
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       JOIN clients c ON c.id = b.client_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.token = $1 AND b.status IN ('confirmed','pending','modified_pending')`,
+      [req.params.token]
+    );
+    if (result.rows.length === 0) return res.status(404).send('Rendez-vous introuvable');
+
+    const bk = result.rows[0];
+    const start = new Date(bk.start_at);
+    const end = new Date(bk.end_at);
+    const summary = `${bk.service_name} — ${bk.practitioner_name}`;
+    const loc = bk.appointment_mode === 'visio' ? 'Visioconférence' : bk.appointment_mode === 'phone' ? 'Téléphone' : (bk.business_address || bk.business_name);
+    const desc = [bk.service_name, `Avec ${bk.practitioner_name}`, bk.business_name].join('\\n');
+
+    function icalDt(d) {
+      return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') +
+        'T' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+    }
+    function esc(s) { return (s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+
+    const ical = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:${bk.id}@genda.be\r\nDTSTART;TZID=Europe/Brussels:${icalDt(start)}\r\nDTEND;TZID=Europe/Brussels:${icalDt(end)}\r\nSUMMARY:${esc(summary)}\r\nDESCRIPTION:${esc(desc)}\r\nLOCATION:${esc(loc)}\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="rdv-genda.ics"`);
+    res.send(ical);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
