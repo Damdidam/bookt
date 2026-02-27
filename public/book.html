@@ -148,7 +148,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-@media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(3,1fr)}.slot-btn{padding:12px 4px;font-size:.88rem}}
+
+/* Calendar add buttons */
+.cal-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;justify-content:center}
+.cal-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1.5px solid var(--border);border-radius:var(--radius-xs);background:var(--white);font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s;text-decoration:none}
+.cal-btn:hover{border-color:var(--primary-border);background:var(--primary-light);color:var(--primary)}
+.cal-btn .cal-icon{font-size:1rem}
+
+/* Slots loading overlay */
+.slots-loading{display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--text-4);font-size:.85rem}
+.slots-loading .spinner{width:20px;height:20px;border-width:2.5px}
 </style>
 </head>
 <body>
@@ -247,6 +257,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
       <h3>Rendez-vous confirmé !</h3>
       <p>Vous recevrez une confirmation par email.</p>
       <div class="confirm-details" id="confirmDetails"></div>
+      <div class="cal-buttons" id="calButtons"></div>
     </div>
     <button class="btn-outline" style="margin-top:16px" onclick="window.location.href='/' + slug">← Retour au cabinet</button>
   </div>
@@ -420,6 +431,9 @@ function buildDateRow() {
 }
 
 async function loadSlots() {
+  // Show loading spinner
+  document.getElementById('slotsArea').innerHTML = '<div class="slots-loading"><div class="spinner"></div>Chargement des créneaux...</div>';
+
   const today = new Date();
   today.setDate(today.getDate() + 1 + weekOffset * 7);
   const endDate = new Date(today);
@@ -444,13 +458,27 @@ async function loadSlots() {
   buildDateRow();
 
   // Auto-select first date with slots
-  if (!selectedDate) {
-    const firstDate = Object.keys(slotsData).find(k => slotsData[k]?.length > 0);
-    if (firstDate) selectDate(firstDate);
-    else document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible cette semaine. Essayez la semaine suivante.</div>';
-  } else {
+  const firstDate = Object.keys(slotsData).find(k => slotsData[k]?.length > 0);
+  if (!selectedDate && firstDate) {
+    selectDate(firstDate);
+  } else if (!firstDate && weekOffset < 8) {
+    // No slots this week → auto-advance to next week (max 8 weeks ahead)
+    weekOffset++;
+    return loadSlots();
+  } else if (!firstDate) {
+    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible dans les 8 prochaines semaines.</div>';
+  } else if (selectedDate) {
     renderSlots();
   }
+
+  // Scroll to slots area on mobile
+  if (window.innerWidth <= 600) {
+    setTimeout(() => {
+      const area = document.getElementById('slotsArea');
+      if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 150);
+  }
+
   // Always show waitlist CTA if practitioner has it enabled
   renderWlCTA();
 }
@@ -604,6 +632,9 @@ async function submitBooking() {
       ${data.booking?.token ? `<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d'annuler ? <a href="/booking/${data.booking.token}" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>` : ''}
     `;
 
+    // Calendar buttons
+    buildCalendarButtons(selectedSlot.start_at, selectedSlot.end_at || selectedSlot.start_at, data.booking?.token);
+
     goStep(5);
 
   } catch (err) {
@@ -734,6 +765,63 @@ async function wlSubmit() {
     btn.disabled = false;
     btn.textContent = 'S\'inscrire sur la liste d\'attente →';
   }
+}
+// ============================================================
+// CALENDAR — Add to Calendar buttons
+// ============================================================
+function buildCalendarButtons(startAt, endAt, bookingToken) {
+  const start = new Date(startAt);
+  const end = endAt ? new Date(endAt) : new Date(start.getTime() + (selectedService?.duration_min || 30) * 60000);
+  const title = `${selectedService?.name || 'RDV'} — ${selectedPractitioner?.display_name || ''}`;
+  const location = siteData?.business?.address || '';
+  const desc = `${selectedService?.name || ''} avec ${selectedPractitioner?.display_name || ''} — ${siteData?.business?.name || 'Genda'}`;
+
+  // Google Calendar URL
+  const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${toGCalDate(start)}/${toGCalDate(end)}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(location)}&ctz=Europe/Brussels`;
+
+  // Outlook web URL
+  const outlookUrl = `https://outlook.live.com/calendar/0/action/compose?subject=${encodeURIComponent(title)}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${encodeURIComponent(desc)}&location=${encodeURIComponent(location)}`;
+
+  // .ics download (Apple + fallback)
+  const icsUrl = bookingToken ? `/api/public/booking/${bookingToken}/ics` : null;
+
+  let html = '';
+  html += `<a class="cal-btn" href="${gcalUrl}" target="_blank" rel="noopener"><span class="cal-icon">📆</span>Google</a>`;
+  html += `<a class="cal-btn" href="${outlookUrl}" target="_blank" rel="noopener"><span class="cal-icon">📧</span>Outlook</a>`;
+  if (icsUrl) {
+    html += `<a class="cal-btn" href="${icsUrl}" download="rdv-genda.ics"><span class="cal-icon">🍎</span>Apple / iCal</a>`;
+  } else {
+    // Generate .ics blob client-side
+    html += `<button class="cal-btn" onclick="downloadICS()"><span class="cal-icon">🍎</span>Apple / iCal</button>`;
+  }
+
+  document.getElementById('calButtons').innerHTML = `<div style="font-size:.75rem;color:var(--text-4);margin-bottom:6px">Ajouter à votre calendrier :</div>` + html;
+}
+
+function toGCalDate(d) {
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+function downloadICS() {
+  const start = new Date(selectedSlot.start_at);
+  const end = selectedSlot.end_at ? new Date(selectedSlot.end_at) : new Date(start.getTime() + (selectedService?.duration_min || 30) * 60000);
+  const title = `${selectedService?.name || 'RDV'} — ${selectedPractitioner?.display_name || ''}`;
+  const loc = siteData?.business?.address || '';
+  const desc = `${selectedService?.name || ''} avec ${selectedPractitioner?.display_name || ''}`;
+
+  function icalDt(d) {
+    return d.getUTCFullYear() + String(d.getUTCMonth()+1).padStart(2,'0') + String(d.getUTCDate()).padStart(2,'0') +
+      'T' + String(d.getUTCHours()).padStart(2,'0') + String(d.getUTCMinutes()).padStart(2,'0') + String(d.getUTCSeconds()).padStart(2,'0') + 'Z';
+  }
+  function esc(s) { return (s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+
+  const ical = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:${Date.now()}@genda.be\r\nDTSTART:${icalDt(start)}\r\nDTEND:${icalDt(end)}\r\nSUMMARY:${esc(title)}\r\nDESCRIPTION:${esc(desc)}\r\nLOCATION:${esc(loc)}\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+
+  const blob = new Blob([ical], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'rdv-genda.ics'; a.click();
+  URL.revokeObjectURL(url);
 }
 </script>
 
