@@ -23,6 +23,7 @@ router.get('/google/connect', requireAuth, (req, res) => {
   oauthStates.set(state, {
     userId: req.user.id,
     businessId: req.businessId,
+    practitionerId: req.query.practitioner_id || null,
     provider: 'google',
     expiresAt: Date.now() + 10 * 60000
   });
@@ -47,23 +48,25 @@ router.get('/google/callback', async (req, res) => {
     const tokens = await cal.exchangeGoogleCode(code);
     const userInfo = await cal.getGoogleUserInfo(tokens.access_token);
 
-    // Upsert connection
+    // Upsert connection (per practitioner)
     await query(
       `INSERT INTO calendar_connections
-        (business_id, user_id, provider, access_token, refresh_token, token_expires_at, scope, calendar_id, email, status)
-       VALUES ($1, $2, 'google', $3, $4, $5, $6, 'primary', $7, 'active')
-       ON CONFLICT (business_id, user_id, provider) DO UPDATE SET
+        (business_id, user_id, practitioner_id, provider, access_token, refresh_token, token_expires_at, scope, calendar_id, email, status)
+       VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, 'primary', $8, 'active')
+       ON CONFLICT (business_id, practitioner_id, provider) DO UPDATE SET
         access_token = EXCLUDED.access_token,
         refresh_token = COALESCE(EXCLUDED.refresh_token, calendar_connections.refresh_token),
         token_expires_at = EXCLUDED.token_expires_at,
         scope = EXCLUDED.scope,
         email = EXCLUDED.email,
+        user_id = EXCLUDED.user_id,
         status = 'active',
         error_message = NULL,
         updated_at = NOW()`,
       [
         session.businessId,
         session.userId,
+        session.practitionerId,
         tokens.access_token,
         tokens.refresh_token || null,
         new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
@@ -72,7 +75,7 @@ router.get('/google/callback', async (req, res) => {
       ]
     );
 
-    res.redirect('/dashboard?cal_connected=google');
+    res.redirect('/dashboard?cal_connected=google&prac=' + (session.practitionerId || ''));
   } catch (err) {
     console.error('[CAL] Google callback error:', err);
     res.redirect('/dashboard?cal_error=' + encodeURIComponent(err.message));
@@ -90,6 +93,7 @@ router.get('/outlook/connect', requireAuth, (req, res) => {
   oauthStates.set(state, {
     userId: req.user.id,
     businessId: req.businessId,
+    practitionerId: req.query.practitioner_id || null,
     provider: 'outlook',
     expiresAt: Date.now() + 10 * 60000
   });
@@ -120,19 +124,21 @@ router.get('/outlook/callback', async (req, res) => {
 
     await query(
       `INSERT INTO calendar_connections
-        (business_id, user_id, provider, access_token, refresh_token, token_expires_at, scope, email, status)
-       VALUES ($1, $2, 'outlook', $3, $4, $5, $6, $7, 'active')
-       ON CONFLICT (business_id, user_id, provider) DO UPDATE SET
+        (business_id, user_id, practitioner_id, provider, access_token, refresh_token, token_expires_at, scope, email, status)
+       VALUES ($1, $2, $3, 'outlook', $4, $5, $6, $7, $8, 'active')
+       ON CONFLICT (business_id, practitioner_id, provider) DO UPDATE SET
         access_token = EXCLUDED.access_token,
         refresh_token = COALESCE(EXCLUDED.refresh_token, calendar_connections.refresh_token),
         token_expires_at = EXCLUDED.token_expires_at,
         email = EXCLUDED.email,
+        user_id = EXCLUDED.user_id,
         status = 'active',
         error_message = NULL,
         updated_at = NOW()`,
       [
         session.businessId,
         session.userId,
+        session.practitionerId,
         tokens.access_token,
         tokens.refresh_token || null,
         new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
@@ -141,7 +147,7 @@ router.get('/outlook/callback', async (req, res) => {
       ]
     );
 
-    res.redirect('/dashboard?cal_connected=outlook');
+    res.redirect('/dashboard?cal_connected=outlook&prac=' + (session.practitionerId || ''));
   } catch (err) {
     console.error('[CAL] Outlook callback error:', err);
     res.redirect('/dashboard?cal_error=' + encodeURIComponent(err.message));
@@ -157,13 +163,19 @@ router.get('/outlook/callback', async (req, res) => {
  */
 router.get('/connections', requireAuth, async (req, res, next) => {
   try {
-    const result = await queryWithRLS(req.businessId,
-      `SELECT id, provider, email, calendar_name, sync_direction, sync_enabled,
+    const { practitioner_id } = req.query;
+    let sql = `SELECT id, provider, practitioner_id, email, calendar_name, sync_direction, sync_enabled,
               last_sync_at, status, error_message, created_at
        FROM calendar_connections
-       WHERE business_id = $1 AND user_id = $2`,
-      [req.businessId, req.user.id]
-    );
+       WHERE business_id = $1`;
+    const params = [req.businessId];
+
+    if (practitioner_id) {
+      sql += ` AND practitioner_id = $2`;
+      params.push(practitioner_id);
+    }
+
+    const result = await queryWithRLS(req.businessId, sql, params);
     res.json({ connections: result.rows });
   } catch (err) { next(err); }
 });
@@ -371,18 +383,18 @@ router.post('/ical/generate', requireAuth, async (req, res, next) => {
     const { practitioner_id } = req.body; // null = all practitioners
     const secret = crypto.randomBytes(24).toString('hex');
 
-    // Upsert ical connection
+    // Upsert ical connection per practitioner
     const result = await query(
       `INSERT INTO calendar_connections
-        (business_id, user_id, provider, access_token, practitioner_id, status, sync_direction, sync_enabled)
-       VALUES ($1, $2, 'ical', $3, $4, 'active', 'push', true)
-       ON CONFLICT (business_id, user_id, provider) DO UPDATE SET
+        (business_id, user_id, practitioner_id, provider, access_token, status, sync_direction, sync_enabled)
+       VALUES ($1, $2, $3, 'ical', $4, 'active', 'push', true)
+       ON CONFLICT (business_id, practitioner_id, provider) DO UPDATE SET
         access_token = EXCLUDED.access_token,
-        practitioner_id = EXCLUDED.practitioner_id,
+        user_id = EXCLUDED.user_id,
         status = 'active',
         updated_at = NOW()
        RETURNING id, access_token`,
-      [bid, req.user.id, secret, practitioner_id || null]
+      [bid, req.user.id, practitioner_id || null, secret]
     );
 
     const token = Buffer.from(`${bid}:${practitioner_id || 'all'}:${result.rows[0].access_token}`).toString('base64url');
