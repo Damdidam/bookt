@@ -750,9 +750,9 @@ textarea.m-input{resize:vertical;min-height:38px}
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">🕐 Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
-            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="calEditDate"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="calEditStart"></div>
-            <div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="calEditEnd"></div>
+            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="calEditDate" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="calEditStart" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
           </div>
           <div class="m-chips" id="calDurChips">
             <span class="m-chip" onclick="calSetDuration(15,this)">15</span>
@@ -762,6 +762,7 @@ textarea.m-input{resize:vertical;min-height:38px}
             <span class="m-chip" onclick="calSetDuration(90,this)">1h30</span>
             <span class="m-chip" onclick="calSetDuration(120,this)">2h</span>
           </div>
+          <div id="calConflictWarn" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;animation:fadeIn .2s"></div>
         </div>
         <!-- Praticien -->
         <div class="m-sec">
@@ -1642,7 +1643,10 @@ async function fcOpenDetail(bookingId){
     document.querySelectorAll('.m-chip').forEach(c=>c.classList.toggle('active',parseInt(c.textContent)===dm||({'1h':60,'1h30':90,'2h':120}[c.textContent.trim()]===dm)));
     document.getElementById('calEditDiff').style.display='none';
     document.getElementById('calNotifyPanel').style.display='none';
+    document.getElementById('calConflictWarn').style.display='none';
     fcSelectedNotifyChannel=null;
+    // Check conflicts with current time (in case it already overlaps)
+    setTimeout(calCheckConflict,50);
 
     // ── Praticien dropdown with color dot ──
     const pracSel=document.getElementById('uPracSelect');
@@ -1736,6 +1740,48 @@ function calSetDuration(min,el){
   const[h,m]=sv.split(':').map(Number),em=h*60+m+min;
   document.getElementById('calEditEnd').value=String(Math.floor(em/60)).padStart(2,'0')+':'+String(em%60).padStart(2,'0');
   fcUpdateEditDiff();
+  calCheckConflict();
+}
+
+// ── Live conflict detection in modal ──
+function calCheckConflict(){
+  const warn=document.getElementById('calConflictWarn');
+  if(!warn||!fcCal||!fcCurrentBooking)return;
+  const nd=document.getElementById('calEditDate').value;
+  const ns=document.getElementById('calEditStart').value;
+  const ne=document.getElementById('calEditEnd').value;
+  if(!nd||!ns||!ne){warn.style.display='none';return;}
+
+  const newStart=new Date(nd+'T'+ns);
+  const newEnd=new Date(nd+'T'+ne);
+  const pracId=fcCurrentBooking.practitioner_id;
+  const myId=fcCurrentEventId;
+  const myGroup=fcCurrentBooking.group_id;
+
+  // Scan calendar events for this practitioner on this day
+  const conflicts=[];
+  for(const ev of fcCal.getEvents()){
+    if(ev.id===myId)continue;
+    if(myGroup&&ev.extendedProps?.group_id===myGroup)continue;
+    if(ev.extendedProps?.practitioner_id!==pracId)continue;
+    const st=ev.extendedProps?.status;
+    if(st==='cancelled'||st==='no_show')continue;
+    if(newStart<ev.end&&newEnd>ev.start){
+      const name=ev.extendedProps?.client_name||ev.title||'RDV';
+      const time=ev.start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})+' – '+ev.end.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+      conflicts.push(`<strong>${name}</strong> (${time})`);
+    }
+  }
+
+  if(conflicts.length===0){
+    warn.style.display='none';
+  }else{
+    const isInfo=fcAllowOverlap;
+    warn.style.display='block';
+    warn.style.background=isInfo?'#FFF3E0':'#FFEBEE';
+    warn.style.color=isInfo?'#E65100':'#C62828';
+    warn.innerHTML=(isInfo?'⚠️ Chevauchement avec ':'⚠️ Conflit avec ')+conflicts.join(', ');
+  }
 }
 
 function fcTimeDiffMin(s,e){const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);return(eh*60+em)-(sh*60+sm);}
