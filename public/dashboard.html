@@ -1026,10 +1026,12 @@ const ST_LABELS={pending:'En attente',confirmed:'Confirmé',completed:'Terminé'
 const DAY_NAMES=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 const MONTH_NAMES=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 
-function gToast(msg,type){
-  const t=document.getElementById('gToast');t.textContent=msg;t.style.display='flex';
+function gToast(msg,type,action){
+  const t=document.getElementById('gToast');
+  t.innerHTML=msg+(action?`<button onclick="${action.fn}">${action.label}</button>`:'');
+  t.style.display='flex';
   t.className='g-toast'+(type?' '+type:'');
-  clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.display='none';},3500);
+  clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.display='none';},action?6000:3500);
 }
 
 async function loadAgenda(){
@@ -1170,9 +1172,18 @@ async function loadAgenda(){
 
     // Full collision check before allowing drop
     eventAllow:function(dropInfo,draggedEvent){
-      if(fcCal?.view?.type==='dayGridMonth')return false;
       const dropDay=dropInfo.start.getDay();
       if(fcHiddenDays.includes(dropDay))return false;
+
+      // Month view: dropInfo has all-day range (midnight→midnight), so we can't do
+      // precise overlap checks here. Allow drop with basic checks; backend validates.
+      if(fcCal?.view?.type==='dayGridMonth'){
+        // Compute actual new start by applying original time to new date
+        const origStart=draggedEvent.start;
+        const newDate=dropInfo.start;
+        const actualStart=new Date(newDate.getFullYear(),newDate.getMonth(),newDate.getDate(),origStart.getHours(),origStart.getMinutes());
+        return actualStart>=new Date();
+      }
 
       // Group containers are already one event — no special group range calc needed
       const effectiveStart=dropInfo.start;
@@ -1392,7 +1403,19 @@ async function loadAgenda(){
         const result=await r.json();
         gToast(result.group_moved?`${p.client_name||'Client'} — ${result.count} prestations déplacées`:(p.client_name||'RDV')+' déplacé','success');
         fcCal.refetchEvents();
-      }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
+      }catch(e){
+        // Save target date BEFORE revert (revert resets event.start to original)
+        const targetDate=info.event.start.toISOString().split('T')[0];
+        info.revert();
+        const isCollision=e.message.includes('hevauche')||e.message.includes('pris')||e.message.includes('occupé');
+        // In month view + collision → offer to switch to day view for precise placement
+        if(isCollision&&fcCal?.view?.type==='dayGridMonth'){
+          window._atPendingDaySwitch=targetDate;
+          gToast('🚫 Créneau occupé — voir le jour pour replacer ?','error',{label:'Voir le jour →',fn:`atView('timeGridDay');fcCal.gotoDate(window._atPendingDaySwitch);document.getElementById('gToast').style.display='none'`});
+        }else{
+          gToast(isCollision?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');
+        }
+      }
     },
 
     // Resize → update duration
