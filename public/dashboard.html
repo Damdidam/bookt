@@ -317,6 +317,20 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
   .wl-row{flex-wrap:wrap;gap:8px;padding:12px 16px}
   .wl-actions{width:100%;justify-content:flex-end}
 }
+.wl-row{cursor:pointer}
+.wl-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.wl-detail-item{padding:10px 12px;background:var(--surface);border-radius:8px}
+.wl-detail-item .dl{font-size:.65rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.wl-detail-item .dv{font-size:.85rem;font-weight:600;color:var(--text)}
+.wl-notes-area{margin-bottom:16px}
+.wl-notes-area label{display:block;font-size:.75rem;font-weight:600;color:var(--text-2);margin-bottom:4px}
+.wl-notes-area textarea{width:100%;min-height:100px;padding:10px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-family:var(--sans);font-size:.82rem;color:var(--text);resize:vertical;outline:none;transition:border-color .15s}
+.wl-notes-area textarea:focus{border-color:var(--primary)}
+.wl-notes-area .wl-notes-hint{font-size:.68rem;color:var(--text-4);margin-top:4px}
+.wl-client-note{padding:10px 14px;background:#FEF3C7;border-radius:8px;font-size:.8rem;color:#92400E;margin-bottom:16px;font-style:italic}
+.wl-client-note strong{font-style:normal}
+.wl-action-row{display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border-light)}
+.wl-chevron{color:var(--text-4);font-size:.9rem;flex-shrink:0;margin-left:4px}
 
 /* ── Tabs ── */
 .m-tabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--border-light);flex-shrink:0}
@@ -4618,6 +4632,7 @@ async function deleteWhitelistEntry(id){
 // ============================================================
 let wlFilter='waiting';
 let wlPracFilter='';
+let wlEntries=[];
 
 async function loadWaitlist(){
   const c=document.getElementById('contentArea');
@@ -4675,50 +4690,30 @@ async function loadWaitlist(){
     if(!entries.length){
       h+=`<div class="empty">Aucune entrée ${wlFilter==='waiting'?'en attente':wlFilter==='offered'?'avec offre en cours':''}</div>`;
     }else{
+      wlEntries=entries;
       const WL_ST={waiting:'En attente',offered:'Offre envoyée',booked:'Réservé',expired:'Expiré',cancelled:'Annulé',declined:'Décliné'};
       const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
       const TIME_L={any:'Toute la journée',morning:'Matin',afternoon:'Après-midi'};
       entries.forEach((e,i)=>{
         const prio=e.priority||i+1;
-        h+=`<div class="wl-row">`;
+        h+=`<div class="wl-row" onclick="wlDetail(${i})">`;
         h+=`<div class="wl-priority ${prio<=3?'top':''}">${prio}</div>`;
         h+=`<div class="wl-info">`;
         h+=`<div class="wl-name">${esc(e.client_name)} <span class="email">${esc(e.client_email)}</span></div>`;
         h+=`<div class="wl-meta"><span>${esc(e.service_name||'—')}</span><span class="dot-sep">·</span><span>${esc(e.practitioner_name||'—')}</span>`;
-        if(e.client_phone)h+=`<span class="dot-sep">·</span><span>${esc(e.client_phone)}</span>`;
         h+=`<span class="dot-sep">·</span><span class="badge st-${e.status}" style="font-size:.6rem;padding:2px 7px">${WL_ST[e.status]||e.status}</span>`;
         h+=`</div>`;
-        // Day preferences
-        const days=e.preferred_days||[];
-        if(days.length>0&&days.length<7){
-          h+=`<div class="wl-prefs">`;
-          days.forEach(d=>{h+=`<span class="wl-pref">${DAY_S[d]||d}</span>`;});
-          h+=`<span class="wl-pref">${TIME_L[e.preferred_time]||'Toute la journée'}</span>`;
-          h+=`</div>`;
+        if(e.staff_notes){
+          const preview=e.staff_notes.length>60?e.staff_notes.slice(0,60)+'…':e.staff_notes;
+          h+=`<div style="font-size:.68rem;color:var(--primary);margin-top:2px">📝 ${esc(preview)}</div>`;
         }
-        // Offer timer
         if(e.status==='offered'&&e.offer_expires_at){
           const mins=Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000));
-          h+=`<div class="wl-offer-info">⏱ Expire dans <span class="timer">${mins>60?Math.floor(mins/60)+'h'+String(mins%60).padStart(2,'0'):mins+' min'}</span>`;
-          if(e.offer_booking_start){
-            const d=new Date(e.offer_booking_start);
-            h+=` — créneau : ${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})} à ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}`;
-          }
-          h+=`</div>`;
+          h+=`<div class="wl-offer-info">⏱ ${mins>60?Math.floor(mins/60)+'h'+String(mins%60).padStart(2,'0'):mins+' min'}</div>`;
         }
-        if(e.note)h+=`<div style="font-size:.68rem;color:var(--text-4);margin-top:2px;font-style:italic">"${esc(e.note)}"</div>`;
         h+=`</div>`;
-        // Actions
-        h+=`<div class="wl-actions">`;
-        if(e.status==='waiting'){
-          h+=`<button class="wl-btn primary" onclick="wlOffer('${e.id}','${esc(e.client_name).replace(/'/g,"\\'")}','${e.practitioner_id}','${e.service_id}')">📨 Proposer</button>`;
-          h+=`<button class="wl-btn" onclick="wlContact('${e.id}','booked')">✅ Réservé</button>`;
-          h+=`<button class="wl-btn danger" onclick="wlRemove('${e.id}')">✕</button>`;
-        }else if(e.status==='offered'){
-          h+=`<button class="wl-btn" onclick="wlContact('${e.id}','booked')">✅ Confirmé</button>`;
-          h+=`<button class="wl-btn danger" onclick="wlContact('${e.id}','declined')">Décliné</button>`;
-        }
-        h+=`</div></div>`;
+        h+=`<span class="wl-chevron">›</span>`;
+        h+=`</div>`;
       });
     }
     h+=`</div>`;
@@ -4840,7 +4835,108 @@ async function wlRemove(entryId){
   try{
     const r=await fetch(`/api/waitlist/${entryId}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    document.querySelector('.modal-overlay')?.remove();
     GendaUI.toast('Retiré de la liste','success');
+    loadWaitlist();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ── Detail modal ──
+function wlDetail(idx){
+  const e=wlEntries[idx];
+  if(!e)return;
+  const WL_ST={waiting:'En attente',offered:'Offre envoyée',booked:'Réservé',expired:'Expiré',cancelled:'Annulé',declined:'Décliné'};
+  const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const TIME_L={any:'Toute la journée',morning:'Matin',afternoon:'Après-midi'};
+  const days=(e.preferred_days||[]).map(d=>DAY_S[d]||d).join(', ');
+  const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:520px"><div class="modal-h"><h3>${esc(e.client_name)}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body">`;
+
+  // Status badge
+  m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${WL_ST[e.status]||e.status}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;
+
+  // Info grid
+  m+=`<div class="wl-detail-grid">`;
+  m+=`<div class="wl-detail-item"><div class="dl">Prestation</div><div class="dv">${esc(e.service_name||'—')}</div></div>`;
+  m+=`<div class="wl-detail-item"><div class="dl">Praticien</div><div class="dv">${esc(e.practitioner_name||'—')}</div></div>`;
+  m+=`<div class="wl-detail-item"><div class="dl">Email</div><div class="dv" style="font-size:.78rem">${esc(e.client_email)}</div></div>`;
+  m+=`<div class="wl-detail-item"><div class="dl">Téléphone</div><div class="dv">${esc(e.client_phone||'—')}</div></div>`;
+  m+=`<div class="wl-detail-item"><div class="dl">Jours préférés</div><div class="dv" style="font-size:.78rem">${days||'Tous'}</div></div>`;
+  m+=`<div class="wl-detail-item"><div class="dl">Créneau</div><div class="dv" style="font-size:.78rem">${TIME_L[e.preferred_time]||'Toute la journée'}</div></div>`;
+  m+=`</div>`;
+
+  // Client note
+  if(e.note){
+    m+=`<div class="wl-client-note"><strong>Note du client :</strong> ${esc(e.note)}</div>`;
+  }
+
+  // Offer info
+  if(e.status==='offered'&&e.offer_booking_start){
+    const d=new Date(e.offer_booking_start);
+    const expMins=e.offer_expires_at?Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000)):0;
+    m+=`<div style="padding:10px 14px;background:#FFF7ED;border:1px solid #FBBF24;border-radius:8px;font-size:.8rem;color:#92400E;margin-bottom:16px">📨 Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})} à ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</strong> — expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
+  }
+
+  // Staff notes
+  m+=`<div class="wl-notes-area">`;
+  m+=`<label>📝 Notes de suivi (visible uniquement par l'équipe)</label>`;
+  m+=`<textarea id="wlStaffNotes" placeholder="Ex: Contacté le 04/03, proposé créneau du 06/03 à 9h30. Le client rappelle demain.">${esc(e.staff_notes||'')}</textarea>`;
+  m+=`<div class="wl-notes-hint">Les notes sont sauvegardées automatiquement quand vous quittez ce champ</div>`;
+  m+=`</div>`;
+
+  // Actions
+  m+=`<div class="wl-action-row">`;
+  if(e.status==='waiting'){
+    m+=`<button class="wl-btn primary" onclick="this.closest('.modal-overlay').remove();wlOffer('${e.id}','${esc(e.client_name).replace(/'/g,"\\'")}','${e.practitioner_id}','${e.service_id}')">📨 Proposer un créneau</button>`;
+    m+=`<button class="wl-btn" onclick="wlChangeStatus('${e.id}','booked')">✅ RDV obtenu</button>`;
+    m+=`<button class="wl-btn danger" onclick="wlRemove('${e.id}')">🗑 Retirer</button>`;
+  }else if(e.status==='offered'){
+    m+=`<button class="wl-btn" onclick="wlChangeStatus('${e.id}','booked')">✅ RDV confirmé</button>`;
+    m+=`<button class="wl-btn danger" onclick="wlChangeStatus('${e.id}','declined')">Décliné</button>`;
+  }else if(e.status==='expired'||e.status==='declined'){
+    m+=`<button class="wl-btn" onclick="wlChangeStatus('${e.id}','waiting')">🔄 Remettre en attente</button>`;
+    m+=`<button class="wl-btn danger" onclick="wlRemove('${e.id}')">🗑 Retirer</button>`;
+  }else if(e.status==='booked'){
+    m+=`<span style="font-size:.8rem;color:var(--green)">✅ Traité</span>`;
+  }
+  m+=`</div>`;
+
+  m+=`</div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+
+  // Auto-save notes on blur
+  document.getElementById('wlStaffNotes')?.addEventListener('blur',function(){
+    wlSaveNotes(e.id,this.value);
+  });
+}
+
+async function wlSaveNotes(entryId,notes){
+  try{
+    const r=await fetch(`/api/waitlist/${entryId}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({staff_notes:notes})
+    });
+    if(!r.ok)throw new Error('Erreur');
+  }catch(e){/* silent */}
+}
+
+async function wlChangeStatus(entryId,status){
+  const noteEl=document.getElementById('wlStaffNotes');
+  const notes=noteEl?noteEl.value:undefined;
+  try{
+    const body={status};
+    if(notes!==undefined)body.staff_notes=notes;
+    const r=await fetch(`/api/waitlist/${entryId}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify(body)
+    });
+    if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
+    document.querySelector('.modal-overlay')?.remove();
+    const labels={booked:'RDV obtenu',declined:'Décliné',waiting:'Remis en attente'};
+    GendaUI.toast(labels[status]||'Statut mis à jour','success');
     loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
