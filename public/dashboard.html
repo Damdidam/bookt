@@ -702,6 +702,7 @@ textarea.m-input{resize:vertical;min-height:38px}
     <a class="ni" href="#" data-section="documents"><span class="ic">📄</span><span>Documents</span></a>
     <a class="ni" href="#" data-section="analytics"><span class="ic">📈</span><span>Statistiques</span></a>
     <a class="ni" href="#" data-section="settings"><span class="ic">⚙️</span><span>Paramètres</span></a>
+    <a class="ni" href="#" data-section="profile"><span class="ic">👤</span><span>Mon profil</span></a>
   </nav>
   <div class="sb-foot">
     <div class="nm" id="userName">—</div>
@@ -874,7 +875,7 @@ const ROLE_ACCESS={
   owner:['home','bookings','clients','services','hours','team','site','calls','invoices','documents','analytics','settings'],
   manager:['home','bookings','clients','services','hours','documents','analytics'],
   receptionist:['home','bookings','clients'],
-  practitioner:['home','bookings','clients']
+  practitioner:['home','bookings','clients','profile']
 };
 
 const SECTOR_LABELS={
@@ -898,7 +899,11 @@ const sectorLabels=SECTOR_LABELS[userSector]||SECTOR_LABELS.autre;
 const allowedSections=ROLE_ACCESS[userRole]||ROLE_ACCESS.owner;
 
 // Display user info in sidebar
-document.getElementById('userName').textContent=user?.business_name||user?.email||'—';
+if(userRole==='practitioner'){
+  document.getElementById('userName').textContent=user?.practitioner_name||user?.email||'—';
+}else{
+  document.getElementById('userName').textContent=user?.business_name||user?.email||'—';
+}
 document.getElementById('userRole').textContent=sectorLabels[userRole]||userRole;
 
 // Hide sidebar items not allowed for this role
@@ -925,14 +930,18 @@ loadDashboard();
 
 async function loadDashboard(){
   const c=document.getElementById('contentArea');
+  const isPrac=userRole==='practitioner';
   try{
     const[dd,sd]=await Promise.allSettled([api.getDashboard(),api.get('/api/dashboard/summary')]);
     const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null;
     const slug=dash.business?.slug||biz?.slug||'';
-    let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}" target="_blank">Voir ma page</a></div></div>`;
+    let h='';
+    if(!isPrac){
+      h+=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}" target="_blank">Voir ma page</a></div></div>`;
+    }
     if(sum){const m=sum.month||{},cl=sum.clients||{},ca=sum.calls||{};
-      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">CA ce mois</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">${cl.total||0}</div></div><div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div></div>`;
-      h+=`<div class="card"><div class="card-h"><h3>RDV du jour</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
+      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">${isPrac?'Mon CA ce mois':'CA ce mois'}</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">${isPrac?'Mes clients':'Clients'}</div><div class="val">${cl.total||0}</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div>`}</div>`;
+      h+=`<div class="card"><div class="card-h"><h3>${isPrac?'Mes RDV du jour':'RDV du jour'}</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
       if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{
         const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
         let badges='';
@@ -942,14 +951,14 @@ async function loadDashboard(){
           <span style="font-size:.85rem;font-weight:700;color:var(--primary);min-width:50px">${t}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:6px">${b.client_name}<span class="bk-badges">${badges}</span></div>
-            <div style="font-size:.72rem;color:var(--text-4)">${b.service_name} · ${b.duration_min}min${b.practitioner_name?' · '+b.practitioner_name:''}</div>
+            <div style="font-size:.72rem;color:var(--text-4)">${b.service_name||'RDV libre'} · ${b.duration_min||'—'}min${!isPrac&&b.practitioner_name?' · '+b.practitioner_name:''}</div>
           </div>
           <span class="bk-status ${b.status}">${b.status==='confirmed'?'Confirmé':b.status==='pending'?'En attente':b.status}</span>
         </div>`;
       });}
       else h+=`<div class="empty">Aucun RDV aujourd'hui</div>`;
       h+=`</div>`;
-    }else{h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">CA</div><div class="val">0 €</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div><div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div></div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;}
+    }else{h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">CA</div><div class="val">0 €</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>`}</div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;}
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}<br><button onclick="loadDashboard()" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;}
 }
@@ -968,7 +977,7 @@ async function openBookingDetail(bookingId){
 }
 
 // NAV
-document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.getElementById('contentArea').classList.remove('agenda-active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
+document.querySelectorAll('.ni').forEach(i=>{i.addEventListener('click',e=>{e.preventDefault();document.getElementById('contentArea').classList.remove('agenda-active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));i.classList.add('active');const s=i.dataset.section;document.getElementById('pageTitle').textContent={home:'Dashboard',bookings:'Agenda',clients:'Clients',services:'Prestations',hours:'Disponibilités',team:'Équipe',site:'Mon site',calls:'Appels',invoices:'Facturation',documents:'Documents pré-RDV',settings:'Paramètres',analytics:'Statistiques',profile:'Mon profil'}[s]||'Dashboard';if(s==='home')loadDashboard();else if(s==='bookings'){loadAgenda();}else if(s==='site')loadSiteSection();else if(s==='clients')loadClients();else if(s==='services')loadServices();else if(s==='hours')loadHours();else if(s==='analytics')loadAnalytics();else if(s==='settings')loadSettings();else if(s==='team')loadTeam();else if(s==='invoices')loadInvoices();else if(s==='documents')loadDocuments();else if(s==='calls')loadCalls();else if(s==='profile')loadProfile();else document.getElementById('contentArea').innerHTML=`<div class="empty">Section "${s}" — Bientôt disponible</div>`;});});
 
 // ============================================================
 // FULLCALENDAR AGENDA
@@ -1069,12 +1078,23 @@ async function loadAgenda(){
   }catch(e){fcPractitioners=[];fcServices=[];}
 
   // Build filter pills
-  let pills=`<div class="prac-filters"><div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous</div>`;
-  fcPractitioners.forEach(p=>{pills+=`<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)"><span class="dot" style="background:${p.color||'var(--primary)'}"></span>${p.display_name}</div>`;});
-  pills+=`<span style="width:1px;height:22px;background:var(--border-light);margin:0 4px;flex-shrink:0"></span>`;
-  pills+=`<div class="prac-pill st-toggle ${fcShowCancelled?'active':''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)">●</span>Annulés</div>`;
-  pills+=`<div class="prac-pill st-toggle ${fcShowNoShow?'active':''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)">●</span>No-show</div>`;
-  pills+=`</div>`;
+  const isPrac=userRole==='practitioner';
+  let pills='';
+  if(isPrac){
+    // Force filter to own practitioner
+    fcCurrentFilter=user?.practitioner_id||'all';
+    pills=`<div class="prac-filters">`;
+    pills+=`<div class="prac-pill st-toggle ${fcShowCancelled?'active':''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)">●</span>Annulés</div>`;
+    pills+=`<div class="prac-pill st-toggle ${fcShowNoShow?'active':''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)">●</span>No-show</div>`;
+    pills+=`</div>`;
+  }else{
+    pills=`<div class="prac-filters"><div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous</div>`;
+    fcPractitioners.forEach(p=>{pills+=`<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)"><span class="dot" style="background:${p.color||'var(--primary)'}"></span>${p.display_name}</div>`;});
+    pills+=`<span style="width:1px;height:22px;background:var(--border-light);margin:0 4px;flex-shrink:0"></span>`;
+    pills+=`<div class="prac-pill st-toggle ${fcShowCancelled?'active':''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)">●</span>Annulés</div>`;
+    pills+=`<div class="prac-pill st-toggle ${fcShowNoShow?'active':''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)">●</span>No-show</div>`;
+    pills+=`</div>`;
+  }
 
   // Mobile: view toggle + list container
   const mobile=fcIsMobile();
@@ -1707,6 +1727,8 @@ async function fcOpenDetail(bookingId){
     // ── Praticien dropdown with color dot ──
     const pracSel=document.getElementById('uPracSelect');
     pracSel.innerHTML=fcPractitioners.map(p=>`<option value="${p.id}"${p.id===b.practitioner_id?' selected':''}>${p.display_name}</option>`).join('');
+    // Practitioners cannot reassign to others
+    pracSel.disabled=(userRole==='practitioner');
     const curPrac=fcPractitioners.find(p=>p.id===b.practitioner_id);
     document.getElementById('mPracDot').style.background=curPrac?.color||'var(--primary)';
     pracSel.onchange=function(){
@@ -1728,7 +1750,8 @@ async function fcOpenDetail(bookingId){
     document.getElementById('mBtnSave').style.display=isFrozen?'none':'';
     document.getElementById('mBtnNotify').style.display=isFrozen?'none':'';
     document.getElementById('mBtnCancel').style.display=isFrozen?'none':'';
-    document.getElementById('mBtnPurge').style.display=isFrozen?'':'none';
+    // Only owners/managers can permanently delete
+    document.getElementById('mBtnPurge').style.display=(isFrozen&&userRole!=='practitioner')?'':'none';
 
     // ── Show modal ──
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'),'rdv');
@@ -2135,6 +2158,13 @@ function fcOpenQuickCreate(startStr,endStr){
   // Populate practitioners dropdown
   const prSel=document.getElementById('qcPrac');
   prSel.innerHTML=fcPractitioners.map(p=>`<option value="${p.id}">${p.display_name}</option>`).join('');
+  // Practitioners can only create for themselves
+  if(userRole==='practitioner'&&user?.practitioner_id){
+    prSel.value=user.practitioner_id;
+    prSel.disabled=true;
+  }else{
+    prSel.disabled=false;
+  }
 
   // Init service list with one entry
   qcServiceCount=0;
@@ -3340,6 +3370,85 @@ async function saveRole(practId){
     document.querySelector('.modal-overlay')?.remove();
     GendaUI.toast('Rôle modifié','success');loadTeam();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// MON PROFIL (practitioner self-service)
+// ============================================================
+async function loadProfile(){
+  const c=document.getElementById('contentArea');
+  c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
+  try{
+    const r=await fetch('/api/practitioners/me',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const d=await r.json();
+    const p=d.practitioner;
+    const initials=p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)||'??';
+    const avatarContent=p.photo_url
+      ?`<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
+      :`<span style="color:#fff;font-size:2.5rem;font-weight:700">${initials}</span>`;
+
+    let h=`<div class="card" style="max-width:560px;margin:0 auto">
+      <div style="text-align:center;padding:20px 0 16px">
+        <div style="width:96px;height:96px;border-radius:50%;margin:0 auto 12px;overflow:hidden;background:${p.color||'var(--primary)'};display:flex;align-items:center;justify-content:center">${avatarContent}</div>
+        <h2 style="font-size:1.1rem;font-weight:700;margin:0">${p.display_name}</h2>
+        <div style="font-size:.82rem;color:var(--text-4);margin-top:2px">${p.title||'—'}</div>
+        <div style="font-size:.72rem;color:var(--text-4);margin-top:4px">${p.login_email||''}</div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding:20px 0 0">
+        <div class="field"><label>Nom complet</label><input id="prof_name" value="${esc(p.display_name||'')}" class="m-input"></div>
+        <div class="field"><label>Titre / Spécialité</label><input id="prof_title" value="${esc(p.title||'')}" class="m-input"></div>
+        <div class="field-row">
+          <div class="field"><label>Email</label><input id="prof_email" type="email" value="${esc(p.email||'')}" class="m-input"></div>
+          <div class="field"><label>Téléphone</label><input id="prof_phone" value="${esc(p.phone||'')}" class="m-input"></div>
+        </div>
+        <div class="field"><label>Bio</label><textarea id="prof_bio" class="m-input" rows="3">${esc(p.bio||'')}</textarea></div>
+        <div style="text-align:right;margin-top:12px">
+          <button class="btn-primary" onclick="saveProfile()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="max-width:560px;margin:16px auto 0">
+      <h3 style="font-size:.9rem;font-weight:700;margin-bottom:12px">🔐 Changer le mot de passe</h3>
+      <div class="field"><label>Mot de passe actuel</label><input id="prof_cur_pwd" type="password" class="m-input"></div>
+      <div class="field"><label>Nouveau mot de passe</label><input id="prof_new_pwd" type="password" class="m-input" placeholder="Min. 8 caractères"></div>
+      <div style="text-align:right;margin-top:12px">
+        <button class="btn-outline" onclick="saveProfilePwd()">Changer le mot de passe</button>
+      </div>
+    </div>`;
+    c.innerHTML=h;
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+async function saveProfile(){
+  const payload={
+    display_name:document.getElementById('prof_name').value.trim(),
+    title:document.getElementById('prof_title').value.trim(),
+    email:document.getElementById('prof_email').value.trim(),
+    phone:document.getElementById('prof_phone').value.trim(),
+    bio:document.getElementById('prof_bio').value.trim()
+  };
+  try{
+    const r=await fetch('/api/practitioners/me',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(payload)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    gToast('Profil mis à jour','success');
+    // Update sidebar name
+    const u=api.getUser();if(u){u.business_name=payload.display_name;api.setUser(u);document.getElementById('userName').textContent=payload.display_name;}
+  }catch(e){gToast('Erreur: '+e.message,'error');}
+}
+
+async function saveProfilePwd(){
+  const cur=document.getElementById('prof_cur_pwd').value;
+  const nw=document.getElementById('prof_new_pwd').value;
+  if(!cur||!nw)return gToast('Remplissez les deux champs','error');
+  if(nw.length<8)return gToast('Min. 8 caractères','error');
+  try{
+    const r=await fetch('/api/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({current_password:cur,new_password:nw})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    gToast('Mot de passe changé','success');
+    document.getElementById('prof_cur_pwd').value='';
+    document.getElementById('prof_new_pwd').value='';
+  }catch(e){gToast('Erreur: '+e.message,'error');}
 }
 
 // ============================================================

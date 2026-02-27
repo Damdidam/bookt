@@ -8,6 +8,63 @@ const { requireAuth, requireOwner } = require('../../middleware/auth');
 router.use(requireAuth);
 
 // ============================================================
+// GET /api/practitioners/me — current practitioner's own profile
+// UI: Practitioner dashboard > Mon profil
+// ============================================================
+router.get('/me', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const pracId = req.user.practitionerId;
+    if (!pracId) return res.status(403).json({ error: 'Pas de profil praticien lié' });
+
+    const result = await queryWithRLS(bid,
+      `SELECT p.*, u.email AS login_email, u.role, u.last_login_at
+       FROM practitioners p
+       LEFT JOIN users u ON u.id = p.user_id
+       WHERE p.id = $1 AND p.business_id = $2`,
+      [pracId, bid]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Profil introuvable' });
+    res.json({ practitioner: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// PATCH /api/practitioners/me — update own profile (limited fields)
+// ============================================================
+router.patch('/me', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const pracId = req.user.practitionerId;
+    if (!pracId) return res.status(403).json({ error: 'Pas de profil praticien lié' });
+
+    // Practitioners can only update these fields
+    const { display_name, title, bio, phone, email } = req.body;
+    const updates = [];
+    const params = [];
+    let idx = 1;
+
+    if (display_name !== undefined) { updates.push(`display_name = $${idx}`); params.push(display_name); idx++; }
+    if (title !== undefined) { updates.push(`title = $${idx}`); params.push(title); idx++; }
+    if (bio !== undefined) { updates.push(`bio = $${idx}`); params.push(bio); idx++; }
+    if (phone !== undefined) { updates.push(`phone = $${idx}`); params.push(phone); idx++; }
+    if (email !== undefined) { updates.push(`email = $${idx}`); params.push(email); idx++; }
+
+    if (updates.length === 0) return res.json({ updated: false, message: 'Rien à modifier' });
+
+    updates.push('updated_at = NOW()');
+    params.push(pracId, bid);
+
+    const result = await queryWithRLS(bid,
+      `UPDATE practitioners SET ${updates.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING *`,
+      params
+    );
+
+    res.json({ updated: true, practitioner: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/practitioners/:id/photo — Upload practitioner photo
 // Accepts: { photo: "data:image/jpeg;base64,..." }
 // Saves to /public/uploads/practitioners/<id>.<ext>

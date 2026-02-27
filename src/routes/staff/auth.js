@@ -53,7 +53,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       // Fetch business details + practitioner link for frontend
       const bizResult = await query(
         `SELECT b.id, b.slug, b.name, b.sector,
-                p.id AS practitioner_id
+                p.id AS practitioner_id, p.display_name AS practitioner_name
          FROM businesses b
          LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
          WHERE b.id = $1`, [user.business_id, user.id]
@@ -62,7 +62,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
       return res.json({
         token,
-        user: { id: user.id, email: user.email, role: user.role, business_name: user.business_name, practitioner_id: biz.practitioner_id || null },
+        user: { id: user.id, email: user.email, role: user.role, business_name: user.business_name, practitioner_id: biz.practitioner_id || null, practitioner_name: biz.practitioner_name || null },
         business: { id: biz.id, slug: biz.slug, name: biz.name, sector: biz.sector || 'autre' }
       });
     }
@@ -148,7 +148,7 @@ router.post('/verify', async (req, res, next) => {
 
     // Fetch practitioner link + sector
     const extraResult = await query(
-      `SELECT b.sector, p.id AS practitioner_id
+      `SELECT b.sector, p.id AS practitioner_id, p.display_name AS practitioner_name
        FROM businesses b
        LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
        WHERE b.id = $1`, [ml.business_id, ml.user_id]
@@ -162,7 +162,8 @@ router.post('/verify', async (req, res, next) => {
         email: ml.email,
         role: ml.role,
         business_name: ml.business_name,
-        practitioner_id: extra.practitioner_id || null
+        practitioner_id: extra.practitioner_id || null,
+        practitioner_name: extra.practitioner_name || null
       },
       business: {
         sector: extra.sector || 'autre'

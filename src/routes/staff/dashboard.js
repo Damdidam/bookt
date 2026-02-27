@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
+router.use(resolvePractitionerScope);
 
 // ============================================================
 // GET /api/dashboard — basic business + practitioners
@@ -37,6 +38,7 @@ router.get('/summary', async (req, res, next) => {
     const monthStart = today.slice(0, 7) + '-01';
 
     // Today's bookings
+    const pracFilter = req.practitionerFilter;
     const todayBookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.internal_note,
@@ -46,14 +48,15 @@ router.get('/summary', async (req, res, next) => {
               (SELECT COUNT(*) FROM practitioner_todos t WHERE t.booking_id = b.id AND t.is_done = false) AS todo_count,
               (SELECT COUNT(*) FROM booking_notes n WHERE n.booking_id = b.id) AS note_count
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.business_id = $1
        AND DATE(b.start_at AT TIME ZONE 'Europe/Brussels') = $2
        AND b.status IN ('pending', 'confirmed', 'completed')
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        ORDER BY b.start_at`,
-      [bid, today]
+      pracFilter ? [bid, today, pracFilter] : [bid, today]
     );
 
     // Stats: bookings this month
@@ -64,16 +67,19 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
         COALESCE(SUM(s.price_cents) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        WHERE b.business_id = $1
-       AND b.start_at >= $2`,
-      [bid, monthStart]
+       AND b.start_at >= $2
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}`,
+      pracFilter ? [bid, monthStart, pracFilter] : [bid, monthStart]
     );
 
     // Active clients count
     const clientCount = await queryWithRLS(bid,
-      `SELECT COUNT(*) AS total FROM clients WHERE business_id = $1`,
-      [bid]
+      pracFilter
+        ? `SELECT COUNT(DISTINCT b.client_id) AS total FROM bookings b WHERE b.business_id = $1 AND b.practitioner_id = $2`
+        : `SELECT COUNT(*) AS total FROM clients WHERE business_id = $1`,
+      pracFilter ? [bid, pracFilter] : [bid]
     );
 
     // Call stats this month (if module active)
