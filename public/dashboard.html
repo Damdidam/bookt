@@ -215,17 +215,16 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .ev-no_show{border-left-color:var(--red)!important;opacity:.45;filter:grayscale(.2)}
 .ev-cancelled{border-left-color:var(--red)!important;opacity:.25;text-decoration:line-through}
 .ev-group-badge{display:inline-block;font-size:.55rem;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle}
-/* Multi-service quick create */
+/* Group container (merged events) */
+.ev-group-wrap .fc-event-main{padding:0!important}
+.ev-group-container{display:flex;flex-direction:column;height:100%;overflow:hidden}
+.ev-group-header{padding:3px 8px 2px;display:flex;align-items:center;justify-content:space-between;gap:4px}
+.ev-group-header .ev-client{font-weight:700;font-size:.73rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-group-count{font-size:.6rem;opacity:.6;white-space:nowrap;flex-shrink:0}
+.ev-group-member{padding:2px 8px;cursor:pointer;transition:background .12s;border-radius:3px;margin:0 4px;min-height:0;overflow:hidden;display:flex;align-items:center}
+.ev-group-member:hover{filter:brightness(.95)}
+.ev-gm-svc{font-size:.62rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
 .qc-svc-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px}
-/* Group visual: thin divider between services */
-.ev-group-first .fc-event-main{border-top-left-radius:6px;border-top-right-radius:6px}
-.ev-group-mid .fc-event-main{border-radius:0}
-.ev-group-last .fc-event-main{border-bottom-left-radius:6px;border-bottom-right-radius:6px}
-.ev-group-first,.ev-group-mid{margin-bottom:0!important}
-.ev-grouped{position:relative}
-.ev-grouped:not(.ev-group-first)::before{content:'';position:absolute;top:0;left:6px;right:6px;height:1px;background:currentColor;opacity:.15;z-index:1}
-/* Ghost block during group drag */
-.ev-group-ghost{opacity:.2!important;pointer-events:none!important;transition:none!important}
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
 .qc-svc-item .qc-svc-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
@@ -1117,10 +1116,9 @@ async function loadAgenda(){
 
     // Block overlap for same practitioner
     eventOverlap:function(stillEvent,movingEvent){
-      // Business allows overlap → always permit
       if(fcAllowOverlap)return true;
-      // Same group → always allow (they chain sequentially)
-      const sg=stillEvent.extendedProps?.group_id, mg=movingEvent?.extendedProps?.group_id;
+      // Group container vs its own members → always allow
+      const sg=stillEvent.extendedProps?._groupId, mg=movingEvent?.extendedProps?._groupId;
       if(sg&&mg&&sg===mg)return true;
       const sp=stillEvent.extendedProps?.practitioner_id;
       const mp=movingEvent?.extendedProps?.practitioner_id;
@@ -1132,48 +1130,28 @@ async function loadAgenda(){
 
     // Full collision check before allowing drop
     eventAllow:function(dropInfo,draggedEvent){
-      // Block drag in month view
       if(fcCal?.view?.type==='dayGridMonth')return false;
-      // Block drop on closed days
       const dropDay=dropInfo.start.getDay();
       if(fcHiddenDays.includes(dropDay))return false;
 
-      // For groups: calculate where the FIRST and LAST member would land
-      const myGroup=draggedEvent.extendedProps?.group_id;
-      let effectiveStart=dropInfo.start;
-      let effectiveEnd=dropInfo.end;
-      if(myGroup){
-        const allEvts=fcCal.getEvents().filter(e=>e.extendedProps?.group_id===myGroup);
-        allEvts.sort((a,b)=>a.start-b.start);
-        if(allEvts.length>0){
-          const delta=dropInfo.start.getTime()-draggedEvent.start.getTime();
-          effectiveStart=new Date(allEvts[0].start.getTime()+delta);
-          effectiveEnd=new Date(allEvts[allEvts.length-1].end.getTime()+delta);
-        }
-      }
+      // Group containers are already one event — no special group range calc needed
+      const effectiveStart=dropInfo.start;
+      const effectiveEnd=dropInfo.end;
 
-      // Block if range doesn't fit in practitioner's work slot (respects lunch break)
-      // NOTE: Removed — practitioners can manually place bookings during breaks.
-      // Business hours are visual indicators only; public booking API enforces availability.
-
-      // Business allows overlap → only block past
       if(fcAllowOverlap)return effectiveStart>=new Date();
       const myPrac=draggedEvent.extendedProps?.practitioner_id;
       if(!myPrac)return true;
       if(effectiveStart<new Date())return false;
+      const myGroupId=draggedEvent.extendedProps?._groupId;
       const newStart=dropInfo.start,newEnd=dropInfo.end;
       const allEvents=fcCal.getEvents();
       for(const ev of allEvents){
         if(ev.id===draggedEvent.id)continue;
-        if(myGroup&&ev.extendedProps?.group_id===myGroup)continue;
+        if(myGroupId&&ev.extendedProps?._groupId===myGroupId)continue;
         if(ev.extendedProps?.practitioner_id!==myPrac)continue;
         const st=ev.extendedProps?.status;
         if(st==='cancelled'||st==='no_show'||st==='completed')continue;
-        if(myGroup){
-          if(ev.start<effectiveEnd&&ev.end>effectiveStart)return false;
-        }else{
-          if(ev.start<newEnd&&ev.end>newStart)return false;
-        }
+        if(ev.start<newEnd&&ev.end>newStart)return false;
       }
       return true;
     },
@@ -1184,37 +1162,54 @@ async function loadAgenda(){
       if(fcCurrentFilter!=='all')params.set('practitioner_id',fcCurrentFilter);
       fetch('/api/bookings?'+params.toString(),{headers:{'Authorization':'Bearer '+api.getToken()}})
         .then(r=>r.json()).then(d=>{
-          const events=(d.bookings||[]).map(b=>{
+          const bookings=d.bookings||[];
+          const grouped={}, singles=[];
+          bookings.forEach(b=>{
+            if(b.group_id){
+              if(!grouped[b.group_id])grouped[b.group_id]=[];
+              grouped[b.group_id].push(b);
+            }else{singles.push(b);}
+          });
+
+          const events=[];
+
+          // Single events
+          singles.forEach(b=>{
             const frozen=['completed','cancelled','no_show'].includes(b.status);
-            let accent=b.service_color||b.booking_color||b.practitioner_color||'#0D7377';
-            return {
-            id:b.id,
-            title:b.client_name||'Sans nom',
-            start:b.start_at,
-            end:b.end_at,
-            backgroundColor:fcHexAlpha(accent,0.1),
-            borderColor:accent,
-            textColor:accent,
-            editable:!frozen,
-            durationEditable:!frozen&&!b.group_id,
-            extendedProps:{...b,_accent:accent}
-          }});
-          // Unified color for groups
-          const groupColors={};
-          events.forEach(ev=>{
-            const gid=ev.extendedProps.group_id;
-            if(!gid)return;
-            if(!groupColors[gid])groupColors[gid]=ev.extendedProps._accent;
+            const accent=b.service_color||b.booking_color||b.practitioner_color||'#0D7377';
+            events.push({
+              id:b.id,title:b.client_name||'Sans nom',
+              start:b.start_at,end:b.end_at,
+              backgroundColor:fcHexAlpha(accent,0.1),borderColor:accent,textColor:accent,
+              editable:!frozen,durationEditable:!frozen,
+              extendedProps:{...b,_accent:accent}
+            });
           });
-          events.forEach(ev=>{
-            const gid=ev.extendedProps.group_id;
-            if(gid&&groupColors[gid]){
-              ev.extendedProps._accent=groupColors[gid];
-              ev.backgroundColor=fcHexAlpha(groupColors[gid],0.1);
-              ev.borderColor=groupColors[gid];
-              ev.textColor=groupColors[gid];
-            }
+
+          // Grouped events → single container per group
+          Object.keys(grouped).forEach(gid=>{
+            const members=grouped[gid].sort((a,b)=>(a.group_order||0)-(b.group_order||0));
+            const first=members[0], last=members[members.length-1];
+            const accent=first.service_color||first.booking_color||first.practitioner_color||'#0D7377';
+            const anyFrozen=members.some(m=>['completed','cancelled','no_show'].includes(m.status));
+            const minStart=members.reduce((mn,m)=>m.start_at<mn?m.start_at:mn,members[0].start_at);
+            const maxEnd=members.reduce((mx,m)=>m.end_at>mx?m.end_at:mx,members[0].end_at);
+            events.push({
+              id:'group_'+gid,
+              title:first.client_name||'Sans nom',
+              start:minStart,end:maxEnd,
+              backgroundColor:fcHexAlpha(accent,0.1),borderColor:accent,textColor:accent,
+              editable:!anyFrozen,durationEditable:false,
+              extendedProps:{
+                _isGroup:true,_groupId:gid,_accent:accent,
+                _members:members.map(m=>({...m,_accent:m.service_color||m.booking_color||m.practitioner_color||accent})),
+                client_name:first.client_name,
+                practitioner_id:first.practitioner_id,
+                status:first.status
+              }
+            });
           });
+
           successCb(events);
         }).catch(e=>failCb(e));
     },
@@ -1224,32 +1219,60 @@ async function loadAgenda(){
       const p=arg.event.extendedProps;
       const accent=p._accent||'#0D7377';
       const isMonth=arg.view.type==='dayGridMonth';
+
+      // ── Group container ──
+      if(p._isGroup){
+        const members=p._members||[];
+        if(isMonth){
+          const t=arg.event.start?arg.event.start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
+          const name=(p.client_name||'').split(' ')[0];
+          return{html:`<span class="ev-month-pill" style="color:${accent}">${t} <strong>${name}</strong> 🔗${members.length}</span>`};
+        }
+        const totalMs=arg.event.end-arg.event.start;
+        let h=`<div class="ev-group-container" style="color:${accent}">`;
+        h+=`<div class="ev-group-header"><span class="ev-client">${p.client_name||'Groupe'}</span><span class="ev-group-count">🔗 ${members.length}</span></div>`;
+        members.forEach((m,i)=>{
+          const mDur=new Date(m.end_at)-new Date(m.start_at);
+          const pct=totalMs>0?((mDur/totalMs)*100).toFixed(1):100/members.length;
+          const mAccent=m._accent||accent;
+          const svcName=m.service_name||m.custom_label||'RDV libre';
+          h+=`<div class="ev-group-member" data-bid="${m.id}" style="flex:${pct};border-left:2px solid ${mAccent};background:${fcHexAlpha(mAccent,0.06)}">`;
+          h+=`<span class="ev-gm-svc" style="color:${mAccent}">${svcName}</span>`;
+          h+=`</div>`;
+        });
+        h+=`</div>`;
+        return{html:h};
+      }
+
+      // ── Single event ──
       if(isMonth){
         const t=arg.event.start?arg.event.start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
         const name=(p.client_name||arg.event.title||'').split(' ')[0];
         const freeIco=!p.service_name?' ✦':'';
         return{html:`<span class="ev-month-pill" style="color:${accent}">${t} <strong>${name}</strong>${freeIco}</span>`};
       }
-      // Week/Day: full rendering
       const svcLabel=p.service_name||p.custom_label||'RDV libre';
       const badges=[(p.internal_note?'<span class="ev-badge ev-badge-note" style="background:'+accent+'"></span>':''),(p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':'')].filter(Boolean).join('');
-      const groupTag=p.group_id?`<span class="ev-group-badge" style="background:${accent}30;color:${accent}">🔗</span>`:'';
       const freeTag=!p.service_name?'<span style="font-size:.58rem;opacity:.6;margin-left:3px">✦</span>':'';
-      return{html:`<div class="ev-inner" style="color:${accent}"><span class="ev-client">${p.client_name||arg.event.title}${groupTag}${freeTag}</span><span class="ev-service">${svcLabel}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
+      return{html:`<div class="ev-inner" style="color:${accent}"><span class="ev-client">${p.client_name||arg.event.title}${freeTag}</span><span class="ev-service">${svcLabel}</span>${badges?'<div class="ev-badges">'+badges+'</div>':''}</div>`};
     },
 
     // Status-based CSS classes
     eventClassNames:function(arg){
       const p=arg.event.extendedProps;
-      const cls=['ev-'+(p.status||'confirmed')];
-      if(p.group_id){
-        cls.push('ev-grouped');
-        // Find group bounds from all calendar events
-        const allEvts=fcCal.getEvents().filter(e=>e.extendedProps.group_id===p.group_id);
-        const maxOrder=Math.max(...allEvts.map(e=>e.extendedProps.group_order||0));
-        if(p.group_order===0)cls.push('ev-group-first');
-        else if(p.group_order===maxOrder)cls.push('ev-group-last');
-        else cls.push('ev-group-mid');
+      const cls=[];
+      if(p._isGroup){
+        cls.push('ev-group-wrap');
+        // Use worst status among members
+        const members=p._members||[];
+        const hasCancel=members.some(m=>m.status==='cancelled');
+        const hasNoShow=members.some(m=>m.status==='no_show');
+        const hasCompleted=members.every(m=>m.status==='completed');
+        if(hasCancel)cls.push('ev-cancelled');
+        else if(hasNoShow)cls.push('ev-no_show');
+        else if(hasCompleted)cls.push('ev-completed');
+      }else{
+        cls.push('ev-'+(p.status||'confirmed'));
       }
       return cls;
     },
@@ -1267,24 +1290,30 @@ async function loadAgenda(){
       const p=info.event.extendedProps;
       const accent=p._accent||'#0D7377';
 
-      // Ensure left border shows: FC sets border-color inline, CSS hides top/right/bottom
-      // Force left border structure in case FC overrides
+      // Ensure left border shows
       info.el.style.borderLeftWidth='3px';
       info.el.style.borderLeftStyle='solid';
       info.el.style.borderLeftColor=accent;
-      // Hide other borders explicitly (inline beats CSS)
       info.el.style.borderTopWidth='0';
       info.el.style.borderRightWidth='0';
       info.el.style.borderBottomWidth='0';
 
       info.el.setAttribute('data-eid',info.event.id);
-      const gid=p?.group_id;
-      if(gid)info.el.setAttribute('data-gid',gid);
+
+      // Resolve booking ID from click (for groups, detect which member was clicked)
+      function resolveBookingId(e){
+        if(p._isGroup){
+          const memberEl=e.target.closest('.ev-group-member');
+          if(memberEl&&memberEl.dataset.bid)return memberEl.dataset.bid;
+          return p._members?.[0]?.id; // fallback to first member
+        }
+        return info.event.id;
+      }
 
       // Desktop: native dblclick
       info.el.addEventListener('dblclick',function(e){
         e.stopPropagation();
-        fcOpenDetail(info.event.id);
+        fcOpenDetail(resolveBookingId(e));
       });
 
       // Mobile: double-tap detection
@@ -1293,7 +1322,7 @@ async function loadAgenda(){
         const now=Date.now();
         if(now-lastTap<600){
           e.preventDefault();
-          fcOpenDetail(info.event.id);
+          fcOpenDetail(resolveBookingId(e));
           lastTap=0;
         }else{
           lastTap=now;
@@ -1314,37 +1343,22 @@ async function loadAgenda(){
       }
     },
 
-    // Group drag: ghost siblings during drag (skip in month view)
-    eventDragStart:function(info){
-      if(fcCal.view.type==='dayGridMonth')return;
-      const gid=info.event.extendedProps?.group_id;
-      if(!gid)return;
-      document.querySelectorAll(`.fc-event[data-gid="${gid}"]`).forEach(el=>{
-        if(el.getAttribute('data-eid')!==info.event.id){
-          el.classList.add('ev-group-ghost');
-        }
-      });
-    },
-
-    // Always clean up ghosts when drag ends (drop, cancel, or revert)
-    eventDragStop:function(){
-      document.querySelectorAll('.ev-group-ghost').forEach(el=>el.classList.remove('ev-group-ghost'));
-    },
-
-    // Drag & drop → move booking
+    // Drag & drop → move booking (group containers move first member, backend cascades)
     eventDrop:async function(info){
-      document.querySelectorAll('.ev-group-ghost').forEach(el=>el.classList.remove('ev-group-ghost'));
       const ev=info.event,p=ev.extendedProps;
       try{
-        const r=await fetch(`/api/bookings/${ev.id}/move`,{
+        // For group containers, move the first member — backend moves siblings
+        const bookingId=p._isGroup?p._members[0].id:ev.id;
+        const pracId=p._isGroup?p._members[0].practitioner_id:p.practitioner_id;
+        const r=await fetch(`/api/bookings/${bookingId}/move`,{
           method:'PATCH',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-          body:JSON.stringify({start_at:ev.start.toISOString(),end_at:ev.end.toISOString(),practitioner_id:p.practitioner_id})
+          body:JSON.stringify({start_at:ev.start.toISOString(),end_at:ev.end.toISOString(),practitioner_id:pracId})
         });
         if(!r.ok){const d=await r.json();throw new Error(d.error||'Erreur');}
         const result=await r.json();
         gToast(result.group_moved?`${p.client_name||'Client'} — ${result.count} prestations déplacées`:(p.client_name||'RDV')+' déplacé','success');
-        fcCal.refetchEvents(); // Sync recalculated duration from backend
+        fcCal.refetchEvents();
       }catch(e){info.revert();gToast(e.message.includes('hevauche')||e.message.includes('pris')?'🚫 Créneau occupé — impossible de déplacer ici':e.message,'error');}
     },
 
@@ -1802,7 +1816,8 @@ function calCheckConflict(){
   const conflicts=[];
   for(const ev of fcCal.getEvents()){
     if(ev.id===myId)continue;
-    if(myGroup&&ev.extendedProps?.group_id===myGroup)continue;
+    // Skip group container that contains this booking
+    if(myGroup&&ev.extendedProps?._groupId===myGroup)continue;
     if(ev.extendedProps?.practitioner_id!==pracId)continue;
     const st=ev.extendedProps?.status;
     if(st==='cancelled'||st==='no_show')continue;
