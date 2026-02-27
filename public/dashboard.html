@@ -214,17 +214,7 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .ev-completed{opacity:.5;filter:grayscale(.3);border-left-color:var(--text-4)!important}
 .ev-no_show{border-left-color:var(--red)!important;opacity:.45;filter:grayscale(.2)}
 .ev-cancelled{border-left-color:var(--red)!important;opacity:.25;text-decoration:line-through}
-.ev-group-badge{display:inline-block;font-size:.55rem;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle}
-/* Group container (merged events) */
-.ev-group-wrap .fc-event-main{padding:0!important}
-.ev-group-container{display:flex;flex-direction:column;height:100%;overflow:hidden}
-.ev-group-header{padding:3px 8px 2px;display:flex;align-items:center;justify-content:space-between;gap:4px}
-.ev-group-header .ev-client{font-weight:700;font-size:.73rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ev-group-count{font-size:.6rem;opacity:.6;white-space:nowrap;flex-shrink:0}
-.ev-group-member{padding:2px 8px;cursor:pointer;transition:background .12s;border-radius:3px;margin:0 4px;min-height:0;overflow:hidden;display:flex;align-items:center}
-.ev-group-member:hover{filter:brightness(.95)}
-.ev-gm-svc{font-size:.62rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
-.qc-svc-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px}
+/* Multi-service quick create */
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
 .qc-svc-item .qc-svc-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
@@ -1220,37 +1210,22 @@ async function loadAgenda(){
       const accent=p._accent||'#0D7377';
       const isMonth=arg.view.type==='dayGridMonth';
 
-      // ── Group container ──
-      if(p._isGroup){
-        const members=p._members||[];
-        if(isMonth){
-          const t=arg.event.start?arg.event.start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
-          const name=(p.client_name||'').split(' ')[0];
-          return{html:`<span class="ev-month-pill" style="color:${accent}">${t} <strong>${name}</strong> 🔗${members.length}</span>`};
-        }
-        const totalMs=arg.event.end-arg.event.start;
-        let h=`<div class="ev-group-container" style="color:${accent}">`;
-        h+=`<div class="ev-group-header"><span class="ev-client">${p.client_name||'Groupe'}</span><span class="ev-group-count">🔗 ${members.length}</span></div>`;
-        members.forEach((m,i)=>{
-          const mDur=new Date(m.end_at)-new Date(m.start_at);
-          const pct=totalMs>0?((mDur/totalMs)*100).toFixed(1):100/members.length;
-          const mAccent=m._accent||accent;
-          const svcName=m.service_name||m.custom_label||'RDV libre';
-          h+=`<div class="ev-group-member" data-bid="${m.id}" style="flex:${pct};border-left:2px solid ${mAccent};background:${fcHexAlpha(mAccent,0.06)}">`;
-          h+=`<span class="ev-gm-svc" style="color:${mAccent}">${svcName}</span>`;
-          h+=`</div>`;
-        });
-        h+=`</div>`;
-        return{html:h};
-      }
-
-      // ── Single event ──
+      // ── Month view (same for singles and groups) ──
       if(isMonth){
         const t=arg.event.start?arg.event.start.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'}):'';
         const name=(p.client_name||arg.event.title||'').split(' ')[0];
-        const freeIco=!p.service_name?' ✦':'';
-        return{html:`<span class="ev-month-pill" style="color:${accent}">${t} <strong>${name}</strong>${freeIco}</span>`};
+        const extra=p._isGroup?' 🔗':(!p.service_name?' ✦':'');
+        return{html:`<span class="ev-month-pill" style="color:${accent}">${t} <strong>${name}</strong>${extra}</span>`};
       }
+
+      // ── Week/Day: group container — looks like a normal event ──
+      if(p._isGroup){
+        const members=p._members||[];
+        const svcs=members.map(m=>m.service_name||m.custom_label||'RDV libre').join(' · ');
+        return{html:`<div class="ev-inner" style="color:${accent}"><span class="ev-client">${p.client_name||'Groupe'} <span style="font-size:.58rem;opacity:.5">🔗${members.length}</span></span><span class="ev-service">${svcs}</span></div>`};
+      }
+
+      // ── Week/Day: single event ──
       const svcLabel=p.service_name||p.custom_label||'RDV libre';
       const badges=[(p.internal_note?'<span class="ev-badge ev-badge-note" style="background:'+accent+'"></span>':''),(p.status==='modified_pending'?'<span class="ev-badge ev-badge-mod"></span>':'')].filter(Boolean).join('');
       const freeTag=!p.service_name?'<span style="font-size:.58rem;opacity:.6;margin-left:3px">✦</span>':'';
@@ -1262,7 +1237,6 @@ async function loadAgenda(){
       const p=arg.event.extendedProps;
       const cls=[];
       if(p._isGroup){
-        cls.push('ev-group-wrap');
         // Use worst status among members
         const members=p._members||[];
         const hasCancel=members.some(m=>m.status==='cancelled');
@@ -1300,20 +1274,13 @@ async function loadAgenda(){
 
       info.el.setAttribute('data-eid',info.event.id);
 
-      // Resolve booking ID from click (for groups, detect which member was clicked)
-      function resolveBookingId(e){
-        if(p._isGroup){
-          const memberEl=e.target.closest('.ev-group-member');
-          if(memberEl&&memberEl.dataset.bid)return memberEl.dataset.bid;
-          return p._members?.[0]?.id; // fallback to first member
-        }
-        return info.event.id;
-      }
+      // Resolve booking ID (for groups → first member)
+      const bookingId=p._isGroup?p._members?.[0]?.id:info.event.id;
 
       // Desktop: native dblclick
       info.el.addEventListener('dblclick',function(e){
         e.stopPropagation();
-        fcOpenDetail(resolveBookingId(e));
+        fcOpenDetail(bookingId);
       });
 
       // Mobile: double-tap detection
@@ -1322,7 +1289,7 @@ async function loadAgenda(){
         const now=Date.now();
         if(now-lastTap<600){
           e.preventDefault();
-          fcOpenDetail(resolveBookingId(e));
+          fcOpenDetail(bookingId);
           lastTap=0;
         }else{
           lastTap=now;
