@@ -8,12 +8,20 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#F5F4F1;--white:#FFF;--surface:#FAFAF9;--border:#E8E6E2;--border-light:#ECEAE6;--text:#1A1816;--text2:#3D3832;--text3:#6B6560;--text4:#9C958E;--primary:#0D7377;--primary-dk:#0A5E61;--primary-light:#EFF9F8;--green:#15803D;--red:#DC2626;--gold:#A68B3C;--radius:14px;--sans:'Plus Jakarta Sans',-apple-system,sans-serif}
-html,body{height:100%;overflow:hidden;touch-action:none}
+html,body{height:100%;overflow:hidden;touch-action:none;
+  -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+  -webkit-touch-callout:none;-webkit-text-size-adjust:none;
+  -webkit-overflow-scrolling:touch}
 body{font-family:var(--sans);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
-canvas{touch-action:none;display:block}
-button{font-family:var(--sans);cursor:pointer;-webkit-tap-highlight-color:transparent}
-input[type="range"]{-webkit-appearance:none;background:var(--border);border-radius:2px;outline:none;height:4px}
+canvas{touch-action:none;display:block;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button{font-family:var(--sans);cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+input[type="range"]{-webkit-appearance:none;background:var(--border);border-radius:2px;outline:none;height:4px;-webkit-user-select:none;user-select:none}
 input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--primary);cursor:pointer;border:2.5px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.2)}
+/* Kill ALL mobile browser helpers */
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+div,span,label,p,h1,h2,h3{-webkit-user-select:none;-moz-user-select:none;user-select:none}
+/* Only allow select in textareas */
+textarea,.txt-textarea{-webkit-user-select:text!important;-moz-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
 
 /* Layout */
 .app{display:flex;flex-direction:column;height:100vh}
@@ -509,6 +517,40 @@ async function confirmConsent(){
   }catch(e){/* new wb, will be created with consent */}
   loadWhiteboard();
 }
+
+// ─── KILL MOBILE BROWSER HELPERS ─────────────────────────────
+// Block context menu everywhere (long-press menu on mobile)
+document.addEventListener('contextmenu',function(e){
+  if(e.target.tagName!=='TEXTAREA')e.preventDefault();
+},{passive:false});
+
+// Block text selection start on non-textarea elements
+document.addEventListener('selectstart',function(e){
+  if(e.target.tagName!=='TEXTAREA')e.preventDefault();
+});
+
+// Block copy/cut on canvas area
+document.addEventListener('copy',function(e){
+  if(e.target.tagName!=='TEXTAREA')e.preventDefault();
+});
+
+// Prevent double-tap zoom on iOS
+let lastTap=0;
+document.addEventListener('touchend',function(e){
+  const now=Date.now();
+  if(now-lastTap<300&&e.target.tagName!=='TEXTAREA'){e.preventDefault();}
+  lastTap=now;
+},{passive:false});
+
+// Prevent pinch zoom
+document.addEventListener('gesturestart',function(e){e.preventDefault();},{passive:false});
+document.addEventListener('gesturechange',function(e){e.preventDefault();},{passive:false});
+document.addEventListener('gestureend',function(e){e.preventDefault();},{passive:false});
+
+// Prevent pull-to-refresh and overscroll
+document.addEventListener('touchmove',function(e){
+  if(e.target.tagName!=='TEXTAREA'&&e.target.type!=='range')e.preventDefault();
+},{passive:false});
 
 // ─── INIT ────────────────────────────────────────────────────
 (function(){

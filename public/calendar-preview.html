@@ -8,6 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <style>
+/* ── Kill mobile browser helpers ── */
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
+body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+input,textarea,select,[contenteditable]{-webkit-user-select:text!important;-moz-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
+
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#FAFAF8;--white:#FFF;--surface:#F5F3EF;--surface-2:#EDEAE4;--border:#DDD9D1;--border-light:#ECEAE4;--text:#2C2824;--text-2:#4A4440;--text-3:#7A7470;--text-4:#A09A94;--coral:#E07A5F;--coral-dark:#C9684F;--coral-light:#FDF0EC;--coral-border:#F2C4B5;--green:#3A9E5C;--green-bg:#EEFAF1;--green-border:#B8E6C8;--gold:#C9A84C;--gold-bg:#FBF7ED;--blue:#3B82F6;--blue-bg:#EFF6FF;--red:#DC4444;--red-bg:#FEF1F1;--orange:#D97706;--orange-bg:#FFF7ED;--orange-border:#FBBF24;--purple:#8B5CF6;--serif:'DM Serif Display',Georgia,serif;--sans:'Outfit',-apple-system,sans-serif;--shadow:0 4px 16px rgba(0,0,0,0.06);--shadow-md:0 8px 32px rgba(0,0,0,0.08);--shadow-lg:0 20px 60px rgba(0,0,0,0.12);--radius:14px;--radius-sm:10px;--radius-xs:6px}
 body{background:var(--bg);font-family:var(--sans);color:var(--text);-webkit-font-smoothing:antialiased}
@@ -382,6 +388,11 @@ function createBooking(){const cl=document.getElementById('qcClient').value.trim
 
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeModal(o.id)}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(m=>closeModal(m.id))});
+</script>
+<script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
+<script>/* Kill mobile helpers */
+document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});
+document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});
 </script>
 </body>
 </html>
