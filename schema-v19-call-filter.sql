@@ -22,6 +22,27 @@ ALTER TABLE call_settings
 ALTER TABLE practitioners
   ADD COLUMN IF NOT EXISTS vacation_until DATE;
 
+-- 6. Create voicemails table
+CREATE TABLE IF NOT EXISTS call_voicemails (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  business_id     UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  call_sid        VARCHAR(50),
+  from_phone      VARCHAR(30),
+  recording_url   TEXT NOT NULL,
+  recording_sid   VARCHAR(50),
+  duration_sec    INTEGER DEFAULT 0,
+  transcription   TEXT,
+  is_read         BOOLEAN DEFAULT false,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_voicemails_business
+  ON call_voicemails(business_id, created_at DESC);
+
+ALTER TABLE call_voicemails ENABLE ROW LEVEL SECURITY;
+CREATE POLICY business_isolation ON call_voicemails
+  USING (business_id = current_setting('app.business_id')::uuid);
+
 -- 2. Update filter_mode CHECK to include 'vacation'
 ALTER TABLE call_settings DROP CONSTRAINT IF EXISTS call_settings_filter_mode_check;
 ALTER TABLE call_settings ADD CONSTRAINT call_settings_filter_mode_check

@@ -294,6 +294,53 @@ router.delete('/whitelist/:id', async (req, res, next) => {
   }
 });
 
+// ===== VOICEMAILS =====
+
+// GET /api/calls/voicemails
+router.get('/voicemails', async (req, res, next) => {
+  try {
+    const result = await queryWithRLS(req.businessId,
+      `SELECT * FROM call_voicemails WHERE business_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [req.businessId]
+    );
+    const unread = result.rows.filter(v => !v.is_read).length;
+    res.json({ voicemails: result.rows, unread });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/calls/voicemails/:id/read
+router.patch('/voicemails/:id/read', async (req, res, next) => {
+  try {
+    await queryWithRLS(req.businessId,
+      `UPDATE call_voicemails SET is_read = true WHERE id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/calls/voicemails/:id
+router.delete('/voicemails/:id', async (req, res, next) => {
+  try {
+    // Optionally delete from Twilio too
+    const vm = await queryWithRLS(req.businessId,
+      `SELECT recording_sid FROM call_voicemails WHERE id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+    if (vm.rows.length > 0 && vm.rows[0].recording_sid) {
+      const client = getTwilioClient();
+      if (client) {
+        await client.recordings(vm.rows[0].recording_sid).remove().catch(() => {});
+      }
+    }
+    await queryWithRLS(req.businessId,
+      `DELETE FROM call_voicemails WHERE id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
+
 // ===== BLACKLIST =====
 
 // GET /api/calls/blacklist

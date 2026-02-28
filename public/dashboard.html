@@ -5188,19 +5188,23 @@ async function loadCalls(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const[setR,wlR,logR,blR]=await Promise.all([
+    const[setR,wlR,logR,blR,vmR]=await Promise.all([
       fetch('/api/calls/settings',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/calls/whitelist',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/calls/logs',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/calls/blacklist',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
+      fetch('/api/calls/blacklist',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false})),
+      fetch('/api/calls/voicemails',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
     ]);
     const setD=await setR.json(), wlD=await wlR.json(), logD=await logR.json();
     const blD=blR.ok?await blR.json():{};
+    const vmD=vmR.ok?await vmR.json():{};
     const cs=setD.settings||{};
     const wl=wlD.whitelist||[];
     const logs=logD.logs||[];
     const st=logD.stats||{};
     const bl=blD.blacklist||[];
+    const vms=vmD.voicemails||[];
+    const vmUnread=vmD.unread||0;
 
     // KPIs
     let h=`<div class="kpis">`;
@@ -5213,6 +5217,7 @@ async function loadCalls(){
     // Tabs
     h+=`<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">`;
     h+=`<button class="btn-sm ${callTab==='logs'?'active':''}" onclick="callTab='logs';loadCalls()">📋 Journal</button>`;
+    h+=`<button class="btn-sm ${callTab==='voicemails'?'active':''}" onclick="callTab='voicemails';loadCalls()">🎙️ Vocaux${vmUnread>0?' <span style="background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px">'+vmUnread+'</span>':''}</button>`;
     h+=`<button class="btn-sm ${callTab==='config'?'active':''}" onclick="callTab='config';loadCalls()">⚙️ Configuration</button>`;
     h+=`<button class="btn-sm ${callTab==='messages'?'active':''}" onclick="callTab='messages';loadCalls()">💬 Messages</button>`;
     h+=`<button class="btn-sm ${callTab==='whitelist'?'active':''}" onclick="callTab='whitelist';loadCalls()">⭐ VIP (${wl.length})</button>`;
@@ -5220,6 +5225,7 @@ async function loadCalls(){
     h+=`</div>`;
 
     if(callTab==='logs') h+=renderCallLogs(logs);
+    else if(callTab==='voicemails') h+=renderCallVoicemails(vms);
     else if(callTab==='config') h+=renderCallConfig(cs);
     else if(callTab==='messages') h+=renderCallMessages(cs);
     else if(callTab==='whitelist') h+=renderCallWhitelist(wl);
@@ -5248,6 +5254,56 @@ function renderCallLogs(logs){
   }
   h+=`</div>`;
   return h;
+}
+
+function renderCallVoicemails(vms){
+  let h=`<div class="card"><div class="card-h"><h3>🎙️ Messages vocaux</h3><span class="badge badge-teal">${vms.length}</span></div>`;
+  h+=`<div style="padding:18px">`;
+  if(vms.length===0){
+    h+=`<div class="empty">Aucun message vocal.<br><span style="font-size:.8rem;color:var(--text-4)">Les messages vocaux apparaîtront ici quand la messagerie est activée (modes Strict et Vacances).</span></div>`;
+  }else{
+    h+=`<div style="display:flex;flex-direction:column;gap:12px">`;
+    vms.forEach(vm=>{
+      const dt=new Date(vm.created_at);
+      const dateStr=dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'})+' à '+dt.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+      const durStr=vm.duration_sec>0?`${Math.floor(vm.duration_sec/60)}:${String(vm.duration_sec%60).padStart(2,'0')}`:'—';
+      const isUnread=!vm.is_read;
+      h+=`<div style="padding:14px 16px;border:1.5px solid ${isUnread?'var(--primary)':'var(--border-light)'};border-radius:10px;background:${isUnread?'var(--primary-light)':'var(--white)'}">`;
+      h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">`;
+      h+=`<div>`;
+      if(isUnread) h+=`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--primary);margin-right:6px"></span>`;
+      h+=`<span style="font-family:monospace;font-size:.85rem;font-weight:600">${vm.from_phone||'Inconnu'}</span>`;
+      h+=`<span style="font-size:.78rem;color:var(--text-4);margin-left:10px">${dateStr}</span>`;
+      h+=`<span style="font-size:.75rem;color:var(--text-4);margin-left:10px">⏱️ ${durStr}</span>`;
+      h+=`</div>`;
+      h+=`<div style="display:flex;gap:6px">`;
+      if(isUnread) h+=`<button class="btn-outline btn-sm" onclick="markVoicemailRead('${vm.id}')" style="font-size:.72rem">✅ Lu</button>`;
+      h+=`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ce message vocal ?'))deleteVoicemail('${vm.id}')" style="font-size:.72rem">🗑️</button>`;
+      h+=`</div></div>`;
+      h+=`<audio controls preload="none" style="width:100%;height:36px;border-radius:8px" ${isUnread?`onplay="markVoicemailRead('${vm.id}')"`:''}><source src="${vm.recording_url}" type="audio/mpeg">Votre navigateur ne supporte pas la lecture audio.</audio>`;
+      if(vm.transcription) h+=`<div style="margin-top:8px;font-size:.82rem;color:var(--text-3);font-style:italic;padding:8px 12px;background:var(--surface);border-radius:8px">📝 ${vm.transcription}</div>`;
+      h+=`</div>`;
+    });
+    h+=`</div>`;
+  }
+  h+=`</div></div>`;
+  return h;
+}
+
+async function markVoicemailRead(id){
+  try{
+    await fetch(`/api/calls/voicemails/${id}/read`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});
+    loadCalls();
+  }catch(e){}
+}
+
+async function deleteVoicemail(id){
+  try{
+    const r=await fetch(`/api/calls/voicemails/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Message vocal supprimé','success');
+    loadCalls();
+  }catch(e){GendaUI.toast('Erreur','error');}
 }
 
 function renderCallConfig(cs){
