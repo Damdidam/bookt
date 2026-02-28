@@ -2,45 +2,41 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Prendre rendez-vous</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-/* ── Kill mobile browser helpers ── */
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
-html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
-body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
-input,textarea,select,[contenteditable]{-webkit-user-select:text!important;-moz-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
+html{-webkit-text-size-adjust:none}
+body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;user-select:none}
+input,textarea,select,[contenteditable]{-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--primary-border:#B8DDD9;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#DC2626;--red-bg:#FEF2F2;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
-
-/* Layout */
 .page{max-width:560px;margin:0 auto;padding:20px 20px 40px}
 
 /* Header */
 .header{display:flex;align-items:center;gap:10px;padding:12px 0 20px;border-bottom:1px solid var(--border-light);margin-bottom:20px}
-.header-logo{width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;flex-shrink:0}
+.header-logo{width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;flex-shrink:0;overflow:hidden}
+.header-logo img{width:100%;height:100%;object-fit:cover}
 .header-info h2{font-size:.9rem;font-weight:700}.header-info p{font-size:.72rem;color:var(--text-4)}
-.header-back{margin-left:auto;padding:6px 12px;border-radius:var(--radius-xs);font-size:.75rem;font-weight:600;color:var(--text-3);background:var(--surface);border:none;cursor:pointer;text-decoration:none}
+.header-back{margin-left:auto;padding:6px 12px;border-radius:var(--radius-xs);font-size:.75rem;font-weight:600;color:var(--text-3);background:var(--surface);border:none;cursor:pointer;text-decoration:none;min-height:44px;display:flex;align-items:center}
 
-/* Progress */
+/* Progress — dynamic */
 .progress{display:flex;gap:4px;margin-bottom:24px}
 .pdot{flex:1;height:4px;border-radius:2px;background:var(--surface-2);transition:background .3s}
-.pdot.done{background:var(--primary)}
-.pdot.active{background:var(--primary)}
+.pdot.done,.pdot.active{background:var(--primary)}
 
 /* Steps */
-.step{display:none;animation:fadeIn .3s ease}
-.step.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.step{display:none;animation:fadeIn .25s ease}.step.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .step-title{font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:4px}
 .step-sub{font-size:.85rem;color:var(--text-3);margin-bottom:18px}
 
 /* Service cards */
-.svc-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white)}
-.svc-card:hover{border-color:var(--primary-border);background:var(--primary-light)}
+.svc-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white);-webkit-tap-highlight-color:transparent}
+.svc-card:active{transform:scale(.98)}
 .svc-card.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
 .svc-card .top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .svc-card .dot{width:8px;height:8px;border-radius:4px;flex-shrink:0}
@@ -52,81 +48,87 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 /* Practitioner cards */
 .prac-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white);display:flex;gap:14px;align-items:center}
-.prac-card:hover{border-color:var(--primary-border)}
+.prac-card:active{transform:scale(.98)}
 .prac-card.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
 .prac-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem;color:#fff;flex-shrink:0;overflow:hidden}
+.prac-avatar img{width:100%;height:100%;object-fit:cover}
 .prac-info h4{font-size:.88rem;font-weight:700;margin-bottom:1px}
 .prac-info p{font-size:.73rem;color:var(--text-4)}
+
+/* Mode selector */
+.mode-row{display:flex;gap:6px;margin-bottom:14px}
+.mode-btn{flex:1;padding:10px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;font-family:var(--sans);font-size:.78rem;font-weight:600;color:var(--text-3);min-height:44px}
+.mode-btn:active{transform:scale(.97)}
+.mode-btn.sel{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.mode-btn .ico{font-size:1.1rem;display:block;margin-bottom:2px}
 
 /* Date picker */
 .date-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .date-nav .label{font-size:.9rem;font-weight:600}
-.date-nav button{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem;transition:all .12s;display:flex;align-items:center;justify-content:center}
-.date-nav button:hover{background:var(--surface)}
-.date-nav button:disabled{opacity:.3;cursor:not-allowed}
-.date-row{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;justify-content:center}
-.date-btn{min-width:56px;padding:10px 6px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;flex-shrink:0}
-.date-btn:hover{border-color:var(--primary-border)}
+.date-nav button{width:44px;height:44px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:.9rem;transition:all .12s;display:flex;align-items:center;justify-content:center}
+.date-nav button:hover{background:var(--surface)}.date-nav button:disabled{opacity:.3;cursor:not-allowed}
+.date-row{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;justify-content:center;-webkit-overflow-scrolling:touch}
+.date-btn{min-width:56px;padding:10px 6px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;flex-shrink:0;min-height:64px}
+.date-btn:active{transform:scale(.96)}
 .date-btn.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
 .date-btn.empty{opacity:.4;cursor:not-allowed}
 .date-btn .dow{font-size:.6rem;font-weight:700;text-transform:uppercase;color:var(--text-4);margin-bottom:2px}
 .date-btn .num{font-size:1.1rem;font-weight:700;color:var(--text)}
 .date-btn .month{font-size:.6rem;color:var(--text-4)}
 .date-btn.sel .dow,.date-btn.sel .num,.date-btn.sel .month{color:var(--primary)}
+.date-btn .slot-count{font-size:.55rem;font-weight:700;color:var(--primary);margin-top:1px}
 
 /* Time slots */
 .slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
-.slot-btn{padding:10px 4px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;font-size:.85rem;font-weight:600;color:var(--text);transition:all .15s;font-family:var(--sans)}
-.slot-btn:hover{border-color:var(--primary-border);background:var(--primary-light)}
+.slot-btn{padding:12px 4px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;font-size:.88rem;font-weight:600;color:var(--text);transition:all .15s;font-family:var(--sans);min-height:44px}
+.slot-btn:active{transform:scale(.95)}
 .slot-btn.sel{border-color:var(--primary);background:var(--primary);color:#fff}
 .no-slots{padding:24px;text-align:center;color:var(--text-4);font-size:.85rem;background:var(--surface);border-radius:var(--radius-xs)}
+.slots-loading{display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--text-4);font-size:.85rem}
 
-/* Waitlist CTA */
-.wl-cta{margin-top:16px;padding:20px;background:linear-gradient(135deg,#F5F0FF 0%,#EDE9FE 100%);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm);text-align:center}
-.wl-cta-icon{font-size:1.5rem;margin-bottom:6px}
-.wl-cta-title{font-family:var(--serif);font-size:1.05rem;color:var(--text);margin-bottom:4px}
+/* Waitlist */
+.wl-cta{margin-top:16px;padding:20px;background:linear-gradient(135deg,#F5F0FF,#EDE9FE);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm);text-align:center}
+.wl-cta-title{font-family:var(--serif);font-size:1.05rem;margin-bottom:4px}
 .wl-cta-sub{font-size:.78rem;color:var(--text-3);margin-bottom:12px;line-height:1.4}
-.wl-cta-btn{display:inline-block;padding:10px 24px;background:#7C3AED;color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s}
-.wl-cta-btn:hover{background:#6D28D9}
-.wl-form{margin-top:16px;padding:20px;background:var(--white);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm);text-align:left}
-.wl-form h3{font-family:var(--serif);font-size:1.1rem;font-weight:400;margin-bottom:4px}
+.wl-cta-btn{display:inline-block;padding:10px 24px;background:#7C3AED;color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;min-height:44px}
+.wl-form{margin-top:16px;padding:20px;background:var(--white);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm)}
+.wl-form h3{font-family:var(--serif);font-size:1.1rem;margin-bottom:4px}
 .wl-form .wl-form-sub{font-size:.78rem;color:var(--text-3);margin-bottom:16px}
 .wl-form .wl-days{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
-.wl-form .wl-day{font-size:.75rem;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;font-family:var(--sans);font-weight:600;color:var(--text-3);transition:all .15s}
+.wl-form .wl-day{font-size:.75rem;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;font-family:var(--sans);font-weight:600;color:var(--text-3);transition:all .15s;min-height:34px}
 .wl-form .wl-day.on{background:#7C3AED;color:#fff;border-color:#7C3AED}
-.wl-form .wl-submit{width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.88rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:4px}
-.wl-form .wl-submit:hover{background:#6D28D9}
-.wl-form .wl-submit:disabled{opacity:.6;cursor:not-allowed}
-.wl-form .wl-cancel{width:100%;padding:10px;background:none;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text-3);cursor:pointer;margin-top:8px}
-.wl-success{padding:24px;text-align:center;background:linear-gradient(135deg,#F0FDF4 0%,#DCFCE7 100%);border:1.5px solid #BBF7D0;border-radius:var(--radius-sm);margin-top:16px}
-.wl-success-icon{font-size:2rem;margin-bottom:8px}
+.wl-form .wl-submit{width:100%;padding:12px;background:#7C3AED;color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.88rem;font-weight:600;cursor:pointer;min-height:44px}
+.wl-form .wl-cancel{width:100%;padding:10px;background:none;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text-3);cursor:pointer;margin-top:8px;min-height:44px}
+.wl-success{padding:24px;text-align:center;background:linear-gradient(135deg,#F0FDF4,#DCFCE7);border:1.5px solid #BBF7D0;border-radius:var(--radius-sm);margin-top:16px}
 .wl-success h3{font-family:var(--serif);font-size:1.1rem;margin-bottom:4px}
 .wl-success p{font-size:.82rem;color:var(--text-3);line-height:1.4}
 .wl-success .position{display:inline-block;margin-top:8px;padding:4px 14px;background:#15803D;color:#fff;border-radius:20px;font-size:.78rem;font-weight:700}
 
 /* Form */
-.fg{margin-bottom:12px}
+.fg{margin-bottom:14px;position:relative}
 .fl{display:block;font-size:.75rem;font-weight:600;color:var(--text-2);margin-bottom:3px}
 .fl .opt{font-weight:400;color:var(--text-4)}
-.fi{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;color:var(--text);background:var(--white);outline:none;transition:border-color .15s}
+.fi{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.88rem;color:var(--text);background:var(--white);outline:none;transition:border-color .15s;min-height:44px}
 .fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
 .fi::placeholder{color:var(--text-4)}
-.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fi.invalid{border-color:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.1)}
+.fi.valid{border-color:var(--green)}
+.field-err{font-size:.72rem;color:var(--red);margin-top:3px;display:none}
+.field-err.show{display:block}
+.field-hint{font-size:.68rem;color:var(--text-4);margin-top:2px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ft{resize:vertical;min-height:60px}
-.checkbox{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:.78rem;color:var(--text-3);cursor:pointer}
-.checkbox input{margin-top:2px;accent-color:var(--primary)}
-
-/* Mode selector */
-.mode-row{display:flex;gap:6px;margin-bottom:14px}
-.mode-btn{flex:1;padding:10px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:all .15s;font-family:var(--sans);font-size:.78rem;font-weight:600;color:var(--text-3)}
-.mode-btn:hover{border-color:var(--primary-border)}
-.mode-btn.sel{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
-.mode-btn .ico{font-size:1.1rem;display:block;margin-bottom:2px}
+.checkbox{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:.78rem;color:var(--text-3);cursor:pointer;min-height:44px;align-items:center}
+.checkbox input{width:20px;height:20px;accent-color:var(--primary);flex-shrink:0}
+.phone-wrap{display:flex;gap:0;align-items:stretch}
+.phone-prefix{padding:12px 10px;background:var(--surface);border:1.5px solid var(--border);border-right:none;border-radius:var(--radius-xs) 0 0 var(--radius-xs);font-size:.85rem;font-weight:700;color:var(--text-2);display:flex;align-items:center;white-space:nowrap}
+.phone-wrap .fi{border-radius:0 var(--radius-xs) var(--radius-xs) 0}
+.bce-toggle{font-size:.78rem;color:var(--primary);cursor:pointer;font-weight:600;margin-bottom:12px;display:inline-flex;align-items:center;gap:4px}
 
 /* Summary */
-.summary{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+.summary{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:16px}
 .sum-row{display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem}
-.sum-row .label{color:var(--text-3)}.sum-row .val{font-weight:600}
+.sum-row .label{color:var(--text-3)}.sum-row .val{font-weight:600;text-align:right}
 .sum-divider{border-top:1px solid var(--border-light);margin:6px 0}
 
 /* Confirmation */
@@ -137,15 +139,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .confirm-details{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-top:16px;text-align:left}
 .confirm-details .row{display:flex;justify-content:space-between;padding:5px 0;font-size:.82rem}
 .confirm-details .row .l{color:var(--text-4)}.confirm-details .row .v{font-weight:600}
+.cal-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;justify-content:center}
+.cal-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1.5px solid var(--border);border-radius:var(--radius-xs);background:var(--white);font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s;text-decoration:none;min-height:44px}
+.cal-btn:hover{border-color:var(--primary-border);background:var(--primary-light);color:var(--primary)}
 
 /* Buttons */
-.btn-next{width:100%;padding:13px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px}
-.btn-next:hover{background:var(--primary-hover)}
-.btn-next:disabled{background:var(--surface-2);color:var(--text-4);cursor:not-allowed}
-.btn-outline{width:100%;padding:12px;background:transparent;color:var(--text-2);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px}
+.btn-next{width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px;min-height:52px}
+.btn-next:hover{background:var(--primary-hover)}.btn-next:active{transform:scale(.98)}
+.btn-next:disabled{background:var(--surface-2);color:var(--text-4);cursor:not-allowed;transform:none}
+.btn-outline{width:100%;padding:12px;background:transparent;color:var(--text-2);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px;min-height:48px}
 .btn-outline:hover{background:var(--surface)}
 
-/* Error */
+/* Global error */
 .err{display:none;padding:10px 14px;background:var(--red-bg);border:1px solid #FECACA;border-radius:var(--radius-xs);font-size:.8rem;color:var(--red);margin-bottom:12px}
 .err.show{display:block}
 
@@ -154,42 +159,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-@media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(3,1fr)}.slot-btn{padding:12px 4px;font-size:.88rem}}
-
-/* Calendar add buttons */
-.cal-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;justify-content:center}
-.cal-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1.5px solid var(--border);border-radius:var(--radius-xs);background:var(--white);font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s;text-decoration:none}
-.cal-btn:hover{border-color:var(--primary-border);background:var(--primary-light);color:var(--primary)}
-.cal-btn .cal-icon{font-size:1rem}
-
-/* Slots loading overlay */
-.slots-loading{display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--text-4);font-size:.85rem}
-.slots-loading .spinner{width:20px;height:20px;border-width:2.5px}
+@media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
-
 <div class="page">
-
-  <!-- HEADER -->
   <div class="header">
     <div class="header-logo" id="hLogo">?</div>
     <div class="header-info"><h2 id="hName">—</h2><p id="hTagline">—</p></div>
     <a class="header-back" id="hBack" href="#">← Retour</a>
   </div>
-
-  <!-- PROGRESS -->
-  <div class="progress">
-    <div class="pdot active" id="p1"></div>
-    <div class="pdot" id="p2"></div>
-    <div class="pdot" id="p3"></div>
-    <div class="pdot" id="p4"></div>
-    <div class="pdot" id="p5"></div>
-  </div>
-
+  <div class="progress" id="progressBar"></div>
   <div class="err" id="errMsg"></div>
-
-  <!-- LOADING -->
   <div class="loading" id="loadingState"><div class="spinner"></div><p style="margin-top:8px">Chargement...</p></div>
 
   <!-- STEP 1: SERVICE -->
@@ -197,7 +178,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <h2 class="step-title">Choisir une prestation</h2>
     <p class="step-sub">Quel type de rendez-vous souhaitez-vous ?</p>
     <div id="svcList"></div>
-    <button class="btn-next" id="btnStep1" disabled onclick="goStep(2)">Continuer →</button>
+    <button class="btn-next" id="btnStep1" disabled>Continuer →</button>
   </div>
 
   <!-- STEP 2: PRACTITIONER -->
@@ -205,55 +186,66 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <h2 class="step-title">Choisir un praticien</h2>
     <p class="step-sub" id="pracSub">Avec qui souhaitez-vous prendre rendez-vous ?</p>
     <div id="pracList"></div>
-    <button class="btn-next" id="btnStep2" disabled onclick="goStep(3)">Continuer →</button>
-    <button class="btn-outline" onclick="goStep(1)">← Retour</button>
+    <button class="btn-next" id="btnStep2" disabled>Continuer →</button>
+    <button class="btn-outline" id="backStep2">← Retour</button>
   </div>
 
   <!-- STEP 3: DATE + TIME -->
   <div class="step" data-step="3" id="step3">
     <h2 class="step-title">Choisir un créneau</h2>
     <p class="step-sub" id="slotSub">Sélectionnez une date puis un horaire.</p>
-
-    <!-- Mode -->
     <div class="mode-row" id="modeRow" style="display:none"></div>
-
-    <!-- Date selector -->
-    <div class="date-nav">
-      <button id="prevWeek" onclick="shiftWeek(-1)">‹</button>
-      <span class="label" id="weekLabel">—</span>
-      <button id="nextWeek" onclick="shiftWeek(1)">›</button>
-    </div>
+    <div class="date-nav"><button id="prevWeek">‹</button><span class="label" id="weekLabel">—</span><button id="nextWeek">›</button></div>
     <div class="date-row" id="dateRow"></div>
-
-    <!-- Slots -->
-    <div id="slotsArea"><div class="no-slots">Sélectionnez une date</div></div>
-
-    <!-- Waitlist CTA (always visible if practitioner has it enabled) -->
+    <div id="slotsArea"><div class="no-slots">Chargement...</div></div>
     <div id="wlArea"></div>
-
-    <button class="btn-next" id="btnStep3" disabled onclick="goStep(4)">Continuer →</button>
-    <button class="btn-outline" onclick="goStep(2)">← Retour</button>
+    <button class="btn-next" id="btnStep3" disabled>Continuer →</button>
+    <button class="btn-outline" id="backStep3">← Retour</button>
   </div>
 
   <!-- STEP 4: CLIENT INFO -->
   <div class="step" data-step="4" id="step4">
     <h2 class="step-title">Vos coordonnées</h2>
     <p class="step-sub">Pour confirmer votre rendez-vous.</p>
-
     <div class="summary" id="bookingSummary"></div>
 
-    <div class="fr">
-      <div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="cName" placeholder="Marie Dupont"></div>
-      <div class="fg"><label class="fl">Téléphone *</label><input class="fi" type="tel" id="cPhone" placeholder="+32 4XX XX XX XX"></div>
+    <div class="fg">
+      <label class="fl">Prénom et nom *</label>
+      <input class="fi" id="cName" placeholder="Marie Dupont" autocomplete="name" inputmode="text">
+      <div class="field-err" id="errName"></div>
     </div>
-    <div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="cEmail" placeholder="marie@example.com"></div>
-    <div class="fg"><label class="fl">N° BCE / entreprise <span class="opt">(opt.)</span></label><input class="fi" id="cBce" placeholder="0XXX.XXX.XXX"></div>
-    <div class="fg"><label class="fl">Remarque <span class="opt">(opt.)</span></label><textarea class="fi ft" id="cComment" placeholder="Informations utiles pour le praticien..."></textarea></div>
+    <div class="fg">
+      <label class="fl">Téléphone mobile *</label>
+      <div class="phone-wrap">
+        <span class="phone-prefix">🇧🇪 +32</span>
+        <input class="fi" id="cPhone" placeholder="4XX XX XX XX" autocomplete="tel" inputmode="tel" maxlength="12">
+      </div>
+      <div class="field-hint">Format : 04XX XX XX XX (mobile belge)</div>
+      <div class="field-err" id="errPhone"></div>
+    </div>
+    <div class="fg">
+      <label class="fl">Email *</label>
+      <input class="fi" id="cEmail" placeholder="marie@example.com" autocomplete="email" inputmode="email">
+      <div class="field-err" id="errEmail"></div>
+    </div>
 
-    <label class="checkbox"><input type="checkbox" id="cConsent" checked> J'accepte de recevoir les confirmations et rappels par email et SMS.</label>
+    <div id="bceArea" style="display:none">
+      <div class="fg">
+        <label class="fl">N° BCE / entreprise</label>
+        <input class="fi" id="cBce" placeholder="0XXX.XXX.XXX" inputmode="numeric">
+      </div>
+    </div>
+    <span class="bce-toggle" id="bceToggle" onclick="toggleBce()">+ Ajouter un n° BCE</span>
 
-    <button class="btn-next" id="btnStep4" onclick="submitBooking()">Confirmer le rendez-vous →</button>
-    <button class="btn-outline" onclick="goStep(3)">← Retour</button>
+    <div class="fg">
+      <label class="fl">Remarque <span class="opt">(optionnel)</span></label>
+      <textarea class="fi ft" id="cComment" placeholder="Informations utiles pour le praticien..."></textarea>
+    </div>
+
+    <label class="checkbox"><input type="checkbox" id="cConsent" checked> J'accepte les confirmations et rappels par email et SMS.</label>
+
+    <button class="btn-next" id="btnStep4">Confirmer le rendez-vous →</button>
+    <button class="btn-outline" id="backStep4">← Retour</button>
   </div>
 
   <!-- STEP 5: CONFIRMATION -->
@@ -261,580 +253,495 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <div class="confirm-box">
       <div class="icon">✅</div>
       <h3>Rendez-vous confirmé !</h3>
-      <p>Vous recevrez une confirmation par email.</p>
+      <p>Vous recevrez une confirmation par email et SMS.</p>
       <div class="confirm-details" id="confirmDetails"></div>
       <div class="cal-buttons" id="calButtons"></div>
     </div>
-    <button class="btn-outline" style="margin-top:16px" onclick="window.location.href='/' + slug">← Retour au cabinet</button>
+    <button class="btn-outline" style="margin-top:16px" id="btnBackSite">← Retour au cabinet</button>
   </div>
-
 </div>
 
 <script>
-const DAYS_SHORT = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-const DAYS_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-const MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-const MONTHS_FULL = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const MODE_LABELS = {cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone'};
-const MODE_ICONS = {cabinet:'🏢',visio:'💻',phone:'📞'};
+const DAYS_SHORT=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+const DAYS_FULL=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const MONTHS=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+const MONTHS_FULL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const MODE_LABELS={cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone',domicile:'À domicile'};
+const MODE_ICONS={cabinet:'🏢',visio:'💻',phone:'📞',domicile:'🏠'};
 
 // State
-let slug = '';
-let siteData = null;
-let selectedService = null;
-let selectedPractitioner = null;
-let selectedMode = null;
-let selectedDate = null;
-let selectedSlot = null;
-let slotsData = {};
-let weekOffset = 0;
+let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selectedMode=null,selectedDate=null,selectedSlot=null,slotsData={},weekOffset=0;
+let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
+let currentStepIdx=0;
 
-// Get slug from URL
-const pathParts = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
-slug = pathParts[0];
+const pathParts=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
+slug=pathParts[0];
+const urlParams=new URLSearchParams(window.location.search);
 
 loadSiteData();
 
-async function loadSiteData() {
-  try {
-    const res = await fetch(`/api/public/${slug}`);
-    if (!res.ok) throw new Error('Cabinet introuvable');
-    siteData = await res.json();
+async function loadSiteData(){
+  try{
+    const res=await fetch('/api/public/'+slug);
+    if(!res.ok)throw new Error('Cabinet introuvable');
+    siteData=await res.json();
     initPage();
-  } catch (err) {
-    document.getElementById('loadingState').innerHTML = `<p style="color:var(--red)">Erreur : ${err.message}</p>`;
-  }
+  }catch(err){document.getElementById('loadingState').innerHTML='<p style="color:var(--red)">'+err.message+'</p>';}
 }
 
-function initPage() {
-  const b = siteData.business;
-  const initials = b.name.split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
-  document.getElementById('hLogo').textContent = initials;
-  document.getElementById('hName').textContent = b.name;
-  document.getElementById('hTagline').textContent = b.tagline || '';
-  document.getElementById('hBack').href = '/' + slug;
-  document.title = `Prendre RDV — ${b.name}`;
-
-  // Apply theme
-  if (b.theme?.primary_color) {
-    document.documentElement.style.setProperty('--primary', b.theme.primary_color);
-  }
+function initPage(){
+  const b=siteData.business;
+  const init=b.name.split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
+  const hLogo=document.getElementById('hLogo');
+  if(b.logo_url)hLogo.innerHTML='<img src="'+b.logo_url+'" alt="">';else hLogo.textContent=init;
+  document.getElementById('hName').textContent=b.name;
+  document.getElementById('hTagline').textContent=b.tagline||'';
+  document.getElementById('hBack').href='/'+slug;
+  document.getElementById('btnBackSite').onclick=()=>window.location.href='/'+slug;
+  document.title='Prendre RDV — '+b.name;
+  if(b.theme?.primary_color)document.documentElement.style.setProperty('--primary',b.theme.primary_color);
 
   // Build service list
-  const list = document.getElementById('svcList');
-  list.innerHTML = siteData.services.map(s => {
-    const price = s.price_cents ? `${(s.price_cents/100).toFixed(0)} €` : (s.price_label || 'Gratuit');
-    const modes = (s.mode_options||[]).map(m => `<span class="svc-mode">${MODE_LABELS[m]||m}</span>`).join('');
-    return `<div class="svc-card" data-id="${s.id}" onclick="selectService('${s.id}')">
-      <div class="top"><div class="dot" style="background:${s.color||'var(--primary)'}"></div><span class="name">${s.name}</span><span class="price">${price}</span></div>
-      <div class="meta">${s.duration_min} min</div>
-      <div class="svc-modes">${modes}</div>
-    </div>`;
+  const list=document.getElementById('svcList');
+  list.innerHTML=siteData.services.map(s=>{
+    const price=s.price_cents?(s.price_cents/100).toFixed(0)+' €':(s.price_label||'Gratuit');
+    const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
+    return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
   }).join('');
 
-  document.getElementById('loadingState').style.display = 'none';
-  document.getElementById('step1').classList.add('active');
-}
+  // Click handlers
+  list.querySelectorAll('.svc-card').forEach(c=>c.addEventListener('click',()=>selectService(c.dataset.id)));
 
-// ============================================================
-// STEP 1: SELECT SERVICE
-// ============================================================
-function selectService(id) {
-  selectedService = siteData.services.find(s => s.id === id);
-  document.querySelectorAll('.svc-card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
-  document.getElementById('btnStep1').disabled = false;
-}
+  document.getElementById('btnStep1').addEventListener('click',()=>goNext());
+  document.getElementById('btnStep2').addEventListener('click',()=>goNext());
+  document.getElementById('btnStep3').addEventListener('click',()=>goNext());
+  document.getElementById('btnStep4').addEventListener('click',()=>submitBooking());
+  document.getElementById('backStep2').addEventListener('click',()=>goPrev());
+  document.getElementById('backStep3').addEventListener('click',()=>goPrev());
+  document.getElementById('backStep4').addEventListener('click',()=>goPrev());
+  document.getElementById('prevWeek').addEventListener('click',()=>shiftWeek(-1));
+  document.getElementById('nextWeek').addEventListener('click',()=>shiftWeek(1));
 
-// ============================================================
-// STEP 2: SELECT PRACTITIONER
-// ============================================================
-function buildPractitioners() {
-  // Filter practitioners who offer this service
-  const pracs = siteData.practitioners.filter(p =>
-    p.service_ids.includes(selectedService.id)
-  );
+  // Phone live formatting
+  const phoneInput=document.getElementById('cPhone');
+  phoneInput.addEventListener('input',formatPhoneInput);
+  phoneInput.addEventListener('blur',validatePhoneField);
+  document.getElementById('cEmail').addEventListener('blur',validateEmailField);
+  document.getElementById('cName').addEventListener('blur',validateNameField);
 
-  if (pracs.length === 1) {
-    // Auto-select and skip
-    selectedPractitioner = pracs[0];
-    return false; // signal to skip
+  document.getElementById('loadingState').style.display='none';
+
+  // Deep-link: auto-select service from URL
+  const paramService=urlParams.get('service');
+  const paramPrac=urlParams.get('practitioner');
+  if(paramService){
+    const svc=siteData.services.find(s=>s.id===paramService);
+    if(svc){
+      selectService(paramService);
+      // If also practitioner param, select and skip to step 3
+      if(paramPrac){
+        const p=siteData.practitioners.find(x=>x.id===paramPrac&&x.service_ids.includes(paramService));
+        if(p){selectedPractitioner=p;computeStepOrder();goToStep(3);return;}
+      }
+      // Otherwise just advance past step 1
+      computeStepOrder();goToStep(stepOrder[1]||2);return;
+    }
   }
 
-  const list = document.getElementById('pracList');
-  list.innerHTML = pracs.map(p => {
-    const initials = p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    const avatar = p.photo_url
-      ? `<div class="prac-avatar" style="background:${p.color||'var(--primary)'}"><img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>`
-      : `<div class="prac-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>`;
-    return `<div class="prac-card" data-id="${p.id}" onclick="selectPractitioner('${p.id}')">
-      ${avatar}
-      <div class="prac-info"><h4>${p.display_name}</h4><p>${p.title||''}${p.years_experience ? ' · '+p.years_experience+' ans' : ''}</p></div>
-    </div>`;
+  // Normal start
+  computeStepOrder();
+  goToStep(1);
+}
+
+// ──────── SERVICE ────────
+function selectService(id){
+  selectedService=siteData.services.find(s=>s.id===id);
+  document.querySelectorAll('.svc-card').forEach(c=>c.classList.toggle('sel',c.dataset.id===id));
+  document.getElementById('btnStep1').disabled=false;
+  // Reset downstream
+  selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+}
+
+// ──────── PRACTITIONER ────────
+function buildPractitioners(){
+  const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
+  if(pracs.length===1){selectedPractitioner=pracs[0];return false;}
+  if(pracs.length===0){selectedPractitioner=siteData.practitioners[0];return false;}
+  const list=document.getElementById('pracList');
+  list.innerHTML=pracs.map(p=>{
+    const pi=p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+p.photo_url+'"></div>'
+      :'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'">'+pi+'</div>';
+    return '<div class="prac-card" data-id="'+p.id+'">'+av+'<div class="prac-info"><h4>'+p.display_name+'</h4><p>'+(p.title||'')+(p.years_experience?' · '+p.years_experience+' ans':'')+'</p></div></div>';
   }).join('');
-
-  document.getElementById('btnStep2').disabled = true;
-  return true; // show step
+  list.querySelectorAll('.prac-card').forEach(c=>c.addEventListener('click',()=>{
+    selectedPractitioner=siteData.practitioners.find(p=>p.id===c.dataset.id);
+    list.querySelectorAll('.prac-card').forEach(x=>x.classList.toggle('sel',x.dataset.id===c.dataset.id));
+    document.getElementById('btnStep2').disabled=false;
+  }));
+  document.getElementById('btnStep2').disabled=true;
+  return true;
 }
 
-function selectPractitioner(id) {
-  selectedPractitioner = siteData.practitioners.find(p => p.id === id);
-  document.querySelectorAll('.prac-card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
-  document.getElementById('btnStep2').disabled = false;
+// ──────── STEP ORDER ────────
+function computeStepOrder(){
+  const pracs=siteData.practitioners.filter(p=>selectedService?p.service_ids.includes(selectedService.id):true);
+  const showPrac=pracs.length>1;
+  stepOrder=showPrac?[1,2,3,4,5]:[1,3,4,5];
+  renderProgress();
+}
+function renderProgress(){
+  const bar=document.getElementById('progressBar');
+  bar.innerHTML=stepOrder.map((_,i)=>'<div class="pdot" data-idx="'+i+'"></div>').join('');
+}
+function updateProgress(){
+  const dots=document.querySelectorAll('.pdot');
+  dots.forEach((d,i)=>{d.classList.toggle('done',i<currentStepIdx);d.classList.toggle('active',i===currentStepIdx);});
 }
 
-// ============================================================
-// STEP 3: DATE + TIME
-// ============================================================
-function buildModeSelector() {
-  const modes = selectedService.mode_options || ['cabinet'];
-  if (modes.length <= 1) {
-    selectedMode = modes[0] || 'cabinet';
-    document.getElementById('modeRow').style.display = 'none';
-    return;
+// ──────── NAVIGATION ────────
+function goToStep(n){
+  hideError();
+  if(n===2)buildPractitioners();
+  if(n===3){
+    if(!selectedPractitioner){const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));selectedPractitioner=pracs[0];}
+    buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
   }
-  selectedMode = modes[0];
-  document.getElementById('modeRow').style.display = 'flex';
-  document.getElementById('modeRow').innerHTML = modes.map(m =>
-    `<div class="mode-btn ${m===selectedMode?'sel':''}" data-mode="${m}" onclick="selectMode('${m}')">
-      <span class="ico">${MODE_ICONS[m]||'📋'}</span>${MODE_LABELS[m]||m}
-    </div>`
-  ).join('');
+  if(n===4)buildSummary();
+
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  const el=document.querySelector('.step[data-step="'+n+'"]');
+  if(el)el.classList.add('active');
+  currentStepIdx=stepOrder.indexOf(n);
+  updateProgress();
+  window.scrollTo(0,0);
+}
+function goNext(){
+  const nextIdx=currentStepIdx+1;
+  if(nextIdx<stepOrder.length)goToStep(stepOrder[nextIdx]);
+}
+function goPrev(){
+  const prevIdx=currentStepIdx-1;
+  if(prevIdx>=0)goToStep(stepOrder[prevIdx]);
 }
 
-function selectMode(m) {
-  selectedMode = m;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('sel', b.dataset.mode === m));
-  selectedDate = null;
-  selectedSlot = null;
-  document.getElementById('btnStep3').disabled = true;
-  loadSlots();
+// ──────── MODE ────────
+function buildModeSelector(){
+  const modes=selectedService.mode_options||['cabinet'];
+  if(modes.length<=1){selectedMode=modes[0]||'cabinet';document.getElementById('modeRow').style.display='none';return;}
+  selectedMode=modes[0];
+  const row=document.getElementById('modeRow');
+  row.style.display='flex';
+  row.innerHTML=modes.map(m=>'<div class="mode-btn '+(m===selectedMode?'sel':'')+'" data-mode="'+m+'"><span class="ico">'+(MODE_ICONS[m]||'📋')+'</span>'+(MODE_LABELS[m]||m)+'</div>').join('');
+  row.querySelectorAll('.mode-btn').forEach(b=>b.addEventListener('click',()=>{
+    selectedMode=b.dataset.mode;
+    row.querySelectorAll('.mode-btn').forEach(x=>x.classList.toggle('sel',x.dataset.mode===b.dataset.mode));
+    selectedDate=null;selectedSlot=null;document.getElementById('btnStep3').disabled=true;loadSlots();
+  }));
 }
 
-function buildDateRow() {
-  const today = new Date();
-  today.setDate(today.getDate() + 1 + weekOffset * 7); // Start from tomorrow
-  const row = document.getElementById('dateRow');
-  let html = '';
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const key = d.toISOString().split('T')[0];
-    const hasSlots = slotsData[key] && slotsData[key].length > 0;
-    html += `<div class="date-btn ${!hasSlots?'empty':''} ${selectedDate===key?'sel':''}" data-date="${key}" onclick="${hasSlots ? `selectDate('${key}')` : ''}">
-      <div class="dow">${DAYS_SHORT[d.getDay()]}</div>
-      <div class="num">${d.getDate()}</div>
-      <div class="month">${MONTHS[d.getMonth()]}</div>
-    </div>`;
+// ──────── DATE/SLOTS ────────
+function buildDateRow(){
+  const today=new Date();today.setDate(today.getDate()+1+weekOffset*7);
+  const row=document.getElementById('dateRow');
+  let html='';
+  for(let i=0;i<7;i++){
+    const d=new Date(today);d.setDate(today.getDate()+i);
+    const key=d.toISOString().split('T')[0];
+    const slots=slotsData[key]||[];
+    const has=slots.length>0;
+    html+='<div class="date-btn '+(has?'':'empty')+' '+(selectedDate===key?'sel':'')+'" data-date="'+key+'">'
+      +'<div class="dow">'+DAYS_SHORT[d.getDay()]+'</div><div class="num">'+d.getDate()+'</div><div class="month">'+MONTHS[d.getMonth()]+'</div>'
+      +(has?'<div class="slot-count">'+slots.length+'</div>':'')+'</div>';
   }
-  row.innerHTML = html;
+  row.innerHTML=html;
+  row.querySelectorAll('.date-btn:not(.empty)').forEach(b=>b.addEventListener('click',()=>selectDate(b.dataset.date)));
 
-  // Week label
-  const endDate = new Date(today);
-  endDate.setDate(today.getDate() + 6);
-  document.getElementById('weekLabel').textContent =
-    `${today.getDate()} ${MONTHS[today.getMonth()]} – ${endDate.getDate()} ${MONTHS[endDate.getMonth()]}`;
-  document.getElementById('prevWeek').disabled = weekOffset <= 0;
+  const endDate=new Date(today);endDate.setDate(today.getDate()+6);
+  document.getElementById('weekLabel').textContent=today.getDate()+' '+MONTHS[today.getMonth()]+' – '+endDate.getDate()+' '+MONTHS[endDate.getMonth()];
+  document.getElementById('prevWeek').disabled=weekOffset<=0;
 }
 
-async function loadSlots() {
-  // Show loading spinner
-  document.getElementById('slotsArea').innerHTML = '<div class="slots-loading"><div class="spinner"></div>Chargement des créneaux...</div>';
-
-  const today = new Date();
-  today.setDate(today.getDate() + 1 + weekOffset * 7);
-  const endDate = new Date(today);
-  endDate.setDate(today.getDate() + 6);
-
-  const params = new URLSearchParams({
-    service_id: selectedService.id,
-    practitioner_id: selectedPractitioner.id,
-    date_from: today.toISOString().split('T')[0],
-    date_to: endDate.toISOString().split('T')[0]
-  });
-  if (selectedMode) params.set('appointment_mode', selectedMode);
-
-  try {
-    const res = await fetch(`/api/public/${slug}/slots?${params}`);
-    const data = await res.json();
-    slotsData = data.by_date || {};
-  } catch (err) {
-    slotsData = {};
-  }
-
+async function loadSlots(){
+  document.getElementById('slotsArea').innerHTML='<div class="slots-loading"><div class="spinner"></div>Chargement des créneaux...</div>';
+  const today=new Date();today.setDate(today.getDate()+1+weekOffset*7);
+  const endDate=new Date(today);endDate.setDate(today.getDate()+6);
+  const params=new URLSearchParams({service_id:selectedService.id,practitioner_id:selectedPractitioner.id,date_from:today.toISOString().split('T')[0],date_to:endDate.toISOString().split('T')[0]});
+  if(selectedMode)params.set('appointment_mode',selectedMode);
+  try{const res=await fetch('/api/public/'+slug+'/slots?'+params);const data=await res.json();slotsData=data.by_date||{};}catch(e){slotsData={};}
   buildDateRow();
-
-  // Auto-select first date with slots
-  const firstDate = Object.keys(slotsData).find(k => slotsData[k]?.length > 0);
-  if (!selectedDate && firstDate) {
-    selectDate(firstDate);
-  } else if (!firstDate && weekOffset < 8) {
-    // No slots this week → auto-advance to next week (max 8 weeks ahead)
-    weekOffset++;
-    return loadSlots();
-  } else if (!firstDate) {
-    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible dans les 8 prochaines semaines.</div>';
-  } else if (selectedDate) {
-    renderSlots();
-  }
-
-  // Scroll to slots area on mobile
-  if (window.innerWidth <= 600) {
-    setTimeout(() => {
-      const area = document.getElementById('slotsArea');
-      if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 150);
-  }
-
-  // Always show waitlist CTA if practitioner has it enabled
+  // Auto-select first available date
+  const firstDate=Object.keys(slotsData).sort().find(k=>slotsData[k]?.length>0);
+  if(firstDate){selectDate(firstDate);}
+  else if(weekOffset<8){weekOffset++;return loadSlots();}
+  else{document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau disponible dans les 8 prochaines semaines.</div>';}
   renderWlCTA();
 }
 
-function selectDate(key) {
-  selectedDate = key;
-  selectedSlot = null;
-  document.getElementById('btnStep3').disabled = true;
-  document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('sel', b.dataset.date === key));
+function selectDate(key){
+  selectedDate=key;selectedSlot=null;document.getElementById('btnStep3').disabled=true;
+  document.querySelectorAll('.date-btn').forEach(b=>b.classList.toggle('sel',b.dataset.date===key));
   renderSlots();
 }
+function renderSlots(){
+  const slots=slotsData[selectedDate]||[];
+  if(!slots.length){document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau ce jour.</div>';return;}
+  const grid=document.createElement('div');grid.className='slots-grid';
+  slots.forEach(s=>{
+    const btn=document.createElement('button');btn.className='slot-btn';btn.textContent=s.start_time;
+    btn.addEventListener('click',()=>{
+      selectedSlot=s;
+      grid.querySelectorAll('.slot-btn').forEach(b=>b.classList.remove('sel'));
+      btn.classList.add('sel');
+      document.getElementById('btnStep3').disabled=false;
+    });
+    grid.appendChild(btn);
+  });
+  document.getElementById('slotsArea').innerHTML='';
+  document.getElementById('slotsArea').appendChild(grid);
+  if(window.innerWidth<=600)setTimeout(()=>grid.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+}
+function shiftWeek(dir){
+  weekOffset+=dir;if(weekOffset<0)weekOffset=0;
+  selectedDate=null;selectedSlot=null;document.getElementById('btnStep3').disabled=true;loadSlots();
+}
 
-function renderSlots() {
-  const slots = slotsData[selectedDate] || [];
-  if (slots.length === 0) {
-    document.getElementById('slotsArea').innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour.</div>';
+// ──────── VALIDATION ────────
+function sanitizePhone(raw){
+  // Strip everything that isn't a digit
+  return raw.replace(/[^\d]/g,'');
+}
+function formatPhoneInput(e){
+  const input=e.target;
+  let v=sanitizePhone(input.value);
+  // Remove leading 0 if user typed 04xx (we have +32 prefix)
+  if(v.startsWith('0'))v=v.slice(1);
+  // Limit to 9 digits (Belgian mobile without leading 0)
+  v=v.slice(0,9);
+  // Format: 4XX XX XX XX
+  let formatted='';
+  for(let i=0;i<v.length;i++){
+    if(i===3||i===5||i===7)formatted+=' ';
+    formatted+=v[i];
+  }
+  input.value=formatted;
+  clearFieldErr('Phone');
+}
+function validatePhone(raw){
+  const digits=sanitizePhone(raw);
+  // Must be 9 digits, starting with 4 (Belgian mobile without leading 0)
+  if(!/^4[5-9]\d{7}$/.test(digits))return false;
+  return true;
+}
+function getFullPhone(raw){
+  const digits=sanitizePhone(raw);
+  return '+32'+digits;
+}
+function validatePhoneField(){
+  const v=document.getElementById('cPhone').value;
+  if(!v.trim()){showFieldErr('Phone','Numéro de téléphone requis.');return false;}
+  if(!validatePhone(v)){showFieldErr('Phone','Format invalide. Mobile belge : 04XX XX XX XX');return false;}
+  clearFieldErr('Phone');document.getElementById('cPhone').classList.add('valid');return true;
+}
+
+function validateEmailStrict(email){
+  // No spaces
+  if(/\s/.test(email))return false;
+  // Basic structure: local@domain.tld
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return false;
+  // Local part: only allowed chars (letters, digits, ._%+-)
+  const local=email.split('@')[0];
+  if(!/^[a-zA-Z0-9._%+\-]+$/.test(local))return false;
+  if(local.startsWith('.')||local.endsWith('.')||local.includes('..'))return false;
+  // Domain: only letters, digits, hyphens, dots
+  const domain=email.split('@')[1];
+  if(!/^[a-zA-Z0-9.\-]+$/.test(domain))return false;
+  if(domain.startsWith('-')||domain.endsWith('-')||domain.startsWith('.')||domain.endsWith('.'))return false;
+  if(domain.includes('..'))return false;
+  // TLD must be at least 2 chars
+  const tld=domain.split('.').pop();
+  if(tld.length<2)return false;
+  // Block obvious fake TLDs
+  if(/^(test|fake|invalid|example|localhost)$/i.test(tld))return false;
+  // Block disposable patterns
+  if(/^(mailinator|guerrilla|tempmail|throwaway|yopmail|sharklasers|grr\.la)/i.test(domain))return false;
+  return true;
+}
+function validateEmailField(){
+  const v=document.getElementById('cEmail').value.trim();
+  if(!v){showFieldErr('Email','Adresse email requise.');return false;}
+  if(!validateEmailStrict(v)){showFieldErr('Email','Adresse email invalide. Vérifiez le format (ex: marie@gmail.com).');return false;}
+  clearFieldErr('Email');document.getElementById('cEmail').classList.add('valid');return true;
+}
+
+function validateNameField(){
+  const v=document.getElementById('cName').value.trim();
+  if(!v){showFieldErr('Name','Votre nom est requis.');return false;}
+  if(v.length<2){showFieldErr('Name','Nom trop court.');return false;}
+  if(!/^[a-zA-ZÀ-ÿ\s\-'\.]+$/.test(v)){showFieldErr('Name','Caractères non autorisés dans le nom.');return false;}
+  clearFieldErr('Name');document.getElementById('cName').classList.add('valid');return true;
+}
+
+function showFieldErr(field,msg){
+  const el=document.getElementById('err'+field);if(!el)return;
+  el.textContent=msg;el.classList.add('show');
+  const input=document.getElementById('c'+field);if(input)input.classList.add('invalid');input?.classList.remove('valid');
+}
+function clearFieldErr(field){
+  const el=document.getElementById('err'+field);if(el)el.classList.remove('show');
+  const input=document.getElementById('c'+field);if(input)input.classList.remove('invalid');
+}
+
+// ──────── BCE TOGGLE ────────
+function toggleBce(){
+  const area=document.getElementById('bceArea');
+  const toggle=document.getElementById('bceToggle');
+  if(area.style.display==='none'){area.style.display='block';toggle.textContent='− Masquer le n° BCE';}
+  else{area.style.display='none';toggle.textContent='+ Ajouter un n° BCE';}
+}
+
+// ──────── SUMMARY ────────
+function buildSummary(){
+  const d=new Date(selectedSlot.start_at);
+  const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
+  const price=selectedService.price_cents?(selectedService.price_cents/100).toFixed(0)+' €':'Gratuit';
+  document.getElementById('bookingSummary').innerHTML=
+    '<div class="sum-row"><span class="label">Prestation</span><span class="val">'+selectedService.name+'</span></div>'
+    +'<div class="sum-row"><span class="label">Praticien</span><span class="val">'+selectedPractitioner.display_name+'</span></div>'
+    +'<div class="sum-divider"></div>'
+    +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
+    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>'
+    +'<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>'
+    +'<div class="sum-divider"></div>'
+    +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
+}
+
+// ──────── SUBMIT ────────
+async function submitBooking(){
+  hideError();
+  const okName=validateNameField();
+  const okPhone=validatePhoneField();
+  const okEmail=validateEmailField();
+  if(!okName||!okPhone||!okEmail){
+    showError('Veuillez corriger les champs en rouge.');
     return;
   }
-  document.getElementById('slotsArea').innerHTML = `<div class="slots-grid">${
-    slots.map(s => `<button class="slot-btn ${selectedSlot?.start_at===s.start_at?'sel':''}" onclick="selectSlot(this)" data-slot='${JSON.stringify(s)}'>${s.start_time}</button>`).join('')
-  }</div>`;
-}
 
-function selectSlot(btn) {
-  selectedSlot = JSON.parse(btn.dataset.slot);
-  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('sel'));
-  btn.classList.add('sel');
-  document.getElementById('btnStep3').disabled = false;
-}
+  const name=document.getElementById('cName').value.trim();
+  const phone=getFullPhone(document.getElementById('cPhone').value);
+  const email=document.getElementById('cEmail').value.trim().toLowerCase();
+  const bce=document.getElementById('cBce')?.value.trim()||'';
+  const comment=document.getElementById('cComment').value.trim();
+  const consent=document.getElementById('cConsent').checked;
 
-function shiftWeek(dir) {
-  weekOffset += dir;
-  if (weekOffset < 0) weekOffset = 0;
-  selectedDate = null;
-  selectedSlot = null;
-  document.getElementById('btnStep3').disabled = true;
-  loadSlots();
-}
+  const btn=document.getElementById('btnStep4');
+  btn.disabled=true;btn.textContent='Réservation en cours...';
 
-// ============================================================
-// STEP 4: CLIENT INFO + SUMMARY
-// ============================================================
-function buildSummary() {
-  const d = new Date(selectedSlot.start_at);
-  const dateStr = `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_FULL[d.getMonth()]}`;
-  document.getElementById('bookingSummary').innerHTML = `
-    <div class="sum-row"><span class="label">Prestation</span><span class="val">${selectedService.name}</span></div>
-    <div class="sum-row"><span class="label">Praticien</span><span class="val">${selectedPractitioner.display_name}</span></div>
-    <div class="sum-divider"></div>
-    <div class="sum-row"><span class="label">Date</span><span class="val">${dateStr}</span></div>
-    <div class="sum-row"><span class="label">Heure</span><span class="val">${selectedSlot.start_time} – ${selectedSlot.end_time}</span></div>
-    <div class="sum-row"><span class="label">Mode</span><span class="val">${MODE_LABELS[selectedMode]||selectedMode}</span></div>
-    <div class="sum-divider"></div>
-    <div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">${selectedService.price_cents ? (selectedService.price_cents/100).toFixed(0)+' €' : 'Gratuit'}</span></div>
-  `;
-}
-
-// ============================================================
-// STEP NAVIGATION
-// ============================================================
-function goStep(n) {
-  hideError();
-
-  // Pre-step logic
-  if (n === 2) {
-    const showPracStep = buildPractitioners();
-    if (!showPracStep) { n = 3; } // Skip if only 1 practitioner
-  }
-  if (n === 3) {
-    buildModeSelector();
-    weekOffset = 0;
-    selectedDate = null;
-    selectedSlot = null;
-    slotsData = {};
-    loadSlots();
-  }
-  if (n === 4) {
-    buildSummary();
-  }
-
-  // Switch steps
-  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-  document.querySelector(`.step[data-step="${n}"]`).classList.add('active');
-
-  // Update progress
-  for (let i = 1; i <= 5; i++) {
-    const dot = document.getElementById('p' + i);
-    dot.classList.toggle('done', i < n);
-    dot.classList.toggle('active', i === n);
-  }
-
-  window.scrollTo(0, 0);
-}
-
-// ============================================================
-// STEP 5: SUBMIT BOOKING
-// ============================================================
-async function submitBooking() {
-  hideError();
-  const name = document.getElementById('cName').value.trim();
-  const phone = document.getElementById('cPhone').value.trim();
-  const email = document.getElementById('cEmail').value.trim();
-  const bce = document.getElementById('cBce').value.trim();
-  const comment = document.getElementById('cComment').value.trim();
-  const consent = document.getElementById('cConsent').checked;
-
-  if (!name) return showError('Votre nom est requis.');
-  if (!phone) return showError('Votre téléphone est requis.');
-  if (!email) return showError('Votre email est requis.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('Format email invalide.');
-
-  const btn = document.getElementById('btnStep4');
-  btn.disabled = true;
-  btn.textContent = 'Réservation en cours...';
-
-  try {
-    const res = await fetch(`/api/public/${slug}/bookings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: selectedService.id,
-        practitioner_id: selectedPractitioner.id,
-        start_at: selectedSlot.start_at,
-        appointment_mode: selectedMode || 'cabinet',
-        client_name: name,
-        client_phone: phone,
-        client_email: email,
-        client_bce: bce || undefined,
-        client_comment: comment || undefined,
-        consent_sms: consent,
-        consent_email: consent
+  try{
+    const res=await fetch('/api/public/'+slug+'/bookings',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        service_id:selectedService.id,practitioner_id:selectedPractitioner.id,
+        start_at:selectedSlot.start_at,appointment_mode:selectedMode||'cabinet',
+        client_name:name,client_phone:phone,client_email:email,
+        client_bce:bce||undefined,client_comment:comment||undefined,
+        consent_sms:consent,consent_email:consent
       })
     });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || 'Erreur lors de la réservation');
-    }
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Erreur lors de la réservation');
 
     // Confirmation
-    const d = new Date(selectedSlot.start_at);
-    const dateStr = `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_FULL[d.getMonth()]}`;
-    document.getElementById('confirmDetails').innerHTML = `
-      <div class="row"><span class="l">Prestation</span><span class="v">${selectedService.name}</span></div>
-      <div class="row"><span class="l">Praticien</span><span class="v">${selectedPractitioner.display_name}</span></div>
-      <div class="row"><span class="l">Date</span><span class="v">${dateStr}</span></div>
-      <div class="row"><span class="l">Heure</span><span class="v">${selectedSlot.start_time} – ${selectedSlot.end_time}</span></div>
-      <div class="row"><span class="l">Mode</span><span class="v">${MODE_LABELS[selectedMode]||selectedMode}</span></div>
-      <div class="row"><span class="l">Email</span><span class="v">${email}</span></div>
-      ${data.booking?.token ? `<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d'annuler ? <a href="/booking/${data.booking.token}" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>` : ''}
-    `;
+    const d=new Date(selectedSlot.start_at);
+    const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
+    document.getElementById('confirmDetails').innerHTML=
+      '<div class="row"><span class="l">Prestation</span><span class="v">'+selectedService.name+'</span></div>'
+      +'<div class="row"><span class="l">Praticien</span><span class="v">'+selectedPractitioner.display_name+'</span></div>'
+      +'<div class="row"><span class="l">Date</span><span class="v">'+dateStr+'</span></div>'
+      +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>'
+      +'<div class="row"><span class="l">Mode</span><span class="v">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>'
+      +'<div class="row"><span class="l">Email</span><span class="v">'+email+'</span></div>'
+      +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
 
-    // Calendar buttons
-    buildCalendarButtons(selectedSlot.start_at, selectedSlot.end_at || selectedSlot.start_at, data.booking?.token);
-
-    goStep(5);
-
-  } catch (err) {
+    buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
+    goToStep(5);
+  }catch(err){
     showError(err.message);
-    btn.disabled = false;
-    btn.textContent = 'Confirmer le rendez-vous →';
+    btn.disabled=false;btn.textContent='Confirmer le rendez-vous →';
   }
 }
 
-// ============================================================
-// HELPERS
-// ============================================================
-function showError(msg) {
-  const el = document.getElementById('errMsg');
-  el.textContent = msg;
-  el.classList.add('show');
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// ──────── WAITLIST ────────
+const WL_DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+function renderWlCTA(){
+  const area=document.getElementById('wlArea');if(!area)return;
+  if(!selectedPractitioner||!selectedPractitioner.waitlist_mode||selectedPractitioner.waitlist_mode==='off'){area.innerHTML='';return;}
+  if(area.querySelector('.wl-form')||area.querySelector('.wl-success'))return;
+  area.innerHTML='<div class="wl-cta"><div style="font-size:1.5rem;margin-bottom:6px">⏳</div><div class="wl-cta-title">Aucun horaire ne vous convient ?</div><div class="wl-cta-sub">Inscrivez-vous sur la liste d\'attente.</div><button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d\'attente</button></div>';
 }
-function hideError() { document.getElementById('errMsg').classList.remove('show'); }
-
-// ============================================================
-// WAITLIST — Rejoindre la liste d'attente
-// ============================================================
-const WL_DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-
-function renderWlCTA() {
-  const area = document.getElementById('wlArea');
-  if (!area) return;
-  if (!selectedPractitioner || !selectedPractitioner.waitlist_mode || selectedPractitioner.waitlist_mode === 'off') {
-    area.innerHTML = '';
-    return;
-  }
-  // Don't overwrite if form or success is showing
-  if (area.querySelector('.wl-form') || area.querySelector('.wl-success')) return;
-  area.innerHTML = `<div class="wl-cta" id="wlCTA">
-    <div class="wl-cta-icon">⏳</div>
-    <div class="wl-cta-title">Aucun horaire ne vous convient ?</div>
-    <div class="wl-cta-sub">Inscrivez-vous sur la liste d'attente et soyez prévenu·e dès qu'une place se libère.</div>
-    <button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d'attente</button>
-  </div>`;
+function wlShowForm(){
+  const area=document.getElementById('wlArea');
+  area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+(selectedPractitioner?.display_name||'')+'</strong></p>'
+    +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>'
+    +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>'
+    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><span class="phone-prefix">🇧🇪 +32</span><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="12"></div></div>'
+    +'<div class="fg"><label class="fl">Jours qui vous conviennent</label><div class="wl-days">'+WL_DAYS.map((d,i)=>'<button type="button" class="wl-day '+(i<5?'on':'')+'" data-day="'+i+'">'+d+'</button>').join('')+'</div></div>'
+    +'<div class="fg"><label class="fl">Préférence horaire</label><select class="fi" id="wlTime" style="padding:8px 12px"><option value="any">Toute la journée</option><option value="morning">Matin</option><option value="afternoon">Après-midi</option></select></div>'
+    +'<button class="wl-submit" id="wlSubmitBtn" onclick="wlSubmit()">S\'inscrire →</button>'
+    +'<button class="wl-cancel" onclick="renderWlCTA()">Annuler</button></div>';
+  area.querySelectorAll('.wl-day').forEach(b=>b.addEventListener('click',()=>b.classList.toggle('on')));
 }
-
-function wlShowForm() {
-  const area = document.getElementById('wlArea');
-  if (!area) return;
-  area.innerHTML = `<div class="wl-form" id="wlForm">
-    <h3>Liste d'attente</h3>
-    <p class="wl-form-sub">Nous vous contacterons dès qu'un créneau se libère pour <strong>${selectedService?.name || 'cette prestation'}</strong> avec <strong>${selectedPractitioner?.display_name || 'ce praticien'}</strong>.</p>
-    <div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>
-    <div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>
-    <div class="fg"><label class="fl">Téléphone</label><input class="fi" type="tel" id="wlPhone" placeholder="+32 4XX XX XX XX"></div>
-    <div class="fg"><label class="fl">Jours qui vous conviennent</label>
-      <div class="wl-days">${WL_DAYS.map((d,i) => `<button type="button" class="wl-day ${i<5?'on':''}" data-day="${i}" onclick="wlToggleDay(this)">${d}</button>`).join('')}</div>
-    </div>
-    <div class="fg"><label class="fl">Préférence horaire</label>
-      <select class="fi" id="wlTime" style="padding:8px 12px">
-        <option value="any">Toute la journée</option>
-        <option value="morning">Matin (avant 12h)</option>
-        <option value="afternoon">Après-midi (après 12h)</option>
-      </select>
-    </div>
-    <div class="fg"><label class="fl">Remarque <span class="opt">(opt.)</span></label><input class="fi" id="wlNote" placeholder="Info utile..." maxlength="300"></div>
-    <button class="wl-submit" id="wlSubmitBtn" onclick="wlSubmit()">S'inscrire sur la liste d'attente →</button>
-    <button class="wl-cancel" onclick="wlCancel()">Annuler</button>
-  </div>`;
+async function wlSubmit(){
+  const name=document.getElementById('wlName').value.trim(),email=document.getElementById('wlEmail').value.trim();
+  const phoneRaw=document.getElementById('wlPhone').value.trim();
+  if(!name||!email){showError('Nom et email requis.');return;}
+  if(!validateEmailStrict(email)){showError('Email invalide.');return;}
+  const days=[];document.querySelectorAll('.wl-day.on').forEach(b=>days.push(parseInt(b.dataset.day)));
+  if(!days.length){showError('Sélectionnez au moins un jour.');return;}
+  const btn=document.getElementById('wlSubmitBtn');btn.disabled=true;btn.textContent='Inscription...';hideError();
+  try{
+    const res=await fetch('/api/public/'+slug+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({practitioner_id:selectedPractitioner.id,service_id:selectedService.id,
+        client_name:name,client_email:email,client_phone:phoneRaw?getFullPhone(phoneRaw):null,
+        preferred_days:days,preferred_time:document.getElementById('wlTime').value,note:null})});
+    const data=await res.json();if(!res.ok)throw new Error(data.error||'Erreur');
+    document.getElementById('wlForm').outerHTML='<div class="wl-success"><div style="font-size:2rem;margin-bottom:8px">✅</div><h3>Inscrit·e !</h3><p>Nous vous préviendrons à <strong>'+email+'</strong> dès qu\'un créneau se libère.</p><div class="position">#'+data.position+' dans la file</div></div>';
+  }catch(err){showError(err.message);btn.disabled=false;btn.textContent='S\'inscrire →';}
 }
 
-function wlToggleDay(btn) {
-  btn.classList.toggle('on');
+// ──────── CALENDAR BUTTONS ────────
+function buildCalendarButtons(startAt,endAt,token){
+  const start=new Date(startAt);
+  const end=endAt?new Date(endAt):new Date(start.getTime()+(selectedService?.duration_min||30)*60000);
+  const title=(selectedService?.name||'RDV')+' — '+(selectedPractitioner?.display_name||'');
+  const loc=siteData?.business?.address||'';
+  const desc=title+' — '+(siteData?.business?.name||'Genda');
+  function gf(d){return d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');}
+  const gcal='https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+gf(start)+'/'+gf(end)+'&details='+encodeURIComponent(desc)+'&location='+encodeURIComponent(loc)+'&ctz=Europe/Brussels';
+  const outlook='https://outlook.live.com/calendar/0/action/compose?subject='+encodeURIComponent(title)+'&startdt='+start.toISOString()+'&enddt='+end.toISOString()+'&body='+encodeURIComponent(desc)+'&location='+encodeURIComponent(loc);
+  let html='<div style="font-size:.75rem;color:var(--text-4);margin-bottom:6px;width:100%">Ajouter à votre calendrier :</div>';
+  html+='<a class="cal-btn" href="'+gcal+'" target="_blank" rel="noopener">📆 Google</a>';
+  html+='<a class="cal-btn" href="'+outlook+'" target="_blank" rel="noopener">📧 Outlook</a>';
+  if(token)html+='<a class="cal-btn" href="/api/public/booking/'+token+'/ics" download="rdv-genda.ics">🍎 Apple / iCal</a>';
+  else html+='<button class="cal-btn" onclick="downloadICS()">🍎 Apple / iCal</button>';
+  document.getElementById('calButtons').innerHTML=html;
+}
+function downloadICS(){
+  const start=new Date(selectedSlot.start_at);
+  const end=selectedSlot.end_at?new Date(selectedSlot.end_at):new Date(start.getTime()+(selectedService?.duration_min||30)*60000);
+  const title=(selectedService?.name||'RDV')+' — '+(selectedPractitioner?.display_name||'');
+  const loc=siteData?.business?.address||'';
+  function dt(d){return d.getUTCFullYear()+String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0')+'T'+String(d.getUTCHours()).padStart(2,'0')+String(d.getUTCMinutes()).padStart(2,'0')+String(d.getUTCSeconds()).padStart(2,'0')+'Z';}
+  function esc(s){return(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');}
+  const ical='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:'+Date.now()+'@genda.be\r\nDTSTART:'+dt(start)+'\r\nDTEND:'+dt(end)+'\r\nSUMMARY:'+esc(title)+'\r\nLOCATION:'+esc(loc)+'\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+  const blob=new Blob([ical],{type:'text/calendar;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rdv-genda.ics';a.click();
 }
 
-function wlCancel() {
-  renderWlCTA();
-}
-
-async function wlSubmit() {
-  const name = document.getElementById('wlName').value.trim();
-  const email = document.getElementById('wlEmail').value.trim();
-  const phone = document.getElementById('wlPhone').value.trim();
-  const note = document.getElementById('wlNote').value.trim();
-  const time = document.getElementById('wlTime').value;
-
-  if (!name || !email) {
-    showError('Nom et email requis pour la liste d\'attente.');
-    return;
-  }
-
-  const days = [];
-  document.querySelectorAll('.wl-day.on').forEach(b => days.push(parseInt(b.dataset.day)));
-  if (days.length === 0) {
-    showError('Sélectionnez au moins un jour.');
-    return;
-  }
-
-  const btn = document.getElementById('wlSubmitBtn');
-  btn.disabled = true;
-  btn.textContent = 'Inscription...';
-  hideError();
-
-  try {
-    const res = await fetch(`/api/public/${slug}/waitlist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        practitioner_id: selectedPractitioner.id,
-        service_id: selectedService.id,
-        client_name: name,
-        client_email: email,
-        client_phone: phone || null,
-        preferred_days: days,
-        preferred_time: time,
-        note: note || null
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erreur');
-
-    // Show success
-    const form = document.getElementById('wlForm');
-    form.outerHTML = `<div class="wl-success">
-      <div class="wl-success-icon">✅</div>
-      <h3>Vous êtes inscrit·e !</h3>
-      <p>Nous vous préviendrons par email à <strong>${email}</strong> dès qu'un créneau se libère pour <strong>${selectedService?.name || ''}</strong>.</p>
-      <div class="position">#${data.position} dans la file</div>
-    </div>`;
-  } catch (err) {
-    showError(err.message);
-    btn.disabled = false;
-    btn.textContent = 'S\'inscrire sur la liste d\'attente →';
-  }
-}
-// ============================================================
-// CALENDAR — Add to Calendar buttons
-// ============================================================
-function buildCalendarButtons(startAt, endAt, bookingToken) {
-  const start = new Date(startAt);
-  const end = endAt ? new Date(endAt) : new Date(start.getTime() + (selectedService?.duration_min || 30) * 60000);
-  const title = `${selectedService?.name || 'RDV'} — ${selectedPractitioner?.display_name || ''}`;
-  const location = siteData?.business?.address || '';
-  const desc = `${selectedService?.name || ''} avec ${selectedPractitioner?.display_name || ''} — ${siteData?.business?.name || 'Genda'}`;
-
-  // Google Calendar URL
-  const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${toGCalDate(start)}/${toGCalDate(end)}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(location)}&ctz=Europe/Brussels`;
-
-  // Outlook web URL
-  const outlookUrl = `https://outlook.live.com/calendar/0/action/compose?subject=${encodeURIComponent(title)}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${encodeURIComponent(desc)}&location=${encodeURIComponent(location)}`;
-
-  // .ics download (Apple + fallback)
-  const icsUrl = bookingToken ? `/api/public/booking/${bookingToken}/ics` : null;
-
-  let html = '';
-  html += `<a class="cal-btn" href="${gcalUrl}" target="_blank" rel="noopener"><span class="cal-icon">📆</span>Google</a>`;
-  html += `<a class="cal-btn" href="${outlookUrl}" target="_blank" rel="noopener"><span class="cal-icon">📧</span>Outlook</a>`;
-  if (icsUrl) {
-    html += `<a class="cal-btn" href="${icsUrl}" download="rdv-genda.ics"><span class="cal-icon">🍎</span>Apple / iCal</a>`;
-  } else {
-    // Generate .ics blob client-side
-    html += `<button class="cal-btn" onclick="downloadICS()"><span class="cal-icon">🍎</span>Apple / iCal</button>`;
-  }
-
-  document.getElementById('calButtons').innerHTML = `<div style="font-size:.75rem;color:var(--text-4);margin-bottom:6px">Ajouter à votre calendrier :</div>` + html;
-}
-
-function toGCalDate(d) {
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-}
-
-function downloadICS() {
-  const start = new Date(selectedSlot.start_at);
-  const end = selectedSlot.end_at ? new Date(selectedSlot.end_at) : new Date(start.getTime() + (selectedService?.duration_min || 30) * 60000);
-  const title = `${selectedService?.name || 'RDV'} — ${selectedPractitioner?.display_name || ''}`;
-  const loc = siteData?.business?.address || '';
-  const desc = `${selectedService?.name || ''} avec ${selectedPractitioner?.display_name || ''}`;
-
-  function icalDt(d) {
-    return d.getUTCFullYear() + String(d.getUTCMonth()+1).padStart(2,'0') + String(d.getUTCDate()).padStart(2,'0') +
-      'T' + String(d.getUTCHours()).padStart(2,'0') + String(d.getUTCMinutes()).padStart(2,'0') + String(d.getUTCSeconds()).padStart(2,'0') + 'Z';
-  }
-  function esc(s) { return (s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
-
-  const ical = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:${Date.now()}@genda.be\r\nDTSTART:${icalDt(start)}\r\nDTEND:${icalDt(end)}\r\nSUMMARY:${esc(title)}\r\nDESCRIPTION:${esc(desc)}\r\nLOCATION:${esc(loc)}\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
-
-  const blob = new Blob([ical], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'rdv-genda.ics'; a.click();
-  URL.revokeObjectURL(url);
-}
+// ──────── HELPERS ────────
+function showError(msg){const el=document.getElementById('errMsg');el.textContent=msg;el.classList.add('show');el.scrollIntoView({behavior:'smooth',block:'center'});}
+function hideError(){document.getElementById('errMsg').classList.remove('show');}
 </script>
-
 <script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
-<script>/* Kill mobile helpers */
-document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});
-document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});
-</script>
 </body>
 </html>
