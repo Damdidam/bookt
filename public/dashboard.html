@@ -4630,8 +4630,6 @@ async function openStripePortal(){
     window.location.href=d.url;
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
 
 async function saveBusiness(){
   const body={name:document.getElementById('s_name').value,slug:document.getElementById('s_slug').value,email:document.getElementById('s_email').value,phone:document.getElementById('s_phone').value,address:document.getElementById('s_address').value,bce_number:document.getElementById('s_bce').value,accreditation:document.getElementById('s_accred').value,tagline:document.getElementById('s_tagline').value,description:document.getElementById('s_desc').value,founded_year:document.getElementById('s_year').value||null,languages_spoken:document.getElementById('s_langs').value,parking_info:document.getElementById('s_parking').value,settings_iban:document.getElementById('s_iban').value,settings_bic:document.getElementById('s_bic').value,settings_invoice_footer:document.getElementById('s_inv_footer').value};
