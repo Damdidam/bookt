@@ -190,30 +190,43 @@ router.get('/settings', async (req, res, next) => {
 router.patch('/settings', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { filter_mode, forward_default_phone, allow_keypress_urgent,
-            urgent_target_phone, sms_after_call, voicemail_enabled,
-            voicemail_text_fr, voicemail_text_nl } = req.body;
+    const { filter_mode, forward_default_phone, sms_after_call,
+            vacation_until, vacation_message_fr, vacation_message_nl,
+            vacation_redirect_phone, vacation_redirect_name,
+            custom_message_fr, custom_message_nl,
+            custom_sms_fr, custom_sms_nl,
+            repeat_caller_threshold, repeat_caller_window_min } = req.body;
 
-    // Upsert
     const result = await queryWithRLS(bid,
-      `INSERT INTO call_settings (business_id, filter_mode, forward_default_phone,
-        allow_keypress_urgent, urgent_target_phone, sms_after_call,
-        voicemail_enabled, voicemail_text_fr, voicemail_text_nl)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO call_settings (business_id, filter_mode, forward_default_phone, sms_after_call,
+        vacation_until, vacation_message_fr, vacation_message_nl,
+        vacation_redirect_phone, vacation_redirect_name,
+        custom_message_fr, custom_message_nl, custom_sms_fr, custom_sms_nl,
+        repeat_caller_threshold, repeat_caller_window_min)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        ON CONFLICT (business_id) DO UPDATE SET
         filter_mode = COALESCE($2, call_settings.filter_mode),
         forward_default_phone = COALESCE($3, call_settings.forward_default_phone),
-        allow_keypress_urgent = COALESCE($4, call_settings.allow_keypress_urgent),
-        urgent_target_phone = COALESCE($5, call_settings.urgent_target_phone),
-        sms_after_call = COALESCE($6, call_settings.sms_after_call),
-        voicemail_enabled = COALESCE($7, call_settings.voicemail_enabled),
-        voicemail_text_fr = COALESCE($8, call_settings.voicemail_text_fr),
-        voicemail_text_nl = COALESCE($9, call_settings.voicemail_text_nl),
+        sms_after_call = COALESCE($4, call_settings.sms_after_call),
+        vacation_until = $5,
+        vacation_message_fr = $6,
+        vacation_message_nl = $7,
+        vacation_redirect_phone = $8,
+        vacation_redirect_name = $9,
+        custom_message_fr = $10,
+        custom_message_nl = $11,
+        custom_sms_fr = $12,
+        custom_sms_nl = $13,
+        repeat_caller_threshold = COALESCE($14, call_settings.repeat_caller_threshold),
+        repeat_caller_window_min = COALESCE($15, call_settings.repeat_caller_window_min),
         updated_at = NOW()
        RETURNING *`,
-      [bid, filter_mode, forward_default_phone, allow_keypress_urgent,
-       urgent_target_phone, sms_after_call, voicemail_enabled,
-       voicemail_text_fr, voicemail_text_nl]
+      [bid, filter_mode, forward_default_phone, sms_after_call,
+       vacation_until || null, vacation_message_fr || null, vacation_message_nl || null,
+       vacation_redirect_phone || null, vacation_redirect_name || null,
+       custom_message_fr || null, custom_message_nl || null,
+       custom_sms_fr || null, custom_sms_nl || null,
+       repeat_caller_threshold, repeat_caller_window_min]
     );
 
     res.json({ settings: result.rows[0] });
@@ -278,6 +291,51 @@ router.delete('/whitelist/:id', async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM call_whitelist WHERE id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+    res.json({ deleted: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ===== BLACKLIST =====
+
+// GET /api/calls/blacklist
+router.get('/blacklist', async (req, res, next) => {
+  try {
+    const result = await queryWithRLS(req.businessId,
+      `SELECT * FROM call_blacklist WHERE business_id = $1 ORDER BY created_at DESC`,
+      [req.businessId]
+    );
+    res.json({ blacklist: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/calls/blacklist
+router.post('/blacklist', async (req, res, next) => {
+  try {
+    const { phone_e164, label, reason } = req.body;
+    if (!phone_e164) return res.status(400).json({ error: 'phone_e164 requis' });
+
+    const result = await queryWithRLS(req.businessId,
+      `INSERT INTO call_blacklist (business_id, phone_e164, label, reason)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.businessId, phone_e164, label || null, reason || 'manual']
+    );
+    res.status(201).json({ entry: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/calls/blacklist/:id
+router.delete('/blacklist/:id', async (req, res, next) => {
+  try {
+    await queryWithRLS(req.businessId,
+      `DELETE FROM call_blacklist WHERE id = $1 AND business_id = $2`,
       [req.params.id, req.businessId]
     );
     res.json({ deleted: true });

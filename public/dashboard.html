@@ -5186,36 +5186,42 @@ async function loadCalls(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const[setR,wlR,logR]=await Promise.all([
+    const[setR,wlR,logR,blR]=await Promise.all([
       fetch('/api/calls/settings',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/calls/whitelist',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/calls/logs',{headers:{'Authorization':'Bearer '+api.getToken()}})
+      fetch('/api/calls/logs',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/calls/blacklist',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
     ]);
     const setD=await setR.json(), wlD=await wlR.json(), logD=await logR.json();
+    const blD=blR.ok?await blR.json():{};
     const cs=setD.settings||{};
     const wl=wlD.whitelist||[];
     const logs=logD.logs||[];
     const st=logD.stats||{};
+    const bl=blD.blacklist||[];
 
     // KPIs
     let h=`<div class="kpis">`;
     h+=`<div class="kpi"><div class="kpi-val">${st.total||0}</div><div class="kpi-label">Appels ce mois</div></div>`;
     h+=`<div class="kpi"><div class="kpi-val" style="color:var(--primary)">${st.filtered||0}</div><div class="kpi-label">📱 SMS envoyés</div></div>`;
     h+=`<div class="kpi"><div class="kpi-val" style="color:#15803d">${st.vip||0}</div><div class="kpi-label">⭐ VIP passés</div></div>`;
-    h+=`<div class="kpi"><div class="kpi-val" style="color:#B45309">${st.urgent||0}</div><div class="kpi-label">🚨 Urgents</div></div>`;
     h+=`<div class="kpi"><div class="kpi-val" style="color:var(--primary)">${st.total>0?Math.round((st.converted||0)/st.total*100):0}%</div><div class="kpi-label">📅 Convertis</div></div>`;
     h+=`</div>`;
 
     // Tabs
-    h+=`<div style="display:flex;gap:6px;margin-bottom:16px">`;
+    h+=`<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">`;
     h+=`<button class="btn-sm ${callTab==='logs'?'active':''}" onclick="callTab='logs';loadCalls()">📋 Journal</button>`;
     h+=`<button class="btn-sm ${callTab==='config'?'active':''}" onclick="callTab='config';loadCalls()">⚙️ Configuration</button>`;
+    h+=`<button class="btn-sm ${callTab==='messages'?'active':''}" onclick="callTab='messages';loadCalls()">💬 Messages</button>`;
     h+=`<button class="btn-sm ${callTab==='whitelist'?'active':''}" onclick="callTab='whitelist';loadCalls()">⭐ VIP (${wl.length})</button>`;
+    h+=`<button class="btn-sm ${callTab==='blacklist'?'active':''}" onclick="callTab='blacklist';loadCalls()">🚫 Blacklist (${bl.length})</button>`;
     h+=`</div>`;
 
     if(callTab==='logs') h+=renderCallLogs(logs);
     else if(callTab==='config') h+=renderCallConfig(cs);
+    else if(callTab==='messages') h+=renderCallMessages(cs);
     else if(callTab==='whitelist') h+=renderCallWhitelist(wl);
+    else if(callTab==='blacklist') h+=renderCallBlacklist(bl);
 
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
@@ -5226,7 +5232,7 @@ function renderCallLogs(logs){
   if(logs.length===0){
     h+=`<div class="empty">Aucun appel enregistré.<br><span style="font-size:.8rem;color:var(--text-4)">Les appels apparaîtront ici une fois le filtre Twilio activé.</span></div>`;
   }else{
-    const actionLabels={'whitelist_pass':'⭐ VIP','played_message':'🔊 Message','forwarded':'📞 Transféré','sent_sms':'📱 SMS','urgent_key':'🚨 Urgent','voicemail':'📝 Messagerie','hung_up':'❌ Raccroché'};
+    const actionLabels={'whitelist_pass':'⭐ VIP','played_message':'🔊 Message','forwarded':'📞 Transféré','sent_sms':'📱 SMS','urgent_key':'🚨 Urgent','voicemail':'📝 Messagerie','hung_up':'❌ Raccroché','blacklist_reject':'🚫 Bloqué','vacation_message':'🏖️ Vacances','repeat_transfer':'🔁 Rappel insistant','schedule_filter':'📅 Horaires'};
     const resultLabels={'ok':'✅','failed':'❌','no_answer':'⏳'};
     h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Date</th><th>Numéro</th><th>Action</th><th>Résultat</th><th>Durée</th><th>RDV</th></tr></thead><tbody>`;
     logs.forEach(l=>{
@@ -5265,58 +5271,78 @@ function renderCallConfig(cs){
   }
 
   // Active number banner
+  const modeLabels={off:'🔴 Désactivé',soft:'🟡 Soft',strict:'🟢 Strict',schedule_based:'📅 Horaires',vacation:'🏖️ Vacances'};
+  const modeColors={off:'#fef2f2;color:#dc2626',soft:'#fffbeb;color:#B45309',strict:'#f0fdf4;color:#15803d',schedule_based:'#eff6ff;color:#2563eb',vacation:'#fef3c7;color:#92400e'};
   h+=`<div class="card" style="background:linear-gradient(135deg,#f0fdfa,#ecfdf5);margin-bottom:16px">`;
   h+=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">`;
   h+=`<div><span style="font-size:.75rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px">Numéro actif</span><div style="font-size:1.3rem;font-weight:700;font-family:monospace;color:var(--primary);margin-top:2px">${formatPhoneDisplay(cs.twilio_number)}</div></div>`;
   h+=`<div style="display:flex;gap:8px;align-items:center">`;
-  h+=`<span style="font-size:.78rem;padding:4px 10px;border-radius:20px;font-weight:600;${mode==='off'?'background:#fef2f2;color:#dc2626':mode==='soft'?'background:#fffbeb;color:#B45309':mode==='strict'?'background:#f0fdf4;color:#15803d':'background:#eff6ff;color:#2563eb'}">${{off:'🔴 Désactivé',soft:'🟡 Soft',strict:'🟢 Strict',schedule_based:'📅 Horaires'}[mode]||mode}</span>`;
+  h+=`<span style="font-size:.78rem;padding:4px 10px;border-radius:20px;font-weight:600;background:#${modeColors[mode]||modeColors.off}">${modeLabels[mode]||mode}</span>`;
   h+=`<button class="btn-outline btn-sm btn-danger" onclick="deactivateCallFilter()" style="font-size:.72rem">Désactiver</button>`;
   h+=`</div></div></div>`;
 
-  // Config form
-  h+=`<div class="card"><div class="card-h"><h3>⚙️ Configuration</h3></div>`;
+  // Mode selector
+  h+=`<div class="card"><div class="card-h"><h3>⚙️ Mode de filtrage</h3></div><div style="padding:18px">`;
 
-  // Mode
-  h+=`<div class="field"><label>Mode de filtrage</label><select id="call_mode" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem">`;
-  h+=`<option value="off" ${mode==='off'?'selected':''}>🔴 Désactivé — Les appels passent directement</option>`;
-  h+=`<option value="soft" ${mode==='soft'?'selected':''}>🟡 Soft — Message + transfert automatique</option>`;
-  h+=`<option value="strict" ${mode==='strict'?'selected':''}>🟢 Strict — SMS seul, pas de transfert</option>`;
-  h+=`<option value="schedule_based" ${mode==='schedule_based'?'selected':''}>📅 Horaires — Filtre actif hors disponibilités</option>`;
-  h+=`</select></div>`;
+  const modes=[
+    {key:'off',icon:'🔴',name:'Désactivé',desc:'Les appels passent directement sur votre téléphone.'},
+    {key:'soft',icon:'🟡',name:'Soft',desc:'Message vocal + SMS. L\'appel est ensuite transféré sur votre téléphone.'},
+    {key:'strict',icon:'🟢',name:'Strict',desc:'Message vocal + SMS + raccroché. Vous n\'êtes jamais dérangé.'},
+    {key:'schedule_based',icon:'📅',name:'Horaires',desc:'Strict pendant vos consultations, transfert direct en dehors. Se base sur vos disponibilités.'},
+    {key:'vacation',icon:'🏖️',name:'Vacances',desc:'Message de fermeture avec date de retour. Redirige vers un confrère si configuré.'}
+  ];
 
-  // Explanation
-  h+=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:.8rem;color:var(--text-4)">`;
-  h+=`<strong>Comment ça fonctionne :</strong><br>`;
-  h+=`Quand le filtre est actif, les appels entrants entendent un message vocal. Ils reçoivent un SMS avec votre lien de réservation. Les numéros VIP passent directement. En mode Soft, l'appelant peut taper 1 pour une urgence.`;
+  h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
+  modes.forEach(m=>{
+    const active=m.key===mode;
+    h+=`<label style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border:2px solid ${active?'var(--primary)':'var(--border-light)'};border-radius:10px;cursor:pointer;background:${active?'var(--primary-light)':'var(--white)'};transition:all .15s" onclick="document.getElementById('call_mode').value='${m.key}';${m.key==='vacation'?"document.getElementById('vacationConfig').style.display='block'":"document.getElementById('vacationConfig').style.display='none'"}">
+      <input type="radio" name="call_mode_radio" value="${m.key}" ${active?'checked':''} style="margin-top:3px" onchange="document.getElementById('call_mode').value=this.value;document.getElementById('vacationConfig').style.display=this.value==='vacation'?'block':'none'">
+      <div><div style="font-weight:700;font-size:.88rem">${m.icon} ${m.name}</div><div style="font-size:.78rem;color:var(--text-3);margin-top:2px">${m.desc}</div></div>
+    </label>`;
+  });
+  h+=`</div>`;
+  h+=`<input type="hidden" id="call_mode" value="${mode}">`;
+
+  // Vacation config
+  h+=`<div id="vacationConfig" style="display:${mode==='vacation'?'block':'none'};background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
+  h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:12px">🏖️ Configuration vacances</div>`;
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">`;
+  h+=`<div class="fg"><label class="fl">Date de retour</label><input class="fi" type="date" id="call_vac_until" value="${cs.vacation_until||''}"></div>`;
+  h+=`<div class="fg"><label class="fl">Nom du remplaçant</label><input class="fi" id="call_vac_redirect_name" value="${cs.vacation_redirect_name||''}" placeholder="Ex: Dr Martin (optionnel)"></div>`;
+  h+=`</div>`;
+  h+=`<div class="fg"><label class="fl">Numéro du remplaçant</label><input class="fi" id="call_vac_redirect_phone" value="${cs.vacation_redirect_phone||''}" placeholder="+32 470 ... (optionnel — si vide, pas de transfert)"></div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Sans numéro de remplaçant : message + SMS + raccroché. Avec : transfert vers le confrère après le message.</div>`;
   h+=`</div>`;
 
-  // Forward phone
-  h+=`<div class="field-row"><div class="field"><label>📞 Numéro de transfert</label><input id="call_forward" value="${cs.forward_default_phone||''}" placeholder="+32 470 12 34 56"><div style="font-size:.72rem;color:var(--text-4);margin-top:2px">Où transférer les appels VIP et urgents</div></div>`;
-  h+=`<div class="field"><label>🚨 Numéro urgences</label><input id="call_urgent_phone" value="${cs.urgent_target_phone||''}" placeholder="Idem si vide"><div style="font-size:.72rem;color:var(--text-4);margin-top:2px">Où vont les "Tapez 1" (par défaut = transfert)</div></div></div>`;
+  // Transfer phone
+  h+=`<div class="fg"><label class="fl">📞 Numéro de transfert principal</label><input class="fi" id="call_forward" value="${cs.forward_default_phone||''}" placeholder="+32 470 12 34 56"></div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:-10px;margin-bottom:16px">Votre vrai GSM. Où vont les appels VIP et les appels en mode Soft.</div>`;
 
   // Toggles
-  h+=`<div style="display:flex;flex-direction:column;gap:12px;margin:16px 0">`;
-  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_keypress" ${cs.allow_keypress_urgent!==false?'checked':''}><span><strong>Touche 1 = Urgence</strong><br><span style="font-size:.75rem;color:var(--text-4)">"Si c'est urgent, tapez 1 pour être transféré"</span></span></label>`;
-  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_sms" ${cs.sms_after_call!==false?'checked':''}><span><strong>SMS automatique</strong><br><span style="font-size:.75rem;color:var(--text-4)">Envoie le lien de réservation par SMS après l'appel</span></span></label>`;
-  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_voicemail" ${cs.voicemail_enabled?'checked':''} onchange="document.getElementById('call_vm_texts').style.display=this.checked?'block':'none'"><span><strong>Messagerie vocale</strong><br><span style="font-size:.75rem;color:var(--text-4)">Permet de laisser un message vocal</span></span></label>`;
+  h+=`<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">`;
+  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_sms" ${cs.sms_after_call!==false?'checked':''}><span><strong>SMS automatique</strong> — Envoie le lien de réservation par SMS</span></label>`;
   h+=`</div>`;
 
-  // Voicemail texts
-  h+=`<div id="call_vm_texts" style="display:${cs.voicemail_enabled?'block':'none'}">`;
-  h+=`<div class="field"><label>🇫🇷 Message vocal FR</label><textarea id="call_vm_fr" rows="2" placeholder="Bonjour, vous êtes bien chez [cabinet]. Nous ne pouvons pas prendre votre appel. Réservez en ligne via le SMS que vous allez recevoir.">${cs.voicemail_text_fr||''}</textarea></div>`;
-  h+=`<div class="field"><label>🇳🇱 Message vocal NL</label><textarea id="call_vm_nl" rows="2" placeholder="Goedendag, u bent verbonden met [kabinet]. We kunnen uw oproep niet beantwoorden...">${cs.voicemail_text_nl||''}</textarea></div>`;
-  h+=`</div>`;
+  // Repeat caller
+  h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
+  h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:8px">🔁 Détection rappel insistant</div>`;
+  h+=`<div style="font-size:.78rem;color:var(--text-3);margin-bottom:12px">Si quelqu'un rappelle ${cs.repeat_caller_threshold||3}x en ${cs.repeat_caller_window_min||15} minutes, l'appel passe directement.</div>`;
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">`;
+  h+=`<div class="fg"><label class="fl">Seuil (appels)</label><input class="fi" type="number" id="call_repeat_threshold" value="${cs.repeat_caller_threshold||3}" min="2" max="10"></div>`;
+  h+=`<div class="fg"><label class="fl">Fenêtre (minutes)</label><input class="fi" type="number" id="call_repeat_window" value="${cs.repeat_caller_window_min||15}" min="5" max="60"></div>`;
+  h+=`</div></div>`;
 
-  h+=`<button class="btn-primary" onclick="saveCallSettings()" style="margin-top:8px">💾 Enregistrer</button>`;
-  h+=`</div>`;
+  h+=`<button class="btn-primary" onclick="saveCallSettings()" style="margin-top:4px">💾 Enregistrer</button>`;
+  h+=`</div></div>`;
 
-  // Instructions card
-  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>📋 Instructions</h3></div>`;
-  h+=`<div style="font-size:.82rem;color:var(--text-3);line-height:1.6">`;
-  h+=`<strong>1.</strong> Communiquez ce numéro à vos patients : carte de visite, site web, Google Business.<br>`;
-  h+=`<strong>2.</strong> Renseignez votre vrai numéro en "Numéro de transfert" ci-dessus.<br>`;
+  // Instructions
+  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>📋 Comment ça marche</h3></div>`;
+  h+=`<div style="font-size:.82rem;color:var(--text-3);line-height:1.7;padding:4px 0">`;
+  h+=`<strong>1.</strong> Communiquez le numéro Twilio à vos patients (carte de visite, site web, Google).<br>`;
+  h+=`<strong>2.</strong> Renseignez votre vrai GSM en "Numéro de transfert" ci-dessus.<br>`;
   h+=`<strong>3.</strong> Ajoutez vos contacts importants (labo, pharmacie, confrères) dans l'onglet VIP.<br>`;
-  h+=`<strong>4.</strong> Choisissez le mode de filtrage adapté à votre pratique.`;
+  h+=`<strong>4.</strong> Les numéros blacklistés sont rejetés silencieusement.<br>`;
+  h+=`<strong>5.</strong> En mode Horaires, le filtre suit vos disponibilités automatiquement.`;
   h+=`</div></div>`;
 
   return h;
@@ -5392,16 +5418,140 @@ async function saveCallSettings(){
     const body={
       filter_mode:document.getElementById('call_mode').value,
       forward_default_phone:document.getElementById('call_forward').value||null,
-      urgent_target_phone:document.getElementById('call_urgent_phone').value||null,
-      allow_keypress_urgent:document.getElementById('call_keypress').checked,
       sms_after_call:document.getElementById('call_sms').checked,
-      voicemail_enabled:document.getElementById('call_voicemail').checked,
-      voicemail_text_fr:document.getElementById('call_vm_fr')?.value||null,
-      voicemail_text_nl:document.getElementById('call_vm_nl')?.value||null
+      vacation_until:document.getElementById('call_vac_until')?.value||null,
+      vacation_message_fr:null, // managed in Messages tab
+      vacation_message_nl:null,
+      vacation_redirect_phone:document.getElementById('call_vac_redirect_phone')?.value||null,
+      vacation_redirect_name:document.getElementById('call_vac_redirect_name')?.value||null,
+      repeat_caller_threshold:parseInt(document.getElementById('call_repeat_threshold')?.value)||3,
+      repeat_caller_window_min:parseInt(document.getElementById('call_repeat_window')?.value)||15
     };
     const r=await fetch('/api/calls/settings',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);
     GendaUI.toast('Configuration sauvegardée','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// MESSAGES PERSONNALISABLES
+// ============================================================
+function renderCallMessages(cs){
+  let h=`<div class="card"><div class="card-h"><h3>💬 Messages personnalisés</h3></div><div style="padding:18px">`;
+  h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Personnalisez ce que vos patients entendent au téléphone et reçoivent par SMS. Laissez vide pour utiliser les messages par défaut.</p>`;
+
+  // Announcement
+  h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
+  h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px">🔊 Message vocal (modes Soft / Strict)</div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Ce que le patient entend quand il appelle. Par défaut : "Bonjour et bienvenue chez [cabinet]. Pour prendre rendez-vous, nous vous envoyons un SMS..."</div>`;
+  h+=`<div class="fg"><label class="fl">🇫🇷 Français</label><textarea class="fi" id="msg_custom_fr" rows="3" placeholder="Bonjour, vous avez joint le cabinet du Dr Dupont...">${cs.custom_message_fr||''}</textarea></div>`;
+  h+=`<div class="fg"><label class="fl">🇳🇱 Nederlands</label><textarea class="fi" id="msg_custom_nl" rows="3" placeholder="Welkom bij de praktijk van Dr Dupont...">${cs.custom_message_nl||''}</textarea></div>`;
+  h+=`</div>`;
+
+  // Vacation message
+  h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
+  h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px">🏖️ Message vacances</div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Par défaut : "Le cabinet [nom] est actuellement fermé jusqu'au [date]. Vous pouvez prendre RDV en ligne..."</div>`;
+  h+=`<div class="fg"><label class="fl">🇫🇷 Français</label><textarea class="fi" id="msg_vac_fr" rows="3" placeholder="Bonjour, le cabinet est fermé pour congé annuel. Nous reprenons le...">${cs.vacation_message_fr||''}</textarea></div>`;
+  h+=`<div class="fg"><label class="fl">🇳🇱 Nederlands</label><textarea class="fi" id="msg_vac_nl" rows="3" placeholder="De praktijk is gesloten voor vakantie. We zijn terug op...">${cs.vacation_message_nl||''}</textarea></div>`;
+  h+=`</div>`;
+
+  // SMS text
+  h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
+  h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px">📱 Texte du SMS</div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Le SMS envoyé au patient. Utilisez {lien} pour insérer le lien de réservation. Par défaut : "[Cabinet] : Prenez RDV en ligne sur [lien]"</div>`;
+  h+=`<div class="fg"><label class="fl">🇫🇷 Français</label><input class="fi" id="msg_sms_fr" value="${cs.custom_sms_fr||''}" placeholder="Dr Dupont — Prenez RDV en ligne : {lien}"></div>`;
+  h+=`<div class="fg"><label class="fl">🇳🇱 Nederlands</label><input class="fi" id="msg_sms_nl" value="${cs.custom_sms_nl||''}" placeholder="Dr Dupont — Maak online een afspraak: {lien}"></div>`;
+  h+=`</div>`;
+
+  h+=`<button class="btn-primary" onclick="saveCallMessages()">💾 Enregistrer les messages</button>`;
+  h+=`</div></div>`;
+  return h;
+}
+
+async function saveCallMessages(){
+  try{
+    const body={
+      custom_message_fr:document.getElementById('msg_custom_fr').value.trim()||null,
+      custom_message_nl:document.getElementById('msg_custom_nl').value.trim()||null,
+      vacation_message_fr:document.getElementById('msg_vac_fr').value.trim()||null,
+      vacation_message_nl:document.getElementById('msg_vac_nl').value.trim()||null,
+      custom_sms_fr:document.getElementById('msg_sms_fr').value.trim()||null,
+      custom_sms_nl:document.getElementById('msg_sms_nl').value.trim()||null
+    };
+    const r=await fetch('/api/calls/settings',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Messages sauvegardés','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// BLACKLIST
+// ============================================================
+function renderCallBlacklist(bl){
+  let h=`<div class="card"><div class="card-h"><h3>🚫 Numéros bloqués</h3><button class="btn-primary btn-sm" onclick="addBlacklistEntry()">+ Bloquer</button></div>`;
+  h+=`<div style="padding:18px">`;
+  h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Ces numéros sont rejetés silencieusement — ils n'entendent même pas de message.</p>`;
+  if(bl.length===0){
+    h+=`<div class="empty">Aucun numéro bloqué</div>`;
+  }else{
+    h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Numéro</th><th>Label</th><th>Raison</th><th>Date</th><th></th></tr></thead><tbody>`;
+    const reasonLabels={manual:'🖊️ Manuel',spam:'🤖 Spam',repeat_no_booking:'🔁 Répétitif'};
+    bl.forEach(b=>{
+      const date=new Date(b.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
+      h+=`<tr><td style="font-family:monospace;font-size:.85rem">${b.phone_e164}</td><td>${b.label||'—'}</td><td>${reasonLabels[b.reason]||b.reason}</td><td style="font-size:.78rem">${date}</td>`;
+      h+=`<td style="text-align:right"><button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Débloquer ce numéro ?'))deleteBlacklistEntry('${b.id}')">🗑️</button></td></tr>`;
+    });
+    h+=`</tbody></table></div>`;
+  }
+  h+=`</div></div>`;
+
+  // Suggest from logs: frequent callers without booking
+  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>💡 Suggestions</h3></div>`;
+  h+=`<div style="padding:18px;font-size:.82rem;color:var(--text-3)">`;
+  h+=`Les numéros qui appellent souvent sans jamais prendre RDV apparaîtront ici dans une prochaine version.`;
+  h+=`</div></div>`;
+
+  return h;
+}
+
+function addBlacklistEntry(){
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>🚫 Bloquer un numéro</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body">
+      <div class="fg"><label class="fl">Numéro *</label><input class="fi" id="bl_phone" placeholder="+32 470 12 34 56"></div>
+      <div class="fg"><label class="fl">Label</label><input class="fi" id="bl_label" placeholder="Ex: Démarcheur, Pub..."></div>
+      <div class="fg"><label class="fl">Raison</label><select class="fi" id="bl_reason">
+        <option value="manual">Manuel</option>
+        <option value="spam">Spam / Pub</option>
+      </select></div>
+    </div>
+    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveBlacklistEntry()">Bloquer</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('bl_phone').focus();
+}
+
+async function saveBlacklistEntry(){
+  const phone=document.getElementById('bl_phone').value.replace(/\s/g,'').trim();
+  const label=document.getElementById('bl_label').value.trim();
+  const reason=document.getElementById('bl_reason').value;
+  if(!phone){GendaUI.toast('Numéro requis','error');return;}
+  try{
+    const r=await fetch('/api/calls/blacklist',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({phone_e164:phone,label:label||null,reason})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast('Numéro bloqué','success');
+    loadCalls();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteBlacklistEntry(id){
+  try{
+    const r=await fetch(`/api/calls/blacklist/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Numéro débloqué','success');
+    loadCalls();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
