@@ -3369,20 +3369,57 @@ async function loadSiteSection(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const [r,galR,newsR]=await Promise.all([
+    const [r,galR,newsR,testR,valR]=await Promise.all([
       fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/gallery',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false})),
-      fetch('/api/news',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
+      fetch('/api/news',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false})),
+      fetch('/api/site/testimonials',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false})),
+      fetch('/api/site/values',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
     ]);
     const d=await r.json();
     const galleryItems=galR.ok?await galR.json():[];
     const newsItems=newsR.ok?await newsR.json():[];
+    const testData=testR.ok?await testR.json():{};
+    const valData=valR.ok?await valR.json():{};
+    const testimonialItems=testData.testimonials||[];
+    const valueItems=valData.values||[];
     const b=d.business;
     currentThemePreset=b.theme?.preset||'classique';
     businessPlan=b.plan||'free';
     const slug=b.slug||'';
 
     let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}?preview" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
+
+    // ── HERO CONTENT ──
+    h+=`<div class="card"><div class="card-h"><h3>✏️ Contenu du site</h3></div>
+      <div style="padding:18px">
+        <div class="fg"><label class="fl">Slogan / Tagline</label><input class="fi" id="siteTagline" value="${(b.tagline||'').replace(/"/g,'&quot;')}" placeholder="Ex: Votre santé, notre priorité depuis 2018"></div>
+        <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${b.description||''}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="fg"><label class="fl">Logo (URL)</label><input class="fi" id="siteLogo" value="${b.logo_url||''}" placeholder="https://..."></div>
+          <div class="fg"><label class="fl">Image de couverture (URL)</label><input class="fi" id="siteCover" value="${b.cover_image_url||''}" placeholder="https://..."></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          ${b.logo_url?'<div style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+b.logo_url+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
+          ${b.cover_image_url?'<div style="flex:1;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+b.cover_image_url+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
+        </div>
+      </div>
+      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSiteContent()">Enregistrer</button></div>
+    </div>`;
+
+    // ── SOCIAL LINKS ──
+    const sl=b.social_links||{};
+    h+=`<div class="card"><div class="card-h"><h3>🔗 Réseaux sociaux</h3></div>
+      <div style="padding:18px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="fg"><label class="fl">Facebook</label><input class="fi" id="socialFb" value="${sl.facebook||''}" placeholder="https://facebook.com/..."></div>
+          <div class="fg"><label class="fl">Instagram</label><input class="fi" id="socialIg" value="${sl.instagram||''}" placeholder="https://instagram.com/..."></div>
+          <div class="fg"><label class="fl">LinkedIn</label><input class="fi" id="socialLi" value="${sl.linkedin||''}" placeholder="https://linkedin.com/in/..."></div>
+          <div class="fg"><label class="fl">Site web</label><input class="fi" id="socialWeb" value="${sl.website||''}" placeholder="https://..."></div>
+        </div>
+      </div>
+      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSocialLinks()">Enregistrer</button></div>
+    </div>`;
 
     h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge ${businessPlan==='free'?'badge-teal':'badge-teal'}">${businessPlan==='free'?'Plan Gratuit — 1 thème':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
     <div style="padding:18px">
@@ -3495,6 +3532,64 @@ async function loadSiteSection(){
       });
     }
     h+=`</div></div></div>`;
+
+    // ── TESTIMONIALS MANAGEMENT ──
+    h+=`<div class="card"><div class="card-h"><h3>⭐ Témoignages</h3><button class="btn-primary" onclick="openTestimonialModal()">+ Ajouter</button></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Avis de vos clients affichés sur votre mini-site.</p>
+        <div id="testimonialsList">`;
+    if(testimonialItems.length===0){
+      h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucun témoignage. Ajoutez votre premier avis !</div>`;
+    }else{
+      testimonialItems.forEach(t=>{
+        h+=`<div class="news-item${t.is_active!==false?'':' inactive'}" data-id="${t.id}">
+          <div class="news-date" style="font-size:1.2rem">${t.rating?'⭐'.repeat(t.rating):'⭐⭐⭐⭐⭐'}</div>
+          <div class="news-body">
+            <div class="news-title-row"><span class="news-title">${t.author_name||'Anonyme'}</span>${t.author_role?'<span class="news-tag" style="background:var(--primary-light);color:var(--primary)">'+t.author_role+'</span>':''}</div>
+            <div class="news-excerpt">${(t.content||'').substring(0,120)}${(t.content||'').length>120?'…':''}</div>
+          </div>
+          <div class="news-actions">
+            <button onclick="editTestimonial('${t.id}')" title="Modifier">✏️</button>
+            <button onclick="deleteTestimonial('${t.id}')" title="Supprimer" style="color:var(--red)">🗑️</button>
+          </div>
+        </div>`;
+      });
+    }
+    h+=`</div></div></div>`;
+
+    // ── VALUES MANAGEMENT ──
+    h+=`<div class="card"><div class="card-h"><h3>💎 Valeurs</h3><button class="btn-primary" onclick="openValueModal()">+ Ajouter</button></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Vos engagements et points forts, affichés dans la section À propos.${valueItems.length===0?' <em>Par défaut, 4 valeurs génériques sont affichées.</em>':''}</p>
+        <div id="valuesList">`;
+    if(valueItems.length===0){
+      h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune valeur personnalisée. Des valeurs par défaut sont affichées.</div>`;
+    }else{
+      valueItems.forEach(v=>{
+        h+=`<div class="news-item" data-id="${v.id}">
+          <div class="news-date" style="font-size:1.4rem">${v.icon||'💎'}</div>
+          <div class="news-body">
+            <div class="news-title-row"><span class="news-title">${v.title||''}</span></div>
+            <div class="news-excerpt">${v.description||''}</div>
+          </div>
+          <div class="news-actions">
+            <button onclick="editValue('${v.id}')" title="Modifier">✏️</button>
+            <button onclick="deleteValue('${v.id}')" title="Supprimer" style="color:var(--red)">🗑️</button>
+          </div>
+        </div>`;
+      });
+    }
+    h+=`</div></div></div>`;
+
+    // ── SEO ──
+    h+=`<div class="card"><div class="card-h"><h3>🔍 SEO</h3></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Optimisez votre référencement sur Google.</p>
+        <div class="fg"><label class="fl">Titre SEO</label><input class="fi" id="seoTitle" value="${(b.seo_title||'').replace(/"/g,'&quot;')}" placeholder="${b.name||'Mon cabinet'} — ${b.tagline||'Prise de rendez-vous en ligne'}"></div>
+        <div class="fg"><label class="fl">Description SEO</label><textarea class="fi" id="seoDesc" style="min-height:60px;resize:vertical" placeholder="Description qui apparaîtra dans les résultats Google (max 160 caractères)...">${b.seo_description||''}</textarea></div>
+      </div>
+      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSEO()">Enregistrer</button></div>
+    </div>`;
 
     // ── SECTION TOGGLES ──
     const sections=b.page_sections||{};
@@ -3724,6 +3819,175 @@ async function toggleSiteSection(key,enabled){
       body:JSON.stringify({page_sections:sections})});
     if(!r2.ok)throw new Error('Erreur');
     GendaUI.toast(`Section "${key}" ${enabled?'activée':'masquée'}`,'success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// SITE CONTENT SAVES
+// ============================================================
+async function saveSiteContent(){
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({
+        tagline:document.getElementById('siteTagline').value.trim()||null,
+        description:document.getElementById('siteDescription').value.trim()||null,
+        logo_url:document.getElementById('siteLogo').value.trim()||null,
+        cover_image_url:document.getElementById('siteCover').value.trim()||null
+      })});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    GendaUI.toast('Contenu mis à jour','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveSocialLinks(){
+  try{
+    const social_links={
+      facebook:document.getElementById('socialFb').value.trim()||null,
+      instagram:document.getElementById('socialIg').value.trim()||null,
+      linkedin:document.getElementById('socialLi').value.trim()||null,
+      website:document.getElementById('socialWeb').value.trim()||null
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({social_links})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    GendaUI.toast('Réseaux sociaux mis à jour','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveSEO(){
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({
+        seo_title:document.getElementById('seoTitle').value.trim()||null,
+        seo_description:document.getElementById('seoDesc').value.trim()||null
+      })});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    GendaUI.toast('SEO mis à jour','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// TESTIMONIALS CRUD
+// ============================================================
+let _testimonialCache=[];
+
+function openTestimonialModal(item){
+  const isEdit=!!item;
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le témoignage':'Ajouter un témoignage'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body">
+      <div class="fg"><label class="fl">Nom du client *</label><input class="fi" id="testAuthor" value="${item?.author_name||''}" placeholder="Ex: Marie D."></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg"><label class="fl">Fonction / Contexte</label><input class="fi" id="testRole" value="${item?.author_role||''}" placeholder="Ex: Patiente depuis 2020"></div>
+        <div class="fg"><label class="fl">Note (1-5)</label><select class="fi" id="testRating" style="padding:8px 12px">
+          ${[5,4,3,2,1].map(n=>'<option value="'+n+'"'+(item?.rating===n?' selected':(!item&&n===5?' selected':''))+'>'+('⭐'.repeat(n))+' ('+n+')</option>').join('')}
+        </select></div>
+      </div>
+      <div class="fg"><label class="fl">Témoignage *</label><textarea class="fi" id="testContent" style="min-height:100px;resize:vertical" placeholder="Ce que le client dit de votre cabinet...">${item?.content||''}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="testSaveBtn" onclick="saveTestimonial('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('testAuthor').focus();
+}
+
+async function saveTestimonial(id){
+  const author_name=document.getElementById('testAuthor').value.trim();
+  const content=document.getElementById('testContent').value.trim();
+  const author_role=document.getElementById('testRole').value.trim();
+  const rating=parseInt(document.getElementById('testRating').value);
+  if(!author_name||!content){GendaUI.toast('Nom et témoignage requis','error');return;}
+  const btn=document.getElementById('testSaveBtn');btn.disabled=true;btn.textContent='Enregistrement...';
+  const initials=author_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  try{
+    const method=id?'PATCH':'POST';
+    const endpoint=id?'/api/site/testimonials/'+id:'/api/site/testimonials';
+    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({author_name,author_role:author_role||null,author_initials:initials,content,rating})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast(id?'Témoignage modifié':'Témoignage ajouté','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Ajouter';}
+}
+
+async function editTestimonial(id){
+  try{
+    const r=await fetch('/api/site/testimonials',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const item=(d.testimonials||[]).find(t=>t.id===id);
+    if(item)openTestimonialModal(item);
+  }catch(e){GendaUI.toast('Erreur','error');}
+}
+
+async function deleteTestimonial(id){
+  if(!confirm('Supprimer ce témoignage ?'))return;
+  try{
+    const r=await fetch('/api/site/testimonials/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Témoignage supprimé','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// VALUES CRUD
+// ============================================================
+function openValueModal(item){
+  const isEdit=!!item;
+  const icons=['🤝','🎓','🕐','💎','❤️','🌟','🛡️','🎯','💡','🌿','🔬','🏆'];
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la valeur':'Ajouter une valeur'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body">
+      <div class="fg"><label class="fl">Icône</label>
+        <div id="valIconPicker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          ${icons.map(ic=>'<button type="button" onclick="document.getElementById(\'valIcon\').value=\''+ic+'\';document.querySelectorAll(\'#valIconPicker button\').forEach(b=>b.style.outline=\'\');this.style.outline=\'2px solid var(--primary)\'" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border-light);background:var(--white);font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s'+(item?.icon===ic?';outline:2px solid var(--primary)':'')+'">'+ic+'</button>').join('')}
+        </div>
+        <input class="fi" id="valIcon" value="${item?.icon||'💎'}" placeholder="Emoji ou texte" style="max-width:80px">
+      </div>
+      <div class="fg"><label class="fl">Titre *</label><input class="fi" id="valTitle" value="${item?.title||''}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
+      <div class="fg"><label class="fl">Description *</label><input class="fi" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque patient est unique, nous prenons le temps"></div>
+    </div>
+    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('valTitle').focus();
+}
+
+async function saveValue(id){
+  const icon=document.getElementById('valIcon').value.trim()||'💎';
+  const title=document.getElementById('valTitle').value.trim();
+  const description=document.getElementById('valDesc').value.trim();
+  if(!title||!description){GendaUI.toast('Titre et description requis','error');return;}
+  const btn=document.getElementById('valSaveBtn');btn.disabled=true;btn.textContent='Enregistrement...';
+  try{
+    const method=id?'PATCH':'POST';
+    const endpoint=id?'/api/site/values/'+id:'/api/site/values';
+    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({icon,title,description})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast(id?'Valeur modifiée':'Valeur ajoutée','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Ajouter';}
+}
+
+async function editValue(id){
+  try{
+    const r=await fetch('/api/site/values',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const item=(d.values||[]).find(v=>v.id===id);
+    if(item)openValueModal(item);
+  }catch(e){GendaUI.toast('Erreur','error');}
+}
+
+async function deleteValue(id){
+  if(!confirm('Supprimer cette valeur ?'))return;
+  try{
+    const r=await fetch('/api/site/values/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Valeur supprimée','success');
+    loadSiteSection();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -5508,7 +5772,7 @@ document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!
   function createPanel(){
     if(document.getElementById('_devPanel'))return document.getElementById('_devPanel');
     const el=document.createElement('div');el.id='_devPanel';
-    el.style.cssText='position:fixed;bottom:16px;right:16px;z-index:99999;background:#1A1816;color:#fff;border-radius:14px;padding:16px 20px;font-family:var(--sans);font-size:.82rem;box-shadow:0 8px 32px rgba(0,0,0,.3);min-width:220px;display:none;border:1px solid rgba(255,255,255,.08)';
+    el.style.cssText='position:fixed;bottom:16px;right:16px;z-index:99999;background:#1A1816;color:#fff;border-radius:14px;padding:16px 20px;font-family:var(--sans);font-size:.82rem;box-shadow:0 8px 32px rgba(0,0,0,.3);min-width:300px;display:none;border:1px solid rgba(255,255,255,.08)';
     el.innerHTML=`
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <span style="font-weight:800;font-size:.72rem;letter-spacing:1px;color:rgba(255,255,255,.4)">🛠 DEV PANEL</span>

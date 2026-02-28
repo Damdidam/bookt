@@ -22,8 +22,8 @@ CREATE TABLE businesses (
   language_default VARCHAR(2) DEFAULT 'fr'             -- 'fr' | 'nl'
     CHECK (language_default IN ('fr', 'nl')),
   timezone      VARCHAR(50) DEFAULT 'Europe/Brussels',
-  plan          VARCHAR(10) DEFAULT 'free'             -- 'free' | 'pro' | 'team'
-    CHECK (plan IN ('free', 'pro', 'team')),
+  plan          VARCHAR(10) DEFAULT 'free'             -- 'free' | 'pro' | 'premium'
+    CHECK (plan IN ('free', 'pro', 'premium')),
   is_active     BOOLEAN DEFAULT true,
 
   -- Settings JSONB (UI: Settings > Politique annulation, Notifications, Branding)
