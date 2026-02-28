@@ -241,7 +241,7 @@ async function handleStripeWebhook(req, res) {
             [plan, sub.id, priceId, sub.status, trialEnd, session.customer, businessId]
           );
 
-          console.log(`[STRIPE WH] ✅ Business ${businessId} → plan ${plan} (${sub.status})`);
+          console.log(`[STRIPE WH] Business ${businessId} → plan ${plan} (${sub.status})`);
         }
         break;
       }
@@ -280,7 +280,7 @@ async function handleStripeWebhook(req, res) {
             WHERE id = $1`,
             [found.rows[0].id]
           );
-          console.log(`[STRIPE WH] ⬇️ Business ${found.rows[0].id} → downgraded to free (canceled)`);
+          console.log(`[STRIPE WH] Business ${found.rows[0].id} → downgraded to free (canceled)`);
         }
         break;
       }
@@ -294,7 +294,7 @@ async function handleStripeWebhook(req, res) {
              WHERE stripe_subscription_id = $1`,
             [subId]
           );
-          console.log(`[STRIPE WH] ⚠️ Payment failed for subscription ${subId}`);
+          console.log(`[STRIPE WH] Payment failed for subscription ${subId}`);
         }
         break;
       }
@@ -308,7 +308,7 @@ async function handleStripeWebhook(req, res) {
              WHERE stripe_subscription_id = $1`,
             [subId]
           );
-          console.log(`[STRIPE WH] 💰 Payment received for subscription ${subId}`);
+          console.log(`[STRIPE WH] Payment received for subscription ${subId}`);
         }
         break;
       }
@@ -338,7 +338,7 @@ async function syncSubscription(sub, businessId) {
     WHERE id = $5`,
     [plan, priceId, sub.status, trialEnd, businessId]
   );
-  console.log(`[STRIPE WH] 🔄 Business ${businessId} → plan ${plan} (${sub.status})`);
+  console.log(`[STRIPE WH] Business ${businessId} → plan ${plan} (${sub.status})`);
 }
 
 module.exports = router;

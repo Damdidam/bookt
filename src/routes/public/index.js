@@ -623,7 +623,7 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 
     if (bk.status === 'confirmed') {
-      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
+      return res.send(confirmationPage('Déjà confirmé ', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
     }
     if (bk.status !== 'modified_pending') {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk.business_name));
@@ -637,7 +637,7 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     const bid = (await query(`SELECT business_id FROM bookings WHERE public_token = $1`, [token])).rows[0]?.business_id;
     if (bid) broadcast(bid, 'booking_update', { action: 'confirmed', source: 'public' });
 
-    res.send(confirmationPage('Rendez-vous confirmé ✅', `${bk.service_name || 'Votre rendez-vous'} le <strong>${dt} à ${tm}</strong> est confirmé. Merci !`, color, bk.business_name));
+    res.send(confirmationPage('Rendez-vous confirmé ', `${bk.service_name || 'Votre rendez-vous'} le <strong>${dt} à ${tm}</strong> est confirmé. Merci !`, color, bk.business_name));
   } catch (err) { next(err); }
 });
 
@@ -685,9 +685,9 @@ function confirmationPage(title, message, color, businessName) {
 </head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
 <div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
   <div style="width:56px;height:56px;border-radius:50%;background:${color}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">${title.includes('✅') ? '✅' : title.includes('refusé') || title.includes('annulé') ? '❌' : 'ℹ️'}</div>
+    <div style="font-size:24px">${title.includes('') ? '' : title.includes('refusé') || title.includes('annulé') ? '' : 'ℹ'}</div>
   </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title.replace(/[✅❌]/g, '').trim()}</h1>
+  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title.replace(/[]/g, '').trim()}</h1>
   <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0">${message}</p>
   ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${businessName} · Via Genda</p>` : ''}
 </div></body></html>`;

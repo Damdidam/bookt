@@ -6,6 +6,10 @@
 <title>Whiteboard — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#F5F4F1;--white:#FFF;--surface:#FAFAF9;--border:#E8E6E2;--border-light:#ECEAE6;--text:#1A1816;--text2:#3D3832;--text3:#6B6560;--text4:#9C958E;--primary:#0D7377;--primary-dk:#0A5E61;--primary-light:#EFF9F8;--green:#15803D;--red:#DC2626;--gold:#A68B3C;--radius:14px;--sans:'Plus Jakarta Sans',-apple-system,sans-serif}
 html,body{height:100%;overflow:hidden;touch-action:none;
@@ -457,7 +461,7 @@ function toggleColors(){
   let h='<div class="color-popup">';
   COLORS.forEach(c=>{h+=`<button class="cdot${color===c?' active':''}" style="background:${c==='#FFFFFF'?'#fff':c};box-shadow:${color===c?`0 0 0 3px #fff,0 0 0 5px ${c==='#FFFFFF'?'#999':c}`:c==='#FFFFFF'?'inset 0 0 0 2px #D5D2CD':'0 1px 4px rgba(0,0,0,.1)'}" onclick="setColor('${c}')"></button>`;});
   h+=`<div style="width:1px;height:36px;background:var(--border)"></div>`;
-  [{id:'blank',sym:'—'},{id:'grid',sym:'▦'},{id:'lined',sym:'☰'},{id:'dots',sym:'⠿'}].forEach(b=>{
+  [{id:'blank',sym:'—'},{id:'grid',sym:'▦'},{id:'lined',sym:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>'},{id:'dots',sym:'⠿'}].forEach(b=>{
     h+=`<button style="width:36px;height:36px;border-radius:10px;cursor:pointer;border:2px solid ${bgType===b.id?'var(--primary)':'#E0DDD8'};background:${bgType===b.id?'var(--primary-light)':'#fff'};font-size:.7rem;font-weight:700;font-family:var(--sans);color:${bgType===b.id?'var(--primary)':'var(--text4)'}" onclick="setBgType('${b.id}')">${b.sym}</button>`;
   });
   h+='</div>';

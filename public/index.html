@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 /* ── Kill mobile browser helpers ── */
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
@@ -369,9 +373,9 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
       <a class="btn btn-outline" href="#features">Découvrir</a>
     </div>
     <div class="hero-proof">
-      <div class="hero-proof-item"><span class="tick">✓</span> Gratuit pour commencer</div>
-      <div class="hero-proof-item"><span class="tick">✓</span> En ligne en 10 min</div>
-      <div class="hero-proof-item"><span class="tick">✓</span> Sans engagement</div>
+      <div class="hero-proof-item"><span class="tick"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Gratuit pour commencer</div>
+      <div class="hero-proof-item"><span class="tick"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> En ligne en 10 min</div>
+      <div class="hero-proof-item"><span class="tick"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Sans engagement</div>
     </div>
   </div>
   <div class="hero-visual">
@@ -384,7 +388,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
           <div class="hm-logo">DW</div>
           <div class="hm-name">De Wit & Associés</div>
           <div class="hm-tag">Expert-comptable à Bruxelles · ITAA agréé</div>
-          <div class="hm-badges"><span class="hm-badge gold">ITAA agréé</span><span class="hm-badge green">★ 4.9/5</span><span class="hm-badge neutral">FR · NL</span></div>
+          <div class="hm-badges"><span class="hm-badge gold">ITAA agréé</span><span class="hm-badge green"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> 4.9/5</span><span class="hm-badge neutral">FR · NL</span></div>
           <div class="hm-cta">Prendre rendez-vous</div>
           <div class="hm-grid">
             <div class="hm-card"><div class="hmc-icon"><svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg></div><div class="hmc-t">Fiscalité</div><div class="hmc-d">IPP, sociétés, TVA</div></div>
@@ -453,7 +457,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
     <div class="feat-visual">
       <div class="site-mock"><div class="sm-hero">
         <div class="sm-logo">DW</div><div class="sm-name">De Wit & Associés</div><div class="sm-tag">Expert-comptable à Bruxelles · ITAA agréé</div>
-        <div class="sm-badges"><span class="sm-badge">★ 4.9/5</span><span class="sm-badge">FR · NL</span><span class="sm-badge">Depuis 2008</span></div>
+        <div class="sm-badges"><span class="sm-badge"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> 4.9/5</span><span class="sm-badge">FR · NL</span><span class="sm-badge">Depuis 2008</span></div>
         <div class="sm-btn">Prendre rendez-vous</div>
         <div class="sm-cards">
           <div class="sm-card"><div class="smc-ico"><svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg></div><div class="smc-t">Fiscalité</div><div class="smc-d">IPP, sociétés, TVA</div></div>
@@ -482,7 +486,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
         <div class="ps-header"><div class="ps-day">Mardi</div><div class="ps-date">25 février 2026</div></div>
         <div class="ps-slots">
           <div class="ps-slot"><span class="t">09:00</span><span class="s">Disponible</span></div>
-          <div class="ps-slot sel"><span class="t">09:45</span><span class="s">✓ Sélectionné</span></div>
+          <div class="ps-slot sel"><span class="t">09:45</span><span class="s"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sélectionné</span></div>
           <div class="ps-slot"><span class="t">10:30</span><span class="s">Disponible</span></div>
           <div class="ps-slot"><span class="t">11:15</span><span class="s">Disponible</span></div>
           <div class="ps-slot taken"><span class="t">14:00</span><span class="s">Réservé</span></div>
@@ -545,17 +549,17 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   <div class="pricing-grid">
     <div class="price-card rv d1">
       <div class="plan-name">Gratuit</div><div class="plan-price">0 € <span>/mois</span></div><p class="plan-desc">Pour tester et démarrer</p>
-      <ul class="plan-features"><li><span class="ck">✓</span> Page professionnelle</li><li><span class="ck">✓</span> Booking en ligne (1 praticien)</li><li><span class="ck">✓</span> Confirmation email</li><li><span class="ck">✓</span> 3 prestations max</li><li><span class="x">—</span> <span style="color:var(--text-4);">Filtre d'appels</span></li><li><span class="x">—</span> <span style="color:var(--text-4);">Rappels SMS</span></li></ul>
+      <ul class="plan-features"><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Page professionnelle</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Booking en ligne (1 praticien)</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Confirmation email</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> 3 prestations max</li><li><span class="x">—</span> <span style="color:var(--text-4);">Filtre d'appels</span></li><li><span class="x">—</span> <span style="color:var(--text-4);">Rappels SMS</span></li></ul>
       <a class="plan-btn outline" href="/signup.html">Commencer gratuitement</a>
     </div>
     <div class="price-card feat rv d2">
       <div class="plan-name">Pro</div><div class="plan-price">39 € <span>/mois</span></div><p class="plan-desc">Pour les cabinets établis</p>
-      <ul class="plan-features"><li><span class="ck">✓</span> Tout du plan Gratuit</li><li><span class="ck">✓</span> Praticiens illimités</li><li><span class="ck">✓</span> Prestations illimitées</li><li><span class="ck">✓</span> <strong>Filtre d'appels intelligent</strong></li><li><span class="ck">✓</span> 100 unités appels/SMS incluses</li><li><span class="ck">✓</span> <strong>Rappels SMS automatiques</strong></li><li><span class="ck">✓</span> Statistiques avancées</li></ul>
+      <ul class="plan-features"><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Tout du plan Gratuit</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Praticiens illimités</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Prestations illimitées</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Filtre d'appels intelligent</strong></li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> 100 unités appels/SMS incluses</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Rappels SMS automatiques</strong></li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Statistiques avancées</li></ul>
       <a class="plan-btn primary" href="/signup.html">Essai gratuit 14 jours →</a>
     </div>
     <div class="price-card rv d3">
       <div class="plan-name">Premium</div><div class="plan-price">79 € <span>/mois</span></div><p class="plan-desc">Pour les cabinets multi-associés</p>
-      <ul class="plan-features"><li><span class="ck">✓</span> Tout du plan Pro</li><li><span class="ck">✓</span> 300 unités appels/SMS incluses</li><li><span class="ck">✓</span> <strong>Messagerie vocale</strong></li><li><span class="ck">✓</span> <strong>Domaine personnalisé</strong></li><li><span class="ck">✓</span> Multi-utilisateurs & rôles</li><li><span class="ck">✓</span> Export données CSV</li><li><span class="ck">✓</span> Support prioritaire</li></ul>
+      <ul class="plan-features"><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Tout du plan Pro</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> 300 unités appels/SMS incluses</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Messagerie vocale</strong></li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Domaine personnalisé</strong></li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Multi-utilisateurs & rôles</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Export données CSV</li><li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Support prioritaire</li></ul>
       <a class="plan-btn outline" href="/signup.html">Essai gratuit 14 jours →</a>
     </div>
   </div>
@@ -587,7 +591,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
     <div class="footer-col"><h4>Secteurs</h4><a href="#">Comptables</a><a href="#">Avocats</a><a href="#">Médecins</a><a href="#">Dentistes</a><a href="#">Kinés</a><a href="#">Coiffeurs</a></div>
     <div class="footer-col"><h4>Légal</h4><a href="#">Conditions d'utilisation</a><a href="#">Politique de confidentialité</a><a href="#">RGPD</a><a href="#">Contact</a></div>
   </div>
-  <div class="footer-bottom"><span>© 2026 Genda · Une solution belge 🇧🇪</span><span>Fait avec soin à Charleroi</span></div>
+  <div class="footer-bottom"><span>© 2026 Genda · Une solution belge <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg></span><span>Fait avec soin à Charleroi</span></div>
 </footer>
 
 <script>

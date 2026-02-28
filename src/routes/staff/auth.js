@@ -85,7 +85,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
     // 3. Queue email (in production, send via Brevo)
     // For now, log it
-    console.log(`\n  🔗 Magic link for ${email}: ${magicUrl}\n`);
+    console.log(`\n  Magic link for ${email}: ${magicUrl}\n`);
 
     // TODO: Send email via Brevo
     // await sendMagicLinkEmail(email, magicUrl, user.business_name);
@@ -279,7 +279,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       businessName: user.business_name
     });
 
-    console.log(`\n  🔑 Password reset for ${email}: ${resetUrl}\n`);
+    console.log(`\n  Password reset for ${email}: ${resetUrl}\n`);
 
     res.json({ message: genericMsg });
   } catch (err) { next(err); }

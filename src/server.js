@@ -178,9 +178,9 @@ app.use(errorHandler);
 
 // ===== START =====
 app.listen(PORT, () => {
-  console.log(`\n  🟢 Genda server running on port ${PORT}`);
-  console.log(`  📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`  📅 Public booking: http://localhost:${PORT}/api/public/:slug\n`);
+  console.log(`\n  Genda server running on port ${PORT}`);
+  console.log(`  <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Dashboard: http://localhost:${PORT}`);
+  console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
   // ===== WAITLIST CRON — check expired offers every 5 min =====
   setInterval(async () => {
@@ -202,7 +202,7 @@ app.listen(PORT, () => {
       const stats = await processReminders();
       const total = stats.email_24h + stats.sms_24h + stats.email_2h + stats.sms_2h;
       if (total > 0) {
-        console.log(`[REMINDERS CRON] ✉️ ${stats.email_24h} email 24h, 📱 ${stats.sms_24h} SMS 24h, 📱 ${stats.sms_2h} SMS 2h, ❌ ${stats.errors} errors`);
+        console.log(`[REMINDERS CRON] ${stats.email_24h} email 24h, ${stats.sms_24h} SMS 24h, ${stats.sms_2h} SMS 2h, ${stats.errors} errors`);
       }
     } catch (e) {
       console.error('[REMINDERS CRON] Error:', e.message);

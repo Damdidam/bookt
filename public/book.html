@@ -6,6 +6,10 @@
 <title>Prendre rendez-vous</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 html{-webkit-text-size-adjust:none}
 body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;user-select:none}
@@ -217,7 +221,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <div class="fg">
       <label class="fl">Téléphone mobile *</label>
       <div class="phone-wrap">
-        <span class="phone-prefix">🇧🇪 +32</span>
+        <span class="phone-prefix"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg> +32</span>
         <input class="fi" id="cPhone" placeholder="4XX XX XX XX" autocomplete="tel" inputmode="tel" maxlength="12">
       </div>
       <div class="field-hint">Format : 04XX XX XX XX (mobile belge)</div>
@@ -251,7 +255,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   <!-- STEP 5: CONFIRMATION -->
   <div class="step" data-step="5" id="step5">
     <div class="confirm-box">
-      <div class="icon">✅</div>
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
       <h3>Rendez-vous confirmé !</h3>
       <p>Vous recevrez une confirmation par email et SMS.</p>
       <div class="confirm-details" id="confirmDetails"></div>
@@ -267,7 +271,7 @@ const DAYS_FULL=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samed
 const MONTHS=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
 const MONTHS_FULL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const MODE_LABELS={cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone',domicile:'À domicile'};
-const MODE_ICONS={cabinet:'🏢',visio:'💻',phone:'📞',domicile:'🏠'};
+const MODE_ICONS={cabinet:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>',visio:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',phone:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',domicile:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'};
 
 // State
 let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selectedMode=null,selectedDate=null,selectedSlot=null,slotsData={},weekOffset=0;
@@ -444,7 +448,7 @@ function buildModeSelector(){
   selectedMode=modes[0];
   const row=document.getElementById('modeRow');
   row.style.display='flex';
-  row.innerHTML=modes.map(m=>'<div class="mode-btn '+(m===selectedMode?'sel':'')+'" data-mode="'+m+'"><span class="ico">'+(MODE_ICONS[m]||'📋')+'</span>'+(MODE_LABELS[m]||m)+'</div>').join('');
+  row.innerHTML=modes.map(m=>'<div class="mode-btn '+(m===selectedMode?'sel':'')+'" data-mode="'+m+'"><span class="ico">'+(MODE_ICONS[m]||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>')+'</span>'+(MODE_LABELS[m]||m)+'</div>').join('');
   row.querySelectorAll('.mode-btn').forEach(b=>b.addEventListener('click',()=>{
     selectedMode=b.dataset.mode;
     row.querySelectorAll('.mode-btn').forEach(x=>x.classList.toggle('sel',x.dataset.mode===b.dataset.mode));
@@ -689,14 +693,14 @@ function renderWlCTA(){
   const area=document.getElementById('wlArea');if(!area)return;
   if(!selectedPractitioner||!selectedPractitioner.waitlist_mode||selectedPractitioner.waitlist_mode==='off'){area.innerHTML='';return;}
   if(area.querySelector('.wl-form')||area.querySelector('.wl-success'))return;
-  area.innerHTML='<div class="wl-cta"><div style="font-size:1.5rem;margin-bottom:6px">⏳</div><div class="wl-cta-title">Aucun horaire ne vous convient ?</div><div class="wl-cta-sub">Inscrivez-vous sur la liste d\'attente.</div><button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d\'attente</button></div>';
+  area.innerHTML='<div class="wl-cta"><div style="font-size:1.5rem;margin-bottom:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></div><div class="wl-cta-title">Aucun horaire ne vous convient ?</div><div class="wl-cta-sub">Inscrivez-vous sur la liste d\'attente.</div><button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d\'attente</button></div>';
 }
 function wlShowForm(){
   const area=document.getElementById('wlArea');
   area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+(selectedPractitioner?.display_name||'')+'</strong></p>'
     +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>'
     +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>'
-    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><span class="phone-prefix">🇧🇪 +32</span><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="12"></div></div>'
+    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><span class="phone-prefix"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg> +32</span><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="12"></div></div>'
     +'<div class="fg"><label class="fl">Jours qui vous conviennent</label><div class="wl-days">'+WL_DAYS.map((d,i)=>'<button type="button" class="wl-day '+(i<5?'on':'')+'" data-day="'+i+'">'+d+'</button>').join('')+'</div></div>'
     +'<div class="fg"><label class="fl">Préférence horaire</label><select class="fi" id="wlTime" style="padding:8px 12px"><option value="any">Toute la journée</option><option value="morning">Matin</option><option value="afternoon">Après-midi</option></select></div>'
     +'<button class="wl-submit" id="wlSubmitBtn" onclick="wlSubmit()">S\'inscrire →</button>'
@@ -717,7 +721,7 @@ async function wlSubmit(){
         client_name:name,client_email:email,client_phone:phoneRaw?getFullPhone(phoneRaw):null,
         preferred_days:days,preferred_time:document.getElementById('wlTime').value,note:null})});
     const data=await res.json();if(!res.ok)throw new Error(data.error||'Erreur');
-    document.getElementById('wlForm').outerHTML='<div class="wl-success"><div style="font-size:2rem;margin-bottom:8px">✅</div><h3>Inscrit·e !</h3><p>Nous vous préviendrons à <strong>'+email+'</strong> dès qu\'un créneau se libère.</p><div class="position">#'+data.position+' dans la file</div></div>';
+    document.getElementById('wlForm').outerHTML='<div class="wl-success"><div style="font-size:2rem;margin-bottom:8px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>Inscrit·e !</h3><p>Nous vous préviendrons à <strong>'+email+'</strong> dès qu\'un créneau se libère.</p><div class="position">#'+data.position+' dans la file</div></div>';
   }catch(err){showError(err.message);btn.disabled=false;btn.textContent='S\'inscrire →';}
 }
 
@@ -732,10 +736,10 @@ function buildCalendarButtons(startAt,endAt,token){
   const gcal='https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+gf(start)+'/'+gf(end)+'&details='+encodeURIComponent(desc)+'&location='+encodeURIComponent(loc)+'&ctz=Europe/Brussels';
   const outlook='https://outlook.live.com/calendar/0/action/compose?subject='+encodeURIComponent(title)+'&startdt='+start.toISOString()+'&enddt='+end.toISOString()+'&body='+encodeURIComponent(desc)+'&location='+encodeURIComponent(loc);
   let html='<div style="font-size:.75rem;color:var(--text-4);margin-bottom:6px;width:100%">Ajouter à votre calendrier :</div>';
-  html+='<a class="cal-btn" href="'+gcal+'" target="_blank" rel="noopener">📆 Google</a>';
-  html+='<a class="cal-btn" href="'+outlook+'" target="_blank" rel="noopener">📧 Outlook</a>';
-  if(token)html+='<a class="cal-btn" href="/api/public/booking/'+token+'/ics" download="rdv-genda.ics">🍎 Apple / iCal</a>';
-  else html+='<button class="cal-btn" onclick="downloadICS()">🍎 Apple / iCal</button>';
+  html+='<a class="cal-btn" href="'+gcal+'" target="_blank" rel="noopener"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Google</a>';
+  html+='<a class="cal-btn" href="'+outlook+'" target="_blank" rel="noopener"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Outlook</a>';
+  if(token)html+='<a class="cal-btn" href="/api/public/booking/'+token+'/ics" download="rdv-genda.ics"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1-1-3.5-1.5-5 0s-2 4 0 7c1.5 2.5 3.5 3 5 5 1.5-2 3.5-2.5 5-5 2-3 1.5-5.5 0-7s-4-1-5 0Z"/><path d="M12 3c0-1 .5-2 2-2"/></svg> Apple / iCal</a>';
+  else html+='<button class="cal-btn" onclick="downloadICS()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1-1-3.5-1.5-5 0s-2 4 0 7c1.5 2.5 3.5 3 5 5 1.5-2 3.5-2.5 5-5 2-3 1.5-5.5 0-7s-4-1-5 0Z"/><path d="M12 3c0-1 .5-2 2-2"/></svg> Apple / iCal</button>';
   document.getElementById('calButtons').innerHTML=html;
 }
 function downloadICS(){

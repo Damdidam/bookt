@@ -313,7 +313,7 @@ async function sendBookingSMS(to, message, businessId, callSid) {
         });
       }
     } else {
-      console.log(`  📱 [SMS mock] To: ${to} — ${message}`);
+      console.log(`  [SMS mock] To: ${to} — ${message}`);
     }
     await query(
       `INSERT INTO call_logs (business_id, call_sid, from_phone, to_phone, action, result)

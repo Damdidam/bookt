@@ -102,10 +102,10 @@ async function process24hReminders(stats) {
             <p>Bonjour ${bk.client_name},</p>
             <p>Nous vous rappelons votre rendez-vous :</p>
             <table style="width:100%;border-collapse:collapse;margin:16px 0">
-              <tr><td style="padding:8px 0;color:#7A7470;width:100px">📅 Date</td><td style="padding:8px 0;font-weight:600">${startLocal}</td></tr>
-              <tr><td style="padding:8px 0;color:#7A7470">💼 Prestation</td><td style="padding:8px 0;font-weight:600">${bk.service_name} (${bk.duration_min} min)</td></tr>
-              <tr><td style="padding:8px 0;color:#7A7470">👤 Praticien</td><td style="padding:8px 0;font-weight:600">${bk.practitioner_name}</td></tr>
-              ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470">📍 Adresse</td><td style="padding:8px 0">${bk.business_address}</td></tr>` : ''}
+              <tr><td style="padding:8px 0;color:#7A7470;width:100px"> Date</td><td style="padding:8px 0;font-weight:600">${startLocal}</td></tr>
+              <tr><td style="padding:8px 0;color:#7A7470"> Prestation</td><td style="padding:8px 0;font-weight:600">${bk.service_name} (${bk.duration_min} min)</td></tr>
+              <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${bk.practitioner_name}</td></tr>
+              ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0">${bk.business_address}</td></tr>` : ''}
             </table>
             <p style="font-size:13px;color:#9C958E;margin-top:16px">Besoin de modifier ou annuler ? Utilisez le bouton ci-dessous.</p>
           `,
@@ -117,7 +117,7 @@ async function process24hReminders(stats) {
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
-          subject: `📅 Rappel : votre RDV du ${dateShort} à ${timeShort} — ${bk.business_name}`,
+          subject: `Rappel : votre RDV du ${dateShort} à ${timeShort} — ${bk.business_name}`,
           html,
           fromName: bk.business_name,
           replyTo: null
@@ -224,7 +224,7 @@ async function process2hReminders(stats) {
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
-          subject: `⏰ Votre RDV est dans 2h — ${bk.business_name}`,
+          subject: `Votre RDV est dans 2h — ${bk.business_name}`,
           html: buildEmailHTML({
             title: 'Votre rendez-vous approche',
             preheader: `RDV à ${timeShort} chez ${bk.business_name}`,

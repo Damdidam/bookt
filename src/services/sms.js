@@ -24,7 +24,7 @@ async function sendSMS(opts) {
   const token = process.env.TWILIO_AUTH_TOKEN;
 
   if (!sid || !token) {
-    console.log(`  📱 [SMS mock] To: ${to} — ${body}`);
+    console.log(`  [SMS mock] To: ${to} — ${body}`);
     return { success: true, sid: 'mock', mock: true };
   }
 

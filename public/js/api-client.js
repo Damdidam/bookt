@@ -419,7 +419,7 @@ const GendaUI = {
     const toast = document.createElement('div');
     toast.className = `genda-toast genda-toast-${type}`;
     toast.innerHTML = `
-      <span class="genda-toast-icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ'}</span>
+      <span class="genda-toast-icon">${type === 'success' ? '' : type === 'error' ? '' : type === 'warning' ? '' : 'ℹ'}</span>
       <span class="genda-toast-msg">${message}</span>
     `;
 

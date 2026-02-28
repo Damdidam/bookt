@@ -6,6 +6,10 @@
 <title>Créneau disponible — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 /* ── Kill mobile browser helpers ── */
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
@@ -51,7 +55,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
   <div id="loadingState" class="loading">Chargement...</div>
   <div id="offerState" style="display:none">
     <div class="header">
-      <div class="badge">🎉 Créneau libéré</div>
+      <div class="badge"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 11.3L2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12v0c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11v0c-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98v0C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2z"/></svg> Créneau libéré</div>
       <h1 id="businessName">Cabinet</h1>
       <p>Un créneau vient de se libérer pour vous !</p>
     </div>
@@ -63,25 +67,25 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
 
     <div class="details">
       <div class="detail-row">
-        <div class="detail-icon">📅</div>
+        <div class="detail-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
         <div><div class="detail-label">Date & heure</div><div class="detail-value" id="slotDate">—</div></div>
       </div>
       <div class="detail-row">
-        <div class="detail-icon">💼</div>
+        <div class="detail-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
         <div><div class="detail-label">Prestation</div><div class="detail-value" id="serviceName">—</div></div>
       </div>
       <div class="detail-row">
-        <div class="detail-icon">👤</div>
+        <div class="detail-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div><div class="detail-label">Praticien</div><div class="detail-value" id="pracName">—</div></div>
       </div>
       <div class="detail-row">
-        <div class="detail-icon">📍</div>
+        <div class="detail-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
         <div><div class="detail-label">Adresse</div><div class="detail-value" id="address">—</div></div>
       </div>
     </div>
 
     <div class="actions">
-      <button class="btn btn-accept" id="btnAccept" onclick="acceptOffer()">✓ Je réserve ce créneau</button>
+      <button class="btn btn-accept" id="btnAccept" onclick="acceptOffer()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Je réserve ce créneau</button>
       <button class="btn btn-decline" id="btnDecline" onclick="declineOffer()">Non merci</button>
     </div>
 
@@ -92,7 +96,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
 
   <div id="expiredState" style="display:none">
     <div class="state-msg">
-      <div class="icon">⏰</div>
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg></div>
       <h2>Offre expirée</h2>
       <p>Ce créneau a été proposé à une autre personne. Vous restez sur la liste d'attente et serez notifié(e) au prochain créneau disponible.</p>
     </div>
@@ -100,7 +104,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
 
   <div id="bookedState" style="display:none">
     <div class="state-msg">
-      <div class="icon">✅</div>
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
       <h2>C'est réservé !</h2>
       <p>Votre rendez-vous est confirmé.<br><br>
       <a id="manageLink" href="#">Gérer mon rendez-vous →</a></p>
@@ -109,7 +113,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
 
   <div id="declinedState" style="display:none">
     <div class="state-msg">
-      <div class="icon">👋</div>
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14.5s1.5-2 4.5-2 4.5 2 4.5 2"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
       <h2>Pas de souci</h2>
       <p>Le créneau sera proposé à la personne suivante. Vous restez sur la liste d'attente pour de futurs créneaux.</p>
     </div>
@@ -117,7 +121,7 @@ body{font-family:var(--sans);background:var(--surface);min-height:100vh;display:
 
   <div id="errorState" style="display:none">
     <div class="state-msg">
-      <div class="icon">❌</div>
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
       <h2>Lien invalide</h2>
       <p id="errorMsg">Cette offre est introuvable ou a expiré.</p>
     </div>
@@ -226,7 +230,7 @@ async function acceptOffer() {
         showState('expiredState');
       } else {
         btn.disabled = false;
-        btn.textContent = '✓ Je réserve ce créneau';
+        btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Je réserve ce créneau';
         alert(data.error || 'Erreur lors de la réservation');
       }
       return;
@@ -240,7 +244,7 @@ async function acceptOffer() {
 
   } catch (e) {
     btn.disabled = false;
-    btn.textContent = '✓ Je réserve ce créneau';
+    btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Je réserve ce créneau';
     alert('Erreur réseau. Réessayez.');
   }
 }

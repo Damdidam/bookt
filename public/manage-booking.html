@@ -6,6 +6,10 @@
 <title>Mon rendez-vous — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 /* ── Kill mobile browser helpers ── */
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
@@ -93,8 +97,8 @@ function render(d) {
   const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-  const modeLabels = { cabinet: '🏢 Au cabinet', visio: '💻 En visio', phone: '📞 Par téléphone' };
-  const statusLabels = { confirmed: '✓ Confirmé', cancelled: '✕ Annulé', completed: '✓ Terminé', no_show: 'No-show', pending: '⏳ En attente', modified_pending: '⚠️ Modification proposée' };
+  const modeLabels = { cabinet: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Au cabinet', visio: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> En visio', phone: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Par téléphone' };
+  const statusLabels = { confirmed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmé', cancelled: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulé', completed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Terminé', no_show: 'No-show', pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente', modified_pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Modification proposée' };
   const price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(0)} €` : 'Gratuit';
 
   // Apply theme
@@ -110,20 +114,20 @@ function render(d) {
     </div>
     <div class="details">
       <div class="detail-row">
-        <div class="icon">📅</div>
+        <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
         <div class="info"><div class="label">Date</div><div class="value">${dateStr}</div><div class="sub">${timeStr} – ${endStr}</div></div>
       </div>
       <div class="detail-row">
-        <div class="icon">💼</div>
+        <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
         <div class="info"><div class="label">Prestation</div><div class="value">${bk.service.name}</div><div class="sub">${bk.service.duration_min} min · ${price} · ${modeLabels[bk.appointment_mode] || bk.appointment_mode}</div></div>
       </div>
       <div class="detail-row">
-        <div class="icon">👤</div>
+        <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div class="info"><div class="label">Praticien</div><div class="value">${bk.practitioner.name}</div>${bk.practitioner.title ? `<div class="sub">${bk.practitioner.title}</div>` : ''}</div>
       </div>
-      ${biz.address ? `<div class="detail-row"><div class="icon">📍</div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
-      ${biz.phone ? `<div class="detail-row"><div class="icon">📞</div><div class="info"><div class="label">Contact</div><div class="value">${biz.phone}</div>${biz.email ? `<div class="sub">${biz.email}</div>` : ''}</div></div>` : ''}
-      ${bk.comment ? `<div class="detail-row"><div class="icon">💬</div><div class="info"><div class="label">Votre remarque</div><div class="sub">${bk.comment}</div></div></div>` : ''}
+      ${biz.address ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
+      ${biz.phone ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="info"><div class="label">Contact</div><div class="value">${biz.phone}</div>${biz.email ? `<div class="sub">${biz.email}</div>` : ''}</div></div>` : ''}
+      ${bk.comment ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="info"><div class="label">Votre remarque</div><div class="sub">${bk.comment}</div></div></div>` : ''}
     </div>
   `;
 
@@ -133,23 +137,23 @@ function render(d) {
     const outlookUrl = buildOutlookUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
     html += `<div class="cal-row">
       <div class="cal-title">Ajouter à votre calendrier</div>
-      <a class="cal-btn" href="${gcalUrl}" target="_blank" rel="noopener"><span class="ci">📆</span>Google</a>
-      <a class="cal-btn" href="${outlookUrl}" target="_blank" rel="noopener"><span class="ci">📧</span>Outlook</a>
-      <a class="cal-btn" href="/api/public/booking/${token}/ics" download="rdv-genda.ics"><span class="ci">🍎</span>Apple / iCal</a>
+      <a class="cal-btn" href="${gcalUrl}" target="_blank" rel="noopener"><span class="ci"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Google</a>
+      <a class="cal-btn" href="${outlookUrl}" target="_blank" rel="noopener"><span class="ci"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></span>Outlook</a>
+      <a class="cal-btn" href="/api/public/booking/${token}/ics" download="rdv-genda.ics"><span class="ci"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1-1-3.5-1.5-5 0s-2 4 0 7c1.5 2.5 3.5 3 5 5 1.5-2 3.5-2.5 5-5 2-3 1.5-5.5 0-7s-4-1-5 0Z"/><path d="M12 3c0-1 .5-2 2-2"/></svg></span>Apple / iCal</a>
     </div>`;
   }
 
   // Cancel section
   if (bk.status === 'modified_pending') {
     html += `<div class="cancel-section" style="border-top-color:var(--gold);background:var(--gold-bg)">
-      <h3 style="color:var(--gold)">⚠️ Horaire modifié par votre praticien</h3>
+      <h3 style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Horaire modifié par votre praticien</h3>
       <p>Le nouvel horaire proposé est :</p>
       <div style="padding:12px;background:var(--white);border-radius:8px;border:1.5px solid var(--gold);margin-bottom:14px;font-weight:600;text-align:center">
         ${dateStr} · ${timeStr} – ${endStr}
       </div>
       <div style="display:flex;gap:10px">
-        <button style="flex:1;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="acceptBtn" onclick="acceptModification()">✓ Ça me convient</button>
-        <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()">✕ Refuser</button>
+        <button style="flex:1;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="acceptBtn" onclick="acceptModification()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ça me convient</button>
+        <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser</button>
       </div>
     </div>`;
   } else if (bk.status === 'confirmed') {
@@ -161,23 +165,23 @@ function render(d) {
 
     if (can.allowed) {
       html += `
-        <div class="deadline-info">⏰ Annulation gratuite jusqu'au ${deadlineStr}</div>
+        <div class="deadline-info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg> Annulation gratuite jusqu'au ${deadlineStr}</div>
         <p>Une fois annulé, le créneau sera libéré pour d'autres patients.</p>
         <textarea id="cancelReason" placeholder="Raison de l'annulation (optionnel)"></textarea>
         <button class="btn-cancel" id="cancelBtn" onclick="cancelBooking()">Annuler mon rendez-vous</button>
       `;
     } else {
       html += `
-        <div class="deadline-info past-deadline">⚠️ Le délai d'annulation (${can.window_hours}h avant) est dépassé</div>
+        <div class="deadline-info past-deadline"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Le délai d'annulation (${can.window_hours}h avant) est dépassé</div>
         <p>Contactez directement le cabinet pour modifier ou annuler votre rendez-vous.</p>
-        ${biz.phone ? `<a href="tel:${biz.phone}" style="display:inline-block;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.88rem">📞 Appeler le cabinet</a>` : ''}
+        ${biz.phone ? `<a href="tel:${biz.phone}" style="display:inline-block;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.88rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Appeler le cabinet</a>` : ''}
       `;
     }
     html += `</div>`;
   } else if (bk.status === 'cancelled') {
-    html += `<div class="cancelled-msg"><div class="check">✕</div><h2>Rendez-vous annulé</h2><p>Ce rendez-vous a été annulé. Vous pouvez en reprendre un nouveau.</p></div>`;
+    html += `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Rendez-vous annulé</h2><p>Ce rendez-vous a été annulé. Vous pouvez en reprendre un nouveau.</p></div>`;
   } else if (bk.status === 'completed') {
-    html += `<div class="cancelled-msg"><div class="check">✅</div><h2>Rendez-vous terminé</h2><p>Merci de votre visite !</p></div>`;
+    html += `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>Rendez-vous terminé</h2><p>Merci de votre visite !</p></div>`;
   }
 
   document.getElementById('cardContent').innerHTML = html;
@@ -194,8 +198,8 @@ async function acceptModification() {
   try {
     const res = await fetch(`/api/public/booking/${token}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check">✅</div><h2>Nouvel horaire confirmé</h2><p>Votre rendez-vous est confirmé au nouvel horaire. À bientôt !</p></div>`;
-  } catch (e) { btn.disabled = false; btn.textContent = '✓ Ça me convient'; alert('Erreur: ' + e.message); }
+    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>Nouvel horaire confirmé</h2><p>Votre rendez-vous est confirmé au nouvel horaire. À bientôt !</p></div>`;
+  } catch (e) { btn.disabled = false; btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ça me convient'; alert('Erreur: ' + e.message); }
 }
 
 async function refuseModification() {
@@ -205,8 +209,8 @@ async function refuseModification() {
   try {
     const res = await fetch(`/api/public/booking/${token}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Client a refusé la modification d\'horaire' }) });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check">✕</div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
-  } catch (e) { btn.disabled = false; btn.textContent = '✕ Refuser'; alert('Erreur: ' + e.message); }
+    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
+  } catch (e) { btn.disabled = false; btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; alert('Erreur: ' + e.message); }
 }
 
 async function cancelBooking() {
@@ -232,7 +236,7 @@ async function cancelBooking() {
 }
 
 function showError(msg) {
-  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">🔍</div><h2 style="font-family:var(--serif);font-size:1.3rem">${msg}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><h2 style="font-family:var(--serif);font-size:1.3rem">${msg}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
 }
 
 function buildGCalUrl(start, end, title, location, bizName) {

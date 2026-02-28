@@ -278,7 +278,7 @@ router.post('/manual', async (req, res, next) => {
 // ============================================================
 // PATCH /api/bookings/:id/status
 // Update booking status (confirm / complete / no_show / cancel)
-// UI: Agenda → action buttons (✓ Terminé, ✗ No-show, Annuler)
+// UI: Agenda → action buttons ( Terminé,  No-show, Annuler)
 // ============================================================
 router.patch('/:id/status', async (req, res, next) => {
   try {

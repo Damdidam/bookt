@@ -187,10 +187,10 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
       // 7. Create default value propositions
       const defaultValues = [
-        { title: 'Approche personnalisée', description: 'Chaque dossier est unique.', icon: '🎯', style: 'teal' },
-        { title: 'Réactivité', description: 'Réponse rapide et suivi proactif.', icon: '⚡', style: 'gold' },
-        { title: 'Expertise reconnue', description: 'Des années d\'expérience à votre service.', icon: '🔒', style: 'green' },
-        { title: 'Conseils proactifs', description: 'Au-delà du minimum légal.', icon: '💡', style: 'neutral' }
+        { title: 'Approche personnalisée', description: 'Chaque dossier est unique.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>', style: 'teal' },
+        { title: 'Réactivité', description: 'Réponse rapide et suivi proactif.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>', style: 'gold' },
+        { title: 'Expertise reconnue', description: 'Des années d\'expérience à votre service.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>', style: 'green' },
+        { title: 'Conseils proactifs', description: 'Au-delà du minimum légal.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>', style: 'neutral' }
       ];
       for (let i = 0; i < defaultValues.length; i++) {
         const v = defaultValues[i];
@@ -227,7 +227,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         { expiresIn: '24h' }
       );
 
-      console.log(`\n  🎉 New signup: ${business_name} (${email}) → genda.be/${slug}\n`);
+      console.log(`\n  New signup: ${business_name} (${email}) → genda.be/${slug}\n`);
 
       res.status(201).json({
         token,
@@ -328,35 +328,35 @@ function getSectorServices(sector, lang) {
 function getSectorSpecializations(sector, lang) {
   const templates = {
     comptable: [
-      { name: 'Fiscalité des indépendants', description: 'IPP, avantages en nature, frais professionnels', icon: '📊', sort_order: 1 },
-      { name: 'Gestion de sociétés', description: 'SRL, SA, comptes annuels, bilans', icon: '🏢', sort_order: 2 },
-      { name: 'Obligations TVA', description: 'Déclarations, régularisations, contrôles', icon: '📝', sort_order: 3 },
-      { name: 'Création d\'entreprise', description: 'Plan financier, statuts, numéro BCE', icon: '🚀', sort_order: 4 }
+      { name: 'Fiscalité des indépendants', description: 'IPP, avantages en nature, frais professionnels', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>', sort_order: 1 },
+      { name: 'Gestion de sociétés', description: 'SRL, SA, comptes annuels, bilans', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>', sort_order: 2 },
+      { name: 'Obligations TVA', description: 'Déclarations, régularisations, contrôles', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>', sort_order: 3 },
+      { name: 'Création d\'entreprise', description: 'Plan financier, statuts, numéro BCE', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>', sort_order: 4 }
     ],
     avocat: [
-      { name: 'Droit des sociétés', description: 'Constitution, fusions, droit commercial', icon: '🏛️', sort_order: 1 },
-      { name: 'Droit du travail', description: 'Contrats, licenciements, conflits', icon: '⚖️', sort_order: 2 },
-      { name: 'Droit immobilier', description: 'Baux, ventes, copropriétés', icon: '🏠', sort_order: 3 },
-      { name: 'Droit familial', description: 'Divorce, successions, médiation', icon: '👨‍👩‍👧', sort_order: 4 }
+      { name: 'Droit des sociétés', description: 'Constitution, fusions, droit commercial', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>', sort_order: 1 },
+      { name: 'Droit du travail', description: 'Contrats, licenciements, conflits', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>', sort_order: 2 },
+      { name: 'Droit immobilier', description: 'Baux, ventes, copropriétés', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>', sort_order: 3 },
+      { name: 'Droit familial', description: 'Divorce, successions, médiation', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="5" r="2"/><path d="M5.2 17H2v-1.5A4.5 4.5 0 0 1 6.5 11"/><circle cx="17" cy="5" r="2"/><path d="M18.8 17H22v-1.5a4.5 4.5 0 0 0-4.5-4.5"/><circle cx="12" cy="9" r="2"/><path d="M16 21v-1.5A4.5 4.5 0 0 0 12 15v0a4.5 4.5 0 0 0-4 4.5V21"/></svg>', sort_order: 4 }
     ],
     medecin: [
-      { name: 'Médecine générale', description: 'Suivi global de santé', icon: '🩺', sort_order: 1 },
-      { name: 'Prévention', description: 'Bilans de santé, vaccinations', icon: '🛡️', sort_order: 2 },
-      { name: 'Maladies chroniques', description: 'Diabète, hypertension, asthme', icon: '💊', sort_order: 3 }
+      { name: 'Médecine générale', description: 'Suivi global de santé', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>', sort_order: 1 },
+      { name: 'Prévention', description: 'Bilans de santé, vaccinations', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', sort_order: 2 },
+      { name: 'Maladies chroniques', description: 'Diabète, hypertension, asthme', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>', sort_order: 3 }
     ],
     dentiste: [
-      { name: 'Soins conservateurs', description: 'Caries, dévitalisations', icon: '🦷', sort_order: 1 },
-      { name: 'Prothèses', description: 'Couronnes, bridges, implants', icon: '✨', sort_order: 2 },
-      { name: 'Orthodontie', description: 'Alignement, appareils', icon: '😁', sort_order: 3 }
+      { name: 'Soins conservateurs', description: 'Caries, dévitalisations', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5c-1.7-1.4-4-2-6-1.5C4 4.5 3 6 3 8c0 4 3 10 5 12 .7.7 1.5.5 2-.5l.5-1c.3-.7 1-1 1.5-1s1.2.3 1.5 1l.5 1c.5 1 1.3 1.2 2 .5 2-2 5-8 5-12 0-2-1-3.5-3-4-2-.5-4.3.1-6 1.5z"/></svg>', sort_order: 1 },
+      { name: 'Prothèses', description: 'Couronnes, bridges, implants', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>', sort_order: 2 },
+      { name: 'Orthodontie', description: 'Alignement, appareils', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>', sort_order: 3 }
     ],
     kine: [
-      { name: 'Rééducation musculaire', description: 'Post-opératoire, entorses, tendinites', icon: '💪', sort_order: 1 },
-      { name: 'Kinésithérapie respiratoire', description: 'Bronchiolite, BPCO', icon: '🫁', sort_order: 2 },
-      { name: 'Thérapie manuelle', description: 'Dos, cervicales, articulations', icon: '🤲', sort_order: 3 }
+      { name: 'Rééducation musculaire', description: 'Post-opératoire, entorses, tendinites', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>', sort_order: 1 },
+      { name: 'Kinésithérapie respiratoire', description: 'Bronchiolite, BPCO', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.081 20C2.6 20 1 17 1 13.5c0-3 1.2-5.5 3-7l2-1.5v10"/><path d="M17.92 20C21.4 20 23 17 23 13.5c0-3-1.2-5.5-3-7l-2-1.5v10"/><path d="M12 4v16"/></svg>', sort_order: 2 },
+      { name: 'Thérapie manuelle', description: 'Dos, cervicales, articulations', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>', sort_order: 3 }
     ],
     autre: [
-      { name: 'Consultation', description: 'Service principal', icon: '📋', sort_order: 1 },
-      { name: 'Accompagnement', description: 'Suivi personnalisé', icon: '🤝', sort_order: 2 }
+      { name: 'Consultation', description: 'Service principal', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>', sort_order: 1 },
+      { name: 'Accompagnement', description: 'Suivi personnalisé', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>', sort_order: 2 }
     ]
   };
 

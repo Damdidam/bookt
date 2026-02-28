@@ -130,7 +130,7 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
     pour <strong>${booking.service_name}</strong>.</p>
     <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:6px">
-        📋 ${typeLabels[template.type] || 'Document à consulter'}
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> ${typeLabels[template.type] || 'Document à consulter'}
       </div>
       <div style="font-size:15px;font-weight:600;color:#1A1816">${template.name}</div>
     </div>`;
@@ -200,8 +200,8 @@ async function sendModificationEmail({ booking, business }) {
     </div>
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">
-      <a href="${confirmUrl}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px">✅ Oui, ça me va</a>
-      <a href="${rejectUrl}" style="display:inline-block;padding:14px 36px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;border:2px solid #E57373">❌ Non</a>
+      <a href="${confirmUrl}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px"> Oui, ça me va</a>
+      <a href="${rejectUrl}" style="display:inline-block;padding:14px 36px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;border:2px solid #E57373"> Non</a>
     </div>
     <p style="font-size:12px;color:#9C958E;text-align:center">Si vous ne répondez pas, le nouveau créneau sera automatiquement confirmé.</p>`;
 
@@ -217,7 +217,7 @@ async function sendModificationEmail({ booking, business }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
-    subject: `📅 Modification de votre RDV — ${business.name}`,
+    subject: `Modification de votre RDV — ${business.name}`,
     html,
     fromName: business.name,
     replyTo: business.email
@@ -249,7 +249,7 @@ async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
   return sendEmail({
     to: email,
     toName: name || email,
-    subject: '🔑 Réinitialisation de mot de passe — ' + (businessName || 'Genda'),
+    subject: 'Réinitialisation de mot de passe — ' + (businessName || 'Genda'),
     html
   });
 }

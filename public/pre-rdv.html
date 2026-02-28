@@ -6,6 +6,10 @@
 <title>Document pré-rendez-vous — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 /* ── Kill mobile browser helpers ── */
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
@@ -103,7 +107,7 @@ async function loadDocument() {
     render();
   } catch (e) {
     card.innerHTML = `<div class="error">
-      <p style="font-size:2rem;margin-bottom:10px">📋</p>
+      <p style="font-size:2rem;margin-bottom:10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></p>
       <p><strong>${e.message}</strong></p>
       <p style="margin-top:8px;color:var(--text4)">Ce lien n'est plus valide ou le document est introuvable.</p>
     </div>`;
@@ -122,7 +126,7 @@ function render() {
   // Already completed?
   if (send.status === 'completed') {
     card.innerHTML = `<div class="success-state">
-      <div class="check">✅</div>
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
       <h2>Document complété</h2>
       <p>Merci, vos réponses ont bien été enregistrées le ${new Date(send.responded_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.</p>
     </div>`;
@@ -151,9 +155,9 @@ function render() {
 
   // Appointment bar
   h += `<div class="appt-bar">
-    <div class="item"><span class="ico">📅</span> ${dateStr} à ${timeStr}</div>
-    <div class="item"><span class="ico">💼</span> ${esc(booking.service_name)}</div>
-    ${booking.practitioner_name ? `<div class="item"><span class="ico">👤</span> ${esc(booking.practitioner_name)}</div>` : ''}
+    <div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span> ${dateStr} à ${timeStr}</div>
+    <div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span> ${esc(booking.service_name)}</div>
+    ${booking.practitioner_name ? `<div class="item"><span class="ico"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> ${esc(booking.practitioner_name)}</div>` : ''}
   </div>`;
 
   // Content
@@ -277,7 +281,7 @@ async function submitForm() {
 
     // Show success
     document.getElementById('docCard').innerHTML = `<div class="success-state">
-      <div class="check">✅</div>
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
       <h2>Merci !</h2>
       <p>Vos réponses ont bien été enregistrées. Votre praticien y aura accès avant le rendez-vous.</p>
     </div>`;

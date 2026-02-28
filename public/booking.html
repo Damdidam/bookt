@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+.gi-xl{width:2em;height:2em}
+
 /* ── Kill mobile browser helpers ── */
 *{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
@@ -134,7 +138,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
   <!-- Error state -->
   <div id="errorState" class="error-state" style="display:none">
-    <div class="err-icon">🔍</div>
+    <div class="err-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
     <h3>Rendez-vous introuvable</h3>
     <p>Ce lien n'est plus valide ou le rendez-vous a été supprimé.</p>
   </div>
@@ -222,12 +226,12 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 
     <!-- Result messages -->
     <div class="result-msg" id="confirmResult">
-      <div class="check">✓</div>
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
       <h3>Rendez-vous confirmé</h3>
       <p>Merci ! Votre praticien a été notifié.</p>
     </div>
     <div class="result-msg" id="cancelResult">
-      <div class="cross">✕</div>
+      <div class="cross"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
       <h3>Rendez-vous annulé</h3>
       <p>Vous pouvez reprendre rendez-vous à tout moment.</p>
     </div>
@@ -336,7 +340,7 @@ function renderBooking(data) {
   const actionsEl = document.getElementById('actionButtons');
   if (booking.status === 'modified_pending') {
     actionsEl.innerHTML = `
-      <button class="btn btn-confirm" onclick="confirmBooking()">Ça me convient ✓</button>
+      <button class="btn btn-confirm" onclick="confirmBooking()">Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
       <button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler</button>`;
     actionsEl.style.display = 'flex';
   } else if (booking.status === 'confirmed' && cancellation.allowed) {
@@ -369,7 +373,7 @@ async function confirmBooking() {
     document.getElementById('rowDate').classList.remove('changed');
   } catch (e) {
     btn.disabled = false;
-    btn.textContent = 'Ça me convient ✓';
+    btn.textContent = 'Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     alert('Erreur lors de la confirmation. Veuillez réessayer.');
   }
 }

@@ -130,7 +130,7 @@ router.post('/specializations', async (req, res, next) => {
     const result = await queryWithRLS(req.businessId,
       `INSERT INTO specializations (business_id, name, description, icon, sort_order)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.businessId, name, description || null, icon || '📋', maxOrder.rows[0].next]
+      [req.businessId, name, description || null, icon || '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>', maxOrder.rows[0].next]
     );
 
     // Link practitioners
@@ -230,7 +230,7 @@ router.post('/values', async (req, res, next) => {
     const result = await queryWithRLS(req.businessId,
       `INSERT INTO value_propositions (business_id, title, description, icon, icon_style, sort_order)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.businessId, title, description || null, icon || '✦', icon_style || 'teal', maxOrder.rows[0].next]
+      [req.businessId, title, description || null, icon || '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>', icon_style || 'teal', maxOrder.rows[0].next]
     );
 
     res.status(201).json({ value: result.rows[0] });
