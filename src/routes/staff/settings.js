@@ -36,14 +36,19 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // V7.1 no-show settings
       settings_noshow_threshold, settings_noshow_action,
       // V12 overlap policy
-      settings_allow_overlap
+      settings_allow_overlap,
+      // V20 reminder settings
+      settings_reminder_email_24h, settings_reminder_sms_24h,
+      settings_reminder_sms_2h, settings_reminder_email_2h
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
     let mergedSettings = settings || null;
     if (settings_iban !== undefined || settings_bic !== undefined || settings_invoice_footer !== undefined
         || settings_noshow_threshold !== undefined || settings_noshow_action !== undefined
-        || settings_allow_overlap !== undefined) {
+        || settings_allow_overlap !== undefined
+        || settings_reminder_email_24h !== undefined || settings_reminder_sms_24h !== undefined
+        || settings_reminder_sms_2h !== undefined || settings_reminder_email_2h !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -53,6 +58,10 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_noshow_threshold !== undefined) cur.noshow_block_threshold = parseInt(settings_noshow_threshold);
       if (settings_noshow_action !== undefined) cur.noshow_block_action = settings_noshow_action;
       if (settings_allow_overlap !== undefined) cur.allow_overlap = !!settings_allow_overlap;
+      if (settings_reminder_email_24h !== undefined) cur.reminder_email_24h = !!settings_reminder_email_24h;
+      if (settings_reminder_sms_24h !== undefined) cur.reminder_sms_24h = !!settings_reminder_sms_24h;
+      if (settings_reminder_sms_2h !== undefined) cur.reminder_sms_2h = !!settings_reminder_sms_2h;
+      if (settings_reminder_email_2h !== undefined) cur.reminder_email_2h = !!settings_reminder_email_2h;
       mergedSettings = cur;
     }
 

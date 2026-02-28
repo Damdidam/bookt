@@ -152,4 +152,27 @@ router.get('/waitlist-expired', async (req, res) => {
   }
 });
 
+// ============================================================
+// GET /api/cron/reminders — send patient email + SMS reminders
+// Run every 10 min. Sends 24h and 2h reminders for upcoming bookings.
+// ============================================================
+router.get('/reminders', requireCronKey, async (req, res) => {
+  const started = Date.now();
+  try {
+    const { processReminders } = require('../../services/reminders');
+    const stats = await processReminders();
+    const elapsed = Date.now() - started;
+    console.log(`[CRON] Reminders: ${JSON.stringify(stats)} (${elapsed}ms)`);
+    res.json({ ...stats, elapsed_ms: elapsed });
+  } catch (err) {
+    console.error('[CRON] Reminders error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
+// ============================================================
+// Reminder engine export (for in-process cron in server.js)
+// ============================================================
+module.exports.processReminders = require('../../services/reminders').processReminders;

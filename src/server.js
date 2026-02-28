@@ -187,6 +187,20 @@ app.listen(PORT, () => {
       console.error('[WAITLIST CRON] Error:', e.message);
     }
   }, 5 * 60 * 1000); // 5 minutes
+
+  // ===== REMINDERS CRON — send patient reminders every 10 min =====
+  setInterval(async () => {
+    try {
+      const { processReminders } = require('./services/reminders');
+      const stats = await processReminders();
+      const total = stats.email_24h + stats.sms_24h + stats.email_2h + stats.sms_2h;
+      if (total > 0) {
+        console.log(`[REMINDERS CRON] ✉️ ${stats.email_24h} email 24h, 📱 ${stats.sms_24h} SMS 24h, 📱 ${stats.sms_2h} SMS 2h, ❌ ${stats.errors} errors`);
+      }
+    } catch (e) {
+      console.error('[REMINDERS CRON] Error:', e.message);
+    }
+  }, 10 * 60 * 1000); // 10 minutes
 });
 
 module.exports = app;
