@@ -5471,5 +5471,84 @@ async function wlChangeStatus(entryId,status){
 document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});
 document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});
 </script>
+<script>
+/* ═══ DEV PANEL — Ctrl+Shift+D ═══ */
+(function(){
+  let devOpen=false;
+  const PLANS=[
+    {key:'free',label:'Free',color:'#6B6560',icon:'🆓'},
+    {key:'pro',label:'Pro',color:'#0D7377',icon:'⭐'},
+    {key:'premium',label:'Premium',color:'#A68B3C',icon:'👑'}
+  ];
+  function createPanel(){
+    if(document.getElementById('_devPanel'))return document.getElementById('_devPanel');
+    const el=document.createElement('div');el.id='_devPanel';
+    el.style.cssText='position:fixed;bottom:16px;right:16px;z-index:99999;background:#1A1816;color:#fff;border-radius:14px;padding:16px 20px;font-family:var(--sans);font-size:.82rem;box-shadow:0 8px 32px rgba(0,0,0,.3);min-width:220px;display:none;border:1px solid rgba(255,255,255,.08)';
+    el.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <span style="font-weight:800;font-size:.72rem;letter-spacing:1px;color:rgba(255,255,255,.4)">🛠 DEV PANEL</span>
+        <span id="_devClose" style="cursor:pointer;opacity:.4;font-size:.9rem" title="Fermer (Ctrl+Shift+D)">✕</span>
+      </div>
+      <div style="font-size:.68rem;color:rgba(255,255,255,.35);margin-bottom:10px">Plan du business</div>
+      <div id="_devPlans" style="display:flex;gap:6px"></div>
+      <div id="_devStatus" style="margin-top:10px;font-size:.7rem;color:rgba(255,255,255,.3)"></div>
+    `;
+    document.body.appendChild(el);
+    document.getElementById('_devClose').onclick=()=>toggle();
+    renderPlans();
+    return el;
+  }
+  function renderPlans(){
+    const cur=(biz?.plan||'free').toLowerCase();
+    const wrap=document.getElementById('_devPlans');
+    if(!wrap)return;
+    wrap.innerHTML=PLANS.map(p=>{
+      const active=p.key===cur;
+      return `<button onclick="_devSetPlan('${p.key}')" style="
+        flex:1;padding:10px 8px;border-radius:8px;border:2px solid ${active?p.color:'rgba(255,255,255,.1)'};
+        background:${active?p.color+'22':'transparent'};color:${active?p.color:'rgba(255,255,255,.5)'};
+        font-family:var(--sans);font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;
+        display:flex;flex-direction:column;align-items:center;gap:4px
+      ">${p.icon}<span>${p.label}</span>${active?'<span style="font-size:.55rem;opacity:.6">actif</span>':''}</button>`;
+    }).join('');
+  }
+  function toggle(){
+    devOpen=!devOpen;
+    const panel=createPanel();
+    panel.style.display=devOpen?'block':'none';
+    if(devOpen)renderPlans();
+  }
+  window._devSetPlan=async function(plan){
+    const status=document.getElementById('_devStatus');
+    status.textContent='⏳ Changement...';status.style.color='rgba(255,255,255,.5)';
+    try{
+      const r=await fetch('/api/business/dev/plan',{method:'PATCH',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({plan})});
+      if(!r.ok){const d=await r.json();throw new Error(d.error);}
+      const d=await r.json();
+      // Update local state
+      if(biz)biz.plan=d.plan;
+      businessPlan=d.plan;
+      document.getElementById('planBadge').textContent=d.plan.toUpperCase();
+      renderPlans();
+      status.textContent='✅ Plan → '+d.plan.toUpperCase();status.style.color='#4ADE80';
+      GendaUI.toast('🛠 Plan changé → '+d.plan.toUpperCase(),'success');
+      // Reload current section to reflect plan changes
+      const activeNav=document.querySelector('.ni.active');
+      const sec=activeNav?.dataset?.section;
+      if(sec==='site')loadSiteSection();
+      else if(sec==='settings')loadSettings();
+      setTimeout(()=>{if(status)status.textContent='';},3000);
+    }catch(e){
+      status.textContent='❌ '+e.message;status.style.color='#F87171';
+      GendaUI.toast('Erreur: '+e.message,'error');
+    }
+  };
+  document.addEventListener('keydown',function(e){
+    if(e.ctrlKey&&e.shiftKey&&e.key==='D'){e.preventDefault();toggle();}
+  });
+})();
+</script>
 </body>
 </html>

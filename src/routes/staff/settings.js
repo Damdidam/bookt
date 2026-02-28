@@ -146,4 +146,22 @@ router.get('/public-link', async (req, res, next) => {
   }
 });
 
+// ============================================================
+// PATCH /api/business/dev/plan — DEV ONLY: change plan for testing
+// ============================================================
+router.patch('/dev/plan', requireOwner, async (req, res, next) => {
+  try {
+    const { plan } = req.body;
+    const allowed = ['free', 'pro', 'premium'];
+    if (!allowed.includes(plan)) {
+      return res.status(400).json({ error: 'Plan invalide. Valeurs: ' + allowed.join(', ') });
+    }
+    const result = await queryWithRLS(req.businessId,
+      `UPDATE businesses SET plan = $1, updated_at = NOW() WHERE id = $2 RETURNING plan`,
+      [plan, req.businessId]
+    );
+    res.json({ plan: result.rows[0].plan });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
