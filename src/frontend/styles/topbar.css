@@ -1,0 +1,5 @@
+/* ===== MAIN + TOPBAR ===== */
+.main{margin-left:234px;min-height:100vh}
+.topbar{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid #E8ECF0;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;z-index:40}
+.topbar h1{font-family:var(--serif);font-size:1.35rem;font-weight:400;color:var(--text)}
+.content{padding:28px 32px;max-width:1120px}

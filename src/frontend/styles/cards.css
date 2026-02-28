@@ -1,0 +1,48 @@
+/* ===== STAT CARDS (Home) ===== */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--white);border-radius:12px;border:1px solid var(--border-light);padding:20px 22px;transition:all .15s}
+.stat-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.04);border-color:var(--border)}
+.stat-card .label{font-size:.68rem;font-weight:600;color:#A0AAB6;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.stat-card .val{font-family:var(--serif);font-size:1.7rem;color:var(--text);line-height:1}
+.stat-card .sub{font-size:.7rem;color:#8896A6;margin-top:5px}
+
+/* ===== KPI CARDS (Clients, Calls, reusable) ===== */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px 18px;text-align:center;transition:var(--transition);cursor:default}
+.kpi:hover{box-shadow:var(--shadow);border-color:var(--border)}
+.kpi-val{font-family:var(--serif);font-size:1.6rem;line-height:1;color:var(--text)}
+.kpi-label{font-size:.68rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+
+/* ===== CARDS ===== */
+.card{background:var(--white);border-radius:12px;border:1px solid var(--border-light);overflow:hidden;margin-bottom:16px;transition:all .15s}
+.card:hover{box-shadow:0 2px 8px rgba(0,0,0,.03)}
+.card-h{padding:16px 20px;border-bottom:1px solid #EDF0F3;display:flex;align-items:center;justify-content:space-between}
+.card-h h3{font-size:.9rem;font-weight:700;color:var(--text)}
+.badge{font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:100px}
+.badge-teal{background:var(--primary-light);color:var(--primary)}
+
+/* ===== QUICK LINK ===== */
+.qlink{background:linear-gradient(135deg,#0D7377 0%,#0A5E61 60%,#084547 100%);border-radius:var(--radius);padding:18px 22px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;box-shadow:0 4px 20px rgba(13,115,119,.2)}
+.qlink .info h4{font-size:.9rem;font-weight:600;margin-bottom:2px}
+.qlink .info p{font-size:.75rem;opacity:.55}
+.qlink a{padding:8px 16px;background:rgba(255,255,255,.15);border-radius:var(--radius-xs);font-size:.78rem;font-weight:600;color:#fff;text-decoration:none;transition:var(--transition);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.1)}
+.qlink a:hover{background:rgba(255,255,255,.25)}
+
+/* ===== BOOKINGS / ROWS ===== */
+.bk-row{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid #EDF0F3;transition:all .12s;cursor:pointer}
+.bk-row:last-child{border:none}
+.bk-row:hover{background:#F8FAFA}
+.bk-badges{display:flex;gap:4px;align-items:center}
+.bk-badge{font-size:.65rem;padding:2px 6px;border-radius:6px;white-space:nowrap}
+.bk-badge.todo{background:#E3F2FD;color:#1565C0}
+.bk-badge.note{background:#FFF3E0;color:#E65100}
+.bk-status{padding:3px 10px;border-radius:100px;font-size:.68rem;font-weight:600;white-space:nowrap}
+.bk-status.confirmed{background:var(--green-bg);color:var(--green)}
+.bk-status.pending{background:var(--gold-bg);color:var(--gold)}
+.bk-status.completed{background:var(--surface);color:var(--text-3)}
+.bk-status.noshow{background:#FFF3CD;color:#856404}
+.bk-status.cancelled{background:var(--red-bg);color:var(--red)}
+.empty{padding:44px 20px;text-align:center;color:var(--text-4);font-size:.88rem;line-height:1.6}
+.loading{text-align:center;padding:48px;color:var(--text-4)}
+.spinner{display:inline-block;width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}

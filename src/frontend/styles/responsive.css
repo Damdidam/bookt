@@ -1,0 +1,123 @@
+/* ===== RESPONSIVE ===== */
+@media(max-width:1000px){
+  .sidebar{width:60px}
+  .sidebar .w,.sidebar .plan,.ni span:not(.ic),.sb-foot .nm,.sb-foot .rl,.sb-foot .logout,.sb-label{display:none}
+  .main{margin-left:60px}
+  .content{padding:20px 16px}
+  .topbar{padding:14px 16px}
+  .stats{grid-template-columns:1fr 1fr}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  /* Agenda toolbar tablet compaction */
+  .agenda-toolbar{padding:8px 16px 6px;margin:0 -16px;width:calc(100% + 32px)}
+  .agenda-toolbar .at-title{font-size:1.05rem}
+  .agenda-toolbar .at-today{padding:5px 12px;font-size:.7rem}
+  .agenda-toolbar .at-view-btn{padding:5px 12px;font-size:.7rem}
+  .agenda-toolbar .prac-pill{padding:5px 12px;font-size:.68rem}
+}
+@media(max-width:800px){
+  .an-kpi{grid-template-columns:repeat(2,1fr)}
+  .chart-row{grid-template-columns:1fr}
+  .theme-grid{grid-template-columns:1fr 1fr}
+  .field-row{flex-direction:column;gap:0}
+  .team-grid2{grid-template-columns:1fr}
+  .plan-card{flex-direction:column}
+  /* Calendar modal → almost full screen */
+  .cal-modal{max-width:100%;border-radius:14px 14px 0 0;max-height:95vh}
+  .cal-modal-body{padding:16px}
+  .m-row-3{grid-template-columns:1fr 1fr}
+  .notify-options{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:500px){
+  .theme-grid{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr}
+}
+
+/* ===== MOBILE CALENDAR OPTIMIZATIONS ===== */
+@media(max-width:768px){
+  .fc .fc-timegrid-slot{height:18px}
+  .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
+  .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
+
+  /* Agenda toolbar → 2-row compact layout on mobile */
+  .agenda-toolbar{padding:8px 12px 6px;margin:0 -16px;width:calc(100% + 32px)}
+  /* Hide desktop rows on mobile */
+  .agenda-toolbar .at-row-nav,.agenda-toolbar .at-row-filters{display:none}
+  .agenda-toolbar .at-row1{display:flex;align-items:center;gap:6px;width:100%;margin-bottom:5px}
+  .agenda-toolbar .at-row1 .at-nav{gap:3px}
+  .agenda-toolbar .at-row1 .at-nav-btn{width:26px;height:26px;font-size:.78rem;border-radius:6px}
+  .agenda-toolbar .at-row1 .at-today{padding:4px 10px;font-size:.68rem}
+  .agenda-toolbar .at-title-mob{font-family:var(--serif);font-size:.92rem;font-weight:400;color:var(--text);flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .agenda-toolbar .at-mob-views{display:flex;gap:2px;flex-shrink:0}
+  .agenda-toolbar .at-mob-vbtn{width:30px;height:26px;border-radius:6px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-4);cursor:pointer;font-size:.72rem;display:flex;align-items:center;justify-content:center}
+  .agenda-toolbar .at-mob-vbtn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
+  .agenda-toolbar .at-row2{display:flex;gap:4px;width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .agenda-toolbar .at-row2::-webkit-scrollbar{display:none}
+  .agenda-toolbar .at-row2 .prac-pill{padding:3px 10px;font-size:.64rem;gap:4px}
+  .agenda-toolbar .at-row2 .prac-pill .dot{width:6px;height:6px}
+  /* Sticky day headers below mobile toolbar (~64px) */
+  .content.agenda-active .fc .fc-scrollgrid-section-header{top:64px}
+  .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:64px!important}
+
+  /* Modal → full screen bottom sheet */
+  .cal-modal-overlay{padding:0;align-items:flex-end}
+  .cal-modal{max-width:100%;max-height:92vh;border-radius:18px 18px 0 0;animation:slideUp .3s cubic-bezier(.4,0,.2,1)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
+  .cal-modal-head{padding:16px 18px 0}
+  .cal-modal-head h2{font-size:1.1rem}
+  .m-tabs{padding:0 18px}
+  .m-tab{padding:8px 10px;font-size:.72rem}
+  .cal-modal-body{padding:16px 18px}
+  .m-row-3{grid-template-columns:1fr}
+  .m-status-strip{margin:0 18px 12px;flex-wrap:wrap}
+  .m-st-actions{margin-left:0;width:100%;margin-top:6px}
+  .m-st-btn{flex:1;text-align:center;font-size:.68rem;padding:7px 8px}
+  .m-header-content{padding:0 18px}
+  .m-client-hero{flex-wrap:wrap;gap:10px}
+  .m-quick-actions{margin-left:0}
+  .m-bottom{padding:14px 18px;margin:0 -18px}
+
+  /* FAB — floating action button */
+  .cal-fab{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 16px rgba(13,115,119,.4);z-index:100;display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
+  .cal-fab:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(13,115,119,.5)}
+  .cal-fab:active{transform:scale(.95)}
+
+  /* Mobile list: header only (nav is in toolbar now) */
+  .mob-list{display:none}
+  .mob-list.active{display:block}
+  .mob-list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:8px 0 0}
+  .mob-list-date{font-family:var(--serif);font-size:1rem;color:var(--text)}
+  .mob-list-count{font-size:.72rem;font-weight:700;background:var(--primary-light);color:var(--primary);padding:3px 10px;border-radius:100px}
+
+  .mob-bk{display:flex;gap:12px;padding:14px 16px;background:var(--white);border:1px solid var(--border-light);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+  .mob-bk:hover{border-color:var(--primary-soft);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .mob-bk:active{transform:scale(.985)}
+  .mob-bk::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:0 2px 2px 0}
+  .mob-bk.st-confirmed::before{background:var(--green)}
+  .mob-bk.st-pending::before{background:var(--gold)}
+  .mob-bk.st-modified_pending::before{background:#D97706}
+  .mob-bk.st-completed::before{background:var(--text-4)}
+  .mob-bk.st-cancelled::before,.mob-bk.st-no_show::before{background:var(--red)}
+  .mob-bk.st-completed,.mob-bk.st-cancelled{opacity:.45}
+  .mob-bk-time{min-width:52px;text-align:center;flex-shrink:0}
+  .mob-bk-time .t{font-size:.88rem;font-weight:700;color:var(--primary);line-height:1.2}
+  .mob-bk-time .dur{font-size:.62rem;color:#A8B3BF}
+  .mob-bk-info{flex:1;min-width:0}
+  .mob-bk-info .name{font-size:.88rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mob-bk-info .svc{font-size:.72rem;color:#8896A6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mob-bk-info .prac{font-size:.65rem;color:#8896A6;margin-top:3px;display:flex;align-items:center;gap:5px}
+  .mob-bk-info .prac .pdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .mob-bk-status{font-size:.62rem;font-weight:700;padding:3px 10px;border-radius:100px;align-self:center;flex-shrink:0;white-space:nowrap}
+  .mob-bk-badges{position:absolute;top:6px;right:8px;display:flex;gap:3px}
+  .mob-bk-badges span{font-size:.55rem}
+
+  .mob-empty{text-align:center;padding:40px 20px;color:var(--text-4)}
+  .mob-empty-icon{font-size:2rem;margin-bottom:8px}
+  .mob-empty-text{font-size:.88rem}
+  .mob-empty-sub{font-size:.78rem;margin-top:4px}
+}
+/* Hide FAB on desktop, hide mobile rows on desktop */
+@media(min-width:769px){
+  .cal-fab{display:none!important}
+  .agenda-toolbar .at-row1,.agenda-toolbar .at-row2,.agenda-toolbar .at-mob-views{display:none!important}
+  .mob-list{display:none!important}
+}

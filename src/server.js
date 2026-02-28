@@ -58,7 +58,12 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleSt
 
 app.use(express.json({ limit: '5mb' }));
 
-// Static files (frontend dashboard + client booking pages)
+// Static files — serve Vite build first (production), then public/ fallback
+const fs = require('fs');
+const distDir = path.join(__dirname, '../dist');
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+}
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ===== FRONTEND PAGE ROUTES =====
@@ -66,7 +71,11 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, '../public/login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, '../public/signup.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, '../public/dashboard.html')));
+app.get('/dashboard', (req, res) => {
+  const built = path.join(__dirname, '../dist/public/dashboard.html');
+  if (fs.existsSync(built)) return res.sendFile(built);
+  res.sendFile(path.join(__dirname, '../public/dashboard.html'));
+});
 
 // Public mini-site: /:slug (must be AFTER all other routes)
 // This is handled by the catch-all at the bottom

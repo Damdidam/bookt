@@ -2,6 +2,9 @@
 node_modules/
 package-lock.json
 
+# Vite build output
+dist/
+
 # Environment
 .env
 .env.local

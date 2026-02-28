@@ -1,0 +1,11 @@
+:root{
+  --bg:#F8F9FA;--white:#FFF;--bg-card:#FAFBFC;--surface:#F2F4F6;--surface-2:#E8EBEE;--border:#D8DDE3;--border-light:#E8ECF0;
+  --text:#1A2332;--text-2:#3A4555;--text-3:#6B7A8D;--text-4:#A0AAB6;
+  --primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EDF8F7;--primary-soft:#CCEBE8;
+  --green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#C62828;--red-bg:#FEF2F2;
+  --sidebar-bg:#161A22;--sidebar-hover:#1E232D;--sidebar-active:rgba(13,115,119,.9);
+  --serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;
+  --shadow-xs:0 1px 2px rgba(0,0,0,.04);--shadow:0 2px 8px rgba(0,0,0,.06);--shadow-md:0 4px 16px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.1);
+  --radius:14px;--radius-sm:10px;--radius-xs:6px;
+  --transition:all .2s cubic-bezier(.4,0,.2,1)
+}
