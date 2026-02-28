@@ -282,8 +282,82 @@ function fmtNext(iso){if(!iso)return null;const d=new Date(iso),now=new Date(),h
 const ICO={phone:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',mail:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z"/><path d="M22 6l-10 7L2 6"/></svg>',pin:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>',cal:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',arrow:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',fb:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z"/></svg>',ig:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><path d="M17.5 6.5h.01"/></svg>',li:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6ZM2 9h4v12H2Z"/><circle cx="4" cy="4" r="2"/></svg>',web:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>'};
 
 const slug=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/').pop();
-if(!slug||slug===''||slug.endsWith('.html'))window.location.href='/';
+const isDemo=(!slug||slug===''||slug.endsWith('.html')||window.location.protocol==='file:');
+const urlDemo=new URLSearchParams(window.location.search).has('demo');
+
+if(isDemo||urlDemo) loadDemo();
 else loadSite(slug);
+
+function loadDemo(){
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);tomorrow.setHours(10,0,0,0);
+  render({
+    business:{
+      slug:'demo-cabinet',name:'Cabinet Bien-Être',
+      tagline:'Ostéopathie, kinésithérapie et soins holistiques au cœur de Bruxelles',
+      description:"Fondé en 2018, notre cabinet pluridisciplinaire réunit des praticiens passionnés. Nous proposons une approche globale de la santé, combinant techniques manuelles et accompagnement personnalisé pour chaque patient.",
+      phone:'+32 2 123 45 67',email:'contact@cabinet-bienetre.be',
+      address:'Rue de la Loi 42, 1000 Bruxelles',
+      language_default:'fr',languages_spoken:['fr','nl','en'],
+      founded_year:2018,accreditation:'Agréé INAMI',bce_number:'0123.456.789',
+      parking_info:'Parking souterrain à 50m',
+      logo_url:'',cover_image_url:'',
+      social_links:{facebook:'https://facebook.com',instagram:'https://instagram.com',linkedin:'https://linkedin.com'},
+      theme:{preset:'classique',primary_color:''},
+      seo_title:'',seo_description:'',
+      page_sections:{services:true,about:true,team:true,gallery:true,specializations:true,testimonials:true,news:true},
+      cancellation_window_hours:24,cancellation_fee_percent:50
+    },
+    services:[
+      {id:1,name:'Consultation ostéopathie',category:'Ostéopathie',duration_min:50,price_cents:6500,price_label:'',mode_options:['cabinet'],color:'#0D7377'},
+      {id:2,name:'Kinésithérapie',category:'Kiné',duration_min:30,price_cents:3200,price_label:'',mode_options:['cabinet','domicile'],color:'#1B7A42'},
+      {id:3,name:'Consultation posturale',category:'Posturologie',duration_min:45,price_cents:5500,price_label:'',mode_options:['cabinet'],color:'#A68B3C'},
+      {id:4,name:'Bilan initial complet',category:'Général',duration_min:75,price_cents:9000,price_label:'',mode_options:['cabinet'],color:'#6B4C9A'}
+    ],
+    practitioners:[
+      {id:1,display_name:'Sophie Martin',title:'Ostéopathe D.O.',bio:"Diplômée de l'ULB en 2015, Sophie est spécialisée dans les troubles musculo-squelettiques et l'ostéopathie crânienne. Elle prend en charge adultes et enfants.",photo_url:'',color:'#D5EFEC',years_experience:9,specializations:['Ostéopathie crânienne','Sportifs','Pédiatrie'],waitlist_mode:'off'},
+      {id:2,display_name:'Marc Dubois',title:'Kinésithérapeute',bio:"Passionné de biomécanique, Marc accompagne ses patients dans la rééducation fonctionnelle et la prévention des blessures.",photo_url:'',color:'#FAF6EC',years_experience:12,specializations:['Rééducation','Sport','Posturologie'],waitlist_mode:'off'}
+    ],
+    practitioner_count:2,
+    next_available:tomorrow.toISOString(),
+    specializations:[
+      {name:'Ostéopathie structurelle',description:'Techniques articulaires et tissulaires',icon:'🦴'},
+      {name:'Kinésithérapie sportive',description:'Rééducation et prévention pour sportifs',icon:'🏃'},
+      {name:'Posturologie',description:'Analyse et correction posturale globale',icon:'🧍'},
+      {name:'Thérapie manuelle',description:'Mobilisations douces et profondes',icon:'🤲'}
+    ],
+    testimonials:[
+      {author_name:'Caroline L.',author_role:'Patiente depuis 2020',content:"Un cabinet exceptionnel. Sophie a résolu en 3 séances un problème de dos qui me gênait depuis des mois.",rating:5},
+      {author_name:'Thomas R.',author_role:'Coureur marathon',content:"Marc m'a accompagné dans ma préparation. Grâce à ses conseils, j'ai pu courir sans douleur.",rating:5},
+      {author_name:'Isabelle D.',author_role:'Patiente régulière',content:'Accueil chaleureux, praticiens compétents et à l\'écoute. Je recommande vivement !',rating:5}
+    ],
+    values:[
+      {title:'Écoute',description:'Chaque patient est unique, nous prenons le temps',icon:'👂',icon_style:'teal'},
+      {title:'Expertise',description:'Praticiens diplômés et en formation continue',icon:'🎓',icon_style:'gold'},
+      {title:'Approche globale',description:'Nous traitons la cause, pas le symptôme',icon:'🌿',icon_style:'green'},
+      {title:'Transparence',description:'Tarifs clairs, pas de surprise',icon:'💎',icon_style:'neutral'}
+    ],
+    gallery:[
+      {image_url:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23D5EFEC"><rect width="400" height="400"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%230D7377" font-size="48">🏥</text></svg>',title:'Notre cabinet'},
+      {image_url:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23FAF6EC"><rect width="400" height="400"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23A68B3C" font-size="48">💆</text></svg>',title:'Salle de soins'},
+      {image_url:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23EEFAF1"><rect width="400" height="400"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%231B7A42" font-size="48">🌿</text></svg>',title:'Espace détente'},
+      {image_url:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23F0EDE8"><rect width="400" height="400"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%235A5650" font-size="48">🧘</text></svg>',title:'Salle yoga'},
+      {image_url:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23EBF3FC"><rect width="400" height="400"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%231565C0" font-size="48">📋</text></svg>',title:'Accueil'},
+      {image_url:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23FDF2F8"><rect width="400" height="400"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%239D174D" font-size="48">🏋️</text></svg>',title:'Espace rééducation'}
+    ],
+    news:[
+      {title:'Nouveaux horaires d\'été',content:'À partir du 1er juin, le cabinet sera ouvert le samedi matin de 9h à 12h. Profitez-en pour prendre rendez-vous !',published_at:new Date().toISOString(),tag:'Info',tag_type:'info'},
+      {title:'Bienvenue à Marc !',content:'Nous sommes ravis d\'accueillir Marc Dubois, kinésithérapeute spécialisé en rééducation sportive, au sein de notre équipe.',published_at:new Date(Date.now()-7*86400000).toISOString(),tag:'Nouveau',tag_type:'new'}
+    ],
+    hours:{0:{opens:'08:30:00',closes:'18:00:00'},1:{opens:'08:30:00',closes:'18:00:00'},2:{opens:'08:30:00',closes:'18:00:00'},3:{opens:'08:30:00',closes:'18:00:00'},4:{opens:'09:00:00',closes:'16:00:00'}}
+  });
+  // Show demo banner
+  const banner=document.createElement('div');
+  banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#FEF3C7;color:#92400E;text-align:center;padding:8px 16px;font-size:.78rem;font-weight:600;font-family:var(--sans);border-bottom:1px solid #F59E0B';
+  banner.innerHTML='⚡ Mode démo — <a href="?demo" style="color:#92400E;text-decoration:underline">Données fictives</a> · En production, cette page charge les données réelles via l\'API';
+  document.body.prepend(banner);
+  document.querySelector('.nav').style.top='36px';
+  document.querySelector('.hero').style.paddingTop='136px';
+}
 
 async function loadSite(slug){try{const r=await fetch('/api/public/'+slug);if(!r.ok){document.getElementById('loadingState').style.display='none';document.getElementById('errorState').style.display='flex';return;}render(await r.json());}catch(e){document.getElementById('loadingState').style.display='none';document.getElementById('errorState').style.display='flex';}}
 
