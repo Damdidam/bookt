@@ -5263,7 +5263,6 @@ function renderCallConfig(cs){
     h+=`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">`;
     h+=`<button class="btn-primary" onclick="activateCallFilter('BE')">🇧🇪 Numéro belge</button>`;
     h+=`<button class="btn-outline" onclick="activateCallFilter('FR')">🇫🇷 Numéro français</button>`;
-    h+=`<button class="btn-outline" onclick="activateCallFilter('NL')">🇳🇱 Numéro néerlandais</button>`;
     h+=`</div>`;
     h+=`<div style="font-size:.72rem;color:var(--text-4)">Un numéro virtuel est attribué à votre cabinet. Inclus dans l'abonnement Premium.</div>`;
     h+=`</div></div>`;
@@ -5421,7 +5420,6 @@ async function saveCallSettings(){
       sms_after_call:document.getElementById('call_sms').checked,
       vacation_until:document.getElementById('call_vac_until')?.value||null,
       vacation_message_fr:null, // managed in Messages tab
-      vacation_message_nl:null,
       vacation_redirect_phone:document.getElementById('call_vac_redirect_phone')?.value||null,
       vacation_redirect_name:document.getElementById('call_vac_redirect_name')?.value||null,
       repeat_caller_threshold:parseInt(document.getElementById('call_repeat_threshold')?.value)||3,
@@ -5444,24 +5442,21 @@ function renderCallMessages(cs){
   h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
   h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px">🔊 Message vocal (modes Soft / Strict)</div>`;
   h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Ce que le patient entend quand il appelle. Par défaut : "Bonjour et bienvenue chez [cabinet]. Pour prendre rendez-vous, nous vous envoyons un SMS..."</div>`;
-  h+=`<div class="fg"><label class="fl">🇫🇷 Français</label><textarea class="fi" id="msg_custom_fr" rows="3" placeholder="Bonjour, vous avez joint le cabinet du Dr Dupont...">${cs.custom_message_fr||''}</textarea></div>`;
-  h+=`<div class="fg"><label class="fl">🇳🇱 Nederlands</label><textarea class="fi" id="msg_custom_nl" rows="3" placeholder="Welkom bij de praktijk van Dr Dupont...">${cs.custom_message_nl||''}</textarea></div>`;
+  h+=`<div class="fg"><label class="fl">Message vocal</label><textarea class="fi" id="msg_custom_fr" rows="3" placeholder="Bonjour, vous avez joint le cabinet du Dr Dupont...">${cs.custom_message_fr||''}</textarea></div>`;
   h+=`</div>`;
 
   // Vacation message
   h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
   h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px">🏖️ Message vacances</div>`;
   h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Par défaut : "Le cabinet [nom] est actuellement fermé jusqu'au [date]. Vous pouvez prendre RDV en ligne..."</div>`;
-  h+=`<div class="fg"><label class="fl">🇫🇷 Français</label><textarea class="fi" id="msg_vac_fr" rows="3" placeholder="Bonjour, le cabinet est fermé pour congé annuel. Nous reprenons le...">${cs.vacation_message_fr||''}</textarea></div>`;
-  h+=`<div class="fg"><label class="fl">🇳🇱 Nederlands</label><textarea class="fi" id="msg_vac_nl" rows="3" placeholder="De praktijk is gesloten voor vakantie. We zijn terug op...">${cs.vacation_message_nl||''}</textarea></div>`;
+  h+=`<div class="fg"><label class="fl">Message vacances</label><textarea class="fi" id="msg_vac_fr" rows="3" placeholder="Bonjour, le cabinet est fermé pour congé annuel. Nous reprenons le...">${cs.vacation_message_fr||''}</textarea></div>`;
   h+=`</div>`;
 
   // SMS text
   h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
   h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px">📱 Texte du SMS</div>`;
-  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Le SMS envoyé au patient. Utilisez {lien} pour insérer le lien de réservation. Par défaut : "[Cabinet] : Prenez RDV en ligne sur [lien]"</div>`;
-  h+=`<div class="fg"><label class="fl">🇫🇷 Français</label><input class="fi" id="msg_sms_fr" value="${cs.custom_sms_fr||''}" placeholder="Dr Dupont — Prenez RDV en ligne : {lien}"></div>`;
-  h+=`<div class="fg"><label class="fl">🇳🇱 Nederlands</label><input class="fi" id="msg_sms_nl" value="${cs.custom_sms_nl||''}" placeholder="Dr Dupont — Maak online een afspraak: {lien}"></div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Le SMS envoyé au patient. Par défaut : "[Cabinet] : Prenez RDV en ligne sur [lien]"</div>`;
+  h+=`<div class="fg"><label class="fl">SMS</label><input class="fi" id="msg_sms_fr" value="${cs.custom_sms_fr||''}" placeholder="Dr Dupont — Prenez RDV en ligne : {lien}"></div>`;
   h+=`</div>`;
 
   h+=`<button class="btn-primary" onclick="saveCallMessages()">💾 Enregistrer les messages</button>`;
@@ -5473,11 +5468,8 @@ async function saveCallMessages(){
   try{
     const body={
       custom_message_fr:document.getElementById('msg_custom_fr').value.trim()||null,
-      custom_message_nl:document.getElementById('msg_custom_nl').value.trim()||null,
       vacation_message_fr:document.getElementById('msg_vac_fr').value.trim()||null,
-      vacation_message_nl:document.getElementById('msg_vac_nl').value.trim()||null,
-      custom_sms_fr:document.getElementById('msg_sms_fr').value.trim()||null,
-      custom_sms_nl:document.getElementById('msg_sms_nl').value.trim()||null
+      custom_sms_fr:document.getElementById('msg_sms_fr').value.trim()||null
     };
     const r=await fetch('/api/calls/settings',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);

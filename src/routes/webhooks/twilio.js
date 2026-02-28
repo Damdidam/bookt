@@ -87,9 +87,9 @@ router.post('/voice/incoming', async (req, res, next) => {
       );
       if (parseInt(repeatResult.rows[0].cnt) >= threshold - 1) {
         await logCall(businessId, CallSid, From, To, 'repeat_transfer', 'ok');
-        const msg = lang === 'nl' ? 'We verbinden u door.' : 'Nous vous transférons.';
+        const msg = 'Nous vous transférons.';
         return res.type('text/xml').send(twiml(
-          `<Say language="${lc(lang)}">${msg}</Say><Dial>${settings.forward_default_phone}</Dial>`
+          `<Say language="${lc()}">${msg}</Say><Dial>${settings.forward_default_phone}</Dial>`
         ));
       }
     }
@@ -110,22 +110,22 @@ router.post('/voice/incoming', async (req, res, next) => {
     let xml;
 
     if (mode === 'soft') {
-      xml = `<Say language="${lc(lang)}">${msgs.announcement}</Say>
+      xml = `<Say language="${lc()}">${msgs.announcement}</Say>
              <Dial>${settings.forward_default_phone}</Dial>`;
 
     } else if (mode === 'strict') {
-      xml = `<Say language="${lc(lang)}">${msgs.announcement}</Say>
-             <Say language="${lc(lang)}">${msgs.goodbye}</Say>
+      xml = `<Say language="${lc()}">${msgs.announcement}</Say>
+             <Say language="${lc()}">${msgs.goodbye}</Say>
              <Hangup/>`;
 
     } else if (mode === 'vacation') {
       if (settings.vacation_redirect_phone) {
-        xml = `<Say language="${lc(lang)}">${msgs.announcement}</Say>
-               <Say language="${lc(lang)}">${msgs.redirect}</Say>
+        xml = `<Say language="${lc()}">${msgs.announcement}</Say>
+               <Say language="${lc()}">${msgs.redirect}</Say>
                <Dial>${settings.vacation_redirect_phone}</Dial>`;
       } else {
-        xml = `<Say language="${lc(lang)}">${msgs.announcement}</Say>
-               <Say language="${lc(lang)}">${msgs.goodbye}</Say>
+        xml = `<Say language="${lc()}">${msgs.announcement}</Say>
+               <Say language="${lc()}">${msgs.goodbye}</Say>
                <Hangup/>`;
       }
     }
@@ -163,27 +163,19 @@ router.post('/sms/status', (req, res) => res.sendStatus(200));
 // HELPERS
 // ============================================================
 function twiml(c) { return `<?xml version="1.0" encoding="UTF-8"?><Response>${c}</Response>`; }
-function lc(lang) { return lang === 'nl' ? 'nl-BE' : 'fr-BE'; }
+function lc() { return 'fr-BE'; }
 
 function buildMessages(lang, s, bookingUrl, mode) {
   const name = s.name;
-  const customMsg = lang === 'nl' ? s.custom_message_nl : s.custom_message_fr;
-  const customSms = lang === 'nl' ? s.custom_sms_nl : s.custom_sms_fr;
+  const customMsg = s.custom_message_fr;
+  const customSms = s.custom_sms_fr;
 
   if (mode === 'vacation') {
-    const vacMsg = lang === 'nl' ? s.vacation_message_nl : s.vacation_message_fr;
+    const vacMsg = s.vacation_message_fr;
     const until = s.vacation_until
-      ? new Date(s.vacation_until).toLocaleDateString(lang === 'nl' ? 'nl-BE' : 'fr-BE', { day: 'numeric', month: 'long' })
+      ? new Date(s.vacation_until).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long' })
       : null;
 
-    if (lang === 'nl') {
-      return {
-        announcement: vacMsg || `Welkom bij ${name}. De praktijk is gesloten${until ? ' tot ' + until : ''}. U kunt online een afspraak maken via de SMS die we u sturen.`,
-        redirect: s.vacation_redirect_name ? `We verbinden u door met ${s.vacation_redirect_name}.` : 'We verbinden u door met de vervanger.',
-        goodbye: 'Een SMS met de reserveringslink is verstuurd. Tot ziens.',
-        sms: customSms || `${name}: Praktijk gesloten${until ? ' tot ' + until : ''}. Maak online een afspraak: ${bookingUrl}`
-      };
-    }
     return {
       announcement: vacMsg || `Bonjour. Le cabinet ${name} est actuellement fermé${until ? ' jusqu\'au ' + until : ''}. Vous pouvez prendre rendez-vous en ligne via le SMS que nous vous envoyons.`,
       redirect: s.vacation_redirect_name ? `Nous vous transférons vers ${s.vacation_redirect_name}.` : 'Nous vous transférons vers le remplaçant.',
@@ -192,13 +184,6 @@ function buildMessages(lang, s, bookingUrl, mode) {
     };
   }
 
-  if (lang === 'nl') {
-    return {
-      announcement: customMsg || `Welkom bij ${name}. Om een afspraak te maken, sturen we u een SMS met een link naar ons online reserveringssysteem.`,
-      goodbye: 'Een SMS met de reserveringslink is verstuurd. Tot ziens.',
-      sms: customSms || `${name}: Maak online een afspraak via ${bookingUrl}`
-    };
-  }
   return {
     announcement: customMsg || `Bonjour et bienvenue chez ${name}. Pour prendre rendez-vous, nous vous envoyons un SMS avec un lien vers notre système de réservation en ligne.`,
     goodbye: 'Un SMS avec le lien de réservation vous a été envoyé. Au revoir.',
