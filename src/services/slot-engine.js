@@ -130,7 +130,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   // 6b. Fetch busy blocks from external calendars (Google/Outlook)
   try {
     for (const pracId of practitionerIds) {
-      const busyBlocks = await getBusyBlocks(query, businessId, pracId, startDate, endDate);
+      const busyBlocks = await getBusyBlocks(query, businessId, pracId, new Date(dateFrom), new Date(dateTo));
       for (const block of busyBlocks) {
         const dateStr = new Date(block.start_at).toISOString().split('T')[0];
         const key = `${pracId}-${dateStr}`;

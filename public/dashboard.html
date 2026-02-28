@@ -1047,6 +1047,15 @@ document.querySelectorAll('.sb-label').forEach(label=>{
 document.getElementById('todayDate').textContent=new Date().toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
 if(biz)document.getElementById('planBadge').textContent=(biz.plan||'free').toUpperCase();
 if(new URLSearchParams(location.search).get('onboarding'))GendaUI.toast('🎉 Bienvenue !','success',5000);
+if(new URLSearchParams(location.search).get('subscription')==='success'){
+  const planName=new URLSearchParams(location.search).get('plan')||'';
+  GendaUI.toast('🎉 Abonnement '+planName.toUpperCase()+' activé ! 14 jours d\'essai gratuit.','success',6000);
+  history.replaceState(null,'','/dashboard');
+}
+if(new URLSearchParams(location.search).get('subscription')==='cancel'){
+  GendaUI.toast('Abonnement annulé. Vous pouvez réessayer à tout moment.','info',4000);
+  history.replaceState(null,'','/dashboard');
+}
 loadDashboard();
 
 async function loadDashboard(){
@@ -4430,6 +4439,7 @@ async function loadSettings(){
     </div></div>`;
 
     // 3b. Rappels patients
+    const plan=b.plan||'free';
     const re24=b.settings?.reminder_email_24h!==false;
     const rs24=b.settings?.reminder_sms_24h===true;
     const rs2=b.settings?.reminder_sms_2h===true;
@@ -4477,9 +4487,33 @@ async function loadSettings(){
     </div><div class="sc-foot"><button class="btn-primary" onclick="changePassword()">Changer le mot de passe</button></div></div>`;
 
     // 5. Plan & facturation
-    const plan=b.plan||'free';
-    h+=`<div class="settings-card"><div class="sc-h"><h3>💳 Plan & Facturation</h3></div><div class="sc-body">
-      <div class="plan-card">
+
+    // Fetch subscription status
+    let subStatus={};
+    try{
+      const sr=await fetch('/api/stripe/status',{headers:{'Authorization':'Bearer '+api.getToken()}});
+      if(sr.ok) subStatus=await sr.json();
+    }catch(e){}
+
+    h+=`<div class="settings-card"><div class="sc-h"><h3>💳 Plan & Facturation</h3></div><div class="sc-body">`;
+
+    // Trial banner
+    if(subStatus.is_trialing){
+      h+=`<div style="padding:14px 18px;background:var(--coral-lighter);border:1px solid var(--coral-border);border-radius:10px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div><span style="font-size:.88rem;font-weight:700;color:var(--coral-dark)">🎁 Période d'essai en cours</span><br><span style="font-size:.78rem;color:var(--text-3)">${subStatus.trial_days_left} jour${subStatus.trial_days_left>1?'s':''} restants — Votre carte ne sera débitée qu'à la fin de l'essai</span></div>
+      </div>`;
+    }
+
+    // Past due warning
+    if(subStatus.subscription_status==='past_due'){
+      h+=`<div style="padding:14px 18px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:10px;margin-bottom:16px">
+        <span style="font-size:.88rem;font-weight:700;color:var(--red)">⚠️ Paiement échoué</span><br>
+        <span style="font-size:.78rem;color:var(--text-3)">Votre dernier paiement a échoué. Mettez à jour votre moyen de paiement pour éviter la suspension.</span>
+        <button class="btn-primary" style="margin-top:8px;font-size:.82rem" onclick="openStripePortal()">Mettre à jour le paiement →</button>
+      </div>`;
+    }
+
+    h+=`<div class="plan-card">
         <div class="plan-box${plan==='free'?' current':''}">
           ${plan==='free'?'<span class="current-badge">Actuel</span>':''}
           <div class="plan-name">Gratuit</div>
@@ -4490,18 +4524,26 @@ async function loadSettings(){
           ${plan==='pro'?'<span class="current-badge">Actuel</span>':''}
           <div class="plan-name">Pro</div>
           <div class="plan-price">39 €<span>/mois</span></div>
-          <ul><li>Tout du Gratuit +</li><li>6 thèmes + couleur custom</li><li>Clients illimités</li><li>Rappels email + SMS</li><li>Statistiques avancées</li><li>Widget embeddable</li><li>QR code dynamique</li></ul>
-          ${plan!=='pro'?'<button class="btn-primary" style="width:100%;margin-top:8px" onclick="GendaUI.toast(\'Bientôt disponible — contactez-nous !\',\'info\')">Passer au Pro →</button>':''}
+          <ul><li>Tout du Gratuit +</li><li>6 thèmes + couleur custom</li><li>Clients illimités</li><li>Filtre d'appels (100 unités)</li><li>Rappels email + SMS</li><li>Statistiques avancées</li></ul>
+          ${plan==='free'?'<button class="btn-primary" style="width:100%;margin-top:8px" onclick="startCheckout(\'pro\')">Essai gratuit 14 jours →</button>':''}
+          ${plan==='pro'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">Gérer l\'abonnement</button>':''}
         </div>
         <div class="plan-box${plan==='premium'?' current':''}">
           ${plan==='premium'?'<span class="current-badge">Actuel</span>':''}
           <div class="plan-name">Premium</div>
           <div class="plan-price">79 €<span>/mois</span></div>
-          <ul><li>Tout du Pro +</li><li>Filtre d'appels IA</li><li>Google Cal + Outlook sync</li><li>Paiement en ligne</li><li>Facturation auto PDF</li><li>Domaine personnalisé</li><li>Support prioritaire</li></ul>
-          ${plan!=='premium'?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="GendaUI.toast(\'Bientôt disponible — contactez-nous !\',\'info\')">Contacter</button>':''}
+          <ul><li>Tout du Pro +</li><li>300 unités appels/SMS</li><li>Messagerie vocale</li><li>Domaine personnalisé</li><li>Support prioritaire</li></ul>
+          ${plan!=='premium'?'<button class="'+(plan==='free'?'btn-outline':'btn-primary')+'" style="width:100%;margin-top:8px" onclick="startCheckout(\'premium\')">'+(plan==='pro'?'Passer au Premium →':'Essai gratuit 14 jours →')+'</button>':''}
+          ${plan==='premium'&&subStatus.has_subscription?'<button class="btn-outline" style="width:100%;margin-top:8px" onclick="openStripePortal()">Gérer l\'abonnement</button>':''}
         </div>
-      </div>
-    </div></div>`;
+      </div>`;
+
+    // Manage subscription link
+    if(subStatus.has_subscription){
+      h+=`<div style="margin-top:14px;text-align:center"><button class="btn-outline btn-sm" onclick="openStripePortal()">🔧 Gérer mon abonnement · Factures · Moyen de paiement</button></div>`;
+    }
+
+    h+=`</div></div>`;
 
     // 6. Synchronisation calendrier — moved to Équipe (per practitioner)
 
@@ -4557,6 +4599,33 @@ async function saveReminderSettings(){
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
     GendaUI.toast('Rappels configurés ✓','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function startCheckout(plan){
+  try{
+    GendaUI.toast('Redirection vers le paiement...','info');
+    const r=await fetch('/api/stripe/checkout',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({plan})
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    window.location.href=d.url;
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function openStripePortal(){
+  try{
+    GendaUI.toast('Ouverture du portail...','info');
+    const r=await fetch('/api/stripe/portal',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    window.location.href=d.url;
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}

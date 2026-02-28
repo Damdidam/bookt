@@ -31,6 +31,8 @@ const galleryRoutes = require('./routes/staff/gallery');
 const newsRoutes = require('./routes/staff/news');
 const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
+const stripeRoutes = require('./routes/staff/stripe');
+const { handleStripeWebhook } = require('./routes/staff/stripe');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,6 +52,10 @@ app.use(cors({
 // Twilio webhooks need raw body for signature validation
 // so we parse them differently
 app.use('/webhooks/twilio', express.urlencoded({ extended: false }));
+
+// Stripe webhooks need raw body for signature verification
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
 app.use(express.json({ limit: '5mb' }));
 
 // Static files (frontend dashboard + client booking pages)
@@ -118,6 +124,7 @@ app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/whiteboards', whiteboardRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/stripe', stripeRoutes);
 app.use('/api/cron', preRdvCron);
 
 // Webhooks (Twilio)
