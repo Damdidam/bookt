@@ -389,6 +389,81 @@ router.delete('/blacklist/:id', async (req, res, next) => {
 
 // ===== CALL LOGS =====
 
+// ===== USAGE & QUOTAS =====
+
+const PLAN_QUOTAS = {
+  free: { units: 0, extra_price_cents: 0, voicemail: false },
+  pro: { units: 100, extra_price_cents: 15, voicemail: false },
+  premium: { units: 300, extra_price_cents: 10, voicemail: true }
+};
+
+// GET /api/calls/usage
+// Returns monthly usage breakdown + quota for the plan
+router.get('/usage', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+
+    // Get plan
+    const bizResult = await queryWithRLS(bid,
+      `SELECT plan FROM businesses WHERE id = $1`, [bid]
+    );
+    const plan = bizResult.rows[0]?.plan || 'free';
+    const quota = PLAN_QUOTAS[plan] || PLAN_QUOTAS.free;
+
+    // Monthly usage breakdown
+    const usage = await queryWithRLS(bid,
+      `SELECT
+        COUNT(*) FILTER (WHERE action IN ('played_message','forwarded','whitelist_pass','repeat_transfer','vacation_message','blacklist_reject')) AS calls,
+        COUNT(*) FILTER (WHERE action = 'sent_sms') AS sms,
+        COUNT(*) FILTER (WHERE action = 'voicemail') AS voicemails,
+        COUNT(*) AS total
+       FROM call_logs
+       WHERE business_id = $1
+       AND created_at >= DATE_TRUNC('month', NOW())`,
+      [bid]
+    );
+
+    // Daily breakdown for chart (last 30 days)
+    const daily = await queryWithRLS(bid,
+      `SELECT
+        DATE(created_at) AS day,
+        COUNT(*) FILTER (WHERE action IN ('played_message','forwarded','whitelist_pass','repeat_transfer','vacation_message','blacklist_reject')) AS calls,
+        COUNT(*) FILTER (WHERE action = 'sent_sms') AS sms
+       FROM call_logs
+       WHERE business_id = $1
+       AND created_at >= NOW() - INTERVAL '30 days'
+       GROUP BY DATE(created_at)
+       ORDER BY day`,
+      [bid]
+    );
+
+    const u = usage.rows[0];
+    const billableUnits = parseInt(u.calls) + parseInt(u.sms) + parseInt(u.voicemails);
+    const included = quota.units;
+    const overage = Math.max(0, billableUnits - included);
+    const overageCents = overage * quota.extra_price_cents;
+
+    res.json({
+      plan,
+      quota: included,
+      usage: {
+        calls: parseInt(u.calls),
+        sms: parseInt(u.sms),
+        voicemails: parseInt(u.voicemails),
+        total: billableUnits
+      },
+      billing: {
+        included,
+        overage,
+        extra_unit_price_cents: quota.extra_price_cents,
+        overage_total_cents: overageCents
+      },
+      daily: daily.rows,
+      percent: included > 0 ? Math.round((billableUnits / included) * 100) : 0
+    });
+  } catch (err) { next(err); }
+});
+
 // GET /api/calls/logs
 // UI: Dashboard > Appels (table with date, number, action, result, duration)
 router.get('/logs', async (req, res, next) => {
