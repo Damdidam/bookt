@@ -380,6 +380,47 @@ function render(d){
   document.getElementById('ogUrl').content=window.location.href;
   if(b.cover_image_url||b.logo_url)document.getElementById('ogImage').content=b.cover_image_url||b.logo_url;
 
+  // JSON-LD structured data
+  const siteUrl=window.location.origin+'/'+b.slug;
+  const ldJson={
+    '@context':'https://schema.org',
+    '@type':'LocalBusiness',
+    'name':b.name,
+    'url':siteUrl,
+    'description':b.seo_description||b.description||b.tagline||''
+  };
+  if(b.address)ldJson.address={'@type':'PostalAddress','streetAddress':b.address,'addressCountry':'BE'};
+  if(b.phone)ldJson.telephone=b.phone;
+  if(b.email)ldJson.email=b.email;
+  if(b.logo_url)ldJson.logo=b.logo_url;
+  if(b.cover_image_url)ldJson.image=b.cover_image_url;
+  if(b.bce_number)ldJson.taxID='BE'+b.bce_number.replace(/\./g,'');
+  if(b.founded_year)ldJson.foundingDate=String(b.founded_year);
+  if(d.hours){
+    const dayNames=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    ldJson.openingHoursSpecification=Object.entries(d.hours).map(([i,h])=>({
+      '@type':'OpeningHoursSpecification',
+      'dayOfWeek':dayNames[i],
+      'opens':h.opens.slice(0,5),
+      'closes':h.closes.slice(0,5)
+    }));
+  }
+  if(d.services?.length){
+    ldJson.hasOfferCatalog={'@type':'OfferCatalog','name':'Prestations','itemListElement':d.services.map(s=>({
+      '@type':'Offer','itemOffered':{'@type':'Service','name':s.name,'description':s.duration_min+' min'},
+      ...(s.price_cents?{'price':(s.price_cents/100).toFixed(2),'priceCurrency':'EUR'}:{})
+    }))};
+  }
+  if(d.practitioners?.length){
+    ldJson.employee=d.practitioners.map(p=>({'@type':'Person','name':p.display_name,...(p.bio?{'description':p.bio}:{})}));
+  }
+  const ldScript=document.createElement('script');ldScript.type='application/ld+json';ldScript.textContent=JSON.stringify(ldJson);document.head.appendChild(ldScript);
+
+  // Canonical
+  let canon=document.querySelector('link[rel="canonical"]');
+  if(!canon){canon=document.createElement('link');canon.rel='canonical';document.head.appendChild(canon);}
+  canon.href=siteUrl;
+
   // Nav
   const init=b.name.split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
   const nL=document.getElementById('navLogo');

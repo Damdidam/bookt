@@ -18,6 +18,7 @@ const SECTION_TITLES = {
   documents: 'Documents pré-RDV',
   settings: 'Paramètres',
   analytics: 'Statistiques',
+  'cal-sync': 'Calendrier externe',
   profile: 'Mon profil'
 };
 
@@ -97,6 +98,10 @@ async function loadSection(section) {
       case 'settings':
         mod = await import('./views/settings.js');
         mod.loadSettings();
+        break;
+      case 'cal-sync':
+        mod = await import('./views/cal-sync.js');
+        mod.loadCalSync();
         break;
       case 'profile':
         mod = await import('./views/profile.js');

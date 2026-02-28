@@ -4,8 +4,23 @@ const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 const cal = require('../../services/calendar-sync');
 
-// Store OAuth state tokens temporarily (in production use Redis)
-const oauthStates = new Map();
+// Store OAuth state tokens in DB (survives restarts, multi-instance safe)
+const oauthStates = {
+  async set(key, val) {
+    await query(
+      `INSERT INTO oauth_states (state_key, data, expires_at) VALUES ($1, $2, $3)
+       ON CONFLICT (state_key) DO UPDATE SET data = $2, expires_at = $3`,
+      [key, JSON.stringify(val), new Date(val.expiresAt).toISOString()]
+    );
+  },
+  async get(key) {
+    const r = await query(`SELECT data FROM oauth_states WHERE state_key = $1 AND expires_at > NOW()`, [key]);
+    return r.rows.length > 0 ? JSON.parse(r.rows[0].data) : null;
+  },
+  async delete(key) {
+    await query(`DELETE FROM oauth_states WHERE state_key = $1`, [key]);
+  }
+};
 
 // ============================================================
 // OAuth2 CONNECT FLOWS
@@ -15,12 +30,12 @@ const oauthStates = new Map();
  * GET /api/calendar/google/connect
  * Redirects to Google OAuth consent screen
  */
-router.get('/google/connect', requireAuth, (req, res) => {
+router.get('/google/connect', requireAuth, async (req, res) => {
   if (!process.env.GOOGLE_CLIENT_ID) {
     return res.status(501).json({ error: 'Google Calendar non configuré' });
   }
   const state = crypto.randomBytes(24).toString('hex');
-  oauthStates.set(state, {
+  await oauthStates.set(state, {
     userId: req.user.id,
     businessId: req.businessId,
     practitionerId: req.query.practitioner_id || null,
@@ -38,10 +53,10 @@ router.get('/google/connect', requireAuth, (req, res) => {
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error) return res.redirect('/dashboard?cal_error=' + error);
-  if (!state || !oauthStates.has(state)) return res.redirect('/dashboard?cal_error=invalid_state');
+  const session = await oauthStates.get(state);
+  if (!state || !session) return res.redirect('/dashboard?cal_error=invalid_state');
 
-  const session = oauthStates.get(state);
-  oauthStates.delete(state);
+  await oauthStates.delete(state);
   if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=state_expired');
 
   try {
@@ -85,12 +100,12 @@ router.get('/google/callback', async (req, res) => {
 /**
  * GET /api/calendar/outlook/connect
  */
-router.get('/outlook/connect', requireAuth, (req, res) => {
+router.get('/outlook/connect', requireAuth, async (req, res) => {
   if (!process.env.OUTLOOK_CLIENT_ID) {
     return res.status(501).json({ error: 'Outlook Calendar non configuré' });
   }
   const state = crypto.randomBytes(24).toString('hex');
-  oauthStates.set(state, {
+  await oauthStates.set(state, {
     userId: req.user.id,
     businessId: req.businessId,
     practitionerId: req.query.practitioner_id || null,
@@ -107,10 +122,10 @@ router.get('/outlook/connect', requireAuth, (req, res) => {
 router.get('/outlook/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error) return res.redirect('/dashboard?cal_error=' + error);
-  if (!state || !oauthStates.has(state)) return res.redirect('/dashboard?cal_error=invalid_state');
+  const session = await oauthStates.get(state);
+  if (!state || !session) return res.redirect('/dashboard?cal_error=invalid_state');
 
-  const session = oauthStates.get(state);
-  oauthStates.delete(state);
+  await oauthStates.delete(state);
   if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=state_expired');
 
   try {
@@ -290,12 +305,9 @@ router.get('/busy', async (req, res, next) => {
 });
 
 // Cleanup expired states periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of oauthStates) {
-    if (now > val.expiresAt) oauthStates.delete(key);
-  }
-}, 60000);
+setInterval(async () => {
+  try { await query(`DELETE FROM oauth_states WHERE expires_at < NOW()`); } catch (e) { /* ignore */ }
+}, 300000); // every 5 min
 
 // ============================================================
 // iCal FEED — Apple Calendar / any CalDAV client

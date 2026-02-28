@@ -92,3 +92,8 @@ initTouchBlockers();
 // ── Init router & load default view ──
 initRouter();
 loadSection('home');
+
+// ── Register service worker (PWA) ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}

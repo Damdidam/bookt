@@ -1,4 +1,15 @@
 require('dotenv').config();
+
+// Sentry — must init before everything else
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: 0.1
+  });
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -41,7 +52,21 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy (Render, Railway, etc.)
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      connectSrc: ["'self'", "https://api.stripe.com", "https://api.qrserver.com"],
+      frameSrc: ["'self'", "https://js.stripe.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"]
+    }
+  }
+}));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? ['https://genda.be', 'https://www.genda.be', process.env.APP_BASE_URL].filter(Boolean)
@@ -69,9 +94,11 @@ app.get('/js/api-client.js', (req, res) => {
 const fs = require('fs');
 const distDir = path.join(__dirname, '../dist');
 if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
+  // Hashed assets (immutable) — cache 1 year
+  app.use('/assets', express.static(path.join(distDir, 'assets'), { maxAge: '1y', immutable: true }));
+  app.use(express.static(distDir, { maxAge: '1h' }));
 }
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '../public'), { maxAge: '1h' }));
 
 // ===== FRONTEND PAGE ROUTES =====
 // Serve HTML pages for direct URL access
@@ -190,6 +217,9 @@ app.get('/waitlist/:token', (req, res) => {
 });
 
 // ===== ERROR HANDLER =====
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
 app.use(errorHandler);
 
 // ===== START =====

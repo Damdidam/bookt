@@ -38,110 +38,78 @@ router.get('/:slug', async (req, res, next) => {
     const bid = biz.id;
     const sections = biz.page_sections || {};
 
-    // ===== PRACTITIONERS + their specializations =====
-    const pracResult = await query(
-      `SELECT p.id, p.display_name, p.title, p.bio, p.photo_url, p.color,
-              p.years_experience, p.email, p.linkedin_url, p.waitlist_mode,
-              ARRAY_AGG(DISTINCT ps.service_id) FILTER (WHERE ps.service_id IS NOT NULL) AS service_ids,
-              ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS specialization_names
-       FROM practitioners p
-       LEFT JOIN practitioner_services ps ON ps.practitioner_id = p.id
-       LEFT JOIN practitioner_specializations psp ON psp.practitioner_id = p.id
-       LEFT JOIN specializations s ON s.id = psp.specialization_id AND s.is_active = true
-       WHERE p.business_id = $1 AND p.is_active = true AND p.booking_enabled = true
-       GROUP BY p.id
-       ORDER BY p.sort_order, p.display_name`,
-      [bid]
-    );
-
-    // ===== SERVICES =====
-    const svcResult = await query(
-      `SELECT id, name, category, duration_min, price_cents, price_label,
-              mode_options, prep_instructions_fr, prep_instructions_nl, color
-       FROM services
-       WHERE business_id = $1 AND is_active = true
-       ORDER BY sort_order, name`,
-      [bid]
-    );
-
-    // ===== SPECIALIZATIONS =====
-    let specializations = [];
-    if (sections.specializations !== false) {
-      const specResult = await query(
-        `SELECT id, name, description, icon
-         FROM specializations
+    // ===== PARALLEL QUERIES — all independent, run concurrently =====
+    const [pracResult, svcResult, specResult, testResult, valResult, galResult, newsResult, domainResult, hoursResult] = await Promise.all([
+      // Practitioners + specializations
+      query(
+        `SELECT p.id, p.display_name, p.title, p.bio, p.photo_url, p.color,
+                p.years_experience, p.email, p.linkedin_url, p.waitlist_mode,
+                ARRAY_AGG(DISTINCT ps.service_id) FILTER (WHERE ps.service_id IS NOT NULL) AS service_ids,
+                ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS specialization_names
+         FROM practitioners p
+         LEFT JOIN practitioner_services ps ON ps.practitioner_id = p.id
+         LEFT JOIN practitioner_specializations psp ON psp.practitioner_id = p.id
+         LEFT JOIN specializations s ON s.id = psp.specialization_id AND s.is_active = true
+         WHERE p.business_id = $1 AND p.is_active = true AND p.booking_enabled = true
+         GROUP BY p.id
+         ORDER BY p.sort_order, p.display_name`,
+        [bid]
+      ),
+      // Services
+      query(
+        `SELECT id, name, category, duration_min, price_cents, price_label,
+                mode_options, prep_instructions_fr, prep_instructions_nl, color
+         FROM services
          WHERE business_id = $1 AND is_active = true
-         ORDER BY sort_order`,
+         ORDER BY sort_order, name`,
         [bid]
-      );
-      specializations = specResult.rows;
-    }
-
-    // ===== TESTIMONIALS =====
-    let testimonials = [];
-    if (sections.testimonials !== false) {
-      const testResult = await query(
-        `SELECT t.id, t.author_name, t.author_role, t.author_initials,
-                t.content, t.rating,
-                p.display_name AS practitioner_name
-         FROM testimonials t
-         LEFT JOIN practitioners p ON p.id = t.practitioner_id
-         WHERE t.business_id = $1 AND t.is_active = true AND t.is_featured = true
-         ORDER BY t.sort_order
-         LIMIT 6`,
+      ),
+      // Specializations
+      sections.specializations !== false
+        ? query(`SELECT id, name, description, icon FROM specializations WHERE business_id = $1 AND is_active = true ORDER BY sort_order`, [bid])
+        : { rows: [] },
+      // Testimonials
+      sections.testimonials !== false
+        ? query(
+            `SELECT t.id, t.author_name, t.author_role, t.author_initials, t.content, t.rating, p.display_name AS practitioner_name
+             FROM testimonials t LEFT JOIN practitioners p ON p.id = t.practitioner_id
+             WHERE t.business_id = $1 AND t.is_active = true AND t.is_featured = true ORDER BY t.sort_order LIMIT 6`,
+            [bid]
+          )
+        : { rows: [] },
+      // Value propositions
+      sections.about !== false
+        ? query(`SELECT id, title, description, icon, icon_style FROM value_propositions WHERE business_id = $1 AND is_active = true ORDER BY sort_order LIMIT 4`, [bid])
+        : { rows: [] },
+      // Gallery
+      sections.gallery !== false
+        ? query(`SELECT id, title, caption, image_url FROM gallery_images WHERE business_id = $1 AND is_active = true ORDER BY sort_order LIMIT 12`, [bid])
+        : { rows: [] },
+      // News
+      sections.news !== false
+        ? query(`SELECT id, title, content, tag, tag_type, image_url, published_at FROM news_posts WHERE business_id = $1 AND is_active = true ORDER BY published_at DESC LIMIT 6`, [bid])
+        : { rows: [] },
+      // Custom domain
+      query(`SELECT domain, verification_status FROM custom_domains WHERE business_id = $1 AND verification_status = 'ssl_active'`, [bid]),
+      // Availabilities / hours
+      query(
+        `SELECT DISTINCT weekday, MIN(start_time) AS opens, MAX(end_time) AS closes
+         FROM availabilities WHERE business_id = $1 AND is_active = true GROUP BY weekday ORDER BY weekday`,
         [bid]
-      );
-      testimonials = testResult.rows.map(t => ({
-        ...t,
-        author_initials: t.author_initials || t.author_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-      }));
-    }
+      )
+    ]);
 
-    // ===== VALUE PROPOSITIONS =====
-    let values = [];
-    if (sections.about !== false) {
-      const valResult = await query(
-        `SELECT id, title, description, icon, icon_style
-         FROM value_propositions
-         WHERE business_id = $1 AND is_active = true
-         ORDER BY sort_order
-         LIMIT 4`,
-        [bid]
-      );
-      values = valResult.rows;
-    }
+    const specializations = specResult.rows;
+    const testimonials = testResult.rows.map(t => ({
+      ...t,
+      author_initials: t.author_initials || t.author_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    }));
+    const values = valResult.rows;
+    const gallery = galResult.rows;
+    const news = newsResult.rows;
 
-    // ===== NEXT AVAILABLE SLOT =====
+    // ===== NEXT AVAILABLE SLOT (depends on svcResult) =====
     let nextSlot = null;
-
-    // ===== GALLERY IMAGES =====
-    let gallery = [];
-    if (sections.gallery !== false) {
-      const galResult = await query(
-        `SELECT id, title, caption, image_url
-         FROM gallery_images
-         WHERE business_id = $1 AND is_active = true
-         ORDER BY sort_order
-         LIMIT 12`,
-        [bid]
-      );
-      gallery = galResult.rows;
-    }
-
-    // ===== NEWS POSTS =====
-    let news = [];
-    if (sections.news !== false) {
-      const newsResult = await query(
-        `SELECT id, title, content, tag, tag_type, image_url, published_at
-         FROM news_posts
-         WHERE business_id = $1 AND is_active = true
-         ORDER BY published_at DESC
-         LIMIT 6`,
-        [bid]
-      );
-      news = newsResult.rows;
-    }
-
     if (svcResult.rows.length > 0) {
       try {
         const tomorrow = new Date();
@@ -156,23 +124,6 @@ router.get('/:slug', async (req, res, next) => {
         if (slots.length > 0) nextSlot = slots[0].start_at;
       } catch (e) { /* non-critical */ }
     }
-
-    // ===== CUSTOM DOMAIN =====
-    const domainResult = await query(
-      `SELECT domain, verification_status FROM custom_domains
-       WHERE business_id = $1 AND verification_status = 'ssl_active'`,
-      [bid]
-    );
-
-    // ===== AVAILABILITIES (for hours display) =====
-    const hoursResult = await query(
-      `SELECT DISTINCT weekday, MIN(start_time) AS opens, MAX(end_time) AS closes
-       FROM availabilities
-       WHERE business_id = $1 AND is_active = true
-       GROUP BY weekday
-       ORDER BY weekday`,
-      [bid]
-    );
 
     const hours = {};
     for (const row of hoursResult.rows) {
