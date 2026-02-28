@@ -5377,6 +5377,7 @@ function renderCallConfig(cs){
   // Toggles
   h+=`<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">`;
   h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_sms" ${cs.sms_after_call!==false?'checked':''}><span><strong>SMS automatique</strong> — Envoie le lien de réservation par SMS</span></label>`;
+  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_voicemail" ${cs.voicemail_enabled?'checked':''}><span><strong>Messagerie vocale</strong> — En mode Strict/Vacances, propose au patient de laisser un message ("tapez 1")</span></label>`;
   h+=`</div>`;
 
   // Repeat caller
@@ -5475,6 +5476,7 @@ async function saveCallSettings(){
       filter_mode:document.getElementById('call_mode').value,
       forward_default_phone:document.getElementById('call_forward').value||null,
       sms_after_call:document.getElementById('call_sms').checked,
+      voicemail_enabled:document.getElementById('call_voicemail').checked,
       vacation_until:document.getElementById('call_vac_until')?.value||null,
       vacation_message_fr:null, // managed in Messages tab
       vacation_redirect_phone:document.getElementById('call_vac_redirect_phone')?.value||null,

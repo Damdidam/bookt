@@ -143,11 +143,31 @@ async function runTests() {
   if (TOKEN) await patchSettings({ filter_mode: 'strict', voicemail_enabled: true });
 
   xml = await postWebhook('/webhooks/twilio/voice/incoming', { ...callBase, From: RANDOM_PHONE, CallSid: 'TEST_STRICT_VM' });
-  check('Appel → message + Record', xml,
+  check('Appel → message + Gather "tapez 1"', xml,
     hasSay('bienvenue'),
-    hasSay('message vocal'),
-    hasRecord(),
-    hasNot('Hangup')
+    hasSay('tapez 1'),
+    has('Gather'),
+    has('voicemail/choice'),
+    hasNot('Record')
+  );
+
+  // ----------------------------------------------------------
+  // 4b. VOICEMAIL CHOICE — tapez 1
+  // ----------------------------------------------------------
+  xml = await postWebhook('/webhooks/twilio/voicemail/choice?bid=test&from=%2B32470555555', { Digits: '1' });
+  check('Tapez 1 → Record', xml,
+    hasSay('Laissez votre message'),
+    hasRecord()
+  );
+
+  // ----------------------------------------------------------
+  // 4c. VOICEMAIL CHOICE — autre touche ou timeout
+  // ----------------------------------------------------------
+  xml = await postWebhook('/webhooks/twilio/voicemail/choice?bid=test&from=%2B32470555555', { Digits: '5' });
+  check('Autre touche → goodbye + hangup', xml,
+    hasSay('Au revoir'),
+    hasHangup(),
+    hasNot('Record')
   );
 
   // ----------------------------------------------------------
@@ -201,11 +221,11 @@ async function runTests() {
   });
 
   xml = await postWebhook('/webhooks/twilio/voice/incoming', { ...callBase, From: RANDOM_PHONE, CallSid: 'TEST_VAC_VM' });
-  check('Vacation + voicemail → message + Record', xml,
+  check('Vacation + voicemail → message + Gather "tapez 1"', xml,
     hasSay('fermé'),
-    hasSay('message vocal'),
-    hasRecord(),
-    hasNot('Hangup')
+    hasSay('tapez 1'),
+    has('Gather'),
+    hasNot('Record')
   );
 
   // ----------------------------------------------------------

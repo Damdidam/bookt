@@ -190,34 +190,35 @@ router.get('/settings', async (req, res, next) => {
 router.patch('/settings', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { filter_mode, forward_default_phone, sms_after_call,
+    const { filter_mode, forward_default_phone, sms_after_call, voicemail_enabled,
             vacation_until, vacation_message_fr,
             vacation_redirect_phone, vacation_redirect_name,
             custom_message_fr, custom_sms_fr,
             repeat_caller_threshold, repeat_caller_window_min } = req.body;
 
     const result = await queryWithRLS(bid,
-      `INSERT INTO call_settings (business_id, filter_mode, forward_default_phone, sms_after_call,
+      `INSERT INTO call_settings (business_id, filter_mode, forward_default_phone, sms_after_call, voicemail_enabled,
         vacation_until, vacation_message_fr,
         vacation_redirect_phone, vacation_redirect_name,
         custom_message_fr, custom_sms_fr,
         repeat_caller_threshold, repeat_caller_window_min)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (business_id) DO UPDATE SET
         filter_mode = COALESCE($2, call_settings.filter_mode),
         forward_default_phone = COALESCE($3, call_settings.forward_default_phone),
         sms_after_call = COALESCE($4, call_settings.sms_after_call),
-        vacation_until = $5,
-        vacation_message_fr = $6,
-        vacation_redirect_phone = $7,
-        vacation_redirect_name = $8,
-        custom_message_fr = $9,
-        custom_sms_fr = $10,
-        repeat_caller_threshold = COALESCE($11, call_settings.repeat_caller_threshold),
-        repeat_caller_window_min = COALESCE($12, call_settings.repeat_caller_window_min),
+        voicemail_enabled = COALESCE($5, call_settings.voicemail_enabled),
+        vacation_until = $6,
+        vacation_message_fr = $7,
+        vacation_redirect_phone = $8,
+        vacation_redirect_name = $9,
+        custom_message_fr = $10,
+        custom_sms_fr = $11,
+        repeat_caller_threshold = COALESCE($12, call_settings.repeat_caller_threshold),
+        repeat_caller_window_min = COALESCE($13, call_settings.repeat_caller_window_min),
         updated_at = NOW()
        RETURNING *`,
-      [bid, filter_mode, forward_default_phone, sms_after_call,
+      [bid, filter_mode, forward_default_phone, sms_after_call, voicemail_enabled,
        vacation_until || null, vacation_message_fr || null,
        vacation_redirect_phone || null, vacation_redirect_name || null,
        custom_message_fr || null, custom_sms_fr || null,

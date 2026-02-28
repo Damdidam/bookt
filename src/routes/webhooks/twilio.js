@@ -131,10 +131,10 @@ router.post('/voice/incoming', async (req, res, next) => {
     } else if (mode === 'strict') {
       xml = `<Say language="${lc()}">${msgs.announcement}</Say>`;
       if (settings.voicemail_enabled) {
-        xml += `<Say language="${lc()}">Si vous souhaitez laisser un message vocal, restez en ligne après le bip.</Say>
-                <Record maxLength="120" playBeep="true" timeout="5"
-                  action="/webhooks/twilio/voicemail/done?bid=${businessId}&amp;from=${encodeURIComponent(From)}"
-                  recordingStatusCallback="/webhooks/twilio/voicemail/status?bid=${businessId}&amp;from=${encodeURIComponent(From)}" />`;
+        xml += `<Gather numDigits="1" action="/webhooks/twilio/voicemail/choice?bid=${businessId}&amp;from=${encodeURIComponent(From)}" timeout="5">
+                  <Say language="${lc()}">Pour laisser un message vocal, tapez 1.</Say>
+                </Gather>
+                <Say language="${lc()}">${msgs.goodbye}</Say><Hangup/>`;
       } else {
         xml += `<Say language="${lc()}">${msgs.goodbye}</Say><Hangup/>`;
       }
@@ -145,10 +145,10 @@ router.post('/voice/incoming', async (req, res, next) => {
         xml += `<Say language="${lc()}">${msgs.redirect}</Say>
                 <Dial>${settings.vacation_redirect_phone}</Dial>`;
       } else if (settings.voicemail_enabled) {
-        xml += `<Say language="${lc()}">Si vous souhaitez laisser un message vocal, restez en ligne après le bip.</Say>
-                <Record maxLength="120" playBeep="true" timeout="5"
-                  action="/webhooks/twilio/voicemail/done?bid=${businessId}&amp;from=${encodeURIComponent(From)}"
-                  recordingStatusCallback="/webhooks/twilio/voicemail/status?bid=${businessId}&amp;from=${encodeURIComponent(From)}" />`;
+        xml += `<Gather numDigits="1" action="/webhooks/twilio/voicemail/choice?bid=${businessId}&amp;from=${encodeURIComponent(From)}" timeout="5">
+                  <Say language="${lc()}">Pour laisser un message vocal, tapez 1.</Say>
+                </Gather>
+                <Say language="${lc()}">${msgs.goodbye}</Say><Hangup/>`;
       } else {
         xml += `<Say language="${lc()}">${msgs.goodbye}</Say><Hangup/>`;
       }
@@ -178,6 +178,29 @@ router.post('/voice/status', async (req, res) => {
       [parseInt(CallDuration), CallSid]).catch(e => console.error('Status update error:', e));
   }
   res.sendStatus(200);
+});
+
+// ============================================================
+// POST /webhooks/twilio/voicemail/choice
+// Caller pressed 1 → start recording. Otherwise → goodbye.
+// ============================================================
+router.post('/voicemail/choice', (req, res) => {
+  const { Digits } = req.body;
+  const { bid, from } = req.query;
+
+  if (Digits === '1') {
+    return res.type('text/xml').send(twiml(
+      `<Say language="fr-BE">Laissez votre message après le bip. Raccrochez quand vous avez terminé.</Say>
+       <Record maxLength="120" playBeep="true" timeout="5"
+         action="/webhooks/twilio/voicemail/done?bid=${bid}&amp;from=${encodeURIComponent(from || '')}"
+         recordingStatusCallback="/webhooks/twilio/voicemail/status?bid=${bid}&amp;from=${encodeURIComponent(from || '')}" />`
+    ));
+  }
+
+  // Any other key or no key → goodbye
+  res.type('text/xml').send(twiml(
+    '<Say language="fr-BE">Un SMS avec le lien de réservation vous a été envoyé. Au revoir.</Say><Hangup/>'
+  ));
 });
 
 // ============================================================
