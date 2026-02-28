@@ -422,22 +422,49 @@ function render(d){
       document.getElementById('aboutTitle').textContent=mp.display_name;
       let ah='';
       if(mp.title)ah+='<p style="color:var(--primary);font-weight:700;font-size:.82rem;margin-bottom:12px">'+esc(mp.title)+(mp.years_experience?' · '+mp.years_experience+" ans d'expérience":'')+'</p>';
-      if(mp.bio)ah+='<p>'+esc(mp.bio)+'</p>';else if(b.description)ah+='<p>'+esc(b.description)+'</p>';
+      if(mp.bio)ah+='<p>'+esc(mp.bio)+'</p>';
+      else if(b.description)ah+='<p>'+esc(b.description)+'</p>';
+      else ah+='<p style="color:var(--text-3);font-style:italic">Professionnel passionné, à votre écoute pour vous accompagner dans les meilleures conditions.</p>';
+      // Add contact mini-cards in about section
+      const miniCards=[];
+      if(b.phone)miniCards.push('<span style="display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--text-3)">'+ICO.phone+' '+esc(b.phone)+'</span>');
+      if(b.email)miniCards.push('<span style="display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--text-3)">'+ICO.mail+' '+esc(b.email)+'</span>');
+      if(miniCards.length)ah+='<div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-light)">'+miniCards.join('')+'</div>';
       document.getElementById('aboutText').innerHTML=ah;
       const ab=[];if(b.accreditation)ab.push(b.accreditation);(mp.specializations||[]).forEach(s=>ab.push(s));
+      if(b.languages_spoken?.length>1)ab.push(b.languages_spoken.map(l=>({fr:'Français',nl:'Néerlandais',en:'Anglais',de:'Allemand'}[l]||l)).join(', '));
       document.getElementById('aboutBadges').innerHTML=ab.map(x=>'<span class="ab">'+esc(x)+'</span>').join('');
+    }else if(d.practitioners?.length>1){
+      document.getElementById('aboutBlock').style.display='none';
+      document.getElementById('aboutTextSimple').style.display='block';
+      document.getElementById('aboutTextSimple').innerHTML=b.description?'<p>'+esc(b.description)+'</p>':'';
     }else{
       document.getElementById('aboutBlock').style.display='none';
       document.getElementById('aboutTextSimple').style.display='block';
       document.getElementById('aboutTextSimple').textContent=b.description||'';
     }
     if(d.values?.length)document.getElementById('valuesGrid').innerHTML=d.values.map(v=>'<div class="value-card"><div class="value-icon '+(v.icon_style||'teal')+'">'+v.icon+'</div><div><h4>'+esc(v.title)+'</h4><p>'+esc(v.description)+'</p></div></div>').join('');
+    else{
+      // Auto-generate values for minimal data scenarios
+      const autoValues=[
+        {icon:'🤝',title:'Écoute',description:'Chaque patient est unique, nous prenons le temps',style:'teal'},
+        {icon:'🎓',title:'Expertise',description:'Praticiens diplômés et en formation continue',style:'gold'},
+        {icon:'🕐',title:'Flexibilité',description:'Réservation en ligne 24h/24, 7j/7',style:'green'},
+        {icon:'💎',title:'Transparence',description:'Tarifs clairs, pas de mauvaise surprise',style:'neutral'}
+      ];
+      document.getElementById('valuesGrid').innerHTML=autoValues.map(v=>'<div class="value-card"><div class="value-icon '+v.style+'">'+v.icon+'</div><div><h4>'+v.title+'</h4><p>'+v.description+'</p></div></div>').join('');
+    }
   }
 
-  // Team
-  if(sec.team===false||!d.practitioners?.length||d.practitioners.length<2){document.getElementById('team').style.display='none';document.getElementById('teamDivider').style.display='none';}
+  // Team — show even with 1 practitioner
+  if(sec.team===false||!d.practitioners?.length){document.getElementById('team').style.display='none';document.getElementById('teamDivider').style.display='none';}
   else{document.getElementById('team').style.display='block';document.getElementById('teamDivider').style.display='block';
-    document.getElementById('teamSub').textContent=d.practitioners.length+' professionnels à votre service';
+    if(d.practitioners.length===1){
+      document.querySelector('#team .section-title').textContent='Votre praticien';
+      document.getElementById('teamSub').textContent='';
+    }else{
+      document.getElementById('teamSub').textContent=d.practitioners.length+' professionnels à votre service';
+    }
     document.getElementById('teamGrid').innerHTML=d.practitioners.map(p=>{
       const pi=p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
       const specs=(p.specializations||[]).map(s=>'<span class="tm-tag">'+esc(s)+'</span>').join('');
@@ -513,6 +540,39 @@ function render(d){
   const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target);}});},{threshold:.1});
   document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
   window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>20);});
+
+  // Hero background pattern when no cover image
+  if(!b.cover_image_url){
+    const hero=document.getElementById('heroSection');
+    hero.style.background='linear-gradient(135deg, var(--primary-light) 0%, var(--bg) 50%, var(--surface) 100%)';
+    hero.style.borderBottom='1px solid var(--border-light)';
+    hero.style.paddingBottom='64px';
+  }
+
+  // Owner preview mode — hints about missing content
+  const isPreview=new URLSearchParams(window.location.search).has('preview');
+  if(isPreview){
+    const tips=[];
+    if(!b.logo_url)tips.push('Logo');
+    if(!b.cover_image_url)tips.push('Image de couverture');
+    if(!b.description||b.description.length<30)tips.push('Description détaillée');
+    const mp0=d.practitioners?.[0];
+    if(mp0&&!mp0.bio)tips.push('Bio du praticien');
+    if(mp0&&!mp0.photo_url)tips.push('Photo du praticien');
+    if(!d.gallery?.length)tips.push('Photos galerie');
+    if(!d.testimonials?.length)tips.push('Témoignages clients');
+    if(!d.news?.length)tips.push('Actualités');
+    if(!d.specializations?.length)tips.push('Spécialisations');
+    if(!d.values?.length)tips.push('Valeurs');
+    if(!b.social_links?.instagram&&!b.social_links?.facebook)tips.push('Réseaux sociaux');
+    if(tips.length>0){
+      const bar=document.createElement('div');
+      bar.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9998;background:rgba(13,115,119,.95);color:#fff;backdrop-filter:blur(12px);padding:14px 20px;font-family:var(--sans);font-size:.78rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap';
+      bar.innerHTML='<strong style="white-space:nowrap">🚀 Enrichissez votre site :</strong><span style="opacity:.85">'+tips.join(' · ')+'</span><a href="/dashboard" style="margin-left:auto;color:#fff;background:rgba(255,255,255,.2);padding:6px 14px;border-radius:6px;font-weight:600;white-space:nowrap;font-size:.75rem">← Dashboard</a>';
+      document.body.appendChild(bar);
+      document.body.style.paddingBottom='54px';
+    }
+  }
 }
 </script>
 <script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>

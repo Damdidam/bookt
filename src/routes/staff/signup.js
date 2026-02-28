@@ -101,7 +101,8 @@ router.post('/signup', authLimiter, async (req, res, next) => {
           // Default sections
           JSON.stringify({
             hero: true, about: true, team: true, specializations: true,
-            services: true, testimonials: false, location: true, booking_cta: true
+            services: true, testimonials: true, gallery: true, news: true,
+            location: true, booking_cta: true
           }),
           // Default theme
           JSON.stringify({

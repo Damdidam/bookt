@@ -1054,7 +1054,7 @@ async function loadDashboard(){
     const slug=dash.business?.slug||biz?.slug||'';
     let h='';
     if(!isPrac){
-      h+=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}" target="_blank">Voir ma page</a></div></div>`;
+      h+=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}?preview" target="_blank">Voir ma page</a></div></div>`;
     }
     if(sum){const m=sum.month||{},cl=sum.clients||{},ca=sum.calls||{};
       h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">${isPrac?'Mon CA ce mois':'CA ce mois'}</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">${isPrac?'Mes clients':'Clients'}</div><div class="val">${cl.total||0}</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div>`}</div>`;
@@ -3360,7 +3360,7 @@ async function loadSiteSection(){
     businessPlan=b.plan||'free';
     const slug=b.slug||'';
 
-    let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
+    let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}?preview" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
 
     h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge ${businessPlan==='free'?'badge-teal':'badge-teal'}">${businessPlan==='free'?'Plan Gratuit — 1 thème':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
     <div style="padding:18px">
