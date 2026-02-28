@@ -145,10 +145,14 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .modal-body{padding:22px}
 .modal-foot{padding:16px 22px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--surface)}
 .field{margin-bottom:14px}
-.field label{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
-.field input,.field select,.field textarea{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
-.field textarea{resize:vertical;min-height:72px}
+.field label,.fg label{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
+.field input,.field select,.field textarea,.fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
+.field input:focus,.field select:focus,.field textarea:focus,.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
+.field textarea,.fg textarea{resize:vertical;min-height:72px}
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
+.fi{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
+.fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
 .field-row{display:flex;gap:12px}
 .field-row .field{flex:1}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
