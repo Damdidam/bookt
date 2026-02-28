@@ -174,7 +174,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 .c-ico{width:40px;height:40px;border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .c-lbl{font-size:.68rem;color:var(--text-4);font-weight:600}
 .c-val{font-size:.85rem;font-weight:700}
-.contact-map{width:100%;height:160px;border-radius:var(--radius-sm);background:var(--surface);border:1.5px solid var(--border-light);display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:.78rem;font-weight:600;margin-top:12px}
+.contact-map{width:100%;height:200px;border-radius:var(--radius-sm);background:var(--surface);border:1.5px solid var(--border-light);display:flex;align-items:center;justify-content:center;color:var(--text-4);font-size:.78rem;font-weight:600;margin-top:12px;overflow:hidden}
 .socials{display:flex;gap:8px;margin-top:12px}
 .socials a{width:40px;height:40px;border-radius:10px;background:var(--white);border:1.5px solid var(--border-light);display:flex;align-items:center;justify-content:center;transition:all .15s}
 .socials a:hover{border-color:var(--primary-border);background:var(--primary-light)}
@@ -502,8 +502,18 @@ function render(d){
   const cc=[];
   if(b.phone)cc.push('<a class="c-card" href="tel:'+b.phone+'"><div class="c-ico">'+ICO.phone+'</div><div><div class="c-lbl">Téléphone</div><div class="c-val">'+esc(b.phone)+'</div></div></a>');
   if(b.email)cc.push('<a class="c-card" href="mailto:'+b.email+'"><div class="c-ico">'+ICO.mail+'</div><div><div class="c-lbl">Email</div><div class="c-val">'+esc(b.email)+'</div></div></a>');
-  if(b.address)cc.push('<div class="c-card"><div class="c-ico">'+ICO.pin+'</div><div><div class="c-lbl">Adresse</div><div class="c-val">'+esc(b.address)+'</div></div></div>');
+  if(b.address)cc.push('<a class="c-card" href="https://maps.google.com/?q='+encodeURIComponent(b.address)+'" target="_blank" rel="noopener"><div class="c-ico">'+ICO.pin+'</div><div><div class="c-lbl">Adresse</div><div class="c-val">'+esc(b.address)+'</div></div></a>');
   document.getElementById('contactCards').innerHTML=cc.join('');
+
+  // Map embed
+  const mapEl=document.getElementById('contactMap');
+  if(b.address){
+    const q=encodeURIComponent(b.address);
+    mapEl.innerHTML='<iframe src="https://maps.google.com/maps?q='+q+'&t=&z=15&ie=UTF8&iwloc=&output=embed" style="width:100%;height:100%;border:0;border-radius:inherit" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>';
+    mapEl.style.overflow='hidden';
+  }else{
+    mapEl.style.display='none';
+  }
 
   // Socials
   const sl=b.social_links||{};const sh=[];
