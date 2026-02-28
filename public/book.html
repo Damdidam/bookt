@@ -360,15 +360,17 @@ function selectService(id){
   document.getElementById('btnStep1').disabled=false;
   // Reset downstream
   selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+  computeStepOrder();
 }
 
 // ──────── PRACTITIONER ────────
 function buildPractitioners(){
   const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
-  if(pracs.length===1){selectedPractitioner=pracs[0];return false;}
-  if(pracs.length===0){selectedPractitioner=siteData.practitioners[0];return false;}
+  // If no practitioner explicitly linked to this service, show ALL practitioners
+  const displayPracs=pracs.length>0?pracs:siteData.practitioners;
+  if(displayPracs.length<=1){selectedPractitioner=displayPracs[0]||siteData.practitioners[0];return false;}
   const list=document.getElementById('pracList');
-  list.innerHTML=pracs.map(p=>{
+  list.innerHTML=displayPracs.map(p=>{
     const pi=p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+p.photo_url+'"></div>'
       :'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'">'+pi+'</div>';
@@ -385,8 +387,15 @@ function buildPractitioners(){
 
 // ──────── STEP ORDER ────────
 function computeStepOrder(){
-  const pracs=siteData.practitioners.filter(p=>selectedService?p.service_ids.includes(selectedService.id):true);
-  const showPrac=pracs.length>1;
+  let showPrac=false;
+  if(selectedService){
+    const linked=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
+    // If no practitioner explicitly linked, fall back to all practitioners
+    const displayPracs=linked.length>0?linked:siteData.practitioners;
+    showPrac=displayPracs.length>1;
+  }else{
+    showPrac=siteData.practitioners.length>1;
+  }
   stepOrder=showPrac?[1,2,3,4,5]:[1,3,4,5];
   renderProgress();
 }
@@ -402,7 +411,10 @@ function updateProgress(){
 // ──────── NAVIGATION ────────
 function goToStep(n){
   hideError();
-  if(n===2)buildPractitioners();
+  if(n===2){
+    const showPrac=buildPractitioners();
+    if(!showPrac){computeStepOrder();n=3;}
+  }
   if(n===3){
     if(!selectedPractitioner){const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));selectedPractitioner=pracs[0];}
     buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
