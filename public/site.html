@@ -246,11 +246,11 @@ body.warm-bg{background:var(--surface)}body.warm-bg .nav{background:rgba(245,244
   <section class="hero reveal" id="heroSection"><div class="hero-badges" id="heroBadges"></div><h1 id="heroTitle">—</h1><p class="hero-tagline" id="heroTagline">—</p><a class="hero-cta" id="heroCta" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Prendre rendez-vous</a></section>
   <div class="divider"></div>
 
-  <section class="section reveal" id="services"><div class="section-tag"><span class="line"></span> PRESTATIONS</div><h2 class="section-title">Réservez en ligne</h2><p class="section-sub">Choisissez votre prestation et sélectionnez un créneau.</p><div class="svc-list" id="svcList"></div></section><div class="divider"></div>
-
   <section class="section reveal" id="about"><div class="section-tag"><span class="line"></span> À PROPOS</div><h2 class="section-title" id="aboutTitle">À propos</h2><div class="about-block" id="aboutBlock" style="display:none"><div class="about-photo" id="aboutPhoto"><span class="initials" id="aboutInit">—</span></div><div><div class="about-text" id="aboutText"></div><div class="about-badges" id="aboutBadges"></div></div></div><div class="about-text" id="aboutTextSimple" style="max-width:680px"></div><div class="values-grid" id="valuesGrid"></div></section><div class="divider"></div>
 
   <section class="section reveal" id="team" style="display:none"><div class="section-tag"><span class="line"></span> L'ÉQUIPE</div><h2 class="section-title">Les personnes derrière le cabinet</h2><p class="section-sub" id="teamSub">—</p><div class="team-grid" id="teamGrid"></div></section><div class="divider" id="teamDivider" style="display:none"></div>
+
+  <section class="section reveal" id="services"><div class="section-tag"><span class="line"></span> PRESTATIONS</div><h2 class="section-title">Réservez en ligne</h2><p class="section-sub">Choisissez votre prestation et sélectionnez un créneau.</p><div class="svc-list" id="svcList"></div></section><div class="divider"></div>
 
   <section class="section reveal" id="gallerySection" style="display:none"><div class="section-tag"><span class="line"></span> RÉALISATIONS</div><h2 class="section-title">Nos projets</h2><p class="section-sub">Quelques réalisations et moments en images.</p><div class="gallery-grid" id="galleryGrid"></div></section><div class="divider" id="galleryDivider" style="display:none"></div>
 
@@ -382,9 +382,9 @@ function render(d){
   if(b.logo_url)nL.innerHTML='<img src="'+b.logo_url+'" alt="">';else nL.textContent=init;
   document.getElementById('navName').textContent=b.name;
   let nav=[];
-  if(sec.services!==false)nav.push('<a class="nav-link" href="#services">Prestations</a>');
   if(sec.about!==false)nav.push('<a class="nav-link" href="#about">À propos</a>');
-  if(d.practitioners?.length>1&&sec.team!==false)nav.push('<a class="nav-link" href="#team">Équipe</a>');
+  if(d.practitioners?.length>0&&sec.team!==false)nav.push('<a class="nav-link" href="#team">Équipe</a>');
+  if(sec.services!==false)nav.push('<a class="nav-link" href="#services">Prestations</a>');
   if(d.gallery?.length&&sec.gallery!==false)nav.push('<a class="nav-link" href="#gallerySection">Galerie</a>');
   nav.push('<a class="nav-link" href="#hours">Horaires</a>');
   nav.push('<a class="nav-cta" href="'+bookUrl+'">Prendre RDV</a>');
