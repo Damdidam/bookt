@@ -79,6 +79,11 @@ app.get('/js/api-client.js', (req, res) => {
 });
 
 
+// Redirect .html to clean URLs (must be BEFORE static middleware)
+app.get('/dashboard.html', (req, res) => res.redirect(301, '/dashboard'));
+app.get('/login.html', (req, res) => res.redirect(301, '/login'));
+app.get('/signup.html', (req, res) => res.redirect(301, '/signup'));
+
 // Static files — serve Vite build first (production), then public/ fallback
 const fs = require('fs');
 const distDir = path.join(__dirname, '../dist');
