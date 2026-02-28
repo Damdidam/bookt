@@ -206,7 +206,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* Theme variants */
-body.dark-nav .nav{background:rgba(28,25,23,.92)}
+body.dark-nav .nav{background:var(--text);background:color-mix(in srgb,var(--text) 94%,transparent)}
 body.dark-nav .nav.scrolled{border-bottom-color:rgba(255,255,255,.08)}
 body.dark-nav .nav-name{color:#fff}
 body.dark-nav .nav-link{color:rgba(255,255,255,.5)}body.dark-nav .nav-link:hover{color:#fff;background:rgba(255,255,255,.08)}
@@ -220,7 +220,7 @@ body.hero-dark .badge-teal{background:rgba(255,255,255,.1);color:var(--primary-s
 body.hero-dark .badge-gold{background:rgba(255,255,255,.1);color:#E8DCBA;border-color:rgba(255,255,255,.15)}
 body.hero-dark .badge-green{background:rgba(255,255,255,.1);color:#B8E6C4;border-color:rgba(255,255,255,.15)}
 body.accent-cards .value-card,body.accent-cards .team-card,body.accent-cards .spec-card,body.accent-cards .svc-row,body.accent-cards .test-card{border-top:3px solid var(--primary)}
-body.warm-bg{background:var(--surface)}body.warm-bg .nav{background:rgba(245,244,241,.85)}
+body.warm-bg{background:var(--surface)}body.warm-bg .nav{background:color-mix(in srgb,var(--surface) 90%,transparent)}
 
 @media(max-width:640px){
   .hero h1{font-size:2rem}
@@ -541,12 +541,17 @@ function render(d){
   document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
   window.addEventListener('scroll',()=>{document.getElementById('nav').classList.toggle('scrolled',window.scrollY>20);});
 
-  // Hero background pattern when no cover image
+  // Hero background when no cover image — respect dark themes
   if(!b.cover_image_url){
     const hero=document.getElementById('heroSection');
-    hero.style.background='linear-gradient(135deg, var(--primary-light) 0%, var(--bg) 50%, var(--surface) 100%)';
-    hero.style.borderBottom='1px solid var(--border-light)';
-    hero.style.paddingBottom='64px';
+    const isDarkHero=document.body.classList.contains('hero-dark');
+    if(!isDarkHero){
+      // Light themes: subtle gradient from primary-light to bg
+      hero.style.background='linear-gradient(135deg, var(--primary-light) 0%, var(--bg) 50%, var(--surface) 100%)';
+      hero.style.borderBottom='1px solid var(--border-light)';
+      hero.style.paddingBottom='64px';
+    }
+    // Dark themes: CSS .hero-dark handles it (background:var(--text))
   }
 
   // Owner preview mode — hints about missing content
