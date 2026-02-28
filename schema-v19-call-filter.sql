@@ -1,6 +1,7 @@
 -- =============================================
 -- SCHEMA v19 — Enhanced call filtering
 -- Strict simplifié, vacances, horaires, messages custom, blacklist
+-- Vacation per practitioner
 -- =============================================
 
 -- 1. Add vacation + custom message fields to call_settings
@@ -16,6 +17,10 @@ ALTER TABLE call_settings
   ADD COLUMN IF NOT EXISTS custom_sms_nl TEXT,
   ADD COLUMN IF NOT EXISTS repeat_caller_threshold INTEGER DEFAULT 3,
   ADD COLUMN IF NOT EXISTS repeat_caller_window_min INTEGER DEFAULT 15;
+
+-- 2. Add vacation_until to practitioners
+ALTER TABLE practitioners
+  ADD COLUMN IF NOT EXISTS vacation_until DATE;
 
 -- 2. Update filter_mode CHECK to include 'vacation'
 ALTER TABLE call_settings DROP CONSTRAINT IF EXISTS call_settings_filter_mode_check;

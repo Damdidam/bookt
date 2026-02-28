@@ -58,6 +58,21 @@ router.post('/voice/incoming', async (req, res, next) => {
       }
     }
 
+    // Auto-vacation: if all active practitioners are on vacation, behave as vacation
+    if (mode !== 'vacation' && mode !== 'off') {
+      const pracResult = await query(
+        `SELECT COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE vacation_until >= CURRENT_DATE) AS on_vacation
+         FROM practitioners
+         WHERE business_id = $1 AND is_active = true`,
+        [businessId]
+      );
+      const { total, on_vacation } = pracResult.rows[0];
+      if (parseInt(total) > 0 && parseInt(on_vacation) === parseInt(total)) {
+        mode = 'vacation';
+      }
+    }
+
     // Off → transfer directly
     if (mode === 'off') {
       await logCall(businessId, CallSid, From, To, 'forwarded', 'ok');

@@ -83,6 +83,7 @@ CREATE TABLE practitioners (
   is_active       BOOLEAN DEFAULT true,
   booking_enabled BOOLEAN DEFAULT true,                -- Can receive bookings
   sort_order      INTEGER DEFAULT 0,
+  vacation_until  DATE,                               -- NULL = not on vacation
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );

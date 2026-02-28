@@ -4035,6 +4035,7 @@ async function loadTeam(){
             <span class="tm-badge ${p.is_active?'active':'inactive'}">${p.is_active?'Actif':'Inactif'}</span>
             <span class="tm-badge ${p.booking_enabled?'booking':'no-booking'}">${p.booking_enabled?'Réservable':'Non réservable'}</span>
             ${p.waitlist_mode&&p.waitlist_mode!=='off'?`<span class="tm-badge" style="background:${p.waitlist_mode==='auto'?'#DCFCE7;color:#15803D':'#FEF3C7;color:#92400E'}">${p.waitlist_mode==='auto'?'⏳ Waitlist auto':'⏳ Waitlist manuelle'}</span>`:''}
+            ${p.vacation_until&&new Date(p.vacation_until)>=new Date(new Date().toDateString())?`<span class="tm-badge" style="background:#FEF3C7;color:#92400E">🏖️ Vacances → ${new Date(p.vacation_until).toLocaleDateString('fr-BE',{day:'numeric',month:'short'})}</span>`:''}
             ${(()=>{const pc=calConns.filter(c=>c.practitioner_id===p.id);if(pc.length===0)return'';const providers=pc.map(c=>c.provider==='google'?'Google':c.provider==='outlook'?'Outlook':'iCal').join(', ');return`<span class="tm-badge" style="background:#EFF9F8;color:#0D7377">📅 ${providers}</span>`;})()}
             ${hasLogin?`<span class="tm-badge has-login">${sectorLabels[p.user_role]||p.user_role||'Compte lié'}</span>`:''}
           </div>
@@ -4085,6 +4086,7 @@ function renderPractModal(p){
     <div class="field"><label>Bio</label><textarea id="p_bio">${p?.bio||''}</textarea></div>
     <div class="field"><label>LinkedIn</label><input id="p_linkedin" value="${p?.linkedin_url||''}" placeholder="https://linkedin.com/in/..."></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="p_booking" ${p?.booking_enabled!==false?'checked':''}> Peut recevoir des réservations en ligne</label></div>
+    <div class="field"><label>🏖️ En vacances jusqu'au</label><input type="date" id="p_vacation" value="${p?.vacation_until||''}" style="width:100%;padding:8px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.85rem"><span style="font-size:.7rem;color:var(--text-4)">Si renseigné, ce praticien ne sera plus réservable en ligne. Si tous les praticiens sont en vacances, le filtre d'appels passe automatiquement en mode vacances.</span></div>
     <div class="field"><label>Liste d'attente</label><select id="p_waitlist" style="width:100%;padding:8px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.85rem">
       <option value="off"${(p?.waitlist_mode||'off')==='off'?' selected':''}>🔴 Désactivée</option>
       <option value="manual"${p?.waitlist_mode==='manual'?' selected':''}>🟡 Manuelle — je contacte le client moi-même</option>
@@ -4125,7 +4127,7 @@ async function pRemovePhoto(id){
 }
 
 async function savePract(id){
-  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15,waitlist_mode:document.getElementById('p_waitlist').value};
+  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15,waitlist_mode:document.getElementById('p_waitlist').value,vacation_until:document.getElementById('p_vacation').value||null};
   try{
     const url=id?`/api/practitioners/${id}`:'/api/practitioners';
     const method=id?'PATCH':'POST';
