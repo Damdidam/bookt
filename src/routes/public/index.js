@@ -113,6 +113,35 @@ router.get('/:slug', async (req, res, next) => {
 
     // ===== NEXT AVAILABLE SLOT =====
     let nextSlot = null;
+
+    // ===== GALLERY IMAGES =====
+    let gallery = [];
+    if (sections.gallery !== false) {
+      const galResult = await query(
+        `SELECT id, title, caption, image_url
+         FROM gallery_images
+         WHERE business_id = $1 AND is_active = true
+         ORDER BY sort_order
+         LIMIT 12`,
+        [bid]
+      );
+      gallery = galResult.rows;
+    }
+
+    // ===== NEWS POSTS =====
+    let news = [];
+    if (sections.news !== false) {
+      const newsResult = await query(
+        `SELECT id, title, content, tag, tag_type, image_url, published_at
+         FROM news_posts
+         WHERE business_id = $1 AND is_active = true
+         ORDER BY published_at DESC
+         LIMIT 6`,
+        [bid]
+      );
+      news = newsResult.rows;
+    }
+
     if (svcResult.rows.length > 0) {
       try {
         const tomorrow = new Date();
@@ -175,7 +204,8 @@ router.get('/:slug', async (req, res, next) => {
         page_sections: sections,
         cancellation_window_hours: biz.settings?.cancellation_window_hours || 24,
         cancellation_fee_percent: biz.settings?.cancellation_fee_percent || 50,
-        custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null
+        custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
+        google_reviews_url: biz.google_reviews_url
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
@@ -206,6 +236,8 @@ router.get('/:slug', async (req, res, next) => {
       specializations,
       testimonials,
       values,
+      gallery,
+      news,
       hours,
       next_available: nextSlot,
       practitioner_count: pracResult.rows.length

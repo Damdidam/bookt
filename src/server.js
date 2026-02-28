@@ -27,6 +27,8 @@ const documentRoutes = require('./routes/staff/documents');
 const calendarRoutes = require('./routes/staff/calendar');
 const waitlistRoutes = require('./routes/staff/waitlist');
 const whiteboardRoutes = require('./routes/staff/whiteboards');
+const galleryRoutes = require('./routes/staff/gallery');
+const newsRoutes = require('./routes/staff/news');
 const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 
@@ -114,6 +116,8 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/whiteboards', whiteboardRoutes);
+app.use('/api/gallery', galleryRoutes);
+app.use('/api/news', newsRoutes);
 app.use('/api/cron', preRdvCron);
 
 // Webhooks (Twilio)
