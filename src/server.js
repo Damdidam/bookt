@@ -58,6 +58,13 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleSt
 
 app.use(express.json({ limit: '5mb' }));
 
+// Serve api-client ES module (single source of truth for all pages)
+app.get('/js/api-client.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, 'frontend/api-client.js'));
+});
+
+
 // Static files — serve Vite build first (production), then public/ fallback
 const fs = require('fs');
 const distDir = path.join(__dirname, '../dist');

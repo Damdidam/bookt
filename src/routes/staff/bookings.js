@@ -463,45 +463,51 @@ router.patch('/:id/move', async (req, res, next) => {
       // Note: business hours validation is handled by frontend eventAllow
       // which checks the entire group range against practitioner availability
 
-      // Check conflicts for entire group range (skip if business allows overlap)
-      if (!globalAllowOverlap) {
-        const groupIds = groupMembers.map(m => m.id);
-        const conflict = await queryWithRLS(bid,
-          `SELECT id FROM bookings
-           WHERE business_id = $1 AND practitioner_id = $2
-           AND id != ALL($3)
-           AND status IN ('pending', 'confirmed', 'modified_pending')
-           AND start_at < $5 AND end_at > $4`,
-          [bid, effectivePracId, groupIds, totalStart, totalEnd]
-        );
-        if (conflict.rows.length > 0) {
-          return res.status(409).json({ error: 'Créneau déjà pris — impossible de déplacer le groupe ici' });
-        }
-      }
+      // Atomic group move: conflict check + updates in one transaction
+      try {
+        await transactionWithRLS(bid, async (client) => {
+          if (!globalAllowOverlap) {
+            const groupIds = groupMembers.map(m => m.id);
+            const conflict = await client.query(
+              `SELECT id FROM bookings
+               WHERE business_id = $1 AND practitioner_id = $2
+               AND id != ALL($3)
+               AND status IN ('pending', 'confirmed', 'modified_pending')
+               AND start_at < $5 AND end_at > $4
+               FOR UPDATE`,
+              [bid, effectivePracId, groupIds, totalStart, totalEnd]
+            );
+            if (conflict.rows.length > 0) {
+              throw Object.assign(new Error('Créneau déjà pris — impossible de déplacer le groupe ici'), { type: 'conflict' });
+            }
+          }
 
-      // Update all group members
-      for (const u of updates) {
-        let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
-        const params = [u.start_at, u.end_at];
-        let idx = 3;
-        if (practitioner_id) {
-          sql += `, practitioner_id = $${idx}`;
-          params.push(practitioner_id);
-          idx++;
-        }
-        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1}`;
-        params.push(u.id, bid);
-        await queryWithRLS(bid, sql, params);
-      }
+          for (const u of updates) {
+            let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
+            const params = [u.start_at, u.end_at];
+            let idx = 3;
+            if (practitioner_id) {
+              sql += `, practitioner_id = $${idx}`;
+              params.push(practitioner_id);
+              idx++;
+            }
+            sql += ` WHERE id = $${idx} AND business_id = $${idx + 1}`;
+            params.push(u.id, bid);
+            await client.query(sql, params);
+          }
 
-      // Audit
-      await queryWithRLS(bid,
-        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-         VALUES ($1, $2, 'booking', $3, 'group_move', $4, $5)`,
-        [bid, req.user.id, id,
-         JSON.stringify({ group_id: draggedBooking.group_id, original_start: draggedBooking.start_at }),
-         JSON.stringify({ new_start: totalStart, new_end: totalEnd })]
-      );
+          await client.query(
+            `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+             VALUES ($1, $2, 'booking', $3, 'group_move', $4, $5)`,
+            [bid, req.user.id, id,
+             JSON.stringify({ group_id: draggedBooking.group_id, original_start: draggedBooking.start_at }),
+             JSON.stringify({ new_start: totalStart, new_end: totalEnd })]
+          );
+        });
+      } catch (err) {
+        if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+        throw err;
+      }
 
       broadcast(bid, 'booking_update', { action: 'moved' });
       updates.forEach(u => calSyncPush(bid, u.id).catch(() => {}));
@@ -513,48 +519,58 @@ router.patch('/:id/move', async (req, res, next) => {
     const newEnd = new Date(end_at);
     const recalcEnd = newEnd;
 
-    // Check for conflicts (skip if business allows overlap)
-    if (!globalAllowOverlap) {
-      const conflict = await queryWithRLS(bid,
-        `SELECT id, start_at, end_at FROM bookings
-         WHERE business_id = $1 AND practitioner_id = $2
-         AND id != $3
-         AND status IN ('pending', 'confirmed', 'modified_pending')
-         AND start_at < $5 AND end_at > $4`,
-        [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
-      );
-      if (conflict.rows.length > 0) {
-        return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
-      }
+    // Atomic single move: conflict check + update in one transaction
+    let moveResult;
+    try {
+      moveResult = await transactionWithRLS(bid, async (client) => {
+        if (!globalAllowOverlap) {
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND id != $3
+             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND start_at < $5 AND end_at > $4
+             FOR UPDATE`,
+            [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
+          );
+          if (conflict.rows.length > 0) {
+            throw Object.assign(new Error('Créneau déjà pris — un autre RDV chevauche cet horaire'), { type: 'conflict' });
+          }
+        }
+
+        let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
+        const params = [newStart.toISOString(), recalcEnd.toISOString()];
+        let idx = 3;
+
+        if (practitioner_id) {
+          sql += `, practitioner_id = $${idx}`;
+          params.push(practitioner_id);
+          idx++;
+        }
+
+        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING id, start_at, end_at, practitioner_id`;
+        params.push(id, bid);
+
+        const r = await client.query(sql, params);
+
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'booking', $3, 'move', $4, $5)`,
+          [bid, req.user.id, id,
+           JSON.stringify(old.rows[0]),
+           JSON.stringify({ start_at: newStart.toISOString(), end_at: recalcEnd.toISOString(), practitioner_id })]
+        );
+
+        return r;
+      });
+    } catch (err) {
+      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      throw err;
     }
-
-    let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
-    const params = [newStart.toISOString(), recalcEnd.toISOString()];
-    let idx = 3;
-
-    if (practitioner_id) {
-      sql += `, practitioner_id = $${idx}`;
-      params.push(practitioner_id);
-      idx++;
-    }
-
-    sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING id, start_at, end_at, practitioner_id`;
-    params.push(id, bid);
-
-    const result = await queryWithRLS(bid, sql, params);
-
-    // Audit
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-       VALUES ($1, $2, 'booking', $3, 'move', $4, $5)`,
-      [bid, req.user.id, id,
-       JSON.stringify(old.rows[0]),
-       JSON.stringify({ start_at: newStart.toISOString(), end_at: recalcEnd.toISOString(), practitioner_id })]
-    );
 
     broadcast(bid, 'booking_update', { action: 'moved' });
     calSyncPush(bid, id).catch(() => {});
-    res.json({ updated: true, booking: result.rows[0] });
+    res.json({ updated: true, booking: moveResult.rows[0] });
   } catch (err) {
     next(err);
   }
@@ -633,32 +649,41 @@ router.patch('/:id/resize', async (req, res, next) => {
       return res.status(400).json({ error: 'Impossible de redimensionner un RDV groupé — les durées sont définies par les prestations' });
     }
 
-    // Check for conflicts (skip if business allows overlap)
+    // Atomic resize: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
-    if (!globalAllowOverlap) {
-      const conflict = await queryWithRLS(bid,
-        `SELECT id FROM bookings
-         WHERE business_id = $1 AND practitioner_id = $2
-         AND id != $3
-         AND status IN ('pending', 'confirmed', 'modified_pending')
-         AND start_at < $5 AND end_at > $4`,
-        [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
-      );
-      if (conflict.rows.length > 0) {
-        return res.status(409).json({ error: 'Chevauchement — un autre RDV occupe ce créneau' });
-      }
-    }
+    let resizeResult;
+    try {
+      resizeResult = await transactionWithRLS(bid, async (client) => {
+        if (!globalAllowOverlap) {
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND id != $3
+             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND start_at < $5 AND end_at > $4
+             FOR UPDATE`,
+            [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
+          );
+          if (conflict.rows.length > 0) {
+            throw Object.assign(new Error('Chevauchement — un autre RDV occupe ce créneau'), { type: 'conflict' });
+          }
+        }
 
-    const result = await queryWithRLS(bid,
-      `UPDATE bookings SET end_at = $1, updated_at = NOW()
-       WHERE id = $2 AND business_id = $3
-       RETURNING id, start_at, end_at`,
-      [end_at, id, bid]
-    );
+        return client.query(
+          `UPDATE bookings SET end_at = $1, updated_at = NOW()
+           WHERE id = $2 AND business_id = $3
+           RETURNING id, start_at, end_at`,
+          [end_at, id, bid]
+        );
+      });
+    } catch (err) {
+      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      throw err;
+    }
 
     broadcast(bid, 'booking_update', { action: 'resized' });
     calSyncPush(bid, id).catch(() => {});
-    res.json({ updated: true, booking: result.rows[0] });
+    res.json({ updated: true, booking: resizeResult.rows[0] });
   } catch (err) {
     next(err);
   }
@@ -698,39 +723,50 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     const oldBooking = old.rows[0];
 
-    // Check for conflicts (exclude self)
-    const conflict = await queryWithRLS(bid,
-      `SELECT id FROM bookings
-       WHERE business_id = $1 AND practitioner_id = $2
-       AND id != $3
-       AND status IN ('pending', 'confirmed', 'modified_pending')
-       AND start_at < $5 AND end_at > $4`,
-      [bid, oldBooking.practitioner_id, id, start_at, end_at]
-    );
-    if (conflict.rows.length > 0) {
-      return res.status(409).json({ error: 'Créneau déjà pris — un autre RDV chevauche cet horaire' });
-    }
-
     const newStatus = notify ? 'modified_pending' : oldBooking.status;
 
-    // Update booking
-    const result = await queryWithRLS(bid,
-      `UPDATE bookings SET
-        start_at = $1, end_at = $2, status = $3, updated_at = NOW()
-       WHERE id = $4 AND business_id = $5
-       RETURNING *`,
-      [start_at, end_at, newStatus, id, bid]
-    );
+    // Atomic modify: conflict check + update in one transaction
+    let modifyResult;
+    try {
+      modifyResult = await transactionWithRLS(bid, async (client) => {
+        const conflict = await client.query(
+          `SELECT id FROM bookings
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND id != $3
+           AND status IN ('pending', 'confirmed', 'modified_pending')
+           AND start_at < $5 AND end_at > $4
+           FOR UPDATE`,
+          [bid, oldBooking.practitioner_id, id, start_at, end_at]
+        );
+        if (conflict.rows.length > 0) {
+          throw Object.assign(new Error('Créneau déjà pris — un autre RDV chevauche cet horaire'), { type: 'conflict' });
+        }
 
-    // Audit with full diff
-    const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };
-    const newTimes = { start_at, end_at, status: newStatus, notified: notify || false, channel: notify_channel || null };
+        const r = await client.query(
+          `UPDATE bookings SET
+            start_at = $1, end_at = $2, status = $3, updated_at = NOW()
+           WHERE id = $4 AND business_id = $5
+           RETURNING *`,
+          [start_at, end_at, newStatus, id, bid]
+        );
 
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-       VALUES ($1, $2, 'booking', $3, 'modify', $4, $5)`,
-      [bid, req.user.id, id, JSON.stringify(oldTimes), JSON.stringify(newTimes)]
-    );
+        const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };
+        const newTimes = { start_at, end_at, status: newStatus, notified: notify || false, channel: notify_channel || null };
+
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'booking', $3, 'modify', $4, $5)`,
+          [bid, req.user.id, id, JSON.stringify(oldTimes), JSON.stringify(newTimes)]
+        );
+
+        return r;
+      });
+    } catch (err) {
+      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      throw err;
+    }
+
+    const result = modifyResult;
 
     // If notification requested, send it
     let notificationResult = null;

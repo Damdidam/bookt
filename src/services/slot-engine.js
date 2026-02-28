@@ -152,11 +152,21 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   const startDate = new Date(dateFrom);
   const endDate = new Date(dateTo);
 
+  // DST-safe: compute correct UTC offset for a given date in Europe/Brussels
+  function brusselsOffset(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00Z');
+    const utc = new Date(d.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const bxl = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
+    const hours = Math.round((bxl - utc) / 3600000);
+    return `${hours >= 0 ? '+' : '-'}${String(Math.abs(hours)).padStart(2, '0')}:00`;
+  }
+
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().split('T')[0];
     // JavaScript: 0=Sunday, we use 0=Monday → convert
     const jsDay = d.getDay(); // 0=Sun, 1=Mon, ...
     const weekday = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon, 6=Sun
+    const tzOffset = brusselsOffset(dateStr);
 
     for (const pracId of practitionerIds) {
       // Check exceptions
@@ -185,7 +195,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
         const windowEnd = timeToMinutes(window.end);
 
         for (let startMin = windowStart; startMin + totalDuration <= windowEnd; startMin += granularity) {
-          const slotStart = new Date(`${dateStr}T${minutesToTime(startMin)}:00+01:00`); // Brussels = UTC+1 (simplified)
+          const slotStart = new Date(`${dateStr}T${minutesToTime(startMin)}:00${tzOffset}`);
           const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
 
           // Check if slot is in the past

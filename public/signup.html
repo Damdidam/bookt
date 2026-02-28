@@ -364,8 +364,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   </main>
 </div>
 
-<script src="/js/api-client.js"></script>
-<script>
+<script type="module">
+import { GendaAPI, GendaUI } from '/js/api-client.js';
 const api = new GendaAPI();
 let currentStep = 0;
 let sector = null;
@@ -767,6 +767,13 @@ function copyUrl() {
     GendaUI.toast('Lien copié !', 'success');
   });
 }
+
+// Expose functions to inline onclick handlers
+Object.assign(window, {
+  selSec, updSlug, go, doSignup, saveCabinetInfo, saveSchedule,
+  saveOnboardingStep, saveTeam, saveBio, addTestimonialForm,
+  selectCalendar, saveCalendarChoice, goLive, copyUrl
+});
 </script>
 
 <script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>

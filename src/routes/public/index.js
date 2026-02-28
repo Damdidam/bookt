@@ -965,26 +965,29 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       return res.status(410).json({ error: 'Cette offre a expiré' });
     }
 
-    // Check slot still available (no new booking in that slot)
-    const conflict = await query(
-      `SELECT id FROM bookings
-       WHERE business_id = $1 AND practitioner_id = $2
-       AND status IN ('pending', 'confirmed')
-       AND start_at < $4 AND end_at > $3`,
-      [e.business_id, e.practitioner_id, e.offer_booking_start, e.offer_booking_end]
-    );
-
-    if (conflict.rows.length > 0) {
-      await query(
-        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
-        [e.id]
-      );
-      return res.status(409).json({ error: 'Ce créneau vient d\'être pris' });
-    }
-
     const { transactionWithRLS } = require('../../services/db');
 
-    const booking = await transactionWithRLS(e.business_id, async (client) => {
+    let booking;
+    try {
+      booking = await transactionWithRLS(e.business_id, async (client) => {
+      // Check slot still available WITH lock (inside transaction to prevent race condition)
+      const conflict = await client.query(
+        `SELECT id FROM bookings
+         WHERE business_id = $1 AND practitioner_id = $2
+         AND status IN ('pending', 'confirmed')
+         AND start_at < $4 AND end_at > $3
+         FOR UPDATE`,
+        [e.business_id, e.practitioner_id, e.offer_booking_start, e.offer_booking_end]
+      );
+
+      if (conflict.rows.length > 0) {
+        await client.query(
+          `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+          [e.id]
+        );
+        throw Object.assign(new Error('Ce créneau vient d\'être pris'), { type: 'conflict' });
+      }
+
       // Find or create client
       let clientId;
       const existing = await client.query(
@@ -1029,6 +1032,10 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 
       return bk.rows[0];
     });
+    } catch (err) {
+      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      throw err;
+    }
 
     res.status(201).json({
       booked: true,

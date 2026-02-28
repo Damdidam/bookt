@@ -8,6 +8,7 @@ import { fcRenderNotes } from './booking-notes.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
 import { cswHTML } from './color-swatches.js';
+import '../whiteboards.js'; // registers openWhiteboard on window
 import { calCheckConflict } from './booking-edit.js';
 
 async function fcOpenDetail(bookingId) {

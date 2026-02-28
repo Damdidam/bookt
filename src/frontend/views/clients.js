@@ -3,6 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhiteboards on window
 
 let clientSearch='';
 let clientFilter='';
