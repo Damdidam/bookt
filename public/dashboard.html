@@ -436,6 +436,40 @@ textarea.m-input{resize:vertical;min-height:38px}
 .cal-btn.cal-green{background:var(--green);color:#fff;border-color:var(--green)}
 
 /* Notes tab */
+
+/* Gallery admin */
+.gallery-admin-grid{display:flex;flex-direction:column;gap:8px}
+.gal-item{display:flex;align-items:center;gap:14px;padding:12px;border:1.5px solid var(--border-light);border-radius:10px;background:var(--white);transition:all .15s}
+.gal-item:hover{border-color:var(--primary-border)}
+.gal-item.inactive{opacity:.5}
+.gal-img{width:72px;height:54px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface)}
+.gal-img img{width:100%;height:100%;object-fit:cover}
+.gal-info{flex:1;min-width:0}
+.gal-title{font-size:.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gal-caption{font-size:.72rem;color:var(--text-4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gal-actions{display:flex;gap:4px;flex-shrink:0}
+.gal-actions button{background:none;border:none;cursor:pointer;font-size:.85rem;padding:4px 6px;border-radius:6px;transition:background .15s}
+.gal-actions button:hover{background:var(--surface)}
+
+/* News admin */
+.news-item{display:flex;align-items:flex-start;gap:14px;padding:14px;border:1.5px solid var(--border-light);border-radius:10px;background:var(--white);margin-bottom:8px;transition:all .15s}
+.news-item:hover{border-color:var(--primary-border)}
+.news-item.inactive{opacity:.5}
+.news-date{font-size:.68rem;font-weight:700;color:var(--text-4);white-space:nowrap;min-width:60px;padding-top:2px}
+.news-body{flex:1;min-width:0}
+.news-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.news-title{font-size:.88rem;font-weight:700}
+.news-tag{font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.news-excerpt{font-size:.78rem;color:var(--text-3);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.news-actions{display:flex;gap:4px;flex-shrink:0}
+.news-actions button{background:none;border:none;cursor:pointer;font-size:.85rem;padding:4px 6px;border-radius:6px;transition:background .15s}
+.news-actions button:hover{background:var(--surface)}
+
+/* Section toggles */
+.section-toggles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.section-toggle{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.82rem;font-weight:500;cursor:pointer;transition:all .15s}
+.section-toggle:hover{border-color:var(--primary-border);background:rgba(13,115,119,.02)}
+.section-toggle input{width:18px;height:18px;accent-color:var(--primary);cursor:pointer}
 .note-card{position:relative;padding:12px;border-radius:var(--radius-xs);border:1px solid var(--border-light);margin-bottom:8px;transition:var(--transition)}
 .note-card:hover{border-color:var(--primary-soft)}
 .note-card.pinned{border-left:3px solid var(--primary);background:var(--primary-light)}
@@ -3313,8 +3347,14 @@ async function loadSiteSection(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const r=await fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const [r,galR,newsR]=await Promise.all([
+      fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch('/api/gallery',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false})),
+      fetch('/api/news',{headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>({ok:false}))
+    ]);
     const d=await r.json();
+    const galleryItems=galR.ok?await galR.json():[];
+    const newsItems=newsR.ok?await newsR.json():[];
     const b=d.business;
     currentThemePreset=b.theme?.preset||'classique';
     businessPlan=b.plan||'free';
@@ -3376,6 +3416,86 @@ async function loadSiteSection(){
       </div>
     </div>`;
 
+    // ── GALLERY MANAGEMENT ──
+    h+=`<div class="card"><div class="card-h"><h3>📸 Galerie photos</h3><button class="btn-primary" onclick="openGalleryModal()">+ Ajouter</button></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Photos affichées sur votre mini-site. Glissez pour réordonner. URL d'image directe requise (Imgur, Cloudinary, etc.).</p>
+        <div id="galleryGrid" class="gallery-admin-grid">`;
+    if(galleryItems.length===0){
+      h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune photo. Ajoutez votre première image !</div>`;
+    }else{
+      galleryItems.forEach((img,i)=>{
+        h+=`<div class="gal-item${img.is_active?'':' inactive'}" data-id="${img.id}">
+          <div class="gal-img"><img src="${img.image_url}" alt="${img.title||''}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23eee%22 width=%22200%22 height=%22150%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>Erreur</text></svg>'"></div>
+          <div class="gal-info">
+            <div class="gal-title">${img.title||'<em style="color:var(--text-4)">Sans titre</em>'}</div>
+            ${img.caption?'<div class="gal-caption">'+img.caption+'</div>':''}
+          </div>
+          <div class="gal-actions">
+            <button onclick="editGalleryItem('${img.id}')" title="Modifier">✏️</button>
+            <button onclick="toggleGalleryItem('${img.id}',${img.is_active})" title="${img.is_active?'Masquer':'Afficher'}">${img.is_active?'👁️':'👁️‍🗨️'}</button>
+            <button onclick="deleteGalleryItem('${img.id}')" title="Supprimer" style="color:var(--red)">🗑️</button>
+          </div>
+        </div>`;
+      });
+    }
+    h+=`</div></div></div>`;
+
+    // ── NEWS MANAGEMENT ──
+    h+=`<div class="card"><div class="card-h"><h3>📰 Actualités</h3><button class="btn-primary" onclick="openNewsModal()">+ Publier</button></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Articles affichés sur votre mini-site. Les plus récents apparaissent en premier.</p>
+        <div id="newsList">`;
+    if(newsItems.length===0){
+      h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune actualité. Publiez votre premier article !</div>`;
+    }else{
+      newsItems.forEach(n=>{
+        const date=new Date(n.published_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'});
+        const tagColors={info:'var(--primary)',alert:'var(--gold)',new:'var(--green)',promo:'#D946EF'};
+        h+=`<div class="news-item${n.is_active?'':' inactive'}" data-id="${n.id}">
+          <div class="news-date">${date}</div>
+          <div class="news-body">
+            <div class="news-title-row">
+              <span class="news-title">${n.title}</span>
+              ${n.tag?'<span class="news-tag" style="background:'+((tagColors[n.tag_type]||'var(--text-4)')+'22')+';color:'+(tagColors[n.tag_type]||'var(--text-4)')+'">'+n.tag+'</span>':''}
+            </div>
+            <div class="news-excerpt">${(n.content||'').substring(0,120)}${(n.content||'').length>120?'…':''}</div>
+          </div>
+          <div class="news-actions">
+            <button onclick="editNewsItem('${n.id}')" title="Modifier">✏️</button>
+            <button onclick="toggleNewsItem('${n.id}',${n.is_active})" title="${n.is_active?'Masquer':'Afficher'}">${n.is_active?'👁️':'👁️‍🗨️'}</button>
+            <button onclick="deleteNewsItem('${n.id}')" title="Supprimer" style="color:var(--red)">🗑️</button>
+          </div>
+        </div>`;
+      });
+    }
+    h+=`</div></div></div>`;
+
+    // ── SECTION TOGGLES ──
+    const sections=b.page_sections||{};
+    h+=`<div class="card"><div class="card-h"><h3>🔧 Sections visibles</h3></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Activez ou désactivez les sections de votre mini-site.</p>
+        <div class="section-toggles">`;
+    const sectionList=[
+      {key:'services',label:'Prestations',icon:'💼'},
+      {key:'about',label:'À propos',icon:'ℹ️'},
+      {key:'team',label:'Équipe',icon:'👥'},
+      {key:'gallery',label:'Galerie',icon:'📸'},
+      {key:'specializations',label:'Spécialisations',icon:'🎯'},
+      {key:'testimonials',label:'Témoignages',icon:'⭐'},
+      {key:'news',label:'Actualités',icon:'📰'},
+      {key:'location',label:'Horaires & Contact',icon:'📍'}
+    ];
+    sectionList.forEach(s=>{
+      const on=sections[s.key]!==false;
+      h+=`<label class="section-toggle">
+        <input type="checkbox" ${on?'checked':''} onchange="toggleSiteSection('${s.key}',this.checked)">
+        <span>${s.icon} ${s.label}</span>
+      </label>`;
+    });
+    h+=`</div></div></div>`;
+
     c.innerHTML=h;
     // Init branding color swatches
     const cwWrap=document.getElementById('customColor_wrap');
@@ -3405,6 +3525,180 @@ async function saveCustomColor(){
       body:JSON.stringify({theme:{preset:currentThemePreset,primary_color:color}})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     GendaUI.toast('Couleur appliquée !','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// GALLERY CRUD
+// ============================================================
+let _galleryCache=[];
+
+function openGalleryModal(item){
+  const isEdit=!!item;
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la photo':'Ajouter une photo'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body">
+      <div class="fg"><label class="fl">URL de l'image *</label><input class="fi" id="galUrl" value="${item?.image_url||''}" placeholder="https://i.imgur.com/...jpg">
+        <p style="font-size:.68rem;color:var(--text-4);margin-top:3px">Hébergez vos images sur <a href="https://imgur.com" target="_blank" style="color:var(--primary)">Imgur</a>, <a href="https://cloudinary.com" target="_blank" style="color:var(--primary)">Cloudinary</a> ou similaire.</p>
+      </div>
+      <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'}">
+        <img id="galPreviewImg" src="${item?.image_url||''}" style="width:100%;height:auto;max-height:200px;object-fit:cover">
+      </div>
+      <div class="fg"><label class="fl">Titre</label><input class="fi" id="galTitle" value="${item?.title||''}" placeholder="Ex: Notre cabinet"></div>
+      <div class="fg"><label class="fl">Légende</label><input class="fi" id="galCaption" value="${item?.caption||''}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
+    </div>
+    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="galSaveBtn" onclick="saveGalleryItem('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  // Live preview
+  const urlInput=document.getElementById('galUrl');
+  urlInput.addEventListener('input',()=>{
+    const url=urlInput.value.trim();
+    const preview=document.getElementById('galPreview');
+    const img=document.getElementById('galPreviewImg');
+    if(url&&/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)/i.test(url)){
+      img.src=url;preview.style.display='block';
+    }else{preview.style.display='none';}
+  });
+  urlInput.focus();
+}
+
+async function saveGalleryItem(id){
+  const url=document.getElementById('galUrl').value.trim();
+  const title=document.getElementById('galTitle').value.trim();
+  const caption=document.getElementById('galCaption').value.trim();
+  if(!url){GendaUI.toast('URL de l\'image requise','error');return;}
+  const btn=document.getElementById('galSaveBtn');btn.disabled=true;btn.textContent='Enregistrement...';
+  try{
+    const method=id?'PUT':'POST';
+    const endpoint=id?'/api/gallery/'+id:'/api/gallery';
+    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({image_url:url,title:title||null,caption:caption||null})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast(id?'Photo modifiée':'Photo ajoutée','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Ajouter';}
+}
+
+async function editGalleryItem(id){
+  try{
+    const r=await fetch('/api/gallery',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const items=await r.json();
+    const item=items.find(i=>i.id===id);
+    if(item)openGalleryModal(item);
+  }catch(e){GendaUI.toast('Erreur','error');}
+}
+
+async function toggleGalleryItem(id,currentlyActive){
+  try{
+    const r=await fetch('/api/gallery/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({is_active:!currentlyActive})});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast(currentlyActive?'Photo masquée':'Photo visible','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteGalleryItem(id){
+  if(!confirm('Supprimer cette photo ?'))return;
+  try{
+    const r=await fetch('/api/gallery/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Photo supprimée','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// NEWS CRUD
+// ============================================================
+function openNewsModal(item){
+  const isEdit=!!item;
+  const tagTypes=[{val:'info',label:'Info',color:'var(--primary)'},{val:'alert',label:'Alerte',color:'var(--gold)'},{val:'new',label:'Nouveau',color:'var(--green)'},{val:'promo',label:'Promo',color:'#D946EF'}];
+  const ov=document.createElement('div');ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier l\'article':'Publier un article'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">✕</button></div>
+    <div class="modal-body">
+      <div class="fg"><label class="fl">Titre *</label><input class="fi" id="newsTitle" value="${item?.title||''}" placeholder="Ex: Nouveau service de téléconsultation"></div>
+      <div class="fg"><label class="fl">Contenu *</label><textarea class="fi" id="newsContent" style="min-height:120px;resize:vertical" placeholder="Rédigez votre article...">${item?.content||''}</textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="fg"><label class="fl">Tag (optionnel)</label><input class="fi" id="newsTag" value="${item?.tag||''}" placeholder="Ex: Nouveau, Important"></div>
+        <div class="fg"><label class="fl">Type de tag</label><select class="fi" id="newsTagType" style="padding:8px 12px">
+          ${tagTypes.map(t=>`<option value="${t.val}"${item?.tag_type===t.val?' selected':''}>${t.label}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="fg"><label class="fl">Image (URL, optionnel)</label><input class="fi" id="newsImage" value="${item?.image_url||''}" placeholder="https://..."></div>
+      <div class="fg"><label class="fl">Date de publication</label><input class="fi" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toISOString().split('T')[0]}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('newsTitle').focus();
+}
+
+async function saveNewsItem(id){
+  const title=document.getElementById('newsTitle').value.trim();
+  const content=document.getElementById('newsContent').value.trim();
+  const tag=document.getElementById('newsTag').value.trim();
+  const tag_type=document.getElementById('newsTagType').value;
+  const image_url=document.getElementById('newsImage').value.trim();
+  const published_at=document.getElementById('newsDate').value;
+  if(!title||!content){GendaUI.toast('Titre et contenu requis','error');return;}
+  const btn=document.getElementById('newsSaveBtn');btn.disabled=true;btn.textContent='Enregistrement...';
+  try{
+    const method=id?'PUT':'POST';
+    const endpoint=id?'/api/news/'+id:'/api/news';
+    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({title,content,tag:tag||null,tag_type,image_url:image_url||null,published_at})});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast(id?'Article modifié':'Article publié','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Publier';}
+}
+
+async function editNewsItem(id){
+  try{
+    const r=await fetch('/api/news',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const items=await r.json();
+    const item=items.find(i=>i.id===id);
+    if(item)openNewsModal(item);
+  }catch(e){GendaUI.toast('Erreur','error');}
+}
+
+async function toggleNewsItem(id,currentlyActive){
+  try{
+    const r=await fetch('/api/news/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({is_active:!currentlyActive})});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast(currentlyActive?'Article masqué':'Article visible','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteNewsItem(id){
+  if(!confirm('Supprimer cet article ?'))return;
+  try{
+    const r=await fetch('/api/news/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Article supprimé','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ============================================================
+// SECTION TOGGLES
+// ============================================================
+async function toggleSiteSection(key,enabled){
+  try{
+    const r=await fetch('/api/business',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const sections=d.business.page_sections||{};
+    sections[key]=enabled;
+    const r2=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({page_sections:sections})});
+    if(!r2.ok)throw new Error('Erreur');
+    GendaUI.toast(`Section "${key}" ${enabled?'activée':'masquée'}`,'success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
