@@ -1,6 +1,10 @@
 /**
  * Calendar Init - slot duration helper, hex alpha, refresh, and calendar instantiation.
  */
+import { Calendar } from '@fullcalendar/core';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
 import { calState } from '../../state.js';
 import { fcIsMobile } from '../../utils/touch.js';
 import { fcIsTouch, fcIsTablet } from '../../utils/touch.js';
@@ -77,7 +81,8 @@ function initCalendar(initView, initSlotDur) {
     eventResize: buildEventResize()
   };
 
-  calState.fcCal = new FullCalendar.Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
+  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+  calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
   calState.fcCal.render();
 
   // Hide tooltip when scrolling calendar
