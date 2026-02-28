@@ -3322,22 +3322,40 @@ async function deleteException(id){
 const THEMES={
   classique:{name:'Classique',desc:'Épuré et professionnel. Teal + typographie éditoriale.',free:true,
     colors:{bg:'#FAFAF9',nav:'#FAFAF9',navText:'#1A1816',primary:'#0D7377',text:'#1A1816',card:'#FFF',cardBorder:'#ECEAE6',heroBg:'#FAFAF9'},
-    heroStyle:'light'},
+    heroStyle:'light',layout:'left',
+    fontUrl:'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&family=Instrument+Serif&display=swap',
+    serif:"'Instrument Serif',Georgia,serif",sans:"'Plus Jakarta Sans',sans-serif",
+    fontLabel:'Jakarta Sans + Instrument Serif'},
   prestige:{name:'Prestige',desc:'Bleu nuit + or. Idéal avocats, notaires, consultants.',free:false,
     colors:{bg:'#F8F7F4',nav:'#1B1B1B',navText:'#FFF',primary:'#1E3A5F',text:'#1B1B1B',card:'#FFF',cardBorder:'#E0DDD8',heroBg:'#1B1B1B'},
-    heroStyle:'dark'},
+    heroStyle:'dark',layout:'left',
+    fontUrl:'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@500;600&display=swap',
+    serif:"'DM Serif Display',Georgia,serif",sans:"'Inter',sans-serif",
+    fontLabel:'Inter + DM Serif Display'},
   zen:{name:'Zen',desc:'Vert sauge + beige. Parfait bien-être, thérapeutes, coachs.',free:false,
-    colors:{bg:'#F7F5F0',nav:'#F7F5F0',navText:'#2C2820',primary:'#6B7F5E',text:'#2C2820',card:'#FFFDF9',cardBorder:'#E5E0D6',heroBg:'#F7F5F0'},
-    heroStyle:'light'},
+    colors:{bg:'#F7F5F0',nav:'#F7F5F0',navText:'#2C2820',primary:'#6B7F5E',text:'#2C2820',card:'#FFFDF9',cardBorder:'#E5E0D6',heroBg:'#EDE9E0'},
+    heroStyle:'light',layout:'center',
+    fontUrl:'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Nunito+Sans:wght@500;600&display=swap',
+    serif:"'Cormorant Garamond',Georgia,serif",sans:"'Nunito Sans',sans-serif",
+    fontLabel:'Nunito Sans + Cormorant Garamond'},
   moderne:{name:'Moderne',desc:'Noir + blanc. Géométrique, tech-forward, minimaliste.',free:false,
     colors:{bg:'#FAFAFA',nav:'#FAFAFA',navText:'#111',primary:'#111',text:'#111',card:'#FFF',cardBorder:'#E8E8E8',heroBg:'#FAFAFA'},
-    heroStyle:'light'},
+    heroStyle:'light',layout:'left',accentCards:true,
+    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Instrument+Serif&display=swap',
+    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
+    fontLabel:'Space Grotesk + Instrument Serif'},
   chaleureux:{name:'Chaleureux',desc:'Terracotta + crème. Accueillant, personnel, artisanal.',free:false,
-    colors:{bg:'#FAF6F2',nav:'#FAF6F2',navText:'#2E1F14',primary:'#8B4513',text:'#2E1F14',card:'#FFFCF8',cardBorder:'#E8E0D6',heroBg:'#FAF6F2'},
-    heroStyle:'light'},
+    colors:{bg:'#FAF6F2',nav:'#FAF6F2',navText:'#2E1F14',primary:'#8B4513',text:'#2E1F14',card:'#FFFCF8',cardBorder:'#E8E0D6',heroBg:'#F0EAE2'},
+    heroStyle:'light',layout:'center',
+    fontUrl:'https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@500;600&display=swap',
+    serif:"'Libre Baskerville',Georgia,serif",sans:"'Source Sans 3',sans-serif",
+    fontLabel:'Source Sans 3 + Libre Baskerville'},
   ocean:{name:'Océan',desc:'Bleu profond + ciel. Frais, ouvert, médical.',free:false,
     colors:{bg:'#F5F8FA',nav:'#0F2440',navText:'#FFF',primary:'#1565C0',text:'#0F2440',card:'#FFF',cardBorder:'#DCE5ED',heroBg:'#0F2440'},
-    heroStyle:'dark'}
+    heroStyle:'dark',layout:'left',
+    fontUrl:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Lato:wght@400;700&display=swap',
+    serif:"'Playfair Display',Georgia,serif",sans:"'Lato',sans-serif",
+    fontLabel:'Lato + Playfair Display'}
 };
 
 let currentThemePreset='classique';
@@ -3374,29 +3392,32 @@ async function loadSiteSection(){
       const isLocked=isPro&&businessPlan==='free';
       const cls=`theme-card${isActive?' active':''}${isLocked?' locked':''}`;
       const co=t.colors;
+      const heroAlign=t.layout==='center'?'center':'left';
 
       h+=`<div class="${cls}" onclick="${isLocked?'':'selectTheme(\''+key+'\')'}">
+        <link rel="stylesheet" href="${t.fontUrl}">
         <div class="check">✓</div>
         ${isLocked?'<div class="lock-icon">🔒</div>':''}
         <div class="theme-preview" style="background:${co.heroBg}">
           <div class="tp-nav" style="background:${co.nav}">
             <div class="dot" style="background:${co.primary}">G</div>
-            <span class="tp-name" style="color:${co.navText}">Cabinet</span>
-            <span class="tp-cta" style="background:${co.primary}">RDV</span>
+            <span class="tp-name" style="color:${co.navText};font-family:${t.sans}">Cabinet</span>
+            <span class="tp-cta" style="background:${co.primary};font-family:${t.sans}">RDV</span>
           </div>
-          <div class="tp-hero" style="color:${t.heroStyle==='dark'?'#fff':co.text}">
-            <h3>Cabinet Dupont & Associés</h3>
-            <p>Votre santé, notre priorité depuis 2018</p>
+          <div class="tp-hero" style="color:${t.heroStyle==='dark'?'#fff':co.text};text-align:${heroAlign}">
+            <h3 style="font-family:${t.serif}">Cabinet Dupont</h3>
+            <p style="font-family:${t.sans}">Votre santé, notre priorité</p>
           </div>
           <div class="tp-cards">
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}"></div>
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}"></div>
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}"></div>
+            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
+            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
+            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
           </div>
         </div>
         <div class="theme-info">
           <h4>${t.name} <span class="th-badge ${t.free?'th-free':'th-pro'}">${t.free?'Gratuit':'Pro'}</span></h4>
           <p>${t.desc}</p>
+          <p style="font-size:.6rem;color:var(--text-4);margin-top:3px">🔤 ${t.fontLabel}${t.layout==='center'?' · ↔️ Centré':''}${t.accentCards?' · ▬ Accents':''}</p>
         </div>
       </div>`;
     });
