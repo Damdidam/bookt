@@ -118,3 +118,22 @@
 .csw-dot.active{border-color:var(--text);box-shadow:0 0 0 2px var(--white),0 0 0 4px currentColor}
 .csw-inline{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;vertical-align:middle}
 .csw-inline .csw-dot{width:20px;height:20px;border-radius:6px;border-width:2px}
+
+/* ===== FEATURED SLOTS — MODE VEDETTE ===== */
+/* Toggle button in toolbar */
+.fs-toggle-btn{position:relative}
+.fs-toggle-btn.active{background:#FEF3C7!important;color:#D97706!important;border-color:#E5D9A8!important}
+.fs-toggle-btn.active::after{content:'';position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:#D97706;border:2px solid var(--white)}
+/* Calendar gold border in vedette mode */
+#fcCalendar.fs-mode-active{box-shadow:0 0 0 2px #D97706,0 0 16px rgba(217,119,6,.12);border-radius:12px}
+#fcCalendar.fs-mode-active .fc-scrollgrid{border-color:#E5D9A8}
+/* Background events = gold cells */
+.fc .fc-bg-event.fs-bg-event{background:rgba(251,191,36,.2)!important;border:1.5px dashed rgba(217,119,6,.4)!important;border-radius:0;opacity:1!important}
+/* Floating action bar */
+.fs-action-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:2px solid #E5D9A8;padding:12px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;animation:fsBarIn .2s ease}
+@keyframes fsBarIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.fs-action-left{display:flex;align-items:center;gap:10px}
+.fs-action-label{font-size:.82rem;font-weight:700;color:#92400E}
+.fs-action-count{font-size:.78rem;font-weight:600;color:#D97706;background:#FEF3C7;padding:3px 10px;border-radius:6px}
+.fs-action-right{display:flex;gap:8px;align-items:center}
+@media(max-width:640px){.fs-action-bar{padding:10px 16px;flex-direction:column;gap:8px}.fs-action-right{width:100%;justify-content:flex-end}}

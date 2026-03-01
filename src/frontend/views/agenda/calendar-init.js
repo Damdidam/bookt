@@ -12,6 +12,7 @@ import {
   buildEventDidMount, buildDateClick, buildEventDrop, buildEventResize,
   buildEventOverlap, buildEventAllow, fcHideTooltip
 } from './calendar-events.js';
+import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { atUpdateTitle } from './calendar-toolbar.js';
 import { fcLoadMobileList } from './calendar-mobile.js';
 
@@ -85,7 +86,13 @@ function initCalendar(initView, initSlotDur) {
     events: buildEventsCallback(),
     eventContent: buildEventContent(),
     eventClassNames: buildEventClassNames(),
-    eventClick: function () {}, // absorb single click (no-op)
+    eventClick: function (info) {
+      // In vedette mode, clicking a booked event toggles featured slot at that time
+      if (fsIsActive() && !info.event.extendedProps?._isFeaturedSlot) {
+        fsHandleDateClick(info.event.startStr);
+        return;
+      }
+    },
     navLinkDayClick: function (date) {
       calState.fcCal.changeView('timeGridDay', date);
     },

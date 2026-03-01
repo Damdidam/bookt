@@ -9,6 +9,7 @@ import { fcHexAlpha, fcRefresh } from './calendar-init.js';
 import { fcOpenDetail } from './booking-detail.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { atView } from './calendar-toolbar.js';
+import { fsIsActive, fsHandleDateClick, fsBuildBackgroundEvents } from './calendar-featured.js';
 
 // ── Tooltip locale maps ──
 const STATUS_FR = { confirmed: 'Confirm\u00e9', pending: 'En attente', completed: 'Termin\u00e9', cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9', pending_deposit: 'Acompte requis' };
@@ -149,7 +150,9 @@ function buildEventsCallback() {
           if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
           return true;
         });
-        successCb(filtered);
+        // Inject featured slots background events if mode is active
+        const fsEvents = fsBuildBackgroundEvents();
+        successCb(filtered.concat(fsEvents));
       }).catch(e => failCb(e));
   };
 }
@@ -218,6 +221,10 @@ function buildEventClassNames() {
 function buildEventDidMount() {
   return function (info) {
     const p = info.event.extendedProps;
+
+    // Skip styling for featured background events
+    if (p._isFeaturedSlot) return;
+
     const accent = p._accent || '#0D7377';
 
     // Ensure left border shows
@@ -237,9 +244,11 @@ function buildEventDidMount() {
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (!isTouch) {
       info.el.addEventListener('mouseenter', function (e) {
+        if (fsIsActive()) return;
         fcShowTooltip(info.event, e.clientX, e.clientY);
       });
       info.el.addEventListener('mousemove', function (e) {
+        if (fsIsActive()) return;
         fcMoveTooltip(e.clientX, e.clientY);
       });
       info.el.addEventListener('mouseleave', function () {
@@ -249,6 +258,7 @@ function buildEventDidMount() {
 
     // Desktop: native dblclick
     info.el.addEventListener('dblclick', function (e) {
+      if (fsIsActive()) return;
       e.stopPropagation();
       fcHideTooltip();
       fcOpenDetail(bookingId);
@@ -257,6 +267,11 @@ function buildEventDidMount() {
     // Touch: single tap -> tooltip (brief), double tap -> detail
     let lastTap = 0;
     info.el.addEventListener('touchend', function (e) {
+      // In vedette mode, tap on event toggles featured slot
+      if (fsIsActive()) {
+        fsHandleDateClick(info.event.startStr);
+        return;
+      }
       // Skip if touch was on resize handle or during drag/resize
       if (e.target.closest('.fc-event-resizer')) return;
       if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
@@ -360,6 +375,11 @@ function buildEventDidMount() {
 function buildDateClick() {
   return function (info) {
     if (calState.fcCal?.view?.type === 'dayGridMonth') return;
+    // In vedette mode, single click toggles featured slot
+    if (fsIsActive()) {
+      fsHandleDateClick(info.dateStr);
+      return;
+    }
     const now = Date.now();
     if (window._fcLastDateClick && now - window._fcLastDateClick < 600 && window._fcLastDateClickDate === info.dateStr) {
       fcOpenQuickCreate(info.dateStr);

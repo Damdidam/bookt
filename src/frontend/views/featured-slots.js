@@ -169,10 +169,11 @@ function render() {
       const isSelected = !!selectedSlots[key];
       const isBooked = !!bookedSlots[key];
       let cls = 'fs-cell';
-      if (isBooked) cls += ' fs-booked';
-      else if (isSelected) cls += ' fs-selected';
-      const onclick = isBooked || isPast ? '' : `onclick="fsToggle('${key}')"`;
-      grid += `<div class="${cls}" ${onclick}>${isBooked ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;opacity:.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' : isSelected ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : ''}</div>`;
+      if (isSelected) cls += ' fs-selected';
+      else if (isBooked) cls += ' fs-booked';
+      const onclick = isPast ? '' : `onclick="fsToggle('${key}')"`;
+      const icon = isSelected ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : isBooked ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;opacity:.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' : '';
+      grid += `<div class="${cls}" ${onclick}>${icon}</div>`;
     });
     grid += '</div>';
   }
