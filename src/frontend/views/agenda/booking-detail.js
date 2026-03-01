@@ -8,7 +8,7 @@ import { fcRenderNotes } from './booking-notes.js';
 import { fcRenderSession } from './booking-session.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
-import { cswHTML } from './color-swatches.js';
+import { cswHTML, cswSelect } from './color-swatches.js';
 import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
@@ -27,9 +27,10 @@ async function fcOpenDetail(bookingId) {
     const s = new Date(b.start_at), e = new Date(b.end_at);
 
     // -- Color: same priority as calendar-events.js --
+    // Detail endpoint returns b.* so field is "color", not "booking_color"
     const accentColor = isFreestyle
-      ? (b.booking_color || b.practitioner_color || '#0D7377')
-      : (b.service_color || b.booking_color || b.practitioner_color || '#0D7377');
+      ? (b.color || b.practitioner_color || '#0D7377')
+      : (b.service_color || b.color || b.practitioner_color || '#0D7377');
 
     // -- Header gradient --
     const hdrBg = document.getElementById('mHeaderBg');
@@ -146,7 +147,7 @@ async function fcOpenDetail(bookingId) {
       svcCard.style.display = 'none';
       bufSec.style.display = '';
       document.getElementById('uFreeLabel').value = b.custom_label || '';
-      const freeColor = b.booking_color || b.practitioner_color || '#0D7377';
+      const freeColor = b.color || b.practitioner_color || '#0D7377';
       document.getElementById('uFreeColorWrap').innerHTML = cswHTML('uFreeColor', freeColor, false);
       // Live update header + save button on color change
       document.getElementById('uFreeColor').addEventListener('change', function () {
@@ -173,15 +174,30 @@ async function fcOpenDetail(bookingId) {
         ${b.price_cents ? '<div class="m-svc-price">' + (b.price_cents / 100).toFixed(2) + '\u20ac</div>' : ''}`;
     }
 
-    // -- Save button color (freestyle = accent color) --
+    // -- Save button color (custom or freestyle = accent color) --
     const saveBtn = document.getElementById('mBtnSave');
-    if (isFreestyle) {
+    if (b.color || isFreestyle) {
       saveBtn.style.background = accentColor;
       saveBtn.style.boxShadow = `0 2px 8px ${accentColor}40`;
     } else {
       saveBtn.style.background = '';
       saveBtn.style.boxShadow = '';
     }
+
+    // -- Booking color swatch (all types) --
+    const defaultColor = isFreestyle ? (b.practitioner_color || '#0D7377') : (b.service_color || b.practitioner_color || '#0D7377');
+    const bookingColor = b.color || defaultColor;
+    document.getElementById('uBookingColorWrap').innerHTML = cswHTML('uBookingColor', bookingColor, true);
+    document.getElementById('mColorReset').style.display = b.color ? '' : 'none';
+    calState._fcDefaultColor = defaultColor; // store for reset
+    document.getElementById('uBookingColor').addEventListener('change', function () {
+      const c = this.value;
+      document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
+      document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
+      saveBtn.style.background = c; saveBtn.style.boxShadow = `0 2px 8px ${c}40`;
+      if (svcCard.style.display !== 'none') svcCard.style.borderLeftColor = c;
+      document.getElementById('mColorReset').style.display = '';
+    });
 
     // -- Group siblings --
     const siblings = d.group_siblings || [];
@@ -208,7 +224,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
-    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', internal_note: b.internal_note || '', custom_label: b.custom_label || '', color: b.booking_color || '', client_phone: b.client_phone || '', client_email: b.client_email || '' };
+    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', internal_note: b.internal_note || '', custom_label: b.custom_label || '', color: b.color || '', client_phone: b.client_phone || '', client_email: b.client_email || '' };
     const dm = Math.round((e - s) / 60000);
     document.querySelectorAll('.m-chip').forEach(c => c.classList.toggle('active', parseInt(c.textContent) === dm || ({ '1h': 60, '1h30': 90, '2h': 120 }[c.textContent.trim()] === dm)));
     document.getElementById('calEditDiff').style.display = 'none';
@@ -372,7 +388,21 @@ async function fcSendDocument() {
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
+function fcResetBookingColor() {
+  const c = calState._fcDefaultColor || '#0D7377';
+  cswSelect('uBookingColor', c);
+  document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
+  document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
+  const sb = document.getElementById('mBtnSave');
+  const svc = document.getElementById('mSvcCard');
+  if (svc && svc.style.display !== 'none') svc.style.borderLeftColor = c;
+  sb.style.background = ''; sb.style.boxShadow = '';
+  document.getElementById('mColorReset').style.display = 'none';
+  // Mark as "no custom color" — save will send color: null
+  document.getElementById('uBookingColor').value = '';
+}
+
 // Expose to global scope for onclick handlers
-bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument });
+bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };

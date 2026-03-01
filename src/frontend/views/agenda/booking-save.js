@@ -20,7 +20,8 @@ async function calSaveAll() {
   const newNote = document.getElementById('calIntNote').value.trim();
   const isFreestyle = !calState.fcCurrentBooking?.service_name;
   const newLabel = isFreestyle ? document.getElementById('uFreeLabel').value.trim() : '';
-  const newColor = isFreestyle ? document.getElementById('uFreeColor').value : '';
+  // Color from the global swatch (works for all booking types)
+  const newColor = document.getElementById('uBookingColor')?.value || '';
 
   // Check if time changed (needs notify flow)
   const timeChanged = nd !== calState.fcEditOriginal.date || ns !== calState.fcEditOriginal.start || ne !== calState.fcEditOriginal.end;
@@ -32,8 +33,9 @@ async function calSaveAll() {
   if (newNote !== (calState.fcEditOriginal.internal_note || '')) editPayload.internal_note = newNote;
   if (isFreestyle) {
     if (newLabel !== (calState.fcEditOriginal.custom_label || '')) editPayload.custom_label = newLabel;
-    if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor;
   }
+  // Color for all booking types (empty = reset to default)
+  if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
   const hasFieldChanges = Object.keys(editPayload).length > 0;
 
