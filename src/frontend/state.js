@@ -11,8 +11,8 @@ export const biz = api.getBusiness();
 
 // ── RBAC ──
 export const ROLE_ACCESS = {
-  owner: ['home','bookings','clients','services','hours','waitlist','cal-sync','team','site','calls','invoices','documents','analytics','settings'],
-  manager: ['home','bookings','clients','services','hours','waitlist','cal-sync','documents','analytics'],
+  owner: ['home','bookings','clients','services','hours','waitlist','cal-sync','team','site','calls','invoices','deposits','documents','analytics','settings'],
+  manager: ['home','bookings','clients','services','hours','waitlist','cal-sync','documents','deposits','analytics'],
   receptionist: ['home','bookings','clients','waitlist'],
   practitioner: ['home','bookings','clients','profile']
 };
