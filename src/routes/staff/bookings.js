@@ -1159,8 +1159,8 @@ router.get('/:id/detail', async (req, res, next) => {
 
     // Fetch pre-RDV documents sent for this booking
     const docs = await queryWithRLS(bid,
-      `SELECT prs.id, prs.template_id, prs.status, prs.token, prs.sent_at, prs.viewed_at,
-              prs.completed_at, prs.created_at,
+      `SELECT prs.id, prs.template_id, prs.status, prs.token, prs.sent_at,
+              prs.responded_at, prs.created_at,
               dt.name AS template_name, dt.type AS template_type
        FROM pre_rdv_sends prs
        JOIN document_templates dt ON dt.id = prs.template_id
