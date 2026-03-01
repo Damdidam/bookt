@@ -396,6 +396,7 @@ function buildDateClick() {
  */
 function buildEventDrop() {
   return async function (info) {
+    if (fsIsActive()) { info.revert(); return; }
     const ev = info.event, p = ev.extendedProps;
     try {
       // For group containers, move the first member -- backend moves siblings
@@ -431,6 +432,7 @@ function buildEventDrop() {
  */
 function buildEventResize() {
   return async function (info) {
+    if (fsIsActive()) { info.revert(); return; }
     const ev = info.event;
     try {
       const r = await fetch(`/api/bookings/${ev.id}/resize`, {
