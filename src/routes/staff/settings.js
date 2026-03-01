@@ -44,7 +44,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_deposit_enabled, settings_deposit_noshow_threshold,
       settings_deposit_type, settings_deposit_percent,
       settings_deposit_fixed_cents, settings_deposit_deadline_hours,
-      settings_deposit_message, settings_deposit_deduct
+      settings_deposit_message, settings_deposit_deduct,
+      // V23b cancellation policy
+      settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
@@ -57,7 +59,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_deposit_enabled !== undefined || settings_deposit_noshow_threshold !== undefined
         || settings_deposit_type !== undefined || settings_deposit_percent !== undefined
         || settings_deposit_fixed_cents !== undefined || settings_deposit_deadline_hours !== undefined
-        || settings_deposit_message !== undefined || settings_deposit_deduct !== undefined) {
+        || settings_deposit_message !== undefined || settings_deposit_deduct !== undefined
+        || settings_cancel_deadline_hours !== undefined || settings_cancel_grace_minutes !== undefined
+        || settings_cancel_policy_text !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -80,6 +84,10 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_deposit_deadline_hours !== undefined) cur.deposit_deadline_hours = parseInt(settings_deposit_deadline_hours) || 48;
       if (settings_deposit_message !== undefined) cur.deposit_message = settings_deposit_message;
       if (settings_deposit_deduct !== undefined) cur.deposit_deduct = !!settings_deposit_deduct;
+      // V23b cancellation policy
+      if (settings_cancel_deadline_hours !== undefined) cur.cancel_deadline_hours = parseInt(settings_cancel_deadline_hours) || 48;
+      if (settings_cancel_grace_minutes !== undefined) cur.cancel_grace_minutes = parseInt(settings_cancel_grace_minutes) || 240;
+      if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = settings_cancel_policy_text;
       mergedSettings = cur;
     }
 

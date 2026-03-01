@@ -95,6 +95,9 @@
 .ev-completed{opacity:.5;filter:grayscale(.3);border-left-color:var(--text-4)!important}
 .ev-no_show{border-left-color:var(--red)!important;opacity:.45;filter:grayscale(.2)}
 .ev-cancelled{border-left-color:var(--red)!important;opacity:.25;text-decoration:line-through}
+.ev-pending_deposit{border-left-color:#F59E0B!important;background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}
+/* Deposit badge on event */
+.ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
 /* Multi-service quick create */
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}

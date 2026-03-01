@@ -121,6 +121,7 @@ router.get('/:id', async (req, res, next) => {
 
     const bookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
               s.name AS service_name, p.display_name AS practitioner_name
        FROM bookings b
        JOIN services s ON s.id = b.service_id

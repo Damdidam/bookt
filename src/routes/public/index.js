@@ -153,8 +153,8 @@ router.get('/:slug', async (req, res, next) => {
         seo_title: biz.seo_title,
         seo_description: biz.seo_description,
         page_sections: sections,
-        cancellation_window_hours: biz.settings?.cancellation_window_hours || 24,
-        cancellation_fee_percent: biz.settings?.cancellation_fee_percent || 50,
+        cancellation_window_hours: biz.settings?.cancel_deadline_hours || biz.settings?.cancellation_window_hours || 24,
+        cancel_policy_text: biz.settings?.cancel_policy_text || null,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url
       },
@@ -378,6 +378,7 @@ router.get('/booking/:token', async (req, res, next) => {
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.comment_client, b.public_token, b.created_at,
+              b.deposit_required, b.deposit_amount_cents, b.deposit_status,
               s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -395,9 +396,9 @@ router.get('/booking/:token', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
-    const cancelWindowHours = bk.business_settings?.cancellation_window_hours || 24;
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours || bk.business_settings?.cancellation_window_hours || 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = bk.status === 'confirmed' && new Date() < deadline;
+    const canCancel = (bk.status === 'confirmed' || bk.status === 'pending_deposit') && new Date() < deadline;
 
     res.json({
       booking: {
@@ -405,6 +406,8 @@ router.get('/booking/:token', async (req, res, next) => {
         start_at: bk.start_at, end_at: bk.end_at, status: bk.status,
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
+        deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
+        deposit_status: bk.deposit_status,
         service: { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color },
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
@@ -418,7 +421,8 @@ router.get('/booking/:token', async (req, res, next) => {
         allowed: canCancel,
         deadline: deadline.toISOString(),
         window_hours: cancelWindowHours,
-        reason: !canCancel && bk.status === 'confirmed' ? 'Délai d\'annulation dépassé' : null
+        policy_text: bk.business_settings?.cancel_policy_text || null,
+        reason: !canCancel && (bk.status === 'confirmed' || bk.status === 'pending_deposit') ? 'Délai d\'annulation dépassé' : null
       }
     });
   } catch (err) { next(err); }
@@ -434,7 +438,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     const { reason } = req.body;
 
     const result = await query(
-      `SELECT b.id, b.status, b.start_at, b.business_id,
+      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
+              b.deposit_required, b.deposit_status,
               biz.settings AS business_settings
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
@@ -444,18 +449,35 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
-    if (bk.status !== 'confirmed') {
+    if (!['confirmed', 'pending_deposit'].includes(bk.status)) {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
-    const cancelWindowHours = bk.business_settings?.cancellation_window_hours || 24;
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours || bk.business_settings?.cancellation_window_hours || 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
     if (new Date() >= deadline) {
       return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
     }
 
+    // Deposit refund logic
+    let depositUpdate = '';
+    if (bk.deposit_required) {
+      const graceMin = bk.business_settings?.cancel_grace_minutes || 240;
+      if (bk.deposit_status === 'paid') {
+        const hoursUntilRdv = (new Date(bk.start_at) - new Date()) / 3600000;
+        const minSinceCreated = (new Date() - new Date(bk.created_at)) / 60000;
+        if (minSinceCreated <= graceMin || hoursUntilRdv >= cancelWindowHours) {
+          depositUpdate = `, deposit_status = 'refunded'`;
+        } else {
+          depositUpdate = `, deposit_status = 'cancelled'`;
+        }
+      } else if (bk.deposit_status === 'pending') {
+        depositUpdate = `, deposit_status = 'cancelled'`;
+      }
+    }
+
     await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1, updated_at = NOW()
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1${depositUpdate}, updated_at = NOW()
        WHERE id = $2`,
       [reason || 'Annulé par le client', bk.id]
     );

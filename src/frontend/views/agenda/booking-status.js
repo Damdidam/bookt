@@ -50,7 +50,22 @@ async function fcMarkDepositPaid() {
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
-// Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid });
+async function fcRefundDeposit(amountCents) {
+  const amt = ((amountCents || 0) / 100).toFixed(2);
+  if (!confirm(`Rembourser l\u2019acompte de ${amt}\u20ac ? Le RDV sera annul\u00e9.`)) return;
+  try {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/deposit-refund`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    gToast('Acompte rembours\u00e9 \u2014 RDV annul\u00e9', 'success');
+    closeCalModal('calDetailModal');
+    fcRefresh();
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+}
 
-export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid };
+// Expose to global scope for onclick handlers
+bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit });
+
+export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit };

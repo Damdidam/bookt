@@ -11,7 +11,7 @@ import { fcOpenQuickCreate } from './quick-create.js';
 import { atView } from './calendar-toolbar.js';
 
 // ── Tooltip locale maps ──
-const STATUS_FR = { confirmed: 'Confirm\u00e9', pending: 'En attente', completed: 'Termin\u00e9', cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9' };
+const STATUS_FR = { confirmed: 'Confirm\u00e9', pending: 'En attente', completed: 'Termin\u00e9', cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9', pending_deposit: 'Acompte requis' };
 const MODE_FR = { cabinet: 'Au cabinet', visio: 'Visio', phone: 'T\u00e9l\u00e9phone' };
 
 // ── Tooltip helpers ──
@@ -35,6 +35,13 @@ function fcShowTooltip(event, x, y) {
   if (p.client_phone) html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>${esc(p.client_phone)}</div>`;
   const st = p.status || 'confirmed';
   html += `<div class="tt-badge ${st}">${STATUS_FR[st] || st}</div>`;
+
+  // Deposit info in tooltip
+  if (p.deposit_required && p.deposit_status) {
+    const depAmt = ((p.deposit_amount_cents || 0) / 100).toFixed(2);
+    const depLabel = p.deposit_status === 'paid' ? 'Pay\u00e9 \u2705' : p.deposit_status === 'refunded' ? 'Rembours\u00e9' : p.deposit_status === 'cancelled' ? 'Conserv\u00e9' : 'En attente';
+    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon">\ud83d\udcb0</span>Acompte : ${depAmt}\u20ac \u2014 ${depLabel}</div>`;
+  }
 
   // Group: list members
   if (p._isGroup && p._members) {
@@ -173,12 +180,13 @@ function buildEventContent() {
 
     // -- Week/Day: single event --
     const svcLabel = p.service_name || p.custom_label || 'RDV libre';
+    const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">\ud83d\udcb0\u2713</span>' : '<span class="ev-badge-dep" title="Acompte en attente">\ud83d\udcb0</span>') : '';
     const badges = [
       (p.internal_note ? '<span class="ev-badge ev-badge-note" style="background:' + accent + '"></span>' : ''),
       (p.status === 'modified_pending' ? '<span class="ev-badge ev-badge-mod"></span>' : '')
     ].filter(Boolean).join('');
     const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span>' : '';
-    return { html: `<div class="ev-inner" style="color:${accent}"><span class="ev-client">${p.client_name || arg.event.title}${freeTag}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
+    return { html: `<div class="ev-inner" style="color:${accent}"><span class="ev-client">${p.client_name || arg.event.title}${freeTag}${depBadge}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
   };
 }
 

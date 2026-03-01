@@ -91,14 +91,37 @@ async function fcOpenDetail(bookingId) {
       const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2);
       const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       const depPaid = b.deposit_status === 'paid';
+      const depRefunded = b.deposit_status === 'refunded';
+      const depKept = b.deposit_status === 'cancelled';
+      const isFuture = new Date(b.start_at) > new Date();
+
+      let borderCol = '#F59E0B', bgCol = '#FEF3E2', textCol = '#B45309';
+      let statusText = 'En attente';
+      let extraHtml = '';
+
+      if (depRefunded) {
+        borderCol = '#60A5FA'; bgCol = '#EFF6FF'; textCol = '#1D4ED8';
+        statusText = 'Rembours\u00e9 \u2705';
+      } else if (depKept) {
+        borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
+        statusText = 'Conserv\u00e9 (annulation tardive)';
+      } else if (depPaid) {
+        borderCol = '#86EFAC'; bgCol = '#F0FDF4'; textCol = '#15803D';
+        statusText = 'Pay\u00e9 \u2705';
+        if (b.deposit_paid_at) extraHtml += `<div style="font-size:.72rem;color:#15803D;margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>`;
+        if (isFuture) {
+          extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
+        }
+      } else {
+        if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px">Deadline : ${depDl}</div>`;
+      }
+
       const depEl = document.createElement('div');
-      depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + (depPaid ? '#86EFAC' : '#F59E0B') + ';background:' + (depPaid ? '#F0FDF4' : '#FEF3E2');
-      depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${depPaid ? '#15803D' : '#B45309'}">
+      depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + borderCol + ';background:' + bgCol;
+      depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${textCol}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Acompte : ${depAmt} EUR — ${depPaid ? 'Pay\u00e9 \u2705' : 'En attente'}
-      </div>
-      ${depDl && !depPaid ? `<div style="font-size:.72rem;color:#92700C;margin-top:4px">Deadline : ${depDl}</div>` : ''}
-      ${depPaid && b.deposit_paid_at ? `<div style="font-size:.72rem;color:#15803D;margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>` : ''}`;
+        Acompte : ${depAmt} EUR \u2014 ${statusText}
+      </div>${extraHtml}`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
     }
 

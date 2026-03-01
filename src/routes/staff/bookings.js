@@ -72,6 +72,7 @@ router.get('/', async (req, res, next) => {
              b.channel, b.comment_client, b.public_token,
              b.internal_note, b.color AS booking_color,
              b.group_id, b.group_order, b.custom_label,
+             b.deposit_required, b.deposit_status, b.deposit_amount_cents,
              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
@@ -455,6 +456,43 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { /* non-blocking */ }
     }
 
+    // ===== DEPOSIT: refund logic on cancellation =====
+    if (status === 'cancelled') {
+      try {
+        const depInfo = await queryWithRLS(bid,
+          `SELECT b.deposit_required, b.deposit_status, b.start_at, b.created_at, biz.settings
+           FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        const dep = depInfo.rows[0];
+        if (dep?.deposit_required) {
+          const cancelDeadlineH = dep.settings?.cancel_deadline_hours || 48;
+          const graceMin = dep.settings?.cancel_grace_minutes || 240;
+          let newDepStatus;
+          if (dep.deposit_status === 'paid') {
+            const hoursUntilRdv = (new Date(dep.start_at) - new Date()) / 3600000;
+            const minSinceCreated = (new Date() - new Date(dep.created_at)) / 60000;
+            if (minSinceCreated <= graceMin) {
+              newDepStatus = 'refunded'; // grace period
+            } else if (hoursUntilRdv >= cancelDeadlineH) {
+              newDepStatus = 'refunded'; // within deadline
+            } else {
+              newDepStatus = 'cancelled'; // too late, deposit kept
+            }
+          } else if (dep.deposit_status === 'pending') {
+            newDepStatus = 'cancelled'; // never paid
+          }
+          if (newDepStatus) {
+            await queryWithRLS(bid,
+              `UPDATE bookings SET deposit_status = $1 WHERE id = $2 AND business_id = $3`,
+              [newDepStatus, id, bid]
+            );
+          }
+        }
+      } catch (e) { console.warn('[DEPOSIT] Refund logic error:', e.message); }
+    }
+
     // ===== WAITLIST TRIGGER ON CANCEL =====
     if (status === 'cancelled') {
       try {
@@ -479,6 +517,41 @@ router.patch('/:id/status', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// PATCH /api/bookings/:id/deposit-refund — Manual refund by pro
+// UI: Booking detail → "Rembourser l'acompte" button
+// ============================================================
+router.patch('/:id/deposit-refund', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    const bk = await queryWithRLS(bid,
+      `SELECT deposit_required, deposit_status, deposit_amount_cents FROM bookings WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    if (!bk.rows[0].deposit_required) return res.status(400).json({ error: 'Pas d\'acompte sur ce RDV' });
+    if (bk.rows[0].deposit_status === 'refunded') return res.status(400).json({ error: 'Acompte déjà remboursé' });
+
+    await queryWithRLS(bid,
+      `UPDATE bookings SET deposit_status = 'refunded', status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
+       WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+
+    await queryWithRLS(bid,
+      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+       VALUES ($1, $2, 'booking', $3, 'deposit_refund', $4)`,
+      [bid, req.user.id, id, JSON.stringify({ deposit_status: 'refunded', amount_cents: bk.rows[0].deposit_amount_cents })]
+    );
+
+    broadcast(bid, 'booking_update', { action: 'deposit_refunded' });
+    calSyncDelete(bid, id).catch(() => {});
+    res.json({ updated: true, deposit_status: 'refunded' });
+  } catch (err) { next(err); }
 });
 
 // ============================================================

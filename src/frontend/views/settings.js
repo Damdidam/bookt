@@ -156,6 +156,20 @@ async function loadSettings(){
     // Custom message
     h+=`<div class="field"><label>Message personnalisé (optionnel)</label><textarea id="s_dep_message" placeholder="Ex: Un acompte est demandé suite à des absences répétées..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:60px">${esc(depMsg)}</textarea><div class="hint">Inclus dans l'email de demande d'acompte envoyé au client</div></div>`;
 
+    // ── Cancellation policy sub-section ──
+    const canDl=b.settings?.cancel_deadline_hours||48;
+    const canGrace=b.settings?.cancel_grace_minutes||240;
+    const canPolicy=b.settings?.cancel_policy_text||'';
+    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
+    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Politique d'annulation</div>`;
+    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Définissez les conditions de remboursement de l'acompte en cas d'annulation.</p>`;
+
+    h+=`<div class="field"><label>Délai d'annulation gratuite</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Remboursé si annulé plus de</span><input type="number" id="s_cancel_deadline" value="${canDl}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures avant le RDV</span></div><div class="hint">En-dessous de ce délai, l'acompte est conservé</div></div>`;
+
+    h+=`<div class="field"><label>Période de grâce post-réservation</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Annulation gratuite dans les</span><input type="number" id="s_cancel_grace" value="${Math.round(canGrace/60)}" min="0" max="48" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après la réservation</span></div><div class="hint">Le client peut annuler sans frais juste après avoir réservé, même si le RDV est proche</div></div>`;
+
+    h+=`<div class="field"><label>Texte de politique d'annulation (optionnel)</label><textarea id="s_cancel_policy" placeholder="Ex: Toute annulation moins de 48h avant le RDV entraîne la perte de l'acompte..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:50px">${esc(canPolicy)}</textarea><div class="hint">Affiché dans les emails et sur la page de réservation</div></div>`;
+
     h+=`</div>`; // close depositOptions
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveDepositSettings()">Enregistrer la politique d'acompte</button></div></div>`;
@@ -298,7 +312,10 @@ async function saveDepositSettings(){
       settings_deposit_fixed_cents:Math.round((parseFloat(document.getElementById('s_dep_fixed')?.value)||25)*100),
       settings_deposit_deadline_hours:parseInt(document.getElementById('s_dep_deadline')?.value)||48,
       settings_deposit_message:document.getElementById('s_dep_message')?.value||'',
-      settings_deposit_deduct:document.getElementById('s_dep_deduct')?.checked??true
+      settings_deposit_deduct:document.getElementById('s_dep_deduct')?.checked??true,
+      settings_cancel_deadline_hours:parseInt(document.getElementById('s_cancel_deadline')?.value)||48,
+      settings_cancel_grace_minutes:(parseInt(document.getElementById('s_cancel_grace')?.value)||4)*60,
+      settings_cancel_policy_text:document.getElementById('s_cancel_policy')?.value||''
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);

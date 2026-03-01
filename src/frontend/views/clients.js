@@ -90,8 +90,8 @@ async function openClientDetail(id){
     m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
 
     // ── Historique section (inside modal-body, scrollable) ──
-    const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888'};
-    const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente'};
+    const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888',pending_deposit:'#B45309'};
+    const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente',pending_deposit:'Acompte requis'};
     m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">Historique${bks.length>0?' ('+bks.length+' RDV)':''}</span><span class="m-sec-line"></span></div>`;
     if(bks.length>0){
       m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
@@ -99,7 +99,12 @@ async function openClientDetail(id){
         const dt=new Date(b.start_at);
         const bg=i%2===0?'var(--white)':'var(--surface)';
         const sc=stColors[b.status]||'var(--text-4)';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name||'RDV libre'}</span><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${stLabels[b.status]||b.status}</span></div>`;
+        const depTag = b.deposit_required ? (() => {
+          const dc = {paid:'#15803D',refunded:'#1D4ED8',cancelled:'#DC2626',pending:'#B45309'}[b.deposit_status] || '#888';
+          const dl = {paid:'Payé',refunded:'Remboursé',cancelled:'Conservé',pending:'En attente'}[b.deposit_status] || '';
+          return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(0)}\u20ac ${dl}</span>`;
+        })() : '';
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name||'RDV libre'}${depTag}</span><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${stLabels[b.status]||b.status}</span></div>`;
       });
       m+=`</div>`;
     } else {
