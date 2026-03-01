@@ -233,16 +233,19 @@ function buildEventDidMount() {
     // Resolve booking ID (for groups -> first member)
     const bookingId = p._isGroup ? p._members?.[0]?.id : info.event.id;
 
-    // -- Tooltip (hover desktop / tap mobile) --
-    info.el.addEventListener('mouseenter', function (e) {
-      fcShowTooltip(info.event, e.clientX, e.clientY);
-    });
-    info.el.addEventListener('mousemove', function (e) {
-      fcMoveTooltip(e.clientX, e.clientY);
-    });
-    info.el.addEventListener('mouseleave', function () {
-      fcHideTooltip();
-    });
+    // -- Tooltip (hover desktop only, tap touch) --
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouch) {
+      info.el.addEventListener('mouseenter', function (e) {
+        fcShowTooltip(info.event, e.clientX, e.clientY);
+      });
+      info.el.addEventListener('mousemove', function (e) {
+        fcMoveTooltip(e.clientX, e.clientY);
+      });
+      info.el.addEventListener('mouseleave', function () {
+        fcHideTooltip();
+      });
+    }
 
     // Desktop: native dblclick
     info.el.addEventListener('dblclick', function (e) {
@@ -251,7 +254,7 @@ function buildEventDidMount() {
       fcOpenDetail(bookingId);
     });
 
-    // Mobile: single tap -> tooltip, double tap -> detail
+    // Touch: single tap -> tooltip (brief), double tap -> detail
     let lastTap = 0;
     info.el.addEventListener('touchend', function (e) {
       const now = Date.now();
@@ -262,12 +265,15 @@ function buildEventDidMount() {
         lastTap = 0;
       } else {
         lastTap = now;
-        // Single tap -> show tooltip briefly
+        // Single tap -> show tooltip briefly, hide on next touch anywhere
         const touch = e.changedTouches?.[0];
         if (touch) {
           fcShowTooltip(info.event, touch.clientX, touch.clientY);
           clearTimeout(window._ttAutoHide);
-          window._ttAutoHide = setTimeout(fcHideTooltip, 4000);
+          window._ttAutoHide = setTimeout(fcHideTooltip, 2500);
+          // Hide tooltip on next touch anywhere
+          const dismiss = function () { fcHideTooltip(); document.removeEventListener('touchstart', dismiss, true); };
+          setTimeout(function () { document.addEventListener('touchstart', dismiss, true); }, 100);
         }
       }
     }, { passive: false });
