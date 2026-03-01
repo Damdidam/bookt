@@ -65,7 +65,8 @@ async function fcOpenDetail(bookingId) {
       modified_pending: { bg: '#FFF7ED', c: '#D97706', l: 'Modifi\u00e9' },
       completed: { bg: 'var(--surface)', c: 'var(--text-4)', l: 'Termin\u00e9' },
       cancelled: { bg: 'var(--red-bg)', c: 'var(--red)', l: 'Annul\u00e9' },
-      no_show: { bg: 'var(--red-bg)', c: 'var(--red)', l: 'No-show' }
+      no_show: { bg: 'var(--red-bg)', c: 'var(--red)', l: 'No-show' },
+      pending_deposit: { bg: '#FEF3E2', c: '#B45309', l: 'Acompte requis' }
     };
     const st = stMap[b.status] || stMap.confirmed;
     const acts = [];
@@ -76,6 +77,7 @@ async function fcOpenDetail(bookingId) {
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'no_show\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No-show</button>');
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'cancelled\')">Annuler</button>');
     }
+    if (b.status === 'pending_deposit') acts.push('<button class="m-st-btn green" onclick="fcMarkDepositPaid()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Marquer pay\u00e9</button>');
     if (['completed', 'cancelled', 'no_show'].includes(b.status)) acts.push('<button class="m-st-btn" onclick="fcSetStatus(\'confirmed\')">↩ R\u00e9tablir</button>');
     document.getElementById('mStatusStrip').innerHTML = `
       <span class="m-st-current" style="background:${st.bg};color:${st.c}">
@@ -83,6 +85,22 @@ async function fcOpenDetail(bookingId) {
         ${st.l}
       </span>
       <div class="m-st-actions">${acts.join('')}</div>`;
+
+    // -- Deposit banner --
+    if (b.deposit_required) {
+      const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2);
+      const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      const depPaid = b.deposit_status === 'paid';
+      const depEl = document.createElement('div');
+      depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + (depPaid ? '#86EFAC' : '#F59E0B') + ';background:' + (depPaid ? '#F0FDF4' : '#FEF3E2');
+      depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${depPaid ? '#15803D' : '#B45309'}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Acompte : ${depAmt} EUR — ${depPaid ? 'Pay\u00e9 \u2705' : 'En attente'}
+      </div>
+      ${depDl && !depPaid ? `<div style="font-size:.72rem;color:#92700C;margin-top:4px">Deadline : ${depDl}</div>` : ''}
+      ${depPaid && b.deposit_paid_at ? `<div style="font-size:.72rem;color:#15803D;margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>` : ''}`;
+      document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
+    }
 
     // -- Tab counts --
     const cNotes = document.getElementById('mCountNotes');

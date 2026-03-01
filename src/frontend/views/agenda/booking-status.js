@@ -35,7 +35,22 @@ async function fcPurgeBooking() {
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
-// Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking });
+async function fcMarkDepositPaid() {
+  if (!confirm('Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.')) return;
+  try {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ status: 'confirmed' })
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    gToast('Acompte marqu\u00e9 comme pay\u00e9 \u2014 RDV confirm\u00e9', 'success');
+    closeCalModal('calDetailModal');
+    fcRefresh();
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+}
 
-export { fcSetStatus, fcPurgeBooking };
+// Expose to global scope for onclick handlers
+bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid });
+
+export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid };

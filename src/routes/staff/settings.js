@@ -39,7 +39,12 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_allow_overlap,
       // V20 reminder settings
       settings_reminder_email_24h, settings_reminder_sms_24h,
-      settings_reminder_sms_2h, settings_reminder_email_2h
+      settings_reminder_sms_2h, settings_reminder_email_2h,
+      // V23 deposit settings
+      settings_deposit_enabled, settings_deposit_noshow_threshold,
+      settings_deposit_type, settings_deposit_percent,
+      settings_deposit_fixed_cents, settings_deposit_deadline_hours,
+      settings_deposit_message, settings_deposit_deduct
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
@@ -48,7 +53,11 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_noshow_threshold !== undefined || settings_noshow_action !== undefined
         || settings_allow_overlap !== undefined
         || settings_reminder_email_24h !== undefined || settings_reminder_sms_24h !== undefined
-        || settings_reminder_sms_2h !== undefined || settings_reminder_email_2h !== undefined) {
+        || settings_reminder_sms_2h !== undefined || settings_reminder_email_2h !== undefined
+        || settings_deposit_enabled !== undefined || settings_deposit_noshow_threshold !== undefined
+        || settings_deposit_type !== undefined || settings_deposit_percent !== undefined
+        || settings_deposit_fixed_cents !== undefined || settings_deposit_deadline_hours !== undefined
+        || settings_deposit_message !== undefined || settings_deposit_deduct !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -62,6 +71,15 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_reminder_sms_24h !== undefined) cur.reminder_sms_24h = !!settings_reminder_sms_24h;
       if (settings_reminder_sms_2h !== undefined) cur.reminder_sms_2h = !!settings_reminder_sms_2h;
       if (settings_reminder_email_2h !== undefined) cur.reminder_email_2h = !!settings_reminder_email_2h;
+      // V23 deposit
+      if (settings_deposit_enabled !== undefined) cur.deposit_enabled = !!settings_deposit_enabled;
+      if (settings_deposit_noshow_threshold !== undefined) cur.deposit_noshow_threshold = parseInt(settings_deposit_noshow_threshold) || 2;
+      if (settings_deposit_type !== undefined) cur.deposit_type = settings_deposit_type;
+      if (settings_deposit_percent !== undefined) cur.deposit_percent = parseInt(settings_deposit_percent) || 50;
+      if (settings_deposit_fixed_cents !== undefined) cur.deposit_fixed_cents = parseInt(settings_deposit_fixed_cents) || 2500;
+      if (settings_deposit_deadline_hours !== undefined) cur.deposit_deadline_hours = parseInt(settings_deposit_deadline_hours) || 48;
+      if (settings_deposit_message !== undefined) cur.deposit_message = settings_deposit_message;
+      if (settings_deposit_deduct !== undefined) cur.deposit_deduct = !!settings_deposit_deduct;
       mergedSettings = cur;
     }
 

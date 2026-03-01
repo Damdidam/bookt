@@ -110,7 +110,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
      FROM bookings
      WHERE business_id = $1 AND practitioner_id = ANY($2)
      AND start_at >= $3 AND start_at <= ($4::date + INTERVAL '1 day')
-     AND status IN ('pending', 'confirmed')
+     AND status IN ('pending', 'confirmed', 'pending_deposit')
      ORDER BY start_at`,
     [businessId, practitionerIds, dateFrom, dateTo]
   );

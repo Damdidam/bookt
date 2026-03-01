@@ -91,6 +91,75 @@ async function loadSettings(){
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveReminderSettings()">Enregistrer les rappels</button></div></div>`;
 
+    // 3c. Politique d'acompte
+    const depOn=b.settings?.deposit_enabled===true;
+    const depThresh=b.settings?.deposit_noshow_threshold||2;
+    const depType=b.settings?.deposit_type||'percent';
+    const depPct=b.settings?.deposit_percent||50;
+    const depFixed=b.settings?.deposit_fixed_cents||2500;
+    const depDeadline=b.settings?.deposit_deadline_hours||48;
+    const depMsg=b.settings?.deposit_message||'';
+    const depDeduct=b.settings?.deposit_deduct!==false;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Politique d'acompte</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Exigez un acompte des clients ayant un historique de no-shows. L'acompte sécurise le rendez-vous et réduit les pertes.</p>`;
+
+    // Master toggle
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les acomptes</div><div style="font-size:.75rem;color:var(--text-4)">Demander un acompte aux clients récidivistes</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_dep_enabled" ${depOn?'checked':''} onchange="document.getElementById('depositOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${depOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${depOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+
+    // Conditional options
+    h+=`<div id="depositOptions" style="display:${depOn?'block':'none'}">`;
+
+    // Threshold
+    h+=`<div class="field"><label>Seuil de déclenchement</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Exiger un acompte après</span><input type="number" id="s_dep_threshold" value="${depThresh}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">no-show(s)</span></div></div>`;
+
+    // Type selector
+    h+=`<div class="field"><label>Type de montant</label><div style="display:flex;gap:8px">
+      <button class="btn-sm ${depType==='percent'?'active':''}" onclick="document.getElementById('s_dep_type').value='percent';document.getElementById('depPctRow').style.display='flex';document.getElementById('depFixedRow').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')">% du prix</button>
+      <button class="btn-sm ${depType==='fixed'?'active':''}" onclick="document.getElementById('s_dep_type').value='fixed';document.getElementById('depPctRow').style.display='none';document.getElementById('depFixedRow').style.display='flex';this.classList.add('active');this.previousElementSibling.classList.remove('active')">Montant fixe</button>
+      <input type="hidden" id="s_dep_type" value="${depType}">
+    </div></div>`;
+
+    // Percent options
+    h+=`<div id="depPctRow" class="field" style="display:${depType==='percent'?'flex':'none'};gap:8px">
+      <button class="btn-sm ${depPct===25?'active':''}" onclick="document.getElementById('s_dep_percent').value='25';this.parentElement.querySelectorAll('.btn-sm').forEach(b=>b.classList.remove('active'));this.classList.add('active')">25%</button>
+      <button class="btn-sm ${depPct===50?'active':''}" onclick="document.getElementById('s_dep_percent').value='50';this.parentElement.querySelectorAll('.btn-sm').forEach(b=>b.classList.remove('active'));this.classList.add('active')">50%</button>
+      <button class="btn-sm ${depPct===100?'active':''}" onclick="document.getElementById('s_dep_percent').value='100';this.parentElement.querySelectorAll('.btn-sm').forEach(b=>b.classList.remove('active'));this.classList.add('active')">100%</button>
+      <input type="hidden" id="s_dep_percent" value="${depPct}">
+    </div>`;
+
+    // Fixed amount
+    h+=`<div id="depFixedRow" class="field" style="display:${depType==='fixed'?'flex':'none'};align-items:center;gap:8px">
+      <input type="number" id="s_dep_fixed" value="${(depFixed/100).toFixed(0)}" min="1" step="5" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
+      <span style="font-size:.85rem;font-weight:600;color:var(--text-3)">EUR</span>
+    </div>`;
+
+    // Deadline
+    h+=`<div class="field"><label>Délai de paiement</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Le client doit payer au moins</span><input type="number" id="s_dep_deadline" value="${depDeadline}" min="2" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures avant le RDV</span></div></div>`;
+
+    // Deduct toggle
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border-radius:8px;margin-bottom:14px">
+      <div><div style="font-size:.82rem;font-weight:600;color:var(--text)">Déduire de la facture</div><div style="font-size:.72rem;color:var(--text-4)">L'acompte sera soustrait du prix final si le client vient</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_dep_deduct" ${depDeduct?'checked':''} style="display:none">
+        <span style="position:absolute;inset:0;background:${depDeduct?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${depDeduct?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+
+    // Custom message
+    h+=`<div class="field"><label>Message personnalisé (optionnel)</label><textarea id="s_dep_message" placeholder="Ex: Un acompte est demandé suite à des absences répétées..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:60px">${esc(depMsg)}</textarea><div class="hint">Inclus dans l'email de demande d'acompte envoyé au client</div></div>`;
+
+    h+=`</div>`; // close depositOptions
+
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveDepositSettings()">Enregistrer la politique d'acompte</button></div></div>`;
+
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
       <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</button></div></div>
@@ -219,6 +288,24 @@ async function saveReminderSettings(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveDepositSettings(){
+  try{
+    const data={
+      settings_deposit_enabled:document.getElementById('s_dep_enabled').checked,
+      settings_deposit_noshow_threshold:document.getElementById('s_dep_threshold')?.value||2,
+      settings_deposit_type:document.getElementById('s_dep_type')?.value||'percent',
+      settings_deposit_percent:parseInt(document.getElementById('s_dep_percent')?.value)||50,
+      settings_deposit_fixed_cents:Math.round((parseFloat(document.getElementById('s_dep_fixed')?.value)||25)*100),
+      settings_deposit_deadline_hours:parseInt(document.getElementById('s_dep_deadline')?.value)||48,
+      settings_deposit_message:document.getElementById('s_dep_message')?.value||'',
+      settings_deposit_deduct:document.getElementById('s_dep_deduct')?.checked??true
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Politique d\'acompte enregistrée','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function startCheckout(plan){
   try{
     GendaUI.toast('Redirection vers le paiement...','info');
@@ -318,6 +405,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
 export { loadSettings, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };

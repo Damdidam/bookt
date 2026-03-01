@@ -261,10 +261,29 @@ function calSearchClients(q) {
   }, 300);
 }
 
-function calPickClient(id, name) {
+async function calPickClient(id, name) {
   document.getElementById('qcClient').value = name;
   document.getElementById('qcClientId').value = id;
   document.getElementById('qcAcResults').style.display = 'none';
+
+  // Remove any previous deposit warning
+  const prev = document.getElementById('qcDepositWarn');
+  if (prev) prev.remove();
+
+  // Fetch client no_show_count to show deposit warning
+  try {
+    const r = await fetch(`/api/clients?search=${encodeURIComponent(name)}&limit=1`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+    const d = await r.json();
+    const cl = (d.clients || []).find(c => c.id === id);
+    if (cl && cl.no_show_count > 0) {
+      const wrap = document.getElementById('qcClient').parentElement;
+      const warn = document.createElement('div');
+      warn.id = 'qcDepositWarn';
+      warn.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:#FEF3E2;color:#B45309;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:6px';
+      warn.innerHTML = `<span>\u26a0\ufe0f</span><span>${cl.no_show_count} no-show${cl.no_show_count > 1 ? 's' : ''} \u2014 un acompte pourra \u00eatre exig\u00e9</span>`;
+      wrap.appendChild(warn);
+    }
+  } catch (e) { /* silent */ }
 }
 
 function calNewClient() {
