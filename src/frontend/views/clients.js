@@ -55,22 +55,34 @@ async function openClientDetail(id){
     m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
     m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
     m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
-    m+=`</div><div class="modal-foot">`;
+
+    // ── Historique section (inside modal-body, scrollable) ──
+    const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888'};
+    const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente'};
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">Historique${bks.length>0?' ('+bks.length+' RDV)':''}</span><span class="m-sec-line"></span></div>`;
     if(bks.length>0){
-      m+=`<div style="margin-top:12px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)">Historique (${bks.length} RDV)</label>`;
-      const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)'};
-      const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente'};
-      bks.slice(0,15).forEach(b=>{
+      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
+      bks.slice(0,15).forEach((b,i)=>{
         const dt=new Date(b.start_at);
-        m+=`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light);font-size:.8rem"><span>${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name}</span><span style="color:${stColors[b.status]||'inherit'};font-weight:${b.status==='no_show'?'600':'400'}">${stLabels[b.status]||b.status}</span></div>`;
+        const bg=i%2===0?'var(--white)':'var(--surface)';
+        const sc=stColors[b.status]||'var(--text-4)';
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name||'RDV libre'}</span><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${stLabels[b.status]||b.status}</span></div>`;
       });
       m+=`</div>`;
+    } else {
+      m+=`<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--text-4)">Aucun rendez-vous</div>`;
     }
+    m+=`</div>`;
+
+    // ── Whiteboards section ──
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg> Whiteboards</span><span class="m-sec-line"></span><button style="font-size:.68rem;padding:3px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:700" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.8rem;color:var(--text-4)">Chargement...</div></div>`;
+
+    // ── Danger zone (subtle, bottom of modal-body) ──
     if(!cl.is_blocked&&cl.no_show_count===0){
-      m+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)"><button style="font-size:.75rem;padding:4px 10px;background:transparent;color:#dc2626;border:1px solid #fecaca;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloquer ce client</button></div>`;
+      m+=`<div style="text-align:right;padding-top:4px"><button style="font-size:.68rem;padding:4px 10px;background:transparent;color:var(--text-4);border:1px solid var(--border-light);border-radius:6px;cursor:pointer;transition:all .15s" onmouseover="this.style.color='#dc2626';this.style.borderColor='#fecaca';this.style.background='#fef2f2'" onmouseout="this.style.color='var(--text-4)';this.style.borderColor='var(--border-light)';this.style.background='transparent'" onclick="blockClient('${cl.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloquer</button></div>`;
     }
-    // Whiteboards section
-    m+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><label style="font-size:.78rem;font-weight:600;color:var(--text-3)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg> Whiteboards</label><button style="font-size:.72rem;padding:4px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:600" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.78rem;color:var(--text-4)">Chargement...</div></div>`;
+
+    // ── Close modal-body → single modal-foot with action buttons ──
     m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Fermer</button><button class="btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     // Load whiteboards for this client
