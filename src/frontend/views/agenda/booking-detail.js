@@ -320,7 +320,7 @@ function fcRenderDocs(booking) {
         </div>
       </div>`;
     // Load templates
-    fetch('/api/documents/templates', { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
+    fetch('/api/documents', { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
       .then(r => r.json())
       .then(data => {
         const templates = (data.templates || []).filter(t => t.is_active);
