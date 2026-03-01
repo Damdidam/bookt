@@ -26,10 +26,10 @@ async function fcOpenDetail(bookingId) {
     const isFreestyle = !b.service_name;
     const s = new Date(b.start_at), e = new Date(b.end_at);
 
-    // -- Color: from service, freestyle custom, or practitioner fallback --
+    // -- Color: same priority as calendar-events.js --
     const accentColor = isFreestyle
       ? (b.booking_color || b.practitioner_color || '#0D7377')
-      : (b.service_color || b.practitioner_color || '#0D7377');
+      : (b.service_color || b.booking_color || b.practitioner_color || '#0D7377');
 
     // -- Header gradient --
     const hdrBg = document.getElementById('mHeaderBg');
