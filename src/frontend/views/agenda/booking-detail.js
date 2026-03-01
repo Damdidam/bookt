@@ -30,7 +30,7 @@ async function fcOpenDetail(bookingId) {
     // Detail endpoint returns b.* so field is "color", not "booking_color"
     const accentColor = isFreestyle
       ? (b.color || b.practitioner_color || '#0D7377')
-      : (b.service_color || b.color || b.practitioner_color || '#0D7377');
+      : (b.color || b.service_color || b.practitioner_color || '#0D7377');
 
     // -- Header gradient --
     const hdrBg = document.getElementById('mHeaderBg');
