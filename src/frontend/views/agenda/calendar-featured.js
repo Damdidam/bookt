@@ -129,12 +129,13 @@ async function fsLoadCurrentWeek() {
     // Build pending slots from saved
     fsPendingSlots = {};
     fsSavedSlots.forEach(s => {
+      const dateKey = (s.date || '').slice(0, 10);
       const st = (s.start_time || '').slice(0, 5);
       const et = (s.end_time || '').slice(0, 5);
       let t = timeToMin(st);
       const end = timeToMin(et);
       while (t < end) {
-        fsPendingSlots[s.date + '_' + minToTime(t)] = true;
+        fsPendingSlots[dateKey + '_' + minToTime(t)] = true;
         t += 30;
       }
     });

@@ -501,7 +501,7 @@ async function loadSlots(){
       fetch('/api/public/'+slug+'/featured-slots?'+fsParams)
     ]);
     const sData=await sRes.json();slotsData=sData.by_date||{};
-    const fData=await fRes.json();featuredSlotsCache=fData.featured_slots||[];
+    const fData=await fRes.json();featuredSlotsCache=(fData.featured_slots||[]).map(function(f){return Object.assign({},f,{date:(f.date||'').slice(0,10)});});
   }catch(e){slotsData={};featuredSlotsCache=[];}
   // Filter by featured slots if any exist for this week
   weekHasFeatured=featuredSlotsCache.length>0;
