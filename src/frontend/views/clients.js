@@ -2,6 +2,7 @@
  * Clients view module.
  */
 import { api, categoryLabels, GendaUI } from '../state.js';
+import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhiteboards on window
 
@@ -89,6 +90,25 @@ async function openClientDetail(id){
     m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
     m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
     m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
+
+    // ── Notes internes (from bookings) ──
+    const intNotes=bks.filter(b=>b.internal_note&&b.internal_note.trim());
+    if(intNotes.length>0){
+      m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes internes (${intNotes.length})</span><span class="m-sec-line"></span></div>`;
+      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
+      intNotes.forEach((b,i)=>{
+        const bg=i%2===0?'var(--white)':'var(--surface)';
+        const dt=new Date(b.start_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
+        m+=`<div style="padding:8px 12px;background:${bg};font-size:.8rem;cursor:pointer" onclick="fcOpenDetail('${b.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <span style="font-weight:600;color:var(--text)">${b.service_name||'RDV libre'} · ${dt}</span>
+            <span style="font-size:.68rem;color:var(--text-4)">${b.practitioner_name||''}</span>
+          </div>
+          <div style="font-size:.78rem;color:var(--text-3);line-height:1.4">${esc(b.internal_note)}</div>
+        </div>`;
+      });
+      m+=`</div></div>`;
+    }
 
     // ── Historique section (inside modal-body, scrollable) ──
     const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888',pending_deposit:'#B45309'};
