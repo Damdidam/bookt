@@ -520,8 +520,8 @@ async function loadSlots(){
   // Auto-select first available date
   const firstDate=Object.keys(slotsData).sort().find(k=>slotsData[k]?.length>0);
   if(firstDate){selectDate(firstDate);}
-  else if(weekOffset<8){weekOffset++;return loadSlots();}
-  else{document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau disponible dans les 8 prochaines semaines.</div>';}
+  else if(!weekHasFeatured&&weekOffset<8){weekOffset++;return loadSlots();}
+  else{document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau disponible'+(weekHasFeatured?' cette semaine':' dans les 8 prochaines semaines')+'.</div>';}
   renderWlCTA();
 }
 
