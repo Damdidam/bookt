@@ -32,9 +32,29 @@ export const SECTOR_LABELS = {
   autre: { owner:'Gérant·e', practitioner:'Membre', manager:'Responsable', receptionist:'Réceptionniste' }
 };
 
+// ── Category-based terminology ──
+export const CATEGORY_LABELS = {
+  sante:            { client:'Patient·e',  clients:'Patients',    service:'Consultation', services:'Consultations' },
+  beaute:           { client:'Client·e',   clients:'Client·e·s',  service:'Prestation',   services:'Prestations' },
+  juridique_finance:{ client:'Client·e',   clients:'Client·e·s',  service:'Consultation', services:'Consultations' },
+  education:        { client:'Élève',      clients:'Élèves',      service:'Cours',        services:'Cours' },
+  creatif:          { client:'Client·e',   clients:'Client·e·s',  service:'Séance',       services:'Séances' },
+  autre:            { client:'Client·e',   clients:'Client·e·s',  service:'Service',      services:'Services' }
+};
+
+export const SECTOR_TO_CATEGORY = {
+  medecin:'sante', dentiste:'sante', kine:'sante', osteopathe:'sante', bien_etre:'sante',
+  coiffeur:'beaute', esthetique:'beaute',
+  comptable:'juridique_finance', avocat:'juridique_finance',
+  photographe:'creatif',
+  veterinaire:'autre', autre:'autre'
+};
+
 export const userRole = user?.role || 'owner';
 export const userSector = biz?.sector || 'autre';
 export const sectorLabels = SECTOR_LABELS[userSector] || SECTOR_LABELS.autre;
+export const userCategory = biz?.category || SECTOR_TO_CATEGORY[userSector] || 'autre';
+export const categoryLabels = CATEGORY_LABELS[userCategory] || CATEGORY_LABELS.autre;
 export const allowedSections = ROLE_ACCESS[userRole] || ROLE_ACCESS.owner;
 
 // ── Calendar state (mutable, shared across agenda sub-modules) ──

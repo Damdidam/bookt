@@ -17,7 +17,7 @@ import './styles/components.css';
 import './styles/responsive.css';
 
 // ── Core modules ──
-import { api, user, biz, userRole, sectorLabels, allowedSections, GendaUI } from './state.js';
+import { api, user, biz, userRole, sectorLabels, categoryLabels, allowedSections, GendaUI } from './state.js';
 import { initRouter, loadSection } from './router.js';
 import { initTouchBlockers } from './utils/touch.js';
 import { bridge } from './utils/window-bridge.js';
@@ -52,6 +52,22 @@ document.querySelectorAll('.sb-label').forEach(label => {
   }
   if (!hasVisible) label.style.display = 'none';
 });
+
+// ── Category-aware sidebar labels ──
+if (biz) {
+  const sbBiz = document.getElementById('sbBizName');
+  if (sbBiz) sbBiz.textContent = biz.name || 'Cabinet';
+  const sbClients = document.getElementById('sbClientsLabel');
+  if (sbClients) sbClients.textContent = categoryLabels.clients;
+  const sbServices = document.getElementById('sbServicesLabel');
+  if (sbServices) sbServices.textContent = categoryLabels.services;
+  // Update all label placeholders in modals
+  document.querySelectorAll('.lbl-practitioner').forEach(el => { el.textContent = sectorLabels.practitioner; });
+  document.querySelectorAll('.lbl-client').forEach(el => { el.textContent = categoryLabels.client; });
+  document.querySelectorAll('.lbl-service').forEach(el => { el.textContent = categoryLabels.service; });
+  const addSvcBtn = document.getElementById('qcAddSvcBtn');
+  if (addSvcBtn) addSvcBtn.textContent = '+ ' + categoryLabels.service;
+}
 
 // ── Set today's date ──
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-BE', {

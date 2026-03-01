@@ -4,6 +4,14 @@ const { getAvailableSlots } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
+const { getCategoryLabels } = require('../../services/email');
+
+const SECTOR_PRACTITIONER = {
+  coiffeur:'Coiffeur·se', esthetique:'Esthéticien·ne', bien_etre:'Praticien·ne',
+  osteopathe:'Ostéopathe', veterinaire:'Vétérinaire', photographe:'Photographe',
+  medecin:'Médecin', dentiste:'Dentiste', kine:'Kinésithérapeute',
+  comptable:'Collaborateur·rice', avocat:'Avocat·e', autre:'Praticien·ne'
+};
 
 // ============================================================
 // GET /api/public/:slug
@@ -156,7 +164,9 @@ router.get('/:slug', async (req, res, next) => {
         cancellation_window_hours: biz.settings?.cancel_deadline_hours || biz.settings?.cancellation_window_hours || 24,
         cancel_policy_text: biz.settings?.cancel_policy_text || null,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
-        google_reviews_url: biz.google_reviews_url
+        google_reviews_url: biz.google_reviews_url,
+        category_labels: getCategoryLabels(biz.category),
+        practitioner_label: SECTOR_PRACTITIONER[biz.sector] || 'Praticien·ne'
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
@@ -384,7 +394,8 @@ router.get('/booking/:token', async (req, res, next) => {
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
               biz.email AS business_email, biz.address AS business_address,
-              biz.settings AS business_settings, biz.theme AS business_theme
+              biz.settings AS business_settings, biz.theme AS business_theme,
+              biz.category AS business_category, biz.sector AS business_sector
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
@@ -415,7 +426,9 @@ router.get('/booking/:token', async (req, res, next) => {
       business: {
         name: bk.business_name, slug: bk.business_slug,
         phone: bk.business_phone, email: bk.business_email,
-        address: bk.business_address, theme: bk.business_theme
+        address: bk.business_address, theme: bk.business_theme,
+        category_labels: getCategoryLabels(bk.business_category),
+        practitioner_label: SECTOR_PRACTITIONER[bk.business_sector] || 'Praticien·ne'
       },
       cancellation: {
         allowed: canCancel,

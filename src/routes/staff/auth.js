@@ -52,7 +52,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
       // Fetch business details + practitioner link for frontend
       const bizResult = await query(
-        `SELECT b.id, b.slug, b.name, b.sector,
+        `SELECT b.id, b.slug, b.name, b.sector, b.category, b.plan,
                 p.id AS practitioner_id, p.display_name AS practitioner_name
          FROM businesses b
          LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
@@ -63,7 +63,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       return res.json({
         token,
         user: { id: user.id, email: user.email, role: user.role, business_name: user.business_name, practitioner_id: biz.practitioner_id || null, practitioner_name: biz.practitioner_name || null },
-        business: { id: biz.id, slug: biz.slug, name: biz.name, sector: biz.sector || 'autre' }
+        business: { id: biz.id, slug: biz.slug, name: biz.name, sector: biz.sector || 'autre', category: biz.category || 'autre', plan: biz.plan || 'free' }
       });
     }
 
@@ -146,9 +146,10 @@ router.post('/verify', async (req, res, next) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
-    // Fetch practitioner link + sector
+    // Fetch practitioner link + sector + category
     const extraResult = await query(
-      `SELECT b.sector, p.id AS practitioner_id, p.display_name AS practitioner_name
+      `SELECT b.id, b.slug, b.name, b.sector, b.category, b.plan,
+              p.id AS practitioner_id, p.display_name AS practitioner_name
        FROM businesses b
        LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
        WHERE b.id = $1`, [ml.business_id, ml.user_id]
@@ -166,7 +167,8 @@ router.post('/verify', async (req, res, next) => {
         practitioner_name: extra.practitioner_name || null
       },
       business: {
-        sector: extra.sector || 'autre'
+        id: extra.id, slug: extra.slug, name: extra.name,
+        sector: extra.sector || 'autre', category: extra.category || 'autre', plan: extra.plan || 'free'
       }
     });
   } catch (err) {
@@ -182,7 +184,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const result = await query(
       `SELECT u.id, u.email, u.role, u.last_login_at,
-              b.name AS business_name, b.slug, b.plan, b.sector,
+              b.name AS business_name, b.slug, b.plan, b.sector, b.category,
               p.display_name AS practitioner_name, p.id AS practitioner_id
        FROM users u
        JOIN businesses b ON b.id = u.business_id

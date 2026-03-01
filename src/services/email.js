@@ -283,7 +283,18 @@ async function sendBookingConfirmation({ booking, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail };
+// ── Category-based terminology (server-side) ──
+const CATEGORY_LABELS = {
+  sante:            { client:'Patient·e',  clients:'Patients',    service:'Consultation', services:'Consultations' },
+  beaute:           { client:'Client·e',   clients:'Client·e·s',  service:'Prestation',   services:'Prestations' },
+  juridique_finance:{ client:'Client·e',   clients:'Client·e·s',  service:'Consultation', services:'Consultations' },
+  education:        { client:'Élève',      clients:'Élèves',      service:'Cours',        services:'Cours' },
+  creatif:          { client:'Client·e',   clients:'Client·e·s',  service:'Séance',       services:'Séances' },
+  autre:            { client:'Client·e',   clients:'Client·e·s',  service:'Service',      services:'Services' }
+};
+function getCategoryLabels(category) { return CATEGORY_LABELS[category] || CATEGORY_LABELS.autre; }
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail, getCategoryLabels, CATEGORY_LABELS };
 
 /**
  * Send password reset email

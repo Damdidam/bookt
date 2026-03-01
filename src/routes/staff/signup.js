@@ -28,7 +28,8 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       business_address,
       language,
       // Optional
-      sector       // 'comptable' | 'avocat' | 'medecin' | 'dentiste' | 'kine' | 'autre'
+      category,    // 'sante' | 'beaute' | 'juridique_finance' | 'education' | 'creatif' | 'autre'
+      sector       // specific profession within category
     } = req.body;
 
     // ===== VALIDATION =====
@@ -78,16 +79,29 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       await client.query('BEGIN');
 
       // 1. Create business
+      // Derive category from sector if not provided
+      const SECTOR_TO_CAT = {
+        medecin:'sante', dentiste:'sante', kine:'sante', osteopathe:'sante', bien_etre:'sante',
+        coiffeur:'beaute', esthetique:'beaute',
+        comptable:'juridique_finance', avocat:'juridique_finance',
+        photographe:'creatif',
+        veterinaire:'autre', autre:'autre'
+      };
+      const validCategories = ['sante','beaute','juridique_finance','education','creatif','autre'];
+      const finalCategory = validCategories.includes(category) ? category : (SECTOR_TO_CAT[sector] || 'autre');
+
       const bizResult = await client.query(
-        `INSERT INTO businesses (slug, name, phone, email, address, language_default, plan, sector,
+        `INSERT INTO businesses (slug, name, phone, email, address, language_default, plan, sector, category,
           tagline, settings, page_sections, theme)
-         VALUES ($1, $2, $3, $4, $5, $6, 'free', $7, $8, $9::jsonb, $10::jsonb, $11::jsonb)
+         VALUES ($1, $2, $3, $4, $5, $6, 'free', $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb)
          RETURNING id, slug`,
         [
           slug, business_name, business_phone || null, email, business_address || null,
           language || 'fr',
           // Sector
           sector || 'autre',
+          // Category
+          finalCategory,
           // Auto tagline
           getSectorTagline(sector, business_name, language || 'fr'),
           // Default settings
@@ -236,6 +250,9 @@ router.post('/signup', authLimiter, async (req, res, next) => {
           id: businessId,
           slug,
           name: business_name,
+          sector: sector || 'autre',
+          category: finalCategory,
+          plan: 'free',
           booking_url: `${process.env.BOOKING_BASE_URL || 'https://genda.be'}/${slug}`
         },
         onboarding_url: '/dashboard?onboarding=true'

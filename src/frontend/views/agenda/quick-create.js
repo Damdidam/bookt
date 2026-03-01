@@ -2,7 +2,7 @@
  * Quick Create - new booking creation modal with service stacking, freestyle mode,
  * client autocomplete, and full tabs (Notes, Tâches, Rappels) matching Detail modal.
  */
-import { api, calState, userRole, user, viewState } from '../../state.js';
+import { api, calState, userRole, user, viewState, categoryLabels, sectorLabels } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { fcIsMobile } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
@@ -228,7 +228,7 @@ function qcUpdateTotal() {
   const el = document.getElementById('qcTotalDuration');
   if (svcItems.length > 1) {
     const h = Math.floor(total / 60), m = total % 60;
-    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> · ${svcItems.length} prestations`;
+    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> · ${svcItems.length} ${categoryLabels.services.toLowerCase()}`;
   } else {
     el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${total} min`;
   }
@@ -268,7 +268,7 @@ function calSearchClients(q) {
           : '';
         return `<div class="ac-item" onclick="calPickClient('${c.id}','${esc(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${c.phone || ''} ${c.email || ''}</div></div>`;
       }).join('');
-      h += `<div class="ac-item ac-new" onclick="calNewClient()">+ Nouveau client : "${esc(q)}"</div>`;
+      h += `<div class="ac-item ac-new" onclick="calNewClient()">+ ${categoryLabels.client} : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';
     } catch (e) { res.style.display = 'none'; }
   }, 300);
@@ -438,7 +438,7 @@ async function calCreateBooking() {
   const intNote = document.getElementById('qcIntNote').value.trim();
   const isFreestyle = document.getElementById('qcFreestyle').checked;
 
-  if (!clientName) { gToast('Nom du client requis', 'error'); return; }
+  if (!clientName) { gToast('Nom requis', 'error'); return; }
   if (!date || !time) { gToast('Date et heure requises', 'error'); return; }
 
   const start_at = new Date(date + 'T' + time).toISOString();
@@ -499,7 +499,7 @@ async function calCreateBooking() {
     } else {
       const serviceItems = document.querySelectorAll('.qc-svc-item select');
       const services = [...serviceItems].map(sel => ({ service_id: sel.value }));
-      if (services.length === 0) { gToast('Choisissez au moins une prestation', 'error'); return; }
+      if (services.length === 0) { gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
 
       body = {
         practitioner_id: pracId,
@@ -571,7 +571,7 @@ async function calCreateBooking() {
     gToast(isFreestyle
       ? `${clientName} — RDV libre créé !${extraStr}`
       : count > 1
-        ? `${clientName} — ${count} prestations créées !${extraStr}`
+        ? `${clientName} — ${count} ${categoryLabels.services.toLowerCase()} créées !${extraStr}`
         : `${clientName} — RDV créé !${extraStr}`, 'success');
 
     closeCalModal('calCreateModal');

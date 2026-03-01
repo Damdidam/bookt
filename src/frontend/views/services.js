@@ -1,7 +1,7 @@
 /**
  * Services (Prestations) view module.
  */
-import { api, userSector, GendaUI } from '../state.js';
+import { api, userSector, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 
@@ -18,8 +18,9 @@ async function loadServices(){
     const sd=await sr.json(), pd=await pr.json();
     const svcs=sd.services||[];
     allPractitioners=pd.practitioners||[];
-    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${svcs.length} prestation${svcs.length>1?'s':''}</h3><button class="btn-primary" onclick="openServiceModal()">+ Nouvelle prestation</button></div>`;
-    if(svcs.length===0){h+=`<div class="card"><div class="empty">Aucune prestation. Créez votre première !</div></div>`;}
+    const svcLabel=categoryLabels.service.toLowerCase(), svcsLabel=categoryLabels.services.toLowerCase();
+    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${svcs.length} ${svcs.length>1?svcsLabel:svcLabel}</h3><button class="btn-primary" onclick="openServiceModal()">+ ${categoryLabels.service}</button></div>`;
+    if(svcs.length===0){h+=`<div class="card"><div class="empty">Aucune ${svcLabel}. Créez votre première !</div></div>`;}
     else{
       h+=`<div class="svc-grid">`;
       svcs.forEach(s=>{
@@ -36,7 +37,7 @@ async function loadServices(){
           <div style="font-size:.72rem;color:var(--text-4);margin-top:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${pNames}</div>
           <div class="svc-actions">
             <button class="btn-outline btn-sm" onclick="openServiceModal('${s.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier</button>
-            ${s.is_active!==false?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver cette prestation ?'))deleteService('${s.id}')">Désactiver</button>`:`<span style="font-size:.72rem;color:var(--text-4);padding:5px">Inactive</span>`}
+            ${s.is_active!==false?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver cette ${categoryLabels.service.toLowerCase()} ?'))deleteService('${s.id}')">Désactiver</button>`:`<span style="font-size:.72rem;color:var(--text-4);padding:5px">Inactive</span>`}
           </div>
         </div>`;
       });
@@ -56,7 +57,8 @@ function openServiceModal(editId){
 
 function renderServiceModal(svc){
   const isEdit=!!svc;
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
+  const svcLabel=categoryLabels.service.toLowerCase();
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la '+svcLabel:'Nouvelle '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${svc?.name||''}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field-row"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${svc?.duration_min||30}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${svc?.price_cents?(svc.price_cents/100):''}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
   m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
@@ -110,7 +112,7 @@ async function saveService(id){
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);
     document.querySelector('.modal-overlay')?.remove();
-    GendaUI.toast(id?'Prestation modifiée':'Prestation créée','success');loadServices();
+    GendaUI.toast(id?categoryLabels.service+' modifiée':categoryLabels.service+' créée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -118,7 +120,7 @@ async function deleteService(id){
   try{
     const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast('Prestation désactivée','success');loadServices();
+    GendaUI.toast(categoryLabels.service+' désactivée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 

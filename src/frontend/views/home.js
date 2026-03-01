@@ -1,7 +1,7 @@
 /**
  * Home / Dashboard view module.
  */
-import { api, biz, userRole, calState, GendaUI } from '../state.js';
+import { api, biz, userRole, calState, GendaUI, categoryLabels } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 
 async function loadDashboard(){
@@ -16,7 +16,7 @@ async function loadDashboard(){
       h+=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}?preview" target="_blank">Voir ma page</a></div></div>`;
     }
     if(sum){const m=sum.month||{},cl=sum.clients||{},ca=sum.calls||{};
-      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">${isPrac?'Mon CA ce mois':'CA ce mois'}</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">${isPrac?'Mes clients':'Clients'}</div><div class="val">${cl.total||0}</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div>`}</div>`;
+      h+=`<div class="stats"><div class="stat-card"><div class="label">RDV aujourd'hui</div><div class="val">${sum.today?.count||0}</div></div><div class="stat-card"><div class="label">${isPrac?'Mon CA ce mois':'CA ce mois'}</div><div class="val">${m.revenue_formatted||'0 €'}</div><div class="sub">${m.total_bookings||0} RDV</div></div><div class="stat-card"><div class="label">${isPrac?'Mes '+categoryLabels.clients.toLowerCase():categoryLabels.clients}</div><div class="val">${cl.total||0}</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels → RDV</div><div class="val">${ca.conversion_rate||0}%</div></div>`}</div>`;
       h+=`<div class="card"><div class="card-h"><h3>${isPrac?'Mes RDV du jour':'RDV du jour'}</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
       if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{
         const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
@@ -34,7 +34,7 @@ async function loadDashboard(){
       });}
       else h+=`<div class="empty">Aucun RDV aujourd'hui</div>`;
       h+=`</div>`;
-    }else{h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">CA</div><div class="val">0 €</div></div><div class="stat-card"><div class="label">Clients</div><div class="val">0</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>`}</div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;}
+    }else{h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">CA</div><div class="val">0 €</div></div><div class="stat-card"><div class="label">${categoryLabels.clients}</div><div class="val">0</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>`}</div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;}
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}<br><button onclick="loadDashboard()" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;}
 }

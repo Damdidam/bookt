@@ -1,7 +1,7 @@
 /**
  * Team (Équipe) view module.
  */
-import { api, SECTOR_LABELS, userSector, sectorLabels, GendaUI } from '../state.js';
+import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 
@@ -22,9 +22,10 @@ async function loadTeam(){
     const calData=calR.ok?await calR.json():{connections:[]};
     const calConns=calData.connections||[];
     const practs=d.practitioners||[];
-    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${practs.length} membre${practs.length>1?'s':''} de l'équipe</h3><button class="btn-primary" onclick="openPractModal()">+ Ajouter un praticien</button></div>`;
+    const pracLabel=sectorLabels.practitioner.toLowerCase();
+    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${practs.length} membre${practs.length>1?'s':''} de l'équipe</h3><button class="btn-primary" onclick="openPractModal()">+ Ajouter</button></div>`;
 
-    if(practs.length===0){h+=`<div class="card"><div class="empty">Aucun praticien. Ajoutez votre premier membre !</div></div>`;}
+    if(practs.length===0){h+=`<div class="card"><div class="empty">Aucun ${pracLabel}. Ajoutez votre premier membre !</div></div>`;}
     else{
       h+=`<div class="team-grid2">`;
       practs.forEach(p=>{
@@ -44,7 +45,7 @@ async function loadTeam(){
           </div>
           <div class="tm-stats">
             <div class="tm-stat"><div class="v">${p.bookings_30d||0}</div><div class="l">RDV / 30j</div></div>
-            <div class="tm-stat"><div class="v">${p.service_count||0}</div><div class="l">Prestations</div></div>
+            <div class="tm-stat"><div class="v">${p.service_count||0}</div><div class="l">${categoryLabels.services}</div></div>
             <div class="tm-stat"><div class="v">${p.last_login_at?new Date(p.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'}):'—'}</div><div class="l">Dern. connexion</div></div>
           </div>
           <div class="tm-badges">
@@ -83,7 +84,8 @@ function renderPractModal(p){
   const isEdit=!!p;
   const photoSrc=p?.photo_url||'';
   const initials=p?.display_name?p.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase():'';
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le praticien':'Nouveau praticien'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
+  const pracLbl=sectorLabels.practitioner.toLowerCase();
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier':'Nouveau '+pracLbl}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
     <div style="text-align:center;margin-bottom:16px">
       <div id="p_photo_preview" style="width:80px;height:80px;border-radius:50%;margin:0 auto 10px;overflow:hidden;background:${p?.color||'var(--primary)'};display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative" onclick="document.getElementById('p_photo_input').click()" title="Cliquer pour changer la photo">
         ${photoSrc?`<img src="${photoSrc}" style="width:100%;height:100%;object-fit:cover">`:`<span style="color:#fff;font-size:1.5rem;font-weight:600">${initials||'+'}</span>`}
@@ -161,13 +163,13 @@ async function savePract(id){
     }
 
     document.querySelector('.modal-overlay')?.remove();
-    GendaUI.toast(id?'Praticien modifié':'Praticien ajouté','success');loadTeam();
+    GendaUI.toast(id?sectorLabels.practitioner+' modifié':sectorLabels.practitioner+' ajouté','success');loadTeam();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 async function deactivatePract(id){
   try{const r=await fetch(`/api/practitioners/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
-    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Praticien désactivé','success');loadTeam();
+    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(sectorLabels.practitioner+' désactivé','success');loadTeam();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -243,7 +245,7 @@ async function togglePracTodo(todoId,bookingId,done,pracId,pracName){
 
 async function reactivatePract(id){
   try{const r=await fetch(`/api/practitioners/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true,booking_enabled:true})});
-    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Praticien réactivé','success');loadTeam();
+    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(sectorLabels.practitioner+' réactivé','success');loadTeam();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
