@@ -1,6 +1,6 @@
 /**
  * Quick Create - new booking creation modal with service stacking, freestyle mode,
- * and client autocomplete.
+ * client autocomplete, and full tabs (Notes, Tâches, Rappels) matching Detail modal.
  */
 import { api, calState, userRole, user, viewState } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
@@ -10,6 +10,11 @@ import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO } from '../../utils/format.js';
+
+// In-memory storage for notes/todos/reminders during creation
+let qcNotes = [];
+let qcTodos = [];
+let qcReminders = [];
 
 function fcOpenQuickCreate(startStr, endStr) {
   let d;
@@ -26,7 +31,9 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcClient').value = '';
   document.getElementById('qcClientId').value = '';
   document.getElementById('qcComment').value = '';
+  document.getElementById('qcIntNote').value = '';
   document.getElementById('qcAcResults').style.display = 'none';
+
   // Reset freestyle mode
   document.getElementById('qcFreestyle').checked = false;
   document.getElementById('qcNormalMode').style.display = '';
@@ -35,40 +42,102 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcFreeBufBefore').value = '0';
   document.getElementById('qcFreeBufAfter').value = '0';
   document.getElementById('qcFreeColorWrap').innerHTML = cswHTML('qcFreeColor', '#0D7377', false);
+  const endWrap = document.getElementById('qcEndTimeWrap');
+  if (endWrap) endWrap.style.display = 'none';
+
+  // Reset header gradient to default
+  qcUpdateGradient('#0D7377');
 
   // Populate practitioners dropdown
   const prSel = document.getElementById('qcPrac');
   prSel.innerHTML = calState.fcPractitioners.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
-  // Practitioners can only create for themselves
   if (userRole === 'practitioner' && user?.practitioner_id) {
     prSel.value = user.practitioner_id;
     prSel.disabled = true;
   } else {
     prSel.disabled = false;
   }
+  // Practitioner color dot
+  const curPrac = calState.fcPractitioners[0];
+  const qcPracDot = document.getElementById('qcPracDot');
+  if (qcPracDot && curPrac) qcPracDot.style.background = curPrac.color || 'var(--primary)';
+  prSel.onchange = function () {
+    const sel = calState.fcPractitioners.find(p => p.id === this.value);
+    if (qcPracDot) qcPracDot.style.background = sel?.color || 'var(--primary)';
+  };
 
   // Init service list with one entry
   viewState.qcServiceCount = 0;
   document.getElementById('qcServiceList').innerHTML = '';
   qcAddService();
 
+  // Reset in-memory notes/todos/reminders
+  qcNotes = [];
+  qcTodos = [];
+  qcReminders = [];
+  qcRenderNotes();
+  qcRenderTodos();
+  qcRenderReminders();
+  qcUpdateTabCounts();
+
+  // Switch to RDV tab
+  qcSwitchTab(document.querySelector('#calCreateModal .m-tab[data-tab="qc-rdv"]'), 'qc-rdv');
+
   document.getElementById('calCreateModal').classList.add('open');
 }
 
+// ── Gradient header ──
+function qcUpdateGradient(color) {
+  const hdr = document.getElementById('qcHeaderBg');
+  const avatar = document.getElementById('qcAvatar');
+  const btn = document.getElementById('qcBtnCreate');
+  if (hdr) hdr.style.background = `linear-gradient(135deg,${color} 0%,${color}AA 60%,${color}55 100%)`;
+  if (avatar) avatar.style.background = `linear-gradient(135deg,${color},${color}CC)`;
+  if (btn) { btn.style.background = color; btn.style.boxShadow = `0 2px 8px ${color}40`; }
+}
+
+// ── Tab switching ──
+function qcSwitchTab(el, tab) {
+  document.querySelectorAll('#calCreateModal .m-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#calCreateModal .cal-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  const panelMap = { 'qc-rdv': 'qcPanelRdv', 'qc-notes': 'qcPanelNotes', 'qc-todos': 'qcPanelTodos', 'qc-reminders': 'qcPanelReminders' };
+  document.getElementById(panelMap[tab])?.classList.add('active');
+}
+
+function qcUpdateTabCounts() {
+  const cn = document.getElementById('qcCountNotes');
+  const ct = document.getElementById('qcCountTodos');
+  const cr = document.getElementById('qcCountReminders');
+  if (cn) { if (qcNotes.length > 0) { cn.textContent = qcNotes.length; cn.style.display = 'flex'; } else { cn.style.display = 'none'; } }
+  if (ct) { if (qcTodos.length > 0) { ct.textContent = qcTodos.length; ct.style.display = 'flex'; } else { ct.style.display = 'none'; } }
+  if (cr) { if (qcReminders.length > 0) { cr.textContent = qcReminders.length; cr.style.display = 'flex'; } else { cr.style.display = 'none'; } }
+}
+
+// ── Freestyle toggle ──
 function qcToggleFreestyle() {
   const on = document.getElementById('qcFreestyle').checked;
   document.getElementById('qcNormalMode').style.display = on ? 'none' : '';
   document.getElementById('qcFreestyleMode').style.display = on ? '' : 'none';
   document.getElementById('qcModeRow').style.display = on ? 'none' : '';
+  const endWrap = document.getElementById('qcEndTimeWrap');
+  if (endWrap) endWrap.style.display = on ? '' : 'none';
   if (on) {
-    // Auto-set end time = start + 1h
     const t = document.getElementById('qcTime').value;
     if (t) {
       const [h, m] = t.split(':').map(Number);
       const endH = Math.min(h + 1, 23);
-      document.getElementById('qcFreeEnd').value = String(endH).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      const endVal = String(endH).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      document.getElementById('qcFreeEnd').value = endVal;
+      const fe2 = document.getElementById('qcFreeEnd2');
+      if (fe2) fe2.value = endVal;
     }
     qcUpdateFreeDuration();
+    // Default freestyle color
+    qcUpdateGradient('#0D7377');
+  } else {
+    // Restore color from selected service
+    qcUpdateTotal();
   }
 }
 
@@ -82,12 +151,15 @@ function qcUpdateFreeDuration() {
   if (dur <= 0) dur += 24 * 60;
   const bb = parseInt(document.getElementById('qcFreeBufBefore').value) || 0;
   const ba = parseInt(document.getElementById('qcFreeBufAfter').value) || 0;
-  const total = dur + bb + ba;
   const el = document.getElementById('qcFreeDuration');
   const h = Math.floor(dur / 60), m = dur % 60;
-  el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dur\u00e9e : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong>${(bb || ba) ? ' + buffers ' + (bb ? bb + 'min avant ' : ' ') + (ba ? ba + 'min apr\u00e8s' : '') : ''}`;
+  el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong>${(bb || ba) ? ' + buffers ' + (bb ? bb + 'min avant ' : '') + (ba ? ba + 'min après' : '') : ''}`;
+  // Sync qcFreeEnd2 with qcFreeEnd
+  const fe2 = document.getElementById('qcFreeEnd2');
+  if (fe2) fe2.value = e;
 }
 
+// ── Service management ──
 function qcAddService() {
   const idx = viewState.qcServiceCount++;
   const opts = calState.fcServices.filter(s => s.is_active !== false).map(s => `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${s.color || '#0D7377'}">${s.name} (${s.duration_min} min)</option>`).join('');
@@ -105,17 +177,16 @@ function qcAddService() {
 function qcRemoveService(idx) {
   const el = document.getElementById('qcSvc' + idx);
   if (el) el.remove();
-  // Must keep at least one
   if (document.querySelectorAll('.qc-svc-item').length === 0) qcAddService();
   else qcUpdateTotal();
 }
 
 function qcUpdateTotal() {
   let total = 0;
+  let firstColor = '#0D7377';
   const svcItems = document.querySelectorAll('.qc-svc-item');
-  // Collect mode_options intersection
   let availModes = null;
-  svcItems.forEach(item => {
+  svcItems.forEach((item, i) => {
     const sel = item.querySelector('select');
     if (!sel) return;
     const opt = sel.options[sel.selectedIndex];
@@ -123,25 +194,30 @@ function qcUpdateTotal() {
     const buf = parseInt(opt?.dataset.buf || 0);
     const color = opt?.dataset.color || '#0D7377';
     total += dur + buf;
+    if (i === 0) firstColor = color;
     const durEl = item.querySelector('.qc-svc-dur');
     if (durEl) durEl.textContent = dur + 'min';
     const colEl = item.querySelector('.qc-svc-color');
     if (colEl) colEl.style.background = color;
-    // Get this service's mode_options
     const svcId = sel.value;
     const svc = calState.fcServices.find(s => s.id === svcId);
     const modes = svc?.mode_options || ['cabinet'];
     if (!availModes) availModes = new Set(modes);
     else availModes = new Set([...availModes].filter(m => modes.includes(m)));
   });
+
+  // Update gradient to first service color
+  qcUpdateGradient(firstColor);
+
   // Update total display
   const el = document.getElementById('qcTotalDuration');
   if (svcItems.length > 1) {
     const h = Math.floor(total / 60), m = total % 60;
-    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dur\u00e9e totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> \u00b7 ${svcItems.length} prestations (groupe li\u00e9)`;
+    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> · ${svcItems.length} prestations`;
   } else {
     el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${total} min`;
   }
+
   // Update mode selector
   const modeRow = document.getElementById('qcModeRow');
   const modeSel = document.getElementById('qcMode');
@@ -152,12 +228,12 @@ function qcUpdateTotal() {
   } else {
     modeRow.style.display = '';
     const curVal = modeSel.value;
-    modeSel.innerHTML = modes.map(m => `<option value="${m}">${{ cabinet: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Cabinet', visio: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Visio', phone: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> T\u00e9l\u00e9phone' }[m] || m}</option>`).join('');
+    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'Téléphone' })[m] || m}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
 }
 
-// Client autocomplete
+// ── Client autocomplete ──
 function calSearchClients(q) {
   clearTimeout(calState.fcClientSearchTimer);
   const res = document.getElementById('qcAcResults');
@@ -186,6 +262,102 @@ function calNewClient() {
   document.getElementById('qcAcResults').style.display = 'none';
 }
 
+// ── In-memory Notes ──
+function qcAddNote() {
+  const ta = document.getElementById('qcNewNote');
+  const content = ta.value.trim();
+  if (!content) return;
+  const pinned = document.getElementById('qcNotePinned')?.checked || false;
+  qcNotes.push({ content, is_pinned: pinned, created_at: new Date().toISOString() });
+  ta.value = '';
+  if (document.getElementById('qcNotePinned')) document.getElementById('qcNotePinned').checked = false;
+  qcRenderNotes();
+  qcUpdateTabCounts();
+}
+
+function qcDeleteNote(idx) {
+  qcNotes.splice(idx, 1);
+  qcRenderNotes();
+  qcUpdateTabCounts();
+}
+
+function qcRenderNotes() {
+  const el = document.getElementById('qcNoteList');
+  if (!el) return;
+  if (qcNotes.length === 0) {
+    el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">📝</div>Aucune note pour l\'instant</div>';
+    return;
+  }
+  el.innerHTML = qcNotes.map((n, i) => `<div class="note-card${n.is_pinned ? ' pinned' : ''}">
+    <div class="note-content">${esc(n.content)}</div>
+    <div class="note-meta">${n.is_pinned ? '📌 Épinglée · ' : ''}À créer avec le RDV</div>
+    <button class="note-delete" onclick="qcDeleteNote(${i})" title="Supprimer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>`).join('');
+}
+
+// ── In-memory Todos ──
+function qcAddTodo() {
+  const inp = document.getElementById('qcNewTodo');
+  const content = inp.value.trim();
+  if (!content) return;
+  qcTodos.push({ content });
+  inp.value = '';
+  qcRenderTodos();
+  qcUpdateTabCounts();
+}
+
+function qcDeleteTodo(idx) {
+  qcTodos.splice(idx, 1);
+  qcRenderTodos();
+  qcUpdateTabCounts();
+}
+
+function qcRenderTodos() {
+  const el = document.getElementById('qcTodoList');
+  if (!el) return;
+  if (qcTodos.length === 0) {
+    el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">✅</div>Aucune tâche pour l\'instant</div>';
+    return;
+  }
+  el.innerHTML = qcTodos.map((t, i) => `<div class="todo-item">
+    <span class="todo-check" style="border-color:var(--border);opacity:.4"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;opacity:0"><polyline points="20 6 9 17 4 12"/></svg></span>
+    <span class="todo-text">${esc(t.content)}</span>
+    <button class="todo-delete" onclick="qcDeleteTodo(${i})" title="Supprimer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>`).join('');
+}
+
+// ── In-memory Reminders ──
+function qcAddReminder() {
+  const offset = document.getElementById('qcReminderOffset').value;
+  const channel = document.getElementById('qcReminderChannel').value;
+  const offsetLabels = { '15': '15 min avant', '30': '30 min avant', '60': '1h avant', '120': '2h avant', '1440': 'La veille' };
+  const channelLabels = { browser: '🔔 Notif', email: '📧 Email', both: '🔔+📧' };
+  qcReminders.push({ offset_minutes: parseInt(offset), channel, offsetLabel: offsetLabels[offset] || offset + ' min', channelLabel: channelLabels[channel] || channel });
+  qcRenderReminders();
+  qcUpdateTabCounts();
+}
+
+function qcDeleteReminder(idx) {
+  qcReminders.splice(idx, 1);
+  qcRenderReminders();
+  qcUpdateTabCounts();
+}
+
+function qcRenderReminders() {
+  const el = document.getElementById('qcReminderList');
+  if (!el) return;
+  if (qcReminders.length === 0) {
+    el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">⏰</div>Aucun rappel pour l\'instant</div>';
+    return;
+  }
+  el.innerHTML = qcReminders.map((r, i) => `<div class="reminder-card">
+    <span class="reminder-icon">⏰</span>
+    <div><div class="ri-time">${esc(r.offsetLabel)}</div><div class="ri-channel">${esc(r.channelLabel)}</div></div>
+    <button class="reminder-delete" onclick="qcDeleteReminder(${i})" title="Supprimer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>`).join('');
+}
+
+// ── Create booking ──
 async function calCreateBooking() {
   const clientName = document.getElementById('qcClient').value.trim();
   const clientId = document.getElementById('qcClientId').value;
@@ -194,6 +366,7 @@ async function calCreateBooking() {
   const time = document.getElementById('qcTime').value;
   const mode = document.getElementById('qcMode').value;
   const comment = document.getElementById('qcComment').value.trim();
+  const intNote = document.getElementById('qcIntNote').value.trim();
   const isFreestyle = document.getElementById('qcFreestyle').checked;
 
   if (!clientName) { gToast('Nom du client requis', 'error'); return; }
@@ -209,7 +382,7 @@ async function calCreateBooking() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ full_name: clientName })
       });
-      if (!cr.ok) { const d = await cr.json(); throw new Error(d.error || 'Erreur cr\u00e9ation client'); }
+      if (!cr.ok) { const d = await cr.json(); throw new Error(d.error || 'Erreur création client'); }
       const cd = await cr.json();
       actualClientId = cd.client?.id;
     }
@@ -228,12 +401,11 @@ async function calCreateBooking() {
         buffer_before_min: parseInt(document.getElementById('qcFreeBufBefore').value) || 0,
         buffer_after_min: parseInt(document.getElementById('qcFreeBufAfter').value) || 0,
         custom_label: document.getElementById('qcFreeLabel').value.trim() || null,
-        color: document.getElementById('qcFreeColor').value,
+        color: document.getElementById('qcFreeColor')?.value || '#0D7377',
         appointment_mode: 'cabinet',
         comment: comment || null
       };
     } else {
-      // Collect all services
       const serviceItems = document.querySelectorAll('.qc-svc-item select');
       const services = [...serviceItems].map(sel => ({ service_id: sel.value }));
       if (services.length === 0) { gToast('Choisissez au moins une prestation', 'error'); return; }
@@ -259,8 +431,57 @@ async function calCreateBooking() {
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     const result = await r.json();
+    const bookingId = result.booking?.id || result.bookings?.[0]?.id;
+
+    // Save internal note if provided
+    if (intNote && bookingId) {
+      await fetch(`/api/bookings/${bookingId}/note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ internal_note: intNote })
+      }).catch(() => {});
+    }
+
+    // Save notes, todos, reminders in parallel
+    if (bookingId) {
+      const promises = [];
+      for (const note of qcNotes) {
+        promises.push(fetch(`/api/bookings/${bookingId}/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ content: note.content, is_pinned: note.is_pinned })
+        }).catch(() => {}));
+      }
+      for (const todo of qcTodos) {
+        promises.push(fetch(`/api/bookings/${bookingId}/todos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ content: todo.content })
+        }).catch(() => {}));
+      }
+      for (const rem of qcReminders) {
+        promises.push(fetch(`/api/bookings/${bookingId}/reminders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ offset_minutes: rem.offset_minutes, channel: rem.channel })
+        }).catch(() => {}));
+      }
+      if (promises.length > 0) await Promise.all(promises);
+    }
+
     const count = result.bookings?.length || 1;
-    gToast(isFreestyle ? `${clientName} \u2014 RDV libre cr\u00e9\u00e9 !` : count > 1 ? `${clientName} \u2014 ${count} prestations cr\u00e9\u00e9es !` : `${clientName} \u2014 RDV cr\u00e9\u00e9 !`, 'success');
+    const extra = [];
+    if (qcNotes.length) extra.push(`${qcNotes.length} note${qcNotes.length > 1 ? 's' : ''}`);
+    if (qcTodos.length) extra.push(`${qcTodos.length} tâche${qcTodos.length > 1 ? 's' : ''}`);
+    if (qcReminders.length) extra.push(`${qcReminders.length} rappel${qcReminders.length > 1 ? 's' : ''}`);
+    const extraStr = extra.length ? ' + ' + extra.join(', ') : '';
+
+    gToast(isFreestyle
+      ? `${clientName} — RDV libre créé !${extraStr}`
+      : count > 1
+        ? `${clientName} — ${count} prestations créées !${extraStr}`
+        : `${clientName} — RDV créé !${extraStr}`, 'success');
+
     closeCalModal('calCreateModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
@@ -273,6 +494,16 @@ async function calCreateBooking() {
 function setupQuickCreateListeners() {
   document.addEventListener('change', e => {
     if (['qcFreeEnd', 'qcFreeBufBefore', 'qcFreeBufAfter'].includes(e.target?.id)) qcUpdateFreeDuration();
+    // Sync qcFreeEnd2 → qcFreeEnd
+    if (e.target?.id === 'qcFreeEnd2') {
+      const fe = document.getElementById('qcFreeEnd');
+      if (fe) fe.value = e.target.value;
+      qcUpdateFreeDuration();
+    }
+    // Update gradient on freestyle color change
+    if (e.target?.id === 'qcFreeColor') {
+      qcUpdateGradient(e.target.value);
+    }
   });
   document.addEventListener('input', e => {
     if (e.target?.id === 'qcTime' && document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
@@ -283,7 +514,9 @@ function setupQuickCreateListeners() {
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
   qcAddService, qcRemoveService, qcUpdateTotal,
-  calSearchClients, calPickClient, calNewClient, calCreateBooking
+  calSearchClients, calPickClient, calNewClient, calCreateBooking,
+  qcSwitchTab, qcAddNote, qcDeleteNote, qcAddTodo, qcDeleteTodo,
+  qcAddReminder, qcDeleteReminder
 });
 
 export { fcOpenQuickCreate, calCreateBooking, setupQuickCreateListeners };

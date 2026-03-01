@@ -132,41 +132,178 @@
           <button class="m-btn m-btn-danger" id="mBtnPurge" onclick="fcPurgeBooking()" style="display:none"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer définitivement</button>
         </div>
       </div>
-      <div class="cal-panel" id="calPanelNotes"><div id="calNoteList"></div><div class="add-note"><textarea id="calNewNote" placeholder="Ajouter une note..."></textarea><div class="add-note-actions"><label style="font-size:.75rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="calNotePinned"> Épinglée</label><button class="cal-btn primary" onclick="calAddNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button></div></div></div>
-      <div class="cal-panel" id="calPanelTodos"><div id="calTodoList"></div><div class="add-todo"><input id="calNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')calAddTodo()"><button class="cal-btn primary" onclick="calAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button></div></div>
-      <div class="cal-panel" id="calPanelReminders"><div id="calReminderList"></div><div class="add-reminder"><select id="calReminderOffset"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 heure</option><option value="120">2 heures</option><option value="1440">La veille</option></select><select id="calReminderChannel"><option value="browser">Notif</option><option value="email">Email</option><option value="both">Les deux</option></select><button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button></div></div>
+      <div class="cal-panel" id="calPanelNotes">
+        <div id="calNoteList"></div>
+        <div class="add-note">
+          <textarea id="calNewNote" placeholder="Ajouter une note..."></textarea>
+          <div class="add-note-actions">
+            <label style="font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="calNotePinned"> Épinglée</label>
+            <button class="cal-btn primary" onclick="calAddNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+          </div>
+        </div>
+      </div>
+      <div class="cal-panel" id="calPanelTodos">
+        <div id="calTodoList"></div>
+        <div class="add-todo">
+          <input id="calNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')calAddTodo()">
+          <button class="cal-btn primary" onclick="calAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
+        </div>
+      </div>
+      <div class="cal-panel" id="calPanelReminders">
+        <div id="calReminderList"></div>
+        <div class="add-reminder">
+          <select id="calReminderOffset">
+            <option value="15">15 min avant</option>
+            <option value="30" selected>30 min avant</option>
+            <option value="60">1 heure avant</option>
+            <option value="120">2 heures avant</option>
+            <option value="1440">La veille</option>
+          </select>
+          <select id="calReminderChannel">
+            <option value="browser">Notif</option>
+            <option value="email">Email</option>
+            <option value="both">Les deux</option>
+          </select>
+          <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- QUICK CREATE MODAL -->
+<!-- QUICK CREATE MODAL — same structure as Detail -->
 <div class="cal-modal-overlay" id="calCreateModal">
-  <div class="cal-modal" style="max-width:500px">
-    <div class="cal-modal-head"><h2>Nouveau rendez-vous</h2><button class="cal-close" onclick="closeCalModal('calCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div style="padding:20px 24px 24px">
-      <div class="qc-row" style="position:relative"><div class="qc-label">Client</div><input class="qc-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)"><div id="qcAcResults" class="ac-results" style="display:none"></div><input type="hidden" id="qcClientId"></div>
-      <div class="qc-row qc-row-2"><div><div class="qc-label">Date</div><input class="qc-input" type="date" id="qcDate"></div><div><div class="qc-label">Heure</div><input class="qc-input" type="time" id="qcTime" value="09:00"></div></div>
-      <div class="qc-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text-3)">
-          <input type="checkbox" id="qcFreestyle" onchange="qcToggleFreestyle()" style="accent-color:var(--primary);width:16px;height:16px"> Mode libre <span style="font-weight:400;color:var(--text-4)">(sans prestation prédéfinie)</span>
-        </label>
+  <div class="cal-modal">
+    <div class="m-header">
+      <div class="m-header-bg" id="qcHeaderBg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary)AA 60%,var(--primary)55 100%)"></div>
+      <button class="m-close" onclick="closeCalModal('calCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="m-header-content">
+        <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px">
+          <div class="m-avatar" id="qcAvatar" style="background:linear-gradient(135deg,var(--primary),var(--primary)CC)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+          <div style="flex:1;min-width:0">
+            <div class="m-client-name" style="font-size:1.15rem">Nouveau rendez-vous</div>
+          </div>
+        </div>
       </div>
-      <div class="qc-row" id="qcNormalMode">
-        <div class="qc-label">Prestations</div>
-        <div id="qcServiceList"></div>
-        <button class="btn-outline" style="margin-top:6px;font-size:.78rem;padding:5px 12px" onclick="qcAddService()">+ Ajouter une prestation</button>
-        <div id="qcTotalDuration" style="font-size:.75rem;color:var(--text-4);margin-top:6px"></div>
+    </div>
+    <div class="m-tabs">
+      <div class="m-tab active" data-tab="qc-rdv" onclick="qcSwitchTab(this,'qc-rdv')">RDV</div>
+      <div class="m-tab" data-tab="qc-notes" onclick="qcSwitchTab(this,'qc-notes')">Notes<span class="tab-count" id="qcCountNotes" style="display:none"></span></div>
+      <div class="m-tab" data-tab="qc-todos" onclick="qcSwitchTab(this,'qc-todos')">Tâches<span class="tab-count" id="qcCountTodos" style="display:none"></span></div>
+      <div class="m-tab" data-tab="qc-reminders" onclick="qcSwitchTab(this,'qc-reminders')">Rappels<span class="tab-count" id="qcCountReminders" style="display:none"></span></div>
+    </div>
+    <div class="cal-modal-body">
+      <!-- TAB: RDV -->
+      <div class="cal-panel active" id="qcPanelRdv">
+        <!-- Client -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Client</span><span class="m-sec-line"></span></div>
+          <div style="position:relative">
+            <input class="m-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)">
+            <div id="qcAcResults" class="ac-results" style="display:none"></div>
+            <input type="hidden" id="qcClientId">
+          </div>
+        </div>
+        <!-- Prestation -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Prestation</span><span class="m-sec-line"></span></div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px">
+            <input type="checkbox" id="qcFreestyle" onchange="qcToggleFreestyle()" style="accent-color:var(--primary);width:15px;height:15px"> Mode libre <span style="font-weight:400;color:var(--text-4)">(sans prestation)</span>
+          </label>
+          <div id="qcNormalMode">
+            <div id="qcServiceList"></div>
+            <button class="cal-btn" style="margin-top:6px;font-size:.75rem;padding:5px 12px" onclick="qcAddService()">+ Ajouter une prestation</button>
+            <div id="qcTotalDuration" style="font-size:.72rem;color:var(--text-4);margin-top:6px"></div>
+          </div>
+          <div id="qcFreestyleMode" style="display:none">
+            <div style="margin-bottom:8px"><div class="m-field-label">Intitulé du RDV</div><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
+            <div class="m-row m-row-2">
+              <div><div class="m-field-label">Couleur</div><div id="qcFreeColorWrap"></div></div>
+              <div><div class="m-field-label">Heure fin</div><input class="m-input" type="time" id="qcFreeEnd" value="10:00"></div>
+            </div>
+            <div class="m-row m-row-2" style="margin-top:8px">
+              <div><div class="m-field-label">Buffer avant (min)</div><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
+              <div><div class="m-field-label">Buffer après (min)</div><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
+            </div>
+            <div id="qcFreeDuration" style="font-size:.72rem;color:var(--text-4);margin-top:4px"></div>
+          </div>
+        </div>
+        <!-- Horaire -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
+          <div class="m-row m-row-3">
+            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="qcDate"></div>
+            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="qcTime" value="09:00"></div>
+            <div id="qcEndTimeWrap" style="display:none"><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcFreeEnd2"></div>
+          </div>
+        </div>
+        <!-- Praticien -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Praticien</span><span class="m-sec-line"></span></div>
+          <div class="m-prac-wrap">
+            <span class="m-prac-dot" id="qcPracDot"></span>
+            <select class="m-input" id="qcPrac"></select>
+          </div>
+        </div>
+        <!-- Mode -->
+        <div class="m-sec" id="qcModeRow">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/></svg> Mode</span><span class="m-sec-line"></span></div>
+          <select class="m-input" id="qcMode"><option value="cabinet">Cabinet</option></select>
+        </div>
+        <!-- Commentaire -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Commentaire</span><span class="m-sec-line"></span></div>
+          <textarea class="m-input" id="qcComment" rows="2" placeholder="Ajouter un commentaire..." style="resize:vertical"></textarea>
+        </div>
+        <!-- Note interne -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Note interne</span><span class="m-sec-line"></span></div>
+          <textarea class="m-input m-input-note" id="qcIntNote" rows="2" placeholder="Note visible uniquement par l'équipe..." style="resize:vertical"></textarea>
+        </div>
+        <!-- Bottom -->
+        <div class="m-bottom">
+          <button class="m-btn m-btn-primary" id="qcBtnCreate" onclick="calCreateBooking()">Créer le RDV</button>
+          <button class="m-btn m-btn-ghost" onclick="closeCalModal('calCreateModal')">Annuler</button>
+        </div>
       </div>
-      <div id="qcFreestyleMode" style="display:none">
-        <div class="qc-row"><div class="qc-label">Intitulé du RDV</div><input class="qc-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin, Remplacement créneau..."></div>
-        <div class="qc-row qc-row-2"><div><div class="qc-label">Heure fin</div><input class="qc-input" type="time" id="qcFreeEnd" value="10:00"></div><div><div class="qc-label">Couleur</div><div id="qcFreeColorWrap"></div></div></div>
-        <div class="qc-row qc-row-2"><div><div class="qc-label">Buffer avant (min)</div><input class="qc-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div><div><div class="qc-label">Buffer après (min)</div><input class="qc-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div></div>
-        <div id="qcFreeDuration" style="font-size:.75rem;color:var(--text-4);margin-top:2px;margin-bottom:10px"></div>
+      <!-- TAB: Notes -->
+      <div class="cal-panel" id="qcPanelNotes">
+        <div id="qcNoteList"></div>
+        <div class="add-note">
+          <textarea id="qcNewNote" placeholder="Ajouter une note..."></textarea>
+          <div class="add-note-actions">
+            <label style="font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="qcNotePinned"> Épinglée</label>
+            <button class="cal-btn primary" onclick="qcAddNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+          </div>
+        </div>
       </div>
-      <div class="qc-row"><div class="qc-label">Praticien</div><select class="qc-input" id="qcPrac"></select></div>
-      <div class="qc-row" id="qcModeRow"><div class="qc-label">Mode</div><select class="qc-input" id="qcMode"><option value="cabinet">Cabinet</option></select></div>
-      <div class="qc-row"><div class="qc-label">Commentaire (optionnel)</div><input class="qc-input" id="qcComment" placeholder="Note ou contexte..."></div>
-      <div class="qc-actions"><button class="cal-btn" onclick="closeCalModal('calCreateModal')">Annuler</button><button class="cal-btn primary" onclick="calCreateBooking()">Créer le RDV</button></div>
+      <!-- TAB: Tâches -->
+      <div class="cal-panel" id="qcPanelTodos">
+        <div id="qcTodoList"></div>
+        <div class="add-todo">
+          <input id="qcNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')qcAddTodo()">
+          <button class="cal-btn primary" onclick="qcAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
+        </div>
+      </div>
+      <!-- TAB: Rappels -->
+      <div class="cal-panel" id="qcPanelReminders">
+        <div id="qcReminderList"></div>
+        <div class="add-reminder">
+          <select id="qcReminderOffset">
+            <option value="15">15 min avant</option>
+            <option value="30" selected>30 min avant</option>
+            <option value="60">1 heure avant</option>
+            <option value="120">2 heures avant</option>
+            <option value="1440">La veille</option>
+          </select>
+          <select id="qcReminderChannel">
+            <option value="browser">Notif</option>
+            <option value="email">Email</option>
+            <option value="both">Les deux</option>
+          </select>
+          <button class="cal-btn primary" onclick="qcAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
