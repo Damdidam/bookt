@@ -111,7 +111,9 @@ async function openBookingDetail(bookingId){
       const r=await fetch('/api/practitioners',{headers:{'Authorization':'Bearer '+api.getToken()}});
       if(r.ok){const d=await r.json();calState.fcPractitioners=d.practitioners||[];}
     }
-    await window.fcOpenDetail(bookingId);
+    // Dynamic import — agenda module may not be loaded yet
+    const { fcOpenDetail }=await import('./agenda/booking-detail.js');
+    await fcOpenDetail(bookingId);
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
