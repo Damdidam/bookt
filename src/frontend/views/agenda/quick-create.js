@@ -42,8 +42,13 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcFreeBufBefore').value = '0';
   document.getElementById('qcFreeBufAfter').value = '0';
   document.getElementById('qcFreeColorWrap').innerHTML = cswHTML('qcFreeColor', '#0D7377', false);
+  // Hide freestyle-only fields in Horaire section
   const endWrap = document.getElementById('qcEndTimeWrap');
   if (endWrap) endWrap.style.display = 'none';
+  const bufRow = document.getElementById('qcBufferRow');
+  if (bufRow) bufRow.style.display = 'none';
+  const durEl = document.getElementById('qcFreeDuration');
+  if (durEl) durEl.style.display = 'none';
 
   // Reset header gradient to default
   qcUpdateGradient('#0D7377');
@@ -120,8 +125,13 @@ function qcToggleFreestyle() {
   document.getElementById('qcNormalMode').style.display = on ? 'none' : '';
   document.getElementById('qcFreestyleMode').style.display = on ? '' : 'none';
   document.getElementById('qcModeRow').style.display = on ? 'none' : '';
+  // Show/hide freestyle fields in Horaire section
   const endWrap = document.getElementById('qcEndTimeWrap');
   if (endWrap) endWrap.style.display = on ? '' : 'none';
+  const bufRow = document.getElementById('qcBufferRow');
+  if (bufRow) bufRow.style.display = on ? '' : 'none';
+  const durEl = document.getElementById('qcFreeDuration');
+  if (durEl) durEl.style.display = on ? '' : 'none';
   if (on) {
     const t = document.getElementById('qcTime').value;
     if (t) {
@@ -129,14 +139,10 @@ function qcToggleFreestyle() {
       const endH = Math.min(h + 1, 23);
       const endVal = String(endH).padStart(2, '0') + ':' + String(m).padStart(2, '0');
       document.getElementById('qcFreeEnd').value = endVal;
-      const fe2 = document.getElementById('qcFreeEnd2');
-      if (fe2) fe2.value = endVal;
     }
     qcUpdateFreeDuration();
-    // Default freestyle color
     qcUpdateGradient('#0D7377');
   } else {
-    // Restore color from selected service
     qcUpdateTotal();
   }
 }
@@ -154,9 +160,6 @@ function qcUpdateFreeDuration() {
   const el = document.getElementById('qcFreeDuration');
   const h = Math.floor(dur / 60), m = dur % 60;
   el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong>${(bb || ba) ? ' + buffers ' + (bb ? bb + 'min avant ' : '') + (ba ? ba + 'min après' : '') : ''}`;
-  // Sync qcFreeEnd2 with qcFreeEnd
-  const fe2 = document.getElementById('qcFreeEnd2');
-  if (fe2) fe2.value = e;
 }
 
 // ── Service management ──
@@ -494,12 +497,6 @@ async function calCreateBooking() {
 function setupQuickCreateListeners() {
   document.addEventListener('change', e => {
     if (['qcFreeEnd', 'qcFreeBufBefore', 'qcFreeBufAfter'].includes(e.target?.id)) qcUpdateFreeDuration();
-    // Sync qcFreeEnd2 → qcFreeEnd
-    if (e.target?.id === 'qcFreeEnd2') {
-      const fe = document.getElementById('qcFreeEnd');
-      if (fe) fe.value = e.target.value;
-      qcUpdateFreeDuration();
-    }
     // Update gradient on freestyle color change
     if (e.target?.id === 'qcFreeColor') {
       qcUpdateGradient(e.target.value);

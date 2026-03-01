@@ -217,15 +217,7 @@
           </div>
           <div id="qcFreestyleMode" style="display:none">
             <div style="margin-bottom:8px"><div class="m-field-label">Intitulé du RDV</div><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
-            <div class="m-row m-row-2">
-              <div><div class="m-field-label">Couleur</div><div id="qcFreeColorWrap"></div></div>
-              <div><div class="m-field-label">Heure fin</div><input class="m-input" type="time" id="qcFreeEnd" value="10:00"></div>
-            </div>
-            <div class="m-row m-row-2" style="margin-top:8px">
-              <div><div class="m-field-label">Buffer avant (min)</div><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
-              <div><div class="m-field-label">Buffer après (min)</div><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
-            </div>
-            <div id="qcFreeDuration" style="font-size:.72rem;color:var(--text-4);margin-top:4px"></div>
+            <div><div class="m-field-label">Couleur</div><div id="qcFreeColorWrap"></div></div>
           </div>
         </div>
         <!-- Horaire -->
@@ -234,8 +226,13 @@
           <div class="m-row m-row-3">
             <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="qcDate"></div>
             <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="qcTime" value="09:00"></div>
-            <div id="qcEndTimeWrap" style="display:none"><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcFreeEnd2"></div>
+            <div id="qcEndTimeWrap" style="display:none"><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcFreeEnd" value="10:00"></div>
           </div>
+          <div class="m-row m-row-2" id="qcBufferRow" style="display:none;margin-top:8px">
+            <div><div class="m-field-label">Buffer avant (min)</div><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
+            <div><div class="m-field-label">Buffer après (min)</div><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
+          </div>
+          <div id="qcFreeDuration" style="font-size:.72rem;color:var(--text-4);margin-top:4px;display:none"></div>
         </div>
         <!-- Praticien -->
         <div class="m-sec">
