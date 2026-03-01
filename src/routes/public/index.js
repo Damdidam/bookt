@@ -304,14 +304,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const {
-      service_id, practitioner_id, start_at, appointment_mode,
+      service_id, practitioner_id, start_at, end_at, appointment_mode,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing
     } = req.body;
 
-    if (!service_id || !practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
+    if (!practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
       return res.status(400).json({
-        error: 'Champs requis : service_id, practitioner_id, start_at, client_name, client_phone, client_email'
+        error: 'Champs requis : practitioner_id, start_at, client_name, client_phone, client_email'
       });
     }
 
@@ -323,17 +323,23 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const businessId = bizResult.rows[0].id;
     const { transactionWithRLS } = require('../../services/db');
 
-    const svcResult = await query(
-      `SELECT duration_min, buffer_before_min, buffer_after_min
-       FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
-      [service_id, businessId]
-    );
-    if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
-
-    const service = svcResult.rows[0];
     const startDate = new Date(start_at);
-    const totalDuration = service.buffer_before_min + service.duration_min + service.buffer_after_min;
-    const endDate = new Date(startDate.getTime() + totalDuration * 60000);
+    let endDate;
+
+    if (service_id) {
+      const svcResult = await query(
+        `SELECT duration_min, buffer_before_min, buffer_after_min
+         FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
+        [service_id, businessId]
+      );
+      if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+      const service = svcResult.rows[0];
+      const totalDuration = service.buffer_before_min + service.duration_min + service.buffer_after_min;
+      endDate = new Date(startDate.getTime() + totalDuration * 60000);
+    } else {
+      // Featured slot booking — use end_at or default 30 min
+      endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 30 * 60000);
+    }
 
     const result = await transactionWithRLS(businessId, async (client) => {
       // Conflict check

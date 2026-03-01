@@ -164,6 +164,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* Vedette mode */
+.vedette-banner{padding:14px 16px;background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1.5px solid #E5D9A8;border-radius:var(--radius-sm);margin-bottom:20px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:.85rem;color:#92400E}
+.vedette-day{margin-bottom:20px}
+.vedette-day-title{font-size:.82rem;font-weight:700;color:var(--text-2);margin-bottom:8px;text-transform:capitalize}
+.vedette-slots{display:flex;flex-wrap:wrap;gap:8px}
+.vedette-slot{padding:10px 18px;border:1.5px solid var(--border-light);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;font-size:.88rem;font-weight:600;color:var(--text);transition:all .15s;font-family:var(--sans);min-height:44px;text-align:center}
+.vedette-slot:active{transform:scale(.95)}
+.vedette-slot:hover{border-color:var(--primary);background:var(--primary-light)}
+.vedette-slot.sel{border-color:var(--primary);background:var(--primary);color:#fff}
+.vedette-slot .prac-label{font-size:.68rem;color:var(--text-4);font-weight:500;display:block;margin-top:2px}
+.vedette-slot.sel .prac-label{color:rgba(255,255,255,.8)}
+.vedette-count{font-size:.78rem;color:var(--text-4);margin-bottom:16px}
+
 @media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
@@ -177,6 +190,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   <div class="progress" id="progressBar"></div>
   <div class="err" id="errMsg"></div>
   <div class="loading" id="loadingState"><div class="spinner"></div><p style="margin-top:8px">Chargement...</p></div>
+
+  <!-- STEP VEDETTE: Featured slots -->
+  <div class="step" data-step="vedette" id="stepVedette">
+    <h2 class="step-title">Choisir un créneau</h2>
+    <p class="step-sub">Sélectionnez un horaire disponible.</p>
+    <div class="vedette-banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="vedetteBannerLabel">Créneaux disponibles cette semaine</span></div>
+    <div id="vedetteList"></div>
+    <button class="btn-next" id="btnStepVedette" disabled>Continuer →</button>
+  </div>
 
   <!-- STEP 1: SERVICE -->
   <div class="step" data-step="1" id="step1">
@@ -279,6 +301,7 @@ const MODE_ICONS={cabinet:'<svg class="gi" viewBox="0 0 24 24" fill="none" strok
 let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selectedMode=null,selectedDate=null,selectedSlot=null,slotsData={},weekOffset=0,featuredSlotsCache=null,weekHasFeatured=false;
 let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
+let vedetteMode=false,vedetteSlots=[];
 
 const pathParts=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
 slug=pathParts[0];
@@ -288,9 +311,18 @@ loadSiteData();
 
 async function loadSiteData(){
   try{
-    const res=await fetch('/api/public/'+slug);
+    const [res,fsRes]=await Promise.all([
+      fetch('/api/public/'+slug),
+      fetch('/api/public/'+slug+'/featured-slots')
+    ]);
     if(!res.ok)throw new Error('Cabinet introuvable');
     siteData=await res.json();
+    const fsData=fsRes.ok?await fsRes.json():{};
+    const allFeatured=(fsData.featured_slots||[]).map(function(f){return Object.assign({},f,{date:(f.date||'').slice(0,10)});});
+    if(allFeatured.length>0){
+      vedetteMode=true;
+      vedetteSlots=buildVedetteSlots(allFeatured);
+    }
     initPage();
   }catch(err){document.getElementById('loadingState').innerHTML='<p style="color:var(--red)">'+err.message+'</p>';}
 }
@@ -337,6 +369,17 @@ function initPage(){
 
   document.getElementById('loadingState').style.display='none';
 
+  // Vedette mode: skip service/practitioner selection
+  if(vedetteMode){
+    document.getElementById('btnStepVedette').addEventListener('click',function(){goNext();});
+    renderVedetteList();
+    stepOrder=['vedette',4,5];
+    currentStepIdx=0;
+    computeProgressDots();
+    goToStep('vedette');
+    return;
+  }
+
   // Deep-link: auto-select service from URL
   const paramService=urlParams.get('service');
   const paramPrac=urlParams.get('practitioner');
@@ -357,6 +400,82 @@ function initPage(){
   // Normal start
   computeStepOrder();
   goToStep(1);
+}
+
+// ──────── VEDETTE MODE ────────
+function buildVedetteSlots(featuredSlots){
+  var slots=[];
+  featuredSlots.forEach(function(f){
+    var parts=f.start_time.slice(0,5).split(':');var sh=parseInt(parts[0]),sm=parseInt(parts[1]);
+    var eParts=f.end_time.slice(0,5).split(':');var eh=parseInt(eParts[0]),em=parseInt(eParts[1]);
+    var t=sh*60+sm,end=eh*60+em;
+    while(t<end){
+      var hh=String(Math.floor(t/60)).padStart(2,'0');
+      var mm=String(t%60).padStart(2,'0');
+      var endT=t+30;
+      var ehh=String(Math.floor(endT/60)).padStart(2,'0');
+      var emm=String(endT%60).padStart(2,'0');
+      slots.push({
+        practitioner_id:f.practitioner_id,
+        date:f.date,
+        start_time:hh+':'+mm,
+        end_time:ehh+':'+emm,
+        start_at:f.date+'T'+hh+':'+mm+':00',
+        end_at:f.date+'T'+ehh+':'+emm+':00'
+      });
+      t+=30;
+    }
+  });
+  // Filter out past slots
+  var now=new Date();
+  slots=slots.filter(function(s){return new Date(s.start_at)>now;});
+  return slots;
+}
+
+function renderVedetteList(){
+  var multiPrac=siteData.practitioners.length>1;
+  var pracMap={};
+  if(multiPrac)siteData.practitioners.forEach(function(p){pracMap[p.id]=p;});
+  // Group by date
+  var byDate={};
+  vedetteSlots.forEach(function(s){
+    if(!byDate[s.date])byDate[s.date]=[];
+    byDate[s.date].push(s);
+  });
+  var dates=Object.keys(byDate).sort();
+  var total=vedetteSlots.length;
+  // Banner label
+  if(dates.length>0){
+    var first=new Date(dates[0]+'T12:00:00'),last=new Date(dates[dates.length-1]+'T12:00:00');
+    document.getElementById('vedetteBannerLabel').textContent=total+' créneau'+(total>1?'x':'')+' disponible'+(total>1?'s':'')+' du '+first.getDate()+' au '+last.getDate()+' '+MONTHS_FULL[last.getMonth()];
+  }
+  var html='';
+  dates.forEach(function(date){
+    var d=new Date(date+'T12:00:00');
+    html+='<div class="vedette-day"><div class="vedette-day-title">'+DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()]+'</div><div class="vedette-slots">';
+    byDate[date].forEach(function(s,i){
+      var pracLabel='';
+      if(multiPrac&&pracMap[s.practitioner_id]){
+        pracLabel='<span class="prac-label">'+pracMap[s.practitioner_id].display_name+'</span>';
+      }
+      html+='<div class="vedette-slot" data-idx="'+vedetteSlots.indexOf(s)+'">'+s.start_time+pracLabel+'</div>';
+    });
+    html+='</div></div>';
+  });
+  document.getElementById('vedetteList').innerHTML=html;
+  // Click handlers
+  document.querySelectorAll('.vedette-slot').forEach(function(el){
+    el.addEventListener('click',function(){
+      var idx=parseInt(el.dataset.idx);
+      selectedSlot=vedetteSlots[idx];
+      selectedPractitioner=siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||siteData.practitioners[0];
+      selectedService=null;
+      selectedMode='cabinet';
+      document.querySelectorAll('.vedette-slot').forEach(function(x){x.classList.remove('sel');});
+      el.classList.add('sel');
+      document.getElementById('btnStepVedette').disabled=false;
+    });
+  });
 }
 
 // ──────── SERVICE ────────
@@ -393,6 +512,7 @@ function buildPractitioners(){
 
 // ──────── STEP ORDER ────────
 function computeStepOrder(){
+  if(vedetteMode){stepOrder=['vedette',4,5];computeProgressDots();return;}
   let showPrac=false;
   if(selectedService){
     const linked=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
@@ -405,6 +525,7 @@ function computeStepOrder(){
   stepOrder=showPrac?[1,2,3,4,5]:[1,3,4,5];
   renderProgress();
 }
+function computeProgressDots(){renderProgress();}
 function renderProgress(){
   const bar=document.getElementById('progressBar');
   bar.innerHTML=stepOrder.map((_,i)=>'<div class="pdot" data-idx="'+i+'"></div>').join('');
@@ -421,7 +542,7 @@ function goToStep(n){
     const showPrac=buildPractitioners();
     if(!showPrac){computeStepOrder();n=3;}
   }
-  if(n===3){
+  if(n===3&&!vedetteMode){
     if(!selectedPractitioner){const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));selectedPractitioner=pracs[0];}
     buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
   }
@@ -651,16 +772,21 @@ function toggleBce(){
 function buildSummary(){
   const d=new Date(selectedSlot.start_at);
   const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
-  const price=selectedService.price_cents?(selectedService.price_cents/100).toFixed(0)+' €':'Gratuit';
-  document.getElementById('bookingSummary').innerHTML=
-    '<div class="sum-row"><span class="label">Prestation</span><span class="val">'+selectedService.name+'</span></div>'
-    +'<div class="sum-row"><span class="label">Praticien</span><span class="val">'+selectedPractitioner.display_name+'</span></div>'
+  var html='';
+  if(selectedService){
+    html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+selectedService.name+'</span></div>';
+  }
+  html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+selectedPractitioner.display_name+'</span></div>'
     +'<div class="sum-divider"></div>'
     +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
-    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>'
-    +'<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>'
-    +'<div class="sum-divider"></div>'
-    +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
+    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>';
+  if(selectedService){
+    html+='<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
+    const price=selectedService.price_cents?(selectedService.price_cents/100).toFixed(0)+' €':'Gratuit';
+    html+='<div class="sum-divider"></div>'
+      +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
+  }
+  document.getElementById('bookingSummary').innerHTML=html;
 }
 
 // ──────── SUBMIT ────────
@@ -685,15 +811,20 @@ async function submitBooking(){
   btn.disabled=true;btn.textContent='Réservation en cours...';
 
   try{
+    var bookingBody={
+      practitioner_id:selectedPractitioner.id,
+      start_at:selectedSlot.start_at,
+      appointment_mode:selectedMode||'cabinet',
+      client_name:name,client_phone:phone,client_email:email,
+      client_bce:bce||undefined,client_comment:comment||undefined,
+      consent_sms:consent,consent_email:consent
+    };
+    if(selectedService)bookingBody.service_id=selectedService.id;
+    if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
+
     const res=await fetch('/api/public/'+slug+'/bookings',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        service_id:selectedService.id,practitioner_id:selectedPractitioner.id,
-        start_at:selectedSlot.start_at,appointment_mode:selectedMode||'cabinet',
-        client_name:name,client_phone:phone,client_email:email,
-        client_bce:bce||undefined,client_comment:comment||undefined,
-        consent_sms:consent,consent_email:consent
-      })
+      body:JSON.stringify(bookingBody)
     });
     const data=await res.json();
     if(!res.ok)throw new Error(data.error||'Erreur lors de la réservation');
@@ -701,14 +832,15 @@ async function submitBooking(){
     // Confirmation
     const d=new Date(selectedSlot.start_at);
     const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
-    document.getElementById('confirmDetails').innerHTML=
-      '<div class="row"><span class="l">Prestation</span><span class="v">'+selectedService.name+'</span></div>'
-      +'<div class="row"><span class="l">Praticien</span><span class="v">'+selectedPractitioner.display_name+'</span></div>'
+    var confirmHtml='';
+    if(selectedService)confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+selectedService.name+'</span></div>';
+    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+selectedPractitioner.display_name+'</span></div>'
       +'<div class="row"><span class="l">Date</span><span class="v">'+dateStr+'</span></div>'
-      +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>'
-      +'<div class="row"><span class="l">Mode</span><span class="v">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>'
-      +'<div class="row"><span class="l">Email</span><span class="v">'+email+'</span></div>'
+      +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>';
+    if(selectedService)confirmHtml+='<div class="row"><span class="l">Mode</span><span class="v">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
+    confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+email+'</span></div>'
       +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
+    document.getElementById('confirmDetails').innerHTML=confirmHtml;
 
     buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
     goToStep(5);
