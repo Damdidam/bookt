@@ -224,7 +224,66 @@ async function sendModificationEmail({ booking, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendPasswordResetEmail };
+/**
+ * Send booking confirmation email after manual booking creation
+ */
+async function sendBookingConfirmation({ booking, business }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const color = business.theme?.primary_color || '#0D7377';
+  const serviceName = booking.service_name || booking.custom_label || 'Rendez-vous';
+  const practitionerName = booking.practitioner_name || '';
+
+  let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">📅 ${dateStr}</div>`;
+  detailLines += `<div style="font-size:14px;color:#15613A">🕐 ${timeStr}${endTimeStr ? ' – ' + endTimeStr : ''}</div>`;
+  detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">💆 ${serviceName}</div>`;
+  if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">👤 ${practitionerName}</div>`;
+
+  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+  const hasPublicToken = booking.public_token;
+
+  let bodyHTML = `
+    <p>Bonjour <strong>${booking.client_name}</strong>,</p>
+    <p>Votre rendez-vous est confirmé :</p>
+    <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
+      ${detailLines}
+    </div>`;
+
+  if (booking.comment) {
+    bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">📝 <em>${booking.comment}</em></p>`;
+  }
+
+  const ctaText = hasPublicToken ? 'Gérer mon rendez-vous' : null;
+  const ctaUrl = hasPublicToken ? `${baseUrl}/api/public/booking/${booking.public_token}` : null;
+
+  const html = buildEmailHTML({
+    title: 'Confirmation de votre rendez-vous',
+    preheader: `${serviceName} — ${dateStr} à ${timeStr}`,
+    bodyHTML,
+    ctaText,
+    ctaUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name}${business.address ? ' · ' + business.address : ''} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Confirmation de votre RDV — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail };
 
 /**
  * Send password reset email

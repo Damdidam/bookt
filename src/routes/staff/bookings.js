@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
-const { sendModificationEmail } = require('../../services/email');
+const { sendModificationEmail, sendBookingConfirmation, sendPreRdvEmail } = require('../../services/email');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -210,6 +210,24 @@ router.post('/manual', async (req, res, next) => {
 
       broadcast(bid, 'booking_update', { action: 'created' });
       calSyncPush(bid, bookings[0].id).catch(() => {});
+
+      // Send confirmation email (non-blocking)
+      const clientEmail = req.body.client_email;
+      if (clientEmail && client_id) {
+        (async () => {
+          try {
+            const biz = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+            const cl = await query(`SELECT full_name FROM clients WHERE id = $1`, [client_id]);
+            if (biz.rows[0] && cl.rows[0]) {
+              await sendBookingConfirmation({
+                booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: clientEmail, service_name: custom_label || 'Rendez-vous libre', practitioner_name: '' },
+                business: biz.rows[0]
+              });
+            }
+          } catch (e) { console.warn('[EMAIL] Confirmation send error:', e.message); }
+        })();
+      }
+
       return res.status(201).json({ booking: bookings[0], bookings });
     }
 
@@ -346,6 +364,26 @@ router.post('/manual', async (req, res, next) => {
 
     broadcast(bid, 'booking_update', { action: 'created' });
     bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
+
+    // Send confirmation email (non-blocking)
+    const clientEmailNormal = req.body.client_email;
+    if (clientEmailNormal && client_id) {
+      (async () => {
+        try {
+          const biz = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+          const cl = await query(`SELECT full_name FROM clients WHERE id = $1`, [client_id]);
+          const svc = await query(`SELECT name FROM services WHERE id = $1`, [bookings[0].service_id]);
+          const prac = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+          if (biz.rows[0] && cl.rows[0]) {
+            await sendBookingConfirmation({
+              booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: clientEmailNormal, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
+              business: biz.rows[0]
+            });
+          }
+        } catch (e) { console.warn('[EMAIL] Confirmation send error:', e.message); }
+      })();
+    }
+
     res.status(201).json({ booking: bookings[0], bookings, group_id: groupId });
   } catch (err) {
     next(err);
@@ -1119,6 +1157,18 @@ router.get('/:id/detail', async (req, res, next) => {
       [id]
     );
 
+    // Fetch pre-RDV documents sent for this booking
+    const docs = await queryWithRLS(bid,
+      `SELECT prs.id, prs.template_id, prs.status, prs.token, prs.sent_at, prs.viewed_at,
+              prs.completed_at, prs.created_at,
+              dt.name AS template_name, dt.type AS template_type
+       FROM pre_rdv_sends prs
+       JOIN document_templates dt ON dt.id = prs.template_id
+       WHERE prs.booking_id = $1 AND prs.business_id = $2
+       ORDER BY prs.created_at DESC`,
+      [id, bid]
+    );
+
     // If part of a group, fetch siblings
     let groupSiblings = [];
     const bk = booking.rows[0];
@@ -1140,6 +1190,7 @@ router.get('/:id/detail', async (req, res, next) => {
       notes: notes.rows,
       todos: todos.rows,
       reminders: reminders.rows,
+      documents: docs.rows,
       group_siblings: groupSiblings
     });
   } catch (err) {
@@ -1296,6 +1347,68 @@ router.delete('/:bookingId/reminders/:reminderId', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// POST /api/bookings/:id/send-document — Send a pre-RDV document manually
+// UI: Calendar detail modal → Docs tab → "Envoyer un document"
+// ============================================================
+router.post('/:id/send-document', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const bookingId = req.params.id;
+    const { template_id } = req.body;
+    if (!template_id) return res.status(400).json({ error: 'template_id requis' });
+
+    // Get booking + client email
+    const bk = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.end_at, b.client_id, b.service_id, b.practitioner_id,
+              c.full_name AS client_name, c.email AS client_email,
+              s.name AS service_name
+       FROM bookings b
+       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [bookingId, bid]
+    );
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const booking = bk.rows[0];
+    if (!booking.client_email) return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
+
+    // Get template
+    const tpl = await queryWithRLS(bid,
+      `SELECT * FROM document_templates WHERE id = $1 AND business_id = $2 AND is_active = true`,
+      [template_id, bid]
+    );
+    if (tpl.rows.length === 0) return res.status(404).json({ error: 'Template introuvable ou inactif' });
+    const template = tpl.rows[0];
+
+    // Generate unique token
+    const token = require('crypto').randomUUID();
+
+    // Create pre_rdv_sends record
+    const send = await queryWithRLS(bid,
+      `INSERT INTO pre_rdv_sends (business_id, booking_id, client_id, template_id, token, status, sent_at)
+       VALUES ($1, $2, $3, $4, $5, 'sent', NOW())
+       RETURNING *`,
+      [bid, bookingId, booking.client_id, template_id, token]
+    );
+
+    // Get business info for email
+    const biz = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [bid]);
+
+    // Send email (non-blocking)
+    sendPreRdvEmail({
+      booking: { ...booking, service_name: booking.service_name || 'Rendez-vous' },
+      template,
+      token,
+      business: biz.rows[0]
+    }).catch(e => console.warn('[EMAIL] Pre-RDV send error:', e.message));
+
+    res.status(201).json({
+      send: { ...send.rows[0], template_name: template.name, template_type: template.type }
+    });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

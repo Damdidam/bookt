@@ -62,6 +62,7 @@
       <div class="m-tab" data-tab="notes" onclick="switchCalTab(this,'notes')">Notes<span class="tab-count" id="mCountNotes" style="display:none"></span></div>
       <div class="m-tab" data-tab="todos" onclick="switchCalTab(this,'todos')">Tâches<span class="tab-count" id="mCountTodos" style="display:none"></span></div>
       <div class="m-tab" data-tab="reminders" onclick="switchCalTab(this,'reminders')">Rappels</div>
+      <div class="m-tab" data-tab="docs" onclick="switchCalTab(this,'docs')">Docs<span class="tab-count" id="mCountDocs" style="display:none"></span></div>
     </div>
     <div class="cal-modal-body">
       <div class="cal-panel active" id="calPanelRdv">
@@ -168,6 +169,10 @@
           <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
         </div>
       </div>
+      <div class="cal-panel" id="calPanelDocs">
+        <div id="mDocsList"></div>
+        <div id="mDocsSend" style="margin-top:12px"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -203,6 +208,12 @@
             <input class="m-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)">
             <div id="qcAcResults" class="ac-results" style="display:none"></div>
             <input type="hidden" id="qcClientId">
+          </div>
+          <div id="qcClientDetails" style="display:none;margin-top:8px">
+            <div class="m-row m-row-2">
+              <div><div class="m-field-label">Email</div><input class="m-input" type="email" id="qcClientEmail" placeholder="email@exemple.com"></div>
+              <div><div class="m-field-label">T\u00e9l\u00e9phone</div><input class="m-input" type="tel" id="qcClientPhone" placeholder="+32 ..."></div>
+            </div>
           </div>
         </div>
         <!-- Prestation -->

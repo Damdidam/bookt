@@ -122,16 +122,31 @@ router.get('/:id', async (req, res, next) => {
     const bookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+              b.custom_label,
               s.name AS service_name, p.display_name AS practitioner_name
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
        WHERE b.client_id = $1 AND b.business_id = $2
        ORDER BY b.start_at DESC`,
       [req.params.id, bid]
     );
 
-    res.json({ client: client.rows[0], bookings: bookings.rows });
+    // Fetch pre-RDV documents for this client
+    const docs = await queryWithRLS(bid,
+      `SELECT prs.id, prs.template_id, prs.booking_id, prs.status, prs.sent_at,
+              prs.viewed_at, prs.completed_at, prs.created_at,
+              dt.name AS template_name, dt.type AS template_type,
+              b.start_at AS booking_date
+       FROM pre_rdv_sends prs
+       JOIN document_templates dt ON dt.id = prs.template_id
+       JOIN bookings b ON b.id = prs.booking_id
+       WHERE prs.client_id = $1 AND prs.business_id = $2
+       ORDER BY prs.created_at DESC`,
+      [req.params.id, bid]
+    );
+
+    res.json({ client: client.rows[0], bookings: bookings.rows, documents: docs.rows });
   } catch (err) {
     next(err);
   }

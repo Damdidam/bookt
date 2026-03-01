@@ -16,6 +16,9 @@ let qcNotes = [];
 let qcTodos = [];
 let qcReminders = [];
 
+// Cache autocomplete results so we can access email/phone without re-fetch
+let _qcSearchResults = [];
+
 function fcOpenQuickCreate(startStr, endStr) {
   let d;
   if (startStr) { d = new Date(startStr); }
@@ -75,6 +78,15 @@ function fcOpenQuickCreate(startStr, endStr) {
   viewState.qcServiceCount = 0;
   document.getElementById('qcServiceList').innerHTML = '';
   qcAddService();
+
+  // Reset client email/phone fields
+  const qcDetails = document.getElementById('qcClientDetails');
+  if (qcDetails) qcDetails.style.display = 'none';
+  const qcEmail = document.getElementById('qcClientEmail');
+  if (qcEmail) qcEmail.value = '';
+  const qcPhone = document.getElementById('qcClientPhone');
+  if (qcPhone) qcPhone.value = '';
+  _qcSearchResults = [];
 
   // Reset in-memory notes/todos/reminders
   qcNotes = [];
@@ -246,6 +258,7 @@ function calSearchClients(q) {
       const r = await fetch(`/api/clients?search=${encodeURIComponent(q)}&limit=6`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
       const d = await r.json();
       const clients = d.clients || [];
+      _qcSearchResults = clients;
       let h = clients.map(c => {
         const nsTag = c.no_show_count > 0
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">⚠ ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
@@ -270,25 +283,52 @@ async function calPickClient(id, name) {
   const prev = document.getElementById('qcDepositWarn');
   if (prev) prev.remove();
 
-  // Fetch client no_show_count to show deposit warning
-  try {
-    const r = await fetch(`/api/clients?search=${encodeURIComponent(name)}&limit=1`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
-    const d = await r.json();
-    const cl = (d.clients || []).find(c => c.id === id);
-    if (cl && cl.no_show_count > 0) {
-      const wrap = document.getElementById('qcClient').parentElement;
-      const warn = document.createElement('div');
-      warn.id = 'qcDepositWarn';
-      warn.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:#FEF3E2;color:#B45309;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:6px';
-      warn.innerHTML = `<span>\u26a0\ufe0f</span><span>${cl.no_show_count} no-show${cl.no_show_count > 1 ? 's' : ''} \u2014 un acompte pourra \u00eatre exig\u00e9</span>`;
-      wrap.appendChild(warn);
-    }
-  } catch (e) { /* silent */ }
+  // Populate email/phone from cached search results
+  const cached = _qcSearchResults.find(c => c.id === id);
+  const emailEl = document.getElementById('qcClientEmail');
+  const phoneEl = document.getElementById('qcClientPhone');
+  if (emailEl) emailEl.value = cached?.email || '';
+  if (phoneEl) phoneEl.value = cached?.phone || '';
+  const detailsEl = document.getElementById('qcClientDetails');
+  if (detailsEl) detailsEl.style.display = '';
+
+  // Use cached data for no_show warning if available, otherwise fetch
+  const cl = cached || null;
+  if (!cl) {
+    try {
+      const r = await fetch(`/api/clients?search=${encodeURIComponent(name)}&limit=1`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      const d = await r.json();
+      const fetched = (d.clients || []).find(c => c.id === id);
+      if (fetched) {
+        if (emailEl && !emailEl.value) emailEl.value = fetched.email || '';
+        if (phoneEl && !phoneEl.value) phoneEl.value = fetched.phone || '';
+        if (fetched.no_show_count > 0) _showDepositWarn(fetched.no_show_count);
+      }
+    } catch (e) { /* silent */ }
+  } else if (cl.no_show_count > 0) {
+    _showDepositWarn(cl.no_show_count);
+  }
+}
+
+function _showDepositWarn(count) {
+  const wrap = document.getElementById('qcClient').parentElement;
+  const warn = document.createElement('div');
+  warn.id = 'qcDepositWarn';
+  warn.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:#FEF3E2;color:#B45309;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:6px';
+  warn.innerHTML = `<span>\u26a0\ufe0f</span><span>${count} no-show${count > 1 ? 's' : ''} \u2014 un acompte pourra \u00eatre exig\u00e9</span>`;
+  wrap.appendChild(warn);
 }
 
 function calNewClient() {
   document.getElementById('qcClientId').value = 'NEW';
   document.getElementById('qcAcResults').style.display = 'none';
+  // Show email/phone fields for new client
+  const detailsEl = document.getElementById('qcClientDetails');
+  if (detailsEl) detailsEl.style.display = '';
+  const emailEl = document.getElementById('qcClientEmail');
+  const phoneEl = document.getElementById('qcClientPhone');
+  if (emailEl) { emailEl.value = ''; emailEl.focus(); }
+  if (phoneEl) phoneEl.value = '';
 }
 
 // ── In-memory Notes ──
@@ -404,16 +444,37 @@ async function calCreateBooking() {
   const start_at = new Date(date + 'T' + time).toISOString();
 
   try {
+    const clientEmail = document.getElementById('qcClientEmail')?.value.trim() || '';
+    const clientPhone = document.getElementById('qcClientPhone')?.value.trim() || '';
+
     let actualClientId = clientId;
     if (!clientId || clientId === 'NEW') {
+      const clientBody = { full_name: clientName };
+      if (clientEmail) clientBody.email = clientEmail;
+      if (clientPhone) clientBody.phone = clientPhone;
       const cr = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ full_name: clientName })
+        body: JSON.stringify(clientBody)
       });
       if (!cr.ok) { const d = await cr.json(); throw new Error(d.error || 'Erreur création client'); }
       const cd = await cr.json();
       actualClientId = cd.client?.id;
+    } else {
+      // Update existing client if email/phone changed
+      const cached = _qcSearchResults.find(c => c.id === clientId);
+      const emailChanged = clientEmail && clientEmail !== (cached?.email || '');
+      const phoneChanged = clientPhone && clientPhone !== (cached?.phone || '');
+      if (emailChanged || phoneChanged) {
+        const patchBody = {};
+        if (emailChanged) patchBody.email = clientEmail;
+        if (phoneChanged) patchBody.phone = clientPhone;
+        await fetch(`/api/clients/${clientId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify(patchBody)
+        }).catch(() => {});
+      }
     }
 
     let body;
@@ -432,7 +493,8 @@ async function calCreateBooking() {
         custom_label: document.getElementById('qcFreeLabel').value.trim() || null,
         color: document.getElementById('qcFreeColor')?.value || '#0D7377',
         appointment_mode: 'cabinet',
-        comment: comment || null
+        comment: comment || null,
+        client_email: clientEmail || undefined
       };
     } else {
       const serviceItems = document.querySelectorAll('.qc-svc-item select');
@@ -444,7 +506,8 @@ async function calCreateBooking() {
         client_id: actualClientId,
         start_at,
         appointment_mode: mode,
-        comment: comment || null
+        comment: comment || null,
+        client_email: clientEmail || undefined
       };
       if (services.length === 1) {
         body.service_id = services[0].service_id;

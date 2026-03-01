@@ -115,6 +115,29 @@ async function openClientDetail(id){
     // ── Whiteboards section ──
     m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg> Whiteboards</span><span class="m-sec-line"></span><button style="font-size:.68rem;padding:3px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:700" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.8rem;color:var(--text-4)">Chargement...</div></div>`;
 
+    // ── Documents pré-RDV section ──
+    const docsList = d.documents || [];
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">📄 Documents pré-RDV${docsList.length > 0 ? ' (' + docsList.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
+    if (docsList.length > 0) {
+      const docStColors = { pending: '#9C958E', sent: '#E6A817', viewed: '#3B82F6', completed: '#1B7A42' };
+      const docStLabels = { pending: 'En attente', sent: 'Envoyé', viewed: 'Consulté', completed: 'Complété' };
+      const docTypeIco = { info: 'ℹ️', form: '📋', consent: '✍️' };
+      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
+      docsList.forEach((doc, i) => {
+        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
+        const sc = docStColors[doc.status] || '#888';
+        const bkDate = doc.booking_date ? new Date(doc.booking_date).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) : '';
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem">
+          <span style="color:var(--text)">${docTypeIco[doc.template_type] || '📄'} ${doc.template_name}${bkDate ? ' · RDV ' + bkDate : ''}</span>
+          <span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${docStLabels[doc.status] || doc.status}</span>
+        </div>`;
+      });
+      m+=`</div>`;
+    } else {
+      m+=`<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--text-4)">Aucun document envoyé</div>`;
+    }
+    m+=`</div>`;
+
     // ── Danger zone (subtle, bottom of modal-body) ──
     if(!cl.is_blocked&&cl.no_show_count===0){
       m+=`<div style="text-align:right;padding-top:4px"><button style="font-size:.68rem;padding:4px 10px;background:transparent;color:var(--text-4);border:1px solid var(--border-light);border-radius:6px;cursor:pointer;transition:all .15s" onmouseover="this.style.color='#dc2626';this.style.borderColor='#fecaca';this.style.background='#fef2f2'" onmouseout="this.style.color='var(--text-4)';this.style.borderColor='var(--border-light)';this.style.background='transparent'" onclick="blockClient('${cl.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloquer</button></div>`;
