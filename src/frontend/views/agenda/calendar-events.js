@@ -280,6 +280,77 @@ function buildEventDidMount() {
         }
       }
     }, { passive: false });
+
+    // Custom touch resize — bypasses FullCalendar's interaction plugin for reliable tablet resize
+    if (isTouch) {
+      const resizer = info.el.querySelector('.fc-event-resizer-end');
+      if (resizer) {
+        resizer.addEventListener('touchstart', function (e) {
+          const frozen = ['completed', 'cancelled', 'no_show'].includes(p.status);
+          if (frozen || p._isGroup) return;
+          e.preventDefault();
+          e.stopPropagation();
+
+          const slot = document.querySelector('.fc-timegrid-slot');
+          if (!slot || !info.event.end) return;
+          const slotH = slot.getBoundingClientRect().height;
+          const durStr = calState.fcCalOptions?.slotDuration || '00:15:00';
+          const durParts = durStr.split(':');
+          const slotMins = parseInt(durParts[0]) * 60 + parseInt(durParts[1]);
+
+          const startY = e.touches[0].clientY;
+          const origEnd = new Date(info.event.end);
+          const origH = info.el.offsetHeight;
+          let lastSlots = 0;
+
+          info.el.classList.add('fc-event-dragging');
+          info.el.style.setProperty('bottom', 'auto', 'important');
+          info.el.style.zIndex = '999';
+
+          function onMove(ev) {
+            ev.preventDefault();
+            const dy = ev.touches[0].clientY - startY;
+            const ds = Math.round(dy / slotH);
+            lastSlots = ds;
+            const newH = origH + ds * slotH;
+            if (newH >= slotH) info.el.style.height = newH + 'px';
+          }
+
+          function onEnd() {
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onEnd);
+            info.el.classList.remove('fc-event-dragging');
+            info.el.style.removeProperty('bottom');
+            info.el.style.removeProperty('height');
+            info.el.style.removeProperty('z-index');
+            if (lastSlots === 0) return;
+
+            const newEnd = new Date(origEnd.getTime() + lastSlots * slotMins * 60000);
+            if (newEnd <= info.event.start) return;
+            info.event.setEnd(newEnd);
+
+            fetch('/api/bookings/' + info.event.id + '/resize', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+              body: JSON.stringify({ end_at: newEnd.toISOString() })
+            }).then(function (r) {
+              if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
+              var dur = Math.round((newEnd - info.event.start) / 60000);
+              gToast('Durée → ' + dur + ' min', 'success');
+            }).catch(function (err) {
+              info.event.setEnd(origEnd);
+              calState.fcCal.refetchEvents();
+              var msg = (err.message || '').includes('hevauche') || (err.message || '').includes('créneau')
+                ? 'Chevauchement — durée non modifiée' : (err.message || 'Erreur');
+              gToast(msg, 'error');
+            });
+          }
+
+          document.addEventListener('touchmove', onMove, { passive: false });
+          document.addEventListener('touchend', onEnd);
+        }, { passive: false });
+      }
+    }
   };
 }
 
