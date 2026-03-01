@@ -42,21 +42,20 @@ document.querySelectorAll('.ni[data-section]').forEach(item => {
     item.style.display = 'none';
   }
 });
-// Hide empty sidebar groups
-document.querySelectorAll('.sb-label').forEach(label => {
-  let next = label.nextElementSibling;
-  let hasVisible = false;
-  while (next && !next.classList.contains('sb-label')) {
-    if (next.classList.contains('ni') && next.style.display !== 'none') hasVisible = true;
-    next = next.nextElementSibling;
-  }
-  if (!hasVisible) label.style.display = 'none';
+// Hide empty sidebar sections + restore collapsed state
+document.querySelectorAll('.sb-section').forEach(sec => {
+  const items = sec.querySelectorAll('.ni');
+  const hasVisible = [...items].some(i => i.style.display !== 'none');
+  if (!hasVisible) { sec.style.display = 'none'; return; }
+  const group = sec.dataset.group;
+  const hasActive = sec.querySelector('.ni.active');
+  if (!hasActive && localStorage.getItem('sb_' + group) === '1') sec.classList.add('collapsed');
 });
 
 // ── Category-aware sidebar labels ──
 if (biz) {
   const sbBiz = document.getElementById('sbBizName');
-  if (sbBiz) sbBiz.textContent = biz.name || 'Cabinet';
+  if (sbBiz) { const sp = sbBiz.querySelector('span'); if (sp) sp.textContent = biz.name || 'Cabinet'; }
   const sbClients = document.getElementById('sbClientsLabel');
   if (sbClients) sbClients.textContent = categoryLabels.clients;
   const sbServices = document.getElementById('sbServicesLabel');
@@ -94,13 +93,21 @@ if (params.get('subscription') === 'cancel') {
   history.replaceState(null, '', '/dashboard');
 }
 
+// ── Sidebar collapse/expand ──
+function toggleSbSection(labelEl) {
+  const sec = labelEl.closest('.sb-section');
+  if (!sec) return;
+  sec.classList.toggle('collapsed');
+  localStorage.setItem('sb_' + sec.dataset.group, sec.classList.contains('collapsed') ? '1' : '0');
+}
+
 // ── Logout function ──
 function doLogout() {
   api.logout();
 }
 
 // ── Bridge global functions ──
-bridge({ doLogout });
+bridge({ doLogout, toggleSbSection });
 
 // ── Init touch blockers ──
 initTouchBlockers();

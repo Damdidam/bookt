@@ -102,8 +102,41 @@ router.get('/summary', async (req, res, next) => {
       [bid]
     );
 
+    // Next upcoming booking
+    const nextBooking = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.status,
+              s.name AS service_name, s.duration_min,
+              p.display_name AS practitioner_name,
+              c.full_name AS client_name
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.business_id = $1
+       AND b.start_at > NOW()
+       AND b.status IN ('pending', 'confirmed')
+       ${pracFilter ? 'AND b.practitioner_id = $2' : ''}
+       ORDER BY b.start_at LIMIT 1`,
+      pracFilter ? [bid, pracFilter] : [bid]
+    );
+
+    // Pending todos
+    const pendingTodos = await queryWithRLS(bid,
+      `SELECT t.id, t.content, t.booking_id, t.created_at,
+              b.start_at AS booking_start, s.name AS service_name, c.full_name AS client_name
+       FROM practitioner_todos t
+       LEFT JOIN bookings b ON b.id = t.booking_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE t.business_id = $1 AND t.is_done = false
+       ${pracFilter ? 'AND t.user_id = $2' : ''}
+       ORDER BY t.created_at DESC LIMIT 20`,
+      pracFilter ? [bid, pracFilter] : [bid]
+    );
+
     const stats = monthStats.rows[0];
     const calls = callStats.rows[0];
+    const nb = nextBooking.rows[0] || null;
 
     res.json({
       today: {
@@ -147,7 +180,9 @@ router.get('/summary', async (req, res, next) => {
       },
       call_filter: filterStatus.rows.length > 0
         ? { active: filterStatus.rows[0].filter_mode !== 'off', mode: filterStatus.rows[0].filter_mode, number: filterStatus.rows[0].twilio_number }
-        : { active: false }
+        : { active: false },
+      next_booking: nb ? { id: nb.id, start_at: nb.start_at, status: nb.status, client_name: nb.client_name, service_name: nb.service_name, duration_min: nb.duration_min, practitioner_name: nb.practitioner_name } : null,
+      pending_todos: pendingTodos.rows.map(t => ({ id: t.id, content: t.content, booking_id: t.booking_id, created_at: t.created_at, booking_start: t.booking_start, service_name: t.service_name, client_name: t.client_name }))
     });
   } catch (err) {
     next(err);
