@@ -49,9 +49,24 @@ function fcRefresh() {
  * @param {string} initSlotDur - initial slot duration (e.g. '00:15:00')
  */
 function initCalendar(initView, initSlotDur) {
+  // If today is a hidden day (e.g. Sunday), jump to the next visible day
+  let initialDate;
+  const today = new Date();
+  const fcToday = today.getDay(); // 0=Sun, 1=Mon, …, 6=Sat
+  if (calState.fcHiddenDays.includes(fcToday)) {
+    for (let i = 1; i <= 7; i++) {
+      if (!calState.fcHiddenDays.includes((fcToday + i) % 7)) {
+        initialDate = new Date(today);
+        initialDate.setDate(today.getDate() + i);
+        break;
+      }
+    }
+  }
+
   calState.fcCalOptions = {
     locale: 'fr',
     initialView: initView,
+    ...(initialDate && { initialDate }),
     headerToolbar: false,
     slotMinTime: calState.fcSlotMin, slotMaxTime: calState.fcSlotMax,
     hiddenDays: calState.fcHiddenDays,

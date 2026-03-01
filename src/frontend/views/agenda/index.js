@@ -181,7 +181,18 @@ async function loadAgenda() {
   // Touch devices: setup swipe navigation
   if (fcIsTouch) {
     if (fcIsMobile()) {
-      calState.fcMobileDate = new Date();
+      // If today is a hidden day, start on next visible day
+      const _today = new Date();
+      const _fcDay = _today.getDay();
+      if (calState.fcHiddenDays.includes(_fcDay)) {
+        for (let i = 1; i <= 7; i++) {
+          if (!calState.fcHiddenDays.includes((_fcDay + i) % 7)) {
+            _today.setDate(_today.getDate() + i);
+            break;
+          }
+        }
+      }
+      calState.fcMobileDate = _today;
       fcLoadMobileList();
 
       // Sync list date when calendar navigates
