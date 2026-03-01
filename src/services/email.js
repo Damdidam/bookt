@@ -294,7 +294,32 @@ const CATEGORY_LABELS = {
 };
 function getCategoryLabels(category) { return CATEGORY_LABELS[category] || CATEGORY_LABELS.autre; }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail, getCategoryLabels, CATEGORY_LABELS };
+// ── Session notes email ──
+async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, date, practitionerName, businessName, primaryColor }) {
+  const svcLower = (serviceName || 'rendez-vous').toLowerCase();
+  const bodyHTML = `
+    <p style="margin:0 0 12px">Bonjour${toName ? ' ' + toName.split(' ')[0] : ''},</p>
+    <p style="margin:0 0 16px">Voici les notes de votre ${svcLower} du <strong>${date}</strong> avec ${practitionerName} :</p>
+    <div style="background:#f8f8f6;border-left:3px solid ${primaryColor || '#0D7377'};padding:14px 18px;margin:0 0 16px;border-radius:4px;font-size:14px;line-height:1.6">
+      ${sessionHTML}
+    </div>
+    <p style="margin:0">Cordialement,<br><strong>${businessName}</strong></p>
+  `;
+  const html = buildEmailHTML({
+    title: 'Notes de ' + svcLower,
+    bodyHTML,
+    businessName,
+    primaryColor: primaryColor || '#0D7377'
+  });
+  return sendEmail({
+    to,
+    toName,
+    subject: `Notes — ${serviceName || 'Rendez-vous'} du ${date}`,
+    html
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail, sendSessionNotesEmail, getCategoryLabels, CATEGORY_LABELS };
 
 /**
  * Send password reset email

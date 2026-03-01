@@ -5,6 +5,7 @@ import { api, calState, userRole, user } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRenderNotes } from './booking-notes.js';
+import { fcRenderSession } from './booking-session.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
 import { cswHTML } from './color-swatches.js';
@@ -236,7 +237,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calIntNote').value = b.internal_note || '';
 
     // -- Render sub-tabs --
-    fcRenderNotes(); fcRenderTodos(); fcRenderReminders(); fcRenderDocs(b);
+    fcRenderNotes(); fcRenderSession(b); fcRenderTodos(); fcRenderReminders(); fcRenderDocs(b);
 
     // -- Bottom bar: show/hide buttons based on status --
     const isFrozen = ['cancelled', 'no_show'].includes(b.status);
@@ -272,7 +273,7 @@ function switchCalTab(el, tab) {
   document.querySelectorAll('.m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.cal-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs' };
+  const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', session: 'calPanelSession', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs' };
   document.getElementById(panelMap[tab])?.classList.add('active');
 }
 

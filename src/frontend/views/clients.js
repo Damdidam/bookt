@@ -116,6 +116,29 @@ async function openClientDetail(id){
     // ── Whiteboards section ──
     m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg> Whiteboards</span><span class="m-sec-line"></span><button style="font-size:.68rem;padding:3px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:700" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.8rem;color:var(--text-4)">Chargement...</div></div>`;
 
+    // ── Session notes section ──
+    const sessionBookings = (d.bookings || []).filter(b => b.session_notes && b.session_notes.trim() && b.session_notes.trim() !== '<br>');
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes de séance${sessionBookings.length > 0 ? ' (' + sessionBookings.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
+    if (sessionBookings.length > 0) {
+      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
+      sessionBookings.forEach((sb, i) => {
+        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
+        const dt = new Date(sb.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+        const sent = sb.session_notes_sent_at;
+        const badge = sent
+          ? '<span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:#1B7A42;background:#1B7A4212">Envoyé</span>'
+          : '<span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:#9C958E;background:#9C958E12">Brouillon</span>';
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem;cursor:pointer" onclick="fcOpenDetail('${sb.id}')">
+          <span style="color:var(--text)">${sb.service_name || 'RDV'} du ${dt} · ${sb.practitioner_name || ''}</span>
+          ${badge}
+        </div>`;
+      });
+      m+=`</div>`;
+    } else {
+      m+=`<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--text-4)">Aucune note de séance</div>`;
+    }
+    m+=`</div>`;
+
     // ── Documents pré-RDV section ──
     const docsList = d.documents || [];
     m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">📄 Documents pré-RDV${docsList.length > 0 ? ' (' + docsList.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;

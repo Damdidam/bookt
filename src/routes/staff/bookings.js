@@ -1068,6 +1068,103 @@ router.patch('/:id/note', async (req, res, next) => {
 });
 
 // ============================================================
+// PATCH /api/bookings/:id/session-notes — Save session notes (rich text)
+// UI: Calendar → event detail → Séance tab → Enregistrer
+// ============================================================
+router.patch('/:id/session-notes', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { session_notes } = req.body;
+
+    const result = await queryWithRLS(bid,
+      `UPDATE bookings SET session_notes = $1, updated_at = NOW()
+       WHERE id = $2 AND business_id = $3 RETURNING id`,
+      [session_notes || null, id, bid]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    res.json({ updated: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
+// POST /api/bookings/:id/send-session-notes — Save + send session notes by email
+// UI: Calendar → event detail → Séance tab → Envoyer
+// ============================================================
+router.post('/:id/send-session-notes', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { session_notes } = req.body;
+
+    if (!session_notes || session_notes.trim() === '' || session_notes.trim() === '<br>') {
+      return res.status(400).json({ error: 'Notes de séance vides' });
+    }
+
+    // Save notes first
+    await queryWithRLS(bid,
+      `UPDATE bookings SET session_notes = $1, updated_at = NOW()
+       WHERE id = $2 AND business_id = $3`,
+      [session_notes, id, bid]
+    );
+
+    // Fetch booking + client + business info for email
+    const detail = await queryWithRLS(bid,
+      `SELECT b.start_at, b.session_notes,
+              c.full_name AS client_name, c.email AS client_email,
+              s.name AS service_name,
+              p.display_name AS practitioner_name,
+              biz.name AS business_name, biz.sector,
+              (biz.theme->>'primary_color') AS primary_color
+       FROM bookings b
+       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [id, bid]
+    );
+
+    if (detail.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const d = detail.rows[0];
+
+    if (!d.client_email) {
+      return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
+    }
+
+    // Send email
+    const { sendSessionNotesEmail } = require('../../services/email');
+    const dateStr = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    await sendSessionNotesEmail({
+      to: d.client_email,
+      toName: d.client_name,
+      sessionHTML: session_notes,
+      serviceName: d.service_name || 'Rendez-vous',
+      date: dateStr,
+      practitionerName: d.practitioner_name,
+      businessName: d.business_name,
+      primaryColor: d.primary_color || '#0D7377'
+    });
+
+    // Update sent timestamp
+    const upd = await queryWithRLS(bid,
+      `UPDATE bookings SET session_notes_sent_at = NOW()
+       WHERE id = $1 AND business_id = $2
+       RETURNING session_notes_sent_at`,
+      [id, bid]
+    );
+
+    res.json({ sent: true, sent_at: upd.rows[0]?.session_notes_sent_at });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
 // DELETE /api/bookings/:id — Permanently delete a cancelled/no-show booking
 // UI: Calendar → event detail → "Supprimer définitivement" (only for cancelled/no_show)
 // ============================================================

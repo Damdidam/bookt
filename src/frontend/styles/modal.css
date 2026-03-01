@@ -195,6 +195,22 @@ textarea.m-input{resize:vertical;min-height:38px}
 /* Make panels flex so add-section pushes to bottom */
 .cal-panel.active{display:flex;flex-direction:column;min-height:100%}
 
+/* ── Session notes editor ── */
+.session-editor{border:1.5px solid var(--border);border-radius:var(--radius-xs);overflow:hidden}
+.se-toolbar{display:flex;align-items:center;gap:2px;padding:4px 8px;background:var(--surface);border-bottom:1px solid var(--border-light)}
+.se-btn{width:28px;height:28px;border:none;background:transparent;border-radius:4px;cursor:pointer;font-size:.85rem;color:var(--text-2);display:flex;align-items:center;justify-content:center;transition:all .12s}
+.se-btn:hover{background:var(--border-light);color:var(--text)}
+.se-btn.active{background:var(--primary-light);color:var(--primary)}
+.se-sep{width:1px;height:18px;background:var(--border-light);margin:0 4px}
+.se-color{width:24px;height:24px;border:1.5px solid var(--border);border-radius:4px;cursor:pointer;padding:0;background:none}
+.se-color::-webkit-color-swatch-wrapper{padding:2px}
+.se-color::-webkit-color-swatch{border:none;border-radius:2px}
+.se-body{min-height:180px;padding:12px;font-family:var(--sans);font-size:.88rem;line-height:1.6;outline:none;color:var(--text);overflow-y:auto;max-height:400px}
+.se-body:empty:before{content:attr(data-placeholder);color:var(--text-4);pointer-events:none}
+.session-actions{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:0}
+.session-status{font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px}
+.session-status svg{width:12px;height:12px}
+
 /* ── Quick create — reuse .m-* classes, only QC-specific overrides here ── */
 .qc-svc-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-light)}
 .qc-svc-item:last-child{border-bottom:none}

@@ -60,6 +60,7 @@
     <div class="m-tabs">
       <div class="m-tab active" data-tab="rdv" onclick="switchCalTab(this,'rdv')">RDV</div>
       <div class="m-tab" data-tab="notes" onclick="switchCalTab(this,'notes')">Notes<span class="tab-count" id="mCountNotes" style="display:none"></span></div>
+      <div class="m-tab" data-tab="session" onclick="switchCalTab(this,'session')">Séance</div>
       <div class="m-tab" data-tab="todos" onclick="switchCalTab(this,'todos')">Tâches<span class="tab-count" id="mCountTodos" style="display:none"></span></div>
       <div class="m-tab" data-tab="reminders" onclick="switchCalTab(this,'reminders')">Rappels</div>
       <div class="m-tab" data-tab="docs" onclick="switchCalTab(this,'docs')">Docs<span class="tab-count" id="mCountDocs" style="display:none"></span></div>
@@ -141,6 +142,28 @@
           <div class="add-note-actions">
             <label style="font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="calNotePinned"> Épinglée</label>
             <button class="cal-btn primary" onclick="calAddNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+          </div>
+        </div>
+      </div>
+      <div class="cal-panel" id="calPanelSession">
+        <div class="session-editor">
+          <div class="se-toolbar">
+            <button type="button" class="se-btn" data-cmd="bold" title="Gras"><b>B</b></button>
+            <button type="button" class="se-btn" data-cmd="italic" title="Italique"><i>I</i></button>
+            <button type="button" class="se-btn" data-cmd="underline" title="Souligné"><u>U</u></button>
+            <span class="se-sep"></span>
+            <input type="color" class="se-color" id="seColor" value="#0D7377" title="Couleur du texte">
+          </div>
+          <div class="se-body" id="seBody" contenteditable="true" data-placeholder="Notes de séance..."></div>
+        </div>
+        <div class="session-actions">
+          <span class="session-status" id="seStatus"></span>
+          <div style="display:flex;gap:6px">
+            <button class="cal-btn" onclick="calSaveSession()" style="padding:6px 14px;font-size:.78rem">Enregistrer</button>
+            <button class="cal-btn cal-green" id="seSendBtn" onclick="calSendSession()" style="padding:6px 14px;font-size:.78rem;display:flex;align-items:center;gap:4px">
+              <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Envoyer
+            </button>
           </div>
         </div>
       </div>
