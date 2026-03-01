@@ -6,8 +6,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { calState } from '../../state.js';
-import { fcIsMobile } from '../../utils/touch.js';
-import { fcIsTouch, fcIsTablet } from '../../utils/touch.js';
+import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import {
   buildEventsCallback, buildEventContent, buildEventClassNames,
   buildEventDidMount, buildDateClick, buildEventDrop, buildEventResize,
@@ -75,7 +74,7 @@ function initCalendar(initView, initSlotDur) {
     allDaySlot: false, nowIndicator: true, navLinks: true,
     height: 'auto', stickyHeaderDates: true, firstDay: 1,
     dayMaxEvents: 3,
-    editable: true, eventDurationEditable: !fcIsTouch || fcIsTablet(), eventStartEditable: true, eventResizableFromStart: true, snapDuration: initSlotDur,
+    editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
     slotEventOverlap: false,
     longPressDelay: 500,

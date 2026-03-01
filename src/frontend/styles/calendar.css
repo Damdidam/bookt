@@ -60,14 +60,11 @@
 .fc-tooltip .tt-badge.cancelled{background:#DC2626;color:#fff}
 .fc-tooltip .tt-badge.no_show{background:#7C3AED;color:#fff}
 .fc-tooltip .tt-badge.modified_pending{background:#EA580C;color:#fff}
-/* Event resize handles — top + bottom, large grab area with visible pill */
-.fc .fc-timegrid-event .fc-event-resizer{display:flex;align-items:center;justify-content:center;left:0;right:0;cursor:ns-resize}
-.fc .fc-timegrid-event .fc-event-resizer-end{height:12px;bottom:-1px;background:linear-gradient(to bottom,transparent,rgba(0,0,0,.15))}
-.fc .fc-timegrid-event .fc-event-resizer-start{height:12px;top:-1px;background:linear-gradient(to top,transparent,rgba(0,0,0,.15))}
-.fc .fc-timegrid-event .fc-event-resizer::after{content:'';display:block;width:32px;height:4px;border-radius:2px;background:rgba(255,255,255,.45);transition:all .15s}
-.fc .fc-timegrid-event:hover .fc-event-resizer{background:rgba(0,0,0,.18)}
-.fc .fc-timegrid-event:hover .fc-event-resizer::after{background:rgba(255,255,255,.85);width:40px}
-@media(pointer:coarse){.fc .fc-timegrid-event .fc-event-resizer{height:18px}.fc .fc-timegrid-event .fc-event-resizer::after{width:40px;height:5px;background:rgba(255,255,255,.6)}}
+/* Event resize handle — bottom pill only */
+.fc .fc-timegrid-event .fc-event-resizer-end{display:flex;align-items:center;justify-content:center;height:10px;bottom:-1px;left:0;right:0;cursor:s-resize}
+.fc .fc-timegrid-event .fc-event-resizer-end::after{content:'';width:24px;height:3px;border-radius:2px;background:rgba(255,255,255,.3);transition:all .15s}
+.fc .fc-timegrid-event:hover .fc-event-resizer-end::after{background:rgba(255,255,255,.7);width:32px}
+@media(pointer:coarse){.fc .fc-timegrid-event .fc-event-resizer-end{height:16px}.fc .fc-timegrid-event .fc-event-resizer-end::after{width:32px;height:4px;background:rgba(255,255,255,.4)}}
 .fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9;transform:scale(1.03)}
 .fc .fc-timegrid-event .fc-event-main{padding:4px 8px}
 .fc .fc-daygrid-event{margin:1px 3px}

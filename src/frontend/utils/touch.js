@@ -3,7 +3,6 @@
  */
 
 export const fcIsMobile = () => window.innerWidth <= 768;
-export const fcIsTablet = () => window.innerWidth > 768 && window.innerWidth <= 1180 && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 export const fcIsTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 /** Block Chrome tablet context menu on interactive areas */
