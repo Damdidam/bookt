@@ -252,6 +252,51 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/public/:slug/featured-slots
+// Returns practitioner-curated slots for the public booking page
+// ============================================================
+router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const { practitioner_id, date_from, date_to } = req.query;
+
+    const bizResult = await query(
+      `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`,
+      [slug]
+    );
+    if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+
+    const businessId = bizResult.rows[0].id;
+
+    let sql = `
+      SELECT fs.practitioner_id, fs.date, fs.start_time, fs.end_time
+      FROM featured_slots fs
+      WHERE fs.business_id = $1 AND fs.date >= CURRENT_DATE`;
+    const params = [businessId];
+
+    if (practitioner_id) {
+      params.push(practitioner_id);
+      sql += ` AND fs.practitioner_id = $${params.length}`;
+    }
+    if (date_from) {
+      params.push(date_from);
+      sql += ` AND fs.date >= $${params.length}::date`;
+    }
+    if (date_to) {
+      params.push(date_to);
+      sql += ` AND fs.date <= $${params.length}::date`;
+    }
+
+    sql += ' ORDER BY fs.date, fs.start_time';
+
+    const result = await query(sql, params);
+    res.json({ featured_slots: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
 // POST /api/public/:slug/bookings
 // (unchanged from v1 — same booking creation logic)
 // ============================================================
