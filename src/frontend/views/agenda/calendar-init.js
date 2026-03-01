@@ -75,7 +75,7 @@ function initCalendar(initView, initSlotDur) {
     allDaySlot: false, nowIndicator: true, navLinks: true,
     height: 'auto', stickyHeaderDates: true, firstDay: 1,
     dayMaxEvents: 3,
-    editable: true, eventDurationEditable: !fcIsTouch || fcIsTablet(), eventStartEditable: true, snapDuration: initSlotDur,
+    editable: true, eventDurationEditable: !fcIsTouch || fcIsTablet(), eventStartEditable: true, eventResizableFromStart: true, snapDuration: initSlotDur,
     selectable: false,
     slotEventOverlap: false,
     longPressDelay: 500,

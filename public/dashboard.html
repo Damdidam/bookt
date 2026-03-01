@@ -152,12 +152,6 @@
           </div>
           <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
         </div>
-        <div class="m-bottom" id="mBottom">
-          <button class="m-btn m-btn-primary" id="mBtnSave" onclick="calSaveAll()">Enregistrer</button>
-          <button class="m-btn m-btn-ghost" id="mBtnNotify" onclick="document.getElementById('calNotifyPanel').style.display='block';document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'})">Notifier</button>
-          <button class="m-btn m-btn-danger" id="mBtnCancel" onclick="fcSetStatus('cancelled')">Annuler le RDV</button>
-          <button class="m-btn m-btn-danger" id="mBtnPurge" onclick="fcPurgeBooking()" style="display:none"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer définitivement</button>
-        </div>
       </div>
       <div class="cal-panel" id="calPanelNotes">
         <div id="calNoteList"></div>
@@ -220,6 +214,12 @@
         <div id="mDocsList"></div>
         <div id="mDocsSend" style="margin-top:12px"></div>
       </div>
+    </div>
+    <div class="m-bottom" id="mBottom">
+      <button class="m-btn m-btn-primary" id="mBtnSave" onclick="calSaveAll()">Enregistrer</button>
+      <button class="m-btn m-btn-ghost" id="mBtnNotify" onclick="document.getElementById('calNotifyPanel').style.display='block';document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'})">Notifier</button>
+      <button class="m-btn m-btn-danger" id="mBtnCancel" onclick="fcSetStatus('cancelled')">Annuler le RDV</button>
+      <button class="m-btn m-btn-danger" id="mBtnPurge" onclick="fcPurgeBooking()" style="display:none"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer définitivement</button>
     </div>
   </div>
 </div>
@@ -316,11 +316,6 @@
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Note interne</span><span class="m-sec-line"></span></div>
           <textarea class="m-input m-input-note" id="qcIntNote" rows="2" placeholder="Note visible uniquement par l'équipe..." style="resize:vertical"></textarea>
         </div>
-        <!-- Bottom -->
-        <div class="m-bottom">
-          <button class="m-btn m-btn-primary" id="qcBtnCreate" onclick="calCreateBooking()">Créer le RDV</button>
-          <button class="m-btn m-btn-ghost" onclick="closeCalModal('calCreateModal')">Annuler</button>
-        </div>
       </div>
       <!-- TAB: Notes -->
       <div class="cal-panel" id="qcPanelNotes">
@@ -360,6 +355,10 @@
           <button class="cal-btn primary" onclick="qcAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
         </div>
       </div>
+    </div>
+    <div class="m-bottom">
+      <button class="m-btn m-btn-primary" id="qcBtnCreate" onclick="calCreateBooking()">Créer le RDV</button>
+      <button class="m-btn m-btn-ghost" onclick="closeCalModal('calCreateModal')">Annuler</button>
     </div>
   </div>
 </div>
