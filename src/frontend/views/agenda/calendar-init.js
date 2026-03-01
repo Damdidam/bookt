@@ -77,7 +77,7 @@ function initCalendar(initView, initSlotDur) {
     editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
     slotEventOverlap: false,
-    longPressDelay: 500,
+    longPressDelay: 300,
 
     // Callbacks from calendar-events.js
     eventOverlap: buildEventOverlap(),

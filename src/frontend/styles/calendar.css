@@ -64,7 +64,7 @@
 .fc .fc-timegrid-event .fc-event-resizer-end{display:flex;align-items:center;justify-content:center;height:10px;bottom:-1px;left:0;right:0;cursor:s-resize}
 .fc .fc-timegrid-event .fc-event-resizer-end::after{content:'';width:24px;height:3px;border-radius:2px;background:rgba(255,255,255,.3);transition:all .15s}
 .fc .fc-timegrid-event:hover .fc-event-resizer-end::after{background:rgba(255,255,255,.7);width:32px}
-@media(pointer:coarse){.fc .fc-timegrid-event .fc-event-resizer-end{height:16px}.fc .fc-timegrid-event .fc-event-resizer-end::after{width:32px;height:4px;background:rgba(255,255,255,.4)}}
+@media(pointer:coarse){.fc .fc-timegrid-event .fc-event-resizer-end{height:28px;touch-action:none}.fc .fc-timegrid-event .fc-event-resizer-end::after{width:32px;height:4px;background:rgba(255,255,255,.45)}}
 .fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9;transform:scale(1.03)}
 .fc .fc-timegrid-event .fc-event-main{padding:4px 8px}
 .fc .fc-daygrid-event{margin:1px 3px}

@@ -257,6 +257,9 @@ function buildEventDidMount() {
     // Touch: single tap -> tooltip (brief), double tap -> detail
     let lastTap = 0;
     info.el.addEventListener('touchend', function (e) {
+      // Skip if touch was on resize handle or during drag/resize
+      if (e.target.closest('.fc-event-resizer')) return;
+      if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
       const now = Date.now();
       if (now - lastTap < 600) {
         e.preventDefault();
