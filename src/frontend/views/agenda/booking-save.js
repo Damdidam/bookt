@@ -37,6 +37,22 @@ async function calSaveAll() {
 
   const hasFieldChanges = Object.keys(editPayload).length > 0;
 
+  // Save client contact changes (phone/email)
+  const newPhone = document.getElementById('uClientPhone')?.value.trim() || '';
+  const newEmail = document.getElementById('uClientEmail')?.value.trim() || '';
+  const clientContactChanged = newPhone !== (calState.fcEditOriginal.client_phone || '') || newEmail !== (calState.fcEditOriginal.client_email || '');
+
+  if (clientContactChanged && calState.fcCurrentBooking?.client_id) {
+    try {
+      const r = await fetch(`/api/clients/${calState.fcCurrentBooking.client_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ phone: newPhone || null, email: newEmail || null })
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur coordonnées'); }
+    } catch (e) { gToast('Erreur: ' + e.message, 'error'); return; }
+  }
+
   // Save non-time fields first
   if (hasFieldChanges) {
     try {
@@ -60,7 +76,7 @@ async function calSaveAll() {
   }
 
   // No time change -> just close
-  if (hasFieldChanges) gToast('RDV mis \u00e0 jour', 'success');
+  if (hasFieldChanges || clientContactChanged) gToast('RDV mis \u00e0 jour', 'success');
   else gToast('Aucun changement');
   closeCalModal('calDetailModal');
   fcRefresh();

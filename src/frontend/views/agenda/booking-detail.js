@@ -208,7 +208,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
-    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', internal_note: b.internal_note || '', custom_label: b.custom_label || '', color: b.booking_color || '' };
+    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', internal_note: b.internal_note || '', custom_label: b.custom_label || '', color: b.booking_color || '', client_phone: b.client_phone || '', client_email: b.client_email || '' };
     const dm = Math.round((e - s) / 60000);
     document.querySelectorAll('.m-chip').forEach(c => c.classList.toggle('active', parseInt(c.textContent) === dm || ({ '1h': 60, '1h30': 90, '2h': 120 }[c.textContent.trim()] === dm)));
     document.getElementById('calEditDiff').style.display = 'none';
@@ -229,6 +229,10 @@ async function fcOpenDetail(bookingId) {
       const sel = calState.fcPractitioners.find(p => p.id === this.value);
       document.getElementById('mPracDot').style.background = sel?.color || 'var(--primary)';
     };
+
+    // -- Client contact fields --
+    document.getElementById('uClientPhone').value = b.client_phone || '';
+    document.getElementById('uClientEmail').value = b.client_email || '';
 
     // -- Comment --
     document.getElementById('uComment').value = b.comment_client || '';
