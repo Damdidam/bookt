@@ -246,8 +246,15 @@ function calSearchClients(q) {
       const r = await fetch(`/api/clients?search=${encodeURIComponent(q)}&limit=6`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
       const d = await r.json();
       const clients = d.clients || [];
-      let h = clients.map(c => `<div class="ac-item" onclick="calPickClient('${c.id}','${esc(c.full_name)}')">`
-        + `<div class="ac-name">${esc(c.full_name)}</div><div class="ac-meta">${c.phone || ''} ${c.email || ''}</div></div>`).join('');
+      let h = clients.map(c => {
+        const nsTag = c.no_show_count > 0
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">⚠ ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
+          : '';
+        const blTag = c.is_blocked
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
+          : '';
+        return `<div class="ac-item" onclick="calPickClient('${c.id}','${esc(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${c.phone || ''} ${c.email || ''}</div></div>`;
+      }).join('');
       h += `<div class="ac-item ac-new" onclick="calNewClient()">+ Nouveau client : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';
     } catch (e) { res.style.display = 'none'; }

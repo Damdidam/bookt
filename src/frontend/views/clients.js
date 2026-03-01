@@ -7,6 +7,7 @@ import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhite
 
 let clientSearch='';
 let clientFilter='';
+let clientSearchTimer=null;
 
 async function loadClients(){
   const c=document.getElementById('contentArea');
@@ -21,7 +22,7 @@ async function loadClients(){
     const clients=d.clients||[];
     const stats=d.stats||{};
     let h=`<div class="kpis"><div class="kpi" onclick="clientFilter='';loadClients()" style="cursor:pointer"><div class="kpi-val">${stats.total||0}</div><div class="kpi-label">Total clients</div></div><div class="kpi" onclick="clientFilter='blocked';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--red)">${stats.blocked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</div></div><div class="kpi" onclick="clientFilter='flagged';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:#B45309">${stats.flagged||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</div></div><div class="kpi"><div class="kpi-val" style="color:var(--primary)">${stats.clean||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> OK</div></div></div>`;
-    h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="text" placeholder="Rechercher un client..." value="${clientSearch}" id="clientSearchInput" onkeydown="if(event.key==='Enter'){clientSearch=this.value;clientFilter='';loadClients()}" style="flex:1;min-width:200px"><button class="btn-primary" onclick="clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button>${clientSearch||clientFilter?`<button class="btn-outline" onclick="clientSearch='';clientFilter='';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reset</button>`:''}</div>`;
+    h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="position:relative;flex:1;min-width:200px"><input type="text" placeholder="Rechercher par nom, email ou téléphone..." value="${clientSearch}" id="clientSearchInput" oninput="clientLiveSearch(this.value)" onkeydown="if(event.key==='Enter'){document.getElementById('clientAcDrop').style.display='none';clientSearch=this.value;clientFilter='';loadClients()}" onfocus="if(this.value.length>=3)clientLiveSearch(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('clientAcDrop');if(d)d.style.display='none'},200)" style="width:100%" autocomplete="off"><div id="clientAcDrop" class="ac-results" style="display:none"></div></div><button class="btn-primary" onclick="document.getElementById('clientAcDrop').style.display='none';clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button>${clientSearch||clientFilter?`<button class="btn-outline" onclick="clientSearch='';clientFilter='';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reset</button>`:''}</div>`;
     h+=`<div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn-sm ${!clientFilter?'active':''}" onclick="clientFilter='';loadClients()">Tous</button><button class="btn-sm ${clientFilter==='blocked'?'active':''}" onclick="clientFilter='blocked';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</button><button class="btn-sm ${clientFilter==='flagged'?'active':''}" onclick="clientFilter='flagged';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</button></div>`;
     h+=`<div class="card"><div class="card-h"><h3>${clientFilter==='blocked'?'Clients bloqués':clientFilter==='flagged'?'Clients avec no-shows':'Tous les clients'}</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
     if(clients.length===0){h+=`<div class="empty">Aucun client${clientSearch?' trouvé':clientFilter?' dans cette catégorie':' encore'}</div>`;}
@@ -39,6 +40,38 @@ async function loadClients(){
     h+=`</div>`;
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+}
+
+// ── Live autocomplete for client search (3+ chars) ──
+function clientLiveSearch(q) {
+  clearTimeout(clientSearchTimer);
+  const dd = document.getElementById('clientAcDrop');
+  if (!dd) return;
+  if (q.length < 3) { dd.style.display = 'none'; return; }
+  clientSearchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`/api/clients?search=${encodeURIComponent(q)}&limit=8`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      const d = await r.json();
+      const cls = d.clients || [];
+      if (cls.length === 0) {
+        dd.innerHTML = `<div style="padding:12px;text-align:center;font-size:.8rem;color:var(--text-4)">Aucun résultat pour "${q}"</div>`;
+        dd.style.display = 'block'; return;
+      }
+      dd.innerHTML = cls.map(c => {
+        const ns = c.no_show_count > 0
+          ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FDE68A;color:#B45309;margin-left:6px">⚠ ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
+          : '';
+        const bl = c.is_blocked
+          ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FECACA;color:#dc2626;margin-left:6px">Bloqué</span>`
+          : '';
+        const meta = [c.phone, c.email].filter(Boolean).join(' · ');
+        const tagColors = { 'récidiviste': '#B45309', 'à surveiller': '#ca8a04', 'fidèle': '#15803d', 'actif': '#0D7377', 'nouveau': '#888', 'bloqué': '#dc2626' };
+        const tc = tagColors[c.tag] || '#888';
+        return `<div class="ac-item" onmousedown="event.preventDefault();openClientDetail('${c.id}');document.getElementById('clientAcDrop').style.display='none'"><div class="ac-name">${c.full_name}${ns}${bl}</div><div class="ac-meta">${meta}${meta ? ' · ' : ''}${c.total_bookings} RDV <span style="color:${tc};font-weight:600">${c.tag}</span></div></div>`;
+      }).join('');
+      dd.style.display = 'block';
+    } catch (e) { dd.style.display = 'none'; }
+  }, 250);
 }
 
 async function openClientDetail(id){
@@ -139,9 +172,9 @@ async function resetNoShow(id){
 }
 
 // Expose to global scope for onclick handlers in dynamic HTML
-bridge({ loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
+bridge({ loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, clientLiveSearch, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
 // Also expose the mutable variables directly on window for inline onclick handlers
 Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ clientSearch=v; }, configurable: true });
 Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ clientFilter=v; }, configurable: true });
 
-export { loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow };
+export { loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, clientLiveSearch };
