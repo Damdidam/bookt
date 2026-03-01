@@ -6,8 +6,10 @@
 .sb-logo .plan{font-size:.55rem;font-weight:700;background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;margin-left:auto;color:rgba(255,255,255,.4);letter-spacing:.5px}
 .sb-nav{padding:12px 10px;flex:1;overflow-y:auto}
 .sb-nav::-webkit-scrollbar{width:0}
-.sb-label{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,.2);padding:14px 12px 6px;user-select:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
-.sb-chev{width:12px;height:12px;opacity:.25;transition:transform .2s;flex-shrink:0}
+.sb-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,.35);padding:14px 12px 6px;user-select:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;border-radius:6px;transition:color .15s}
+.sb-label:hover{color:rgba(255,255,255,.55)}
+.sb-chev{width:12px;height:12px;opacity:.4;transition:transform .2s,opacity .15s;flex-shrink:0}
+.sb-label:hover .sb-chev{opacity:.6}
 .sb-section.collapsed .sb-chev{transform:rotate(-90deg)}
 .sb-section.collapsed .sb-items{display:none}
 .ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.45);cursor:pointer;transition:var(--transition);text-decoration:none;margin-bottom:1px;position:relative}

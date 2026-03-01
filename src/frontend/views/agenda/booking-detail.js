@@ -147,16 +147,6 @@ async function fcOpenDetail(bookingId) {
       svcCard.style.display = 'none';
       bufSec.style.display = '';
       document.getElementById('uFreeLabel').value = b.custom_label || '';
-      const freeColor = b.color || b.practitioner_color || '#0D7377';
-      document.getElementById('uFreeColorWrap').innerHTML = cswHTML('uFreeColor', freeColor, false);
-      // Live update header + save button on color change
-      document.getElementById('uFreeColor').addEventListener('change', function () {
-        const c = this.value;
-        document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
-        document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
-        const sb = document.getElementById('mBtnSave');
-        sb.style.background = c; sb.style.boxShadow = `0 2px 8px ${c}40`;
-      });
       document.getElementById('uBufBefore').value = 0;
       document.getElementById('uBufAfter').value = 0;
     } else {

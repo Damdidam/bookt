@@ -100,7 +100,7 @@ function buildEventsCallback() {
         // Single events
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
-          const accent = b.service_color || b.booking_color || b.practitioner_color || '#0D7377';
+          const accent = b.booking_color || b.service_color || b.practitioner_color || '#0D7377';
           events.push({
             id: b.id, title: b.client_name || 'Sans nom',
             start: b.start_at, end: b.end_at,
@@ -114,7 +114,7 @@ function buildEventsCallback() {
         Object.keys(grouped).forEach(gid => {
           const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
           const first = members[0], last = members[members.length - 1];
-          const accent = first.service_color || first.booking_color || first.practitioner_color || '#0D7377';
+          const accent = first.booking_color || first.service_color || first.practitioner_color || '#0D7377';
           const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
           const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
           const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
@@ -126,7 +126,7 @@ function buildEventsCallback() {
             editable: !anyFrozen, durationEditable: false,
             extendedProps: {
               _isGroup: true, _groupId: gid, _accent: accent,
-              _members: members.map(m => ({ ...m, _accent: m.service_color || m.booking_color || m.practitioner_color || accent })),
+              _members: members.map(m => ({ ...m, _accent: m.booking_color || m.service_color || m.practitioner_color || accent })),
               client_name: first.client_name,
               practitioner_id: first.practitioner_id,
               status: first.status
