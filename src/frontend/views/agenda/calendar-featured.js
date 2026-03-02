@@ -185,6 +185,11 @@ async function fsOnDatesSet() {
 function fsHandleDateClick(dateStr) {
   if (!fsActive) return false;
   const dt = new Date(dateStr);
+  // Block past slots
+  if (dt < new Date()) {
+    gToast('Impossible de sélectionner un créneau passé', 'info');
+    return true;
+  }
   const date = localDate(dt);
   // Snap to 15-min grid
   const rawMins = dt.getHours() * 60 + dt.getMinutes();
