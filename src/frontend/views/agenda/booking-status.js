@@ -6,8 +6,10 @@ import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
+import { storeUndoAction } from './booking-undo.js';
 
 async function fcSetStatus(newStatus) {
+  const oldStatus = calState.fcCurrentBooking?.status;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
       method: 'PATCH',
@@ -15,7 +17,13 @@ async function fcSetStatus(newStatus) {
       body: JSON.stringify({ status: newStatus })
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
-    gToast('Statut mis \u00e0 jour', 'success');
+    // Store undo (only for reversible status changes)
+    if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
+      storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
+      gToast('Statut mis \u00e0 jour', 'success', { label: 'Annuler \u21b6', fn: 'fcUndoLast()' }, 8000);
+    } else {
+      gToast('Statut mis \u00e0 jour', 'success');
+    }
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }

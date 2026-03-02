@@ -12,13 +12,13 @@ export function esc(str) {
 export const escH = esc;
 
 /** Show a toast notification */
-export function gToast(msg, type, action) {
+export function gToast(msg, type, action, duration) {
   const t = document.getElementById('gToast');
   t.innerHTML = msg + (action ? `<button onclick="${action.fn}">${action.label}</button>` : '');
   t.style.display = 'flex';
   t.className = 'g-toast' + (type ? ' ' + type : '');
   clearTimeout(t._tm);
-  t._tm = setTimeout(() => { t.style.display = 'none'; }, action ? 6000 : 3500);
+  t._tm = setTimeout(() => { t.style.display = 'none'; }, duration || (action ? 6000 : 3500));
 }
 
 /** Get the main content area element */

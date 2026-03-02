@@ -284,8 +284,113 @@ function switchCalTab(el, tab) {
   document.querySelectorAll('.m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.cal-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', session: 'calPanelSession', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs' };
+  const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', session: 'calPanelSession', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');
+  // Lazy-load history when tab is first opened
+  if (tab === 'historique') loadBookingHistory();
+}
+
+// ── History tab rendering ──
+const ACTION_LABELS = {
+  create: 'Cr\u00e9\u00e9', move: 'D\u00e9plac\u00e9', modify: 'Horaire modifi\u00e9',
+  resize: 'Dur\u00e9e modifi\u00e9e', edit: 'Modifi\u00e9', status_change: 'Statut chang\u00e9',
+  group_move: 'Groupe d\u00e9plac\u00e9', deposit_refund: 'Acompte rembours\u00e9'
+};
+const ACTION_ICONS = {
+  create: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  move: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
+  modify: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  resize: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg>',
+  edit: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
+  status_change: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  group_move: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+  deposit_refund: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'
+};
+const STATUS_MAP = {
+  pending: 'En attente', confirmed: 'Confirm\u00e9', completed: 'Termin\u00e9',
+  cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9', pending_deposit: 'Acompte requis'
+};
+
+function fmtHistoryTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) + ' ' +
+    d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtTimeOnly(iso) {
+  if (!iso) return '?';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function historyDetail(entry) {
+  const { action, old_data, new_data } = entry;
+  const od = old_data || {}, nd = new_data || {};
+  switch (action) {
+    case 'move':
+    case 'modify':
+    case 'group_move':
+      return `${fmtTimeOnly(od.start_at || od.original_start)} \u2192 ${fmtTimeOnly(nd.start_at || nd.new_start)}`;
+    case 'resize': {
+      if (od.end_at && nd.end_at) {
+        const oldDur = od.end_at && calState.fcCurrentBooking?.start_at
+          ? Math.round((new Date(od.end_at) - new Date(calState.fcCurrentBooking.start_at)) / 60000) : '?';
+        const newDur = nd.end_at && calState.fcCurrentBooking?.start_at
+          ? Math.round((new Date(nd.end_at) - new Date(calState.fcCurrentBooking.start_at)) / 60000) : '?';
+        return `${oldDur} min \u2192 ${newDur} min`;
+      }
+      return '';
+    }
+    case 'status_change':
+      return `${STATUS_MAP[od.status] || od.status || '?'} \u2192 ${STATUS_MAP[nd.status] || nd.status || '?'}`;
+    case 'edit': {
+      const fields = [];
+      if (nd.practitioner_id && nd.practitioner_id !== od.practitioner_id) fields.push('praticien');
+      if (nd.comment !== undefined) fields.push('commentaire');
+      if (nd.internal_note !== undefined) fields.push('note interne');
+      if (nd.custom_label !== undefined) fields.push('intitul\u00e9');
+      if (nd.color !== undefined) fields.push('couleur');
+      return fields.length > 0 ? fields.join(', ') : '';
+    }
+    case 'deposit_refund':
+      return nd.amount_cents ? (nd.amount_cents / 100).toFixed(2) + '\u20ac' : '';
+    default:
+      return '';
+  }
+}
+
+async function loadBookingHistory() {
+  const el = document.getElementById('mHistoryTimeline');
+  if (!el) return;
+  el.innerHTML = '<div class="cal-empty" style="padding:20px;opacity:.6">Chargement...</div>';
+  try {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/history`, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (!r.ok) throw new Error('Erreur');
+    const { history } = await r.json();
+    if (!history || history.length === 0) {
+      el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Aucun historique</div>';
+      return;
+    }
+    el.innerHTML = history.map(entry => {
+      const icon = ACTION_ICONS[entry.action] || ACTION_ICONS.edit;
+      const label = ACTION_LABELS[entry.action] || entry.action;
+      const detail = historyDetail(entry);
+      const actor = entry.actor_name || 'Syst\u00e8me';
+      const time = fmtHistoryTime(entry.created_at);
+      return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:0 0 28px;height:28px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:.7rem">${icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem;font-weight:600;color:var(--text)">${esc(label)}</div>
+          ${detail ? `<div style="font-size:.75rem;color:var(--text-3);margin-top:2px">${esc(detail)}</div>` : ''}
+          <div style="font-size:.7rem;color:var(--text-4);margin-top:3px">${esc(actor)} \u00b7 ${time}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<div class="cal-empty" style="color:var(--red)">Erreur de chargement</div>';
+  }
 }
 
 // ── Docs tab rendering ──

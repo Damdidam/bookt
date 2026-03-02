@@ -76,6 +76,7 @@
       <div class="m-tab" data-tab="todos" onclick="switchCalTab(this,'todos')">Tâches<span class="tab-count" id="mCountTodos" style="display:none"></span></div>
       <div class="m-tab" data-tab="reminders" onclick="switchCalTab(this,'reminders')">Rappels</div>
       <div class="m-tab" data-tab="docs" onclick="switchCalTab(this,'docs')">Docs<span class="tab-count" id="mCountDocs" style="display:none"></span></div>
+      <div class="m-tab" data-tab="historique" onclick="switchCalTab(this,'historique')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
     </div>
     <div class="cal-modal-body">
       <div class="cal-panel active" id="calPanelRdv">
@@ -214,6 +215,9 @@
       <div class="cal-panel" id="calPanelDocs">
         <div id="mDocsList"></div>
         <div id="mDocsSend" style="margin-top:12px"></div>
+      </div>
+      <div class="cal-panel" id="calPanelHistorique">
+        <div id="mHistoryTimeline"><div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Chargement...</div></div>
       </div>
     </div>
     <div class="m-bottom" id="mBottom">

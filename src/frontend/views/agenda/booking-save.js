@@ -7,6 +7,7 @@ import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { fcTimeDiffMin } from './booking-edit.js';
+import { storeUndoAction } from './booking-undo.js';
 
 async function calSaveAll() {
   const nd = document.getElementById('calEditDate').value;
@@ -136,6 +137,9 @@ async function calDoSaveTime(notify, channel) {
   // Build proper ISO strings (browser local -> UTC) so backend delta calc is correct
   const start_at = new Date(nd + 'T' + ns).toISOString();
   const end_at = new Date(nd + 'T' + ne).toISOString();
+  // Capture old time for undo
+  const oldStartAt = new Date(calState.fcEditOriginal.date + 'T' + calState.fcEditOriginal.start).toISOString();
+  const oldEndAt = new Date(calState.fcEditOriginal.date + 'T' + calState.fcEditOriginal.end).toISOString();
   try {
     const isGrouped = !!calState.fcCurrentBooking?.group_id;
 
@@ -163,7 +167,13 @@ async function calDoSaveTime(notify, channel) {
     const label = isGrouped
       ? `Groupe d\u00e9plac\u00e9 (${result.count || calState.fcCurrentBooking.group_order + 1} prestations)`
       : (notify ? { email: 'Email envoy\u00e9', sms: 'SMS envoy\u00e9', both: 'Email + SMS envoy\u00e9s' }[channel] : 'Horaire mis \u00e0 jour');
-    gToast(label, 'success');
+    // Store undo for non-grouped time changes
+    if (!isGrouped) {
+      storeUndoAction(calState.fcCurrentEventId, 'modify', { start_at: oldStartAt, end_at: oldEndAt });
+      gToast(label, 'success', { label: 'Annuler \u21b6', fn: 'fcUndoLast()' }, 8000);
+    } else {
+      gToast(label, 'success');
+    }
     calCloseNotify();
     closeCalModal('calDetailModal');
     fcRefresh();

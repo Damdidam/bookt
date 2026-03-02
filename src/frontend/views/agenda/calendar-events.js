@@ -10,6 +10,7 @@ import { fcOpenDetail } from './booking-detail.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { atView } from './calendar-toolbar.js';
 import { fsIsActive, fsHandleDateClick, fsBuildBackgroundEvents } from './calendar-featured.js';
+import { storeUndoAction } from './booking-undo.js';
 
 // ── Tooltip locale maps ──
 const STATUS_FR = { confirmed: 'Confirm\u00e9', pending: 'En attente', completed: 'Termin\u00e9', cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9', pending_deposit: 'Acompte requis' };
@@ -351,7 +352,8 @@ function buildEventDidMount() {
             }).then(function (r) {
               if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
               var dur = Math.round((newEnd - info.event.start) / 60000);
-              gToast('Durée → ' + dur + ' min', 'success');
+              storeUndoAction(info.event.id, 'resize', { end_at: origEnd.toISOString() });
+              gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: 'fcUndoLast()' }, 8000);
             }).catch(function (err) {
               info.event.setEnd(origEnd);
               calState.fcCal.refetchEvents();
@@ -398,10 +400,14 @@ function buildEventDrop() {
   return async function (info) {
     if (fsIsActive()) { info.revert(); return; }
     const ev = info.event, p = ev.extendedProps;
+    // Capture old state BEFORE the API call (info.oldEvent has pre-drag values)
+    const oldStart = info.oldEvent.start;
+    const oldEnd = info.oldEvent.end;
+    const oldPracId = p._isGroup ? p._members[0].practitioner_id : p.practitioner_id;
     try {
       // For group containers, move the first member -- backend moves siblings
       const bookingId = p._isGroup ? p._members[0].id : ev.id;
-      const pracId = p._isGroup ? p._members[0].practitioner_id : p.practitioner_id;
+      const pracId = oldPracId;
       const r = await fetch(`/api/bookings/${bookingId}/move`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
@@ -409,7 +415,16 @@ function buildEventDrop() {
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
       const result = await r.json();
-      gToast(result.group_moved ? `${p.client_name || 'Client'} \u2014 ${result.count} prestations d\u00e9plac\u00e9es` : (p.client_name || 'RDV') + ' d\u00e9plac\u00e9', 'success');
+      // Store undo state (only for non-group moves — group undo is complex)
+      if (!result.group_moved) {
+        storeUndoAction(bookingId, 'move', {
+          start_at: oldStart.toISOString(),
+          end_at: oldEnd.toISOString(),
+          practitioner_id: oldPracId
+        });
+      }
+      const msg = result.group_moved ? `${p.client_name || 'Client'} \u2014 ${result.count} prestations d\u00e9plac\u00e9es` : (p.client_name || 'RDV') + ' d\u00e9plac\u00e9';
+      gToast(msg, 'success', !result.group_moved ? { label: 'Annuler \u21b6', fn: 'fcUndoLast()' } : undefined, 8000);
       calState.fcCal.refetchEvents();
     } catch (e) {
       // Save target date BEFORE revert (revert resets event.start to original)
@@ -434,6 +449,7 @@ function buildEventResize() {
   return async function (info) {
     if (fsIsActive()) { info.revert(); return; }
     const ev = info.event;
+    const oldEnd = info.oldEvent.end;
     try {
       const r = await fetch(`/api/bookings/${ev.id}/resize`, {
         method: 'PATCH',
@@ -442,7 +458,8 @@ function buildEventResize() {
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
       const dur = Math.round((ev.end - ev.start) / 60000);
-      gToast('Dur\u00e9e \u2192 ' + dur + ' min', 'success');
+      storeUndoAction(ev.id, 'resize', { end_at: oldEnd.toISOString() });
+      gToast('Dur\u00e9e \u2192 ' + dur + ' min', 'success', { label: 'Annuler \u21b6', fn: 'fcUndoLast()' }, 8000);
     } catch (e) {
       info.revert();
       gToast(e.message.includes('hevauche') || e.message.includes('cr\u00e9neau')

@@ -850,6 +850,13 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     if (sets.length === 0) return res.json({ updated: false });
 
+    // Capture old values for audit
+    const oldSnap = await queryWithRLS(bid,
+      `SELECT practitioner_id, comment_client, internal_note, custom_label, color
+       FROM bookings WHERE id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+
     sets.push('updated_at = NOW()');
     params.push(id, bid);
 
@@ -860,11 +867,18 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
-    // Audit
+    // Audit with old/new data
+    const oldData = oldSnap.rows.length > 0 ? oldSnap.rows[0] : {};
+    const newData = {};
+    if (practitioner_id !== undefined) newData.practitioner_id = practitioner_id;
+    if (comment !== undefined) newData.comment = comment;
+    if (internal_note !== undefined) newData.internal_note = internal_note;
+    if (custom_label !== undefined) newData.custom_label = custom_label;
+    if (color !== undefined) newData.color = color;
     await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action)
-       VALUES ($1, $2, 'booking', $3, 'edit')`,
-      [bid, req.user.id, id]
+      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+       VALUES ($1, $2, 'booking', $3, 'edit', $4, $5)`,
+      [bid, req.user.id, id, JSON.stringify(oldData), JSON.stringify(newData)]
     );
 
     broadcast(bid, 'booking_update', { action: 'edited' });
@@ -887,9 +901,9 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
 
-    // Get current booking to know start_at, practitioner, group
+    // Get current booking to know start_at, end_at, practitioner, group
     const current = await queryWithRLS(bid,
-      `SELECT b.start_at, b.practitioner_id, b.group_id
+      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id
        FROM bookings b
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
@@ -932,6 +946,15 @@ router.patch('/:id/resize', async (req, res, next) => {
       if (err.type === 'conflict') return res.status(409).json({ error: err.message });
       throw err;
     }
+
+    // Audit log for resize
+    await queryWithRLS(bid,
+      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+       VALUES ($1, $2, 'booking', $3, 'resize', $4, $5)`,
+      [bid, req.user.id, id,
+       JSON.stringify({ end_at: current.rows[0].end_at }),
+       JSON.stringify({ end_at })]
+    );
 
     broadcast(bid, 'booking_update', { action: 'resized' });
     calSyncPush(bid, id).catch(() => {});
@@ -1274,6 +1297,30 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/bookings/:id/history — Audit log timeline for a booking
+// UI: Calendar → detail modal → Historique tab
+// ============================================================
+router.get('/:id/history', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    const result = await queryWithRLS(bid,
+      `SELECT al.action, al.old_data, al.new_data, al.created_at,
+              u.display_name AS actor_name
+       FROM audit_logs al
+       LEFT JOIN users u ON u.id = al.actor_user_id
+       WHERE al.entity_type = 'booking' AND al.entity_id = $1 AND al.business_id = $2
+       ORDER BY al.created_at DESC`,
+      [id, bid]
+    );
+
+    res.json({ history: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/bookings/:id/detail — Full detail with notes, todos, reminders
 // UI: Calendar → double-click event → detail modal
 // ============================================================
