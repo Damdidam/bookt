@@ -170,7 +170,10 @@ function fsHandleDateClick(dateStr) {
   if (!fsActive) return false;
   const dt = new Date(dateStr);
   const date = localDate(dt);
-  const time = minToTime(dt.getHours() * 60 + dt.getMinutes());
+  // Snap to 30-min grid for predictable selection
+  const rawMins = dt.getHours() * 60 + dt.getMinutes();
+  const snapped = Math.floor(rawMins / 30) * 30;
+  const time = minToTime(snapped);
   const key = date + '_' + time;
 
   if (fsPendingSlots[key]) {

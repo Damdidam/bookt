@@ -127,8 +127,14 @@
 /* Calendar gold border in vedette mode */
 #fcCalendar.fs-mode-active{box-shadow:0 0 0 2px #D97706,0 0 16px rgba(217,119,6,.12);border-radius:12px}
 #fcCalendar.fs-mode-active .fc-scrollgrid{border-color:#E5D9A8}
+/* In vedette mode: fade bookings, let taps pass through to grid */
+#fcCalendar.fs-mode-active .fc-timegrid-event-harness:not(:has(.fs-bg-event)){pointer-events:none!important}
+#fcCalendar.fs-mode-active .fc-event:not(.fs-bg-event){opacity:.15!important;filter:grayscale(1)!important;transition:opacity .2s}
+#fcCalendar.fs-mode-active .fc-timegrid-slot{cursor:pointer}
+#fcCalendar.fs-mode-active .fc-timegrid-slot-lane:active{background:rgba(251,191,36,.1)}
 /* Background events = gold cells */
-.fc .fc-bg-event.fs-bg-event{background:rgba(251,191,36,.2)!important;border:1.5px dashed rgba(217,119,6,.4)!important;border-radius:0;opacity:1!important}
+.fc .fc-bg-event.fs-bg-event{background:rgba(251,191,36,.25)!important;border:2px dashed rgba(217,119,6,.5)!important;border-radius:0;opacity:1!important}
+.fc .fc-bg-event.fs-bg-event::after{content:'★';position:absolute;top:2px;right:4px;font-size:10px;color:#D97706;opacity:.6}
 /* Floating action bar */
 .fs-action-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:2px solid #E5D9A8;padding:12px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;animation:fsBarIn .2s ease}
 @keyframes fsBarIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
