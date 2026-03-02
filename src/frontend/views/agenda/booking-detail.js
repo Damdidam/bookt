@@ -323,6 +323,21 @@ function fmtTimeOnly(iso) {
   return d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function fmtDateTime(iso) {
+  if (!iso) return '?';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' +
+    d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtMoveRange(oldIso, newIso) {
+  if (!oldIso || !newIso) return `${fmtTimeOnly(oldIso)} \u2192 ${fmtTimeOnly(newIso)}`;
+  const od = new Date(oldIso), nd = new Date(newIso);
+  const sameDay = od.toDateString() === nd.toDateString();
+  if (sameDay) return `${fmtTimeOnly(oldIso)} \u2192 ${fmtTimeOnly(newIso)}`;
+  return `${fmtDateTime(oldIso)} \u2192 ${fmtDateTime(newIso)}`;
+}
+
 function historyDetail(entry) {
   const { action, old_data, new_data } = entry;
   const od = old_data || {}, nd = new_data || {};
@@ -330,7 +345,7 @@ function historyDetail(entry) {
     case 'move':
     case 'modify':
     case 'group_move':
-      return `${fmtTimeOnly(od.start_at || od.original_start)} \u2192 ${fmtTimeOnly(nd.start_at || nd.new_start)}`;
+      return fmtMoveRange(od.start_at || od.original_start, nd.start_at || nd.new_start);
     case 'resize': {
       if (od.end_at && nd.end_at) {
         const oldDur = od.end_at && calState.fcCurrentBooking?.start_at
