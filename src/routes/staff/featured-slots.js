@@ -53,6 +53,15 @@ router.put('/', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et week_start requis' });
     }
 
+    // Verify practitioner has featured_enabled
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT featured_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, bid]
+    );
+    if (pracCheck.rows.length === 0 || !pracCheck.rows[0].featured_enabled) {
+      return res.status(400).json({ error: 'Le mode vedette n\'est pas activé pour ce praticien' });
+    }
+
     // Delete existing for this practitioner + week
     await queryWithRLS(bid,
       `DELETE FROM featured_slots
@@ -138,6 +147,15 @@ router.put('/lock', async (req, res, next) => {
 
     if (!practitioner_id || !week_start) {
       return res.status(400).json({ error: 'practitioner_id et week_start requis' });
+    }
+
+    // Verify practitioner has featured_enabled
+    const pracLockCheck = await queryWithRLS(bid,
+      `SELECT featured_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, bid]
+    );
+    if (pracLockCheck.rows.length === 0 || !pracLockCheck.rows[0].featured_enabled) {
+      return res.status(400).json({ error: 'Le mode vedette n\'est pas activé pour ce praticien' });
     }
 
     await queryWithRLS(bid,

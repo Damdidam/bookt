@@ -55,9 +55,9 @@ async function loadFeaturedSlots() {
   try {
     const dr = await fetch('/api/dashboard', { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     const dd = await dr.json();
-    practitioners = dd.practitioners || [];
+    practitioners = (dd.practitioners || []).filter(p => p.featured_enabled);
     if (practitioners.length === 0) {
-      c.innerHTML = '<div class="empty">Aucun praticien configuré</div>';
+      c.innerHTML = '<div class="empty">Aucun praticien avec le mode vedette activé.<br><span style="font-size:.8rem;color:var(--text-4)">Activez-le dans Équipe > Modifier.</span></div>';
       return;
     }
     if (!selectedPractId) selectedPractId = practitioners[0].id;

@@ -51,6 +51,18 @@ function fcFilterPractitioner(id, el) {
   calState.fcCal.setOption('slotDuration', dur);
   calState.fcCal.setOption('snapDuration', dur);
 
+  // Show/hide star button based on practitioner's featured_enabled
+  const fsBtn = document.getElementById('fsToggleBtn');
+  if (fsBtn) {
+    if (id === 'all') {
+      const anyFeatured = calState.fcPractitioners.some(p => p.featured_enabled);
+      fsBtn.style.display = anyFeatured ? '' : 'none';
+    } else {
+      const fprac = calState.fcPractitioners.find(p => p.id === id);
+      fsBtn.style.display = fprac?.featured_enabled ? '' : 'none';
+    }
+  }
+
   fcRefresh();
 }
 
@@ -175,6 +187,13 @@ async function loadAgenda() {
 
   // Init FullCalendar
   initCalendar(initView, initSlotDur);
+
+  // Initial visibility of star button based on featured_enabled
+  const fsBtnInit = document.getElementById('fsToggleBtn');
+  if (fsBtnInit) {
+    const anyFeatured = calState.fcPractitioners.some(p => p.featured_enabled);
+    fsBtnInit.style.display = anyFeatured ? '' : 'none';
+  }
 
   // SSE: real-time calendar updates
   setupSSE();

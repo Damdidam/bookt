@@ -268,11 +268,13 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 
     const businessId = bizResult.rows[0].id;
 
-    // Featured slots (start_time only, no end_time)
+    // Featured slots (start_time only, no end_time) — only for practitioners with featured_enabled
     let sql = `
       SELECT fs.practitioner_id, fs.date, fs.start_time
       FROM featured_slots fs
-      WHERE fs.business_id = $1 AND fs.date >= CURRENT_DATE`;
+      JOIN practitioners p ON p.id = fs.practitioner_id AND p.business_id = fs.business_id
+      WHERE fs.business_id = $1 AND fs.date >= CURRENT_DATE
+        AND p.featured_enabled = true AND p.is_active = true`;
     const params = [businessId];
 
     if (practitioner_id) {
@@ -290,11 +292,13 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 
     sql += ' ORDER BY fs.date, fs.start_time';
 
-    // Locked weeks
+    // Locked weeks — only for practitioners with featured_enabled
     const lwSql = `
       SELECT lw.practitioner_id, lw.week_start
       FROM locked_weeks lw
-      WHERE lw.business_id = $1 AND lw.week_start >= (CURRENT_DATE - interval '7 days')`;
+      JOIN practitioners p ON p.id = lw.practitioner_id AND p.business_id = lw.business_id
+      WHERE lw.business_id = $1 AND lw.week_start >= (CURRENT_DATE - interval '7 days')
+        AND p.featured_enabled = true AND p.is_active = true`;
 
     const [slotsResult, locksResult] = await Promise.all([
       query(sql, params),
