@@ -606,6 +606,11 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
 
+    // Prevent practitioners from reassigning bookings to other practitioners
+    if (practitioner_id && req.user.role === 'practitioner') {
+      return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
+    }
+
     // Fetch dragged booking + service info + group info
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
@@ -791,6 +796,15 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     // If practitioner_id changes, check for conflicts
     if (practitioner_id !== undefined) {
+      // Block reassigning a single member of a group booking
+      const groupCheck = await queryWithRLS(bid,
+        `SELECT group_id FROM bookings WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      if (groupCheck.rows.length > 0 && groupCheck.rows[0].group_id) {
+        return res.status(400).json({ error: 'Impossible de réaffecter un seul élément d\'un groupe. Déplacez le groupe entier.' });
+      }
+
       // Verify new practitioner exists and is active
       const pracCheck = await queryWithRLS(bid,
         `SELECT id, is_active FROM practitioners WHERE id = $1 AND business_id = $2`,
@@ -964,20 +978,23 @@ router.patch('/:id/modify', async (req, res, next) => {
     const newStatus = notify ? 'modified_pending' : oldBooking.status;
 
     // Atomic modify: conflict check + update in one transaction
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
     let modifyResult;
     try {
       modifyResult = await transactionWithRLS(bid, async (client) => {
-        const conflict = await client.query(
-          `SELECT id FROM bookings
-           WHERE business_id = $1 AND practitioner_id = $2
-           AND id != $3
-           AND status IN ('pending', 'confirmed', 'modified_pending')
-           AND start_at < $5 AND end_at > $4
-           FOR UPDATE`,
-          [bid, oldBooking.practitioner_id, id, start_at, end_at]
-        );
-        if (conflict.rows.length > 0) {
-          throw Object.assign(new Error('Créneau déjà pris — un autre RDV chevauche cet horaire'), { type: 'conflict' });
+        if (!globalAllowOverlap) {
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND id != $3
+             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND start_at < $5 AND end_at > $4
+             FOR UPDATE`,
+            [bid, oldBooking.practitioner_id, id, start_at, end_at]
+          );
+          if (conflict.rows.length > 0) {
+            throw Object.assign(new Error('Créneau déjà pris — un autre RDV chevauche cet horaire'), { type: 'conflict' });
+          }
         }
 
         const r = await client.query(
@@ -1215,12 +1232,20 @@ router.delete('/:id', async (req, res, next) => {
 
     // Only allow deletion of cancelled or no_show bookings
     const check = await queryWithRLS(bid,
-      `SELECT status, group_id FROM bookings WHERE id = $1 AND business_id = $2`,
+      `SELECT status, group_id, client_id FROM bookings WHERE id = $1 AND business_id = $2`,
       [id, bid]
     );
     if (check.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
     if (!['cancelled', 'no_show'].includes(check.rows[0].status)) {
       return res.status(400).json({ error: 'Seuls les RDV annulés ou no-show peuvent être supprimés' });
+    }
+
+    // If deleting a no-show booking, decrement the client's no_show_count
+    if (check.rows[0].status === 'no_show' && check.rows[0].client_id) {
+      await queryWithRLS(bid,
+        `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
+        [check.rows[0].client_id, bid]
+      );
     }
 
     // Delete related data first (cascade may handle this, but be explicit)

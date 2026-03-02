@@ -63,10 +63,14 @@ function fcOpenQuickCreate(startStr, endStr) {
     prSel.value = user.practitioner_id;
     prSel.disabled = true;
   } else {
+    // Default to filtered practitioner if one is selected
+    if (calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all') {
+      prSel.value = calState.fcCurrentFilter;
+    }
     prSel.disabled = false;
   }
-  // Practitioner color dot
-  const curPrac = calState.fcPractitioners[0];
+  // Practitioner color dot — use selected value, not first
+  const curPrac = calState.fcPractitioners.find(p => p.id === prSel.value) || calState.fcPractitioners[0];
   const qcPracDot = document.getElementById('qcPracDot');
   if (qcPracDot && curPrac) qcPracDot.style.background = curPrac.color || 'var(--primary)';
   prSel.onchange = function () {
