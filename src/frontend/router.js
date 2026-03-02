@@ -11,7 +11,6 @@ const SECTION_TITLES = {
   services: 'Prestations',
   hours: 'Disponibilités',
   waitlist: "Liste d'attente",
-  'featured-slots': 'Créneaux vedettes',
   team: 'Équipe',
   site: 'Mon site',
   calls: 'Appels',
@@ -104,10 +103,6 @@ async function loadSection(section) {
       case 'settings':
         mod = await import('./views/settings.js');
         mod.loadSettings();
-        break;
-      case 'featured-slots':
-        mod = await import('./views/featured-slots.js');
-        mod.loadFeaturedSlots();
         break;
       case 'cal-sync':
         mod = await import('./views/cal-sync.js');
