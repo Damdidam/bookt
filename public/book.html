@@ -319,12 +319,31 @@ async function loadSiteData(){
     siteData=await res.json();
     const fsData=fsRes.ok?await fsRes.json():{};
     const allFeatured=(fsData.featured_slots||[]).map(function(f){return Object.assign({},f,{date:(f.date||'').slice(0,10)});});
-    if(allFeatured.length>0){
-      vedetteMode=true;
-      vedetteSlots=buildVedetteSlots(allFeatured);
+    const lockedWeeks=(fsData.locked_weeks||[]).map(function(lw){return Object.assign({},lw,{week_start:(lw.week_start||'').slice(0,10)});});
+    // Vedette mode: only if at least one week is locked AND there are featured slots in that locked week
+    if(lockedWeeks.length>0&&allFeatured.length>0){
+      // Build a set of locked (practitioner_id, week_start) pairs
+      var lockedSet={};
+      lockedWeeks.forEach(function(lw){lockedSet[lw.practitioner_id+'_'+lw.week_start]=true;});
+      // Filter featured slots to only those in a locked week
+      var lockedFeatured=allFeatured.filter(function(f){
+        var monday=getMonday(f.date);
+        return lockedSet[f.practitioner_id+'_'+monday];
+      });
+      if(lockedFeatured.length>0){
+        vedetteMode=true;
+        vedetteSlots=buildVedetteSlots(lockedFeatured);
+      }
     }
     initPage();
   }catch(err){document.getElementById('loadingState').innerHTML='<p style="color:var(--red)">'+err.message+'</p>';}
+}
+function getMonday(dateStr){
+  var dt=new Date(dateStr+'T12:00:00');
+  var day=dt.getDay();
+  var diff=day===0?-6:1-day;
+  dt.setDate(dt.getDate()+diff);
+  return dt.toISOString().split('T')[0];
 }
 
 function initPage(){
@@ -404,31 +423,28 @@ function initPage(){
 
 // ──────── VEDETTE MODE ────────
 function buildVedetteSlots(featuredSlots){
+  // Each DB slot = one displayed slot (start_time only, 30 min default)
   var slots=[];
   featuredSlots.forEach(function(f){
-    var parts=f.start_time.slice(0,5).split(':');var sh=parseInt(parts[0]),sm=parseInt(parts[1]);
-    var eParts=f.end_time.slice(0,5).split(':');var eh=parseInt(eParts[0]),em=parseInt(eParts[1]);
-    var t=sh*60+sm,end=eh*60+em;
-    while(t<end){
-      var hh=String(Math.floor(t/60)).padStart(2,'0');
-      var mm=String(t%60).padStart(2,'0');
-      var endT=t+30;
-      var ehh=String(Math.floor(endT/60)).padStart(2,'0');
-      var emm=String(endT%60).padStart(2,'0');
-      slots.push({
-        practitioner_id:f.practitioner_id,
-        date:f.date,
-        start_time:hh+':'+mm,
-        end_time:ehh+':'+emm,
-        start_at:f.date+'T'+hh+':'+mm+':00',
-        end_at:f.date+'T'+ehh+':'+emm+':00'
-      });
-      t+=30;
-    }
+    var st=f.start_time.slice(0,5);
+    var parts=st.split(':');var sh=parseInt(parts[0]),sm=parseInt(parts[1]);
+    var endT=sh*60+sm+30;
+    var ehh=String(Math.floor(endT/60)).padStart(2,'0');
+    var emm=String(endT%60).padStart(2,'0');
+    slots.push({
+      practitioner_id:f.practitioner_id,
+      date:f.date,
+      start_time:st,
+      end_time:ehh+':'+emm,
+      start_at:f.date+'T'+st+':00',
+      end_at:f.date+'T'+ehh+':'+emm+':00'
+    });
   });
   // Filter out past slots
   var now=new Date();
   slots=slots.filter(function(s){return new Date(s.start_at)>now;});
+  // Sort by date then time
+  slots.sort(function(a,b){return a.start_at<b.start_at?-1:a.start_at>b.start_at?1:0;});
   return slots;
 }
 

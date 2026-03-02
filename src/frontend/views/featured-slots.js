@@ -1,6 +1,7 @@
 /**
  * Featured Slots / Créneaux vedettes — staff view.
  * Lets practitioners select which time slots to feature on the public booking page.
+ * Each selected cell = one start_time (30 min). Lock the week to disable normal bookings.
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
@@ -11,6 +12,7 @@ let weekStart = null; // Monday ISO string
 let featuredSlots = []; // current saved featured slots
 let selectedSlots = {}; // { 'YYYY-MM-DD_HH:MM': true }
 let bookedSlots = {}; // { 'YYYY-MM-DD_HH:MM': true }
+let weekLocked = false; // is current week locked?
 let slotMin = '08:00';
 let slotMax = '19:00';
 
@@ -73,9 +75,11 @@ async function loadFeaturedSlots() {
 }
 
 async function loadWeekData() {
-  const weekEnd = addDays(weekStart, 6);
-  const [fr, br] = await Promise.all([
+  const [fr, lr, br] = await Promise.all([
     fetch(`/api/featured-slots?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    }),
+    fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     }),
     fetch(`/api/bookings?practitioner_id=${selectedPractId}&from=${weekStart}&to=${addDays(weekStart, 7)}`, {
@@ -83,20 +87,17 @@ async function loadWeekData() {
     })
   ]);
   const fd = await fr.json();
+  const ld = await lr.json();
   const bd = await br.json();
   featuredSlots = fd.featured_slots || [];
+  weekLocked = ld.locked || false;
 
-  // Build selected map from existing featured slots
+  // Build selected map — each slot is a direct entry (no end_time split)
   selectedSlots = {};
   featuredSlots.forEach(s => {
+    const dateKey = (s.date || '').slice(0, 10);
     const st = (s.start_time || '').slice(0, 5);
-    const et = (s.end_time || '').slice(0, 5);
-    let t = timeToMin(st);
-    const end = timeToMin(et);
-    while (t < end) {
-      selectedSlots[s.date + '_' + minToTime(t)] = true;
-      t += 30;
-    }
+    selectedSlots[dateKey + '_' + st] = true;
   });
 
   // Build booked map
@@ -179,12 +180,22 @@ function render() {
   }
   grid += '</div>';
 
-  let h = `<p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Sélectionnez les créneaux à mettre en avant sur votre page de réservation. Quand des créneaux vedettes existent pour une semaine, seuls ceux-ci sont proposés aux clients.</p>`;
-  h += `<div class="card"><div class="card-h" style="flex-wrap:wrap;gap:10px"><div style="display:flex;align-items:center;gap:12px">${practSelect}${weekNav}</div>`;
+  // Lock badge for header
+  const lockBadge = weekLocked ? ' <span style="color:var(--primary);font-size:.78rem">🔒 Verrouillée</span>' : '';
+
+  let h = `<p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Sélectionnez les créneaux à mettre en avant sur votre page de réservation. Verrouillez la semaine pour n'exposer que ces créneaux aux clients.</p>`;
+  h += `<div class="card"><div class="card-h" style="flex-wrap:wrap;gap:10px"><div style="display:flex;align-items:center;gap:12px">${practSelect}${weekNav}${lockBadge}</div>`;
   if (!isPast) {
     h += `<div style="display:flex;gap:8px;align-items:center"><span style="font-size:.8rem;color:var(--text-4)">${selCount} créneau${selCount > 1 ? 'x' : ''} sélectionné${selCount > 1 ? 's' : ''}</span>`;
     h += `<button class="btn-outline btn-sm btn-danger" onclick="fsClear()" ${selCount === 0 ? 'disabled' : ''}>Tout effacer</button>`;
-    h += `<button class="btn-primary btn-sm" onclick="fsSave()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer</button></div>`;
+    h += `<button class="btn-primary btn-sm" onclick="fsSave()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer</button>`;
+    // Lock/unlock button
+    if (weekLocked) {
+      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()" style="border-color:var(--primary);color:var(--primary)">🔓 Déverrouiller</button>`;
+    } else {
+      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()">🔒 Verrouiller</button>`;
+    }
+    h += `</div>`;
   }
   h += `</div><div style="padding:14px 18px;overflow-x:auto">${grid}`;
   h += `<div style="display:flex;gap:16px;margin-top:12px;font-size:.78rem;color:var(--text-4)"><span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:var(--primary-bg);border:1.5px solid var(--primary)"></span>Sélectionné</span><span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:var(--bg-3);border:1.5px solid var(--border)"></span>Déjà réservé</span></div>`;
@@ -200,37 +211,11 @@ function fsToggle(key) {
 }
 
 async function fsSave() {
-  // Convert selectedSlots map to contiguous slot ranges per day
-  const byDate = {};
+  // Convert selectedSlots map to flat list of {date, start_time}
+  const slots = [];
   Object.keys(selectedSlots).sort().forEach(key => {
     const [date, time] = key.split('_');
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(time);
-  });
-
-  const slots = [];
-  Object.entries(byDate).forEach(([date, times]) => {
-    times.sort();
-    let rangeStart = null;
-    let prev = null;
-    times.forEach(t => {
-      if (!rangeStart) {
-        rangeStart = t;
-        prev = t;
-        return;
-      }
-      const prevMin = timeToMin(prev);
-      const curMin = timeToMin(t);
-      if (curMin - prevMin > 30) {
-        // Close previous range
-        slots.push({ date, start_time: rangeStart, end_time: minToTime(timeToMin(prev) + 30) });
-        rangeStart = t;
-      }
-      prev = t;
-    });
-    if (rangeStart) {
-      slots.push({ date, start_time: rangeStart, end_time: minToTime(timeToMin(prev) + 30) });
-    }
+    slots.push({ date, start_time: time });
   });
 
   try {
@@ -240,8 +225,47 @@ async function fsSave() {
       body: JSON.stringify({ practitioner_id: selectedPractId, week_start: weekStart, slots })
     });
     if (!r.ok) throw new Error((await r.json()).error);
-    GendaUI.toast(`${slots.length} créneau${slots.length > 1 ? 'x' : ''} vedette${slots.length > 1 ? 's' : ''} enregistré${slots.length > 1 ? 's' : ''}`, 'success');
+    const count = slots.length;
+    GendaUI.toast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
     await loadWeekData();
+    render();
+  } catch (e) {
+    GendaUI.toast('Erreur: ' + e.message, 'error');
+  }
+}
+
+async function fsToggleLock() {
+  if (!selectedPractId || !weekStart) return;
+
+  try {
+    if (weekLocked) {
+      // Unlock
+      const r = await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      });
+      if (!r.ok) throw new Error((await r.json()).error);
+      weekLocked = false;
+      GendaUI.toast('Semaine déverrouillée — booking normal réactivé', 'success');
+    } else {
+      // Save first if there are unsaved changes
+      const selCount = Object.keys(selectedSlots).length;
+      if (selCount === 0) {
+        GendaUI.toast('Ajoutez des créneaux vedette avant de verrouiller', 'info');
+        return;
+      }
+      // Auto-save before locking
+      await fsSave();
+
+      const r = await fetch('/api/featured-slots/lock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ practitioner_id: selectedPractId, week_start: weekStart })
+      });
+      if (!r.ok) throw new Error((await r.json()).error);
+      weekLocked = true;
+      GendaUI.toast(`Semaine verrouillée — ${selCount} créneau${selCount > 1 ? 'x' : ''} vedette${selCount > 1 ? 's' : ''} en ligne`, 'success');
+    }
     render();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
@@ -257,6 +281,14 @@ async function fsClear() {
     });
     if (!r.ok) throw new Error((await r.json()).error);
     selectedSlots = {};
+    // Also unlock if locked
+    if (weekLocked) {
+      await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      });
+      weekLocked = false;
+    }
     GendaUI.toast('Créneaux vedettes effacés', 'success');
     await loadWeekData();
     render();
@@ -291,6 +323,6 @@ async function fsSwitchPract(pid) {
   render();
 }
 
-bridge({ loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract });
+bridge({ loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock });
 
-export { loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract };
+export { loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock };

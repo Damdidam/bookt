@@ -1,7 +1,8 @@
 /**
  * Calendar Featured Slots — "Mode vedette" toggle for the calendar.
- * When active, clicking/dragging on the calendar toggles featured slots
- * (gold background events). Normal booking creation is disabled.
+ * When active, clicking on the calendar toggles featured start times
+ * (gold background events). Practitioner can lock the week to disable
+ * normal bookings and only offer vedette slots publicly.
  */
 import { api, calState } from '../../state.js';
 import { gToast } from '../../utils/dom.js';
@@ -11,9 +12,10 @@ import { fcRefresh } from './calendar-init.js';
 // ── Featured mode state ──
 let fsActive = false;            // is vedette mode on?
 let fsPendingSlots = {};         // { 'YYYY-MM-DD_HH:MM': true } — current selection
-let fsSavedSlots = [];           // raw from API: [{id, date, start_time, end_time, practitioner_id}]
+let fsSavedSlots = [];           // raw from API: [{id, date, start_time, practitioner_id}]
 let fsCurrentWeekStart = null;   // Monday ISO of currently viewed week
 let fsDirty = false;             // has user changed anything since last save?
+let fsWeekLocked = false;        // is the current week locked?
 
 /** Check if vedette mode is active */
 function fsIsActive() { return fsActive; }
@@ -47,19 +49,16 @@ function minToTime(m) {
 // ── Toggle mode on/off ──
 function fsToggleMode() {
   if (fsActive) {
-    // Turning off
     if (fsDirty) {
       if (!confirm('Vous avez des modifications non enregistrées. Quitter le mode vedette ?')) return;
     }
     fsDeactivate();
   } else {
-    // Turning on — must be in week or day view
     const viewType = calState.fcCal?.view?.type;
     if (viewType === 'dayGridMonth') {
       gToast('Passez en vue semaine ou jour pour utiliser le mode vedette', 'info');
       return;
     }
-    // Must have a single practitioner selected (or only one exists)
     if (calState.fcCurrentFilter === 'all' && calState.fcPractitioners.length > 1) {
       gToast('Sélectionnez un praticien pour le mode vedette', 'info');
       return;
@@ -72,21 +71,14 @@ async function fsActivate() {
   fsActive = true;
   fsDirty = false;
   fsPendingSlots = {};
+  fsWeekLocked = false;
 
-  // Visual: add class to calendar container
   document.getElementById('fcCalendar')?.classList.add('fs-mode-active');
-
-  // Update toggle button
   const btn = document.getElementById('fsToggleBtn');
   if (btn) { btn.classList.add('active'); }
 
-  // Show floating action bar
   fsShowActionBar();
-
-  // Load existing featured slots for current view range
   await fsLoadCurrentWeek();
-
-  // Refresh calendar to show background events
   fcRefresh();
 }
 
@@ -95,18 +87,17 @@ function fsDeactivate() {
   fsDirty = false;
   fsPendingSlots = {};
   fsSavedSlots = [];
+  fsWeekLocked = false;
 
   document.getElementById('fcCalendar')?.classList.remove('fs-mode-active');
   const btn = document.getElementById('fsToggleBtn');
   if (btn) { btn.classList.remove('active'); }
 
-  // Remove action bar
   document.getElementById('fsActionBar')?.remove();
-
   fcRefresh();
 }
 
-/** Load featured slots for the currently visible week */
+/** Load featured slots + lock state for the currently visible week */
 async function fsLoadCurrentWeek() {
   const view = calState.fcCal?.view;
   if (!view) return;
@@ -120,27 +111,31 @@ async function fsLoadCurrentWeek() {
   if (!pracId) return;
 
   try {
-    const r = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
-      headers: { 'Authorization': 'Bearer ' + api.getToken() }
-    });
-    const d = await r.json();
-    fsSavedSlots = d.featured_slots || [];
+    // Fetch slots + lock state in parallel
+    const [slotsRes, lockRes] = await Promise.all([
+      fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      }),
+      fetch(`/api/featured-slots/lock?practitioner_id=${pracId}&week_start=${weekStart}`, {
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      })
+    ]);
+    const slotsData = await slotsRes.json();
+    const lockData = await lockRes.json();
 
-    // Build pending slots from saved
+    fsSavedSlots = slotsData.featured_slots || [];
+    fsWeekLocked = lockData.locked || false;
+
+    // Build pending slots from saved — each slot is a direct entry (no end_time split)
     fsPendingSlots = {};
     fsSavedSlots.forEach(s => {
       const dateKey = (s.date || '').slice(0, 10);
       const st = (s.start_time || '').slice(0, 5);
-      const et = (s.end_time || '').slice(0, 5);
-      let t = timeToMin(st);
-      const end = timeToMin(et);
-      while (t < end) {
-        fsPendingSlots[dateKey + '_' + minToTime(t)] = true;
-        t += 30;
-      }
+      fsPendingSlots[dateKey + '_' + st] = true;
     });
     fsDirty = false;
     fsUpdateCount();
+    fsUpdateLockButton();
   } catch (e) {
     console.error('fsLoadCurrentWeek error:', e);
   }
@@ -155,7 +150,6 @@ async function fsOnDatesSet() {
   if (newWeek !== fsCurrentWeekStart) {
     if (fsDirty) {
       gToast('Enregistrez d\'abord les modifications de la semaine en cours', 'info');
-      // Don't reload — user needs to save first
       return;
     }
     await fsLoadCurrentWeek();
@@ -165,7 +159,7 @@ async function fsOnDatesSet() {
 
 /**
  * Handle a click/tap on an empty calendar slot in vedette mode.
- * Toggles the 30-min slot at the given datetime.
+ * Toggles the start time at the given datetime.
  */
 function fsHandleDateClick(dateStr) {
   if (!fsActive) return false;
@@ -182,12 +176,12 @@ function fsHandleDateClick(dateStr) {
   fsDirty = true;
   fsUpdateCount();
   fcRefresh();
-  return true; // consumed the click
+  return true;
 }
 
 /**
  * Build background events array from fsPendingSlots for FullCalendar.
- * Returns array of background event objects.
+ * Each slot = a 30-min background event.
  */
 function fsBuildBackgroundEvents() {
   if (!fsActive) return [];
@@ -224,11 +218,13 @@ function fsShowActionBar() {
       <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:#D97706"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       <span class="fs-action-label">Mode vedette</span>
       <span class="fs-action-count" id="fsCount">0 créneaux</span>
+      <span class="fs-lock-badge" id="fsLockBadge" style="display:none">🔒</span>
     </div>
     <div class="fs-action-right">
       <button class="btn-outline btn-sm btn-danger" onclick="fsClearAll()">Tout effacer</button>
       <button class="btn-outline btn-sm" onclick="fsCancelMode()">Annuler</button>
       <button class="btn-primary btn-sm" onclick="fsSaveSlots()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer</button>
+      <button class="btn-outline btn-sm" id="fsLockBtn" onclick="fsToggleLock()">🔒 Verrouiller</button>
     </div>
   `;
   document.querySelector('.main')?.appendChild(bar);
@@ -240,38 +236,35 @@ function fsUpdateCount() {
   if (el) el.textContent = `${count} créneau${count > 1 ? 'x' : ''}`;
 }
 
-// ── Save / Cancel / Clear ──
+function fsUpdateLockButton() {
+  const btn = document.getElementById('fsLockBtn');
+  const badge = document.getElementById('fsLockBadge');
+  if (btn) {
+    if (fsWeekLocked) {
+      btn.innerHTML = '🔓 Déverrouiller';
+      btn.classList.add('fs-locked');
+    } else {
+      btn.innerHTML = '🔒 Verrouiller';
+      btn.classList.remove('fs-locked');
+    }
+  }
+  if (badge) {
+    badge.style.display = fsWeekLocked ? 'inline' : 'none';
+  }
+}
+
+// ── Save / Cancel / Clear / Lock ──
 async function fsSaveSlots() {
   const pracId = calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
     : calState.fcPractitioners[0]?.id;
   if (!pracId || !fsCurrentWeekStart) return;
 
-  // Convert pending map to contiguous ranges per day
-  const byDate = {};
+  // Convert pending map to flat list of {date, start_time}
+  const slots = [];
   Object.keys(fsPendingSlots).sort().forEach(key => {
     const [date, time] = key.split('_');
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(time);
-  });
-
-  const slots = [];
-  Object.entries(byDate).forEach(([date, times]) => {
-    times.sort();
-    let rangeStart = null, prev = null;
-    times.forEach(t => {
-      if (!rangeStart) { rangeStart = t; prev = t; return; }
-      const prevMin = timeToMin(prev);
-      const curMin = timeToMin(t);
-      if (curMin - prevMin > 30) {
-        slots.push({ date, start_time: rangeStart, end_time: minToTime(timeToMin(prev) + 30) });
-        rangeStart = t;
-      }
-      prev = t;
-    });
-    if (rangeStart) {
-      slots.push({ date, start_time: rangeStart, end_time: minToTime(timeToMin(prev) + 30) });
-    }
+    slots.push({ date, start_time: time });
   });
 
   try {
@@ -282,7 +275,51 @@ async function fsSaveSlots() {
     });
     if (!r.ok) throw new Error((await r.json()).error);
     fsDirty = false;
-    gToast(`${slots.length} créneau${slots.length > 1 ? 'x' : ''} vedette${slots.length > 1 ? 's' : ''} enregistré${slots.length > 1 ? 's' : ''}`, 'success');
+    const count = slots.length;
+    gToast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
+  } catch (e) {
+    gToast('Erreur: ' + e.message, 'error');
+  }
+}
+
+async function fsToggleLock() {
+  const pracId = calState.fcCurrentFilter !== 'all'
+    ? calState.fcCurrentFilter
+    : calState.fcPractitioners[0]?.id;
+  if (!pracId || !fsCurrentWeekStart) return;
+
+  // Save first if dirty
+  if (fsDirty) {
+    await fsSaveSlots();
+  }
+
+  try {
+    if (fsWeekLocked) {
+      // Unlock
+      const r = await fetch(`/api/featured-slots/lock?practitioner_id=${pracId}&week_start=${fsCurrentWeekStart}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      });
+      if (!r.ok) throw new Error((await r.json()).error);
+      fsWeekLocked = false;
+      gToast('Semaine déverrouillée — booking normal réactivé', 'success');
+    } else {
+      // Lock
+      const slotCount = Object.keys(fsPendingSlots).length;
+      if (slotCount === 0) {
+        gToast('Ajoutez des créneaux vedette avant de verrouiller', 'info');
+        return;
+      }
+      const r = await fetch('/api/featured-slots/lock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ practitioner_id: pracId, week_start: fsCurrentWeekStart })
+      });
+      if (!r.ok) throw new Error((await r.json()).error);
+      fsWeekLocked = true;
+      gToast(`Semaine verrouillée — ${slotCount} créneau${slotCount > 1 ? 'x' : ''} vedette${slotCount > 1 ? 's' : ''} en ligne`, 'success');
+    }
+    fsUpdateLockButton();
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
   }
@@ -301,7 +338,7 @@ async function fsClearAll() {
 }
 
 // Bridge for onclick handlers
-bridge({ fsToggleMode, fsSaveSlots, fsCancelMode, fsClearAll });
+bridge({ fsToggleMode, fsSaveSlots, fsCancelMode, fsClearAll, fsToggleLock });
 
 export {
   fsIsActive, fsToggleMode, fsGetPendingSlots, fsGetPractitioner,

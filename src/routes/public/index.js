@@ -253,7 +253,7 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
 
 // ============================================================
 // GET /api/public/:slug/featured-slots
-// Returns practitioner-curated slots for the public booking page
+// Returns practitioner-curated slots + locked weeks for the public booking page
 // ============================================================
 router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
   try {
@@ -268,8 +268,9 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 
     const businessId = bizResult.rows[0].id;
 
+    // Featured slots (start_time only, no end_time)
     let sql = `
-      SELECT fs.practitioner_id, fs.date, fs.start_time, fs.end_time
+      SELECT fs.practitioner_id, fs.date, fs.start_time
       FROM featured_slots fs
       WHERE fs.business_id = $1 AND fs.date >= CURRENT_DATE`;
     const params = [businessId];
@@ -289,8 +290,21 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 
     sql += ' ORDER BY fs.date, fs.start_time';
 
-    const result = await query(sql, params);
-    res.json({ featured_slots: result.rows });
+    // Locked weeks
+    const lwSql = `
+      SELECT lw.practitioner_id, lw.week_start
+      FROM locked_weeks lw
+      WHERE lw.business_id = $1 AND lw.week_start >= (CURRENT_DATE - interval '7 days')`;
+
+    const [slotsResult, locksResult] = await Promise.all([
+      query(sql, params),
+      query(lwSql, [businessId])
+    ]);
+
+    res.json({
+      featured_slots: slotsResult.rows,
+      locked_weeks: locksResult.rows
+    });
   } catch (err) {
     next(err);
   }
