@@ -1307,9 +1307,10 @@ router.get('/:id/history', async (req, res, next) => {
 
     const result = await queryWithRLS(bid,
       `SELECT al.action, al.old_data, al.new_data, al.created_at,
-              u.display_name AS actor_name
+              COALESCE(p.display_name, u.email, 'Système') AS actor_name
        FROM audit_logs al
        LEFT JOIN users u ON u.id = al.actor_user_id
+       LEFT JOIN practitioners p ON p.user_id = u.id AND p.business_id = al.business_id
        WHERE al.entity_type = 'booking' AND al.entity_id = $1 AND al.business_id = $2
        ORDER BY al.created_at DESC`,
       [id, bid]
