@@ -302,7 +302,7 @@ const MODE_ICONS={cabinet:'<svg class="gi" viewBox="0 0 24 24" fill="none" strok
 let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selectedMode=null,selectedDate=null,selectedSlot=null,slotsData={},weekOffset=0,weekHasFeatured=false;
 let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
-let vedetteMode=false,vedetteSlots=[];
+let vedetteMode=false,vedetteSlots=[],lockedSet={};
 
 const pathParts=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
 slug=pathParts[0];
@@ -324,7 +324,7 @@ async function loadSiteData(){
     // Vedette mode: only if at least one week is locked AND there are featured slots in that locked week
     if(lockedWeeks.length>0&&allFeatured.length>0){
       // Build a set of locked (practitioner_id, week_start) pairs
-      var lockedSet={};
+      lockedSet={};
       lockedWeeks.forEach(function(lw){lockedSet[lw.practitioner_id+'_'+lw.week_start]=true;});
       // Filter featured slots to only those in a locked week
       var lockedFeatured=allFeatured.filter(function(f){
@@ -634,6 +634,13 @@ async function loadSlots(){
   const today=new Date();today.setDate(today.getDate()+1+weekOffset*7);
   const endDate=new Date(today);endDate.setDate(today.getDate()+6);
   const dateFrom=today.toISOString().split('T')[0],dateTo=endDate.toISOString().split('T')[0];
+  // Skip locked weeks in normal mode
+  if(selectedPractitioner&&Object.keys(lockedSet).length>0){
+    var weekMonday=getMonday(dateFrom);
+    if(lockedSet[selectedPractitioner.id+'_'+weekMonday]){
+      if(weekOffset<8){weekOffset++;return loadSlots();}
+    }
+  }
   const params=new URLSearchParams({service_id:selectedService.id,practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
   if(selectedMode)params.set('appointment_mode',selectedMode);
   try{
