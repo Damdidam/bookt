@@ -29,12 +29,17 @@ function fsGetPractitioner() {
 }
 
 // ── Helpers ──
+function localDate(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+}
+
 function getMonday(d) {
   const dt = new Date(d);
   const day = dt.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   dt.setDate(dt.getDate() + diff);
-  return dt.toISOString().split('T')[0];
+  return localDate(dt);
 }
 
 function timeToMin(t) {
@@ -164,7 +169,7 @@ async function fsOnDatesSet() {
 function fsHandleDateClick(dateStr) {
   if (!fsActive) return false;
   const dt = new Date(dateStr);
-  const date = dt.toISOString().split('T')[0];
+  const date = localDate(dt);
   const time = minToTime(dt.getHours() * 60 + dt.getMinutes());
   const key = date + '_' + time;
 

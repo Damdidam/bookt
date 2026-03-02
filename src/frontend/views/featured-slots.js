@@ -16,18 +16,23 @@ let weekLocked = false; // is current week locked?
 let slotMin = '08:00';
 let slotMax = '19:00';
 
+function localDate(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+}
+
 function getMonday(d) {
   const dt = new Date(d);
   const day = dt.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   dt.setDate(dt.getDate() + diff);
-  return dt.toISOString().split('T')[0];
+  return localDate(dt);
 }
 
 function addDays(dateStr, n) {
-  const d = new Date(dateStr + 'T00:00:00');
+  const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
+  return localDate(d);
 }
 
 function fmtDate(dateStr) {

@@ -338,6 +338,30 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const { transactionWithRLS } = require('../../services/db');
 
     const startDate = new Date(start_at);
+
+    // ── Locked-week guard: reject non-featured bookings when week is locked ──
+    const lockCheck = await query(
+      `SELECT 1 FROM locked_weeks
+       WHERE business_id = $1 AND practitioner_id = $2
+       AND week_start = date_trunc('week', $3::date)::date`,
+      [businessId, practitioner_id, startDate.toISOString().split('T')[0]]
+    );
+    if (lockCheck.rows.length > 0) {
+      // Week is locked — booking must match a featured slot
+      const startTimeStr = startDate.toTimeString().slice(0, 5); // HH:MM
+      const fsCheck = await query(
+        `SELECT 1 FROM featured_slots
+         WHERE business_id = $1 AND practitioner_id = $2
+         AND date = $3::date AND start_time::text LIKE $4 || '%'`,
+        [businessId, practitioner_id, startDate.toISOString().split('T')[0], startTimeStr]
+      );
+      if (fsCheck.rows.length === 0) {
+        return res.status(403).json({
+          error: 'Cette semaine est verrouillée. Seuls les créneaux vedette sont disponibles.'
+        });
+      }
+    }
+
     let endDate;
 
     if (service_id) {
