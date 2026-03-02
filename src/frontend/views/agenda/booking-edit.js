@@ -38,7 +38,9 @@ function calCheckConflict() {
 
   const newStart = new Date(nd + 'T' + ns);
   const newEnd = new Date(nd + 'T' + ne);
-  const pracId = calState.fcCurrentBooking.practitioner_id;
+  // Use the practitioner currently selected in the dropdown, not the original
+  const pracSel = document.getElementById('uPracSelect');
+  const pracId = pracSel ? pracSel.value : calState.fcCurrentBooking.practitioner_id;
   const myId = calState.fcCurrentEventId;
   const myGroup = calState.fcCurrentBooking.group_id;
 

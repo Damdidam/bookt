@@ -234,6 +234,7 @@ async function fcOpenDetail(bookingId) {
     pracSel.onchange = function () {
       const sel = calState.fcPractitioners.find(p => p.id === this.value);
       document.getElementById('mPracDot').style.background = sel?.color || 'var(--primary)';
+      calCheckConflict(); // Re-check conflicts against the new practitioner
     };
 
     // -- Client contact fields --

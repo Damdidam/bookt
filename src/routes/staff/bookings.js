@@ -784,6 +784,46 @@ router.patch('/:id/edit', async (req, res, next) => {
     const { id } = req.params;
     const { practitioner_id, comment, internal_note, custom_label, color } = req.body;
 
+    // Prevent practitioners from reassigning bookings to other practitioners
+    if (practitioner_id !== undefined && req.user.role === 'practitioner') {
+      return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
+    }
+
+    // If practitioner_id changes, check for conflicts
+    if (practitioner_id !== undefined) {
+      // Verify new practitioner exists and is active
+      const pracCheck = await queryWithRLS(bid,
+        `SELECT id, is_active FROM practitioners WHERE id = $1 AND business_id = $2`,
+        [practitioner_id, bid]
+      );
+      if (pracCheck.rows.length === 0 || !pracCheck.rows[0].is_active) {
+        return res.status(400).json({ error: 'Praticien introuvable ou inactif' });
+      }
+
+      // Check conflicts with new practitioner's schedule
+      const globalAllowOverlap = await businessAllowsOverlap(bid);
+      if (!globalAllowOverlap) {
+        const booking = await queryWithRLS(bid,
+          `SELECT start_at, end_at FROM bookings WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+        if (booking.rows.length > 0) {
+          const { start_at, end_at } = booking.rows[0];
+          const conflict = await queryWithRLS(bid,
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND id != $3
+             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND start_at < $5 AND end_at > $4`,
+            [bid, practitioner_id, id, start_at, end_at]
+          );
+          if (conflict.rows.length > 0) {
+            return res.status(409).json({ error: 'Conflit : ce praticien a déjà un RDV sur ce créneau' });
+          }
+        }
+      }
+    }
+
     const sets = [];
     const params = [];
     let idx = 1;
