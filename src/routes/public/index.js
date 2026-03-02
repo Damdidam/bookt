@@ -375,8 +375,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const totalDuration = service.buffer_before_min + service.duration_min + service.buffer_after_min;
       endDate = new Date(startDate.getTime() + totalDuration * 60000);
     } else {
-      // Featured slot booking — use end_at or default 30 min
-      endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 30 * 60000);
+      // Featured slot booking — use end_at or default 15 min
+      endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 15 * 60000);
     }
 
     const result = await transactionWithRLS(businessId, async (client) => {

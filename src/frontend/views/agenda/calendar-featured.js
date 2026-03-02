@@ -170,9 +170,9 @@ function fsHandleDateClick(dateStr) {
   if (!fsActive) return false;
   const dt = new Date(dateStr);
   const date = localDate(dt);
-  // Snap to 30-min grid for predictable selection
+  // Snap to 15-min grid
   const rawMins = dt.getHours() * 60 + dt.getMinutes();
-  const snapped = Math.floor(rawMins / 30) * 30;
+  const snapped = Math.floor(rawMins / 15) * 15;
   const time = minToTime(snapped);
   const key = date + '_' + time;
 
@@ -189,7 +189,7 @@ function fsHandleDateClick(dateStr) {
 
 /**
  * Build background events array from fsPendingSlots for FullCalendar.
- * Each slot = a 30-min background event.
+ * Each slot = a 15-min background event.
  */
 function fsBuildBackgroundEvents() {
   if (!fsActive) return [];
@@ -199,7 +199,7 @@ function fsBuildBackgroundEvents() {
     const startHour = parseInt(time.split(':')[0]);
     const startMin = parseInt(time.split(':')[1]);
     const start = date + 'T' + time + ':00';
-    const endMin = startMin + 30;
+    const endMin = startMin + 15;
     const endHour = startHour + Math.floor(endMin / 60);
     const endMinute = endMin % 60;
     const end = date + 'T' + String(endHour).padStart(2, '0') + ':' + String(endMinute).padStart(2, '0') + ':00';

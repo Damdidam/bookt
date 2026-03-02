@@ -423,12 +423,12 @@ function initPage(){
 
 // ──────── VEDETTE MODE ────────
 function buildVedetteSlots(featuredSlots){
-  // Each DB slot = one displayed slot (start_time only, 30 min default)
+  // Each DB slot = one displayed slot (start_time only, 15 min default)
   var slots=[];
   featuredSlots.forEach(function(f){
     var st=f.start_time.slice(0,5);
     var parts=st.split(':');var sh=parseInt(parts[0]),sm=parseInt(parts[1]);
-    var endT=sh*60+sm+30;
+    var endT=sh*60+sm+15;
     var ehh=String(Math.floor(endT/60)).padStart(2,'0');
     var emm=String(endT%60).padStart(2,'0');
     slots.push({
