@@ -72,11 +72,20 @@ function fsToggleMode() {
   }
 }
 
+let fsOriginalSlotDuration = null;
+
 async function fsActivate() {
   fsActive = true;
   fsDirty = false;
   fsPendingSlots = {};
   fsWeekLocked = false;
+
+  // Switch calendar to 15-min grid for vedette selection
+  if (calState.fcCal) {
+    fsOriginalSlotDuration = calState.fcCal.getOption('slotDuration');
+    calState.fcCal.setOption('slotDuration', '00:15:00');
+    calState.fcCal.setOption('snapDuration', '00:15:00');
+  }
 
   document.getElementById('fcCalendar')?.classList.add('fs-mode-active');
   const btn = document.getElementById('fsToggleBtn');
@@ -93,6 +102,13 @@ function fsDeactivate() {
   fsPendingSlots = {};
   fsSavedSlots = [];
   fsWeekLocked = false;
+
+  // Restore original slot duration
+  if (calState.fcCal && fsOriginalSlotDuration) {
+    calState.fcCal.setOption('slotDuration', fsOriginalSlotDuration);
+    calState.fcCal.setOption('snapDuration', fsOriginalSlotDuration);
+    fsOriginalSlotDuration = null;
+  }
 
   document.getElementById('fcCalendar')?.classList.remove('fs-mode-active');
   const btn = document.getElementById('fsToggleBtn');
