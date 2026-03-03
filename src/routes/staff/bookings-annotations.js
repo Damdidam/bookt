@@ -25,6 +25,9 @@ router.patch('/:id/note', async (req, res, next) => {
       idx++;
     }
     if (color !== undefined) {
+      if (color !== null && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+        return res.status(400).json({ error: 'Format de couleur invalide (ex: #FF5733)' });
+      }
       sets.push(`color = $${idx}`);
       params.push(color);
       idx++;
@@ -87,11 +90,12 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     }
 
     // Save notes first
-    await queryWithRLS(bid,
+    const saveResult = await queryWithRLS(bid,
       `UPDATE bookings SET session_notes = $1, updated_at = NOW()
-       WHERE id = $2 AND business_id = $3`,
+       WHERE id = $2 AND business_id = $3 RETURNING id`,
       [session_notes, id, bid]
     );
+    if (saveResult.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
     // Fetch booking + client + business info for email
     const detail = await queryWithRLS(bid,
@@ -163,6 +167,10 @@ router.post('/:id/notes', async (req, res, next) => {
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
     if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
 
+    // Verify booking exists
+    const bkCheck = await queryWithRLS(bid, `SELECT id FROM bookings WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
+    if (bkCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
     const result = await queryWithRLS(bid,
       `INSERT INTO booking_notes (booking_id, business_id, author_id, content, is_pinned)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -196,6 +204,10 @@ router.post('/:id/todos', async (req, res, next) => {
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
     if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
+
+    // Verify booking exists
+    const bkCheck = await queryWithRLS(bid, `SELECT id FROM bookings WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
+    if (bkCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
     const result = await queryWithRLS(bid,
       `INSERT INTO practitioner_todos (booking_id, business_id, user_id, content)

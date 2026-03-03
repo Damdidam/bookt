@@ -36,8 +36,8 @@ router.post('/manual', async (req, res, next) => {
     // ── FREESTYLE MODE: no predefined service ──
     if (freestyle) {
       if (!end_at) return res.status(400).json({ error: 'end_at requis en mode libre' });
-      const bufBefore = Math.max(0, parseInt(buffer_before_min, 10) || 0);
-      const bufAfter = Math.max(0, parseInt(buffer_after_min, 10) || 0);
+      const bufBefore = Math.min(480, Math.max(0, parseInt(buffer_before_min, 10) || 0));
+      const bufAfter = Math.min(480, Math.max(0, parseInt(buffer_after_min, 10) || 0));
       const realStart = new Date(new Date(start_at).getTime() - bufBefore * 60000);
       const realEnd = new Date(new Date(end_at).getTime() + bufAfter * 60000);
 
@@ -77,13 +77,10 @@ router.post('/manual', async (req, res, next) => {
           [bid, req.user.id, result.rows[0].id]
         );
 
-        return [result.rows[0]];
-      });
-
-      // ===== DEPOSIT CHECK (freestyle) =====
-      if (client_id && bookings[0]) {
-        try {
-          const depCheck = await queryWithRLS(bid,
+        // ===== DEPOSIT CHECK (freestyle — inside transaction for atomicity) =====
+        const booking = result.rows[0];
+        if (client_id && booking) {
+          const depCheck = await client.query(
             `SELECT c.no_show_count, biz.settings
              FROM clients c JOIN businesses biz ON biz.id = c.business_id
              WHERE c.id = $1 AND c.business_id = $2`,
@@ -97,22 +94,23 @@ router.post('/manual', async (req, res, next) => {
             if (depCents > 0) {
               const dlHours = dc.settings.deposit_deadline_hours || 48;
               const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-              // Only apply deposit if deadline is in the future (booking is far enough away)
               if (deadline > new Date()) {
-                await queryWithRLS(bid,
+                await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
                    WHERE id = $3 AND business_id = $4`,
-                  [depCents, deadline.toISOString(), bookings[0].id, bid]
+                  [depCents, deadline.toISOString(), booking.id, bid]
                 );
-                bookings[0].status = 'pending_deposit';
-                bookings[0].deposit_required = true;
-                bookings[0].deposit_amount_cents = depCents;
+                booking.status = 'pending_deposit';
+                booking.deposit_required = true;
+                booking.deposit_amount_cents = depCents;
               }
             }
           }
-        } catch (e) { console.warn('[DEPOSIT] Freestyle check error:', e.message); }
-      }
+        }
+
+        return [booking];
+      });
 
       broadcast(bid, 'booking_update', { action: 'created' });
       calSyncPush(bid, bookings[0].id).catch(() => {});
@@ -138,6 +136,15 @@ router.post('/manual', async (req, res, next) => {
     }
 
     // ── NORMAL MODE: predefined service(s) ──
+    // Validate multiServices format if provided
+    if (multiServices !== undefined) {
+      if (!Array.isArray(multiServices) || multiServices.length === 0) {
+        return res.status(400).json({ error: 'services doit être un tableau non vide' });
+      }
+      if (multiServices.some(s => !s.service_id)) {
+        return res.status(400).json({ error: 'Chaque prestation doit avoir un service_id' });
+      }
+    }
     const serviceList = multiServices || [{ service_id }];
 
     if (!practitioner_id || !start_at || serviceList.length === 0) {
@@ -220,13 +227,9 @@ router.post('/manual', async (req, res, next) => {
         );
       }
 
-      return results;
-    });
-
-    // ===== DEPOSIT CHECK (normal mode) =====
-    if (client_id && bookings.length > 0) {
-      try {
-        const depCheck = await queryWithRLS(bid,
+      // ===== DEPOSIT CHECK (normal mode — inside transaction for atomicity) =====
+      if (client_id && results.length > 0) {
+        const depCheck = await client.query(
           `SELECT c.no_show_count, biz.settings
            FROM clients c JOIN businesses biz ON biz.id = c.business_id
            WHERE c.id = $1 AND c.business_id = $2`,
@@ -234,12 +237,11 @@ router.post('/manual', async (req, res, next) => {
         );
         const dc = depCheck.rows[0];
         if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
-          // Get total service price for the booking(s)
-          const svcPriceResult = await queryWithRLS(bid,
+          const svcPriceResult = await client.query(
             `SELECT COALESCE(SUM(s.price_cents), 0) AS total_price
              FROM bookings b JOIN services s ON s.id = b.service_id
              WHERE b.id = ANY($1) AND b.business_id = $2`,
-            [bookings.map(b => b.id), bid]
+            [results.map(b => b.id), bid]
           );
           const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
           let depCents = 0;
@@ -251,23 +253,23 @@ router.post('/manual', async (req, res, next) => {
           if (depCents > 0) {
             const dlHours = dc.settings.deposit_deadline_hours || 48;
             const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-            // Only apply deposit if deadline is in the future
             if (deadline > new Date()) {
-              // Only apply deposit to the first booking (group leader) to avoid duplicate charges
-              await queryWithRLS(bid,
+              await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                   deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
                  WHERE id = $3 AND business_id = $4`,
-                [depCents, deadline.toISOString(), bookings[0].id, bid]
+                [depCents, deadline.toISOString(), results[0].id, bid]
               );
-              bookings[0].status = 'pending_deposit';
-              bookings[0].deposit_required = true;
-              bookings[0].deposit_amount_cents = depCents;
+              results[0].status = 'pending_deposit';
+              results[0].deposit_required = true;
+              results[0].deposit_amount_cents = depCents;
             }
           }
         }
-      } catch (e) { console.warn('[DEPOSIT] Normal check error:', e.message); }
-    }
+      }
+
+      return results;
+    });
 
     broadcast(bid, 'booking_update', { action: 'created' });
     bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
@@ -293,6 +295,7 @@ router.post('/manual', async (req, res, next) => {
 
     res.status(201).json({ booking: bookings[0], bookings, group_id: groupId });
   } catch (err) {
+    if (err.type === 'conflict') return res.status(409).json({ error: err.message });
     next(err);
   }
 });

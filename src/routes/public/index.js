@@ -865,7 +865,7 @@ router.get('/booking/:token/reject', async (req, res, next) => {
 
 // Helper: build a standalone HTML confirmation/rejection page
 function confirmationPage(title, message, color, businessName) {
-  const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
   const safeTitle = escHtml(title);
   const safeBiz = escHtml(businessName);
@@ -885,7 +885,7 @@ function confirmationPage(title, message, color, businessName) {
 
 // Helper: build a standalone HTML action page (form with POST button)
 function actionPage(title, message, color, businessName, token, action, btnLabel) {
-  const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escHtml(title)} — ${escHtml(businessName) || 'Genda'}</title>

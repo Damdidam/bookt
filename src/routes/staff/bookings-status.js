@@ -204,12 +204,12 @@ router.patch('/:id/status', async (req, res, next) => {
       try {
         const { processWaitlistForCancellation } = require('../../services/waitlist');
         await processWaitlistForCancellation(id);
-      } catch (e) { /* non-blocking */ }
+      } catch (e) { console.warn('[WAITLIST] Processing error:', e.message); }
     }
 
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
-    if (status === 'cancelled') calSyncDelete(bid, id).catch(() => {});
-    else calSyncPush(bid, id).catch(() => {});
+    if (status === 'cancelled') calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
+    else calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
     res.json({ updated: true, status });
   } catch (err) {
     next(err);
@@ -225,40 +225,48 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
 
-    const bk = await queryWithRLS(bid,
-      `SELECT deposit_required, deposit_status, deposit_amount_cents, status FROM bookings WHERE id = $1 AND business_id = $2`,
-      [id, bid]
-    );
-    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
-    if (!bk.rows[0].deposit_required) return res.status(400).json({ error: 'Pas d\'acompte sur ce RDV' });
-    if (bk.rows[0].deposit_status === 'refunded') return res.status(400).json({ error: 'Acompte déjà remboursé' });
+    // All deposit-refund operations in a single transaction for atomicity
+    const txResult = await transactionWithRLS(bid, async (client) => {
+      const bk = await client.query(
+        `SELECT deposit_required, deposit_status, deposit_amount_cents, status FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
+      if (!bk.rows[0].deposit_required) return { error: 400, message: 'Pas d\'acompte sur ce RDV' };
+      if (bk.rows[0].deposit_status === 'refunded') return { error: 400, message: 'Acompte déjà remboursé' };
 
-    // Only allow deposit refund on active bookings (respect state machine)
-    const REFUNDABLE = ['pending', 'confirmed', 'modified_pending', 'pending_deposit'];
-    if (!REFUNDABLE.includes(bk.rows[0].status)) {
-      return res.status(400).json({ error: `Impossible de rembourser un RDV en statut "${bk.rows[0].status}"` });
+      const REFUNDABLE = ['pending', 'confirmed', 'modified_pending', 'pending_deposit'];
+      if (!REFUNDABLE.includes(bk.rows[0].status)) {
+        return { error: 400, message: `Impossible de rembourser un RDV en statut "${bk.rows[0].status}"` };
+      }
+
+      await client.query(
+        `UPDATE bookings SET deposit_status = 'refunded', status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
+         WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
+         VALUES ($1, $2, 'booking', $3, 'deposit_refund', $4)`,
+        [bid, req.user.id, id, JSON.stringify({ deposit_status: 'refunded', amount_cents: bk.rows[0].deposit_amount_cents })]
+      );
+
+      return { ok: true };
+    });
+
+    if (txResult.error) {
+      return res.status(txResult.error).json({ error: txResult.message });
     }
 
-    await queryWithRLS(bid,
-      `UPDATE bookings SET deposit_status = 'refunded', status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
-       WHERE id = $1 AND business_id = $2`,
-      [id, bid]
-    );
-
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
-       VALUES ($1, $2, 'booking', $3, 'deposit_refund', $4)`,
-      [bid, req.user.id, id, JSON.stringify({ deposit_status: 'refunded', amount_cents: bk.rows[0].deposit_amount_cents })]
-    );
-
     broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: id });
-    calSyncDelete(bid, id).catch(() => {});
+    calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
 
     // Process waitlist (same as cancellation)
     try {
       const { processWaitlistForCancellation } = require('../../services/waitlist');
       await processWaitlistForCancellation(id);
-    } catch (e) { /* non-blocking */ }
+    } catch (e) { console.warn('[WAITLIST] Processing error:', e.message); }
 
     res.json({ updated: true, deposit_status: 'refunded' });
   } catch (err) { next(err); }
@@ -283,58 +291,52 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'Seuls les RDV annulés ou no-show peuvent être supprimés' });
     }
 
-    // Collect all booking IDs to delete (includes group siblings if applicable)
-    let bookingIds = [id];
-    if (check.rows[0].group_id) {
-      const siblings = await queryWithRLS(bid,
-        `SELECT id, status, client_id FROM bookings
-         WHERE group_id = $1 AND business_id = $2 AND status IN ('cancelled', 'no_show')`,
-        [check.rows[0].group_id, bid]
-      );
-      bookingIds = siblings.rows.map(r => r.id);
+    // All deletion operations in a single transaction for atomicity
+    const deletedIds = await transactionWithRLS(bid, async (client) => {
+      let bookingIds = [id];
+      if (check.rows[0].group_id) {
+        const siblings = await client.query(
+          `SELECT id, status, client_id FROM bookings
+           WHERE group_id = $1 AND business_id = $2 AND status IN ('cancelled', 'no_show')`,
+          [check.rows[0].group_id, bid]
+        );
+        bookingIds = siblings.rows.map(r => r.id);
 
-      // Decrement no_show_count for each no-show sibling with a client
-      for (const sib of siblings.rows) {
-        if (sib.status === 'no_show' && sib.client_id) {
-          await queryWithRLS(bid,
+        for (const sib of siblings.rows) {
+          if (sib.status === 'no_show' && sib.client_id) {
+            await client.query(
+              `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
+              [sib.client_id, bid]
+            );
+          }
+        }
+      } else {
+        if (check.rows[0].status === 'no_show' && check.rows[0].client_id) {
+          await client.query(
             `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
-            [sib.client_id, bid]
+            [check.rows[0].client_id, bid]
           );
         }
       }
-    } else {
-      // Single booking: decrement no_show_count if applicable
-      if (check.rows[0].status === 'no_show' && check.rows[0].client_id) {
-        await queryWithRLS(bid,
-          `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
-          [check.rows[0].client_id, bid]
-        );
-      }
-    }
 
-    // Sync delete to external calendar before removing from DB
-    bookingIds.forEach(bId => calSyncDelete(bid, bId).catch(() => {}));
+      await client.query(`DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
+      await client.query(`DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
+      await client.query(`DELETE FROM booking_reminders WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
+      await client.query(`DELETE FROM bookings WHERE id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
 
-    // Delete related data first (cascade may handle this, but be explicit)
-    await queryWithRLS(bid, `DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
-    await queryWithRLS(bid, `DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
-    await queryWithRLS(bid, `DELETE FROM booking_reminders WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data)
+         VALUES ($1, $2, 'booking', $3, 'permanent_delete', $4)`,
+        [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status, group_id: check.rows[0].group_id, deleted_count: bookingIds.length })]
+      );
 
-    // Delete the booking(s)
-    await queryWithRLS(bid,
-      `DELETE FROM bookings WHERE id = ANY($1) AND business_id = $2`,
-      [bookingIds, bid]
-    );
+      return bookingIds;
+    });
 
-    // Audit
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data)
-       VALUES ($1, $2, 'booking', $3, 'permanent_delete', $4)`,
-      [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status, group_id: check.rows[0].group_id, deleted_count: bookingIds.length })]
-    );
-
+    // Post-transaction side effects
+    deletedIds.forEach(bId => calSyncDelete(bid, bId).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message)));
     broadcast(bid, 'booking_update', { action: 'deleted', booking_id: id });
-    res.json({ deleted: true, deleted_count: bookingIds.length });
+    res.json({ deleted: true, deleted_count: deletedIds.length });
   } catch (err) {
     next(err);
   }

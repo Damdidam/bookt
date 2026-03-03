@@ -20,6 +20,12 @@ router.patch('/:id/move', async (req, res, next) => {
     if (!start_at || !end_at) {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
+    if (isNaN(new Date(start_at).getTime()) || isNaN(new Date(end_at).getTime())) {
+      return res.status(400).json({ error: 'Format de date invalide' });
+    }
+    if (new Date(start_at) >= new Date(end_at)) {
+      return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
+    }
 
     // Prevent practitioners from reassigning bookings to other practitioners
     if (practitioner_id && req.user.role === 'practitioner') {
@@ -68,6 +74,9 @@ router.patch('/:id/move', async (req, res, next) => {
         [draggedBooking.group_id, bid]
       );
       const groupMembers = groupRes.rows;
+      if (groupMembers.length === 0) {
+        return res.status(400).json({ error: 'Aucun membre trouvé dans le groupe' });
+      }
 
       // Calculate time delta from dragged booking's original start
       const delta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
@@ -373,6 +382,9 @@ router.patch('/:id/resize', async (req, res, next) => {
     const { end_at } = req.body;
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
+    if (isNaN(new Date(end_at).getTime())) {
+      return res.status(400).json({ error: 'Format de date invalide' });
+    }
 
     // Get current booking to know start_at, end_at, practitioner, group, status
     const current = await queryWithRLS(bid,
@@ -387,6 +399,11 @@ router.patch('/:id/resize', async (req, res, next) => {
     const IMMUTABLE_RESIZE = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_RESIZE.includes(current.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
+
+    // Validate end > start
+    if (new Date(end_at) <= new Date(current.rows[0].start_at)) {
+      return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
     }
 
     // Block resize for grouped bookings (durations are service-defined)
@@ -459,6 +476,12 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     if (!start_at || !end_at) {
       return res.status(400).json({ error: 'start_at et end_at requis' });
+    }
+    if (isNaN(new Date(start_at).getTime()) || isNaN(new Date(end_at).getTime())) {
+      return res.status(400).json({ error: 'Format de date invalide' });
+    }
+    if (new Date(start_at) >= new Date(end_at)) {
+      return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
     }
 
     // Fetch old booking for audit + notification context
@@ -576,7 +599,6 @@ router.patch('/:id/modify', async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'modified' });
-    broadcast(bid, 'booking_update', { action: 'moved' });
     calSyncPush(bid, id).catch(() => {});
     res.json({
       updated: true,

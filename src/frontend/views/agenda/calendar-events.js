@@ -404,10 +404,10 @@ function buildEventDrop() {
     // Capture old state BEFORE the API call (info.oldEvent has pre-drag values)
     const oldStart = info.oldEvent.start;
     const oldEnd = info.oldEvent.end;
-    const oldPracId = p._isGroup ? p._members[0].practitioner_id : p.practitioner_id;
+    const oldPracId = p._isGroup ? p._members?.[0]?.practitioner_id : p.practitioner_id;
     try {
       // For group containers, move the first member -- backend moves siblings
-      const bookingId = p._isGroup ? p._members[0].id : ev.id;
+      const bookingId = p._isGroup ? p._members?.[0]?.id : ev.id;
       const pracId = oldPracId;
       const r = await fetch(`/api/bookings/${bookingId}/move`, {
         method: 'PATCH',
