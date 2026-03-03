@@ -13,13 +13,13 @@ const gToast = (m, t) => GendaUI.toast(m, t);
  */
 function sanitizeRichText(html) {
   if (!html) return '';
-  // Remove script/iframe/object/embed tags and their content
-  let s = html.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*>[\s\S]*?<\/\1>/gi, '');
-  s = s.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*\/?>/gi, '');
+  // Remove dangerous tags and their content (including SVG, math, style, details)
+  let s = html.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  s = s.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*\/?>/gi, '');
   // Remove event handlers (on*="...")
   s = s.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-  // Remove javascript: URLs
-  s = s.replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
+  // Remove javascript: and data: URLs in href/src/action
+  s = s.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
   return s;
 }
 

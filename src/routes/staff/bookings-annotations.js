@@ -59,6 +59,10 @@ router.patch('/:id/session-notes', async (req, res, next) => {
     const { id } = req.params;
     const { session_notes } = req.body;
 
+    if (session_notes && session_notes.length > 50000) {
+      return res.status(400).json({ error: 'Notes de séance trop longues (max 50000 caractères)' });
+    }
+
     const result = await queryWithRLS(bid,
       `UPDATE bookings SET session_notes = $1, updated_at = NOW()
        WHERE id = $2 AND business_id = $3 RETURNING id`,
@@ -127,10 +131,10 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
 
     // Sanitize session notes before sending by email (strip scripts, event handlers, dangerous tags)
     let safeHTML = (session_notes || '');
-    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*>[\s\S]*?<\/\1>/gi, '');
-    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*\/?>/gi, '');
+    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*>[\s\S]*?<\/\1>/gi, '');
+    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*\/?>/gi, '');
     safeHTML = safeHTML.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-    safeHTML = safeHTML.replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
+    safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
 
     await sendSessionNotesEmail({
       to: d.client_email,
@@ -225,7 +229,7 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
     const bid = req.businessId;
     const { is_done, content } = req.body;
 
-    const sets = ['updated_at = NOW()'];
+    const sets = [];
     const params = [];
     let idx = 1;
 
@@ -240,14 +244,13 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
       }
     }
     if (content !== undefined) {
+      if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
       sets.push(`content = $${idx}`);
       params.push(content.trim());
       idx++;
     }
 
-    // Remove the generic updated_at since we don't have the column
-    // practitioner_todos doesn't have updated_at, remove it
-    sets.shift();
+    if (sets.length === 0) return res.status(400).json({ error: 'Rien à mettre à jour' });
 
     params.push(req.params.todoId, req.params.bookingId, bid);
     const result = await queryWithRLS(bid,
@@ -256,6 +259,7 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
        RETURNING *`,
       params
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
     res.json({ todo: result.rows[0] });
   } catch (err) {
     next(err);
@@ -283,7 +287,7 @@ router.post('/:id/reminders', async (req, res, next) => {
     const bid = req.businessId;
     const { offset_minutes, channel, message } = req.body;
     if (message && message.length > 5000) return res.status(400).json({ error: 'Message trop long (max 5000 caractères)' });
-    const offset = parseInt(offset_minutes) || 30;
+    const offset = Math.min(10080, Math.max(1, parseInt(offset_minutes) || 30)); // 1 min to 7 days
     const ch = ['browser', 'email', 'both'].includes(channel) ? channel : 'browser';
 
     // Get booking start time to calculate remind_at
@@ -332,7 +336,7 @@ router.post('/:id/send-document', async (req, res, next) => {
 
     // Get booking + client email
     const bk = await queryWithRLS(bid,
-      `SELECT b.id, b.start_at, b.end_at, b.client_id, b.service_id, b.practitioner_id,
+      `SELECT b.id, b.start_at, b.end_at, b.client_id, b.service_id, b.practitioner_id, b.status,
               c.full_name AS client_name, c.email AS client_email,
               s.name AS service_name
        FROM bookings b
@@ -343,6 +347,9 @@ router.post('/:id/send-document', async (req, res, next) => {
     );
     if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
     const booking = bk.rows[0];
+    if (['cancelled', 'no_show'].includes(booking.status)) {
+      return res.status(400).json({ error: 'Impossible d\'envoyer un document pour un RDV annulé ou no-show' });
+    }
     if (!booking.client_email) return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
 
     // Get template

@@ -29,6 +29,18 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: `Mode invalide. Valeurs : ${VALID_MODES.join(', ')}` });
     }
 
+    // Validate text field lengths
+    if (comment && comment.length > 5000) {
+      return res.status(400).json({ error: 'Commentaire trop long (max 5000 caractères)' });
+    }
+    if (custom_label && custom_label.length > 200) {
+      return res.status(400).json({ error: 'Libellé trop long (max 200 caractères)' });
+    }
+    // Validate color hex format
+    if (color !== undefined && color !== null && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+      return res.status(400).json({ error: 'Format de couleur invalide (ex: #FF5733)' });
+    }
+
     // Check global overlap policy + practitioner capacity
     const globalAllowOverlap = await businessAllowsOverlap(bid);
     const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, practitioner_id);
@@ -92,7 +104,7 @@ router.post('/manual', async (req, res, next) => {
               ? (dc.settings.deposit_fixed_cents || 2500)
               : 0; // freestyle has no service price, use fixed or skip
             if (depCents > 0) {
-              const dlHours = dc.settings.deposit_deadline_hours || 48;
+              const dlHours = dc.settings.deposit_deadline_hours ?? 48;
               const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
               if (deadline > new Date()) {
                 await client.query(
@@ -161,9 +173,12 @@ router.post('/manual', async (req, res, next) => {
     const svcMap = {};
     for (const s of svcResult.rows) svcMap[s.id] = s;
 
-    // Validate all services exist
+    // Validate all services exist and have valid durations
     for (const s of serviceList) {
       if (!svcMap[s.service_id]) return res.status(404).json({ error: `Prestation ${s.service_id} introuvable` });
+      if (!svcMap[s.service_id].duration_min || svcMap[s.service_id].duration_min <= 0) {
+        return res.status(400).json({ error: `Durée invalide pour la prestation ${s.service_id}` });
+      }
     }
 
     // Calculate chained time slots
@@ -251,7 +266,7 @@ router.post('/manual', async (req, res, next) => {
             depCents = Math.round(totalPrice * (dc.settings.deposit_percent || 50) / 100);
           }
           if (depCents > 0) {
-            const dlHours = dc.settings.deposit_deadline_hours || 48;
+            const dlHours = dc.settings.deposit_deadline_hours ?? 48;
             const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
             if (deadline > new Date()) {
               await client.query(

@@ -21,6 +21,9 @@ router.patch('/:id/status', async (req, res, next) => {
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: `Statut invalide. Valeurs : ${validStatuses.join(', ')}` });
     }
+    if (cancel_reason && cancel_reason.length > 1000) {
+      return res.status(400).json({ error: 'Raison d\'annulation trop longue (max 1000 caractères)' });
+    }
 
     // ===== All DB mutations inside a single transaction =====
     const txResult = await transactionWithRLS(bid, async (client) => {
@@ -149,8 +152,8 @@ router.patch('/:id/status', async (req, res, next) => {
         );
         const dep = depInfo.rows[0];
         if (dep?.deposit_required) {
-          const cancelDeadlineH = dep.settings?.cancel_deadline_hours || 48;
-          const graceMin = dep.settings?.cancel_grace_minutes || 240;
+          const cancelDeadlineH = dep.settings?.cancel_deadline_hours ?? 48;
+          const graceMin = dep.settings?.cancel_grace_minutes ?? 240;
           let newDepStatus;
           if (dep.deposit_status === 'paid') {
             const hoursUntilRdv = (new Date(dep.start_at) - new Date()) / 3600000;
@@ -281,18 +284,19 @@ router.delete('/:id', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
 
-    // Only allow deletion of cancelled or no_show bookings
-    const check = await queryWithRLS(bid,
-      `SELECT status, group_id, client_id FROM bookings WHERE id = $1 AND business_id = $2`,
-      [id, bid]
-    );
-    if (check.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
-    if (!['cancelled', 'no_show'].includes(check.rows[0].status)) {
-      return res.status(400).json({ error: 'Seuls les RDV annulés ou no-show peuvent être supprimés' });
-    }
-
     // All deletion operations in a single transaction for atomicity
-    const deletedIds = await transactionWithRLS(bid, async (client) => {
+    // Status check is INSIDE the transaction with FOR UPDATE to prevent race conditions
+    const txResult = await transactionWithRLS(bid, async (client) => {
+      // Lock and verify status inside transaction
+      const check = await client.query(
+        `SELECT status, group_id, client_id FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (check.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
+      if (!['cancelled', 'no_show'].includes(check.rows[0].status)) {
+        return { error: 400, message: 'Seuls les RDV annulés ou no-show peuvent être supprimés' };
+      }
+
       let bookingIds = [id];
       if (check.rows[0].group_id) {
         const siblings = await client.query(
@@ -330,10 +334,16 @@ router.delete('/:id', async (req, res, next) => {
         [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status, group_id: check.rows[0].group_id, deleted_count: bookingIds.length })]
       );
 
-      return bookingIds;
+      return { bookingIds };
     });
 
+    // Handle early returns from transaction
+    if (txResult.error) {
+      return res.status(txResult.error).json({ error: txResult.message });
+    }
+
     // Post-transaction side effects
+    const deletedIds = txResult.bookingIds;
     deletedIds.forEach(bId => calSyncDelete(bid, bId).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message)));
     broadcast(bid, 'booking_update', { action: 'deleted', booking_id: id });
     res.json({ deleted: true, deleted_count: deletedIds.length });

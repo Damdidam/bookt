@@ -156,9 +156,8 @@ router.patch('/:id/move', async (req, res, next) => {
     // ── SINGLE MOVE (no group) ──
     // Preserve the actual duration from the calendar (frontend sends correct end_at)
     const newEnd = new Date(end_at);
-    const recalcEnd = newEnd;
 
-    // Atomic single move: conflict check + update in one transaction
+    // Atomic single move: conflict check + update + deposit deadline recalc in one transaction
     let moveResult;
     try {
       moveResult = await transactionWithRLS(bid, async (client) => {
@@ -170,7 +169,7 @@ router.patch('/:id/move', async (req, res, next) => {
              AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
              AND start_at < $5 AND end_at > $4
              FOR UPDATE`,
-            [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
+            [bid, effectivePracId, id, newStart.toISOString(), newEnd.toISOString()]
           );
           if (conflict.rows.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
@@ -178,7 +177,7 @@ router.patch('/:id/move', async (req, res, next) => {
         }
 
         let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
-        const params = [newStart.toISOString(), recalcEnd.toISOString()];
+        const params = [newStart.toISOString(), newEnd.toISOString()];
         let idx = 3;
 
         if (practitioner_id) {
@@ -187,17 +186,28 @@ router.patch('/:id/move', async (req, res, next) => {
           idx++;
         }
 
-        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING id, start_at, end_at, practitioner_id`;
+        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING id, start_at, end_at, practitioner_id, deposit_required, deposit_deadline`;
         params.push(id, bid);
 
         const r = await client.query(sql, params);
+
+        // Recalculate deposit deadline if booking has pending deposit
+        const moved = r.rows[0];
+        if (moved && moved.deposit_required && moved.deposit_deadline) {
+          const timeDelta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
+          const newDeadline = new Date(new Date(moved.deposit_deadline).getTime() + timeDelta);
+          await client.query(
+            `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
+            [newDeadline.toISOString(), id, bid]
+          );
+        }
 
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
            VALUES ($1, $2, 'booking', $3, 'move', $4, $5)`,
           [bid, req.user.id, id,
            JSON.stringify(old.rows[0]),
-           JSON.stringify({ start_at: newStart.toISOString(), end_at: recalcEnd.toISOString(), practitioner_id })]
+           JSON.stringify({ start_at: newStart.toISOString(), end_at: newEnd.toISOString(), practitioner_id })]
         );
 
         return r;
@@ -228,6 +238,11 @@ router.patch('/:id/edit', async (req, res, next) => {
     // Prevent practitioners from reassigning bookings to other practitioners
     if (practitioner_id !== undefined && req.user.role === 'practitioner') {
       return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
+    }
+
+    // Validate color hex format
+    if (color !== undefined && color !== null && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+      return res.status(400).json({ error: 'Format de couleur invalide (ex: #FF5733)' });
     }
 
     // Guard: immutable statuses cannot be edited
@@ -329,6 +344,23 @@ router.patch('/:id/edit', async (req, res, next) => {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
           const r = await client.query(updateSql, params);
+
+          // Audit log inside transaction for atomicity
+          if (r.rows.length > 0) {
+            const od = snap.rows.length > 0 ? snap.rows[0] : {};
+            const nd = {};
+            if (practitioner_id !== undefined) nd.practitioner_id = practitioner_id;
+            if (comment !== undefined) nd.comment = comment;
+            if (internal_note !== undefined) nd.internal_note = internal_note;
+            if (custom_label !== undefined) nd.custom_label = custom_label;
+            if (color !== undefined) nd.color = color;
+            await client.query(
+              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+               VALUES ($1, $2, 'booking', $3, 'edit', $4, $5)`,
+              [bid, req.user.id, id, JSON.stringify(od), JSON.stringify(nd)]
+            );
+          }
+
           return { result: r, oldSnap: snap };
         });
         result = txRes.result;
@@ -338,30 +370,37 @@ router.patch('/:id/edit', async (req, res, next) => {
         throw err;
       }
     } else {
-      // Capture old values for audit (no transaction needed)
-      oldSnap = await queryWithRLS(bid,
-        `SELECT practitioner_id, comment_client, internal_note, custom_label, color
-         FROM bookings WHERE id = $1 AND business_id = $2`,
-        [id, bid]
-      );
-      result = await queryWithRLS(bid, updateSql, params);
+      // Wrap update + audit in transaction for atomicity
+      const txRes = await transactionWithRLS(bid, async (client) => {
+        const snap = await client.query(
+          `SELECT practitioner_id, comment_client, internal_note, custom_label, color
+           FROM bookings WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+        const r = await client.query(updateSql, params);
+
+        if (r.rows.length > 0) {
+          const od = snap.rows.length > 0 ? snap.rows[0] : {};
+          const nd = {};
+          if (practitioner_id !== undefined) nd.practitioner_id = practitioner_id;
+          if (comment !== undefined) nd.comment = comment;
+          if (internal_note !== undefined) nd.internal_note = internal_note;
+          if (custom_label !== undefined) nd.custom_label = custom_label;
+          if (color !== undefined) nd.color = color;
+          await client.query(
+            `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+             VALUES ($1, $2, 'booking', $3, 'edit', $4, $5)`,
+            [bid, req.user.id, id, JSON.stringify(od), JSON.stringify(nd)]
+          );
+        }
+
+        return { result: r, oldSnap: snap };
+      });
+      result = txRes.result;
+      oldSnap = txRes.oldSnap;
     }
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
-
-    // Audit with old/new data
-    const oldData = oldSnap.rows.length > 0 ? oldSnap.rows[0] : {};
-    const newData = {};
-    if (practitioner_id !== undefined) newData.practitioner_id = practitioner_id;
-    if (comment !== undefined) newData.comment = comment;
-    if (internal_note !== undefined) newData.internal_note = internal_note;
-    if (custom_label !== undefined) newData.custom_label = custom_label;
-    if (color !== undefined) newData.color = color;
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-       VALUES ($1, $2, 'booking', $3, 'edit', $4, $5)`,
-      [bid, req.user.id, id, JSON.stringify(oldData), JSON.stringify(newData)]
-    );
 
     broadcast(bid, 'booking_update', { action: 'edited' });
     calSyncPush(bid, id).catch(() => {});
@@ -432,26 +471,28 @@ router.patch('/:id/resize', async (req, res, next) => {
           }
         }
 
-        return client.query(
+        const r = await client.query(
           `UPDATE bookings SET end_at = $1, updated_at = NOW()
            WHERE id = $2 AND business_id = $3
            RETURNING id, start_at, end_at`,
           [end_at, id, bid]
         );
+
+        // Audit log inside transaction for atomicity
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'booking', $3, 'resize', $4, $5)`,
+          [bid, req.user.id, id,
+           JSON.stringify({ end_at: current.rows[0].end_at }),
+           JSON.stringify({ end_at })]
+        );
+
+        return r;
       });
     } catch (err) {
       if (err.type === 'conflict') return res.status(409).json({ error: err.message });
       throw err;
     }
-
-    // Audit log for resize
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-       VALUES ($1, $2, 'booking', $3, 'resize', $4, $5)`,
-      [bid, req.user.id, id,
-       JSON.stringify({ end_at: current.rows[0].end_at }),
-       JSON.stringify({ end_at })]
-    );
 
     broadcast(bid, 'booking_update', { action: 'resized' });
     calSyncPush(bid, id).catch(() => {});
@@ -537,6 +578,17 @@ router.patch('/:id/modify', async (req, res, next) => {
            RETURNING *`,
           [start_at, end_at, newStatus, id, bid]
         );
+
+        // Recalculate deposit deadline if booking has pending deposit
+        const modified = r.rows[0];
+        if (modified && modified.deposit_required && modified.deposit_deadline) {
+          const timeDelta = new Date(start_at).getTime() - new Date(oldBooking.start_at).getTime();
+          const newDeadline = new Date(new Date(modified.deposit_deadline).getTime() + timeDelta);
+          await client.query(
+            `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
+            [newDeadline.toISOString(), id, bid]
+          );
+        }
 
         const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };
         const newTimes = { start_at, end_at, status: newStatus, notified: notify || false, channel: notify_channel || null };

@@ -158,8 +158,6 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   // 7. Generate slots
   const slots = [];
-  const startDate = new Date(dateFrom);
-  const endDate = new Date(dateTo);
 
   // DST-safe: compute correct UTC offset for a given date in Europe/Brussels
   function brusselsOffset(dateStr) {
@@ -170,10 +168,17 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     return `${hours >= 0 ? '+' : '-'}${String(Math.abs(hours)).padStart(2, '0')}:00`;
   }
 
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split('T')[0];
-    // JavaScript: 0=Sunday, we use 0=Monday → convert
-    const jsDay = d.getDay(); // 0=Sun, 1=Mon, ...
+  // DST-safe date iteration using string arithmetic (avoids setDate DST skips)
+  function nextDateStr(ds) {
+    const [y, m, d] = ds.split('-').map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    return next.toISOString().split('T')[0];
+  }
+
+  for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
+    // Calculate weekday from date string (noon UTC to avoid edge cases)
+    const dayDate = new Date(dateStr + 'T12:00:00Z');
+    const jsDay = dayDate.getUTCDay(); // 0=Sun, 1=Mon, ...
     const weekday = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon, 6=Sun
     const tzOffset = brusselsOffset(dateStr);
 
