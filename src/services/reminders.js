@@ -90,7 +90,7 @@ async function process24hReminders(stats) {
       });
 
       const manageUrl = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
-      const primaryColor = bk.theme?.primaryColor || '#0D7377';
+      const primaryColor = bk.theme?.primary_color || '#0D7377';
 
       // EMAIL 24h
       if (reminderEmailEnabled && bk.client_email) {

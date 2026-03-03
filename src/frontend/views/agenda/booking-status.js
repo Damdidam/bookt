@@ -20,7 +20,7 @@ async function fcSetStatus(newStatus) {
     // Store undo (only for reversible status changes)
     if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
-      gToast('Statut mis \u00e0 jour', 'success', { label: 'Annuler \u21b6', fn: 'fcUndoLast()' }, 8000);
+      gToast('Statut mis \u00e0 jour', 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
     } else {
       gToast('Statut mis \u00e0 jour', 'success');
     }

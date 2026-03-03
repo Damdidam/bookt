@@ -2,7 +2,7 @@
  * Calendar Mobile - list view for mobile, day shifting.
  */
 import { api, calState } from '../../state.js';
-import { esc } from '../../utils/dom.js';
+import { esc, safeId } from '../../utils/dom.js';
 import { ST_LABELS, MODE_ICO, DAY_NAMES, MONTH_NAMES } from '../../utils/format.js';
 import { bridge } from '../../utils/window-bridge.js';
 
@@ -47,10 +47,10 @@ async function fcLoadMobileList() {
         (b.status === 'modified_pending' ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' : ''),
         (b.group_id ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>' : '')
       ].filter(Boolean);
-      h += `<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${b.id}')">
+      h += `<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${safeId(b.id)}')">
         ${badges.length ? '<div class="mob-bk-badges">' + badges.map(x => '<span>' + x + '</span>').join('') + '</div>' : ''}
         <div class="mob-bk-time"><div class="t">${t1}</div><div class="dur">${dur}min</div></div>
-        <div class="mob-bk-info"><div class="name">${esc(b.client_name)}</div><div class="svc">${b.service_name || b.custom_label || 'RDV libre'} \u00b7 ${MODE_ICO[b.appointment_mode] || ''}</div><div class="prac"><span class="pdot" style="background:${prac?.color || 'var(--primary)'}"></span>${prac?.display_name || b.practitioner_name || ''}</div></div>
+        <div class="mob-bk-info"><div class="name">${esc(b.client_name)}</div><div class="svc">${esc(b.service_name || b.custom_label || 'RDV libre')} \u00b7 ${MODE_ICO[b.appointment_mode] || ''}</div><div class="prac"><span class="pdot" style="background:${/^#[0-9a-fA-F]{3,8}$/.test(prac?.color) ? prac.color : 'var(--primary)'}"></span>${esc(prac?.display_name || b.practitioner_name || '')}</div></div>
         <div class="mob-bk-status status-badge ${stClass}">${stLabel}</div>
       </div>`;
     });

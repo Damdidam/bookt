@@ -70,7 +70,7 @@ function fsToggleMode() {
     }
     // Check if selected practitioner has featured_enabled
     const selectedPrac = calState.fcCurrentFilter !== 'all'
-      ? calState.fcPractitioners.find(p => p.id === calState.fcCurrentFilter)
+      ? calState.fcPractitioners.find(p => String(p.id) === String(calState.fcCurrentFilter))
       : calState.fcPractitioners.length === 1 ? calState.fcPractitioners[0] : null;
     if (selectedPrac && !selectedPrac.featured_enabled) {
       gToast('Le mode vedette n\'est pas activé pour ce praticien. Activez-le dans Équipe > Modifier.', 'info');

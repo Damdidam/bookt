@@ -17,8 +17,12 @@ function sanitizeRichText(html) {
   // Remove dangerous tags and their content (including SVG, math, style, details, media, legacy)
   let s = html.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
   s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
-  // Remove event handlers (on*="...") — allow whitespace/newlines between "on" and event name to prevent bypass
-  s = s.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  // Remove event handlers (on*="...") — loop until stable to prevent chained handler bypass
+  let prev;
+  do {
+    prev = s;
+    s = s.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  } while (s !== prev);
   // Remove dangerous protocol URLs in href/src/action (including HTML-entity-encoded variants)
   s = s.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
     // Decode HTML entities for protocol check

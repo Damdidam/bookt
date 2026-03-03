@@ -18,40 +18,54 @@ const TRANSITIONS = {
 };
 
 // ===== Helper: propagate status to group siblings respecting state machine =====
+// Returns array of affected booking IDs (Bug M6: used to avoid double-counting in applySiblingNoShowStrikes)
 async function propagateGroupStatus(client, { groupId, bid, excludeId, status, cancelReason }) {
   // Bug H4 fix: Build list of valid source statuses that can transition to the target
   const validSources = Object.entries(TRANSITIONS)
     .filter(([_, targets]) => targets.includes(status))
     .map(([src]) => src);
 
-  if (validSources.length === 0) return;
+  if (validSources.length === 0) return [];
 
+  // Bug M5 fix: Lock all siblings FOR UPDATE before modifying to prevent concurrent changes
+  await client.query(
+    `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 FOR UPDATE`,
+    [groupId, bid, excludeId]
+  );
+
+  let result;
   if (status === 'cancelled') {
-    await client.query(
+    result = await client.query(
       `UPDATE bookings SET status = $1, cancel_reason = $2, updated_at = NOW()
-       WHERE group_id = $3 AND business_id = $4 AND id != $5 AND status = ANY($6)`,
+       WHERE group_id = $3 AND business_id = $4 AND id != $5 AND status = ANY($6)
+       RETURNING id`,
       [status, cancelReason || null, groupId, bid, excludeId, validSources]
     );
   } else {
-    await client.query(
+    result = await client.query(
       `UPDATE bookings SET status = $1, updated_at = NOW()
-       WHERE group_id = $2 AND business_id = $3 AND id != $4 AND status = ANY($5)`,
+       WHERE group_id = $2 AND business_id = $3 AND id != $4 AND status = ANY($5)
+       RETURNING id`,
       [status, groupId, bid, excludeId, validSources]
     );
   }
+  return result.rows.map(r => r.id);
 }
 
 // ===== Helper: apply no-show strikes to sibling clients =====
-async function applySiblingNoShowStrikes(client, { groupId, bid, excludeClientId, excludeId }) {
-  // Bug H5 fix: Find siblings that were just set to no_show with different clients
+// Bug M6 fix: Accept affectedIds to only target siblings that were JUST transitioned,
+// avoiding double-counting pre-existing no_show bookings
+async function applySiblingNoShowStrikes(client, { affectedIds, bid, excludeClientId }) {
+  if (!affectedIds || affectedIds.length === 0) return;
+
   const siblings = await client.query(
     `SELECT DISTINCT b.client_id, biz.settings
      FROM bookings b
      JOIN businesses biz ON biz.id = b.business_id
-     WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
+     WHERE b.id = ANY($1) AND b.business_id = $2
        AND b.status = 'no_show' AND b.client_id IS NOT NULL
-       AND b.client_id != $4`,
-    [groupId, bid, excludeId, excludeClientId]
+       AND b.client_id != $3`,
+    [affectedIds, bid, excludeClientId]
   );
 
   for (const sib of siblings.rows) {
@@ -139,8 +153,9 @@ router.patch('/:id/status', async (req, res, next) => {
       }
 
       // ===== Bug M9 fix + Bug H4 fix: Propagate status to group siblings respecting state machine =====
+      let affectedSiblingIds = [];
       if (old.rows[0].group_id) {
-        await propagateGroupStatus(client, {
+        affectedSiblingIds = await propagateGroupStatus(client, {
           groupId: old.rows[0].group_id,
           bid,
           excludeId: id,
@@ -197,12 +212,12 @@ router.patch('/:id/status', async (req, res, next) => {
           }
 
           // Bug H5 fix: Apply no-show strikes to sibling clients too
-          if (old.rows[0].group_id) {
+          // Bug M6 fix: Only target siblings that were just transitioned (affectedSiblingIds)
+          if (old.rows[0].group_id && affectedSiblingIds.length > 0) {
             await applySiblingNoShowStrikes(client, {
-              groupId: old.rows[0].group_id,
+              affectedIds: affectedSiblingIds,
               bid,
-              excludeClientId: clientId,
-              excludeId: id
+              excludeClientId: clientId
             });
           }
         }
@@ -210,15 +225,15 @@ router.patch('/:id/status', async (req, res, next) => {
 
       // ===== UNDO: if reverting from no_show, decrement + potentially unblock =====
       if (old.rows[0].status === 'no_show' && status !== 'no_show') {
-        const clientId = old.rows[0].client_id;
-        if (clientId) {
+        // Helper to decrement strike and maybe unblock a client
+        async function decrementStrikeAndMaybeUnblock(cid) {
           const updated = await client.query(
             `UPDATE clients SET
               no_show_count = GREATEST(no_show_count - 1, 0),
               updated_at = NOW()
              WHERE id = $1 AND business_id = $2
              RETURNING no_show_count, is_blocked, blocked_reason`,
-            [clientId, bid]
+            [cid, bid]
           );
           const cl = updated.rows[0];
           if (cl && cl.is_blocked && cl.blocked_reason?.startsWith('Bloqué automatiquement')) {
@@ -230,9 +245,27 @@ router.patch('/:id/status', async (req, res, next) => {
               await client.query(
                 `UPDATE clients SET is_blocked = false, blocked_reason = NULL, blocked_at = NULL, updated_at = NOW()
                  WHERE id = $1 AND business_id = $2`,
-                [clientId, bid]
+                [cid, bid]
               );
             }
+          }
+        }
+
+        const clientId = old.rows[0].client_id;
+        if (clientId) {
+          await decrementStrikeAndMaybeUnblock(clientId);
+        }
+
+        // Bug H5 fix: Also decrement strikes for sibling clients that were no_show
+        if (old.rows[0].group_id) {
+          const sibsToUndo = await client.query(
+            `SELECT DISTINCT client_id FROM bookings
+             WHERE group_id = $1 AND business_id = $2 AND id != $3
+             AND status = 'no_show' AND client_id IS NOT NULL AND client_id != $4`,
+            [old.rows[0].group_id, bid, id, old.rows[0].client_id || '00000000-0000-0000-0000-000000000000']
+          );
+          for (const sib of sibsToUndo.rows) {
+            await decrementStrikeAndMaybeUnblock(sib.client_id);
           }
         }
       }
@@ -269,10 +302,12 @@ router.patch('/:id/status', async (req, res, next) => {
               [newDepStatus, id, bid]
             );
 
-            // Bug H6 fix: Update sibling deposits too
+            // Bug H6 + B4 fix: Update sibling deposits, differentiating by actual deposit_status
             if (old.rows[0].group_id) {
               await client.query(
-                `UPDATE bookings SET deposit_status = $1, updated_at = NOW()
+                `UPDATE bookings SET
+                  deposit_status = CASE WHEN deposit_status = 'paid' THEN $1 ELSE 'cancelled' END,
+                  updated_at = NOW()
                  WHERE group_id = $2 AND business_id = $3 AND id != $4 AND deposit_required = true`,
                 [newDepStatus, old.rows[0].group_id, bid, id]
               );
@@ -395,7 +430,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       return res.status(txResult.error).json({ error: txResult.message });
     }
 
-    broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: id });
+    broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: id, status: 'cancelled' });
     calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
 
     // Process waitlist (same as cancellation)

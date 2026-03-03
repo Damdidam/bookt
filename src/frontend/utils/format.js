@@ -60,7 +60,7 @@ export function toBrusselsISO(date, time) {
   bruFmt.formatToParts(dt).forEach(p => { parts[p.type] = p.value; });
   const bruDate = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
   const offsetMs = bruDate.getTime() - dt.getTime();
-  const offsetMin = -Math.round(offsetMs / 60000);
+  const offsetMin = Math.round(offsetMs / 60000);
   const sign = offsetMin >= 0 ? '+' : '-';
   const absOff = Math.abs(offsetMin);
   const offH = String(Math.floor(absOff / 60)).padStart(2, '0');

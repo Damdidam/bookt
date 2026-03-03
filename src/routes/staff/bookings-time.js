@@ -511,6 +511,10 @@ router.patch('/:id/resize', async (req, res, next) => {
       return res.status(400).json({ error: 'Impossible de redimensionner un RDV groupé — les durées sont définies par les prestations' });
     }
 
+    // Check practitioner availability for the resized time range
+    const availCheck = await checkPracAvailability(bid, current.rows[0].practitioner_id, current.rows[0].start_at, end_at);
+    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+
     // Atomic resize: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
     const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, current.rows[0].practitioner_id);
@@ -628,6 +632,10 @@ router.patch('/:id/modify', async (req, res, next) => {
     if (req.practitionerFilter && String(oldBooking.practitioner_id) !== String(req.practitionerFilter)) {
       return res.status(403).json({ error: 'Accès interdit' });
     }
+
+    // Check practitioner availability for the new time range
+    const availCheck = await checkPracAvailability(bid, oldBooking.practitioner_id, start_at, end_at);
+    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
 
     const newStatus = shouldNotify ? 'modified_pending' : oldBooking.status;
 

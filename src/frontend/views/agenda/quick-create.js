@@ -292,7 +292,7 @@ async function calPickClient(id, name) {
   if (prev) prev.remove();
 
   // Populate email/phone from cached search results
-  const cached = _qcSearchResults.find(c => c.id === id);
+  const cached = _qcSearchResults.find(c => String(c.id) === String(id));
   const emailEl = document.getElementById('qcClientEmail');
   const phoneEl = document.getElementById('qcClientPhone');
   if (emailEl) emailEl.value = cached?.email || '';
@@ -306,7 +306,7 @@ async function calPickClient(id, name) {
     try {
       const r = await fetch(`/api/clients?search=${encodeURIComponent(name)}&limit=1`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
       const d = await r.json();
-      const fetched = (d.clients || []).find(c => c.id === id);
+      const fetched = (d.clients || []).find(c => String(c.id) === String(id));
       if (fetched) {
         if (emailEl && !emailEl.value) emailEl.value = fetched.email || '';
         if (phoneEl && !phoneEl.value) phoneEl.value = fetched.phone || '';
@@ -472,7 +472,7 @@ async function calCreateBooking() {
       actualClientId = cd.client?.id;
     } else {
       // Update existing client if email/phone changed
-      const cached = _qcSearchResults.find(c => c.id === clientId);
+      const cached = _qcSearchResults.find(c => String(c.id) === String(clientId));
       const emailChanged = clientEmail && clientEmail !== (cached?.email || '');
       const phoneChanged = clientPhone && clientPhone !== (cached?.phone || '');
       if (emailChanged || phoneChanged) {

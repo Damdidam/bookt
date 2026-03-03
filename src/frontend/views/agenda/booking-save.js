@@ -34,7 +34,7 @@ async function calSaveAll() {
 
   // Build edit payload (non-time fields)
   const editPayload = {};
-  if (newPrac !== calState.fcEditOriginal.practitioner_id) editPayload.practitioner_id = newPrac;
+  if (String(newPrac) !== String(calState.fcEditOriginal.practitioner_id)) editPayload.practitioner_id = newPrac;
   if (newComment !== (calState.fcEditOriginal.comment || '')) editPayload.comment = newComment;
   if (newNote !== (calState.fcEditOriginal.internal_note || '')) editPayload.internal_note = newNote;
   if (isFreestyle) {

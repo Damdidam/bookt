@@ -42,7 +42,7 @@ async function fcDeleteNote(noteId) {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    calState.fcDetailData.notes = calState.fcDetailData.notes.filter(n => n.id !== noteId);
+    calState.fcDetailData.notes = calState.fcDetailData.notes.filter(n => String(n.id) !== String(noteId));
     fcRenderNotes();
   } catch (e) { gToast('Erreur', 'error'); }
 }

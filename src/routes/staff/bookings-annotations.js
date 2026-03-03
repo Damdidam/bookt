@@ -139,8 +139,12 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     let safeHTML = (session_notes || '');
     safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
     safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
-    // Remove event handlers — allow whitespace/newlines between "on" and event name to prevent bypass
-    safeHTML = safeHTML.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    // Remove event handlers — loop until stable to prevent chained handler bypass
+    let prev;
+    do {
+      prev = safeHTML;
+      safeHTML = safeHTML.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    } while (safeHTML !== prev);
     // Remove dangerous protocol URLs in href/src/action (including HTML-entity-encoded variants)
     safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
       // Decode HTML entities for protocol check

@@ -39,7 +39,7 @@ async function fcToggleTodo(todoId, isDone) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ is_done: isDone })
     });
-    const todo = calState.fcDetailData.todos.find(t => t.id === todoId);
+    const todo = calState.fcDetailData.todos.find(t => String(t.id) === String(todoId));
     if (todo) todo.is_done = isDone;
     fcRenderTodos();
   } catch (e) { gToast('Erreur', 'error'); }
@@ -51,7 +51,7 @@ async function fcDeleteTodo(todoId) {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    calState.fcDetailData.todos = calState.fcDetailData.todos.filter(t => t.id !== todoId);
+    calState.fcDetailData.todos = calState.fcDetailData.todos.filter(t => String(t.id) !== String(todoId));
     fcRenderTodos();
   } catch (e) { gToast('Erreur', 'error'); }
 }

@@ -6,13 +6,14 @@ import { bridge } from '../../utils/window-bridge.js';
 const CSW_PALETTE = ['#0D7377','#2196F3','#3F51B5','#9C27B0','#E91E63','#F44336','#FF9800','#FFB300','#4CAF50','#00BCD4','#795548','#607D8B'];
 
 function cswHTML(hiddenId, selected, inline) {
+  const safeSelected = /^#[0-9a-fA-F]{3,8}$/.test(selected) ? selected : '#0D7377';
   const cls = inline ? 'csw-inline' : 'csw';
   let h = `<div class="${cls}">`;
   CSW_PALETTE.forEach(c => {
-    const act = c.toLowerCase() === ((selected || '#0D7377').toLowerCase()) ? 'active' : '';
+    const act = c.toLowerCase() === safeSelected.toLowerCase() ? 'active' : '';
     h += `<span class="csw-dot ${act}" style="background:${c}" data-color="${c}" onclick="cswPick(this,'${hiddenId}')"></span>`;
   });
-  h += `</div><input type="hidden" id="${hiddenId}" value="${selected || '#0D7377'}">`;
+  h += `</div><input type="hidden" id="${hiddenId}" value="${safeSelected}">`;
   return h;
 }
 

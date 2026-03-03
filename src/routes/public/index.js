@@ -236,6 +236,13 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     defaultToDate.setUTCDate(defaultToDate.getUTCDate() + 14);
     const to = date_to || defaultToDate.toLocaleDateString('en-CA', { timeZone: 'UTC' });
 
+    // Bug H2 fix: Prevent DoS via unbounded date range
+    const fromDate = new Date(from + 'T00:00:00Z');
+    const toDate = new Date(to + 'T00:00:00Z');
+    if ((toDate - fromDate) / 86400000 > 60) {
+      return res.status(400).json({ error: 'Plage maximale : 60 jours' });
+    }
+
     const slots = await getAvailableSlots({
       businessId, serviceId: service_id,
       practitionerId: practitioner_id || null,
@@ -641,27 +648,24 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
     }
 
-    // Deposit refund logic
-    let depositUpdate = '';
-    if (bk.deposit_required) {
-      const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
-      if (bk.deposit_status === 'paid') {
-        const hoursUntilRdv = (new Date(bk.start_at) - new Date()) / 3600000;
-        const minSinceCreated = (new Date() - new Date(bk.created_at)) / 60000;
-        if (minSinceCreated <= graceMin || hoursUntilRdv >= cancelWindowHours) {
-          depositUpdate = `, deposit_status = 'refunded'`;
-        } else {
-          depositUpdate = `, deposit_status = 'cancelled'`;
-        }
-      } else if (bk.deposit_status === 'pending') {
-        depositUpdate = `, deposit_status = 'cancelled'`;
-      }
-    }
+    // Deposit refund logic — atomic CASE WHEN to avoid race condition
+    // between SELECT and UPDATE (a payment webhook could change deposit_status in between)
+    const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
 
     const cancelResult = await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1${depositUpdate}, updated_at = NOW()
-       WHERE id = $2 AND status IN ('confirmed', 'pending_deposit')`,
-      [reason || 'Annulé par le client', bk.id]
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
+        deposit_status = CASE
+          WHEN deposit_required = true AND deposit_status = 'paid' THEN
+            CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
+                   OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
+                 THEN 'refunded' ELSE 'cancelled' END
+          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+          ELSE deposit_status
+        END,
+        updated_at = NOW()
+       WHERE id = $2 AND status IN ('confirmed', 'pending_deposit')
+       RETURNING *`,
+      [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
     );
 
     if (cancelResult.rowCount === 0) {
@@ -708,8 +712,8 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       if (info.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
       displayData = info.rows[0];
       const color = displayData.theme?.primary_color || '#0D7377';
-      const dt = new Date(displayData.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
-      const tm = new Date(displayData.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      const dt = new Date(displayData.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const tm = new Date(displayData.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
       displayData._color = color;
       displayData._dt = dt;
       displayData._tm = tm;
@@ -850,8 +854,8 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
 
     const bk = result.rows[0];
     const color = bk.theme?.primary_color || '#0D7377';
-    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
-    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
     if (bk.status === 'confirmed') {
       return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
@@ -1064,6 +1068,16 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 
     if (!practitioner_id || !service_id || !client_name || !client_email) {
       return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
+    }
+
+    if (client_name.length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
+    if (client_email.length > 320) return res.status(400).json({ error: 'Email trop long' });
+    if (client_phone && client_phone.length > 30) return res.status(400).json({ error: 'Téléphone trop long' });
+
+    if (preferred_days) {
+      if (!Array.isArray(preferred_days) || preferred_days.length > 7 || !preferred_days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) {
+        return res.status(400).json({ error: 'preferred_days invalide' });
+      }
     }
 
     if (note && note.length > 2000) {
@@ -1298,13 +1312,16 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
          e.offer_booking_start, e.offer_booking_end]
       );
 
-      // Update waitlist entry
-      await client.query(
+      // Update waitlist entry (TOCTOU fix: require status = 'offered' to prevent double-accept)
+      const wlUpdate = await client.query(
         `UPDATE waitlist_entries SET
           status = 'booked', offer_booking_id = $1, updated_at = NOW()
-         WHERE id = $2`,
+         WHERE id = $2 AND status = 'offered'`,
         [bk.rows[0].id, e.id]
       );
+      if (wlUpdate.rowCount === 0) {
+        throw Object.assign(new Error('Cette offre a déjà été utilisée ou a expiré'), { type: 'expired', status: 410 });
+      }
 
       // Queue confirmation notification
       await client.query(

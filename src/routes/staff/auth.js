@@ -100,7 +100,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
 // POST /api/auth/verify
 // Verify a magic link token and return JWT
 // ============================================================
-router.post('/verify', async (req, res, next) => {
+router.post('/verify', authLimiter, async (req, res, next) => {
   try {
     const { token: magicToken } = req.body;
 

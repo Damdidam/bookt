@@ -43,7 +43,7 @@ async function fcDeleteReminder(remId) {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    calState.fcDetailData.reminders = calState.fcDetailData.reminders.filter(r => r.id !== remId);
+    calState.fcDetailData.reminders = calState.fcDetailData.reminders.filter(r => String(r.id) !== String(remId));
     fcRenderReminders();
   } catch (e) { gToast('Erreur', 'error'); }
 }

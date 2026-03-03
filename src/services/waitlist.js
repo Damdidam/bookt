@@ -118,8 +118,8 @@ async function processWaitlistForCancellation(bookingId, businessId) {
         offer_sent_at = NOW(),
         offer_expires_at = $4,
         updated_at = NOW()
-       WHERE id = $5`,
-      [token, bk.start_at, bk.end_at, expiresAt.toISOString(), entry.id]
+       WHERE id = $5 AND business_id = $6`,
+      [token, bk.start_at, bk.end_at, expiresAt.toISOString(), entry.id, bk.business_id]
     );
 
     // TODO: Send email via Brevo when connected
@@ -174,8 +174,8 @@ async function processExpiredOffers() {
     // Mark as expired
     await query(
       `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW()
-       WHERE id = $1`,
-      [entry.id]
+       WHERE id = $1 AND business_id = $2`,
+      [entry.id, entry.business_id]
     );
 
     // If auto mode, offer to next person
@@ -219,9 +219,9 @@ async function processExpiredOffers() {
             offer_sent_at = NOW(),
             offer_expires_at = $4,
             updated_at = NOW()
-           WHERE id = $5`,
+           WHERE id = $5 AND business_id = $6`,
           [token, entry.offer_booking_start, entry.offer_booking_end,
-           expiresAt.toISOString(), next.rows[0].id]
+           expiresAt.toISOString(), next.rows[0].id, entry.business_id]
         );
 
         // TODO: Send email to next person
