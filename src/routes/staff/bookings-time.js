@@ -113,18 +113,8 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalStart = updates[0].start_at;
       const totalEnd = updates[updates.length - 1].end_at;
 
-      // CRT-9: Check practitioner working hours for the full group range (not just single booking)
-      const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
-      if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
-
-      // Bug M12 fix: Check availability for ALL group members, not just the dragged one
-      for (const u of updates) {
-        const memberPracId = practitioner_id || u.practitioner_id;
-        if (memberPracId !== effectivePracId) {
-          const memberAvail = await checkPracAvailability(bid, memberPracId, u.start_at, u.end_at);
-          if (!memberAvail.ok) return res.status(400).json({ error: `Praticien indisponible pour le membre du groupe: ${memberAvail.reason}` });
-        }
-      }
+      // Staff can override availability — no checkPracAvailability here
+      // Availability is only enforced on public booking endpoints
 
       // Note: business hours validation is handled by frontend eventAllow
       // which checks the entire group range against practitioner availability
@@ -207,9 +197,7 @@ router.patch('/:id/move', async (req, res, next) => {
     // Preserve the actual duration from the calendar (frontend sends correct end_at)
     const newEnd = new Date(end_at);
 
-    // Check practitioner working hours for single move
-    const availCheck = await checkPracAvailability(bid, effectivePracId, start_at, end_at);
-    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+    // Staff can override availability — no checkPracAvailability here
 
     // Atomic single move: conflict check + update + deposit deadline recalc in one transaction
     let moveResult;
@@ -382,10 +370,7 @@ router.patch('/:id/edit', async (req, res, next) => {
         `SELECT start_at, end_at FROM bookings WHERE id = $1 AND business_id = $2`,
         [id, bid]
       );
-      if (bkTimes.rows.length > 0) {
-        const availCheck = await checkPracAvailability(bid, practitioner_id, bkTimes.rows[0].start_at, bkTimes.rows[0].end_at);
-        if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
-      }
+      // Staff can override availability — no checkPracAvailability here
 
       // Check conflicts with new practitioner's schedule (reuse bkTimes from above)
       // This will be done inside a transaction below for atomicity
@@ -560,9 +545,7 @@ router.patch('/:id/resize', async (req, res, next) => {
       return res.status(400).json({ error: 'Impossible de redimensionner un RDV groupé — les durées sont définies par les prestations' });
     }
 
-    // Check practitioner availability for the resized time range
-    const availCheck = await checkPracAvailability(bid, current.rows[0].practitioner_id, current.rows[0].start_at, end_at);
-    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+    // Staff can override availability — no checkPracAvailability here
 
     // Atomic resize: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
@@ -691,9 +674,7 @@ router.patch('/:id/modify', async (req, res, next) => {
       return res.status(403).json({ error: 'Accès interdit' });
     }
 
-    // Check practitioner availability for the new time range
-    const availCheck = await checkPracAvailability(bid, oldBooking.practitioner_id, start_at, end_at);
-    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+    // Staff can override availability — no checkPracAvailability here
 
     // CRT-14: Preserve pending_deposit status instead of overwriting to modified_pending
     const newStatus = shouldNotify ? (oldBooking.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending') : oldBooking.status;

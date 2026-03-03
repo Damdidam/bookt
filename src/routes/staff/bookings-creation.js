@@ -102,9 +102,7 @@ router.post('/manual', async (req, res, next) => {
         return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
       }
 
-      // Check practitioner availability for the full time range (including buffers)
-      const availCheck = await checkPracAvailability(bid, practitioner_id, realStart.toISOString(), realEnd.toISOString());
-      if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+      // Staff can override availability — no checkPracAvailability here
 
       const bookings = await transactionWithRLS(bid, async (client) => {
         if (!globalAllowOverlap) {
@@ -273,9 +271,7 @@ router.post('/manual', async (req, res, next) => {
 
     const totalEnd = slots[slots.length - 1].end_at;
 
-    // Check practitioner availability for the full time range (start to last service end)
-    const availCheck = await checkPracAvailability(bid, practitioner_id, start_at, totalEnd);
-    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+    // Staff can override availability — no checkPracAvailability here
 
     const bookings = await transactionWithRLS(bid, async (client) => {
       // Check conflicts for the entire time range (skip if business allows overlap)
