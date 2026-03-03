@@ -302,7 +302,8 @@ async function qsSubmitAll(){
     const cat=row.dataset.category;
     const dur=parseInt(row.querySelector('.qs-tpl-dur').value)||30;
     const priceVal=parseFloat(row.querySelector('.qs-tpl-price').value);
-    toCreate.push({name,category:cat,duration_min:dur,price_cents:priceVal?Math.round(priceVal*100):null,buffer_before_min:0,buffer_after_min:0,mode_options:['cabinet'],color:catColor(cat)});
+    const pIds=allPractitioners.map(p=>p.id);
+    toCreate.push({name,category:cat,duration_min:dur,price_cents:priceVal?Math.round(priceVal*100):null,buffer_before_min:0,buffer_after_min:0,mode_options:['cabinet'],color:catColor(cat),practitioner_ids:pIds});
   });
   if(!toCreate.length){GendaUI.toast('Sélectionnez au moins une prestation','error');return;}
   const btn=document.getElementById('qsSubmitBtn');

@@ -680,9 +680,9 @@ function render(d){
       document.getElementById('aboutTitle').textContent=mp.display_name;
       let ah='';
       if(mp.title)ah+='<p style="color:var(--primary);font-weight:700;font-size:.82rem;margin-bottom:12px">'+esc(mp.title)+(mp.years_experience?' · '+mp.years_experience+" ans d'expérience":'')+'</p>';
+      if(b.description)ah+='<p>'+esc(b.description)+'</p>';
       if(mp.bio)ah+='<p>'+esc(mp.bio)+'</p>';
-      else if(b.description)ah+='<p>'+esc(b.description)+'</p>';
-      else ah+='<p style="color:var(--text-3);font-style:italic">Professionnel passionné, à votre écoute pour vous accompagner dans les meilleures conditions.</p>';
+      if(!b.description&&!mp.bio)ah+='<p style="color:var(--text-3);font-style:italic">Professionnel passionné, à votre écoute pour vous accompagner dans les meilleures conditions.</p>';
       // Add contact mini-cards in about section
       const miniCards=[];
       if(b.phone)miniCards.push('<span style="display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--text-3)">'+ICO.phone+' '+esc(b.phone)+'</span>');

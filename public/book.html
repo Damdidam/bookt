@@ -410,6 +410,8 @@ function initPage(){
     document.querySelector('#step1 .step-title').textContent='Choisissez vos prestations';
     document.querySelector('#step1 .step-sub').textContent='Sélectionnez jusqu\u2019à 5 prestations (max).';
     document.getElementById('btnStep1').style.display='none';
+  }else{
+    document.getElementById('cartSticky').style.display='none';
   }
 
   // Build category icon lookup from sector_categories
@@ -855,11 +857,13 @@ async function loadSlots(){
   const today=new Date();today.setDate(today.getDate()+1+weekOffset*7);
   const endDate=new Date(today);endDate.setDate(today.getDate()+6);
   const dateFrom=today.toISOString().split('T')[0],dateTo=endDate.toISOString().split('T')[0];
-  // Skip locked weeks in normal mode
+  // Check if week is locked — show message instead of recursive skip
   if(selectedPractitioner&&Object.keys(lockedSet).length>0){
     var weekMonday=getMonday(dateFrom);
     if(lockedSet[selectedPractitioner.id+'_'+weekMonday]){
-      if(weekOffset<8){weekOffset++;return loadSlots();}
+      buildDateRow();
+      document.getElementById('slotsArea').innerHTML='<div class="no-slots">Cette semaine est verrouillée. Essayez une autre semaine.</div>';
+      return;
     }
   }
   let slotsUrl;
@@ -881,8 +885,7 @@ async function loadSlots(){
   // Auto-select first available date
   const firstDate=Object.keys(slotsData).sort().find(k=>slotsData[k]?.length>0);
   if(firstDate){selectDate(firstDate);}
-  else if(!weekHasFeatured&&weekOffset<8){weekOffset++;return loadSlots();}
-  else{document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau disponible'+(weekHasFeatured?' cette semaine':' dans les 8 prochaines semaines')+'.</div>';}
+  else{document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau disponible cette semaine.</div>';}
   renderWlCTA();
 }
 
