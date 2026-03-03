@@ -19,9 +19,18 @@ async function loadServices(){
     const svcs=sd.services||[];
     allPractitioners=pd.practitioners||[];
     const svcLabel=categoryLabels.service.toLowerCase(), svcsLabel=categoryLabels.services.toLowerCase();
-    let h=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${svcs.length} ${svcs.length>1?svcsLabel:svcLabel}</h3><button class="btn-primary" onclick="openServiceModal()">+ ${categoryLabels.service}</button></div>`;
-    if(svcs.length===0){h+=`<div class="card"><div class="empty">Aucune ${svcLabel}. Créez votre première !</div></div>`;}
-    else{
+    let h='';
+    if(svcs.length===0){
+      h+=`<div class="card qs-hero"><div class="qs-hero-content">
+        <div class="qs-hero-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3>Créez votre carte en 2 minutes</h3>
+        <p>Sélectionnez vos catégories, ajustez les prix et durées, et c'est parti !</p>
+        <button class="btn-primary qs-hero-btn" onclick="openQuickStart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Démarrage rapide</button>
+        <button class="qs-hero-secondary" onclick="openServiceModal()">ou créer manuellement</button>
+      </div></div>`;
+    } else {
+      const showQS=svcs.length<20;
+      h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3 style="font-size:.95rem;font-weight:700">${svcs.length} ${svcs.length>1?svcsLabel:svcLabel}</h3><div style="display:flex;gap:8px">${showQS?'<button class="btn-outline btn-sm" onclick="openQuickStart()" style="display:flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Rapide</button>':''}<button class="btn-primary" onclick="openServiceModal()">+ ${categoryLabels.service}</button></div></div>`;
       h+=`<div class="svc-grid">`;
       svcs.forEach(s=>{
         const price=s.price_cents?`${(s.price_cents/100).toFixed(0)} €`:(s.price_label||'Gratuit');
@@ -152,6 +161,167 @@ async function deleteService(id){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
-bridge({ loadServices, openServiceModal, saveService, deleteService });
+// ===== QUICK START WIZARD =====
 
-export { loadServices, openServiceModal, saveService, deleteService };
+const CSW_COLORS=['#0D7377','#2196F3','#3F51B5','#9C27B0','#E91E63','#F44336','#FF9800','#FFB300','#4CAF50','#00BCD4','#795548','#607D8B'];
+function catColor(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CSW_COLORS[Math.abs(h)%CSW_COLORS.length];}
+const checkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const defaultIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>';
+
+let qsGroups=[], qsSelectedCats=new Set(), qsOverlay=null;
+
+async function openQuickStart(){
+  try{
+    const r=await fetch('/api/business/service-templates',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur chargement');
+    const data=await r.json();
+    qsGroups=data.groups||[];
+    if(!qsGroups.length){GendaUI.toast('Aucun template pour votre secteur','info');return;}
+    qsSelectedCats=new Set(qsGroups.map(g=>g.category));
+    qsRenderStep1();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+function qsRenderStep1(){
+  const svcsLabel=categoryLabels.services.toLowerCase();
+  let m=`<div class="modal-overlay qs-overlay" onclick="if(event.target===this)this.remove()"><div class="modal qs-modal">
+    <div class="qs-progress">
+      <div class="qs-step active">1</div><div class="qs-line"></div><div class="qs-step">2</div>
+    </div>
+    <div class="modal-h"><h3>Choisissez vos catégories</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-body">
+      <p class="qs-subtitle">Décochez les catégories qui ne vous concernent pas</p>
+      <div class="qs-cat-grid">`;
+  qsGroups.forEach(g=>{
+    const sel=qsSelectedCats.has(g.category);
+    m+=`<div class="qs-cat-card${sel?' selected':''}" data-cat="${g.category}" onclick="qsToggleCat(this)">
+      <div class="qs-cat-check">${checkSvg}</div>
+      <div class="qs-cat-icon">${g.icon_svg||defaultIcon}</div>
+      <div class="qs-cat-label">${g.category}</div>
+      <div class="qs-cat-count">${g.templates.length} ${svcsLabel}</div>
+    </div>`;
+  });
+  m+=`</div></div>
+    <div class="modal-foot">
+      <span class="qs-count" id="qsCatCount"><strong>${qsSelectedCats.size}</strong> catégories sélectionnées</span>
+      <button class="btn-primary" onclick="qsGoStep2()" id="qsNextBtn">Continuer →</button>
+    </div>
+  </div></div>`;
+  document.querySelector('.qs-overlay')?.remove();
+  document.body.insertAdjacentHTML('beforeend',m);
+  qsOverlay=document.querySelector('.qs-overlay');
+}
+
+function qsToggleCat(el){
+  const cat=el.dataset.cat;
+  if(qsSelectedCats.has(cat)){qsSelectedCats.delete(cat);el.classList.remove('selected');}
+  else{qsSelectedCats.add(cat);el.classList.add('selected');}
+  const cnt=document.getElementById('qsCatCount');
+  if(cnt)cnt.innerHTML=`<strong>${qsSelectedCats.size}</strong> catégories sélectionnées`;
+}
+
+function qsGoStep2(){
+  if(qsSelectedCats.size===0){GendaUI.toast('Sélectionnez au moins une catégorie','error');return;}
+  const modal=qsOverlay?.querySelector('.qs-modal');
+  if(!modal)return;
+  const svcsLabel=categoryLabels.services.toLowerCase();
+  const svcLabel=categoryLabels.service.toLowerCase();
+  // Update progress
+  const steps=modal.querySelectorAll('.qs-step');
+  const line=modal.querySelector('.qs-line');
+  if(steps[0])steps[0].classList.replace('active','done');
+  if(line)line.classList.add('done');
+  if(steps[1])steps[1].classList.add('active');
+  // Update header
+  modal.querySelector('.modal-h h3').textContent='Ajustez vos prestations';
+  // Build step 2 body
+  const durations=[15,30,45,60,90,120];
+  let body=`<p class="qs-subtitle">Modifiez les noms, durées et prix selon votre carte</p>`;
+  const selectedGroups=qsGroups.filter(g=>qsSelectedCats.has(g.category));
+  selectedGroups.forEach(g=>{
+    body+=`<div class="qs-cat-section"><div class="qs-cat-header">${g.icon_svg||defaultIcon}<h4>${g.category}</h4><span class="qs-cat-badge">${g.templates.length}</span></div>`;
+    g.templates.forEach((t,i)=>{
+      const price=t.suggested_price_cents?Math.round(t.suggested_price_cents/100):'';
+      const dur=t.suggested_duration_min||30;
+      body+=`<div class="qs-tpl-row" data-category="${g.category}">
+        <input type="checkbox" class="qs-tpl-check" checked onchange="qsToggleTpl(this)">
+        <input class="qs-tpl-name" value="${t.name}">
+        <div class="qs-dur-chips">`;
+      durations.forEach(d=>{
+        body+=`<span class="qs-dur-chip${d===dur?' active':''}" onclick="qsDur(this,${d})">${d}</span>`;
+      });
+      body+=`</div><input type="hidden" class="qs-tpl-dur" value="${dur}">
+        <div class="qs-price-wrap"><input type="number" class="qs-tpl-price" value="${price}" step="1" min="0"><span>€</span></div>
+      </div>`;
+    });
+    body+=`</div>`;
+  });
+  modal.querySelector('.modal-body').innerHTML=body;
+  // Update footer
+  const totalTpl=selectedGroups.reduce((s,g)=>s+g.templates.length,0);
+  modal.querySelector('.modal-foot').innerHTML=`
+    <button class="qs-back" onclick="qsBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Retour</button>
+    <span class="qs-count" id="qsTplCount"><strong>${totalTpl}</strong> ${svcsLabel}</span>
+    <button class="btn-primary qs-submit" onclick="qsSubmitAll()" id="qsSubmitBtn">Créer ${totalTpl} ${totalTpl>1?svcsLabel:svcLabel}</button>`;
+  qsUpdateCount();
+}
+
+function qsBack(){
+  qsRenderStep1();
+}
+
+function qsDur(el,val){
+  const row=el.closest('.qs-tpl-row');
+  row.querySelectorAll('.qs-dur-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  row.querySelector('.qs-tpl-dur').value=val;
+}
+
+function qsToggleTpl(cb){
+  const row=cb.closest('.qs-tpl-row');
+  row.classList.toggle('unchecked',!cb.checked);
+  qsUpdateCount();
+}
+
+function qsUpdateCount(){
+  const checked=document.querySelectorAll('.qs-tpl-row:not(.unchecked)').length;
+  const svcsLabel=categoryLabels.services.toLowerCase();
+  const svcLabel=categoryLabels.service.toLowerCase();
+  const cnt=document.getElementById('qsTplCount');
+  if(cnt)cnt.innerHTML=`<strong>${checked}</strong> ${svcsLabel}`;
+  const btn=document.getElementById('qsSubmitBtn');
+  if(btn){btn.textContent=`Créer ${checked} ${checked>1?svcsLabel:svcLabel}`;btn.disabled=checked===0;}
+}
+
+async function qsSubmitAll(){
+  const rows=document.querySelectorAll('.qs-tpl-row:not(.unchecked)');
+  const toCreate=[];
+  rows.forEach(row=>{
+    const name=row.querySelector('.qs-tpl-name').value.trim();
+    if(!name)return;
+    const cat=row.dataset.category;
+    const dur=parseInt(row.querySelector('.qs-tpl-dur').value)||30;
+    const priceVal=parseFloat(row.querySelector('.qs-tpl-price').value);
+    toCreate.push({name,category:cat,duration_min:dur,price_cents:priceVal?Math.round(priceVal*100):null,buffer_before_min:0,buffer_after_min:0,mode_options:['cabinet'],color:catColor(cat)});
+  });
+  if(!toCreate.length){GendaUI.toast('Sélectionnez au moins une prestation','error');return;}
+  const btn=document.getElementById('qsSubmitBtn');
+  const svcsLabel=categoryLabels.services.toLowerCase();
+  btn.disabled=true;
+  let created=0,errors=0;
+  for(let i=0;i<toCreate.length;i++){
+    btn.textContent=`Création ${i+1}/${toCreate.length}...`;
+    try{
+      const r=await fetch('/api/services',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(toCreate[i])});
+      if(r.ok)created++;else errors++;
+    }catch(e){errors++;}
+  }
+  document.querySelector('.qs-overlay')?.remove();
+  GendaUI.toast(`${created} ${svcsLabel} créées !`,'success');
+  if(errors>0)GendaUI.toast(`${errors} erreur(s)`,'error');
+  loadServices();
+}
+
+bridge({ loadServices, openServiceModal, saveService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount });
+
+export { loadServices, openServiceModal, saveService, deleteService, openQuickStart };

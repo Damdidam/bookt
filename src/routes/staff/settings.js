@@ -254,6 +254,53 @@ router.patch('/dev/plan', requireOwner, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+
+// GET /api/business/service-templates — templates for quick start wizard
+router.get('/service-templates', requireAuth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const bizResult = await queryWithRLS(businessId,
+      `SELECT sector FROM businesses WHERE id = $1`, [businessId]);
+    if (!bizResult.rows[0]) return res.status(404).json({ error: 'Business introuvable' });
+    const sector = bizResult.rows[0].sector || 'autre';
+
+    const tplResult = await query(
+      `SELECT id, category, name, suggested_duration_min, suggested_price_cents, sort_order
+       FROM sector_service_templates
+       WHERE sector = $1 AND is_active = true
+       ORDER BY category, sort_order`,
+      [sector]
+    );
+
+    const catResult = await query(
+      `SELECT label, icon_svg, sort_order FROM sector_categories
+       WHERE sector = $1 AND is_active = true ORDER BY sort_order`,
+      [sector]
+    );
+    const iconMap = {};
+    catResult.rows.forEach(r => { iconMap[r.label] = { icon_svg: r.icon_svg, sort_order: r.sort_order }; });
+
+    const groupMap = {};
+    tplResult.rows.forEach(t => {
+      if (!groupMap[t.category]) groupMap[t.category] = [];
+      groupMap[t.category].push(t);
+    });
+
+    const groups = Object.keys(groupMap)
+      .sort((a, b) => (iconMap[a]?.sort_order || 999) - (iconMap[b]?.sort_order || 999))
+      .map(cat => ({
+        category: cat,
+        icon_svg: iconMap[cat]?.icon_svg || null,
+        templates: groupMap[cat]
+      }));
+
+    res.json({ sector, groups });
+  } catch (err) {
+    console.error('[SETTINGS] service-templates error:', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // GET /api/sector-categories — catalog + custom categories for this business
 router.get('/sector-categories', requireAuth, async (req, res) => {
   try {
