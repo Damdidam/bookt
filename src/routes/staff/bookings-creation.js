@@ -153,6 +153,9 @@ router.post('/manual', async (req, res, next) => {
       if (!Array.isArray(multiServices) || multiServices.length === 0) {
         return res.status(400).json({ error: 'services doit être un tableau non vide' });
       }
+      if (multiServices.length > 10) {
+        return res.status(400).json({ error: 'Maximum 10 prestations par RDV groupé' });
+      }
       if (multiServices.some(s => !s.service_id)) {
         return res.status(400).json({ error: 'Chaque prestation doit avoir un service_id' });
       }

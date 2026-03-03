@@ -110,7 +110,8 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   const exceptionMap = {};
   for (const row of exceptResult.rows) {
     const key = `${row.practitioner_id}-${new Date(row.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })}`;
-    exceptionMap[key] = row;
+    if (!exceptionMap[key]) exceptionMap[key] = [];
+    exceptionMap[key].push(row);
   }
 
   // 6. Fetch existing bookings in date range (conflicts)
@@ -185,13 +186,21 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     for (const pracId of practitionerIds) {
       // Check exceptions
       const exKey = `${pracId}-${dateStr}`;
-      const exception = exceptionMap[exKey];
+      const exceptions = exceptionMap[exKey];
 
       let windows;
-      if (exception) {
-        if (exception.type === 'closed') continue; // Skip this day entirely
-        // Custom hours
-        windows = [{ start: exception.start_time, end: exception.end_time }];
+      if (exceptions) {
+        if (exceptions.some(ex => ex.type === 'closed')) continue; // Skip this day entirely
+        // custom_hours: use all windows
+        const customWindows = exceptions.filter(ex => ex.type === 'custom_hours');
+        if (customWindows.length > 0) {
+          windows = customWindows.map(ex => ({ start: ex.start_time, end: ex.end_time }));
+        } else {
+          // Exceptions exist but none are custom_hours or closed — fall through to weekly
+          const avKey = `${pracId}-${weekday}`;
+          windows = availMap[avKey];
+          if (!windows || windows.length === 0) continue;
+        }
       } else {
         // Normal weekly schedule
         const avKey = `${pracId}-${weekday}`;

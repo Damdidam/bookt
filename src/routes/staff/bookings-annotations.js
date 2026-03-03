@@ -127,13 +127,13 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
 
     // Send email
     const { sendSessionNotesEmail } = require('../../services/email');
-    const dateStr = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+    const dateStr = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
 
     // Sanitize session notes before sending by email (strip scripts, event handlers, dangerous tags)
     let safeHTML = (session_notes || '');
-    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*>[\s\S]*?<\/\1>/gi, '');
-    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*\/?>/gi, '');
-    safeHTML = safeHTML.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*>[\s\S]*?<\/\1>/gi, '');
+    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*\/?>/gi, '');
+    safeHTML = safeHTML.replace(/[\s"'/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
     safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
 
     await sendSessionNotesEmail({
@@ -189,10 +189,11 @@ router.post('/:id/notes', async (req, res, next) => {
 router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    await queryWithRLS(bid,
-      `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3`,
+    const result = await queryWithRLS(bid,
+      `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
       [req.params.noteId, req.params.bookingId, bid]
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Note introuvable' });
     res.json({ deleted: true });
   } catch (err) {
     next(err);
@@ -244,9 +245,9 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
       }
     }
     if (content !== undefined) {
-      if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
+      if (content && content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
       sets.push(`content = $${idx}`);
-      params.push(content.trim());
+      params.push(content ? content.trim() : content);
       idx++;
     }
 
@@ -269,10 +270,11 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
 router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    await queryWithRLS(bid,
-      `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3`,
+    const result = await queryWithRLS(bid,
+      `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
       [req.params.todoId, req.params.bookingId, bid]
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
     res.json({ deleted: true });
   } catch (err) {
     next(err);
@@ -313,10 +315,11 @@ router.post('/:id/reminders', async (req, res, next) => {
 router.delete('/:bookingId/reminders/:reminderId', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    await queryWithRLS(bid,
-      `DELETE FROM booking_reminders WHERE id = $1 AND booking_id = $2 AND business_id = $3`,
+    const result = await queryWithRLS(bid,
+      `DELETE FROM booking_reminders WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
       [req.params.reminderId, req.params.bookingId, bid]
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rappel introuvable' });
     res.json({ deleted: true });
   } catch (err) {
     next(err);

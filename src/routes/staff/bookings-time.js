@@ -515,6 +515,11 @@ router.patch('/:id/modify', async (req, res, next) => {
     // notify: boolean — should we notify client?
     // notify_channel: 'email' | 'sms' | 'both'
 
+    const VALID_CHANNELS = ['email', 'sms', 'both'];
+    if (notify_channel && !VALID_CHANNELS.includes(notify_channel)) {
+      return res.status(400).json({ error: `Canal invalide. Valeurs : ${VALID_CHANNELS.join(', ')}` });
+    }
+
     if (!start_at || !end_at) {
       return res.status(400).json({ error: 'start_at et end_at requis' });
     }
@@ -548,7 +553,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     const oldBooking = old.rows[0];
 
-    const newStatus = notify ? 'modified_pending' : oldBooking.status;
+    const newStatus = (notify === true || notify === 'true') ? 'modified_pending' : oldBooking.status;
 
     // Atomic modify: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);

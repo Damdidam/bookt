@@ -61,7 +61,7 @@ function fcOpenQuickCreate(startStr, endStr) {
 
   // Populate practitioners dropdown
   const prSel = document.getElementById('qcPrac');
-  prSel.innerHTML = calState.fcPractitioners.map(p => `<option value="${p.id}">${p.display_name}</option>`).join('');
+  prSel.innerHTML = calState.fcPractitioners.map(p => `<option value="${p.id}">${esc(p.display_name)}</option>`).join('');
   if (userRole === 'practitioner' && user?.practitioner_id) {
     prSel.value = user.practitioner_id;
     prSel.disabled = true;
@@ -73,11 +73,11 @@ function fcOpenQuickCreate(startStr, endStr) {
     prSel.disabled = false;
   }
   // Practitioner color dot — use selected value, not first
-  const curPrac = calState.fcPractitioners.find(p => p.id === prSel.value) || calState.fcPractitioners[0];
+  const curPrac = calState.fcPractitioners.find(p => String(p.id) === prSel.value) || calState.fcPractitioners[0];
   const qcPracDot = document.getElementById('qcPracDot');
   if (qcPracDot && curPrac) qcPracDot.style.background = curPrac.color || 'var(--primary)';
   prSel.onchange = function () {
-    const sel = calState.fcPractitioners.find(p => p.id === this.value);
+    const sel = calState.fcPractitioners.find(p => String(p.id) === this.value);
     if (qcPracDot) qcPracDot.style.background = sel?.color || 'var(--primary)';
   };
 
@@ -184,7 +184,7 @@ function qcUpdateFreeDuration() {
 // ── Service management ──
 function qcAddService() {
   const idx = viewState.qcServiceCount++;
-  const opts = calState.fcServices.filter(s => s.is_active !== false).map(s => `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${s.color || '#0D7377'}">${s.name} (${s.duration_min} min)</option>`).join('');
+  const opts = calState.fcServices.filter(s => s.is_active !== false).map(s => `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${s.color || '#0D7377'}">${esc(s.name)} (${s.duration_min} min)</option>`).join('');
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
     <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
@@ -273,7 +273,7 @@ function calSearchClients(q) {
         const blTag = c.is_blocked
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
           : '';
-        return `<div class="ac-item" onclick="calPickClient('${c.id}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${c.phone || ''} ${c.email || ''}</div></div>`;
+        return `<div class="ac-item" onclick="calPickClient('${c.id}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
       }).join('');
       h += `<div class="ac-item ac-new" onclick="calNewClient()">+ ${categoryLabels.client} : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';
@@ -435,6 +435,8 @@ function qcRenderReminders() {
 
 // ── Create booking ──
 async function calCreateBooking() {
+  if (calCreateBooking._busy) return;
+  calCreateBooking._busy = true;
   const clientName = document.getElementById('qcClient').value.trim();
   const clientId = document.getElementById('qcClientId').value;
   const pracId = document.getElementById('qcPrac').value;
@@ -445,8 +447,8 @@ async function calCreateBooking() {
   const intNote = document.getElementById('qcIntNote').value.trim();
   const isFreestyle = document.getElementById('qcFreestyle').checked;
 
-  if (!clientName) { gToast('Nom requis', 'error'); return; }
-  if (!date || !time) { gToast('Date et heure requises', 'error'); return; }
+  if (!clientName) { calCreateBooking._busy = false; gToast('Nom requis', 'error'); return; }
+  if (!date || !time) { calCreateBooking._busy = false; gToast('Date et heure requises', 'error'); return; }
 
   const start_at = new Date(date + 'T' + time).toISOString();
 
@@ -487,7 +489,7 @@ async function calCreateBooking() {
     let body;
     if (isFreestyle) {
       const endTime = document.getElementById('qcFreeEnd').value;
-      if (!endTime) { gToast('Heure de fin requise', 'error'); return; }
+      if (!endTime) { calCreateBooking._busy = false; gToast('Heure de fin requise', 'error'); return; }
       const end_at = new Date(date + 'T' + endTime).toISOString();
       body = {
         freestyle: true,
@@ -506,7 +508,7 @@ async function calCreateBooking() {
     } else {
       const serviceItems = document.querySelectorAll('.qc-svc-item select');
       const services = [...serviceItems].map(sel => ({ service_id: sel.value }));
-      if (services.length === 0) { gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
+      if (services.length === 0) { calCreateBooking._busy = false; gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
 
       body = {
         practitioner_id: pracId,
@@ -583,7 +585,8 @@ async function calCreateBooking() {
 
     closeCalModal('calCreateModal');
     fcRefresh();
-  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+    calCreateBooking._busy = false;
+  } catch (e) { calCreateBooking._busy = false; gToast('Erreur: ' + e.message, 'error'); }
 }
 
 /**

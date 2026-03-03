@@ -32,9 +32,10 @@ async function fcOpenDetail(bookingId) {
 
     // -- Color: same priority as calendar-events.js --
     // Detail endpoint returns b.* so field is "color", not "booking_color"
-    const accentColor = isFreestyle
+    const rawAccent = isFreestyle
       ? (b.color || b.practitioner_color || '#0D7377')
       : (b.color || b.service_color || b.practitioner_color || '#0D7377');
+    const accentColor = /^#[0-9a-fA-F]{3,8}$/.test(rawAccent) ? rawAccent : '#0D7377';
 
     // -- Header gradient --
     const hdrBg = document.getElementById('mHeaderBg');
@@ -205,7 +206,7 @@ async function fcOpenDetail(bookingId) {
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         gh += `<div class="m-group-item${isCur ? ' current' : ''}">
           <span class="g-dot" style="background:${sib.service_color || 'var(--primary)'}"></span>
-          <span style="font-weight:${isCur ? '700' : '400'}">${sib.service_name || 'RDV libre'}</span>
+          <span style="font-weight:${isCur ? '700' : '400'}">${esc(sib.service_name || 'RDV libre')}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
         </div>`;
       });
@@ -215,7 +216,9 @@ async function fcOpenDetail(bookingId) {
     } else { groupEl.style.display = 'none'; }
 
     // -- Horaire --
-    const ds = s.toISOString().split('T')[0], stm = s.toTimeString().slice(0, 5), etm = e.toTimeString().slice(0, 5);
+    const ds = s.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const stm = s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
+    const etm = e.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
@@ -231,13 +234,13 @@ async function fcOpenDetail(bookingId) {
 
     // -- Praticien dropdown with color dot --
     const pracSel = document.getElementById('uPracSelect');
-    pracSel.innerHTML = calState.fcPractitioners.map(p => `<option value="${p.id}"${p.id === b.practitioner_id ? ' selected' : ''}>${p.display_name}</option>`).join('');
+    pracSel.innerHTML = calState.fcPractitioners.map(p => `<option value="${p.id}"${String(p.id) === String(b.practitioner_id) ? ' selected' : ''}>${esc(p.display_name)}</option>`).join('');
     // Practitioners cannot reassign to others
     pracSel.disabled = (userRole === 'practitioner');
-    const curPrac = calState.fcPractitioners.find(p => p.id === b.practitioner_id);
+    const curPrac = calState.fcPractitioners.find(p => String(p.id) === String(b.practitioner_id));
     document.getElementById('mPracDot').style.background = curPrac?.color || 'var(--primary)';
     pracSel.onchange = function () {
-      const sel = calState.fcPractitioners.find(p => p.id === this.value);
+      const sel = calState.fcPractitioners.find(p => String(p.id) === this.value);
       document.getElementById('mPracDot').style.background = sel?.color || 'var(--primary)';
       calCheckConflict(); // Re-check conflicts against the new practitioner
     };

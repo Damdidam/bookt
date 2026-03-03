@@ -14,10 +14,10 @@ const gToast = (m, t) => GendaUI.toast(m, t);
 function sanitizeRichText(html) {
   if (!html) return '';
   // Remove dangerous tags and their content (including SVG, math, style, details)
-  let s = html.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*>[\s\S]*?<\/\1>/gi, '');
-  s = s.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base)[^>]*\/?>/gi, '');
+  let s = html.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  s = s.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*\/?>/gi, '');
   // Remove event handlers (on*="...")
-  s = s.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  s = s.replace(/[\s"'/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
   // Remove javascript: and data: URLs in href/src/action
   s = s.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
   return s;
@@ -112,7 +112,7 @@ async function calSendSession() {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-session-notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ session_notes: html })
+      body: JSON.stringify({ session_notes: sanitizeRichText(html) })
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     const data = await r.json();

@@ -84,14 +84,17 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
     [bid, pracId, dateStr]
   );
   if (exc.rows.length > 0) {
-    const ex = exc.rows[0];
-    if (ex.type === 'closed') return { ok: false, reason: 'Ce praticien est indisponible ce jour (exception)' };
-    // custom_hours: check if booking fits
-    const exStart = timeToMin(ex.start_time);
-    const exEnd = timeToMin(ex.end_time);
+    // Check for any 'closed' exception
+    if (exc.rows.some(ex => ex.type === 'closed')) return { ok: false, reason: 'Ce praticien est indisponible ce jour (exception)' };
+    // custom_hours: check if booking fits in any window
     const bkStart = bxlStartH * 60 + bxlStartM;
     const bkEnd = bxlEndH * 60 + bxlEndM;
-    if (bkStart >= exStart && bkEnd <= exEnd) return { ok: true };
+    const fitsAny = exc.rows.filter(ex => ex.type === 'custom_hours').some(ex => {
+      const exStart = timeToMin(ex.start_time);
+      const exEnd = timeToMin(ex.end_time);
+      return bkStart >= exStart && bkEnd <= exEnd;
+    });
+    if (fitsAny) return { ok: true };
     return { ok: false, reason: 'Horaire hors des heures exceptionnelles du praticien' };
   }
 
@@ -134,7 +137,7 @@ function timeToMin(t) {
 async function getMaxConcurrent(bid, pracId) {
   const r = await queryWithRLS(bid,
     `SELECT max_concurrent FROM practitioners WHERE id = $1 AND business_id = $2`, [pracId, bid]);
-  return r.rows[0]?.max_concurrent || 1;
+  return r.rows[0]?.max_concurrent ?? 1;
 }
 
 module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent };

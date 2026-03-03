@@ -6,6 +6,8 @@ const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { getCategoryLabels } = require('../../services/email');
 
+const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
 const SECTOR_PRACTITIONER = {
   coiffeur:'Coiffeur·se', esthetique:'Esthéticien·ne', bien_etre:'Praticien·ne',
   osteopathe:'Ostéopathe', veterinaire:'Vétérinaire', photographe:'Photographe',
@@ -110,7 +112,7 @@ router.get('/:slug', async (req, res, next) => {
     const specializations = specResult.rows;
     const testimonials = testResult.rows.map(t => ({
       ...t,
-      author_initials: t.author_initials || t.author_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+      author_initials: t.author_initials || (t.author_name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     }));
     const values = valResult.rows;
     const gallery = galResult.rows;
@@ -161,7 +163,7 @@ router.get('/:slug', async (req, res, next) => {
         seo_title: biz.seo_title,
         seo_description: biz.seo_description,
         page_sections: sections,
-        cancellation_window_hours: biz.settings?.cancel_deadline_hours || biz.settings?.cancellation_window_hours || 24,
+        cancellation_window_hours: biz.settings?.cancel_deadline_hours ?? biz.settings?.cancellation_window_hours ?? 24,
         cancel_policy_text: biz.settings?.cancel_policy_text || null,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
@@ -352,7 +354,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     );
     if (lockCheck.rows.length > 0) {
       // Week is locked — booking must match a featured slot
-      const startTimeStr = startDate.toTimeString().slice(0, 5); // HH:MM
+      const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false }); // HH:MM
       const fsCheck = await query(
         `SELECT 1 FROM featured_slots
          WHERE business_id = $1 AND practitioner_id = $2
@@ -376,7 +378,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       );
       if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
       const service = svcResult.rows[0];
-      const totalDuration = service.buffer_before_min + service.duration_min + service.buffer_after_min;
+      const totalDuration = (service.buffer_before_min || 0) + service.duration_min + (service.buffer_after_min || 0);
       endDate = new Date(startDate.getTime() + totalDuration * 60000);
     } else {
       // Featured slot booking — use end_at or default 15 min
@@ -392,7 +394,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (pracCap.rows.length === 0 || !pracCap.rows[0].is_active || !pracCap.rows[0].booking_enabled) {
       return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
     }
-    const maxConcurrent = pracCap.rows[0]?.max_concurrent || 1;
+    const maxConcurrent = pracCap.rows[0]?.max_concurrent ?? 1;
 
     // Validate practitioner offers this service
     if (service_id) {
@@ -548,7 +550,7 @@ router.get('/booking/:token', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
-    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours || bk.business_settings?.cancellation_window_hours || 24;
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
     const canCancel = (bk.status === 'confirmed' || bk.status === 'pending_deposit') && new Date() < deadline;
 
@@ -607,7 +609,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
-    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours || bk.business_settings?.cancellation_window_hours || 24;
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
     if (new Date() >= deadline) {
       return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
@@ -616,7 +618,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // Deposit refund logic
     let depositUpdate = '';
     if (bk.deposit_required) {
-      const graceMin = bk.business_settings?.cancel_grace_minutes || 240;
+      const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
       if (bk.deposit_status === 'paid') {
         const hoursUntilRdv = (new Date(bk.start_at) - new Date()) / 3600000;
         const minSinceCreated = (new Date() - new Date(bk.created_at)) / 60000;
@@ -630,11 +632,15 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       }
     }
 
-    await query(
+    const cancelResult = await query(
       `UPDATE bookings SET status = 'cancelled', cancel_reason = $1${depositUpdate}, updated_at = NOW()
-       WHERE id = $2`,
+       WHERE id = $2 AND status IN ('confirmed', 'pending_deposit')`,
       [reason || 'Annulé par le client', bk.id]
     );
+
+    if (cancelResult.rowCount === 0) {
+      return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
+    }
 
     // Queue cancellation notification
     await query(
@@ -723,7 +729,7 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     broadcast(result.rows[0].business_id, 'booking_update', { action: 'confirmed', source: 'public' });
 
     if (isForm && displayData) {
-      return res.send(confirmationPage('Rendez-vous confirmé ✅', `${displayData.service_name || 'Votre rendez-vous'} le <strong>${displayData._dt} à ${displayData._tm}</strong> est confirmé. Merci !`, displayData._color, displayData.business_name));
+      return res.send(confirmationPage('Rendez-vous confirmé ✅', `${escHtml(displayData.service_name) || 'Votre rendez-vous'} le <strong>${escHtml(displayData._dt)} à ${escHtml(displayData._tm)}</strong> est confirmé. Merci !`, displayData._color, displayData.business_name));
     }
     res.json({ confirmed: true, booking: result.rows[0] });
   } catch (err) { next(err); }
@@ -793,7 +799,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     broadcast(result.rows[0].business_id, 'booking_update', { action: 'rejected', source: 'public' });
 
     if (isForm && displayData) {
-      const phone = displayData.business_phone ? ` au <strong>${displayData.business_phone}</strong>` : '';
+      const phone = displayData.business_phone ? ` au <strong>${escHtml(displayData.business_phone)}</strong>` : '';
       return res.send(confirmationPage('Rendez-vous refusé', `Le nouveau créneau ne vous convient pas. N'hésitez pas à nous contacter${phone} pour trouver un autre horaire.`, '#C62828', displayData.business_name));
     }
     res.json({ rejected: true, booking: result.rows[0] });
