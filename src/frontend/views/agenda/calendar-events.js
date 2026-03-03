@@ -536,11 +536,8 @@ function buildEventAllow() {
     const effectiveStart = dropInfo.start;
     const effectiveEnd = dropInfo.end;
 
-    // Check target practitioner working hours (resource = practitioner column)
+    // Staff can override working hours — no business hours check on drag/drop
     const targetPrac = dropInfo.resource?.id || draggedEvent.extendedProps?.practitioner_id;
-    if (targetPrac && !fcCheckBusinessHours(effectiveStart, effectiveEnd, targetPrac)) {
-      return false;
-    }
 
     if (calState.fcAllowOverlap) return effectiveStart >= new Date();
     const myPrac = targetPrac || draggedEvent.extendedProps?.practitioner_id;
