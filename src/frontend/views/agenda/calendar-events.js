@@ -11,6 +11,7 @@ import { fcOpenQuickCreate } from './quick-create.js';
 import { atView } from './calendar-toolbar.js';
 import { fsIsActive, fsHandleDateClick, fsBuildBackgroundEvents } from './calendar-featured.js';
 import { storeUndoAction } from './booking-undo.js';
+import { fcCheckBusinessHours } from './booking-save.js';
 
 // ── Tooltip locale maps ──
 const STATUS_FR = { confirmed: 'Confirm\u00e9', pending: 'En attente', completed: 'Termin\u00e9', cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9', pending_deposit: 'Acompte requis' };
@@ -507,8 +508,14 @@ function buildEventAllow() {
     const effectiveStart = dropInfo.start;
     const effectiveEnd = dropInfo.end;
 
+    // Check target practitioner working hours (resource = practitioner column)
+    const targetPrac = dropInfo.resource?.id || draggedEvent.extendedProps?.practitioner_id;
+    if (targetPrac && !fcCheckBusinessHours(effectiveStart, effectiveEnd, targetPrac)) {
+      return false;
+    }
+
     if (calState.fcAllowOverlap) return effectiveStart >= new Date();
-    const myPrac = draggedEvent.extendedProps?.practitioner_id;
+    const myPrac = targetPrac || draggedEvent.extendedProps?.practitioner_id;
     if (!myPrac) return true;
     if (effectiveStart < new Date()) return false;
     const myGroupId = draggedEvent.extendedProps?._groupId;

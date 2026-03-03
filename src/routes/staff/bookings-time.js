@@ -5,7 +5,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
-const { calSyncPush, businessAllowsOverlap } = require('./bookings-helpers');
+const { calSyncPush, businessAllowsOverlap, checkPracAvailability } = require('./bookings-helpers');
 
 // ============================================================
 // PATCH /api/bookings/:id/move — Drag & drop
@@ -41,6 +41,11 @@ router.patch('/:id/move', async (req, res, next) => {
     const draggedBooking = old.rows[0];
     const effectivePracId = practitioner_id || draggedBooking.practitioner_id;
     const newStart = new Date(start_at);
+
+    // Check practitioner working hours
+    const availCheck = await checkPracAvailability(bid, effectivePracId, start_at, end_at);
+    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+
     const globalAllowOverlap = await businessAllowsOverlap(bid);
 
     // ── GROUP MOVE: recalculate all slots from the first booking's new start ──
@@ -229,26 +234,30 @@ router.patch('/:id/edit', async (req, res, next) => {
         return res.status(400).json({ error: 'Praticien introuvable ou inactif' });
       }
 
-      // Check conflicts with new practitioner's schedule
+      // Check target practitioner working hours
+      const bkTimes = await queryWithRLS(bid,
+        `SELECT start_at, end_at FROM bookings WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      if (bkTimes.rows.length > 0) {
+        const availCheck = await checkPracAvailability(bid, practitioner_id, bkTimes.rows[0].start_at, bkTimes.rows[0].end_at);
+        if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+      }
+
+      // Check conflicts with new practitioner's schedule (reuse bkTimes from above)
       const globalAllowOverlap = await businessAllowsOverlap(bid);
-      if (!globalAllowOverlap) {
-        const booking = await queryWithRLS(bid,
-          `SELECT start_at, end_at FROM bookings WHERE id = $1 AND business_id = $2`,
-          [id, bid]
+      if (!globalAllowOverlap && bkTimes.rows.length > 0) {
+        const { start_at, end_at } = bkTimes.rows[0];
+        const conflict = await queryWithRLS(bid,
+          `SELECT id FROM bookings
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND id != $3
+           AND status IN ('pending', 'confirmed', 'modified_pending')
+           AND start_at < $5 AND end_at > $4`,
+          [bid, practitioner_id, id, start_at, end_at]
         );
-        if (booking.rows.length > 0) {
-          const { start_at, end_at } = booking.rows[0];
-          const conflict = await queryWithRLS(bid,
-            `SELECT id FROM bookings
-             WHERE business_id = $1 AND practitioner_id = $2
-             AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending')
-             AND start_at < $5 AND end_at > $4`,
-            [bid, practitioner_id, id, start_at, end_at]
-          );
-          if (conflict.rows.length > 0) {
-            return res.status(409).json({ error: 'Conflit : ce praticien a déjà un RDV sur ce créneau' });
-          }
+        if (conflict.rows.length > 0) {
+          return res.status(409).json({ error: 'Conflit : ce praticien a déjà un RDV sur ce créneau' });
         }
       }
     }
