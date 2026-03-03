@@ -57,7 +57,7 @@ function fcRenderSession(booking) {
   // Status
   if (booking.session_notes_sent_at) {
     const d = new Date(booking.session_notes_sent_at);
-    const fmt = d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const fmt = d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     status.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Envoyé le ${fmt}`;
   } else {
     status.textContent = '';
@@ -94,9 +94,11 @@ function fcRenderSession(booking) {
  * Save session notes to DB.
  */
 async function calSaveSession() {
+  if (calSaveSession._busy) return;
   const body = document.getElementById('seBody');
   if (!body) return;
 
+  calSaveSession._busy = true;
   const html = body.innerHTML.trim();
   // Treat <br> only or empty as null; sanitize before sending to server
   const content = html === '<br>' || html === '' ? null : sanitizeRichText(html);
@@ -111,13 +113,14 @@ async function calSaveSession() {
     gToast('Notes de séance sauvegardées', 'success');
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
-  }
+  } finally { calSaveSession._busy = false; }
 }
 
 /**
  * Save + send session notes by email.
  */
 async function calSendSession() {
+  if (calSendSession._busy) return;
   const body = document.getElementById('seBody');
   if (!body) return;
 
@@ -127,6 +130,7 @@ async function calSendSession() {
     return;
   }
 
+  calSendSession._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-session-notes`, {
       method: 'POST',
@@ -140,14 +144,14 @@ async function calSendSession() {
     const status = document.getElementById('seStatus');
     if (status && data.sent_at) {
       const d = new Date(data.sent_at);
-      const fmt = d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const fmt = d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
       status.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Envoyé le ${fmt}`;
     }
 
     gToast('Notes envoyées au client', 'success');
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
-  }
+  } finally { calSendSession._busy = false; }
 }
 
 bridge({ calSaveSession, calSendSession });

@@ -124,6 +124,11 @@ router.post('/exceptions', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et date requis' });
     }
 
+    // Practitioner can only create exceptions for themselves
+    if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Vous ne pouvez créer des exceptions que pour vous-même' });
+    }
+
     const result = await queryWithRLS(bid,
       `INSERT INTO availability_exceptions
         (business_id, practitioner_id, date, type, start_time, end_time, note)

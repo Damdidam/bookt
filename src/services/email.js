@@ -330,6 +330,13 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
   const safeDate = escHtml(date);
   const color = safeColor(primaryColor);
   // sessionHTML is intentionally pre-sanitized rich text — do NOT escape it
+  // But sanitize dangerous style attributes (expression, behavior, binding, url())
+  if (sessionHTML) {
+    sessionHTML = sessionHTML.replace(/\bstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, val) => {
+      if (/expression|behavior|binding|url\s*\(/i.test(val)) return '';
+      return match;
+    });
+  }
   const bodyHTML = `
     <p style="margin:0 0 12px">Bonjour${safeFirstName ? ' ' + safeFirstName : ''},</p>
     <p style="margin:0 0 16px">Voici les notes de votre ${svcLower} du <strong>${safeDate}</strong> avec ${safePracName} :</p>

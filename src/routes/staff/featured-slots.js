@@ -103,6 +103,11 @@ router.delete('/', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et week_start requis' });
     }
 
+    // Practitioner can only delete their own featured slots
+    if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres créneaux vedettes' });
+    }
+
     await queryWithRLS(bid,
       `DELETE FROM featured_slots
        WHERE business_id = $1 AND practitioner_id = $2

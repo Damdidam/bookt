@@ -178,6 +178,16 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
       }
       return match;
     });
+    // CRT-V10-6: Remove dangerous style attributes (expression, behavior, binding, url())
+    safeHTML = safeHTML.replace(/\bstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, val) => {
+      if (/expression|behavior|binding|url\s*\(/i.test(val)) return '';
+      return match;
+    });
+    // Add rel="noopener noreferrer" to all links
+    safeHTML = safeHTML.replace(/<a\b([^>]*?)>/gi, (match, attrs) => {
+      if (!/rel\s*=/i.test(attrs)) return `<a ${attrs} rel="noopener noreferrer">`;
+      return match;
+    });
 
     await sendSessionNotesEmail({
       to: d.client_email,
@@ -223,7 +233,7 @@ router.post('/:id/notes', async (req, res, next) => {
     const result = await queryWithRLS(bid,
       `INSERT INTO booking_notes (booking_id, business_id, author_id, content, is_pinned)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.params.id, bid, req.user.id, content.trim(), is_pinned || false]
+      [req.params.id, bid, req.user.id, content.trim(), is_pinned === true]
     );
     res.status(201).json({ note: result.rows[0] });
   } catch (err) {
@@ -238,8 +248,8 @@ router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
     const result = await queryWithRLS(bid,
-      `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
-      [req.params.noteId, req.params.bookingId, bid]
+      `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3 AND (author_id = $4 OR $5 IN ('owner', 'manager')) RETURNING id`,
+      [req.params.noteId, req.params.bookingId, bid, req.user.id, req.user.role]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Note introuvable' });
     res.json({ deleted: true });
@@ -281,6 +291,11 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
     const { is_done, content } = req.body;
 
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
+
+    // CRT-V10-3: Validate is_done type
+    if (is_done !== undefined && typeof is_done !== 'boolean') {
+      return res.status(400).json({ error: 'is_done doit être un booléen' });
+    }
 
     const sets = [];
     const params = [];
@@ -326,8 +341,8 @@ router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
     const result = await queryWithRLS(bid,
-      `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
-      [req.params.todoId, req.params.bookingId, bid]
+      `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3 AND (user_id = $4 OR $5 IN ('owner', 'manager')) RETURNING id`,
+      [req.params.todoId, req.params.bookingId, bid, req.user.id, req.user.role]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
     res.json({ deleted: true });
@@ -357,6 +372,18 @@ router.post('/:id/reminders', async (req, res, next) => {
     if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
     const remindAt = new Date(new Date(bk.rows[0].start_at).getTime() - offset * 60000);
+
+    // CRT-V10-12: Reminder count limit
+    const cnt = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM booking_reminders WHERE booking_id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
+    if (cnt.rows[0].cnt >= 10) return res.status(400).json({ error: 'Maximum 10 rappels par RDV' });
+
+    // CRT-V10-13: Past reminder validation
+    if (remindAt <= new Date()) {
+      return res.status(400).json({ error: 'Le rappel serait dans le passé' });
+    }
 
     const result = await queryWithRLS(bid,
       `INSERT INTO booking_reminders (booking_id, business_id, user_id, remind_at, offset_minutes, channel, message)
@@ -428,10 +455,10 @@ router.post('/:id/send-document', async (req, res, next) => {
     // Generate unique token
     const token = require('crypto').randomUUID();
 
-    // Create pre_rdv_sends record
+    // Create pre_rdv_sends record with status 'pending' (CRT-V10-10)
     const send = await queryWithRLS(bid,
-      `INSERT INTO pre_rdv_sends (business_id, booking_id, client_id, template_id, token, status, sent_at)
-       VALUES ($1, $2, $3, $4, $5, 'sent', NOW())
+      `INSERT INTO pre_rdv_sends (business_id, booking_id, client_id, template_id, token, status)
+       VALUES ($1, $2, $3, $4, $5, 'pending')
        RETURNING *`,
       [bid, bookingId, booking.client_id, template_id, token]
     );
@@ -439,13 +466,18 @@ router.post('/:id/send-document', async (req, res, next) => {
     // Get business info for email
     const biz = await queryWithRLS(bid, `SELECT name, email, address, theme FROM businesses WHERE id = $1`, [bid]);
 
-    // Send email (non-blocking)
+    // Send email (non-blocking) — update status to 'sent' or 'error' after attempt
     sendPreRdvEmail({
       booking: { ...booking, service_name: booking.service_name || 'Rendez-vous' },
       template,
       token,
       business: biz.rows[0]
-    }).catch(e => console.warn('[EMAIL] Pre-RDV send error:', e.message));
+    })
+      .then(() => queryWithRLS(bid, `UPDATE pre_rdv_sends SET status = 'sent', sent_at = NOW() WHERE id = $1 AND business_id = $2`, [send.rows[0].id, bid]))
+      .catch(e => {
+        console.warn('[EMAIL] Pre-RDV send error:', e.message);
+        queryWithRLS(bid, `UPDATE pre_rdv_sends SET status = 'error' WHERE id = $1 AND business_id = $2`, [send.rows[0].id, bid]).catch(() => {});
+      });
 
     res.status(201).json({
       send: { ...send.rows[0], template_name: template.name, template_type: template.type }

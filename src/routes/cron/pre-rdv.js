@@ -8,12 +8,13 @@ const crypto = require('crypto');
 const { query } = require('../../services/db');
 const { sendPreRdvEmail } = require('../../services/email');
 
-// Cron authentication via secret key
+// Cron authentication via secret key (timing-safe comparison)
 function requireCronKey(req, res, next) {
   const key = req.query.key || req.headers['x-cron-key'];
   const secret = process.env.CRON_SECRET;
-  if (!secret || key !== secret) {
-    return res.status(403).json({ error: 'Invalid cron key' });
+  if (!secret || !key || key.length !== secret.length ||
+      !crypto.timingSafeEqual(Buffer.from(key, 'utf8'), Buffer.from(secret, 'utf8'))) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
   next();
 }
@@ -51,9 +52,13 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
 
     for (const [days, tmpls] of Object.entries(byDays)) {
       // 2. Find bookings exactly N days from now with confirmed status
-      const targetDate = new Date();
-      targetDate.setDate(targetDate.getDate() + parseInt(days));
-      const dateStr = targetDate.toISOString().split('T')[0];
+      // RTE-V10-013: Use Brussels timezone for targetDate calculation
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
+      now.setDate(now.getDate() + parseInt(days));
+      const dateStr = now.toISOString().split('T')[0];
+
+      // RTE-V10-012: Filter bookings by business_ids of the templates in this group
+      const businessIds = [...new Set(tmpls.map(t => t.biz_id))];
 
       const bookings = await query(
         `SELECT bk.id, bk.service_id, bk.client_id, bk.business_id, bk.start_at, bk.token,
@@ -64,8 +69,9 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
          JOIN services s ON s.id = bk.service_id
          WHERE bk.status = 'confirmed'
            AND DATE(bk.start_at AT TIME ZONE 'Europe/Brussels') = $1
-           AND c.email IS NOT NULL AND c.email != ''`,
-        [dateStr]
+           AND c.email IS NOT NULL AND c.email != ''
+           AND bk.business_id = ANY($2)`,
+        [dateStr, businessIds]
       );
 
       for (const booking of bookings.rows) {
@@ -137,8 +143,11 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
 // Run every 5-10 min. Moves expired offers to next in queue (auto mode).
 // ============================================================
 router.get('/waitlist-expired', async (req, res) => {
-  if (req.query.key !== process.env.CRON_SECRET) {
-    return res.status(403).json({ error: 'Invalid cron key' });
+  const key = req.query.key || req.headers['x-cron-key'];
+  const secret = process.env.CRON_SECRET;
+  if (!secret || !key || key.length !== secret.length ||
+      !crypto.timingSafeEqual(Buffer.from(key, 'utf8'), Buffer.from(secret, 'utf8'))) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   try {

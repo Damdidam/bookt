@@ -233,7 +233,10 @@ app.listen(PORT, () => {
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
   // ===== WAITLIST CRON — check expired offers every 5 min =====
+  let waitlistRunning = false;
   setInterval(async () => {
+    if (waitlistRunning) return;
+    waitlistRunning = true;
     try {
       const { processExpiredOffers } = require('./services/waitlist');
       const result = await processExpiredOffers();
@@ -242,11 +245,16 @@ app.listen(PORT, () => {
       }
     } catch (e) {
       console.error('[WAITLIST CRON] Error:', e.message);
+    } finally {
+      waitlistRunning = false;
     }
   }, 5 * 60 * 1000); // 5 minutes
 
   // ===== REMINDERS CRON — send patient reminders every 10 min =====
+  let reminderRunning = false;
   setInterval(async () => {
+    if (reminderRunning) return;
+    reminderRunning = true;
     try {
       const { processReminders } = require('./services/reminders');
       const stats = await processReminders();
@@ -256,6 +264,8 @@ app.listen(PORT, () => {
       }
     } catch (e) {
       console.error('[REMINDERS CRON] Error:', e.message);
+    } finally {
+      reminderRunning = false;
     }
   }, 10 * 60 * 1000); // 10 minutes
 });

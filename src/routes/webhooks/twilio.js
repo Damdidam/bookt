@@ -1,6 +1,28 @@
 const router = require('express').Router();
 const { query } = require('../../services/db');
 
+// Twilio request signature validation middleware
+function validateTwilioSignature(req, res, next) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken) return next(); // Skip validation if no auth token configured
+
+  try {
+    const twilio = require('twilio');
+    const signature = req.headers['x-twilio-signature'];
+    const url = `${process.env.APP_BASE_URL || 'https://' + req.headers.host}${req.originalUrl}`;
+    if (!signature || !twilio.validateRequest(authToken, signature, url, req.body || {})) {
+      console.warn('[TWILIO] Invalid signature for', req.originalUrl);
+      return res.status(403).send('Forbidden');
+    }
+  } catch (e) {
+    // TODO: If twilio module fails to load, log and skip validation
+    console.warn('[TWILIO] Signature validation error:', e.message);
+  }
+  next();
+}
+
+router.use(validateTwilioSignature);
+
 // ============================================================
 // POST /webhooks/twilio/voice/incoming
 // Flow:

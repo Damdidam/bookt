@@ -34,7 +34,7 @@ router.get('/', async (req, res, next) => {
 router.get('/summary', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Brussels' }).split(' ')[0];
     const monthStart = today.slice(0, 7) + '-01';
 
     // Today's bookings
@@ -202,6 +202,7 @@ router.get('/analytics', async (req, res, next) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     const startStr = startDate.toISOString().split('T')[0];
+    const pracFilter = req.practitionerFilter;
 
     // 1. Revenue + bookings by day
     const dailyStats = await queryWithRLS(bid,
@@ -214,8 +215,9 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        WHERE b.business_id = $1 AND b.start_at >= $2
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY day ORDER BY day`,
-      [bid, startStr]
+      pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
     );
 
     // 2. Peak hours heatmap (weekday 0-6 x hour 0-23)
@@ -228,8 +230,9 @@ router.get('/analytics', async (req, res, next) => {
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
        AND b.start_at >= $2
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY weekday, hour ORDER BY weekday, hour`,
-      [bid, startStr]
+      pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
     );
 
     // 3. Top services
@@ -241,9 +244,10 @@ router.get('/analytics', async (req, res, next) => {
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
        AND b.start_at >= $2
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY s.id, s.name, s.color
        ORDER BY count DESC LIMIT 10`,
-      [bid, startStr]
+      pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
     );
 
     // 4. Status breakdown
@@ -251,8 +255,9 @@ router.get('/analytics', async (req, res, next) => {
       `SELECT b.status, COUNT(*) AS count
        FROM bookings b
        WHERE b.business_id = $1 AND b.start_at >= $2
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY b.status`,
-      [bid, startStr]
+      pracFilter ? [bid, startStr, pracFilter] : [bid, startStr]
     );
 
     // 5. Monthly revenue (last 6 months)
@@ -266,8 +271,9 @@ router.get('/analytics', async (req, res, next) => {
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        WHERE b.business_id = $1 AND b.start_at >= $2
+       ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY month ORDER BY month`,
-      [bid, sixMonthsAgo.toISOString()]
+      pracFilter ? [bid, sixMonthsAgo.toISOString(), pracFilter] : [bid, sixMonthsAgo.toISOString()]
     );
 
     // 6. New clients this period

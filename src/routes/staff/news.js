@@ -39,17 +39,30 @@ router.post('/', requireAuth, requireRole('owner','manager'), async (req, res, n
 router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
   try {
     const { title, content, tag, tag_type, image_url, published_at, is_active } = req.body;
+
+    // Build dynamic SET to allow resetting tag/tag_type to null
+    const sets = [];
+    const params = [req.params.id, req.businessId];
+    let idx = 3;
+
+    if (title !== undefined) { sets.push(`title = $${idx}`); params.push(title); idx++; }
+    else { sets.push(`title = title`); }
+
+    if (content !== undefined) { sets.push(`content = $${idx}`); params.push(content); idx++; }
+    else { sets.push(`content = content`); }
+
+    // tag and tag_type: if present in body (even null), update; otherwise keep
+    if ('tag' in req.body) { sets.push(`tag = $${idx}`); params.push(tag); idx++; }
+    if ('tag_type' in req.body) { sets.push(`tag_type = $${idx}`); params.push(tag_type); idx++; }
+
+    if (image_url !== undefined) { sets.push(`image_url = $${idx}`); params.push(image_url); idx++; }
+    if (published_at !== undefined) { sets.push(`published_at = $${idx}`); params.push(published_at); idx++; }
+    if (is_active !== undefined) { sets.push(`is_active = $${idx}`); params.push(is_active); idx++; }
+
     const result = await queryWithRLS(req.businessId,
-      `UPDATE news_posts
-       SET title = COALESCE($3, title),
-           content = COALESCE($4, content),
-           tag = COALESCE($5, tag),
-           tag_type = COALESCE($6, tag_type),
-           image_url = COALESCE($7, image_url),
-           published_at = COALESCE($8, published_at),
-           is_active = COALESCE($9, is_active)
+      `UPDATE news_posts SET ${sets.join(', ')}
        WHERE id = $1 AND business_id = $2 RETURNING *`,
-      [req.params.id, req.businessId, title, content, tag, tag_type, image_url, published_at, is_active]
+      params
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);

@@ -8,6 +8,8 @@ const { getCategoryLabels } = require('../../services/email');
 
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const SECTOR_PRACTITIONER = {
   coiffeur:'Coiffeur·se', esthetique:'Esthéticien·ne', bien_etre:'Praticien·ne',
   osteopathe:'Ostéopathe', veterinaire:'Vétérinaire', photographe:'Photographe',
@@ -222,6 +224,12 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     if (!service_id) {
       return res.status(400).json({ error: 'service_id requis' });
     }
+    if (!UUID_RE.test(service_id)) {
+      return res.status(400).json({ error: 'service_id invalide' });
+    }
+    if (practitioner_id && !UUID_RE.test(practitioner_id)) {
+      return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
 
     const bizResult = await query(
       `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`,
@@ -302,7 +310,7 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
       sql += ` AND fs.date <= $${params.length}::date`;
     }
 
-    sql += ' ORDER BY fs.date, fs.start_time';
+    sql += ' ORDER BY fs.date, fs.start_time LIMIT 500';
 
     // Locked weeks — only for practitioners with featured_enabled
     const lwSql = `
@@ -310,7 +318,8 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
       FROM locked_weeks lw
       JOIN practitioners p ON p.id = lw.practitioner_id AND p.business_id = lw.business_id
       WHERE lw.business_id = $1 AND lw.week_start >= (CURRENT_DATE - interval '7 days')
-        AND p.featured_enabled = true AND p.is_active = true`;
+        AND p.featured_enabled = true AND p.is_active = true
+      LIMIT 200`;
 
     const [slotsResult, locksResult] = await Promise.all([
       query(sql, params),
@@ -345,10 +354,21 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       });
     }
 
+    if (!UUID_RE.test(practitioner_id)) {
+      return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+    if (service_id && !UUID_RE.test(service_id)) {
+      return res.status(400).json({ error: 'service_id invalide' });
+    }
+
     // Bug B1 fix: length limits on client fields
     if (client_name && client_name.length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
     if (client_email && client_email.length > 320) return res.status(400).json({ error: 'Email trop long' });
     if (client_phone && client_phone.length > 30) return res.status(400).json({ error: 'Téléphone trop long' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
+    if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
 
     const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
@@ -357,6 +377,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     if (client_comment && client_comment.length > 2000) {
       return res.status(400).json({ error: 'Commentaire trop long (max 2000)' });
+    }
+
+    if (client_bce && (typeof client_bce !== 'string' || client_bce.length > 30)) {
+      return res.status(400).json({ error: 'Numéro BCE invalide (max 30 caractères)' });
     }
 
     const VALID_LANGS = ['fr', 'nl', 'en', 'de', 'unknown'];
@@ -497,12 +521,23 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           );
         }
         clientId = existingClient.id;
-        // Update client info (only overwrite fields the client provides)
+        // Update client info (only overwrite fields the client provides, protect existing data)
         await client.query(
-          `UPDATE clients SET full_name=$1, email=$2, phone=$3, bce_number=COALESCE($4,bce_number),
-           consent_sms=$5, consent_email=$6, consent_marketing=$7, updated_at=NOW() WHERE id=$8`,
+          `UPDATE clients SET
+            full_name = COALESCE(NULLIF($1, ''), full_name),
+            email = COALESCE(NULLIF($2, ''), email),
+            phone = COALESCE(NULLIF($3, ''), phone),
+            bce_number = COALESCE($4, bce_number),
+            consent_sms = COALESCE($5, consent_sms),
+            consent_email = COALESCE($6, consent_email),
+            consent_marketing = COALESCE($7, consent_marketing),
+            updated_at = NOW()
+           WHERE id = $8`,
           [client_name, client_email, client_phone, client_bce,
-           consent_sms===true, consent_email===true, consent_marketing===true, clientId]
+           consent_sms === true ? true : (consent_sms === false ? false : null),
+           consent_email === true ? true : (consent_email === false ? false : null),
+           consent_marketing === true ? true : (consent_marketing === false ? false : null),
+           clientId]
         );
       } else {
         const nc = await client.query(
@@ -1082,9 +1117,20 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
     }
 
+    if (!UUID_RE.test(practitioner_id)) {
+      return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+    if (!UUID_RE.test(service_id)) {
+      return res.status(400).json({ error: 'service_id invalide' });
+    }
+
     if (client_name.length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
     if (client_email.length > 320) return res.status(400).json({ error: 'Email trop long' });
     if (client_phone && client_phone.length > 30) return res.status(400).json({ error: 'Téléphone trop long' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
+    if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
 
     if (preferred_days) {
       if (!Array.isArray(preferred_days) || preferred_days.length > 7 || !preferred_days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) {
@@ -1319,6 +1365,17 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         clientId = nc.rows[0].id;
       }
 
+      // Check if client is blocked
+      const blockedCheck = await client.query(
+        `SELECT is_blocked FROM clients WHERE id = $1`, [clientId]
+      );
+      if (blockedCheck.rows[0]?.is_blocked) {
+        throw Object.assign(
+          new Error('Votre compte est temporairement suspendu. Contactez le cabinet.'),
+          { type: 'blocked', status: 403 }
+        );
+      }
+
       // Create booking
       const bk = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
@@ -1352,6 +1409,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
     } catch (err) {
       if (err.type === 'expired') return res.status(410).json({ error: err.message });
       if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      if (err.type === 'blocked') return res.status(403).json({ error: err.message, blocked: true });
       throw err;
     }
 
@@ -1402,42 +1460,43 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
         const timeOfDay = bxlHour < 12 ? 'morning' : 'afternoon';
         const crypto = require('crypto');
 
-        const next = await query(
-          `SELECT * FROM waitlist_entries
-           WHERE practitioner_id = $1 AND service_id = $2 AND business_id = $3
-           AND status = 'waiting'
-           AND (preferred_days @> $4::jsonb)
-           AND (preferred_time = 'any' OR preferred_time = $5)
-           ORDER BY priority ASC, created_at ASC LIMIT 1`,
-          [entry.practitioner_id, entry.service_id, entry.business_id,
+        // Atomic: SELECT FOR UPDATE SKIP LOCKED to prevent race condition
+        // between concurrent decline handlers picking the same next entry
+        const offerToken = crypto.randomBytes(20).toString('hex');
+        const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+        const offerResult = await query(
+          `UPDATE waitlist_entries SET
+            status = 'offered', offer_token = $1,
+            offer_booking_start = $2, offer_booking_end = $3,
+            offer_sent_at = NOW(), offer_expires_at = $4, updated_at = NOW()
+           WHERE id = (
+             SELECT id FROM waitlist_entries
+             WHERE practitioner_id = $5 AND service_id = $6 AND business_id = $7
+               AND status = 'waiting'
+               AND (preferred_days @> $8::jsonb)
+               AND (preferred_time = 'any' OR preferred_time = $9)
+             ORDER BY priority ASC, created_at ASC
+             LIMIT 1
+             FOR UPDATE SKIP LOCKED
+           ) AND status = 'waiting'
+           RETURNING id, client_email`,
+          [offerToken, entry.offer_booking_start, entry.offer_booking_end,
+           expiresAt.toISOString(),
+           entry.practitioner_id, entry.service_id, entry.business_id,
            JSON.stringify([weekday]), timeOfDay]
         );
 
-        if (next.rows.length > 0) {
-          const token = crypto.randomBytes(20).toString('hex');
-          const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
-          const offerResult = await query(
-            `UPDATE waitlist_entries SET
-              status = 'offered', offer_token = $1,
-              offer_booking_start = $2, offer_booking_end = $3,
-              offer_sent_at = NOW(), offer_expires_at = $4, updated_at = NOW()
-             WHERE id = $5 AND status = 'waiting'
-             RETURNING id`,
-            [token, entry.offer_booking_start, entry.offer_booking_end,
-             expiresAt.toISOString(), next.rows[0].id]
-          );
-
-          // PUB-6: Send notification email to next client if offer was made
-          if (offerResult.rows.length > 0) {
-            try {
-              await query(
-                `INSERT INTO notifications (business_id, type, recipient_email, status, metadata)
-                 VALUES ($1, 'email_waitlist_offer', $2, 'queued', $3::jsonb)`,
-                [entry.business_id, next.rows[0].client_email,
-                 JSON.stringify({ waitlist_entry_id: next.rows[0].id, offer_token: token })]
-              );
-            } catch (notifErr) { console.warn('[WAITLIST] Notification error:', notifErr.message); }
-          }
+        // PUB-6: Send notification email to next client if offer was made
+        if (offerResult.rows.length > 0) {
+          try {
+            await query(
+              `INSERT INTO notifications (business_id, type, recipient_email, status, metadata)
+               VALUES ($1, 'email_waitlist_offer', $2, 'queued', $3::jsonb)`,
+              [entry.business_id, offerResult.rows[0].client_email,
+               JSON.stringify({ waitlist_entry_id: offerResult.rows[0].id, offer_token: offerToken })]
+            );
+          } catch (notifErr) { console.warn('[WAITLIST] Notification error:', notifErr.message); }
         }
       }
     } catch (e) { /* non-blocking */ }

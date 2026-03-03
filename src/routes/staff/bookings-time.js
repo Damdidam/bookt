@@ -452,8 +452,8 @@ router.patch('/:id/edit', async (req, res, next) => {
            FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
           [id, bid]
         );
-        if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
-          throw Object.assign(new Error('Impossible de réaffecter un RDV dans cet état'), { type: 'immutable' });
+        if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status)) {
+          throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
         }
         const r = await client.query(updateSql, params);
 
@@ -653,6 +653,11 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     const oldBooking = old.rows[0];
 
+    // CRT-V10-2: Block individual modify on grouped bookings
+    if (oldBooking.group_id) {
+      return res.status(400).json({ error: 'Impossible de modifier individuellement un RDV groupé. Utilisez le déplacement.' });
+    }
+
     // Practitioner scope: can only modify own bookings
     if (req.practitionerFilter && String(oldBooking.practitioner_id) !== String(req.practitionerFilter)) {
       return res.status(403).json({ error: 'Accès interdit' });
@@ -788,7 +793,7 @@ router.patch('/:id/modify', async (req, res, next) => {
       modification: {
         old: { start: oldBooking.start_at, end: oldBooking.end_at },
         new: { start: start_at, end: end_at },
-        status_changed: shouldNotify ? 'modified_pending' : null
+        status_changed: shouldNotify ? newStatus : null
       }
     });
   } catch (err) {

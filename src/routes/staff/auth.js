@@ -30,7 +30,10 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
     if (result.rows.length === 0) {
       // Don't reveal whether email exists — dummy bcrypt to normalize timing
-      if (password) await bcrypt.compare(password, '$2b$12$K4z0Bx0dQ5xP0xP0xP0xP.0xP0xP0xP0xP0xP0xP0xP0xP0xP0x');
+      if (password) {
+        await bcrypt.compare(password, '$2b$12$K4z0Bx0dQ5xP0xP0xP0xP.0xP0xP0xP0xP0xP0xP0xP0xP0xP0x');
+        return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+      }
       return res.json({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
     }
 
@@ -40,7 +43,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
     if (password && user.password_hash) {
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) {
-        return res.status(401).json({ error: 'Mot de passe incorrect' });
+        return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
       }
 
       const token = jwt.sign(
@@ -115,40 +118,33 @@ router.post('/verify', authLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Token requis' });
     }
 
+    // Atomic: mark as used and return id+user_id in one query (prevents race conditions)
     const result = await query(
-      `SELECT ml.id, ml.user_id, ml.expires_at, ml.used_at,
-              u.email, u.role, u.business_id,
-              b.name AS business_name
-       FROM magic_links ml
-       JOIN users u ON u.id = ml.user_id
-       JOIN businesses b ON b.id = u.business_id
-       WHERE ml.token = $1`,
+      `UPDATE magic_links SET used_at = NOW()
+       WHERE token = $1 AND used_at IS NULL AND expires_at > NOW()
+       RETURNING id, user_id`,
       [magicToken]
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Lien invalide' });
+      return res.status(400).json({ error: 'Lien invalide, expiré ou déjà utilisé' });
     }
 
-    const ml = result.rows[0];
+    const { user_id } = result.rows[0];
 
-    if (ml.used_at) {
-      return res.status(400).json({ error: 'Ce lien a déjà été utilisé' });
-    }
-
-    if (new Date(ml.expires_at) < new Date()) {
-      return res.status(400).json({ error: 'Ce lien a expiré. Demandez-en un nouveau.' });
-    }
-
-    // Mark as used
-    await query('UPDATE magic_links SET used_at = NOW() WHERE id = $1', [ml.id]);
+    // Fetch user info with business details
+    const userResult = await query(
+      `SELECT u.*, b.name AS business_name FROM users u JOIN businesses b ON b.id = u.business_id WHERE u.id = $1`,
+      [user_id]
+    );
+    const ml = userResult.rows[0];
 
     // Update last login
-    await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [ml.user_id]);
+    await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user_id]);
 
     // Generate JWT
     const jwtToken = jwt.sign(
-      { userId: ml.user_id, businessId: ml.business_id },
+      { userId: user_id, businessId: ml.business_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
@@ -159,14 +155,14 @@ router.post('/verify', authLimiter, async (req, res, next) => {
               p.id AS practitioner_id, p.display_name AS practitioner_name
        FROM businesses b
        LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
-       WHERE b.id = $1`, [ml.business_id, ml.user_id]
+       WHERE b.id = $1`, [ml.business_id, user_id]
     );
     const extra = extraResult.rows[0] || {};
 
     res.json({
       token: jwtToken,
       user: {
-        id: ml.user_id,
+        id: user_id,
         email: ml.email,
         role: ml.role,
         business_name: ml.business_name,
@@ -311,43 +307,41 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
     }
 
-    // Find valid token
+    // Atomic: claim the token in one UPDATE (prevents race conditions)
     const result = await query(
-      `SELECT t.id, t.user_id, t.expires_at, t.used_at, u.email
-       FROM password_reset_tokens t
-       JOIN users u ON u.id = t.user_id
-       WHERE t.token = $1`,
+      `UPDATE password_reset_tokens SET used_at = NOW()
+       WHERE token = $1 AND used_at IS NULL AND expires_at > NOW()
+       RETURNING id, user_id`,
       [token]
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Lien invalide ou expiré' });
+      return res.status(400).json({ error: 'Lien invalide, expiré ou déjà utilisé' });
     }
 
     const rt = result.rows[0];
 
-    if (rt.used_at) {
-      return res.status(400).json({ error: 'Ce lien a déjà été utilisé' });
-    }
-
-    if (new Date(rt.expires_at) < new Date()) {
-      return res.status(400).json({ error: 'Ce lien a expiré. Demandez-en un nouveau.' });
-    }
-
-    // Update password
+    // Wrap password update + token invalidation in a transaction
     const hash = await bcrypt.hash(new_password, 12);
-    await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, rt.user_id]);
+    await query('BEGIN');
+    try {
+      await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, rt.user_id]);
 
-    // Mark token as used
-    await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [rt.id]);
+      // Invalidate all other tokens for this user
+      await query(
+        'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
+        [rt.user_id]
+      );
+      await query('COMMIT');
+    } catch (txErr) {
+      await query('ROLLBACK');
+      throw txErr;
+    }
 
-    // Invalidate all other tokens for this user
-    await query(
-      'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
-      [rt.user_id]
-    );
-
-    console.log(`[AUTH] Password reset successful for ${rt.email}`);
+    // Fetch email for logging
+    const userResult = await query('SELECT email FROM users WHERE id = $1', [rt.user_id]);
+    const email = userResult.rows[0]?.email || 'unknown';
+    console.log(`[AUTH] Password reset successful for ${email}`);
 
     res.json({ success: true, message: 'Mot de passe modifié avec succès' });
   } catch (err) { next(err); }

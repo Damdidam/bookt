@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
+router.use(resolvePractitionerScope);
 
 // ============================================================
 // GET /api/waitlist — list waitlist entries with filters
@@ -17,7 +18,13 @@ router.get('/', async (req, res, next) => {
     const params = [bid];
     let idx = 2;
 
-    if (practitioner_id) {
+    // Apply practitioner scope filter
+    const pracFilter = req.practitionerFilter;
+    if (pracFilter) {
+      where += ` AND w.practitioner_id = $${idx}`;
+      params.push(pracFilter);
+      idx++;
+    } else if (practitioner_id) {
       where += ` AND w.practitioner_id = $${idx}`;
       params.push(practitioner_id);
       idx++;
@@ -96,6 +103,15 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Prestation invalide pour ce cabinet' });
     }
 
+    // Validate preferred_days: must be an array of integers 0-6
+    let validatedDays = [0,1,2,3,4];
+    if (preferred_days !== undefined) {
+      if (!Array.isArray(preferred_days) || !preferred_days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) {
+        return res.status(400).json({ error: 'preferred_days doit être un tableau d\'entiers entre 0 et 6' });
+      }
+      validatedDays = preferred_days;
+    }
+
     // Get next priority
     const maxP = await queryWithRLS(bid,
       `SELECT COALESCE(MAX(priority), 0) + 1 AS next_priority
@@ -112,7 +128,7 @@ router.post('/', async (req, res, next) => {
        RETURNING *`,
       [bid, practitioner_id, service_id, client_name, client_email,
        client_phone || null,
-       JSON.stringify(preferred_days || [0,1,2,3,4]),
+       JSON.stringify(validatedDays),
        preferred_time || 'any',
        note || null,
        maxP.rows[0].next_priority]

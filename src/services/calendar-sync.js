@@ -251,7 +251,7 @@ async function pushBookingToCalendar(connection, booking, queryFn) {
     if (connection.provider === 'google') {
       const calId = connection.calendar_id || 'primary';
       const result = await googleApiCall(accessToken,
-        `/calendars/${encodeURIComponent(calId)}/events/${ext.external_event_id}`,
+        `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(ext.external_event_id)}`,
         'PUT', event
       );
       externalEventId = result.id;
@@ -311,7 +311,7 @@ async function deleteCalendarEvent(connection, bookingId, queryFn) {
     if (connection.provider === 'google') {
       const calId = connection.calendar_id || 'primary';
       await googleApiCall(accessToken,
-        `/calendars/${encodeURIComponent(calId)}/events/${ext.external_event_id}`,
+        `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(ext.external_event_id)}`,
         'DELETE'
       );
     } else {

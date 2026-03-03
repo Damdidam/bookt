@@ -18,7 +18,7 @@ async function fcSetStatus(newStatus) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ status: newStatus })
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     // Store undo (only for reversible status changes)
     if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
@@ -33,15 +33,15 @@ async function fcSetStatus(newStatus) {
 }
 
 async function fcPurgeBooking() {
-  if (!confirm('Supprimer d\u00e9finitivement ce RDV ? Cette action est irr\u00e9versible.')) return;
   if (fcPurgeBooking._busy) return;
+  if (!confirm('Supprimer d\u00e9finitivement ce RDV ? Cette action est irr\u00e9versible.')) return;
   fcPurgeBooking._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}`, {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     gToast('RDV supprim\u00e9 d\u00e9finitivement', 'success');
     closeCalModal('calDetailModal');
     fcRefresh();
@@ -50,33 +50,39 @@ async function fcPurgeBooking() {
 }
 
 async function fcMarkDepositPaid() {
+  if (fcMarkDepositPaid._busy) return;
   if (!confirm('Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.')) return;
+  fcMarkDepositPaid._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ status: 'confirmed' })
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     gToast('Acompte marqu\u00e9 comme pay\u00e9 \u2014 RDV confirm\u00e9', 'success');
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { fcMarkDepositPaid._busy = false; }
 }
 
 async function fcRefundDeposit(amountCents) {
+  if (fcRefundDeposit._busy) return;
   const amt = ((amountCents || 0) / 100).toFixed(2);
   if (!confirm(`Rembourser l\u2019acompte de ${amt}\u20ac ? Le RDV sera annul\u00e9.`)) return;
+  fcRefundDeposit._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/deposit-refund`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }
     });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     gToast('Acompte rembours\u00e9 \u2014 RDV annul\u00e9', 'success');
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { fcRefundDeposit._busy = false; }
 }
 
 // Expose to global scope for onclick handlers

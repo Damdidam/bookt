@@ -68,25 +68,33 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const { name, type, service_id, subject, content_html, form_fields,
             send_days_before, is_active, language } = req.body;
 
+    // Build dynamic SET to avoid setting service_id to undefined/null when not in body
+    const sets = [];
+    const params = [];
+    let idx = 1;
+
+    if (name !== undefined) { sets.push(`name = $${idx}`); params.push(name); idx++; }
+    if (type !== undefined) { sets.push(`type = $${idx}`); params.push(type); idx++; }
+    if ('service_id' in req.body) { sets.push(`service_id = $${idx}`); params.push(service_id || null); idx++; }
+    if (subject !== undefined) { sets.push(`subject = $${idx}`); params.push(subject); idx++; }
+    if (content_html !== undefined) { sets.push(`content_html = $${idx}`); params.push(content_html); idx++; }
+    if (form_fields !== undefined) { sets.push(`form_fields = $${idx}::jsonb`); params.push(JSON.stringify(form_fields)); idx++; }
+    if (send_days_before !== undefined) { sets.push(`send_days_before = $${idx}`); params.push(send_days_before); idx++; }
+    if (is_active !== undefined) { sets.push(`is_active = $${idx}`); params.push(is_active); idx++; }
+    if (language !== undefined) { sets.push(`language = $${idx}`); params.push(language); idx++; }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'Aucun champ à modifier' });
+    }
+
+    sets.push('updated_at = NOW()');
+    params.push(req.params.id, bid);
+
     const result = await queryWithRLS(bid,
-      `UPDATE document_templates SET
-        name = COALESCE($1, name),
-        type = COALESCE($2, type),
-        service_id = $3,
-        subject = COALESCE($4, subject),
-        content_html = COALESCE($5, content_html),
-        form_fields = COALESCE($6::jsonb, form_fields),
-        send_days_before = COALESCE($7, send_days_before),
-        is_active = COALESCE($8, is_active),
-        language = COALESCE($9, language),
-        updated_at = NOW()
-       WHERE id = $10 AND business_id = $11
+      `UPDATE document_templates SET ${sets.join(', ')}
+       WHERE id = $${idx} AND business_id = $${idx + 1}
        RETURNING *`,
-      [name, type, service_id !== undefined ? service_id || null : undefined,
-       subject, content_html,
-       form_fields ? JSON.stringify(form_fields) : null,
-       send_days_before, is_active, language,
-       req.params.id, bid]
+      params
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Template introuvable' });

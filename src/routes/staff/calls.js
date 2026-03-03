@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -247,7 +247,7 @@ router.get('/whitelist', async (req, res, next) => {
 });
 
 // POST /api/calls/whitelist
-router.post('/whitelist', async (req, res, next) => {
+router.post('/whitelist', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const { phone_e164, label } = req.body;
     if (!phone_e164) return res.status(400).json({ error: 'phone_e164 requis' });
@@ -321,7 +321,7 @@ router.patch('/voicemails/:id/read', async (req, res, next) => {
 });
 
 // DELETE /api/calls/voicemails/:id
-router.delete('/voicemails/:id', async (req, res, next) => {
+router.delete('/voicemails/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     // Optionally delete from Twilio too
     const vm = await queryWithRLS(req.businessId,
@@ -358,7 +358,7 @@ router.get('/blacklist', async (req, res, next) => {
 });
 
 // POST /api/calls/blacklist
-router.post('/blacklist', async (req, res, next) => {
+router.post('/blacklist', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const { phone_e164, label, reason } = req.body;
     if (!phone_e164) return res.status(400).json({ error: 'phone_e164 requis' });

@@ -98,8 +98,11 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
       `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
     );
     if (old.rows[0]?.photo_url) {
-      const oldPath = path.join(__dirname, '../../../public', old.rows[0].photo_url);
-      try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      const resolved = path.resolve(__dirname, '../../../public', old.rows[0].photo_url);
+      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+      if (resolved.startsWith(uploadBase)) {
+        try { fs.unlinkSync(resolved); } catch (e) { /* ignore */ }
+      }
     }
 
     // Save file
@@ -127,8 +130,11 @@ router.delete('/:id/photo', requireOwner, async (req, res, next) => {
       `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
     );
     if (old.rows[0]?.photo_url) {
-      const oldPath = path.join(__dirname, '../../../public', old.rows[0].photo_url.split('?')[0]);
-      try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      const resolved = path.resolve(__dirname, '../../../public', old.rows[0].photo_url.split('?')[0]);
+      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+      if (resolved.startsWith(uploadBase)) {
+        try { fs.unlinkSync(resolved); } catch (e) { /* ignore */ }
+      }
     }
 
     await queryWithRLS(bid,
@@ -298,6 +304,7 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
 
     if (!email) return res.status(400).json({ error: 'Email requis' });
     if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
+    if (password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (minimum 8 caractères)' });
 
     // Validate role
     const validRoles = ['manager', 'practitioner', 'receptionist'];

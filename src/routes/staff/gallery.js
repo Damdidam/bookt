@@ -3,7 +3,7 @@
  * All routes require auth + business context
  */
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 
 // List gallery images
@@ -77,12 +77,21 @@ router.post('/reorder', requireAuth, requireRole('owner','manager'), async (req,
     const { order } = req.body; // [{id, sort_order}]
     if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
 
+    // Validate each item has a valid id and numeric sort_order
     for (const item of order) {
-      await queryWithRLS(req.businessId,
-        `UPDATE gallery_images SET sort_order = $3 WHERE id = $1 AND business_id = $2`,
-        [item.id, req.businessId, item.sort_order]
-      );
+      if (!item.id || typeof item.sort_order !== 'number' || !Number.isInteger(item.sort_order)) {
+        return res.status(400).json({ error: 'Each item must have a valid id and integer sort_order' });
+      }
     }
+
+    await transactionWithRLS(req.businessId, async (client) => {
+      for (const item of order) {
+        await client.query(
+          `UPDATE gallery_images SET sort_order = $3 WHERE id = $1 AND business_id = $2`,
+          [item.id, req.businessId, item.sort_order]
+        );
+      }
+    });
     res.json({ reordered: true });
   } catch (err) { next(err); }
 });

@@ -28,7 +28,7 @@ async function calSyncPush(businessId, bookingId) {
       try { await pushBookingToCalendar(conn, bk.rows[0], qFn); }
       catch (e) { console.warn('[CAL-SYNC] Push failed:', e.message); }
     }
-  } catch (e) { /* non-blocking */ }
+  } catch (e) { console.error('[CAL-SYNC] calSyncPush unexpected error:', e.message); }
 }
 
 async function calSyncDelete(businessId, bookingId) {
@@ -44,7 +44,7 @@ async function calSyncDelete(businessId, bookingId) {
       try { await deleteCalendarEvent(conn, bookingId, qFn); }
       catch (e) { console.warn('[CAL-SYNC] Delete failed:', e.message); }
     }
-  } catch (e) { /* non-blocking */ }
+  } catch (e) { console.error('[CAL-SYNC] calSyncDelete unexpected error:', e.message); }
 }
 
 // Helper: get global overlap policy from business settings

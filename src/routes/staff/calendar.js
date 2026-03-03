@@ -60,6 +60,10 @@ router.get('/google/callback', async (req, res) => {
   if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=' + encodeURIComponent('state_expired'));
 
   try {
+    // Validate that session.userId belongs to session.businessId
+    const ownerCheck = await query(`SELECT id FROM users WHERE id = $1 AND business_id = $2`, [session.userId, session.businessId]);
+    if (ownerCheck.rows.length === 0) return res.redirect('/dashboard?cal_error=unauthorized');
+
     const tokens = await cal.exchangeGoogleCode(code);
     const userInfo = await cal.getGoogleUserInfo(tokens.access_token);
 
@@ -129,6 +133,10 @@ router.get('/outlook/callback', async (req, res) => {
   if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=' + encodeURIComponent('state_expired'));
 
   try {
+    // Validate that session.userId belongs to session.businessId
+    const ownerCheck = await query(`SELECT id FROM users WHERE id = $1 AND business_id = $2`, [session.userId, session.businessId]);
+    if (ownerCheck.rows.length === 0) return res.redirect('/dashboard?cal_error=unauthorized');
+
     const tokens = await cal.exchangeOutlookCode(code);
 
     // Get user email
@@ -399,7 +407,7 @@ router.post('/ical/generate', requireAuth, async (req, res, next) => {
     const secret = crypto.randomBytes(24).toString('hex');
 
     // Upsert ical connection per practitioner
-    const result = await query(
+    const result = await queryWithRLS(bid,
       `INSERT INTO calendar_connections
         (business_id, user_id, practitioner_id, provider, access_token, status, sync_direction, sync_enabled)
        VALUES ($1, $2, $3, 'ical', $4, 'active', 'push', true)

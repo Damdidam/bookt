@@ -107,7 +107,9 @@ router.patch('/:id/status', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { status, cancel_reason } = req.body;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+    let { status, cancel_reason } = req.body;
 
     const validStatuses = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled', 'modified_pending', 'pending_deposit'];
     if (!validStatuses.includes(status)) {
@@ -116,6 +118,7 @@ router.patch('/:id/status', async (req, res, next) => {
     if (cancel_reason && cancel_reason.length > 1000) {
       return res.status(400).json({ error: 'Raison d\'annulation trop longue (max 1000 caractères)' });
     }
+    if (cancel_reason) cancel_reason = cancel_reason.replace(/<[^>]*>/g, '').trim();
 
     // ===== All DB mutations inside a single transaction =====
     const txResult = await transactionWithRLS(bid, async (client) => {
@@ -220,16 +223,17 @@ router.patch('/:id/status', async (req, res, next) => {
               [`Bloqué automatiquement : ${count} no-show(s)`, clientId, bid]
             );
           }
+        }
 
-          // Bug H5 fix: Apply no-show strikes to sibling clients too
-          // Bug M6 fix: Only target siblings that were just transitioned (affectedSiblingIds)
-          if (old.rows[0].group_id && affectedSiblingIds.length > 0) {
-            await applySiblingNoShowStrikes(client, {
-              affectedIds: affectedSiblingIds,
-              bid,
-              excludeClientId: clientId
-            });
-          }
+        // Bug H5 fix: Apply no-show strikes to sibling clients too
+        // Bug M6 fix: Only target siblings that were just transitioned (affectedSiblingIds)
+        // STS-V10-7 fix: Apply sibling strikes even if main booking has no client_id
+        if (old.rows[0].group_id && affectedSiblingIds.length > 0) {
+          await applySiblingNoShowStrikes(client, {
+            affectedIds: affectedSiblingIds,
+            bid,
+            excludeClientId: bkInfo.rows[0]?.client_id || '00000000-0000-0000-0000-000000000000'
+          });
         }
       }
 
@@ -352,6 +356,14 @@ router.patch('/:id/status', async (req, res, next) => {
         const { processWaitlistForCancellation } = require('../../services/waitlist');
         await processWaitlistForCancellation(id, bid);
       } catch (e) { console.warn('[WAITLIST] Processing error:', e.message); }
+
+      // STS-V10-6: Process waitlist for cancelled siblings too
+      if (txResult.affectedSiblingIds?.length > 0) {
+        for (const sibId of txResult.affectedSiblingIds) {
+          try { await processWaitlistForCancellation(sibId, bid); }
+          catch (e) { console.warn('[WAITLIST] Sibling processing error:', e.message); }
+        }
+      }
     }
 
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
@@ -377,6 +389,8 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
 
     // All deposit-refund operations in a single transaction for atomicity
     const txResult = await transactionWithRLS(bid, async (client) => {
@@ -461,6 +475,15 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       await processWaitlistForCancellation(id, bid);
     } catch (e) { console.warn('[WAITLIST] Processing error:', e.message); }
 
+    // STS-V10-6: Process waitlist for cancelled siblings too
+    if (txResult.affectedSiblingIds?.length > 0) {
+      const { processWaitlistForCancellation } = require('../../services/waitlist');
+      for (const sibId of txResult.affectedSiblingIds) {
+        try { await processWaitlistForCancellation(sibId, bid); }
+        catch (e) { console.warn('[WAITLIST] Sibling processing error:', e.message); }
+      }
+    }
+
     res.json({ updated: true, deposit_status: 'refunded' });
   } catch (err) { next(err); }
 });
@@ -473,6 +496,8 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
 
     // All deletion operations in a single transaction for atomicity
     // Status check is INSIDE the transaction with FOR UPDATE to prevent race conditions
@@ -537,6 +562,22 @@ router.delete('/:id', async (req, res, next) => {
           await decrementStrikeAndMaybeUnblock(check.rows[0].client_id);
         }
       }
+
+      // STS-V10-1: Detach remaining active siblings from group (prevent orphans)
+      if (check.rows[0].group_id) {
+        await client.query(
+          `UPDATE bookings SET group_id = NULL, updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != ALL($3::uuid[])`,
+          [check.rows[0].group_id, bid, bookingIds]
+        );
+      }
+
+      // STS-V10-2: FK reschedule_of_booking_id cleanup before DELETE
+      await client.query(
+        `UPDATE bookings SET reschedule_of_booking_id = NULL
+         WHERE reschedule_of_booking_id = ANY($1::uuid[]) AND business_id = $2`,
+        [bookingIds, bid]
+      );
 
       await client.query(`DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
       await client.query(`DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);

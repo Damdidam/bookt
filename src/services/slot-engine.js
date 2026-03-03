@@ -21,6 +21,9 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
     throw Object.assign(new Error('Format de date invalide'), { type: 'validation' });
   }
+  if (dateFrom > dateTo) throw Object.assign(new Error('dateFrom doit être <= dateTo'), { type: 'validation' });
+  const daysDiff = (new Date(dateTo) - new Date(dateFrom)) / 86400000;
+  if (daysDiff > 90) throw Object.assign(new Error('Plage maximale : 90 jours'), { type: 'validation' });
 
   // 1. Fetch business settings
   const bizResult = await queryWithRLS(businessId,
@@ -233,12 +236,11 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
           if (slotStart <= new Date()) continue;
 
           // Check for conflicts with existing bookings (capacity-aware)
-          // Expand existing bookings by buffer times to prevent back-to-back conflicts
-          const bufferBefore = (service.buffer_before_min || 0) * 60000;
-          const bufferAfter = (service.buffer_after_min || 0) * 60000;
+          // Buffers are already included in totalDuration (slotStart→slotEnd),
+          // so do NOT expand existing bookings by buffers again (would double-apply).
           const overlapCount = dayBookings.filter(bk => {
-            const effectiveStart = new Date(bk.start.getTime() - bufferBefore);
-            const effectiveEnd = new Date(bk.end.getTime() + bufferAfter);
+            const effectiveStart = bk.start;
+            const effectiveEnd = bk.end;
             return slotStart < effectiveEnd && slotEnd > effectiveStart;
           }).length;
 

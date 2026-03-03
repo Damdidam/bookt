@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, requireRole } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -24,7 +24,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST /api/services — create a service
-router.post('/', async (req, res, next) => {
+router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { name, category, duration_min, buffer_before_min, buffer_after_min,
@@ -75,11 +75,23 @@ router.post('/', async (req, res, next) => {
 });
 
 // PATCH /api/services/:id — update a service
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
     const fields = req.body;
+
+    // Validate numeric fields
+    const numericFields = ['duration_min', 'buffer_before_min', 'buffer_after_min', 'price_cents'];
+    for (const nf of numericFields) {
+      if (fields[nf] !== undefined) {
+        const parsed = parseInt(fields[nf]);
+        if (isNaN(parsed) || parsed < 0) {
+          return res.status(400).json({ error: `${nf} doit être un nombre >= 0` });
+        }
+        fields[nf] = parsed;
+      }
+    }
 
     // Build dynamic update
     const allowed = ['name', 'category', 'duration_min', 'buffer_before_min',
@@ -155,7 +167,7 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 // DELETE /api/services/:id — soft delete (set inactive)
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `UPDATE services SET is_active = false, updated_at = NOW()

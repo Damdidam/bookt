@@ -39,6 +39,11 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       });
     }
 
+    // Password validation
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Mot de passe requis (minimum 8 caractères)' });
+    }
+
     // Email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {

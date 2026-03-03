@@ -121,7 +121,8 @@ router.post('/', requireOwner, async (req, res, next) => {
     );
 
     // Calculate totals
-    const vatR = parseFloat(vat_rate) || 21;
+    const parsedVat = parseFloat(vat_rate);
+    const vatR = isNaN(parsedVat) ? 21 : parsedVat;
     let subtotal = 0;
     invoiceItems.forEach(item => {
       item.total_cents = Math.round((item.quantity || 1) * (item.unit_price_cents || 0));
@@ -233,15 +234,21 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
-    // Atomic delete: only deletes if draft, returns id to confirm deletion
-    await queryWithRLS(bid, `DELETE FROM invoice_items WHERE invoice_id = $1`, [req.params.id]);
-    const result = await queryWithRLS(bid,
-      `DELETE FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft' RETURNING id`,
+    // First verify the invoice belongs to this business and is a draft
+    const check = await queryWithRLS(bid,
+      `SELECT id FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft'`,
       [req.params.id, bid]
     );
-    if (result.rowCount === 0) {
+    if (check.rows.length === 0) {
       return res.status(400).json({ error: 'Facture introuvable ou non supprimable (seuls les brouillons peuvent être supprimés)' });
     }
+
+    // Then delete items and invoice
+    await queryWithRLS(bid, `DELETE FROM invoice_items WHERE invoice_id = $1`, [req.params.id]);
+    await queryWithRLS(bid,
+      `DELETE FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft'`,
+      [req.params.id, bid]
+    );
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });

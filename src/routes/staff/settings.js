@@ -77,30 +77,38 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_reminder_email_2h !== undefined) cur.reminder_email_2h = !!settings_reminder_email_2h;
       // V23 deposit
       if (settings_deposit_enabled !== undefined) cur.deposit_enabled = !!settings_deposit_enabled;
-      if (settings_deposit_noshow_threshold !== undefined) cur.deposit_noshow_threshold = parseInt(settings_deposit_noshow_threshold) || 2;
+      if (settings_deposit_noshow_threshold !== undefined) { const _v = parseInt(settings_deposit_noshow_threshold); cur.deposit_noshow_threshold = isNaN(_v) ? 2 : _v; }
       if (settings_deposit_type !== undefined) cur.deposit_type = settings_deposit_type;
-      if (settings_deposit_percent !== undefined) cur.deposit_percent = parseInt(settings_deposit_percent) || 50;
-      if (settings_deposit_fixed_cents !== undefined) cur.deposit_fixed_cents = parseInt(settings_deposit_fixed_cents) || 2500;
-      if (settings_deposit_deadline_hours !== undefined) cur.deposit_deadline_hours = parseInt(settings_deposit_deadline_hours) || 48;
+      if (settings_deposit_percent !== undefined) { const _v = parseInt(settings_deposit_percent); cur.deposit_percent = isNaN(_v) ? 50 : _v; }
+      if (settings_deposit_fixed_cents !== undefined) { const _v = parseInt(settings_deposit_fixed_cents); cur.deposit_fixed_cents = isNaN(_v) ? 2500 : _v; }
+      if (settings_deposit_deadline_hours !== undefined) { const _v = parseInt(settings_deposit_deadline_hours); cur.deposit_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_deposit_message !== undefined) cur.deposit_message = settings_deposit_message;
       if (settings_deposit_deduct !== undefined) cur.deposit_deduct = !!settings_deposit_deduct;
       // V23b cancellation policy
-      if (settings_cancel_deadline_hours !== undefined) cur.cancel_deadline_hours = parseInt(settings_cancel_deadline_hours) || 48;
-      if (settings_cancel_grace_minutes !== undefined) cur.cancel_grace_minutes = parseInt(settings_cancel_grace_minutes) || 240;
+      if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 48 : _v; }
+      if (settings_cancel_grace_minutes !== undefined) { const _v = parseInt(settings_cancel_grace_minutes); cur.cancel_grace_minutes = isNaN(_v) ? 240 : _v; }
       if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = settings_cancel_policy_text;
       mergedSettings = cur;
     }
 
-    // If slug is changing, verify uniqueness (global check, no RLS)
+    // If slug is changing, sanitise then verify uniqueness (global check, no RLS)
     if (slug) {
+      const sanitizedSlug = slug.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
+      if (!sanitizedSlug || sanitizedSlug.length < 3) {
+        return res.status(400).json({ error: 'Slug invalide (min 3 caractères)' });
+      }
       const existing = await query(
         `SELECT id FROM businesses WHERE slug = $1 AND id != $2`,
-        [slug, bid]
+        [sanitizedSlug, bid]
       );
       if (existing.rows.length > 0) {
         return res.status(409).json({ error: 'Ce slug est déjà pris' });
       }
+      // Use sanitized slug for the update (override local ref below)
+      req.body.slug = sanitizedSlug;
     }
+    // Re-read slug after potential sanitization
+    const finalSlug = req.body.slug;
 
     // Pass languages_spoken as a proper array for PG
     let langArray = null;
@@ -139,7 +147,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
        WHERE id = $22
        RETURNING *`,
       [
-        name, slug, phone, email, address, language_default,
+        name, finalSlug || slug, phone, email, address, language_default,
         mergedSettings ? JSON.stringify(mergedSettings) : null,
         tagline, description, logo_url, cover_image_url,
         founded_year ? parseInt(founded_year) : null,

@@ -104,6 +104,10 @@ async function processWaitlistForCancellation(bookingId, businessId) {
   }
 
   if (bk.waitlist_mode === 'auto') {
+    // Check slot is far enough in the future (at least 2h)
+    const slotTime = new Date(bk.start_at).getTime();
+    if (slotTime < Date.now() + 2 * 60 * 60 * 1000) return { processed: false, reason: 'slot_too_soon' };
+
     // FIFO: offer to the first matching entry
     const entry = matches.rows[0];
     const token = crypto.randomBytes(20).toString('hex');
@@ -219,7 +223,7 @@ async function processExpiredOffers() {
         const token = crypto.randomBytes(20).toString('hex');
         const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
-        await query(
+        const cascadeResult = await query(
           `UPDATE waitlist_entries SET
             status = 'offered',
             offer_token = $1,
@@ -228,10 +232,12 @@ async function processExpiredOffers() {
             offer_sent_at = NOW(),
             offer_expires_at = $4,
             updated_at = NOW()
-           WHERE id = $5 AND business_id = $6`,
+           WHERE id = $5 AND business_id = $6 AND status = 'waiting'
+           RETURNING id`,
           [token, entry.offer_booking_start, entry.offer_booking_end,
            expiresAt.toISOString(), next.rows[0].id, entry.business_id]
         );
+        if (cascadeResult.rows.length === 0) continue;
 
         // TODO: Send email to next person
 

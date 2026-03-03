@@ -326,6 +326,7 @@ router.post('/manual', async (req, res, next) => {
             const dlHours = dc.settings.deposit_deadline_hours ?? 48;
             const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
             if (deadline > new Date()) {
+              // CRT-V10-7: Deposit amount on the first booking only
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                   deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
@@ -335,6 +336,18 @@ router.post('/manual', async (req, res, next) => {
               results[0].status = 'pending_deposit';
               results[0].deposit_required = true;
               results[0].deposit_amount_cents = depCents;
+              // CRT-V10-7: Set pending_deposit status on ALL other group members (no deposit amount)
+              if (results.length > 1) {
+                const otherIds = results.slice(1).map(b => b.id);
+                await client.query(
+                  `UPDATE bookings SET status = 'pending_deposit'
+                   WHERE id = ANY($1) AND business_id = $2`,
+                  [otherIds, bid]
+                );
+                for (let i = 1; i < results.length; i++) {
+                  results[i].status = 'pending_deposit';
+                }
+              }
             }
           }
         }
