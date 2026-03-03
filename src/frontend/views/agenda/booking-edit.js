@@ -51,7 +51,7 @@ function calCheckConflict() {
     if (ev.id === myId) continue;
     // Skip group container that contains this booking
     if (myGroup && ev.extendedProps?._groupId === myGroup) continue;
-    if (ev.extendedProps?.practitioner_id !== pracId) continue;
+    if (String(ev.extendedProps?.practitioner_id) !== String(pracId)) continue;
     const st = ev.extendedProps?.status;
     if (st === 'cancelled' || st === 'no_show') continue;
     if (newStart < ev.end && newEnd > ev.start) {

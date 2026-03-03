@@ -9,41 +9,10 @@ import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { cswHTML } from './color-swatches.js';
-import { MODE_ICO } from '../../utils/format.js';
+import { MODE_ICO, toBrusselsISO } from '../../utils/format.js';
 
 // Escape string for use inside JS single-quoted onclick handlers
 function escJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029'); }
-
-/**
- * Build an ISO 8601 string that represents a Brussels-local date+time,
- * preserving the intended wall-clock time instead of shifting to UTC.
- * @param {string} date  "YYYY-MM-DD"
- * @param {string} time  "HH:MM"
- * @returns {string} e.g. "2026-03-03T14:30:00+01:00"
- */
-function toBrusselsISO(date, time) {
-  // Create a Date that JS interprets as local — we only need it to derive the
-  // Brussels UTC offset for that specific instant.
-  const dt = new Date(date + 'T' + time + ':00');
-  // Compute offset between the JS-local interpretation and Brussels wall-clock
-  const bruFmt = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
-    second: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit'
-  });
-  const parts = {};
-  bruFmt.formatToParts(dt).forEach(p => { parts[p.type] = p.value; });
-  // The offset in minutes between UTC and Brussels for this instant
-  const bruDate = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
-  const offsetMs = bruDate.getTime() - dt.getTime();
-  // offsetMs is negative when Brussels is ahead of UTC (which is normal)
-  // We want the offset from UTC that Brussels has: if Brussels is UTC+2, offsetMin = 120
-  const offsetMin = -Math.round(offsetMs / 60000);
-  const sign = offsetMin >= 0 ? '+' : '-';
-  const absOff = Math.abs(offsetMin);
-  const offH = String(Math.floor(absOff / 60)).padStart(2, '0');
-  const offM = String(absOff % 60).padStart(2, '0');
-  return `${date}T${time}:00${sign}${offH}:${offM}`;
-}
 
 // In-memory storage for notes/todos/reminders during creation
 let qcNotes = [];
@@ -253,7 +222,8 @@ function qcUpdateTotal() {
     const colEl = item.querySelector('.qc-svc-color');
     if (colEl) colEl.style.background = color;
     const svcId = sel.value;
-    const svc = calState.fcServices.find(s => s.id === svcId);
+    // Bug B5 fix: coerce both sides to string for type-safe comparison
+    const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
     const modes = svc?.mode_options || ['cabinet'];
     if (!availModes) availModes = new Set(modes);
     else availModes = new Set([...availModes].filter(m => modes.includes(m)));

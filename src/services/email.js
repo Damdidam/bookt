@@ -107,7 +107,7 @@ ${safePreheader ? `<span style="display:none!important;font-size:1px;color:#fff;
   <div style="font-size:15px;line-height:1.6;color:#3D3832">${bodyHTML}</div>
   ${safeCta && ctaUrl ? `
   <div style="text-align:center;margin:28px 0">
-    <a href="${ctaUrl}" style="display:inline-block;padding:14px 32px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">${safeCta}</a>
+    <a href="${escHtml(ctaUrl || '')}" style="display:inline-block;padding:14px 32px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">${safeCta}</a>
   </div>` : ''}
 </td></tr>
 
@@ -126,10 +126,10 @@ ${safePreheader ? `<span style="display:none!important;font-size:1px;color:#fff;
  */
 async function sendPreRdvEmail({ booking, template, token, business }) {
   const appointmentDate = new Date(booking.start_at).toLocaleDateString('fr-BE', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
   const appointmentTime = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    hour: '2-digit', minute: '2-digit'
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
   });
 
   const baseUrl = process.env.BASE_URL || 'https://genda-qgm2.onrender.com';
@@ -190,14 +190,14 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
  */
 async function sendModificationEmail({ booking, business }) {
   const oldDate = new Date(booking.old_start_at).toLocaleDateString('fr-BE', {
-    weekday: 'long', day: 'numeric', month: 'long'
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
   });
-  const oldTime = new Date(booking.old_start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const oldTime = new Date(booking.old_start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
   const newDate = new Date(booking.new_start_at).toLocaleDateString('fr-BE', {
-    weekday: 'long', day: 'numeric', month: 'long'
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
   });
-  const newTime = new Date(booking.new_start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-  const newEndTime = new Date(booking.new_end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const newTime = new Date(booking.new_start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+  const newEndTime = new Date(booking.new_end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
 
   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
   const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm`;
@@ -220,8 +220,8 @@ async function sendModificationEmail({ booking, business }) {
     </div>
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">
-      <a href="${confirmUrl}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px"> Oui, ça me va</a>
-      <a href="${rejectUrl}" style="display:inline-block;padding:14px 36px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;border:2px solid #E57373"> Non</a>
+      <a href="${escHtml(confirmUrl)}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px"> Oui, ça me va</a>
+      <a href="${escHtml(rejectUrl)}" style="display:inline-block;padding:14px 36px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;border:2px solid #E57373"> Non</a>
     </div>
     <p style="font-size:12px;color:#9C958E;text-align:center">Si vous ne répondez pas, le nouveau créneau sera automatiquement confirmé.</p>`;
 
@@ -249,11 +249,11 @@ async function sendModificationEmail({ booking, business }) {
  */
 async function sendBookingConfirmation({ booking, business }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
   const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
     : null;
 
   const color = safeColor(business.theme?.primary_color);

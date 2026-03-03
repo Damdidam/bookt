@@ -51,6 +51,12 @@ router.patch('/:id/move', async (req, res, next) => {
     }
 
     const draggedBooking = old.rows[0];
+
+    // Practitioner scope: can only move own bookings
+    if (req.practitionerFilter && String(draggedBooking.practitioner_id) !== String(req.practitionerFilter)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
     const effectivePracId = practitioner_id || draggedBooking.practitioner_id;
     const newStart = new Date(start_at);
 
@@ -114,14 +120,16 @@ router.patch('/:id/move', async (req, res, next) => {
       // Atomic group move: conflict check + updates in one transaction
       try {
         await transactionWithRLS(bid, async (client) => {
-          // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
-          const statusRecheck = await client.query(
-            `SELECT id, status FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
-            [id, bid]
+          // Bug H8 fix: Lock ALL group members, not just the dragged booking
+          const groupLock = await client.query(
+            `SELECT id, status FROM bookings
+             WHERE group_id = $1 AND business_id = $2 FOR UPDATE`,
+            [draggedBooking.group_id, bid]
           );
           const IMMUTABLE = ['cancelled', 'completed', 'no_show'];
-          if (statusRecheck.rows.length === 0 || IMMUTABLE.includes(statusRecheck.rows[0].status)) {
-            throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+          const immutableMember = groupLock.rows.find(r => IMMUTABLE.includes(r.status));
+          if (groupLock.rows.length === 0 || immutableMember) {
+            throw Object.assign(new Error('Un membre du groupe ne peut plus être modifié'), { type: 'immutable' });
           }
 
           if (!globalAllowOverlap) {
@@ -282,9 +290,15 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     // Pre-flight existence check (non-authoritative; real guard is inside transaction)
     const statusCheck = await queryWithRLS(bid,
-      `SELECT status FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]
+      `SELECT status, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]
     );
     if (statusCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Practitioner scope: can only edit own bookings
+    if (req.practitionerFilter && String(statusCheck.rows[0].practitioner_id) !== String(req.practitionerFilter)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
     // Early rejection for obvious immutable + structural changes (will be re-checked in tx)
     const IMMUTABLE_EDIT = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_EDIT.includes(statusCheck.rows[0].status)) {
@@ -476,6 +490,11 @@ router.patch('/:id/resize', async (req, res, next) => {
     );
     if (current.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
+    // Practitioner scope: can only resize own bookings
+    if (req.practitionerFilter && String(current.rows[0].practitioner_id) !== String(req.practitionerFilter)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
     // Guard: immutable statuses cannot be resized
     const IMMUTABLE_RESIZE = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_RESIZE.includes(current.rows[0].status)) {
@@ -563,7 +582,8 @@ router.patch('/:id/modify', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
     const { start_at, end_at, notify, notify_channel } = req.body;
-    // notify: boolean — should we notify client?
+    // Bug M11 fix: normalize notify so "false" string is not truthy
+    const shouldNotify = notify === true || notify === 'true';
     // notify_channel: 'email' | 'sms' | 'both'
 
     const VALID_CHANNELS = ['email', 'sms', 'both'];
@@ -604,7 +624,12 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     const oldBooking = old.rows[0];
 
-    const newStatus = (notify === true || notify === 'true') ? 'modified_pending' : oldBooking.status;
+    // Practitioner scope: can only modify own bookings
+    if (req.practitionerFilter && String(oldBooking.practitioner_id) !== String(req.practitionerFilter)) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
+    const newStatus = shouldNotify ? 'modified_pending' : oldBooking.status;
 
     // Atomic modify: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
@@ -661,7 +686,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         }
 
         const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };
-        const newTimes = { start_at, end_at, status: newStatus, notified: notify || false, channel: notify_channel || null };
+        const newTimes = { start_at, end_at, status: newStatus, notified: shouldNotify, channel: notify_channel || null };
 
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
@@ -680,7 +705,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     // If notification requested, send it
     let notificationResult = null;
-    if (notify && (notify_channel === 'email' || notify_channel === 'both')) {
+    if (shouldNotify && (notify_channel === 'email' || notify_channel === 'both')) {
       try {
         const emailResult = await sendModificationEmail({
           booking: {
@@ -707,7 +732,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         notificationResult = { email: 'error', detail: e.message };
       }
     }
-    if (notify && (notify_channel === 'sms' || notify_channel === 'both')) {
+    if (shouldNotify && (notify_channel === 'sms' || notify_channel === 'both')) {
       try {
         // Twilio SMS — will be wired when Twilio is configured
         const baseUrl = process.env.PUBLIC_URL || `https://genda.be`;
@@ -729,7 +754,7 @@ router.patch('/:id/modify', async (req, res, next) => {
       modification: {
         old: { start: oldBooking.start_at, end: oldBooking.end_at },
         new: { start: start_at, end: end_at },
-        status_changed: notify ? 'modified_pending' : null
+        status_changed: shouldNotify ? 'modified_pending' : null
       }
     });
   } catch (err) {

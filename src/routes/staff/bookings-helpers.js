@@ -4,25 +4,26 @@
  * - calSyncDelete: remove booking from connected calendars (non-blocking)
  * - businessAllowsOverlap: check global overlap policy
  */
-const { query, queryWithRLS } = require('../../services/db');
+const { queryWithRLS } = require('../../services/db');
 
 // ── Calendar auto-sync helper (non-blocking) ──
+// Bug M12 fix: Use queryWithRLS instead of query for tenant isolation
 async function calSyncPush(businessId, bookingId) {
   try {
     const { pushBookingToCalendar } = require('../../services/calendar-sync');
-    const conns = await query(
+    const conns = await queryWithRLS(businessId,
       `SELECT * FROM calendar_connections
        WHERE business_id = $1 AND status = 'active' AND sync_enabled = true
        AND (sync_direction = 'push' OR sync_direction = 'both')`, [businessId]
     );
     if (conns.rows.length === 0) return;
-    const bk = await query(
+    const bk = await queryWithRLS(businessId,
       `SELECT b.*, s.name AS service_name, s.duration_min, c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
        FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`, [bookingId, businessId]
     );
     if (bk.rows.length === 0) return;
-    const qFn = (sql, params) => query(sql, params);
+    const qFn = (sql, params) => queryWithRLS(businessId, sql, params);
     for (const conn of conns.rows) {
       try { await pushBookingToCalendar(conn, bk.rows[0], qFn); }
       catch (e) { console.warn('[CAL-SYNC] Push failed:', e.message); }
@@ -33,12 +34,12 @@ async function calSyncPush(businessId, bookingId) {
 async function calSyncDelete(businessId, bookingId) {
   try {
     const { deleteCalendarEvent } = require('../../services/calendar-sync');
-    const conns = await query(
+    const conns = await queryWithRLS(businessId,
       `SELECT * FROM calendar_connections
        WHERE business_id = $1 AND status = 'active' AND sync_enabled = true
        AND (sync_direction = 'push' OR sync_direction = 'both')`, [businessId]
     );
-    const qFn = (sql, params) => query(sql, params);
+    const qFn = (sql, params) => queryWithRLS(businessId, sql, params);
     for (const conn of conns.rows) {
       try { await deleteCalendarEvent(conn, bookingId, qFn); }
       catch (e) { console.warn('[CAL-SYNC] Delete failed:', e.message); }

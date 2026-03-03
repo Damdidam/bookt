@@ -229,11 +229,12 @@ function buildEventDidMount() {
     if (p._isFeaturedSlot) return;
 
     const accent = p._accent || '#0D7377';
+    const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#0D7377';
 
     // Ensure left border shows
     info.el.style.borderLeftWidth = '3px';
     info.el.style.borderLeftStyle = 'solid';
-    info.el.style.borderLeftColor = accent;
+    info.el.style.borderLeftColor = safeAccent;
     info.el.style.borderTopWidth = '0';
     info.el.style.borderRightWidth = '0';
     info.el.style.borderBottomWidth = '0';
@@ -355,7 +356,7 @@ function buildEventDidMount() {
               if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
               var dur = Math.round((newEnd - info.event.start) / 60000);
               storeUndoAction(info.event.id, 'resize', { end_at: origEnd.toISOString() });
-              gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: 'fcUndoLast()' }, 8000);
+              gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
             }).catch(function (err) {
               info.event.setEnd(origEnd);
               calState.fcCal.refetchEvents();
@@ -426,7 +427,7 @@ function buildEventDrop() {
         });
       }
       const msg = result.group_moved ? `${p.client_name || 'Client'} \u2014 ${result.count} prestations d\u00e9plac\u00e9es` : (p.client_name || 'RDV') + ' d\u00e9plac\u00e9';
-      gToast(msg, 'success', !result.group_moved ? { label: 'Annuler \u21b6', fn: 'fcUndoLast()' } : undefined, 8000);
+      gToast(msg, 'success', !result.group_moved ? { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() } : undefined, 8000);
       calState.fcCal.refetchEvents();
     } catch (e) {
       // Save target date BEFORE revert (revert resets event.start to original)
@@ -436,9 +437,9 @@ function buildEventDrop() {
       // In month view + collision -> offer to switch to day view for precise placement
       if (isCollision && calState.fcCal?.view?.type === 'dayGridMonth') {
         window._atPendingDaySwitch = targetDate;
-        gToast('<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Cr\u00e9neau occup\u00e9 \u2014 voir le jour pour replacer ?', 'error', { label: 'Voir le jour \u2192', fn: `atView('timeGridDay');calState.fcCal.gotoDate(window._atPendingDaySwitch);document.getElementById('gToast').style.display='none'` });
+        gToast('\u2718 Cr\u00e9neau occup\u00e9 \u2014 voir le jour pour replacer ?', 'error', { label: 'Voir le jour \u2192', fn: () => { atView('timeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToast').style.display = 'none'; } });
       } else {
-        gToast(isCollision ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Cr\u00e9neau occup\u00e9 \u2014 impossible de d\u00e9placer ici' : e.message, 'error');
+        gToast(isCollision ? '\u2718 Cr\u00e9neau occup\u00e9 \u2014 impossible de d\u00e9placer ici' : e.message, 'error');
       }
     }
   };
@@ -461,11 +462,11 @@ function buildEventResize() {
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
       const dur = Math.round((ev.end - ev.start) / 60000);
       storeUndoAction(ev.id, 'resize', { end_at: oldEnd.toISOString() });
-      gToast('Dur\u00e9e \u2192 ' + dur + ' min', 'success', { label: 'Annuler \u21b6', fn: 'fcUndoLast()' }, 8000);
+      gToast('Dur\u00e9e \u2192 ' + dur + ' min', 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
     } catch (e) {
       info.revert();
       gToast(e.message.includes('hevauche') || e.message.includes('cr\u00e9neau')
-        ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Chevauchement \u2014 dur\u00e9e non modifi\u00e9e'
+        ? '\u2718 Chevauchement \u2014 dur\u00e9e non modifi\u00e9e'
         : e.message, 'error');
     }
   };

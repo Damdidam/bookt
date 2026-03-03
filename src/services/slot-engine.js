@@ -44,7 +44,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   }
 
   // Check if mode is supported
-  if (appointmentMode && !service.mode_options.includes(appointmentMode)) {
+  if (appointmentMode && !(service.mode_options || []).includes(appointmentMode)) {
     throw Object.assign(new Error(`Mode "${appointmentMode}" non disponible pour cette prestation`), { type: 'validation' });
   }
 

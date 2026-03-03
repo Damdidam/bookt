@@ -11,7 +11,7 @@
  *   - External cron: GET /api/cron/reminders?key=CRON_SECRET
  */
 
-const { query } = require('../services/db');
+const { query, queryWithRLS } = require('../services/db');
 const { sendEmail, buildEmailHTML, escHtml } = require('../services/email');
 const { sendSMS } = require('../services/sms');
 
@@ -74,6 +74,7 @@ async function process24hReminders(stats) {
     const reminderSmsEnabled = settings.reminder_sms_24h === true && PLANS_WITH_SMS.includes(bk.plan);
 
     try {
+      let anySent = false;
       const startLocal = new Date(bk.start_at).toLocaleString('fr-BE', {
         timeZone: 'Europe/Brussels',
         weekday: 'long', day: 'numeric', month: 'long',
@@ -125,6 +126,7 @@ async function process24hReminders(stats) {
 
         if (result.success) {
           stats.email_24h++;
+          anySent = true;
           await logNotification(bk, 'email_reminder_24h', 'sent', 'brevo', result.messageId);
         } else {
           stats.errors++;
@@ -144,6 +146,7 @@ async function process24hReminders(stats) {
 
         if (result.success) {
           stats.sms_24h++;
+          anySent = true;
           await logNotification(bk, 'sms_reminder_24h', 'sent', 'twilio', result.sid);
         } else {
           stats.errors++;
@@ -151,11 +154,13 @@ async function process24hReminders(stats) {
         }
       }
 
-      // Mark as sent
-      await query(
-        `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1`,
-        [bk.id]
-      );
+      // Mark as sent only if at least one notification succeeded
+      if (anySent) {
+        await query(
+          `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2`,
+          [bk.id, bk.business_id]
+        );
+      }
     } catch (err) {
       console.error(`[REMINDERS] Error processing 24h for booking ${bk.id}:`, err.message);
       stats.errors++;
@@ -195,6 +200,7 @@ async function process2hReminders(stats) {
     const emailEnabled = settings.reminder_email_2h === true;
 
     try {
+      let anySent = false;
       const timeShort = new Date(bk.start_at).toLocaleTimeString('fr-BE', {
         timeZone: 'Europe/Brussels',
         hour: '2-digit', minute: '2-digit'
@@ -212,6 +218,7 @@ async function process2hReminders(stats) {
 
         if (result.success) {
           stats.sms_2h++;
+          anySent = true;
           await logNotification(bk, 'sms_reminder_2h', 'sent', 'twilio', result.sid);
         } else {
           stats.errors++;
@@ -236,15 +243,19 @@ async function process2hReminders(stats) {
 
         if (result.success) {
           stats.email_2h++;
-          await logNotification(bk, 'email_reminder_24h', 'sent', 'brevo', result.messageId);
+          anySent = true;
+          // Bug B3 fix: was incorrectly using 'email_reminder_24h'
+          await logNotification(bk, 'email_reminder_2h', 'sent', 'brevo', result.messageId);
         }
       }
 
-      // Mark as sent
-      await query(
-        `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1`,
-        [bk.id]
-      );
+      // Mark as sent only if at least one notification succeeded
+      if (anySent) {
+        await query(
+          `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2`,
+          [bk.id, bk.business_id]
+        );
+      }
     } catch (err) {
       console.error(`[REMINDERS] Error processing 2h for booking ${bk.id}:`, err.message);
       stats.errors++;
@@ -257,7 +268,7 @@ async function process2hReminders(stats) {
  */
 async function logNotification(bk, type, status, provider, providerId, error) {
   try {
-    await query(
+    await queryWithRLS(bk.business_id,
       `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status, provider, provider_message_id, error, sent_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${status === 'sent' ? 'NOW()' : 'NULL'})`,
       [bk.business_id, bk.id, type, bk.client_email, bk.client_phone, status, provider, providerId || null, error || null]

@@ -122,14 +122,15 @@ router.get('/:slug', async (req, res, next) => {
     let nextSlot = null;
     if (svcResult.rows.length > 0) {
       try {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const tomorrow = new Date(brusselsToday + 'T12:00:00Z');
+        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
         const weekOut = new Date(tomorrow.getTime() + 7 * 86400000);
         const slots = await getAvailableSlots({
           businessId: bid,
           serviceId: svcResult.rows[0].id,
-          dateFrom: tomorrow.toISOString().split('T')[0],
-          dateTo: weekOut.toISOString().split('T')[0]
+          dateFrom: tomorrow.toLocaleDateString('en-CA', { timeZone: 'UTC' }),
+          dateTo: weekOut.toLocaleDateString('en-CA', { timeZone: 'UTC' })
         });
         if (slots.length > 0) nextSlot = slots[0].start_at;
       } catch (e) { /* non-critical */ }
@@ -229,10 +230,11 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
-    const from = date_from || new Date().toISOString().split('T')[0];
-    const defaultTo = new Date();
-    defaultTo.setDate(defaultTo.getDate() + 14);
-    const to = date_to || defaultTo.toISOString().split('T')[0];
+    const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const from = date_from || brusselsToday;
+    const defaultToDate = new Date(brusselsToday + 'T12:00:00Z');
+    defaultToDate.setUTCDate(defaultToDate.getUTCDate() + 14);
+    const to = date_to || defaultToDate.toLocaleDateString('en-CA', { timeZone: 'UTC' });
 
     const slots = await getAvailableSlots({
       businessId, serviceId: service_id,
@@ -334,6 +336,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       });
     }
 
+    // Bug B1 fix: length limits on client fields
+    if (client_name && client_name.length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
+    if (client_email && client_email.length > 320) return res.status(400).json({ error: 'Email trop long' });
+    if (client_phone && client_phone.length > 30) return res.status(400).json({ error: 'Téléphone trop long' });
+
     const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
       return res.status(400).json({ error: 'Mode de rendez-vous invalide' });
@@ -355,11 +362,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (isNaN(startDate.getTime())) return res.status(400).json({ error: 'Date de début invalide' });
 
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
+    const startDateBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const lockCheck = await query(
       `SELECT 1 FROM locked_weeks
        WHERE business_id = $1 AND practitioner_id = $2
        AND week_start = date_trunc('week', $3::date)::date`,
-      [businessId, practitioner_id, startDate.toISOString().split('T')[0]]
+      [businessId, practitioner_id, startDateBrussels]
     );
     if (lockCheck.rows.length > 0) {
       // Week is locked — booking must match a featured slot
@@ -368,7 +376,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         `SELECT 1 FROM featured_slots
          WHERE business_id = $1 AND practitioner_id = $2
          AND date = $3::date AND start_time::text LIKE $4 || '%'`,
-        [businessId, practitioner_id, startDate.toISOString().split('T')[0], startTimeStr]
+        [businessId, practitioner_id, startDateBrussels, startTimeStr]
       );
       if (fsCheck.rows.length === 0) {
         return res.status(403).json({
@@ -393,6 +401,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Featured slot booking — use end_at or default 15 min
       endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 15 * 60000);
       if (isNaN(endDate.getTime())) return res.status(400).json({ error: 'Date de fin invalide' });
+      // Bug M10 fix: cap arbitrary-duration bookings at 4 hours
+      const maxDuration = 4 * 60 * 60000; // 4 hours
+      if (endDate.getTime() - startDate.getTime() > maxDuration) {
+        return res.status(400).json({ error: 'Durée maximale dépassée (4h)' });
+      }
     }
 
     // Validate practitioner is active + booking_enabled + capacity
@@ -603,6 +616,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     const { token } = req.params;
     const { reason } = req.body;
 
+    // Bug B2 fix: length limit on cancel reason
+    if (reason && reason.length > 2000) return res.status(400).json({ error: 'Raison trop longue (max 2000)' });
+
     const result = await query(
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
               b.deposit_required, b.deposit_status,
@@ -662,7 +678,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // Trigger waitlist processing
     let waitlistResult = null;
     try {
-      waitlistResult = await processWaitlistForCancellation(bk.id);
+      waitlistResult = await processWaitlistForCancellation(bk.id, bk.business_id);
     } catch (e) { /* non-blocking */ }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
@@ -1070,42 +1086,38 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'La liste d\'attente n\'est pas activée pour ce praticien' });
     }
 
-    // Check not already on waitlist
-    const existing = await query(
-      `SELECT id FROM waitlist_entries
-       WHERE practitioner_id = $1 AND service_id = $2 AND client_email = $3
-       AND status = 'waiting'`,
-      [practitioner_id, service_id, client_email]
-    );
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Vous êtes déjà sur la liste d\'attente' });
-    }
-
-    // Get next priority
-    const maxP = await query(
-      `SELECT COALESCE(MAX(priority), 0) + 1 AS next_priority
-       FROM waitlist_entries
-       WHERE practitioner_id = $1 AND service_id = $2 AND status = 'waiting'`,
-      [practitioner_id, service_id]
-    );
-
+    // Bug M9 fix: Atomic INSERT with duplicate check + priority calculation
+    // Uses a subquery to avoid race conditions between check/priority/insert
+    // Also includes business_id in the duplicate check for proper tenant isolation
     const result = await query(
       `INSERT INTO waitlist_entries
         (business_id, practitioner_id, service_id, client_name, client_email,
          client_phone, preferred_days, preferred_time, note, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       SELECT $1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9,
+              COALESCE(MAX(we.priority), 0) + 1
+       FROM waitlist_entries we
+       WHERE we.practitioner_id = $2 AND we.service_id = $3 AND we.status = 'waiting'
+       AND NOT EXISTS (
+         SELECT 1 FROM waitlist_entries dup
+         WHERE dup.practitioner_id = $2 AND dup.service_id = $3
+           AND dup.client_email = $5 AND dup.status = 'waiting'
+           AND dup.business_id = $1
+       )
        RETURNING id, priority, created_at`,
       [businessId, practitioner_id, service_id, client_name, client_email,
        client_phone || null,
        JSON.stringify(preferred_days || [0,1,2,3,4]),
        preferred_time || 'any',
-       note || null,
-       maxP.rows[0].next_priority]
+       note || null]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({ error: 'Vous êtes déjà sur la liste d\'attente' });
+    }
 
     res.status(201).json({
       waitlisted: true,
-      position: maxP.rows[0].next_priority,
+      position: result.rows[0].priority,
       entry_id: result.rows[0].id
     });
   } catch (err) { next(err); }
@@ -1349,8 +1361,11 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
         const { processWaitlistForCancellation } = require('../../services/waitlist');
         // We need to find next waiting entry directly
         const slotDate = new Date(entry.offer_booking_start);
-        const weekday = slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1;
-        const timeOfDay = slotDate.getHours() < 12 ? 'morning' : 'afternoon';
+        const bxlParts = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+        const bxlHour = parseInt(bxlParts[3]) || 0;
+        const bxlJsDay = new Date(slotDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T12:00:00Z').getUTCDay();
+        const weekday = bxlJsDay === 0 ? 6 : bxlJsDay - 1;
+        const timeOfDay = bxlHour < 12 ? 'morning' : 'afternoon';
         const crypto = require('crypto');
 
         const next = await query(

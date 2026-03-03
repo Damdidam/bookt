@@ -1,4 +1,4 @@
-const { query } = require('./db');
+const { query, queryWithRLS } = require('./db');
 const crypto = require('crypto');
 const { broadcast } = require('./sse');
 
@@ -15,11 +15,13 @@ const { broadcast } = require('./sse');
 /**
  * Process a cancelled booking against the waitlist
  * @param {string} bookingId - The cancelled booking ID
+ * @param {string} businessId - The business ID (defense-in-depth isolation)
  * @returns {object} { processed: boolean, mode: string, offered_to: string|null }
  */
-async function processWaitlistForCancellation(bookingId) {
+async function processWaitlistForCancellation(bookingId, businessId) {
   // 1. Get booking + practitioner details
-  const bkResult = await query(
+  // Bug H7 fix: Add business_id filter for tenant isolation
+  const bkResult = await queryWithRLS(businessId,
     `SELECT b.id, b.business_id, b.practitioner_id, b.service_id,
             b.start_at, b.end_at,
             p.waitlist_mode, p.display_name AS practitioner_name,
@@ -27,8 +29,8 @@ async function processWaitlistForCancellation(bookingId) {
      FROM bookings b
      JOIN practitioners p ON p.id = b.practitioner_id
      JOIN services s ON s.id = b.service_id
-     WHERE b.id = $1`,
-    [bookingId]
+     WHERE b.id = $1 AND b.business_id = $2`,
+    [bookingId, businessId]
   );
 
   if (bkResult.rows.length === 0) return { processed: false, reason: 'booking_not_found' };

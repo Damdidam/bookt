@@ -19,8 +19,17 @@ function sanitizeRichText(html) {
   s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
   // Remove event handlers (on*="...") — allow whitespace/newlines between "on" and event name to prevent bypass
   s = s.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-  // Remove javascript: and data: URLs in href/src/action
-  s = s.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
+  // Remove dangerous protocol URLs in href/src/action (including HTML-entity-encoded variants)
+  s = s.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
+    // Decode HTML entities for protocol check
+    const decoded = val.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                       .replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+                       .replace(/&[a-z]+;/gi, '');
+    if (/^\s*["']?\s*(javascript|data|vbscript|blob)\s*:/i.test(decoded)) {
+      return attr + '=""';
+    }
+    return match;
+  });
   return s;
 }
 

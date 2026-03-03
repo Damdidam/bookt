@@ -42,3 +42,28 @@ export function timeDiffMin(startStr, endStr) {
   const [eh, em] = endStr.split(':').map(Number);
   return (eh * 60 + em) - (sh * 60 + sm);
 }
+
+/**
+ * Build an ISO 8601 string that represents a Brussels-local date+time,
+ * preserving the intended wall-clock time instead of shifting to UTC.
+ * @param {string} date  "YYYY-MM-DD"
+ * @param {string} time  "HH:MM"
+ * @returns {string} e.g. "2026-03-03T14:30:00+01:00"
+ */
+export function toBrusselsISO(date, time) {
+  const dt = new Date(date + 'T' + time + ':00');
+  const bruFmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
+    second: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+  const parts = {};
+  bruFmt.formatToParts(dt).forEach(p => { parts[p.type] = p.value; });
+  const bruDate = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
+  const offsetMs = bruDate.getTime() - dt.getTime();
+  const offsetMin = -Math.round(offsetMs / 60000);
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const absOff = Math.abs(offsetMin);
+  const offH = String(Math.floor(absOff / 60)).padStart(2, '0');
+  const offM = String(absOff % 60).padStart(2, '0');
+  return `${date}T${time}:00${sign}${offH}:${offM}`;
+}

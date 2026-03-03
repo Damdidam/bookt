@@ -58,6 +58,22 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: 'Praticien invalide' });
     }
 
+    // Bug H9 fix: Validate client_id belongs to this business
+    if (client_id) {
+      const clientCheck = await queryWithRLS(bid,
+        'SELECT id FROM clients WHERE id = $1 AND business_id = $2',
+        [client_id, bid]
+      );
+      if (clientCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Client invalide' });
+      }
+    }
+
+    // Practitioner scope: can only create bookings for themselves
+    if (req.practitionerFilter && String(practitioner_id) !== String(req.practitionerFilter)) {
+      return res.status(403).json({ error: 'Vous ne pouvez créer des RDV que pour vous-même' });
+    }
+
     // Check global overlap policy + practitioner capacity
     const globalAllowOverlap = await businessAllowsOverlap(bid);
     const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, practitioner_id);

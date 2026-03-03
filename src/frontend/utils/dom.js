@@ -8,6 +8,11 @@ export function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/** Sanitize an ID for safe use in onclick handler strings — strip all non-safe characters */
+export function safeId(id) {
+  return String(id).replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
 /** Alias */
 export const escH = esc;
 

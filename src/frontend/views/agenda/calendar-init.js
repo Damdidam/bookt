@@ -106,8 +106,12 @@ function initCalendar(initView, initSlotDur) {
   calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
   calState.fcCal.render();
 
-  // Hide tooltip when scrolling calendar
-  document.getElementById('fcCalendar')?.addEventListener('scroll', fcHideTooltip, true);
+  // Bug B6 fix: remove before re-adding to prevent listener leak on re-init
+  const calEl = document.getElementById('fcCalendar');
+  if (calEl) {
+    calEl.removeEventListener('scroll', fcHideTooltip, true);
+    calEl.addEventListener('scroll', fcHideTooltip, true);
+  }
 
   // Update toolbar title & date on every navigation/view change
   // Guard: remove existing listener to prevent accumulation if re-initialized

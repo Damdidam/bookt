@@ -15,6 +15,11 @@ router.patch('/:id/note', async (req, res, next) => {
     const { id } = req.params;
     const { internal_note, color } = req.body;
 
+    // Bug B4 fix: size limit on internal_note
+    if (internal_note && internal_note.length > 10000) {
+      return res.status(400).json({ error: 'Note interne trop longue (max 10000)' });
+    }
+
     const sets = [];
     const params = [];
     let idx = 1;
@@ -136,7 +141,17 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
     // Remove event handlers — allow whitespace/newlines between "on" and event name to prevent bypass
     safeHTML = safeHTML.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-    safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
+    // Remove dangerous protocol URLs in href/src/action (including HTML-entity-encoded variants)
+    safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
+      // Decode HTML entities for protocol check
+      const decoded = val.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                         .replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+                         .replace(/&[a-z]+;/gi, '');
+      if (/^\s*["']?\s*(javascript|data|vbscript|blob)\s*:/i.test(decoded)) {
+        return attr + '=""';
+      }
+      return match;
+    });
 
     await sendSessionNotesEmail({
       to: d.client_email,

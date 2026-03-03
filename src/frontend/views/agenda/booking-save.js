@@ -8,8 +8,13 @@ import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { fcTimeDiffMin } from './booking-edit.js';
 import { storeUndoAction } from './booking-undo.js';
+import { toBrusselsISO } from '../../utils/format.js';
 
 async function calSaveAll() {
+  // Bug M13 fix: double-click guard
+  if (calSaveAll._busy) return;
+  calSaveAll._busy = true;
+  try {
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
   const ne = document.getElementById('calEditEnd').value;
@@ -83,6 +88,9 @@ async function calSaveAll() {
   else gToast('Aucun changement');
   closeCalModal('calDetailModal');
   fcRefresh();
+  } finally {
+    calSaveAll._busy = false;
+  }
 }
 
 function calSelectNotify(ch, el) {
@@ -110,11 +118,15 @@ async function calSendNotification() {
 function fcCheckBusinessHours(startDate, endDate, pracId) {
   const bh = pracId && calState.fcPracBusinessHours[pracId] ? calState.fcPracBusinessHours[pracId] : calState.fcBusinessHours;
   if (bh.length === 0) return true;
-  const day = startDate.getDay();
+  // Convert to Brussels TZ to get correct day/hours
+  const startParts = startDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+  const endParts = endDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+  const bxlStartDay = new Date(startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T12:00:00Z').getUTCDay();
+  const day = bxlStartDay;
   const dayBH = bh.filter(b => b.daysOfWeek.includes(day));
   if (dayBH.length === 0) return false;
-  const startH = startDate.getHours() + startDate.getMinutes() / 60;
-  const endH = endDate.getHours() + endDate.getMinutes() / 60;
+  const startH = (parseInt(startParts[3]) || 0) + (parseInt(startParts[4]) || 0) / 60;
+  const endH = (parseInt(endParts[3]) || 0) + (parseInt(endParts[4]) || 0) / 60;
   const slots = dayBH.map(b => ({
     s: parseInt(b.startTime.split(':')[0]) + parseInt(b.startTime.split(':')[1] || 0) / 60,
     e: parseInt(b.endTime.split(':')[0]) + parseInt(b.endTime.split(':')[1] || 0) / 60
@@ -131,16 +143,19 @@ function fcCheckBusinessHours(startDate, endDate, pracId) {
 }
 
 async function calDoSaveTime(notify, channel) {
+  // Bug M13 fix: double-click guard
+  if (calDoSaveTime._busy) return;
+  calDoSaveTime._busy = true;
+  try {
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
   const ne = document.getElementById('calEditEnd').value;
-  // Build proper ISO strings (browser local -> UTC) so backend delta calc is correct
-  const start_at = new Date(nd + 'T' + ns).toISOString();
-  const end_at = new Date(nd + 'T' + ne).toISOString();
+  // Build proper ISO strings preserving Brussels wall-clock time
+  const start_at = toBrusselsISO(nd, ns);
+  const end_at = toBrusselsISO(nd, ne);
   // Capture old time for undo
-  const oldStartAt = new Date(calState.fcEditOriginal.date + 'T' + calState.fcEditOriginal.start).toISOString();
-  const oldEndAt = new Date(calState.fcEditOriginal.date + 'T' + calState.fcEditOriginal.end).toISOString();
-  try {
+  const oldStartAt = toBrusselsISO(calState.fcEditOriginal.date, calState.fcEditOriginal.start);
+  const oldEndAt = toBrusselsISO(calState.fcEditOriginal.date, calState.fcEditOriginal.end);
     const isGrouped = !!calState.fcCurrentBooking?.group_id;
 
     // NOTE: Business hours validation removed for manual bookings.
@@ -170,7 +185,7 @@ async function calDoSaveTime(notify, channel) {
     // Store undo for non-grouped time changes
     if (!isGrouped) {
       storeUndoAction(calState.fcCurrentEventId, 'modify', { start_at: oldStartAt, end_at: oldEndAt });
-      gToast(label, 'success', { label: 'Annuler \u21b6', fn: 'fcUndoLast()' }, 8000);
+      gToast(label, 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
     } else {
       gToast(label, 'success');
     }
@@ -178,6 +193,9 @@ async function calDoSaveTime(notify, channel) {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally {
+    calDoSaveTime._busy = false;
+  }
 }
 
 // Expose to global scope for onclick handlers
