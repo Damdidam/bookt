@@ -150,7 +150,8 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     const dateStr = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
 
     // Sanitize session notes before sending by email (strip scripts, event handlers, dangerous tags)
-    const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
+    // CRT-V12-009: Added picture|source to blocked tags
+    const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title|picture|source';
     let safeHTML = (session_notes || '');
     // CRT-19: Wrap tag removal in a do-while loop until stable (same pattern as event handler removal)
     let prevTag;
@@ -231,6 +232,13 @@ router.post('/:id/notes', async (req, res, next) => {
     const bkCheck = await queryWithRLS(bid, `SELECT id FROM bookings WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
     if (bkCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
+    // CRT-V12-008: Limit notes count per booking
+    const noteCnt = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM booking_notes WHERE booking_id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
+    if (noteCnt.rows[0].cnt >= 50) return res.status(400).json({ error: 'Maximum 50 notes par RDV' });
+
     const result = await queryWithRLS(bid,
       `INSERT INTO booking_notes (booking_id, business_id, author_id, content, is_pinned)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -275,6 +283,13 @@ router.post('/:id/todos', async (req, res, next) => {
     const bkCheck = await queryWithRLS(bid, `SELECT id FROM bookings WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
     if (bkCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
+    // CRT-V12-008: Limit todos count per booking
+    const todoCnt = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM practitioner_todos WHERE booking_id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
+    if (todoCnt.rows[0].cnt >= 50) return res.status(400).json({ error: 'Maximum 50 tâches par RDV' });
+
     const result = await queryWithRLS(bid,
       `INSERT INTO practitioner_todos (booking_id, business_id, user_id, content)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -312,19 +327,23 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
         sets.push(`done_at = NULL`);
       }
     }
+    // CRT-V12-006: Reject empty/whitespace content
     if (content !== undefined) {
-      if (content && content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
+      if (!content || !content.trim()) return res.status(400).json({ error: 'Contenu requis' });
+      if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
       sets.push(`content = $${idx}`);
-      params.push(content ? content.trim() : content);
+      params.push(content.trim());
       idx++;
     }
 
     if (sets.length === 0) return res.status(400).json({ error: 'Rien à mettre à jour' });
 
-    params.push(req.params.todoId, req.params.bookingId, bid);
+    // CRT-V12-005: Add ownership check matching DELETE pattern
+    params.push(req.params.todoId, req.params.bookingId, bid, req.user.id, req.user.role);
     const result = await queryWithRLS(bid,
       `UPDATE practitioner_todos SET ${sets.join(', ')}
        WHERE id = $${idx} AND booking_id = $${idx + 1} AND business_id = $${idx + 2}
+       AND (user_id = $${idx + 3} OR $${idx + 4} IN ('owner', 'manager'))
        RETURNING *`,
       params
     );
@@ -452,6 +471,13 @@ router.post('/:id/send-document', async (req, res, next) => {
     );
     if (tpl.rows.length === 0) return res.status(404).json({ error: 'Template introuvable ou inactif' });
     const template = tpl.rows[0];
+
+    // CRT-V12-007: Limit send-document count per booking
+    const sendCount = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM pre_rdv_sends WHERE booking_id = $1 AND business_id = $2`,
+      [bookingId, bid]
+    );
+    if (sendCount.rows[0].cnt >= 10) return res.status(400).json({ error: 'Maximum 10 documents envoyés par RDV' });
 
     // Generate unique token
     const token = require('crypto').randomUUID();

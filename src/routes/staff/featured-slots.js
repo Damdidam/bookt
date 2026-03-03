@@ -162,6 +162,11 @@ router.put('/lock', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et week_start requis' });
     }
 
+    // V12-012: Practitioner can only lock their own weeks
+    if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Vous ne pouvez verrouiller que vos propres semaines' });
+    }
+
     // Verify practitioner has featured_enabled
     const pracLockCheck = await queryWithRLS(bid,
       `SELECT featured_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
@@ -193,6 +198,11 @@ router.delete('/lock', async (req, res, next) => {
 
     if (!practitioner_id || !week_start) {
       return res.status(400).json({ error: 'practitioner_id et week_start requis' });
+    }
+
+    // V12-012: Practitioner can only unlock their own weeks
+    if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Vous ne pouvez verrouiller que vos propres semaines' });
     }
 
     await queryWithRLS(bid,

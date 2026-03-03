@@ -182,6 +182,11 @@ router.get('/:id/tasks', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
 
+    // V12-013: Practitioner can only view their own tasks
+    if (req.user.role === 'practitioner' && id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
     // Todos linked to this practitioner's bookings
     const todos = await queryWithRLS(bid,
       `SELECT t.id, t.content, t.is_done, t.done_at, t.created_at, t.booking_id,

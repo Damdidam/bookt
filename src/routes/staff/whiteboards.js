@@ -39,8 +39,7 @@ router.get('/', async (req, res, next) => {
 // ============================================================
 router.get('/:id', async (req, res, next) => {
   try {
-    const result = await queryWithRLS(req.businessId,
-      `SELECT w.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+    let sql = `SELECT w.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
               p.display_name AS practitioner_name,
               b.start_at AS booking_start, b.end_at AS booking_end,
               s.name AS service_name
@@ -49,9 +48,16 @@ router.get('/:id', async (req, res, next) => {
        LEFT JOIN practitioners p ON p.id = w.practitioner_id
        LEFT JOIN bookings b ON b.id = w.booking_id
        LEFT JOIN services s ON s.id = b.service_id
-       WHERE w.id = $1 AND w.business_id = $2 AND w.deleted_at IS NULL`,
-      [req.params.id, req.businessId]
-    );
+       WHERE w.id = $1 AND w.business_id = $2 AND w.deleted_at IS NULL`;
+    const params = [req.params.id, req.businessId];
+
+    // V12-002: Scope practitioners to their own whiteboards
+    if (req.practitionerFilter) {
+      sql += ' AND w.practitioner_id = $' + (params.length + 1);
+      params.push(req.practitionerFilter);
+    }
+
+    const result = await queryWithRLS(req.businessId, sql, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Whiteboard introuvable' });
     res.json({ whiteboard: result.rows[0] });
   } catch (err) { next(err); }
@@ -68,11 +74,14 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Le consentement RGPD est requis pour créer un whiteboard' });
     }
 
+    // V12-004: Force practitioner_id for practitioner-role users
+    const finalPracId = req.user.role === 'practitioner' ? req.user.practitionerId : (practitioner_id || req.user.practitionerId);
+
     const result = await queryWithRLS(req.businessId,
       `INSERT INTO whiteboards (business_id, client_id, booking_id, practitioner_id, title, consent_confirmed, created_by)
        VALUES ($1, $2, $3, $4, $5, true, $6)
        RETURNING id, title, created_at`,
-      [req.businessId, client_id || null, booking_id || null, practitioner_id || null, title || 'Whiteboard', req.user.id]
+      [req.businessId, client_id || null, booking_id || null, finalPracId || null, title || 'Whiteboard', req.user.id]
     );
 
     res.status(201).json({ whiteboard: result.rows[0] });
@@ -91,20 +100,27 @@ router.put('/:id', async (req, res, next) => {
       return res.status(413).json({ error: 'Canvas trop volumineux (max 10 Mo)' });
     }
 
-    const result = await queryWithRLS(req.businessId,
-      `UPDATE whiteboards SET
+    // V12-003: Add practitioner scope to UPDATE WHERE clause
+    let sql = `UPDATE whiteboards SET
         canvas_data = COALESCE($1, canvas_data),
         text_layers = COALESCE($2, text_layers),
         bg_type = COALESCE($3, bg_type),
         bg_image_url = COALESCE($4, bg_image_url),
         title = COALESCE($5, title),
         updated_at = NOW()
-       WHERE id = $6 AND business_id = $7 AND deleted_at IS NULL
-       RETURNING id, updated_at`,
-      [canvas_data || null, text_layers ? JSON.stringify(text_layers) : null,
+       WHERE id = $6 AND business_id = $7 AND deleted_at IS NULL`;
+    const params = [canvas_data || null, text_layers ? JSON.stringify(text_layers) : null,
        bg_type || null, bg_image_url || null, title || null,
-       req.params.id, req.businessId]
-    );
+       req.params.id, req.businessId];
+
+    if (req.practitionerFilter) {
+      sql += ' AND practitioner_id = $' + (params.length + 1);
+      params.push(req.practitionerFilter);
+    }
+
+    sql += ' RETURNING id, updated_at';
+
+    const result = await queryWithRLS(req.businessId, sql, params);
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Whiteboard introuvable' });
     res.json({ saved: true, updated_at: result.rows[0].updated_at });
@@ -144,7 +160,8 @@ router.post('/:id/share', requireRole('owner', 'manager'), async (req, res, next
 
     const expiresAt = new Date(Date.now() + expires_days * 24 * 60 * 60 * 1000).toISOString();
 
-    await query(
+    // V12-005: Use queryWithRLS instead of raw query
+    await queryWithRLS(req.businessId,
       `INSERT INTO whiteboard_links (whiteboard_id, token, expires_at, max_accesses)
        VALUES ($1, $2, $3, $4)`,
       [req.params.id, token, expiresAt, max_accesses]
@@ -183,7 +200,8 @@ router.post('/:id/send', requireRole('owner', 'manager'), async (req, res, next)
     // Generate secure link
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + expires_days * 24 * 60 * 60 * 1000).toISOString();
-    await query(
+    // V12-005: Use queryWithRLS instead of raw query
+    await queryWithRLS(req.businessId,
       `INSERT INTO whiteboard_links (whiteboard_id, token, expires_at, max_accesses) VALUES ($1, $2, $3, 10)`,
       [req.params.id, token, expiresAt]
     );

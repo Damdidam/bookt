@@ -42,8 +42,11 @@ router.get('/', async (req, res, next) => {
       idx++;
     }
     if (to) {
+      // V12-019: Parse and validate date
+      const toDate = new Date(to + 'T23:59:59Z');
+      if (isNaN(toDate.getTime())) return res.status(400).json({ error: 'Date "to" invalide' });
       sql += ` AND b.created_at <= $${idx}`;
-      params.push(to + 'T23:59:59Z');
+      params.push(toDate.toISOString());
       idx++;
     }
 
@@ -132,8 +135,11 @@ router.get('/export', async (req, res, next) => {
       idx++;
     }
     if (to) {
+      // V12-019: Parse and validate date
+      const toDate = new Date(to + 'T23:59:59Z');
+      if (isNaN(toDate.getTime())) return res.status(400).json({ error: 'Date "to" invalide' });
       sql += ` AND b.created_at <= $${idx}`;
-      params.push(to + 'T23:59:59Z');
+      params.push(toDate.toISOString());
       idx++;
     }
 

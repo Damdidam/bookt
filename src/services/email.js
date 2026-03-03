@@ -98,7 +98,8 @@ async function sendEmail(opts) {
         'content-type': 'application/json',
         'api-key': apiKey
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000)
     });
 
     if (!response.ok) {

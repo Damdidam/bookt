@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS, query } = require('../../services/db');
+const { queryWithRLS, query, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
 const { generateInvoicePDF, generateStructuredComm, getNextInvoiceNumber } = require('../../services/invoice-pdf');
 
@@ -240,23 +240,24 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
-    // First verify the invoice belongs to this business and is a draft
-    const check = await queryWithRLS(bid,
-      `SELECT id FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft'`,
-      [req.params.id, bid]
-    );
-    if (check.rows.length === 0) {
-      return res.status(400).json({ error: 'Facture introuvable ou non supprimable (seuls les brouillons peuvent être supprimés)' });
-    }
+    // V12-015: Wrap in transactionWithRLS with FOR UPDATE to prevent TOCTOU race
+    await transactionWithRLS(bid, async (client) => {
+      const check = await client.query(
+        `SELECT id FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft' FOR UPDATE`,
+        [req.params.id, bid]
+      );
+      if (check.rows.length === 0) {
+        throw Object.assign(new Error('Facture introuvable ou non supprimable'), { status: 400 });
+      }
+      await client.query(`DELETE FROM invoice_items WHERE invoice_id = $1`, [req.params.id]);
+      await client.query(`DELETE FROM invoices WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
+    });
 
-    // Then delete items and invoice
-    await queryWithRLS(bid, `DELETE FROM invoice_items WHERE invoice_id = $1`, [req.params.id]);
-    await queryWithRLS(bid,
-      `DELETE FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft'`,
-      [req.params.id, bid]
-    );
     res.json({ deleted: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    next(err);
+  }
 });
 
 module.exports = router;

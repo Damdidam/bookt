@@ -7,6 +7,9 @@ const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
 const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent } = require('./bookings-helpers');
 
+// STS-V12-007: UUID validation regex (reused across all endpoints)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ============================================================
 // PATCH /api/bookings/:id/move — Drag & drop
 // UI: Calendar → drag event to new time/date/practitioner
@@ -15,6 +18,8 @@ router.patch('/:id/move', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    // STS-V12-007: UUID validation
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { start_at, end_at, practitioner_id } = req.body;
 
     if (!start_at || !end_at) {
@@ -140,10 +145,16 @@ router.patch('/:id/move', async (req, res, next) => {
           }
 
           // CRT-10: Check conflicts for ALL distinct practitioner IDs in the group, not just effectivePracId
+          // STS-V12-005 fix: For each practitioner, compute their specific time range from their members
+          // only, rather than using the full group totalStart/totalEnd which over-reports conflicts
           if (!globalAllowOverlap) {
             const groupIds = groupMembers.map(m => m.id);
             const distinctPracIds = [...new Set(updates.map(u => practitioner_id || u.practitioner_id))];
             for (const pracId of distinctPracIds) {
+              // Filter updates belonging to this practitioner and compute their min start / max end
+              const pracUpdates = updates.filter(u => (practitioner_id || u.practitioner_id) === pracId);
+              const pracStart = pracUpdates.reduce((min, u) => u.start_at < min ? u.start_at : min, pracUpdates[0].start_at);
+              const pracEnd = pracUpdates.reduce((max, u) => u.end_at > max ? u.end_at : max, pracUpdates[0].end_at);
               const pracMaxConcurrent = await getMaxConcurrent(bid, pracId);
               const conflict = await client.query(
                 `SELECT id FROM bookings
@@ -152,7 +163,7 @@ router.patch('/:id/move', async (req, res, next) => {
                  AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
                  AND start_at < $5 AND end_at > $4
                  FOR UPDATE`,
-                [bid, pracId, groupIds, totalStart, totalEnd]
+                [bid, pracId, groupIds, pracStart, pracEnd]
               );
               if (conflict.rows.length >= pracMaxConcurrent) {
                 throw Object.assign(new Error('Capacité maximale atteinte — impossible de déplacer le groupe ici'), { type: 'conflict' });
@@ -292,6 +303,8 @@ router.patch('/:id/edit', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    // STS-V12-007: UUID validation
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { practitioner_id, comment, internal_note, custom_label, color } = req.body;
 
     // CRT-13: Validate comment/note length
@@ -508,6 +521,8 @@ router.patch('/:id/resize', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    // STS-V12-007: UUID validation
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { end_at } = req.body;
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
@@ -619,6 +634,8 @@ router.patch('/:id/modify', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    // STS-V12-007: UUID validation
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { start_at, end_at, notify, notify_channel } = req.body;
     // Bug M11 fix: normalize notify so "false" string is not truthy
     const shouldNotify = notify === true || notify === 'true';

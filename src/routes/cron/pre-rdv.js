@@ -58,9 +58,11 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
     for (const [days, tmpls] of Object.entries(byDays)) {
       // 2. Find bookings exactly N days from now with confirmed status
       // RTE-V10-013: Use Brussels timezone for targetDate calculation
-      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
-      now.setDate(now.getDate() + parseInt(days));
-      const dateStr = now.toISOString().split('T')[0];
+      // SVC-V12-005: Deterministic UTC-based date construction
+      const brusselsDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+      const [y, m, d] = brusselsDate.split('-').map(Number);
+      const target = new Date(Date.UTC(y, m - 1, d + parseInt(days)));
+      const dateStr = target.toISOString().split('T')[0];
 
       // RTE-V10-012: Filter bookings by business_ids of the templates in this group
       const businessIds = [...new Set(tmpls.map(t => t.biz_id))];
@@ -146,7 +148,7 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
     res.json({ sent: totalSent, skipped: totalSkipped, failed: totalFailed, elapsed_ms: elapsed });
   } catch (err) {
     console.error('[CRON] Pre-RDV docs error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal error' : err.message });
   }
 });
 
@@ -163,7 +165,7 @@ router.get('/waitlist-expired', requireCronKey, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[CRON] Waitlist expired error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal error' : err.message });
   }
 });
 
@@ -181,7 +183,7 @@ router.get('/reminders', requireCronKey, async (req, res) => {
     res.json({ ...stats, elapsed_ms: elapsed });
   } catch (err) {
     console.error('[CRON] Reminders error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal error' : err.message });
   }
 });
 

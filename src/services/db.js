@@ -21,10 +21,12 @@ async function queryWithRLS(businessId, text, params = []) {
   if (!isUuid(businessId)) throw new Error('Invalid business ID');
   const client = await pool.connect();
   try {
-    await client.query(`SELECT set_config('app.current_business_id', $1, true)`, [businessId]);
+    await client.query(`SELECT set_config('app.current_business_id', $1, false)`, [businessId]);
     const result = await client.query(text, params);
     return result;
   } finally {
+    // Reset the config before returning to pool
+    await client.query(`RESET app.current_business_id`).catch(() => {});
     client.release();
   }
 }

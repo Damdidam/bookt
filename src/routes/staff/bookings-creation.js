@@ -17,16 +17,11 @@ router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
-            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, group_id, deposit_amount_cents } = req.body;
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, group_id } = req.body;
 
     // CRT-V11-2: Validate group_id as UUID if provided
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (group_id && !UUID_RE.test(group_id)) return res.status(400).json({ error: 'Invalid group_id' });
-
-    // CRT-V11-5: Validate deposit_amount_cents as positive integer if provided
-    if (deposit_amount_cents !== undefined && (!Number.isInteger(deposit_amount_cents) || deposit_amount_cents <= 0)) {
-      return res.status(400).json({ error: 'Montant deposit invalide' });
-    }
 
     // CRT-4: Basic client_email validation before using it for sending emails
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,6 +31,10 @@ router.post('/manual', async (req, res, next) => {
     if (!practitioner_id || !start_at) {
       return res.status(400).json({ error: 'practitioner_id et start_at requis' });
     }
+
+    // CRT-V12-003: UUID-validate practitioner_id and client_id before DB queries
+    if (!UUID_RE.test(practitioner_id)) return res.status(400).json({ error: 'practitioner_id invalide' });
+    if (client_id && !UUID_RE.test(client_id)) return res.status(400).json({ error: 'client_id invalide' });
 
     // Bug M6 fix: Validate start_at (and end_at if provided) as parseable dates
     if (isNaN(new Date(start_at).getTime())) {
@@ -209,12 +208,23 @@ router.post('/manual', async (req, res, next) => {
       if (multiServices.some(s => !s.service_id)) {
         return res.status(400).json({ error: 'Chaque prestation doit avoir un service_id' });
       }
+      // CRT-V12-002: UUID-validate each service_id
+      for (const s of multiServices) {
+        if (!UUID_RE.test(s.service_id)) {
+          return res.status(400).json({ error: 'service_id invalide' });
+        }
+      }
     }
     const serviceList = multiServices || [{ service_id }];
 
     // CRT-2: Validate service_id is present in non-freestyle mode
     if (!serviceList[0]?.service_id) {
       return res.status(400).json({ error: 'service_id ou services requis' });
+    }
+
+    // CRT-V12-002: UUID-validate single service_id (multiServices already validated above)
+    if (!multiServices && !UUID_RE.test(service_id)) {
+      return res.status(400).json({ error: 'service_id invalide' });
     }
 
     if (!practitioner_id || !start_at || serviceList.length === 0) {
@@ -243,9 +253,13 @@ router.post('/manual', async (req, res, next) => {
     const isGroup = serviceList.length > 1;
     const groupId = isGroup ? require('crypto').randomUUID() : null;
     let cursor = new Date(start_at);
+    // CRT-V12-004: For chained group bookings, only apply leading buffer of first
+    // service and trailing buffer of last service to avoid double-counting gaps.
     const slots = serviceList.map((s, i) => {
       const svc = svcMap[s.service_id];
-      const totalDur = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+      const bufBefore = (i === 0) ? (svc.buffer_before_min || 0) : 0;
+      const bufAfter = (i === serviceList.length - 1) ? (svc.buffer_after_min || 0) : 0;
+      const totalDur = bufBefore + svc.duration_min + bufAfter;
       const slotStart = new Date(cursor);
       const slotEnd = new Date(slotStart.getTime() + totalDur * 60000);
       cursor = slotEnd; // next service starts where this one ends

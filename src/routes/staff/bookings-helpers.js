@@ -91,10 +91,14 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
     const customHoursExc = exc.rows.filter(ex => ex.type === 'custom_hours');
     if (customHoursExc.length > 0) {
       const bkStart = bxlStartH * 60 + bxlStartM;
-      const bkEnd = bxlEndH * 60 + bxlEndM;
+      // STS-V12-006 fix: Handle cross-midnight booking end times in custom_hours check
+      let bkEnd = bxlEndH * 60 + bxlEndM;
+      if (bkEnd <= bkStart) bkEnd += 1440;
       const fitsAny = customHoursExc.some(ex => {
         const exStart = timeToMin(ex.start_time);
-        const exEnd = timeToMin(ex.end_time);
+        // STS-V12-006 fix: Handle cross-midnight exception end times
+        let exEnd = timeToMin(ex.end_time);
+        if (exEnd <= exStart) exEnd += 1440;
         return bkStart >= exStart && bkEnd <= exEnd;
       });
       if (fitsAny) return { ok: true };

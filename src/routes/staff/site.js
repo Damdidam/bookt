@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, query } = require('../../services/db');
 const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -337,8 +337,8 @@ router.post('/domain', requireOwner, async (req, res, next) => {
       return res.status(400).json({ error: 'Format de domaine invalide' });
     }
 
-    // Check uniqueness
-    const existing = await queryWithRLS(req.businessId,
+    // V12-017: Check uniqueness across all tenants (no RLS)
+    const existing = await query(
       `SELECT id FROM custom_domains WHERE domain = $1 AND business_id != $2`,
       [domain.toLowerCase(), req.businessId]
     );

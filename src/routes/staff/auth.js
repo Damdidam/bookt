@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { query, pool } = require('../../services/db');
@@ -134,9 +135,15 @@ router.post('/verify', authLimiter, async (req, res, next) => {
 
     // Fetch user info with business details
     const userResult = await query(
-      `SELECT u.*, b.name AS business_name FROM users u JOIN businesses b ON b.id = u.business_id WHERE u.id = $1`,
+      `SELECT u.id, u.email, u.role, u.business_id, u.practitioner_id, b.name AS business_name
+       FROM users u JOIN businesses b ON b.id = u.business_id
+       WHERE u.id = $1 AND u.is_active = true AND b.is_active = true`,
       [user_id]
     );
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Compte désactivé ou introuvable' });
+    }
+
     const ml = userResult.rows[0];
 
     // Update last login
@@ -220,6 +227,10 @@ router.post('/change-password', requireAuth, async (req, res, next) => {
     const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
+    if (!result.rows[0].password_hash) {
+      return res.status(400).json({ error: 'Aucun mot de passe configuré. Utilisez "mot de passe oublié" pour en définir un.' });
+    }
+
     const valid = await bcrypt.compare(current_password, result.rows[0].password_hash);
     if (!valid) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
 
@@ -263,13 +274,13 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       [user.id]
     );
 
-    // Create new token
-    const crypto = require('crypto');
+    // Create new token — store SHA-256 hash, send raw token in email
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     await query(
       `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
-      [user.id, token]
+      [user.id, tokenHash]
     );
 
     // Send email
@@ -307,12 +318,15 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
     }
 
+    // Hash the incoming token to compare against stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
     // Atomic: claim the token in one UPDATE (prevents race conditions)
     const result = await query(
       `UPDATE password_reset_tokens SET used_at = NOW()
        WHERE token = $1 AND used_at IS NULL AND expires_at > NOW()
        RETURNING id, user_id`,
-      [token]
+      [tokenHash]
     );
 
     if (result.rows.length === 0) {

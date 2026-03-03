@@ -85,10 +85,13 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
     }
 
+    // V12-018: Force practitioner_id for practitioner-role users
+    const finalPracId = req.user.role === 'practitioner' ? req.user.practitionerId : practitioner_id;
+
     // Verify practitioner belongs to business
     const pracCheck = await queryWithRLS(bid,
       `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`,
-      [practitioner_id, bid]
+      [finalPracId, bid]
     );
     if (pracCheck.rows.length === 0) {
       return res.status(400).json({ error: 'Praticien invalide pour ce cabinet' });
@@ -117,7 +120,7 @@ router.post('/', async (req, res, next) => {
       `SELECT COALESCE(MAX(priority), 0) + 1 AS next_priority
        FROM waitlist_entries
        WHERE practitioner_id = $1 AND service_id = $2 AND status = 'waiting'`,
-      [practitioner_id, service_id]
+      [finalPracId, service_id]
     );
 
     const result = await queryWithRLS(bid,
@@ -126,7 +129,7 @@ router.post('/', async (req, res, next) => {
          client_phone, preferred_days, preferred_time, note, priority)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [bid, practitioner_id, service_id, client_name, client_email,
+      [bid, finalPracId, service_id, client_name, client_email,
        client_phone || null,
        JSON.stringify(validatedDays),
        preferred_time || 'any',

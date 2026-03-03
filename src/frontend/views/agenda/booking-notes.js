@@ -16,10 +16,12 @@ function fcRenderNotes() {
 }
 
 async function calAddNote() {
-  const c = document.getElementById('calNewNote').value.trim();
-  if (!c) return;
-  const p = document.getElementById('calNotePinned').checked;
+  if (calAddNote._busy) return;
+  calAddNote._busy = true;
   try {
+    const c = document.getElementById('calNewNote').value.trim();
+    if (!c) return;
+    const p = document.getElementById('calNotePinned').checked;
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
@@ -31,9 +33,10 @@ async function calAddNote() {
     document.getElementById('calNewNote').value = '';
     document.getElementById('calNotePinned').checked = false;
     fcRenderNotes();
-    gToast('Note ajout\u00e9e', 'success');
+    gToast('Note ajoutée', 'success');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { calAddNote._busy = false; }
 }
 
 async function fcDeleteNote(noteId) {

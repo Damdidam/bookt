@@ -36,7 +36,8 @@ async function exchangeGoogleCode(code) {
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
       redirect_uri: `${process.env.BASE_URL}/api/calendar/google/callback`,
       grant_type: 'authorization_code'
-    })
+    }),
+    signal: AbortSignal.timeout(15000)
   });
   if (!res.ok) throw new Error(`Google token exchange failed: ${res.status}`);
   return res.json();
@@ -51,7 +52,8 @@ async function refreshGoogleToken(refreshToken) {
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
       grant_type: 'refresh_token'
-    })
+    }),
+    signal: AbortSignal.timeout(15000)
   });
   // SVC-V11-10: Include status and response details in error
   if (!res.ok) {
@@ -64,7 +66,8 @@ async function refreshGoogleToken(refreshToken) {
 async function googleApiCall(accessToken, path, method = 'GET', body = null) {
   const opts = {
     method,
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15000)
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${GOOGLE_CALENDAR_API}${path}`, opts);
@@ -78,7 +81,8 @@ async function googleApiCall(accessToken, path, method = 'GET', body = null) {
 
 async function getGoogleUserInfo(accessToken) {
   const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { 'Authorization': `Bearer ${accessToken}` }
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(15000)
   });
   // SVC-V11-10: Log error instead of silently swallowing
   if (!res.ok) {
@@ -118,7 +122,8 @@ async function exchangeOutlookCode(code) {
       client_secret: process.env.OUTLOOK_CLIENT_SECRET,
       redirect_uri: `${process.env.BASE_URL}/api/calendar/outlook/callback`,
       grant_type: 'authorization_code'
-    })
+    }),
+    signal: AbortSignal.timeout(15000)
   });
   if (!res.ok) throw new Error(`Outlook token exchange failed: ${res.status}`);
   return res.json();
@@ -133,7 +138,8 @@ async function refreshOutlookToken(refreshToken) {
       client_id: process.env.OUTLOOK_CLIENT_ID,
       client_secret: process.env.OUTLOOK_CLIENT_SECRET,
       grant_type: 'refresh_token'
-    })
+    }),
+    signal: AbortSignal.timeout(15000)
   });
   // SVC-V11-10: Include status and response details in error
   if (!res.ok) {
@@ -146,7 +152,8 @@ async function refreshOutlookToken(refreshToken) {
 async function outlookApiCall(accessToken, path, method = 'GET', body = null) {
   const opts = {
     method,
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15000)
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${MS_GRAPH_API}${path}`, opts);

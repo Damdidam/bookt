@@ -1,4 +1,4 @@
-const { query, queryWithRLS } = require('./db');
+const { query, queryWithRLS, pool } = require('./db');
 const crypto = require('crypto');
 const { broadcast } = require('./sse');
 
@@ -44,17 +44,17 @@ async function processWaitlistForCancellation(bookingId, businessId) {
 
   // 2. Find matching waitlist entries
   // Bug M13 fix: Use Europe/Brussels timezone instead of server timezone
+  // SVC-V12-012: Use UTC-based date construction for reliable weekday
   const slotDate = new Date(bk.start_at);
+  const brusselsDateStr = slotDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const brusselsDate = new Date(brusselsDateStr + 'T12:00:00Z');
+  const brusselsDayOfWeek = brusselsDate.getUTCDay();
+  const weekday = brusselsDayOfWeek === 0 ? 6 : brusselsDayOfWeek - 1; // 0=Mon
+
   const brusselsStr = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels' });
-  // en-GB format: "DD/MM/YYYY, HH:MM:SS"
   const brusselsParts = brusselsStr.split(', ');
   const brusselsTimeParts = brusselsParts[1].split(':');
   const brusselsHour = parseInt(brusselsTimeParts[0], 10);
-  // Get Brussels weekday: create a Date from the Brussels date string to extract the day
-  const brusselsDateParts = brusselsParts[0].split('/');
-  const brusselsDate = new Date(`${brusselsDateParts[2]}-${brusselsDateParts[1]}-${brusselsDateParts[0]}T${brusselsParts[1]}`);
-  const brusselsDayOfWeek = brusselsDate.getDay();
-  const weekday = brusselsDayOfWeek === 0 ? 6 : brusselsDayOfWeek - 1; // 0=Mon
   const timeOfDay = brusselsHour < 12 ? 'morning' : 'afternoon';
 
   const matches = await query(
@@ -151,8 +151,6 @@ async function processWaitlistForCancellation(bookingId, businessId) {
       processed: true,
       mode: 'auto',
       offered_to: entry.client_email,
-      offer_token: token,
-      offer_url: `/waitlist/${token}`,
       expires_at: expiresAt.toISOString(),
       next_in_queue: matches.rows.length - 1
     };
@@ -166,97 +164,111 @@ async function processWaitlistForCancellation(bookingId, businessId) {
  * Called by cron or on-demand
  */
 async function processExpiredOffers() {
-  // Find expired offers
-  // SVC-V11-5: Add business_id to JOINs for cross-tenant isolation
-  // SVC-V11-14: Add FOR UPDATE SKIP LOCKED to prevent concurrent cron processing
-  const expired = await query(
-    `SELECT w.*, p.waitlist_mode, s.duration_min
-     FROM waitlist_entries w
-     JOIN practitioners p ON p.id = w.practitioner_id AND p.business_id = w.business_id
-     JOIN services s ON s.id = w.service_id AND s.business_id = w.business_id
-     WHERE w.status = 'offered'
-       AND w.offer_expires_at < NOW()
-     FOR UPDATE OF w SKIP LOCKED`
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  let processed = 0;
-
-  for (const entry of expired.rows) {
-    // Mark as expired
-    const expireResult = await query(
-      `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW()
-       WHERE id = $1 AND business_id = $2 AND status = 'offered'
-       RETURNING id`,
-      [entry.id, entry.business_id]
+    // Find expired offers
+    // SVC-V11-5: Add business_id to JOINs for cross-tenant isolation
+    // SVC-V11-14: Add FOR UPDATE SKIP LOCKED to prevent concurrent cron processing
+    // SVC-V12-003: Use dedicated client + explicit transaction so locks are held
+    const expired = await client.query(
+      `SELECT w.*, p.waitlist_mode, s.duration_min
+       FROM waitlist_entries w
+       JOIN practitioners p ON p.id = w.practitioner_id AND p.business_id = w.business_id
+       JOIN services s ON s.id = w.service_id AND s.business_id = w.business_id
+       WHERE w.status = 'offered'
+         AND w.offer_expires_at < NOW()
+       FOR UPDATE OF w SKIP LOCKED`
     );
-    if (expireResult.rows.length === 0) continue;
 
-    // If auto mode, offer to next person
-    if (entry.waitlist_mode === 'auto' && entry.offer_booking_start) {
-      // Bug M13 fix: Use Europe/Brussels timezone instead of server timezone
-      const slotDate = new Date(entry.offer_booking_start);
-      const bStr = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels' });
-      const bParts = bStr.split(', ');
-      const bTimeParts = bParts[1].split(':');
-      const bHour = parseInt(bTimeParts[0], 10);
-      const bDateParts = bParts[0].split('/');
-      const bDate = new Date(`${bDateParts[2]}-${bDateParts[1]}-${bDateParts[0]}T${bParts[1]}`);
-      const bDayOfWeek = bDate.getDay();
-      const weekday = bDayOfWeek === 0 ? 6 : bDayOfWeek - 1;
-      const timeOfDay = bHour < 12 ? 'morning' : 'afternoon';
+    let processed = 0;
 
-      const next = await query(
-        `SELECT * FROM waitlist_entries
-         WHERE practitioner_id = $1
-           AND service_id = $2
-           AND business_id = $3
-           AND status = 'waiting'
-           AND (preferred_days @> $4::jsonb)
-           AND (preferred_time = 'any' OR preferred_time = $5)
-         ORDER BY priority ASC, created_at ASC
-         LIMIT 1`,
-        [entry.practitioner_id, entry.service_id, entry.business_id,
-         JSON.stringify([weekday]), timeOfDay]
+    for (const entry of expired.rows) {
+      // Mark as expired
+      const expireResult = await client.query(
+        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW()
+         WHERE id = $1 AND business_id = $2 AND status = 'offered'
+         RETURNING id`,
+        [entry.id, entry.business_id]
       );
+      if (expireResult.rows.length === 0) continue;
 
-      if (next.rows.length > 0) {
-        // Skip if the slot is less than 1 hour away — too late to offer
-        if (new Date(entry.offer_booking_start) < new Date(Date.now() + 60 * 60 * 1000)) continue;
+      // If auto mode, offer to next person
+      if (entry.waitlist_mode === 'auto' && entry.offer_booking_start) {
+        // Bug M13 fix: Use Europe/Brussels timezone instead of server timezone
+        // SVC-V12-012: Use UTC-based date construction for reliable weekday
+        const slotDate = new Date(entry.offer_booking_start);
+        const brusselsDateStr = slotDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const brusselsDate = new Date(brusselsDateStr + 'T12:00:00Z');
+        const dayOfWeek = brusselsDate.getUTCDay();
+        const weekday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
-        const token = crypto.randomBytes(20).toString('hex');
-        const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+        const bStr = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels' });
+        const bParts = bStr.split(', ');
+        const bTimeParts = bParts[1].split(':');
+        const bHour = parseInt(bTimeParts[0], 10);
+        const timeOfDay = bHour < 12 ? 'morning' : 'afternoon';
 
-        const cascadeResult = await query(
-          `UPDATE waitlist_entries SET
-            status = 'offered',
-            offer_token = $1,
-            offer_booking_start = $2,
-            offer_booking_end = $3,
-            offer_sent_at = NOW(),
-            offer_expires_at = $4,
-            updated_at = NOW()
-           WHERE id = $5 AND business_id = $6 AND status = 'waiting'
-           RETURNING id`,
-          [token, entry.offer_booking_start, entry.offer_booking_end,
-           expiresAt.toISOString(), next.rows[0].id, entry.business_id]
+        const next = await client.query(
+          `SELECT * FROM waitlist_entries
+           WHERE practitioner_id = $1
+             AND service_id = $2
+             AND business_id = $3
+             AND status = 'waiting'
+             AND (preferred_days @> $4::jsonb)
+             AND (preferred_time = 'any' OR preferred_time = $5)
+           ORDER BY priority ASC, created_at ASC
+           LIMIT 1`,
+          [entry.practitioner_id, entry.service_id, entry.business_id,
+           JSON.stringify([weekday]), timeOfDay]
         );
-        if (cascadeResult.rows.length === 0) continue;
 
-        // TODO: Send email to next person
+        if (next.rows.length > 0) {
+          // Skip if the slot is less than 1 hour away — too late to offer
+          if (new Date(entry.offer_booking_start) < new Date(Date.now() + 60 * 60 * 1000)) continue;
 
-        broadcast(entry.business_id, 'waitlist_match', {
-          mode: 'auto_cascade',
-          client_name: next.rows[0].client_name,
-          expired_from: entry.client_name,
-          slot_start: entry.offer_booking_start
-        });
+          const token = crypto.randomBytes(20).toString('hex');
+          const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+          const cascadeResult = await client.query(
+            `UPDATE waitlist_entries SET
+              status = 'offered',
+              offer_token = $1,
+              offer_booking_start = $2,
+              offer_booking_end = $3,
+              offer_sent_at = NOW(),
+              offer_expires_at = $4,
+              updated_at = NOW()
+             WHERE id = $5 AND business_id = $6 AND status = 'waiting'
+             RETURNING id`,
+            [token, entry.offer_booking_start, entry.offer_booking_end,
+             expiresAt.toISOString(), next.rows[0].id, entry.business_id]
+          );
+          if (cascadeResult.rows.length === 0) continue;
+
+          // TODO: Send email to next person
+
+          broadcast(entry.business_id, 'waitlist_match', {
+            mode: 'auto_cascade',
+            client_name: next.rows[0].client_name,
+            expired_from: entry.client_name,
+            slot_start: entry.offer_booking_start
+          });
+        }
       }
+
+      processed++;
     }
 
-    processed++;
+    await client.query('COMMIT');
+    return { processed };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
   }
-
-  return { processed };
 }
 
 module.exports = { processWaitlistForCancellation, processExpiredOffers };

@@ -185,7 +185,7 @@ function qcUpdateFreeDuration() {
 // ── Service management ──
 function qcAddService() {
   const idx = viewState.qcServiceCount++;
-  const opts = calState.fcServices.filter(s => s.is_active !== false).map(s => `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${s.color || '#0D7377'}">${esc(s.name)} (${s.duration_min} min)</option>`).join('');
+  const opts = calState.fcServices.filter(s => s.is_active !== false).map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
     <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
@@ -252,7 +252,7 @@ function qcUpdateTotal() {
   } else {
     modeRow.style.display = '';
     const curVal = modeSel.value;
-    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'Téléphone' })[m] || m}</option>`).join('');
+    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'Téléphone' })[m] || esc(m)}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
 }
@@ -265,6 +265,7 @@ function calSearchClients(q) {
   calState.fcClientSearchTimer = setTimeout(async () => {
     try {
       const r = await fetch(`/api/clients?search=${encodeURIComponent(q)}&limit=6`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      if (!r.ok) throw new Error('Search failed');
       const d = await r.json();
       const clients = d.clients || [];
       _qcSearchResults = clients;
@@ -306,6 +307,7 @@ async function calPickClient(id, name) {
   if (!cl) {
     try {
       const r = await fetch(`/api/clients?search=${encodeURIComponent(name)}&limit=1`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      if (!r.ok) throw new Error('Client fetch failed');
       const d = await r.json();
       const fetched = (d.clients || []).find(c => String(c.id) === String(id));
       if (fetched) {

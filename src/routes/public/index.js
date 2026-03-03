@@ -309,10 +309,15 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
         AND p.featured_enabled = true AND p.is_active = true`;
     const params = [businessId];
 
+    if (practitioner_id && !UUID_RE.test(practitioner_id)) return res.status(400).json({ error: 'practitioner_id invalide' });
+
     if (practitioner_id) {
       params.push(practitioner_id);
       sql += ` AND fs.practitioner_id = $${params.length}`;
     }
+    if (date_from && !/^\d{4}-\d{2}-\d{2}$/.test(date_from)) return res.status(400).json({ error: 'date_from invalide' });
+    if (date_to && !/^\d{4}-\d{2}-\d{2}$/.test(date_to)) return res.status(400).json({ error: 'date_to invalide' });
+
     if (date_from) {
       params.push(date_from);
       sql += ` AND fs.date >= $${params.length}::date`;
@@ -408,6 +413,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     const startDate = new Date(start_at);
     if (isNaN(startDate.getTime())) return res.status(400).json({ error: 'Date de début invalide' });
+    // PUB-V12-012: This comparison is correct — Date objects normalize to UTC internally, so timezone is not a concern here
     if (startDate < new Date()) return res.status(400).json({ error: 'Impossible de réserver dans le passé' });
 
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
@@ -424,7 +430,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const fsCheck = await query(
         `SELECT 1 FROM featured_slots
          WHERE business_id = $1 AND practitioner_id = $2
-         AND date = $3::date AND start_time::text LIKE $4 || '%'`,
+         AND date = $3::date AND to_char(start_time, 'HH24:MI') = $4`,
         [businessId, practitioner_id, startDateBrussels, startTimeStr]
       );
       if (fsCheck.rows.length === 0) {
@@ -444,6 +450,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       );
       if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
       const service = svcResult.rows[0];
+      // PUB-V12-005: Buffer times are intentionally included in end_at for calendar blocking purposes
       const totalDuration = (service.buffer_before_min || 0) + service.duration_min + (service.buffer_after_min || 0);
       endDate = new Date(startDate.getTime() + totalDuration * 60000);
     } else {
@@ -834,7 +841,8 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     if (isForm && displayData) {
       return res.send(confirmationPage('Rendez-vous confirmé ✅', `${escHtml(displayData.service_name) || 'Votre rendez-vous'} le <strong>${escHtml(displayData._dt)} à ${escHtml(displayData._tm)}</strong> est confirmé. Merci !`, displayData._color, displayData.business_name));
     }
-    res.json({ confirmed: true, booking: result.rows[0] });
+    const { business_id: _bid, ...publicBooking } = result.rows[0];
+    res.json({ confirmed: true, booking: publicBooking });
   } catch (err) { next(err); }
 });
 
@@ -910,7 +918,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       const phone = displayData.business_phone ? ` au <strong>${escHtml(displayData.business_phone)}</strong>` : '';
       return res.send(confirmationPage('Rendez-vous refusé', `Le nouveau créneau ne vous convient pas. N'hésitez pas à nous contacter${phone} pour trouver un autre horaire.`, '#C62828', displayData.business_name));
     }
-    res.json({ rejected: true, booking: result.rows[0] });
+    const { business_id: _bid2, ...publicBookingReject } = result.rows[0];
+    res.json({ rejected: true, booking: publicBookingReject });
   } catch (err) { next(err); }
 });
 
@@ -1104,6 +1113,8 @@ router.post('/docs/:token/submit', async (req, res, next) => {
       return res.status(400).json({ error: 'Données de réponse trop volumineuses (max 50 Ko)' });
     }
 
+    const safeConsent = consent_given === true || consent_given === 'true' ? true : false;
+
     const check = await query(
       `SELECT ps.id, ps.status, dt.type AS template_type
        FROM pre_rdv_sends ps
@@ -1127,7 +1138,7 @@ router.post('/docs/:token/submit', async (req, res, next) => {
         status = 'completed'
        WHERE token = $3 AND status IN ('sent', 'viewed')
        RETURNING id`,
-      [JSON.stringify(response_data || {}), consent_given, req.params.token]
+      [JSON.stringify(response_data || {}), safeConsent, req.params.token]
     );
 
     if (updateResult.rows.length === 0) {
@@ -1401,9 +1412,9 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 
       if (existingWlClient) {
         clientId = existingWlClient.id;
-        // Update client info
+        // Update client info (PUB-V12-009: preserve existing full_name if new value is empty)
         await client.query(
-          `UPDATE clients SET full_name = $1, email = COALESCE($2, email), phone = COALESCE($3, phone), updated_at = NOW() WHERE id = $4`,
+          `UPDATE clients SET full_name = COALESCE(NULLIF($1, ''), full_name), email = COALESCE($2, email), phone = COALESCE($3, phone), updated_at = NOW() WHERE id = $4`,
           [e.client_name, e.client_email, e.client_phone, clientId]
         );
       } else {
@@ -1415,7 +1426,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         clientId = nc.rows[0].id;
       }
 
-      // Check if client is blocked
+      // PUB-V12-008: Check if client is blocked BEFORE creating the booking
       const blockedCheck = await client.query(
         `SELECT is_blocked FROM clients WHERE id = $1`, [clientId]
       );
@@ -1499,8 +1510,8 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
     const entry = result.rows[0];
     try {
       const prac = await query(
-        `SELECT waitlist_mode FROM practitioners WHERE id = $1`,
-        [entry.practitioner_id]
+        `SELECT waitlist_mode FROM practitioners WHERE id = $1 AND business_id = $2`,
+        [entry.practitioner_id, entry.business_id]
       );
       if (prac.rows[0]?.waitlist_mode === 'auto') {
         // Fake a cancellation to re-trigger the queue
@@ -1508,10 +1519,12 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
         const { processWaitlistForCancellation } = require('../../services/waitlist');
         // We need to find next waiting entry directly
         const slotDate = new Date(entry.offer_booking_start);
-        const bxlParts = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
-        const bxlHour = parseInt(bxlParts[3]) || 0;
-        const bxlJsDay = new Date(slotDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T12:00:00Z').getUTCDay();
-        const weekday = bxlJsDay === 0 ? 6 : bxlJsDay - 1;
+        const bxlHourStr = slotDate.toLocaleTimeString('en-GB', { timeZone: 'Europe/Brussels', hour12: false, hour: '2-digit', minute: '2-digit' });
+        const bxlHour = parseInt(bxlHourStr.split(':')[0]) || 0;
+        const bxlDay = parseInt(slotDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }).split('-')[2]);
+        // Use slotDate.toLocaleDateString for weekday:
+        const bxlWeekday = new Date(slotDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T12:00:00Z').getUTCDay();
+        const weekday = bxlWeekday === 0 ? 6 : bxlWeekday - 1;
         const timeOfDay = bxlHour < 12 ? 'morning' : 'afternoon';
         const crypto = require('crypto');
 
@@ -1549,7 +1562,7 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
               `INSERT INTO notifications (business_id, type, recipient_email, status, metadata)
                VALUES ($1, 'email_waitlist_offer', $2, 'queued', $3::jsonb)`,
               [entry.business_id, offerResult.rows[0].client_email,
-               JSON.stringify({ waitlist_entry_id: offerResult.rows[0].id, offer_token: offerToken })]
+               JSON.stringify({ waitlist_entry_id: offerResult.rows[0].id })]
             );
           } catch (notifErr) { console.warn('[WAITLIST] Notification error:', notifErr.message); }
         }

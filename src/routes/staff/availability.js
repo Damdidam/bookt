@@ -90,11 +90,15 @@ router.put('/', async (req, res, next) => {
       // Insert new schedule
       // schedule = { "0": [{ start_time: "09:00", end_time: "12:00" }, ...], "1": [...], ... }
       for (const [weekday, windows] of Object.entries(schedule)) {
+        // V12-009: Validate weekday range
+        const weekdayNum = parseInt(weekday);
+        if (isNaN(weekdayNum) || weekdayNum < 0 || weekdayNum > 6) continue;
+
         for (const win of windows) {
           await client.query(
             `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time)
              VALUES ($1, $2, $3, $4, $5)`,
-            [bid, practitioner_id, parseInt(weekday), win.start_time, win.end_time]
+            [bid, practitioner_id, weekdayNum, win.start_time, win.end_time]
           );
         }
       }
@@ -139,6 +143,15 @@ router.post('/exceptions', async (req, res, next) => {
     // Practitioner can only create exceptions for themselves
     if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
       return res.status(403).json({ error: 'Vous ne pouvez créer des exceptions que pour vous-même' });
+    }
+
+    // V12-008: Validate practitioner belongs to this business
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, bid]
+    );
+    if (pracCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable' });
     }
 
     const result = await queryWithRLS(bid,

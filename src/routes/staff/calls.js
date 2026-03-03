@@ -264,7 +264,8 @@ router.post('/whitelist', requireRole('owner', 'manager'), async (req, res, next
 });
 
 // PATCH /api/calls/whitelist/:id
-router.patch('/whitelist/:id', async (req, res, next) => {
+// V12-006: Add role check
+router.patch('/whitelist/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const { phone_e164, label, is_active } = req.body;
     const result = await queryWithRLS(req.businessId,
@@ -283,7 +284,8 @@ router.patch('/whitelist/:id', async (req, res, next) => {
 });
 
 // DELETE /api/calls/whitelist/:id
-router.delete('/whitelist/:id', async (req, res, next) => {
+// V12-006: Add role check
+router.delete('/whitelist/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM call_whitelist WHERE id = $1 AND business_id = $2`,
@@ -375,7 +377,8 @@ router.post('/blacklist', requireRole('owner', 'manager'), async (req, res, next
 });
 
 // DELETE /api/calls/blacklist/:id
-router.delete('/blacklist/:id', async (req, res, next) => {
+// V12-007: Add role check
+router.delete('/blacklist/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM call_blacklist WHERE id = $1 AND business_id = $2`,

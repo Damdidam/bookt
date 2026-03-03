@@ -34,11 +34,18 @@ router.get('/google/connect', requireAuth, async (req, res) => {
   if (!process.env.GOOGLE_CLIENT_ID) {
     return res.status(501).json({ error: 'Google Calendar non configuré' });
   }
+
+  // V12-011: Validate practitioner_id ownership
+  const pracId = req.query.practitioner_id || null;
+  if (pracId && req.user.role === 'practitioner' && pracId !== req.user.practitionerId) {
+    return res.status(403).json({ error: 'Cannot connect calendar for another practitioner' });
+  }
+
   const state = crypto.randomBytes(24).toString('hex');
   await oauthStates.set(state, {
     userId: req.user.id,
     businessId: req.businessId,
-    practitionerId: req.query.practitioner_id || null,
+    practitionerId: pracId,
     provider: 'google',
     expiresAt: Date.now() + 10 * 60000
   });
@@ -108,11 +115,18 @@ router.get('/outlook/connect', requireAuth, async (req, res) => {
   if (!process.env.OUTLOOK_CLIENT_ID) {
     return res.status(501).json({ error: 'Outlook Calendar non configuré' });
   }
+
+  // V12-011: Validate practitioner_id ownership
+  const pracId = req.query.practitioner_id || null;
+  if (pracId && req.user.role === 'practitioner' && pracId !== req.user.practitionerId) {
+    return res.status(403).json({ error: 'Cannot connect calendar for another practitioner' });
+  }
+
   const state = crypto.randomBytes(24).toString('hex');
   await oauthStates.set(state, {
     userId: req.user.id,
     businessId: req.businessId,
-    practitionerId: req.query.practitioner_id || null,
+    practitionerId: pracId,
     provider: 'outlook',
     expiresAt: Date.now() + 10 * 60000
   });
@@ -334,7 +348,9 @@ router.get('/ical/:token', async (req, res) => {
     const decoded = Buffer.from(req.params.token, 'base64url').toString();
     const [businessId, practitionerId, secret] = decoded.split(':');
 
-    if (!businessId || !secret) return res.status(400).send('Invalid token');
+    // V12-020: Validate businessId as UUID
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!businessId || !UUID_RE.test(businessId) || !secret) return res.status(400).send('Invalid token');
 
     // Verify token
     const conn = await query(

@@ -129,18 +129,25 @@ router.get('/:id', async (req, res, next) => {
     );
     if (client.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
 
-    const bookings = await queryWithRLS(bid,
-      `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+    // V12-022: Add practitioner scope to bookings query
+    let bkSql = `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.deposit_required, b.deposit_status, b.deposit_amount_cents,
               b.custom_label, b.internal_note, b.session_notes, b.session_notes_sent_at,
               s.name AS service_name, p.display_name AS practitioner_name
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
-       WHERE b.client_id = $1 AND b.business_id = $2
-       ORDER BY b.start_at DESC`,
-      [req.params.id, bid]
-    );
+       WHERE b.client_id = $1 AND b.business_id = $2`;
+    const bkParams = [req.params.id, bid];
+
+    if (req.practitionerFilter) {
+      bkSql += ` AND b.practitioner_id = $${bkParams.length + 1}`;
+      bkParams.push(req.practitionerFilter);
+    }
+
+    bkSql += ` ORDER BY b.start_at DESC`;
+
+    const bookings = await queryWithRLS(bid, bkSql, bkParams);
 
     // Fetch pre-RDV documents for this client
     const docs = await queryWithRLS(bid,

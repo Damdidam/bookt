@@ -15,9 +15,11 @@ function fcRenderTodos() {
 }
 
 async function calAddTodo() {
-  const c = document.getElementById('calNewTodo').value.trim();
-  if (!c) return;
+  if (calAddTodo._busy) return;
+  calAddTodo._busy = true;
   try {
+    const c = document.getElementById('calNewTodo').value.trim();
+    if (!c) return;
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
@@ -28,11 +30,14 @@ async function calAddTodo() {
     calState.fcDetailData.todos.push(d.todo);
     document.getElementById('calNewTodo').value = '';
     fcRenderTodos();
-    gToast('T\u00e2che ajout\u00e9e', 'success');
+    gToast('Tâche ajoutée', 'success');
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { calAddTodo._busy = false; }
 }
 
 async function fcToggleTodo(todoId, isDone) {
+  if (fcToggleTodo._busy) return;
+  fcToggleTodo._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos/${todoId}`, {
       method: 'PATCH',
@@ -49,7 +54,7 @@ async function fcToggleTodo(todoId, isDone) {
     if (todo) todo.is_done = !isDone;
     fcRenderTodos();
     gToast('Erreur', 'error');
-  }
+  } finally { fcToggleTodo._busy = false; }
 }
 
 async function fcDeleteTodo(todoId) {

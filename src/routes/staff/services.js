@@ -35,6 +35,11 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
       return res.status(400).json({ error: 'name et duration_min requis' });
     }
 
+    // V12-023: Limit practitioner_ids array size
+    if (practitioner_ids && practitioner_ids.length > 100) {
+      return res.status(400).json({ error: 'Trop de praticiens (max 100)' });
+    }
+
     const result = await queryWithRLS(bid,
       `INSERT INTO services (business_id, name, category, duration_min,
         buffer_before_min, buffer_after_min, price_cents, price_label,

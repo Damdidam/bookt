@@ -5,7 +5,13 @@ const { query } = require('../../services/db');
 // Twilio request signature validation middleware
 function validateTwilioSignature(req, res, next) {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!authToken) return next(); // Skip validation if no auth token configured
+  if (!authToken) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[TWILIO] Auth token not configured in production!');
+      return res.status(503).json({ error: 'Service misconfigured' });
+    }
+    return next();
+  }
 
   try {
     const twilio = require('twilio');
@@ -74,7 +80,7 @@ router.post('/voice/incoming', async (req, res, next) => {
     // Resolve effective mode (vacation auto-expires)
     let mode = settings.filter_mode || 'off';
     if (mode === 'vacation' && settings.vacation_until) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       if (today > settings.vacation_until) {
         mode = 'soft';
         await query(`UPDATE call_settings SET filter_mode = 'soft' WHERE business_id = $1`, [businessId]);

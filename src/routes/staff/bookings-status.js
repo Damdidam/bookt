@@ -367,8 +367,9 @@ router.patch('/:id/status', async (req, res, next) => {
     // remaining slot availability. Clients re-check availability when they accept the offer,
     // so over-notification is safe and avoids complex real-time slot counting here.
     if (status === 'cancelled') {
+      // STS-V12-001 fix: Move require outside try block so it's accessible for sibling processing
+      const { processWaitlistForCancellation } = require('../../services/waitlist');
       try {
-        const { processWaitlistForCancellation } = require('../../services/waitlist');
         await processWaitlistForCancellation(id, bid);
       } catch (e) { console.warn('[WAITLIST] Processing error:', e.message); }
 
@@ -388,8 +389,12 @@ router.patch('/:id/status', async (req, res, next) => {
         broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: sibId, status, old_status: txResult.oldStatus });
       }
     }
-    if (status === 'cancelled') calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
-    else calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+    // STS-V12-003 fix: Delete calendar event for both cancelled AND no_show (consistent with sibling handling)
+    if (['cancelled', 'no_show'].includes(status)) {
+      calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
+    } else {
+      calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+    }
 
     // STS-V11-1 fix: Cal sync for siblings on status change
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
@@ -613,6 +618,14 @@ router.delete('/:id', async (req, res, next) => {
         [bookingIds, bid]
       );
 
+      // STS-V12-002 fix: Call calSyncDelete BEFORE deleting bookings, because
+      // DELETE FROM bookings cascades to calendar_events, making post-transaction
+      // calSyncDelete unable to find the external event IDs (google_event_id, outlook_event_id).
+      for (const bId of bookingIds) {
+        try { await calSyncDelete(bid, bId); }
+        catch (e) { console.warn('[CAL_SYNC] Pre-delete sync error:', e.message); }
+      }
+
       await client.query(`DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
       await client.query(`DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
       await client.query(`DELETE FROM booking_reminders WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
@@ -633,9 +646,13 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     // Post-transaction side effects
+    // STS-V12-002: calSyncDelete is now called inside the transaction (before DELETE)
+    // so calendar_events rows are still available for looking up external event IDs.
     const deletedIds = txResult.bookingIds;
-    deletedIds.forEach(bId => calSyncDelete(bid, bId).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message)));
-    broadcast(bid, 'booking_update', { action: 'deleted', booking_id: id });
+    // STS-V12-004 fix: Broadcast for ALL deleted IDs, not just the primary
+    for (const bId of deletedIds) {
+      broadcast(bid, 'booking_update', { action: 'deleted', booking_id: bId });
+    }
     res.json({ deleted: true, deleted_count: deletedIds.length });
   } catch (err) {
     next(err);
