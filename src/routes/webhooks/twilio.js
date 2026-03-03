@@ -81,7 +81,11 @@ router.post('/voice/incoming', async (req, res, next) => {
     let mode = settings.filter_mode || 'off';
     if (mode === 'vacation' && settings.vacation_until) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-      if (today > settings.vacation_until) {
+      // V13-011: Normalize vacation_until (DB may return Date object or string)
+      const vacUntil = settings.vacation_until instanceof Date
+        ? settings.vacation_until.toISOString().split('T')[0]
+        : String(settings.vacation_until);
+      if (today > vacUntil) {
         mode = 'soft';
         await query(`UPDATE call_settings SET filter_mode = 'soft' WHERE business_id = $1`, [businessId]);
       }

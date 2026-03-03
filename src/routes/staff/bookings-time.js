@@ -98,11 +98,12 @@ router.patch('/:id/move', async (req, res, next) => {
       // Recalculate all slots: chain sequentially from the shifted first booking
       const firstOrigStart = new Date(groupMembers[0].start_at);
       let cursor = new Date(firstOrigStart.getTime() + delta);
-      const updates = groupMembers.map(m => {
+      const updates = groupMembers.map((m, i) => {
         // Freestyle members have no service → preserve original duration
         const origDur = (new Date(m.end_at).getTime() - new Date(m.start_at).getTime()) / 60000;
+        // BK-V13-001: Only apply buffer_before to first member and buffer_after to last member
         const totalMin = m.duration_min != null
-          ? (m.buffer_before_min || 0) + m.duration_min + (m.buffer_after_min || 0)
+          ? ((i === 0) ? (m.buffer_before_min || 0) : 0) + m.duration_min + ((i === groupMembers.length - 1) ? (m.buffer_after_min || 0) : 0)
           : origDur;
         const s = new Date(cursor);
         const e = new Date(s.getTime() + totalMin * 60000);
@@ -173,6 +174,24 @@ router.patch('/:id/move', async (req, res, next) => {
             sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} AND status NOT IN ('cancelled', 'completed', 'no_show')`;
             params.push(u.id, bid);
             await client.query(sql, params);
+          }
+
+          // BK-V13-003: Recalculate deposit deadlines for group members (matching single-move logic)
+          for (const u of updates) {
+            const memberInfo = await client.query(
+              `SELECT deposit_required, deposit_deadline FROM bookings WHERE id = $1 AND business_id = $2`,
+              [u.id, bid]
+            );
+            const mi = memberInfo.rows[0];
+            if (mi?.deposit_required && mi.deposit_deadline) {
+              let newDeadline = new Date(new Date(mi.deposit_deadline).getTime() + delta);
+              const minDeadline = new Date(Date.now() + 60 * 60000);
+              if (newDeadline < minDeadline) newDeadline = minDeadline;
+              await client.query(
+                `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
+                [newDeadline.toISOString(), u.id, bid]
+              );
+            }
           }
 
           await client.query(
@@ -676,8 +695,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     // Staff can override availability — no checkPracAvailability here
 
-    // CRT-14: Preserve pending_deposit status instead of overwriting to modified_pending
-    const newStatus = shouldNotify ? (oldBooking.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending') : oldBooking.status;
+    // BK-V13-002: newStatus is now computed inside the transaction using re-checked status
 
     // Atomic modify: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
@@ -693,6 +711,12 @@ router.patch('/:id/modify', async (req, res, next) => {
         if (statusRecheck.rows.length === 0 || ['cancelled', 'completed', 'no_show'].includes(statusRecheck.rows[0].status)) {
           throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
         }
+
+        // BK-V13-002: Compute newStatus inside transaction using re-checked status to avoid stale data
+        const recheckStatus = statusRecheck.rows[0].status;
+        const newStatus = shouldNotify
+          ? (recheckStatus === 'pending_deposit' ? 'pending_deposit' : 'modified_pending')
+          : recheckStatus;
 
         if (!globalAllowOverlap) {
           const conflict = await client.query(
@@ -802,7 +826,7 @@ router.patch('/:id/modify', async (req, res, next) => {
       modification: {
         old: { start: oldBooking.start_at, end: oldBooking.end_at },
         new: { start: start_at, end: end_at },
-        status_changed: shouldNotify ? newStatus : null
+        status_changed: shouldNotify ? result.rows[0]?.status : null
       }
     });
   } catch (err) {

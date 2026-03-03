@@ -124,12 +124,16 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   // 6. Fetch existing bookings in date range (conflicts)
   const bookingsResult = await queryWithRLS(businessId,
-    `SELECT practitioner_id, start_at, end_at
-     FROM bookings
-     WHERE business_id = $1 AND practitioner_id = ANY($2)
-     AND end_at > $3 AND start_at <= ($4::date + INTERVAL '1 day')
-     AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-     ORDER BY start_at`,
+    `SELECT b.practitioner_id, b.start_at, b.end_at,
+            COALESCE(s.buffer_before_min, 0) AS buffer_before_min,
+            COALESCE(s.buffer_after_min, 0) AS buffer_after_min
+     FROM bookings b
+     LEFT JOIN services s ON s.id = b.service_id
+     WHERE b.business_id = $1 AND b.practitioner_id = ANY($2)
+     AND b.end_at > ($3::date AT TIME ZONE 'Europe/Brussels')
+     AND b.start_at <= (($4::date + INTERVAL '1 day') AT TIME ZONE 'Europe/Brussels')
+     AND b.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+     ORDER BY b.start_at`,
     [businessId, practitionerIds, dateFrom, dateTo]
   );
 
@@ -141,7 +145,9 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     if (!bookingMap[key]) bookingMap[key] = [];
     bookingMap[key].push({
       start: row.start_at,
-      end: row.end_at
+      end: row.end_at,
+      buffer_before_min: row.buffer_before_min || 0,
+      buffer_after_min: row.buffer_after_min || 0
     });
   }
 
@@ -170,6 +176,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   }
 
   // 7. Generate slots
+  const now = new Date();
   const slots = [];
 
   // DST-safe: compute correct UTC offset for a given date in Europe/Brussels
@@ -234,15 +241,15 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
           const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
 
           // Check if slot is in the past
-          if (slotStart <= new Date()) continue;
+          if (slotStart <= now) continue;
 
           // Check for conflicts with existing bookings (capacity-aware)
-          // Buffers are already included in totalDuration (slotStart→slotEnd),
-          // so do NOT expand existing bookings by buffers again (would double-apply).
+          // Buffers are included in totalDuration for the NEW slot (slotStart→slotEnd),
+          // and existing bookings are expanded by their own service buffers.
           const overlapCount = dayBookings.filter(bk => {
-            const effectiveStart = bk.start;
-            const effectiveEnd = bk.end;
-            return slotStart < effectiveEnd && slotEnd > effectiveStart;
+            const bkStart = new Date(bk.start.getTime() - (bk.buffer_before_min || 0) * 60000);
+            const bkEnd = new Date(bk.end.getTime() + (bk.buffer_after_min || 0) * 60000);
+            return slotStart < bkEnd && slotEnd > bkStart;
           }).length;
 
           if (overlapCount < (capacityMap[pracId] || 1)) {

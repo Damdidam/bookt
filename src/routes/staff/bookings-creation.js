@@ -17,11 +17,10 @@ router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
-            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, group_id } = req.body;
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color } = req.body;
 
-    // CRT-V11-2: Validate group_id as UUID if provided
+    // BK-V13-008: group_id removed from destructuring (dead code — group_id is generated server-side)
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (group_id && !UUID_RE.test(group_id)) return res.status(400).json({ error: 'Invalid group_id' });
 
     // CRT-4: Basic client_email validation before using it for sending emails
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

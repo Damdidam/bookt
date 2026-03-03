@@ -57,7 +57,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
   const brusselsHour = parseInt(brusselsTimeParts[0], 10);
   const timeOfDay = brusselsHour < 12 ? 'morning' : 'afternoon';
 
-  const matches = await query(
+  const matches = await queryWithRLS(businessId,
     `SELECT * FROM waitlist_entries
      WHERE practitioner_id = $1
        AND service_id = $2

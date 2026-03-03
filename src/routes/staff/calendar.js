@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const crypto = require('crypto');
-const { query, queryWithRLS } = require('../../services/db');
+const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 const cal = require('../../services/calendar-sync');
 
@@ -37,8 +37,13 @@ router.get('/google/connect', requireAuth, async (req, res) => {
 
   // V12-011: Validate practitioner_id ownership
   const pracId = req.query.practitioner_id || null;
-  if (pracId && req.user.role === 'practitioner' && pracId !== req.user.practitionerId) {
-    return res.status(403).json({ error: 'Cannot connect calendar for another practitioner' });
+  if (pracId) {
+    if (req.user.role === 'practitioner' && pracId !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Cannot connect calendar for another practitioner' });
+    }
+    // V13-021: Verify practitioner belongs to this business
+    const pracCheck = await queryWithRLS(req.businessId, `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [pracId, req.businessId]);
+    if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
   }
 
   const state = crypto.randomBytes(24).toString('hex');
@@ -73,6 +78,29 @@ router.get('/google/callback', async (req, res) => {
 
     const tokens = await cal.exchangeGoogleCode(code);
     const userInfo = await cal.getGoogleUserInfo(tokens.access_token);
+
+    // V13-027: Handle NULL practitioner_id (ON CONFLICT fails with NULL)
+    if (!session.practitionerId) {
+      const existing = await query(
+        `SELECT id FROM calendar_connections WHERE business_id = $1 AND provider = 'google' AND practitioner_id IS NULL`,
+        [session.businessId]
+      );
+      if (existing.rows.length > 0) {
+        await query(
+          `UPDATE calendar_connections SET
+            access_token = $1, refresh_token = COALESCE($2, refresh_token),
+            token_expires_at = $3, scope = $4, email = $5, user_id = $6,
+            status = 'active', error_message = NULL, updated_at = NOW()
+           WHERE id = $7`,
+          [tokens.access_token, tokens.refresh_token || null,
+           new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
+           tokens.scope || '', userInfo.email || '', session.userId,
+           existing.rows[0].id]
+        );
+        res.redirect('/dashboard?cal_connected=google&prac=');
+        return;
+      }
+    }
 
     // Upsert connection (per practitioner)
     await query(
@@ -118,8 +146,13 @@ router.get('/outlook/connect', requireAuth, async (req, res) => {
 
   // V12-011: Validate practitioner_id ownership
   const pracId = req.query.practitioner_id || null;
-  if (pracId && req.user.role === 'practitioner' && pracId !== req.user.practitionerId) {
-    return res.status(403).json({ error: 'Cannot connect calendar for another practitioner' });
+  if (pracId) {
+    if (req.user.role === 'practitioner' && pracId !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Cannot connect calendar for another practitioner' });
+    }
+    // V13-021: Verify practitioner belongs to this business
+    const pracCheck = await queryWithRLS(req.businessId, `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [pracId, req.businessId]);
+    if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
   }
 
   const state = crypto.randomBytes(24).toString('hex');
@@ -158,6 +191,29 @@ router.get('/outlook/callback', async (req, res) => {
       headers: { 'Authorization': `Bearer ${tokens.access_token}` }
     });
     const userInfo = userRes.ok ? await userRes.json() : {};
+
+    // V13-027: Handle NULL practitioner_id (ON CONFLICT fails with NULL)
+    if (!session.practitionerId) {
+      const existing = await query(
+        `SELECT id FROM calendar_connections WHERE business_id = $1 AND provider = 'outlook' AND practitioner_id IS NULL`,
+        [session.businessId]
+      );
+      if (existing.rows.length > 0) {
+        await query(
+          `UPDATE calendar_connections SET
+            access_token = $1, refresh_token = COALESCE($2, refresh_token),
+            token_expires_at = $3, scope = $4, email = $5, user_id = $6,
+            status = 'active', error_message = NULL, updated_at = NOW()
+           WHERE id = $7`,
+          [tokens.access_token, tokens.refresh_token || null,
+           new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
+           tokens.scope || '', userInfo.mail || userInfo.userPrincipalName || '',
+           session.userId, existing.rows[0].id]
+        );
+        res.redirect('/dashboard?cal_connected=outlook&prac=');
+        return;
+      }
+    }
 
     await query(
       `INSERT INTO calendar_connections
@@ -227,7 +283,7 @@ router.patch('/connections/:id', requireAuth, async (req, res, next) => {
       `UPDATE calendar_connections SET
         sync_direction = COALESCE($1, sync_direction),
         sync_enabled = COALESCE($2, sync_enabled),
-        practitioner_id = $3,
+        practitioner_id = COALESCE($3, practitioner_id),
         updated_at = NOW()
        WHERE id = $4 AND business_id = $5 AND user_id = $6`,
       [sync_direction, sync_enabled, practitioner_id || null,
@@ -242,16 +298,23 @@ router.patch('/connections/:id', requireAuth, async (req, res, next) => {
  */
 router.delete('/connections/:id', requireAuth, async (req, res, next) => {
   try {
-    // Delete connection first (verify ownership), then clean up events
-    const deleted = await queryWithRLS(req.businessId,
-      `DELETE FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3 RETURNING id`,
-      [req.params.id, req.businessId, req.user.id]
-    );
-    if (deleted.rows.length > 0) {
-      await queryWithRLS(req.businessId,
-        `DELETE FROM calendar_events WHERE connection_id = $1`, [deleted.rows[0].id]
+    // V13-003: Wrap in transaction, delete events first (FK order), then connection
+    await transactionWithRLS(req.businessId, async (client) => {
+      // Verify ownership first
+      const connCheck = await client.query(
+        `SELECT id FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3`,
+        [req.params.id, req.businessId, req.user.id]
       );
-    }
+      if (connCheck.rows.length > 0) {
+        await client.query(
+          `DELETE FROM calendar_events WHERE connection_id = $1`, [req.params.id]
+        );
+        await client.query(
+          `DELETE FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3`,
+          [req.params.id, req.businessId, req.user.id]
+        );
+      }
+    });
     res.json({ disconnected: true });
   } catch (err) { next(err); }
 });
@@ -283,8 +346,7 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
     // Push unsynced bookings
     let pushed = 0;
     if (conn.sync_direction === 'push' || conn.sync_direction === 'both') {
-      const bookings = await queryWithRLS(req.businessId,
-        `SELECT b.*, s.name AS service_name, s.duration_min, s.color AS service_color,
+      let pushSql = `SELECT b.*, s.name AS service_name, s.duration_min, s.color AS service_color,
                 c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
          FROM bookings b
          JOIN services s ON s.id = b.service_id
@@ -293,9 +355,16 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
          WHERE b.business_id = $2
            AND b.status IN ('confirmed', 'pending')
            AND b.start_at > NOW()
-           AND ce.id IS NULL`,
-        [conn.id, req.businessId]
-      );
+           AND ce.id IS NULL`;
+      const pushParams = [conn.id, req.businessId];
+      let paramIdx = 3;
+      // V13-022: Filter by connection's practitioner_id if set
+      if (conn.practitioner_id) {
+        pushSql += ` AND b.practitioner_id = $${paramIdx}`;
+        pushParams.push(conn.practitioner_id);
+        paramIdx++;
+      }
+      const bookings = await queryWithRLS(req.businessId, pushSql, pushParams);
 
       for (const bk of bookings.rows) {
         try {
@@ -315,7 +384,7 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
  * GET /api/calendar/busy — get busy blocks for slot engine
  * Public-ish (used internally by booking flow)
  */
-router.get('/busy', async (req, res, next) => {
+router.get('/busy', requireAuth, async (req, res, next) => {
   try {
     const { practitioner_id, start, end } = req.query;
     const business_id = req.businessId;

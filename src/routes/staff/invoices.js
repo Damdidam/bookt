@@ -171,7 +171,7 @@ router.post('/', requireOwner, async (req, res, next) => {
         `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [invoiceId, item.description, item.quantity || 1,
-         item.unit_price_cents || 0, item.vat_rate || vatR,
+         item.unit_price_cents || 0, (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR,
          item.total_cents || 0, item.sort_order || 0]
       );
     }

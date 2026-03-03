@@ -59,6 +59,9 @@ router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res,
     if (published_at !== undefined) { sets.push(`published_at = $${idx}`); params.push(published_at); idx++; }
     if (is_active !== undefined) { sets.push(`is_active = $${idx}`); params.push(is_active); idx++; }
 
+    // V13-028: Always update updated_at
+    sets.push('updated_at = NOW()');
+
     const result = await queryWithRLS(req.businessId,
       `UPDATE news_posts SET ${sets.join(', ')}
        WHERE id = $1 AND business_id = $2 RETURNING *`,

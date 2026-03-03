@@ -126,7 +126,7 @@ router.get('/:slug', async (req, res, next) => {
     const specializations = specResult.rows;
     const testimonials = testResult.rows.map(t => ({
       ...t,
-      author_initials: t.author_initials || (t.author_name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+      author_initials: t.author_initials || ((t.author_name || '').trim() ? (t.author_name || '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() : '??')
     }));
     const values = valResult.rows;
     const gallery = galResult.rows;
@@ -204,7 +204,7 @@ router.get('/:slug', async (req, res, next) => {
         category: s.category,
         duration_min: s.duration_min,
         price_cents: s.price_cents,
-        price_label: s.price_label || (s.price_cents ? `${(s.price_cents / 100).toFixed(0)} €` : 'Gratuit'),
+        price_label: s.price_label || (s.price_cents ? `${(s.price_cents / 100).toFixed(2).replace('.', ',')} €` : 'Gratuit'),
         mode_options: s.mode_options,
         prep_instructions_fr: s.prep_instructions_fr,
         prep_instructions_nl: s.prep_instructions_nl,
@@ -371,6 +371,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       });
     }
 
+    if (typeof client_name !== 'string' || typeof client_email !== 'string') {
+      return res.status(400).json({ error: 'Les champs client doivent être des chaînes de caractères' });
+    }
+    if (client_phone && typeof client_phone !== 'string') {
+      return res.status(400).json({ error: 'Les champs client doivent être des chaînes de caractères' });
+    }
+
     if (!UUID_RE.test(practitioner_id)) {
       return res.status(400).json({ error: 'practitioner_id invalide' });
     }
@@ -503,6 +510,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Find or create client (3-step matching: exact → phone → email)
       let clientId;
       let existingClient = null;
+      let matchType = null; // 'exact', 'phone', or 'email'
 
       // Step 1: exact match (phone AND email)
       const exactMatch = await client.query(
@@ -511,6 +519,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       );
       if (exactMatch.rows.length > 0) {
         existingClient = exactMatch.rows[0];
+        matchType = 'exact';
       } else {
         // Step 2: match by phone
         const phoneMatch = await client.query(
@@ -519,6 +528,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         );
         if (phoneMatch.rows.length > 0) {
           existingClient = phoneMatch.rows[0];
+          matchType = 'phone';
         } else {
           // Step 3: match by email
           const emailMatch = await client.query(
@@ -527,6 +537,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           );
           if (emailMatch.rows.length > 0) {
             existingClient = emailMatch.rows[0];
+            matchType = 'email';
           }
         }
       }
@@ -540,24 +551,40 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           );
         }
         clientId = existingClient.id;
-        // Update client info (only overwrite fields the client provides, protect existing data)
-        await client.query(
-          `UPDATE clients SET
-            full_name = COALESCE(NULLIF($1, ''), full_name),
-            email = COALESCE(NULLIF($2, ''), email),
-            phone = COALESCE(NULLIF($3, ''), phone),
-            bce_number = COALESCE($4, bce_number),
-            consent_sms = COALESCE($5, consent_sms),
-            consent_email = COALESCE($6, consent_email),
-            consent_marketing = COALESCE($7, consent_marketing),
-            updated_at = NOW()
-           WHERE id = $8`,
-          [client_name, client_email, client_phone, client_bce,
-           consent_sms === true ? true : (consent_sms === false ? false : null),
-           consent_email === true ? true : (consent_email === false ? false : null),
-           consent_marketing === true ? true : (consent_marketing === false ? false : null),
-           clientId]
-        );
+        if (matchType === 'exact') {
+          // Exact match: safe to update all fields
+          await client.query(
+            `UPDATE clients SET
+              full_name = COALESCE(NULLIF($1, ''), full_name),
+              email = COALESCE(NULLIF($2, ''), email),
+              phone = COALESCE(NULLIF($3, ''), phone),
+              bce_number = COALESCE($4, bce_number),
+              consent_sms = COALESCE($5, consent_sms),
+              consent_email = COALESCE($6, consent_email),
+              consent_marketing = COALESCE($7, consent_marketing),
+              updated_at = NOW()
+             WHERE id = $8`,
+            [client_name, client_email, client_phone, client_bce,
+             consent_sms === true ? true : (consent_sms === false ? false : null),
+             consent_email === true ? true : (consent_email === false ? false : null),
+             consent_marketing === true ? true : (consent_marketing === false ? false : null),
+             clientId]
+          );
+        } else if (matchType === 'phone') {
+          // Phone-only match: do NOT overwrite email (prevents malicious email takeover)
+          await client.query(
+            `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+             WHERE id = $1 AND business_id = $3`,
+            [clientId, client_name, businessId]
+          );
+        } else if (matchType === 'email') {
+          // Email-only match: do NOT overwrite phone (prevents malicious phone takeover)
+          await client.query(
+            `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+             WHERE id = $1 AND business_id = $3`,
+            [clientId, client_name, businessId]
+          );
+        }
       } else {
         const nc = await client.query(
           `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
@@ -582,22 +609,26 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Queue notifications
       // NOTE: notification types may need a DB migration to add to the CHECK constraint
       try {
+        await client.query('SAVEPOINT notif_sp1');
         await client.query(
           `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
            VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
           [businessId, booking.rows[0].id, client_email, client_phone]
         );
       } catch (notifErr) {
-        console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+        await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
+        console.error('Notification insert failed:', notifErr.message);
       }
       try {
+        await client.query('SAVEPOINT notif_sp2');
         await client.query(
           `INSERT INTO notifications (business_id, booking_id, type, status)
            VALUES ($1,$2,'email_new_booking_pro','queued')`,
           [businessId, booking.rows[0].id]
         );
       } catch (notifErr) {
-        console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+        await client.query('ROLLBACK TO SAVEPOINT notif_sp2');
+        console.error('Notification insert failed:', notifErr.message);
       }
 
       return booking.rows[0];
@@ -875,6 +906,25 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       if (displayData.status !== 'modified_pending') {
         return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', displayData.business_name));
       }
+    }
+
+    // Deadline check: prevent rejection bypass of cancellation deadline
+    const bkCheck = await query(
+      `SELECT b.id, b.status, b.start_at, b.original_start_at, biz.settings AS business_settings
+       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`, [token]
+    );
+    if (bkCheck.rows.length === 0) {
+      if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+      return res.status(404).json({ error: 'Rendez-vous introuvable' });
+    }
+    const bkData = bkCheck.rows[0];
+    const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? 24;
+    const origStartAt = bkData.original_start_at || bkData.start_at;
+    const deadline = new Date(new Date(origStartAt).getTime() - cancelWindowHours * 3600000);
+    if (new Date() >= deadline) {
+      if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
+      return res.status(400).json({ error: 'Délai de modification dépassé' });
     }
 
     const result = await query(
@@ -1164,6 +1214,13 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
     }
 
+    if (typeof client_name !== 'string' || typeof client_email !== 'string') {
+      return res.status(400).json({ error: 'Les champs client doivent être des chaînes de caractères' });
+    }
+    if (client_phone && typeof client_phone !== 'string') {
+      return res.status(400).json({ error: 'Les champs client doivent être des chaînes de caractères' });
+    }
+
     if (!UUID_RE.test(practitioner_id)) {
       return res.status(400).json({ error: 'practitioner_id invalide' });
     }
@@ -1213,7 +1270,7 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 
     // Validate service exists, is active, and booking-enabled
     const svcCheck = await query(
-      `SELECT id FROM services WHERE id = $1 AND business_id = $2 AND is_active = true AND booking_enabled = true`,
+      `SELECT id FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
       [service_id, businessId]
     );
     if (svcCheck.rows.length === 0) {
@@ -1461,13 +1518,15 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Queue confirmation notification
       // NOTE: notification types may need a DB migration to add to the CHECK constraint
       try {
+        await client.query('SAVEPOINT notif_sp1');
         await client.query(
           `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
            VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
           [e.business_id, bk.rows[0].id, e.client_email]
         );
       } catch (notifErr) {
-        console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+        await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
+        console.error('Notification insert failed:', notifErr.message);
       }
 
       return bk.rows[0];

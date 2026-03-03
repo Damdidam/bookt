@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -108,15 +108,11 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    // Delete related pre_rdv_sends first to avoid FK constraint
-    await queryWithRLS(bid,
-      `DELETE FROM pre_rdv_sends WHERE template_id = $1 AND business_id = $2`,
-      [req.params.id, bid]
-    );
-    await queryWithRLS(bid,
-      `DELETE FROM document_templates WHERE id = $1 AND business_id = $2`,
-      [req.params.id, bid]
-    );
+    // V13-006: Wrap both DELETEs in transaction for atomicity
+    await transactionWithRLS(bid, async (client) => {
+      await client.query(`DELETE FROM pre_rdv_sends WHERE template_id = $1 AND business_id = $2`, [req.params.id, bid]);
+      await client.query(`DELETE FROM document_templates WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
+    });
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });

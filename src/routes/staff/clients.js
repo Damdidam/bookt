@@ -64,6 +64,8 @@ router.get('/', async (req, res, next) => {
       countParams.push(`%${search}%`);
       countIdx++;
     }
+    if (filter === 'blocked') { countSql += ` AND is_blocked = true`; }
+    else if (filter === 'flagged') { countSql += ` AND no_show_count > 0`; }
     const countResult = await queryWithRLS(bid, countSql, countParams);
 
     // Stats
@@ -174,22 +176,31 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { full_name, phone, email, bce_number, notes, consent_sms, consent_marketing } = req.body;
+    const sets = [];
+    const params = [];
+    let idx = 1;
+
+    const fieldMap = { full_name: 'full_name', phone: 'phone', email: 'email',
+      bce_number: 'bce_number', notes: 'notes', consent_sms: 'consent_sms',
+      consent_marketing: 'consent_marketing' };
+    for (const [bodyKey, col] of Object.entries(fieldMap)) {
+      if (bodyKey in req.body) {
+        sets.push(`${col} = $${idx}`);
+        params.push(req.body[bodyKey]);
+        idx++;
+      }
+    }
+
+    if (sets.length === 0) return res.status(400).json({ error: 'Aucun champ à modifier' });
+
+    sets.push('updated_at = NOW()');
+    params.push(req.params.id, bid);
 
     const result = await queryWithRLS(bid,
-      `UPDATE clients SET
-        full_name = COALESCE($1, full_name),
-        phone = COALESCE($2, phone),
-        email = COALESCE($3, email),
-        bce_number = COALESCE($4, bce_number),
-        notes = COALESCE($5, notes),
-        consent_sms = COALESCE($6, consent_sms),
-        consent_marketing = COALESCE($7, consent_marketing),
-        updated_at = NOW()
-       WHERE id = $8 AND business_id = $9
+      `UPDATE clients SET ${sets.join(', ')}
+       WHERE id = $${idx} AND business_id = $${idx + 1}
        RETURNING *`,
-      [full_name, phone, email, bce_number, notes, consent_sms, consent_marketing,
-       req.params.id, bid]
+      params
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });

@@ -78,8 +78,13 @@ function fcMobShift(dir) {
 
 function fcMobToday() {
   calState.fcMobileDate = new Date();
+  let guard = 0;
+  while (calState.fcHiddenDays && calState.fcHiddenDays.includes(calState.fcMobileDate.getDay()) && guard < 7) {
+    calState.fcMobileDate.setDate(calState.fcMobileDate.getDate() + 1);
+    guard++;
+  }
   fcLoadMobileList();
-  calState.fcCal.today();
+  calState.fcCal.gotoDate(calState.fcMobileDate);
 }
 
 // Expose to global scope for onclick handlers

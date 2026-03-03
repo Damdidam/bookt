@@ -141,7 +141,7 @@ async function fcOpenDetail(bookingId) {
     const cTodos = document.getElementById('mCountTodos');
     const cDocs = document.getElementById('mCountDocs');
     if (calState.fcDetailData.notes.length > 0) { cNotes.textContent = calState.fcDetailData.notes.length; cNotes.style.display = 'flex'; } else { cNotes.style.display = 'none'; }
-    const openTodos = (calState.fcDetailData.todos || []).filter(t => !t.done).length;
+    const openTodos = (calState.fcDetailData.todos || []).filter(t => !t.is_done).length;
     if (openTodos > 0) { cTodos.textContent = openTodos; cTodos.style.display = 'flex'; } else { cTodos.style.display = 'none'; }
     if (cDocs) {
       if (calState.fcDetailData.documents.length > 0) { cDocs.textContent = calState.fcDetailData.documents.length; cDocs.style.display = 'flex'; } else { cDocs.style.display = 'none'; }
@@ -204,7 +204,7 @@ async function fcOpenDetail(bookingId) {
     if (siblings.length > 1) {
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span><span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
       siblings.forEach(sib => {
-        const isCur = sib.id === bookingId;
+        const isCur = String(sib.id) === String(bookingId);
         const sT = new Date(sib.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
@@ -293,8 +293,8 @@ function closeCalModal(id) {
 }
 
 function switchCalTab(el, tab) {
-  document.querySelectorAll('.m-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.cal-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#calDetailModal .m-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#calDetailModal .cal-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', session: 'calPanelSession', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');

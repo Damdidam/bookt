@@ -167,9 +167,17 @@ router.patch('/:id', async (req, res, next) => {
       idx++;
     }
 
+    // V13-007: Add practitioner scope check
+    let whereSql = `WHERE id = $1 AND business_id = $2`;
+    if (req.practitionerFilter) {
+      whereSql += ` AND practitioner_id = $${idx}`;
+      params.push(req.practitionerFilter);
+      idx++;
+    }
+
     const result = await queryWithRLS(bid,
       `UPDATE waitlist_entries SET ${sets.join(', ')}
-       WHERE id = $1 AND business_id = $2 RETURNING *`,
+       ${whereSql} RETURNING *`,
       params
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entrée introuvable' });
@@ -183,11 +191,15 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 router.delete('/:id', async (req, res, next) => {
   try {
-    await queryWithRLS(req.businessId,
-      `UPDATE waitlist_entries SET status = 'cancelled', updated_at = NOW()
-       WHERE id = $1 AND business_id = $2`,
-      [req.params.id, req.businessId]
-    );
+    // V13-008: Add practitioner scope check
+    let sql = `UPDATE waitlist_entries SET status = 'cancelled', updated_at = NOW()
+       WHERE id = $1 AND business_id = $2`;
+    const params = [req.params.id, req.businessId];
+    if (req.practitionerFilter) {
+      sql += ` AND practitioner_id = $3`;
+      params.push(req.practitionerFilter);
+    }
+    await queryWithRLS(req.businessId, sql, params);
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });
@@ -206,10 +218,14 @@ router.post('/:id/offer', async (req, res, next) => {
       return res.status(400).json({ error: 'Créneau requis (start_at, end_at)' });
     }
 
-    const entry = await queryWithRLS(bid,
-      `SELECT * FROM waitlist_entries WHERE id = $1 AND business_id = $2 AND status = 'waiting'`,
-      [id, bid]
-    );
+    // V13-009: Add practitioner scope check
+    let offerSql = `SELECT * FROM waitlist_entries WHERE id = $1 AND business_id = $2 AND status = 'waiting'`;
+    const offerParams = [id, bid];
+    if (req.practitionerFilter) {
+      offerSql += ` AND practitioner_id = $3`;
+      offerParams.push(req.practitionerFilter);
+    }
+    const entry = await queryWithRLS(bid, offerSql, offerParams);
     if (entry.rows.length === 0) {
       return res.status(404).json({ error: 'Entrée introuvable ou déjà traitée' });
     }
@@ -251,12 +267,16 @@ router.post('/:id/offer', async (req, res, next) => {
 router.post('/:id/contact', async (req, res, next) => {
   try {
     const { outcome } = req.body; // 'booked' or 'declined'
-    await queryWithRLS(req.businessId,
-      `UPDATE waitlist_entries SET
+    // V13-010: Add practitioner scope check
+    let contactSql = `UPDATE waitlist_entries SET
         status = $1, updated_at = NOW()
-       WHERE id = $2 AND business_id = $3`,
-      [outcome === 'booked' ? 'booked' : 'declined', req.params.id, req.businessId]
-    );
+       WHERE id = $2 AND business_id = $3`;
+    const contactParams = [outcome === 'booked' ? 'booked' : 'declined', req.params.id, req.businessId];
+    if (req.practitionerFilter) {
+      contactSql += ` AND practitioner_id = $4`;
+      contactParams.push(req.practitionerFilter);
+    }
+    await queryWithRLS(req.businessId, contactSql, contactParams);
     res.json({ updated: true });
   } catch (err) { next(err); }
 });

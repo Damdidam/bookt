@@ -33,7 +33,8 @@ router.post('/testimonials', async (req, res, next) => {
       return res.status(400).json({ error: 'author_name et content requis' });
     }
 
-    const initials = author_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    // V13-029: Filter empty strings from consecutive spaces
+    const initials = author_name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
     // Get next sort order
     const maxOrder = await queryWithRLS(req.businessId,
@@ -495,6 +496,10 @@ router.get('/onboarding', async (req, res, next) => {
 router.patch('/onboarding', async (req, res, next) => {
   try {
     const { step, completed } = req.body;
+
+    // V13-020: Validate onboarding step
+    const VALID_STEPS = ['cabinet_info', 'schedule', 'services', 'team', 'bio_description', 'specializations', 'testimonials', 'notifications', 'call_filter', 'go_live'];
+    if (!VALID_STEPS.includes(step)) return res.status(400).json({ error: 'Étape invalide' });
 
     // Get current
     const current = await queryWithRLS(req.businessId,

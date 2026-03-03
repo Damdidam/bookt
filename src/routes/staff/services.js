@@ -159,8 +159,9 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
         );
         const validIds = validPracs.rows.map(r => r.id);
         await client.query(
-          `DELETE FROM practitioner_services WHERE service_id = $1`,
-          [id]
+          `DELETE FROM practitioner_services WHERE service_id = $1
+           AND practitioner_id IN (SELECT id FROM practitioners WHERE business_id = $2)`,
+          [id, bid]
         );
         for (const pid of validIds) {
           await client.query(

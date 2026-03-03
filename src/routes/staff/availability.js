@@ -172,10 +172,14 @@ router.post('/exceptions', async (req, res, next) => {
 // DELETE /api/availability-exceptions/:id
 router.delete('/exceptions/:id', async (req, res, next) => {
   try {
-    await queryWithRLS(req.businessId,
-      `DELETE FROM availability_exceptions WHERE id = $1 AND business_id = $2`,
-      [req.params.id, req.businessId]
-    );
+    // V13-015: Add practitioner ownership check for practitioner role
+    let sql = `DELETE FROM availability_exceptions WHERE id = $1 AND business_id = $2`;
+    const params = [req.params.id, req.businessId];
+    if (req.user.role === 'practitioner') {
+      sql += ` AND practitioner_id = $3`;
+      params.push(req.user.practitionerId);
+    }
+    await queryWithRLS(req.businessId, sql, params);
     res.json({ deleted: true });
   } catch (err) {
     next(err);

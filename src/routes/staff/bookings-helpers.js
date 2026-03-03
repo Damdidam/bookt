@@ -107,6 +107,18 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
     // No custom_hours and no closed: fall through to weekly schedule check
   }
 
+  // BK-V13-007: Check end date for cross-day bookings (start date may be open but end date closed)
+  const endDateStr = end.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  if (endDateStr !== dateStr) {
+    const excEnd = await queryWithRLS(bid,
+      `SELECT type FROM availability_exceptions WHERE business_id = $1 AND practitioner_id = $2 AND date = $3`,
+      [bid, pracId, endDateStr]
+    );
+    if (excEnd.rows.some(ex => ex.type === 'closed')) {
+      return { ok: false, reason: 'Ce praticien est indisponible le jour de fin' };
+    }
+  }
+
   // 2. Check weekly availability
   const avail = await queryWithRLS(bid,
     `SELECT start_time, end_time FROM availabilities

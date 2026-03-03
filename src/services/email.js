@@ -399,8 +399,6 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail, sendSessionNotesEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
-
 /**
  * Send password reset email
  */
@@ -429,3 +427,5 @@ async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
     html
   });
 }
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail, sendSessionNotesEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

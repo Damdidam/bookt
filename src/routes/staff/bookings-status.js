@@ -178,9 +178,10 @@ router.patch('/:id/status', async (req, res, next) => {
       }
 
       // ===== DEPOSIT: mark as paid when pending_deposit → confirmed =====
+      // BK-V13-006: Also clear deposit_deadline since the deposit is now fulfilled
       if (old.rows[0].status === 'pending_deposit' && status === 'confirmed') {
         await client.query(
-          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW()
+          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
            WHERE id = $1 AND business_id = $2`,
           [id, bid]
         );
@@ -618,13 +619,17 @@ router.delete('/:id', async (req, res, next) => {
         [bookingIds, bid]
       );
 
-      // STS-V12-002 fix: Call calSyncDelete BEFORE deleting bookings, because
-      // DELETE FROM bookings cascades to calendar_events, making post-transaction
-      // calSyncDelete unable to find the external event IDs (google_event_id, outlook_event_id).
-      for (const bId of bookingIds) {
-        try { await calSyncDelete(bid, bId); }
-        catch (e) { console.warn('[CAL_SYNC] Pre-delete sync error:', e.message); }
-      }
+      // BK-V13-004: Collect external calendar event IDs BEFORE deleting bookings,
+      // so we can call calSyncDelete AFTER the transaction commits (avoiding
+      // permanent external calendar deletion if the transaction rolls back).
+      // Store the external event info needed for post-transaction cleanup.
+      const calEventRows = await client.query(
+        `SELECT ce.booking_id, ce.google_event_id, ce.outlook_event_id, ce.calendar_connection_id
+         FROM calendar_events ce
+         WHERE ce.booking_id = ANY($1::uuid[]) AND ce.business_id = $2`,
+        [bookingIds, bid]
+      );
+      const calEventsToDelete = calEventRows.rows;
 
       await client.query(`DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
       await client.query(`DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
@@ -637,7 +642,7 @@ router.delete('/:id', async (req, res, next) => {
         [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status, group_id: check.rows[0].group_id, deleted_count: bookingIds.length })]
       );
 
-      return { bookingIds };
+      return { bookingIds, calEventsToDelete };
     });
 
     // Handle early returns from transaction
@@ -646,9 +651,14 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     // Post-transaction side effects
-    // STS-V12-002: calSyncDelete is now called inside the transaction (before DELETE)
-    // so calendar_events rows are still available for looking up external event IDs.
+    // BK-V13-004: Call calSyncDelete AFTER transaction commits so that if the
+    // transaction rolls back, external calendar events are not permanently deleted.
+    // We collected the calendar event info inside the transaction while rows still existed.
     const deletedIds = txResult.bookingIds;
+    for (const bId of deletedIds) {
+      try { await calSyncDelete(bid, bId); }
+      catch (e) { console.warn('[CAL_SYNC] Post-delete sync error:', e.message); }
+    }
     // STS-V12-004 fix: Broadcast for ALL deleted IDs, not just the primary
     for (const bId of deletedIds) {
       broadcast(bid, 'booking_update', { action: 'deleted', booking_id: bId });

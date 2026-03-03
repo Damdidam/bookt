@@ -495,6 +495,12 @@ async function calCreateBooking() {
     if (isFreestyle) {
       const endTime = document.getElementById('qcFreeEnd').value;
       if (!endTime) { gToast('Heure de fin requise', 'error'); return; }
+      const [sh, sm] = time.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      if ((eh * 60 + em) <= (sh * 60 + sm)) {
+        gToast("L'heure de fin doit être après l'heure de début", 'error');
+        return;
+      }
       const end_at = toBrusselsISO(date, endTime);
       const customLabel = document.getElementById('qcFreeLabel').value.trim() || null;
       if (customLabel && customLabel.length > 200) { gToast('Intitulé trop long (max 200 caractères)', 'error'); return; }

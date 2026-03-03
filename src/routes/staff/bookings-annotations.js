@@ -5,6 +5,9 @@ const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { sendPreRdvEmail } = require('../../services/email');
 
+// BK-V13-005: UUID validation regex
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // CRT-16 to CRT-23: Helper to check practitioner scope on booking endpoints
 async function checkPracScope(req, res, bid, bookingId) {
   if (!req.practitionerFilter) return true;
@@ -22,6 +25,7 @@ router.patch('/:id/note', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { internal_note, color } = req.body;
 
     if (!(await checkPracScope(req, res, bid, id))) return;
@@ -73,6 +77,7 @@ router.patch('/:id/session-notes', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { session_notes } = req.body;
 
     if (!(await checkPracScope(req, res, bid, id))) return;
@@ -102,6 +107,7 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { session_notes } = req.body;
 
     if (!(await checkPracScope(req, res, bid, id))) return;
@@ -222,6 +228,7 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
 router.post('/:id/notes', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { content, is_pinned } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
     if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
@@ -253,6 +260,8 @@ router.post('/:id/notes', async (req, res, next) => {
 router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
+    if (!UUID_RE.test(req.params.noteId)) return res.status(400).json({ error: 'ID invalide' });
 
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
@@ -273,6 +282,7 @@ router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
 router.post('/:id/todos', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
     if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
@@ -304,6 +314,8 @@ router.post('/:id/todos', async (req, res, next) => {
 router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
+    if (!UUID_RE.test(req.params.todoId)) return res.status(400).json({ error: 'ID invalide' });
     const { is_done, content } = req.body;
 
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
@@ -357,6 +369,8 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
 router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
+    if (!UUID_RE.test(req.params.todoId)) return res.status(400).json({ error: 'ID invalide' });
 
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
@@ -377,6 +391,7 @@ router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
 router.post('/:id/reminders', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { offset_minutes, channel, message } = req.body;
     if (message && message.length > 5000) return res.status(400).json({ error: 'Message trop long (max 5000 caractères)' });
     const offset = Math.min(10080, Math.max(1, parseInt(offset_minutes) || 30)); // 1 min to 7 days
@@ -419,6 +434,8 @@ router.post('/:id/reminders', async (req, res, next) => {
 router.delete('/:bookingId/reminders/:reminderId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    if (!UUID_RE.test(req.params.bookingId)) return res.status(400).json({ error: 'ID invalide' });
+    if (!UUID_RE.test(req.params.reminderId)) return res.status(400).json({ error: 'ID invalide' });
 
     if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
@@ -441,6 +458,7 @@ router.post('/:id/send-document', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const bookingId = req.params.id;
+    if (!UUID_RE.test(bookingId)) return res.status(400).json({ error: 'ID invalide' });
     const { template_id } = req.body;
     if (!template_id) return res.status(400).json({ error: 'template_id requis' });
 
@@ -452,13 +470,15 @@ router.post('/:id/send-document', async (req, res, next) => {
               c.full_name AS client_name, c.email AS client_email,
               s.name AS service_name
        FROM bookings b
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [bookingId, bid]
     );
     if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
     const booking = bk.rows[0];
+    // BK-V13-009: Explicit check for missing client (LEFT JOIN no longer hides this)
+    if (!booking.client_id) return res.status(400).json({ error: 'Ce RDV n\'a pas de client associé' });
     if (['cancelled', 'no_show'].includes(booking.status)) {
       return res.status(400).json({ error: 'Impossible d\'envoyer un document pour un RDV annulé ou no-show' });
     }

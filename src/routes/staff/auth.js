@@ -135,7 +135,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
 
     // Fetch user info with business details
     const userResult = await query(
-      `SELECT u.id, u.email, u.role, u.business_id, u.practitioner_id, b.name AS business_name
+      `SELECT u.id, u.email, u.role, u.business_id, b.name AS business_name
        FROM users u JOIN businesses b ON b.id = u.business_id
        WHERE u.id = $1 AND u.is_active = true AND b.is_active = true`,
       [user_id]

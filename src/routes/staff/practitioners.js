@@ -77,6 +77,10 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
 
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
 
+    // V13-019: Check practitioner exists before writing file
+    const pracCheck = await queryWithRLS(bid, `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]);
+    if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
+
     // Parse data URI
     const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
     if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP requis)' });

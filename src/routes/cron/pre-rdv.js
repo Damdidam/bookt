@@ -107,11 +107,19 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
             // 5. Create send record + send email
             const token = crypto.randomBytes(32).toString('hex');
 
-            await query(
+            const insertResult = await query(
               `INSERT INTO pre_rdv_sends (business_id, booking_id, template_id, client_id, email_to, token, status)
-               VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+               VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+               ON CONFLICT (booking_id, template_id) DO NOTHING
+               RETURNING id`,
               [booking.business_id, booking.id, template.id, booking.client_id, booking.client_email, token]
             );
+
+            // Another cron instance already inserted this row — skip
+            if (insertResult.rows.length === 0) {
+              totalSkipped++;
+              continue;
+            }
 
             const business = {
               name: template.business_name,

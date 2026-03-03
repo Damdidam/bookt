@@ -12,7 +12,6 @@ import { fcOpenQuickCreate } from './quick-create.js';
 import { atView } from './calendar-toolbar.js';
 import { fsIsActive, fsHandleDateClick, fsBuildBackgroundEvents } from './calendar-featured.js';
 import { storeUndoAction } from './booking-undo.js';
-import { fcCheckBusinessHours } from './booking-save.js';
 
 // Default color fallback for practitioner/service/booking accents
 const DEFAULT_ACCENT = '#0D7377';

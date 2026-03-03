@@ -193,6 +193,9 @@ router.get('/public-link', async (req, res, next) => {
       [req.businessId]
     );
 
+    // V13-024: Guard against no rows
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+
     const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
     const slug = result.rows[0].slug;
 

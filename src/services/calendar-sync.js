@@ -4,6 +4,8 @@
  * Handles: OAuth2 flow, push events, pull busy times, token refresh
  */
 
+const { pool } = require('./db');
+
 // ============================================================
 // GOOGLE CALENDAR
 // ============================================================
@@ -194,16 +196,20 @@ async function getValidToken(connection, queryFn) {
   }
 
   const refreshPromise = (async () => {
+    const client = await pool.connect();
     try {
-      // Re-read the connection from DB to check if another process already refreshed the token
-      const freshConn = await queryFn(
-        `SELECT access_token, token_expires_at FROM calendar_connections WHERE id = $1`,
+      await client.query('BEGIN');
+
+      // Re-read the connection from DB with FOR UPDATE to prevent concurrent refresh races
+      const freshConn = await client.query(
+        `SELECT access_token, token_expires_at FROM calendar_connections WHERE id = $1 FOR UPDATE`,
         [connection.id]
       );
       if (freshConn.rows.length > 0) {
         const freshExpiry = new Date(freshConn.rows[0].token_expires_at);
         if (freshExpiry > new Date(Date.now() + 5 * 60000)) {
-          // Token was already refreshed by another request
+          // Token was already refreshed by another process
+          await client.query('COMMIT');
           return freshConn.rows[0].access_token;
         }
       }
@@ -216,7 +222,7 @@ async function getValidToken(connection, queryFn) {
       }
 
       // Update stored tokens
-      await queryFn(
+      await client.query(
         `UPDATE calendar_connections SET
           access_token = $1,
           token_expires_at = $2,
@@ -233,8 +239,13 @@ async function getValidToken(connection, queryFn) {
         ]
       );
 
+      await client.query('COMMIT');
       return tokenData.access_token;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
     } finally {
+      client.release();
       _refreshLocks.delete(lockKey);
     }
   })();
@@ -425,12 +436,12 @@ async function pullBusyTimes(connection, startDate, endDate, queryFn) {
     const result = await outlookApiCall(accessToken, `/me/calendarView?${params}`);
     (result.value || []).forEach(ev => {
       // Skip free/tentative
-      if (ev.showAs === 'free') return;
+      if (ev.showAs === 'free' || ev.showAs === 'tentative') return;
       events.push({
         external_event_id: ev.id,
         title: ev.subject || '(occupé)',
-        start_at: ev.start?.dateTime,
-        end_at: ev.end?.dateTime,
+        start_at: ev.start?.dateTime || ev.start?.date,
+        end_at: ev.end?.dateTime || ev.end?.date,
         is_busy: true
       });
     });
@@ -445,6 +456,31 @@ async function pullBusyTimes(connection, startDate, endDate, queryFn) {
          title = EXCLUDED.title, start_at = EXCLUDED.start_at, end_at = EXCLUDED.end_at,
          is_busy = EXCLUDED.is_busy, synced_at = NOW()`,
       [connection.id, ev.external_event_id, ev.title, ev.start_at, ev.end_at, ev.is_busy]
+    );
+  }
+
+  // Clean up stale events: delete pulled calendar_events for this connection
+  // that are within the pulled date range but no longer appear in the external calendar
+  const pulledIds = events.map(ev => ev.external_event_id);
+  if (pulledIds.length > 0) {
+    await queryFn(
+      `DELETE FROM calendar_events
+       WHERE connection_id = $1
+         AND direction = 'pull'
+         AND start_at >= $2
+         AND end_at <= $3
+         AND external_event_id != ALL($4)`,
+      [connection.id, startDate.toISOString(), endDate.toISOString(), pulledIds]
+    );
+  } else {
+    // No events pulled — remove all pulled events in this date range
+    await queryFn(
+      `DELETE FROM calendar_events
+       WHERE connection_id = $1
+         AND direction = 'pull'
+         AND start_at >= $2
+         AND end_at <= $3`,
+      [connection.id, startDate.toISOString(), endDate.toISOString()]
     );
   }
 
