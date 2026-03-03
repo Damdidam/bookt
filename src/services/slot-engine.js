@@ -18,6 +18,10 @@ const { getBusyBlocks } = require('./calendar-sync');
  */
 
 async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFrom, dateTo, appointmentMode }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+    throw Object.assign(new Error('Format de date invalide'), { type: 'validation' });
+  }
+
   // 1. Fetch business settings
   const bizResult = await queryWithRLS(businessId,
     `SELECT settings FROM businesses WHERE id = $1 AND is_active = true`,
@@ -153,9 +157,12 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
       }
     }
   } catch (e) {
-    // Non-critical: if calendar_events table doesn't exist yet or no connections,
-    // just continue without external busy blocks
-    console.warn('Calendar busy blocks unavailable:', e.message);
+    // Only swallow "undefined table" errors (calendar_events not yet created)
+    if (e.code === '42P01') {
+      console.warn('Calendar busy blocks unavailable:', e.message);
+    } else {
+      throw e;
+    }
   }
 
   // 7. Generate slots
@@ -226,7 +233,14 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
           if (slotStart <= new Date()) continue;
 
           // Check for conflicts with existing bookings (capacity-aware)
-          const overlapCount = dayBookings.filter(bk => slotStart < bk.end && slotEnd > bk.start).length;
+          // Expand existing bookings by buffer times to prevent back-to-back conflicts
+          const bufferBefore = (service.buffer_before_min || 0) * 60000;
+          const bufferAfter = (service.buffer_after_min || 0) * 60000;
+          const overlapCount = dayBookings.filter(bk => {
+            const effectiveStart = new Date(bk.start.getTime() - bufferBefore);
+            const effectiveEnd = new Date(bk.end.getTime() + bufferAfter);
+            return slotStart < effectiveEnd && slotEnd > effectiveStart;
+          }).length;
 
           if (overlapCount < (capacityMap[pracId] || 1)) {
             slots.push({

@@ -138,7 +138,7 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
 // ============================================================
 router.get('/waitlist-expired', async (req, res) => {
   if (req.query.key !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Invalid cron key' });
+    return res.status(403).json({ error: 'Invalid cron key' });
   }
 
   try {

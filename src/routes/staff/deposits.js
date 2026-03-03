@@ -137,7 +137,7 @@ router.get('/export', async (req, res, next) => {
       idx++;
     }
 
-    sql += ` ORDER BY b.created_at DESC`;
+    sql += ` ORDER BY b.created_at DESC LIMIT 10000`;
 
     const result = await queryWithRLS(bid, sql, params);
 

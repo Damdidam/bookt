@@ -9,8 +9,10 @@ import { closeCalModal } from './booking-detail.js';
 import { storeUndoAction } from './booking-undo.js';
 
 async function fcSetStatus(newStatus) {
-  const oldStatus = calState.fcCurrentBooking?.status;
+  if (fcSetStatus._busy) return;
+  fcSetStatus._busy = true;
   try {
+    const oldStatus = calState.fcCurrentBooking?.status;
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
@@ -27,10 +29,13 @@ async function fcSetStatus(newStatus) {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { fcSetStatus._busy = false; }
 }
 
 async function fcPurgeBooking() {
   if (!confirm('Supprimer d\u00e9finitivement ce RDV ? Cette action est irr\u00e9versible.')) return;
+  if (fcPurgeBooking._busy) return;
+  fcPurgeBooking._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}`, {
       method: 'DELETE',
@@ -41,6 +46,7 @@ async function fcPurgeBooking() {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { fcPurgeBooking._busy = false; }
 }
 
 async function fcMarkDepositPaid() {

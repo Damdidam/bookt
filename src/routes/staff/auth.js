@@ -29,7 +29,8 @@ router.post('/login', authLimiter, async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      // Don't reveal whether email exists
+      // Don't reveal whether email exists — dummy bcrypt to normalize timing
+      if (password) await bcrypt.compare(password, '$2b$12$K4z0Bx0dQ5xP0xP0xP0xP.0xP0xP0xP0xP0xP0xP0xP0xP0xP0x');
       return res.json({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
     }
 
@@ -67,6 +68,10 @@ router.post('/login', authLimiter, async (req, res, next) => {
       });
     }
 
+    if (password && !user.password_hash) {
+      return res.status(401).json({ error: 'Aucun mot de passe configuré. Utilisez le lien magique.' });
+    }
+
     // Magic link flow
     // 1. Invalidate previous unused links
     await query(
@@ -85,7 +90,9 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
     // 3. Queue email (in production, send via Brevo)
     // For now, log it
-    console.log(`\n  Magic link for ${email}: ${magicUrl}\n`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n  Magic link for ${email}: ${magicUrl}\n`);
+    }
 
     // TODO: Send email via Brevo
     // await sendMagicLinkEmail(email, magicUrl, user.business_name);
@@ -188,7 +195,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
               p.display_name AS practitioner_name, p.id AS practitioner_id
        FROM users u
        JOIN businesses b ON b.id = u.business_id
-       LEFT JOIN practitioners p ON p.user_id = u.id AND p.is_active = true
+       LEFT JOIN practitioners p ON p.user_id = u.id AND p.business_id = u.business_id AND p.is_active = true
        WHERE u.id = $1`,
       [req.user.id]
     );
@@ -244,7 +251,7 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       `SELECT u.id, u.email, u.role, b.name AS business_name
        FROM users u
        JOIN businesses b ON b.id = u.business_id
-       WHERE u.email = $1 AND u.is_active = true`,
+       WHERE u.email = $1 AND u.is_active = true AND b.is_active = true`,
       [email.toLowerCase().trim()]
     );
 
@@ -281,7 +288,9 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
       businessName: user.business_name
     });
 
-    console.log(`\n  Password reset for ${email}: ${resetUrl}\n`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n  Password reset for ${email}: ${resetUrl}\n`);
+    }
 
     res.json({ message: genericMsg });
   } catch (err) { next(err); }

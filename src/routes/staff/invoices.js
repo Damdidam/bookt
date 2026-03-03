@@ -232,14 +232,16 @@ router.get('/:id/pdf', async (req, res, next) => {
 router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const check = await queryWithRLS(bid,
-      `SELECT status FROM invoices WHERE id = $1 AND business_id = $2`, [req.params.id, bid]
-    );
-    if (check.rows.length === 0) return res.status(404).json({ error: 'Facture introuvable' });
-    if (check.rows[0].status !== 'draft') return res.status(400).json({ error: 'Seuls les brouillons peuvent être supprimés' });
 
+    // Atomic delete: only deletes if draft, returns id to confirm deletion
     await queryWithRLS(bid, `DELETE FROM invoice_items WHERE invoice_id = $1`, [req.params.id]);
-    await queryWithRLS(bid, `DELETE FROM invoices WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
+    const result = await queryWithRLS(bid,
+      `DELETE FROM invoices WHERE id = $1 AND business_id = $2 AND status = 'draft' RETURNING id`,
+      [req.params.id, bid]
+    );
+    if (result.rowCount === 0) {
+      return res.status(400).json({ error: 'Facture introuvable ou non supprimable (seuls les brouillons peuvent être supprimés)' });
+    }
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });

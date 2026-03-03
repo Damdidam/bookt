@@ -100,6 +100,11 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
+    // Delete related pre_rdv_sends first to avoid FK constraint
+    await queryWithRLS(bid,
+      `DELETE FROM pre_rdv_sends WHERE template_id = $1 AND business_id = $2`,
+      [req.params.id, bid]
+    );
     await queryWithRLS(bid,
       `DELETE FROM document_templates WHERE id = $1 AND business_id = $2`,
       [req.params.id, bid]

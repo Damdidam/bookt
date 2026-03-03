@@ -3,7 +3,7 @@
  * client autocomplete, and full tabs (Notes, Tâches, Rappels) matching Detail modal.
  */
 import { api, calState, userRole, user, viewState, categoryLabels, sectorLabels } from '../../state.js';
-import { esc, gToast } from '../../utils/dom.js';
+import { esc, safeId, gToast } from '../../utils/dom.js';
 import { fcIsMobile } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
@@ -112,12 +112,13 @@ function fcOpenQuickCreate(startStr, endStr) {
 
 // ── Gradient header ──
 function qcUpdateGradient(color) {
+  const safe = /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : '#0D7377';
   const hdr = document.getElementById('qcHeaderBg');
   const avatar = document.getElementById('qcAvatar');
   const btn = document.getElementById('qcBtnCreate');
-  if (hdr) hdr.style.background = `linear-gradient(135deg,${color} 0%,${color}AA 60%,${color}55 100%)`;
-  if (avatar) avatar.style.background = `linear-gradient(135deg,${color},${color}CC)`;
-  if (btn) { btn.style.background = color; btn.style.boxShadow = `0 2px 8px ${color}40`; }
+  if (hdr) hdr.style.background = `linear-gradient(135deg,${safe} 0%,${safe}AA 60%,${safe}55 100%)`;
+  if (avatar) avatar.style.background = `linear-gradient(135deg,${safe},${safe}CC)`;
+  if (btn) { btn.style.background = safe; btn.style.boxShadow = `0 2px 8px ${safe}40`; }
 }
 
 // ── Tab switching ──
@@ -274,7 +275,7 @@ function calSearchClients(q) {
         const blTag = c.is_blocked
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
           : '';
-        return `<div class="ac-item" onclick="calPickClient('${c.id}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
+        return `<div class="ac-item" onclick="calPickClient('${safeId(c.id)}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
       }).join('');
       h += `<div class="ac-item ac-new" onclick="calNewClient()">+ ${categoryLabels.client} : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';
@@ -438,22 +439,22 @@ function qcRenderReminders() {
 async function calCreateBooking() {
   if (calCreateBooking._busy) return;
   calCreateBooking._busy = true;
-  const clientName = document.getElementById('qcClient').value.trim();
-  const clientId = document.getElementById('qcClientId').value;
-  const pracId = document.getElementById('qcPrac').value;
-  const date = document.getElementById('qcDate').value;
-  const time = document.getElementById('qcTime').value;
-  const mode = document.getElementById('qcMode').value;
-  const comment = document.getElementById('qcComment').value.trim();
-  const intNote = document.getElementById('qcIntNote').value.trim();
-  const isFreestyle = document.getElementById('qcFreestyle').checked;
-
-  if (!clientName) { calCreateBooking._busy = false; gToast('Nom requis', 'error'); return; }
-  if (!date || !time) { calCreateBooking._busy = false; gToast('Date et heure requises', 'error'); return; }
-
-  const start_at = toBrusselsISO(date, time);
-
   try {
+    const clientName = document.getElementById('qcClient').value.trim();
+    const clientId = document.getElementById('qcClientId').value;
+    const pracId = document.getElementById('qcPrac').value;
+    const date = document.getElementById('qcDate').value;
+    const time = document.getElementById('qcTime').value;
+    const mode = document.getElementById('qcMode').value;
+    const comment = document.getElementById('qcComment').value.trim();
+    const intNote = document.getElementById('qcIntNote').value.trim();
+    const isFreestyle = document.getElementById('qcFreestyle').checked;
+
+    if (!clientName) { gToast('Nom requis', 'error'); return; }
+    if (!date || !time) { gToast('Date et heure requises', 'error'); return; }
+
+    const start_at = toBrusselsISO(date, time);
+
     const clientEmail = document.getElementById('qcClientEmail')?.value.trim() || '';
     const clientPhone = document.getElementById('qcClientPhone')?.value.trim() || '';
 
@@ -490,7 +491,7 @@ async function calCreateBooking() {
     let body;
     if (isFreestyle) {
       const endTime = document.getElementById('qcFreeEnd').value;
-      if (!endTime) { calCreateBooking._busy = false; gToast('Heure de fin requise', 'error'); return; }
+      if (!endTime) { gToast('Heure de fin requise', 'error'); return; }
       const end_at = toBrusselsISO(date, endTime);
       body = {
         freestyle: true,
@@ -509,7 +510,7 @@ async function calCreateBooking() {
     } else {
       const serviceItems = document.querySelectorAll('.qc-svc-item select');
       const services = [...serviceItems].map(sel => ({ service_id: sel.value }));
-      if (services.length === 0) { calCreateBooking._busy = false; gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
+      if (services.length === 0) { gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
 
       body = {
         practitioner_id: pracId,
@@ -586,8 +587,8 @@ async function calCreateBooking() {
 
     closeCalModal('calCreateModal');
     fcRefresh();
-    calCreateBooking._busy = false;
-  } catch (e) { calCreateBooking._busy = false; gToast('Erreur: ' + e.message, 'error'); }
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { calCreateBooking._busy = false; }
 }
 
 /**

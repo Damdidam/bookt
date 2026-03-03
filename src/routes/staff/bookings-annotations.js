@@ -5,6 +5,15 @@ const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { sendPreRdvEmail } = require('../../services/email');
 
+// CRT-16 to CRT-23: Helper to check practitioner scope on booking endpoints
+async function checkPracScope(req, res, bid, bookingId) {
+  if (!req.practitionerFilter) return true;
+  const bk = await queryWithRLS(bid, 'SELECT practitioner_id FROM bookings WHERE id = $1 AND business_id = $2', [bookingId, bid]);
+  if (bk.rows.length === 0) { res.status(404).json({ error: 'RDV introuvable' }); return false; }
+  if (String(bk.rows[0].practitioner_id) !== String(req.practitionerFilter)) { res.status(403).json({ error: 'Accès interdit' }); return false; }
+  return true;
+}
+
 // ============================================================
 // PATCH /api/bookings/:id/note — Quick internal note
 // UI: Calendar → event detail → internal note field
@@ -14,6 +23,8 @@ router.patch('/:id/note', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
     const { internal_note, color } = req.body;
+
+    if (!(await checkPracScope(req, res, bid, id))) return;
 
     // Bug B4 fix: size limit on internal_note
     if (internal_note && internal_note.length > 10000) {
@@ -64,6 +75,8 @@ router.patch('/:id/session-notes', async (req, res, next) => {
     const { id } = req.params;
     const { session_notes } = req.body;
 
+    if (!(await checkPracScope(req, res, bid, id))) return;
+
     if (session_notes && session_notes.length > 50000) {
       return res.status(400).json({ error: 'Notes de séance trop longues (max 50000 caractères)' });
     }
@@ -90,6 +103,8 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
     const { session_notes } = req.body;
+
+    if (!(await checkPracScope(req, res, bid, id))) return;
 
     if (!session_notes || session_notes.trim() === '' || session_notes.trim() === '<br>') {
       return res.status(400).json({ error: 'Notes de séance vides' });
@@ -137,14 +152,21 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     // Sanitize session notes before sending by email (strip scripts, event handlers, dangerous tags)
     const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
     let safeHTML = (session_notes || '');
-    safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
-    safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
+    // CRT-19: Wrap tag removal in a do-while loop until stable (same pattern as event handler removal)
+    let prevTag;
+    do {
+      prevTag = safeHTML;
+      safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
+      safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
+    } while (safeHTML !== prevTag);
     // Remove event handlers — loop until stable to prevent chained handler bypass
     let prev;
     do {
       prev = safeHTML;
       safeHTML = safeHTML.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
     } while (safeHTML !== prev);
+    // Block javascript: protocol in href attributes
+    safeHTML = safeHTML.replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
     // Remove dangerous protocol URLs in href/src/action (including HTML-entity-encoded variants)
     safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
       // Decode HTML entities for protocol check
@@ -192,6 +214,8 @@ router.post('/:id/notes', async (req, res, next) => {
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
     if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
 
+    if (!(await checkPracScope(req, res, bid, req.params.id))) return;
+
     // Verify booking exists
     const bkCheck = await queryWithRLS(bid, `SELECT id FROM bookings WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
     if (bkCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
@@ -210,6 +234,9 @@ router.post('/:id/notes', async (req, res, next) => {
 router.delete('/:bookingId/notes/:noteId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
+
     const result = await queryWithRLS(bid,
       `DELETE FROM booking_notes WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
       [req.params.noteId, req.params.bookingId, bid]
@@ -231,6 +258,8 @@ router.post('/:id/todos', async (req, res, next) => {
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
     if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
 
+    if (!(await checkPracScope(req, res, bid, req.params.id))) return;
+
     // Verify booking exists
     const bkCheck = await queryWithRLS(bid, `SELECT id FROM bookings WHERE id = $1 AND business_id = $2`, [req.params.id, bid]);
     if (bkCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
@@ -250,6 +279,8 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { is_done, content } = req.body;
+
+    if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
 
     const sets = [];
     const params = [];
@@ -291,6 +322,9 @@ router.patch('/:bookingId/todos/:todoId', async (req, res, next) => {
 router.delete('/:bookingId/todos/:todoId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
+
     const result = await queryWithRLS(bid,
       `DELETE FROM practitioner_todos WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
       [req.params.todoId, req.params.bookingId, bid]
@@ -312,6 +346,8 @@ router.post('/:id/reminders', async (req, res, next) => {
     if (message && message.length > 5000) return res.status(400).json({ error: 'Message trop long (max 5000 caractères)' });
     const offset = Math.min(10080, Math.max(1, parseInt(offset_minutes) || 30)); // 1 min to 7 days
     const ch = ['browser', 'email', 'both'].includes(channel) ? channel : 'browser';
+
+    if (!(await checkPracScope(req, res, bid, req.params.id))) return;
 
     // Get booking start time to calculate remind_at
     const bk = await queryWithRLS(bid,
@@ -336,6 +372,9 @@ router.post('/:id/reminders', async (req, res, next) => {
 router.delete('/:bookingId/reminders/:reminderId', async (req, res, next) => {
   try {
     const bid = req.businessId;
+
+    if (!(await checkPracScope(req, res, bid, req.params.bookingId))) return;
+
     const result = await queryWithRLS(bid,
       `DELETE FROM booking_reminders WHERE id = $1 AND booking_id = $2 AND business_id = $3 RETURNING id`,
       [req.params.reminderId, req.params.bookingId, bid]
@@ -357,6 +396,8 @@ router.post('/:id/send-document', async (req, res, next) => {
     const bookingId = req.params.id;
     const { template_id } = req.body;
     if (!template_id) return res.status(400).json({ error: 'template_id requis' });
+
+    if (!(await checkPracScope(req, res, bid, bookingId))) return;
 
     // Get booking + client email
     const bk = await queryWithRLS(bid,

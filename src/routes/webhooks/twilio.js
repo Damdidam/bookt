@@ -274,21 +274,21 @@ function buildMessages(lang, s, bookingUrl, mode) {
 }
 
 async function checkBusinessHours(businessId) {
+  // Get current time in Brussels timezone
   const now = new Date();
-  const dayIndex = (now.getDay() + 6) % 7; // 0=Mon
-  const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+  const brusselsStr = now.toLocaleString('sv-SE', { timeZone: 'Europe/Brussels' });
+  const brusselsDate = new Date(brusselsStr);
+  const dayIndex = (brusselsDate.getDay() + 6) % 7; // 0=Mon
+  const currentTime = brusselsStr.split(' ')[1].slice(0, 5); // "HH:MM"
 
   const result = await query(
-    `SELECT schedule FROM availabilities WHERE business_id = $1 AND is_active = true LIMIT 1`,
-    [businessId]
+    `SELECT start_time, end_time FROM availabilities
+     WHERE business_id = $1 AND weekday = $2 AND is_active = true`,
+    [businessId, dayIndex]
   );
   if (result.rows.length === 0) return false;
 
-  const schedule = result.rows[0].schedule;
-  if (!schedule || !schedule[dayIndex]) return false;
-
-  const slots = schedule[dayIndex].filter(s => s.is_active !== false);
-  return slots.some(slot => currentTime >= slot.opens && currentTime <= slot.closes);
+  return result.rows.some(row => currentTime >= row.start_time && currentTime <= row.end_time);
 }
 
 async function logCall(businessId, callSid, from, to, action, result) {

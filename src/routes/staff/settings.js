@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -91,9 +91,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       mergedSettings = cur;
     }
 
-    // If slug is changing, verify uniqueness
+    // If slug is changing, verify uniqueness (global check, no RLS)
     if (slug) {
-      const existing = await queryWithRLS(bid,
+      const existing = await query(
         `SELECT id FROM businesses WHERE slug = $1 AND id != $2`,
         [slug, bid]
       );
@@ -102,13 +102,13 @@ router.patch('/', requireOwner, async (req, res, next) => {
       }
     }
 
-    // Ensure languages_spoken is a proper PG array literal
+    // Pass languages_spoken as a proper array for PG
     let langArray = null;
     if (languages_spoken) {
       if (Array.isArray(languages_spoken)) {
-        langArray = `{${languages_spoken.join(',')}}`;
+        langArray = languages_spoken;
       } else if (typeof languages_spoken === 'string') {
-        langArray = languages_spoken.startsWith('{') ? languages_spoken : `{${languages_spoken}}`;
+        langArray = languages_spoken.replace(/[{}]/g, '').split(',').map(s => s.trim()).filter(Boolean);
       }
     }
 
@@ -129,7 +129,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         accreditation = COALESCE($13, accreditation),
         bce_number = COALESCE($14, bce_number),
         parking_info = COALESCE($15, parking_info),
-        languages_spoken = COALESCE($16, languages_spoken),
+        languages_spoken = COALESCE($16::text[], languages_spoken),
         social_links = COALESCE($17::jsonb, social_links),
         page_sections = COALESCE($18::jsonb, page_sections),
         seo_title = COALESCE($19, seo_title),
@@ -186,6 +186,7 @@ router.get('/public-link', async (req, res, next) => {
 // ============================================================
 router.patch('/dev/plan', requireOwner, async (req, res, next) => {
   try {
+    if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Non disponible en production' });
     const { plan } = req.body;
     const allowed = ['free', 'pro', 'premium'];
     if (!allowed.includes(plan)) {

@@ -61,7 +61,8 @@ router.get('/', async (req, res, next) => {
       idx++;
     }
 
-    sql += ' ORDER BY b.start_at';
+    sql += ` ORDER BY b.start_at LIMIT $${idx}`;
+    params.push(parseInt(req.query.limit) || 500);
 
     const result = await queryWithRLS(bid, sql, params);
 
@@ -124,23 +125,23 @@ router.get('/:id/detail', async (req, res, next) => {
       `SELECT bn.*, u.email AS author_email
        FROM booking_notes bn
        LEFT JOIN users u ON u.id = bn.author_id
-       WHERE bn.booking_id = $1
+       WHERE bn.booking_id = $1 AND bn.business_id = $2
        ORDER BY bn.is_pinned DESC, bn.created_at DESC`,
-      [id]
+      [id, bid]
     );
 
     const todos = await queryWithRLS(bid,
       `SELECT * FROM practitioner_todos
-       WHERE booking_id = $1
+       WHERE booking_id = $1 AND business_id = $2
        ORDER BY sort_order, created_at`,
-      [id]
+      [id, bid]
     );
 
     const reminders = await queryWithRLS(bid,
       `SELECT * FROM booking_reminders
-       WHERE booking_id = $1
+       WHERE booking_id = $1 AND business_id = $2
        ORDER BY remind_at`,
-      [id]
+      [id, bid]
     );
 
     // Fetch pre-RDV documents sent for this booking

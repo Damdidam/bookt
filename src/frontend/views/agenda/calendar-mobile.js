@@ -3,14 +3,14 @@
  */
 import { api, calState } from '../../state.js';
 import { esc, safeId } from '../../utils/dom.js';
-import { ST_LABELS, MODE_ICO, DAY_NAMES, MONTH_NAMES } from '../../utils/format.js';
+import { ST_LABELS, MODE_ICO, DAY_NAMES, MONTH_NAMES, toBrusselsISO } from '../../utils/format.js';
 import { bridge } from '../../utils/window-bridge.js';
 
 async function fcLoadMobileList() {
   const el = document.getElementById('fcMobList');
   if (!el) return;
-  const ds = calState.fcMobileDate.toISOString().split('T')[0];
-  const from = ds + 'T00:00:00', to = ds + 'T23:59:59';
+  const ds = calState.fcMobileDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const from = toBrusselsISO(ds, '00:00'), to = toBrusselsISO(ds, '23:59');
   try {
     const params = new URLSearchParams({ from, to });
     if (calState.fcCurrentFilter !== 'all') params.set('practitioner_id', calState.fcCurrentFilter);
@@ -26,7 +26,7 @@ async function fcLoadMobileList() {
     return true;
   });
 
-  const isToday = ds === new Date().toISOString().split('T')[0];
+  const isToday = ds === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
   const dayLabel = isToday ? "Aujourd'hui" : `${DAY_NAMES[calState.fcMobileDate.getDay()]} ${calState.fcMobileDate.getDate()} ${MONTH_NAMES[calState.fcMobileDate.getMonth()]}`;
 
   let h = `<div class="mob-list-header"><span class="mob-list-date">${dayLabel}</span><span class="mob-list-count">${calState.fcAllBookings.length} RDV</span></div>`;
@@ -39,7 +39,7 @@ async function fcLoadMobileList() {
       const s = new Date(b.start_at), e = new Date(b.end_at);
       const t1 = s.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
       const dur = Math.round((e - s) / 60000);
-      const prac = calState.fcPractitioners.find(p => p.id === b.practitioner_id);
+      const prac = calState.fcPractitioners.find(p => String(p.id) === String(b.practitioner_id));
       const stLabel = ST_LABELS[b.status] || b.status;
       const stClass = 'st-' + b.status;
       const badges = [

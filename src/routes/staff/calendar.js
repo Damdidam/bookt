@@ -52,12 +52,12 @@ router.get('/google/connect', requireAuth, async (req, res) => {
  */
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) return res.redirect('/dashboard?cal_error=' + error);
+  if (error) return res.redirect('/dashboard?cal_error=' + encodeURIComponent(error));
   const session = await oauthStates.get(state);
-  if (!state || !session) return res.redirect('/dashboard?cal_error=invalid_state');
+  if (!state || !session) return res.redirect('/dashboard?cal_error=' + encodeURIComponent('invalid_state'));
 
   await oauthStates.delete(state);
-  if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=state_expired');
+  if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=' + encodeURIComponent('state_expired'));
 
   try {
     const tokens = await cal.exchangeGoogleCode(code);
@@ -121,12 +121,12 @@ router.get('/outlook/connect', requireAuth, async (req, res) => {
  */
 router.get('/outlook/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) return res.redirect('/dashboard?cal_error=' + error);
+  if (error) return res.redirect('/dashboard?cal_error=' + encodeURIComponent(error));
   const session = await oauthStates.get(state);
-  if (!state || !session) return res.redirect('/dashboard?cal_error=invalid_state');
+  if (!state || !session) return res.redirect('/dashboard?cal_error=' + encodeURIComponent('invalid_state'));
 
   await oauthStates.delete(state);
-  if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=state_expired');
+  if (Date.now() > session.expiresAt) return res.redirect('/dashboard?cal_error=' + encodeURIComponent('state_expired'));
 
   try {
     const tokens = await cal.exchangeOutlookCode(code);
@@ -220,14 +220,16 @@ router.patch('/connections/:id', requireAuth, async (req, res, next) => {
  */
 router.delete('/connections/:id', requireAuth, async (req, res, next) => {
   try {
-    // Delete events first
-    await queryWithRLS(req.businessId,
-      `DELETE FROM calendar_events WHERE connection_id = $1`, [req.params.id]
-    );
-    await queryWithRLS(req.businessId,
-      `DELETE FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3`,
+    // Delete connection first (verify ownership), then clean up events
+    const deleted = await queryWithRLS(req.businessId,
+      `DELETE FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3 RETURNING id`,
       [req.params.id, req.businessId, req.user.id]
     );
+    if (deleted.rows.length > 0) {
+      await queryWithRLS(req.businessId,
+        `DELETE FROM calendar_events WHERE connection_id = $1`, [deleted.rows[0].id]
+      );
+    }
     res.json({ disconnected: true });
   } catch (err) { next(err); }
 });
@@ -238,8 +240,8 @@ router.delete('/connections/:id', requireAuth, async (req, res, next) => {
 router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
   try {
     const connResult = await queryWithRLS(req.businessId,
-      `SELECT * FROM calendar_connections WHERE id = $1 AND business_id = $2`,
-      [req.params.id, req.businessId]
+      `SELECT * FROM calendar_connections WHERE id = $1 AND business_id = $2 AND user_id = $3`,
+      [req.params.id, req.businessId, req.user.id]
     );
     if (connResult.rows.length === 0) return res.status(404).json({ error: 'Connexion introuvable' });
 
@@ -293,7 +295,8 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
  */
 router.get('/busy', async (req, res, next) => {
   try {
-    const { business_id, practitioner_id, start, end } = req.query;
+    const { practitioner_id, start, end } = req.query;
+    const business_id = req.businessId;
     if (!business_id || !start || !end) {
       return res.status(400).json({ error: 'business_id, start, end required' });
     }
@@ -368,7 +371,7 @@ router.get('/ical/:token', async (req, res) => {
       const dtStart = icalDate(bk.start_at);
       const dtEnd = icalDate(bk.end_at);
       const summary = `${bk.client_name} — ${bk.service_name}`;
-      const desc = [bk.service_name, bk.practitioner_name, bk.client_phone ? `Tel: ${bk.client_phone}` : ''].filter(Boolean).join('\\n');
+      const desc = [bk.service_name, bk.practitioner_name].filter(Boolean).join('\\n');
       const status = bk.status === 'confirmed' ? 'CONFIRMED' : bk.status === 'cancelled' ? 'CANCELLED' : 'TENTATIVE';
 
       ical += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART;TZID=Europe/Brussels:${dtStart}\r\nDTEND;TZID=Europe/Brussels:${dtEnd}\r\nSUMMARY:${icalEscape(summary)}\r\nDESCRIPTION:${icalEscape(desc)}\r\nSTATUS:${status}\r\nEND:VEVENT\r\n`;
@@ -422,12 +425,13 @@ router.post('/ical/generate', requireAuth, async (req, res, next) => {
 
 function icalDate(dt) {
   const d = new Date(dt);
-  return d.getFullYear() +
-    String(d.getMonth() + 1).padStart(2, '0') +
-    String(d.getDate()).padStart(2, '0') + 'T' +
-    String(d.getHours()).padStart(2, '0') +
-    String(d.getMinutes()).padStart(2, '0') +
-    String(d.getSeconds()).padStart(2, '0');
+  // Use Brussels timezone for iCal date formatting
+  const brusselsStr = d.toLocaleString('sv-SE', { timeZone: 'Europe/Brussels' });
+  // brusselsStr format: "YYYY-MM-DD HH:MM:SS"
+  const [datePart, timePart] = brusselsStr.split(' ');
+  const [year, month, day] = datePart.split('-');
+  const [hours, minutes, seconds] = timePart.split(':');
+  return year + month + day + 'T' + hours + minutes + seconds;
 }
 
 function icalEscape(str) {

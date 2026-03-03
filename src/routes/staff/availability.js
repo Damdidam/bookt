@@ -65,6 +65,11 @@ router.put('/', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et schedule requis' });
     }
 
+    // Practitioner can only update their own schedule
+    if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Vous ne pouvez modifier que votre propre disponibilité' });
+    }
+
     // Delete existing schedule
     await queryWithRLS(bid,
       `DELETE FROM availabilities WHERE business_id = $1 AND practitioner_id = $2`,

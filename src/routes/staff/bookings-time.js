@@ -27,9 +27,10 @@ router.patch('/:id/move', async (req, res, next) => {
       return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
     }
 
-    // Prevent practitioners from reassigning bookings to other practitioners
-    if (practitioner_id && req.user.role === 'practitioner') {
-      return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
+    // CRT-8: Validate practitioner_id belongs to this business and is active
+    if (practitioner_id) {
+      const pracCheck = await queryWithRLS(bid, `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2 AND is_active = true`, [practitioner_id, bid]);
+      if (pracCheck.rows.length === 0) return res.status(400).json({ error: 'Praticien introuvable ou inactif' });
     }
 
     // Fetch dragged booking + service info + group info
@@ -52,6 +53,12 @@ router.patch('/:id/move', async (req, res, next) => {
 
     const draggedBooking = old.rows[0];
 
+    // CRT-11: Prevent practitioners from reassigning bookings to OTHER practitioners
+    // Self-reassignment (same practitioner_id) is allowed for time-only moves
+    if (practitioner_id && req.user.role === 'practitioner' && String(practitioner_id) !== String(draggedBooking.practitioner_id)) {
+      return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
+    }
+
     // Practitioner scope: can only move own bookings
     if (req.practitionerFilter && String(draggedBooking.practitioner_id) !== String(req.practitionerFilter)) {
       return res.status(403).json({ error: 'Accès interdit' });
@@ -59,10 +66,6 @@ router.patch('/:id/move', async (req, res, next) => {
 
     const effectivePracId = practitioner_id || draggedBooking.practitioner_id;
     const newStart = new Date(start_at);
-
-    // Check practitioner working hours
-    const availCheck = await checkPracAvailability(bid, effectivePracId, start_at, end_at);
-    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
 
     const globalAllowOverlap = await businessAllowsOverlap(bid);
     const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, effectivePracId);
@@ -105,6 +108,10 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalStart = updates[0].start_at;
       const totalEnd = updates[updates.length - 1].end_at;
 
+      // CRT-9: Check practitioner working hours for the full group range (not just single booking)
+      const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
+      if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
+
       // Bug M12 fix: Check availability for ALL group members, not just the dragged one
       for (const u of updates) {
         const memberPracId = practitioner_id || u.practitioner_id;
@@ -132,19 +139,24 @@ router.patch('/:id/move', async (req, res, next) => {
             throw Object.assign(new Error('Un membre du groupe ne peut plus être modifié'), { type: 'immutable' });
           }
 
+          // CRT-10: Check conflicts for ALL distinct practitioner IDs in the group, not just effectivePracId
           if (!globalAllowOverlap) {
             const groupIds = groupMembers.map(m => m.id);
-            const conflict = await client.query(
-              `SELECT id FROM bookings
-               WHERE business_id = $1 AND practitioner_id = $2
-               AND id != ALL($3)
-               AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-               AND start_at < $5 AND end_at > $4
-               FOR UPDATE`,
-              [bid, effectivePracId, groupIds, totalStart, totalEnd]
-            );
-            if (conflict.rows.length >= maxConcurrent) {
-              throw Object.assign(new Error('Capacité maximale atteinte — impossible de déplacer le groupe ici'), { type: 'conflict' });
+            const distinctPracIds = [...new Set(updates.map(u => practitioner_id || u.practitioner_id))];
+            for (const pracId of distinctPracIds) {
+              const pracMaxConcurrent = await getMaxConcurrent(bid, pracId);
+              const conflict = await client.query(
+                `SELECT id FROM bookings
+                 WHERE business_id = $1 AND practitioner_id = $2
+                 AND id != ALL($3)
+                 AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+                 AND start_at < $5 AND end_at > $4
+                 FOR UPDATE`,
+                [bid, pracId, groupIds, totalStart, totalEnd]
+              );
+              if (conflict.rows.length >= pracMaxConcurrent) {
+                throw Object.assign(new Error('Capacité maximale atteinte — impossible de déplacer le groupe ici'), { type: 'conflict' });
+              }
             }
           }
 
@@ -183,6 +195,10 @@ router.patch('/:id/move', async (req, res, next) => {
     // ── SINGLE MOVE (no group) ──
     // Preserve the actual duration from the calendar (frontend sends correct end_at)
     const newEnd = new Date(end_at);
+
+    // Check practitioner working hours for single move
+    const availCheck = await checkPracAvailability(bid, effectivePracId, start_at, end_at);
+    if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
 
     // Atomic single move: conflict check + update + deposit deadline recalc in one transaction
     let moveResult;
@@ -278,6 +294,14 @@ router.patch('/:id/edit', async (req, res, next) => {
     const { id } = req.params;
     const { practitioner_id, comment, internal_note, custom_label, color } = req.body;
 
+    // CRT-13: Validate comment/note length
+    if (comment && comment.length > 5000) {
+      return res.status(400).json({ error: 'Commentaire trop long (max 5000 caractères)' });
+    }
+    if (internal_note && internal_note.length > 10000) {
+      return res.status(400).json({ error: 'Note interne trop longue (max 10000 caractères)' });
+    }
+
     // Prevent practitioners from reassigning bookings to other practitioners
     if (practitioner_id !== undefined && req.user.role === 'practitioner') {
       return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
@@ -299,12 +323,10 @@ router.patch('/:id/edit', async (req, res, next) => {
       return res.status(403).json({ error: 'Accès interdit' });
     }
 
-    // Early rejection for obvious immutable + structural changes (will be re-checked in tx)
+    // CRT-12: Block ALL edits for immutable statuses (not just practitioner_id reassignment)
     const IMMUTABLE_EDIT = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_EDIT.includes(statusCheck.rows[0].status)) {
-      if (practitioner_id !== undefined) {
-        return res.status(400).json({ error: 'Impossible de réaffecter un RDV dans cet état' });
-      }
+      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
 
     // If practitioner_id changes, check for conflicts (transaction vars)
@@ -379,8 +401,9 @@ router.patch('/:id/edit', async (req, res, next) => {
              FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
             [id, bid]
           );
-          if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
-            throw Object.assign(new Error('Impossible de réaffecter un RDV dans cet état'), { type: 'immutable' });
+          // CRT-12: Block ALL edits for immutable statuses
+          if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status)) {
+            throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
           }
           const conflict = await client.query(
             `SELECT id FROM bookings
@@ -588,10 +611,12 @@ router.patch('/:id/modify', async (req, res, next) => {
     const { start_at, end_at, notify, notify_channel } = req.body;
     // Bug M11 fix: normalize notify so "false" string is not truthy
     const shouldNotify = notify === true || notify === 'true';
+    // CRT-15: Default notify_channel to 'email' when shouldNotify is true
+    const effectiveChannel = notify_channel || (shouldNotify ? 'email' : null);
     // notify_channel: 'email' | 'sms' | 'both'
 
     const VALID_CHANNELS = ['email', 'sms', 'both'];
-    if (notify_channel && !VALID_CHANNELS.includes(notify_channel)) {
+    if (effectiveChannel && !VALID_CHANNELS.includes(effectiveChannel)) {
       return res.status(400).json({ error: `Canal invalide. Valeurs : ${VALID_CHANNELS.join(', ')}` });
     }
 
@@ -637,7 +662,8 @@ router.patch('/:id/modify', async (req, res, next) => {
     const availCheck = await checkPracAvailability(bid, oldBooking.practitioner_id, start_at, end_at);
     if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
 
-    const newStatus = shouldNotify ? 'modified_pending' : oldBooking.status;
+    // CRT-14: Preserve pending_deposit status instead of overwriting to modified_pending
+    const newStatus = shouldNotify ? (oldBooking.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending') : oldBooking.status;
 
     // Atomic modify: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
@@ -694,7 +720,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         }
 
         const oldTimes = { start_at: oldBooking.start_at, end_at: oldBooking.end_at, status: oldBooking.status };
-        const newTimes = { start_at, end_at, status: newStatus, notified: shouldNotify, channel: notify_channel || null };
+        const newTimes = { start_at, end_at, status: newStatus, notified: shouldNotify, channel: effectiveChannel };
 
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
@@ -713,7 +739,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     // If notification requested, send it
     let notificationResult = null;
-    if (shouldNotify && (notify_channel === 'email' || notify_channel === 'both')) {
+    if (shouldNotify && (effectiveChannel === 'email' || effectiveChannel === 'both')) {
       try {
         const emailResult = await sendModificationEmail({
           booking: {
@@ -740,7 +766,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         notificationResult = { email: 'error', detail: e.message };
       }
     }
-    if (shouldNotify && (notify_channel === 'sms' || notify_channel === 'both')) {
+    if (shouldNotify && (effectiveChannel === 'sms' || effectiveChannel === 'both')) {
       try {
         // Twilio SMS — will be wired when Twilio is configured
         const baseUrl = process.env.PUBLIC_URL || `https://genda.be`;

@@ -133,9 +133,14 @@ router.post('/specializations', async (req, res, next) => {
       [req.businessId, name, description || null, icon || '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>', maxOrder.rows[0].next]
     );
 
-    // Link practitioners
+    // Link practitioners (validate they belong to this business)
     if (practitioner_ids && practitioner_ids.length > 0) {
-      for (const pid of practitioner_ids) {
+      const validPracs = await queryWithRLS(req.businessId,
+        `SELECT id FROM practitioners WHERE id = ANY($1) AND business_id = $2`,
+        [practitioner_ids, req.businessId]
+      );
+      const validIds = validPracs.rows.map(r => r.id);
+      for (const pid of validIds) {
         await queryWithRLS(req.businessId,
           `INSERT INTO practitioner_specializations (practitioner_id, specialization_id)
            VALUES ($1, $2) ON CONFLICT DO NOTHING`,
@@ -167,18 +172,26 @@ router.patch('/specializations/:id', async (req, res, next) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Spécialisation introuvable' });
 
-    // Update practitioner links
+    // Update practitioner links (validate they belong to this business)
     if (practitioner_ids !== undefined) {
       await queryWithRLS(req.businessId,
         `DELETE FROM practitioner_specializations WHERE specialization_id = $1`,
         [req.params.id]
       );
-      for (const pid of (practitioner_ids || [])) {
-        await queryWithRLS(req.businessId,
-          `INSERT INTO practitioner_specializations (practitioner_id, specialization_id)
-           VALUES ($1, $2)`,
-          [pid, req.params.id]
+      const pidsToLink = practitioner_ids || [];
+      if (pidsToLink.length > 0) {
+        const validPracs = await queryWithRLS(req.businessId,
+          `SELECT id FROM practitioners WHERE id = ANY($1) AND business_id = $2`,
+          [pidsToLink, req.businessId]
         );
+        const validIds = validPracs.rows.map(r => r.id);
+        for (const pid of validIds) {
+          await queryWithRLS(req.businessId,
+            `INSERT INTO practitioner_specializations (practitioner_id, specialization_id)
+             VALUES ($1, $2)`,
+            [pid, req.params.id]
+          );
+        }
       }
     }
 
@@ -190,7 +203,9 @@ router.patch('/specializations/:id', async (req, res, next) => {
 router.delete('/specializations/:id', async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
-      `DELETE FROM practitioner_specializations WHERE specialization_id = $1`, [req.params.id]
+      `DELETE FROM practitioner_specializations WHERE specialization_id = $1
+       AND practitioner_id IN (SELECT id FROM practitioners WHERE business_id = $2)`,
+      [req.params.id, req.businessId]
     );
     await queryWithRLS(req.businessId,
       `DELETE FROM specializations WHERE id = $1 AND business_id = $2`,

@@ -87,16 +87,20 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
   if (exc.rows.length > 0) {
     // Check for any 'closed' exception
     if (exc.rows.some(ex => ex.type === 'closed')) return { ok: false, reason: 'Ce praticien est indisponible ce jour (exception)' };
-    // custom_hours: check if booking fits in any window
-    const bkStart = bxlStartH * 60 + bxlStartM;
-    const bkEnd = bxlEndH * 60 + bxlEndM;
-    const fitsAny = exc.rows.filter(ex => ex.type === 'custom_hours').some(ex => {
-      const exStart = timeToMin(ex.start_time);
-      const exEnd = timeToMin(ex.end_time);
-      return bkStart >= exStart && bkEnd <= exEnd;
-    });
-    if (fitsAny) return { ok: true };
-    return { ok: false, reason: 'Horaire hors des heures exceptionnelles du praticien' };
+    // STS-12 fix: Filter for custom_hours type only; if none found, fall through to weekly schedule
+    const customHoursExc = exc.rows.filter(ex => ex.type === 'custom_hours');
+    if (customHoursExc.length > 0) {
+      const bkStart = bxlStartH * 60 + bxlStartM;
+      const bkEnd = bxlEndH * 60 + bxlEndM;
+      const fitsAny = customHoursExc.some(ex => {
+        const exStart = timeToMin(ex.start_time);
+        const exEnd = timeToMin(ex.end_time);
+        return bkStart >= exStart && bkEnd <= exEnd;
+      });
+      if (fitsAny) return { ok: true };
+      return { ok: false, reason: 'Horaire hors des heures exceptionnelles du praticien' };
+    }
+    // No custom_hours and no closed: fall through to weekly schedule check
   }
 
   // 2. Check weekly availability
@@ -111,8 +115,16 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
 
   // Merge slots and check if booking fits within any merged window
   const bkStart = bxlStartH * 60 + bxlStartM;
-  const bkEnd = bxlEndH * 60 + bxlEndM;
-  const slots = avail.rows.map(r => ({ s: timeToMin(r.start_time), e: timeToMin(r.end_time) })).sort((a, b) => a.s - b.s);
+  let bkEnd = bxlEndH * 60 + bxlEndM;
+  // STS-8 fix: Handle cross-midnight bookings
+  if (bkEnd <= bkStart) bkEnd += 1440;
+  const slots = avail.rows.map(r => {
+    const s = timeToMin(r.start_time);
+    let e = timeToMin(r.end_time);
+    // STS-8 fix: Handle cross-midnight slot end times
+    if (e <= s) e += 1440;
+    return { s, e };
+  }).sort((a, b) => a.s - b.s);
   const merged = [];
   for (const sl of slots) {
     if (merged.length > 0 && sl.s <= merged[merged.length - 1].e) {

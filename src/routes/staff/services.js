@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -49,16 +49,23 @@ router.post('/', async (req, res, next) => {
        color || null]
     );
 
-    // Link practitioners
+    // Link practitioners (validate they belong to this business)
     if (practitioner_ids && practitioner_ids.length > 0) {
-      const values = practitioner_ids.map((pid, i) =>
-        `($${i * 2 + 1}, $${i * 2 + 2})`
-      ).join(', ');
-      const params = practitioner_ids.flatMap(pid => [pid, result.rows[0].id]);
-      await queryWithRLS(bid,
-        `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ${values}`,
-        params
+      const validPracs = await queryWithRLS(bid,
+        `SELECT id FROM practitioners WHERE id = ANY($1) AND business_id = $2`,
+        [practitioner_ids, bid]
       );
+      const validIds = validPracs.rows.map(r => r.id);
+      if (validIds.length > 0) {
+        const values = validIds.map((pid, i) =>
+          `($${i * 2 + 1}, $${i * 2 + 2})`
+        ).join(', ');
+        const params = validIds.flatMap(pid => [pid, result.rows[0].id]);
+        await queryWithRLS(bid,
+          `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ${values}`,
+          params
+        );
+      }
     }
 
     res.status(201).json({ service: result.rows[0] });
@@ -120,18 +127,25 @@ router.patch('/:id', async (req, res, next) => {
       );
     }
 
-    // Update practitioner links if provided
+    // Update practitioner links if provided (validate they belong to this business)
     if (fields.practitioner_ids) {
-      await queryWithRLS(bid,
-        `DELETE FROM practitioner_services WHERE service_id = $1`,
-        [id]
-      );
-      for (const pid of fields.practitioner_ids) {
-        await queryWithRLS(bid,
-          `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ($1, $2)`,
-          [pid, id]
+      await transactionWithRLS(bid, async (client) => {
+        const validPracs = await client.query(
+          `SELECT id FROM practitioners WHERE id = ANY($1) AND business_id = $2`,
+          [fields.practitioner_ids, bid]
         );
-      }
+        const validIds = validPracs.rows.map(r => r.id);
+        await client.query(
+          `DELETE FROM practitioner_services WHERE service_id = $1`,
+          [id]
+        );
+        for (const pid of validIds) {
+          await client.query(
+            `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ($1, $2)`,
+            [pid, id]
+          );
+        }
+      });
     }
 
     res.json({ service: result.rows[0] });

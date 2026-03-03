@@ -297,6 +297,7 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
     const { email, password, role } = req.body;
 
     if (!email) return res.status(400).json({ error: 'Email requis' });
+    if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
 
     // Validate role
     const validRoles = ['manager', 'practitioner', 'receptionist'];

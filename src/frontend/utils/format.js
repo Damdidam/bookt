@@ -14,7 +14,8 @@ export const ST_LABELS = {
   completed: 'Terminé',
   cancelled: 'Annulé',
   no_show: 'No-show',
-  modified_pending: 'Modifié · en attente'
+  modified_pending: 'Modifié · en attente',
+  pending_deposit: 'Acompte requis'
 };
 
 export const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];

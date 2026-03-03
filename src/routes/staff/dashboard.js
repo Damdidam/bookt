@@ -129,7 +129,7 @@ router.get('/summary', async (req, res, next) => {
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE t.business_id = $1 AND t.is_done = false
-       ${pracFilter ? 'AND t.user_id = $2' : ''}
+       ${pracFilter ? 'AND t.booking_id IN (SELECT id FROM bookings WHERE practitioner_id = $2 AND business_id = $1)' : ''}
        ORDER BY t.created_at DESC LIMIT 20`,
       pracFilter ? [bid, pracFilter] : [bid]
     );

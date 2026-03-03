@@ -53,9 +53,16 @@ router.get('/', async (req, res, next) => {
     // Total count
     let countSql = `SELECT COUNT(*) FROM clients WHERE business_id = $1`;
     const countParams = [bid];
+    let countIdx = 2;
+    if (req.practitionerFilter) {
+      countSql += ` AND id IN (SELECT DISTINCT client_id FROM bookings WHERE practitioner_id = $${countIdx} AND business_id = $1)`;
+      countParams.push(req.practitionerFilter);
+      countIdx++;
+    }
     if (search) {
-      countSql += ` AND (full_name ILIKE $2 OR phone ILIKE $2 OR email ILIKE $2)`;
+      countSql += ` AND (full_name ILIKE $${countIdx} OR phone ILIKE $${countIdx} OR email ILIKE $${countIdx})`;
       countParams.push(`%${search}%`);
+      countIdx++;
     }
     const countResult = await queryWithRLS(bid, countSql, countParams);
 

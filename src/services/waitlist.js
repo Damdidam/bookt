@@ -109,7 +109,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     const token = crypto.randomBytes(20).toString('hex');
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h timer
 
-    await query(
+    const offerResult = await query(
       `UPDATE waitlist_entries SET
         status = 'offered',
         offer_token = $1,
@@ -118,9 +118,14 @@ async function processWaitlistForCancellation(bookingId, businessId) {
         offer_sent_at = NOW(),
         offer_expires_at = $4,
         updated_at = NOW()
-       WHERE id = $5 AND business_id = $6`,
+       WHERE id = $5 AND business_id = $6 AND status = 'waiting'
+       RETURNING id`,
       [token, bk.start_at, bk.end_at, expiresAt.toISOString(), entry.id, bk.business_id]
     );
+
+    if (offerResult.rows.length === 0) {
+      return { processed: false, reason: 'entry_no_longer_waiting' };
+    }
 
     // TODO: Send email via Brevo when connected
     // Email should contain:
@@ -131,8 +136,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
 
     broadcast(bk.business_id, 'waitlist_match', {
       mode: 'auto',
-      offered_to: entry.client_name,
-      offered_email: entry.client_email,
+      client_name: entry.client_name,
       practitioner_name: bk.practitioner_name,
       service_name: bk.service_name,
       slot_start: bk.start_at,
@@ -172,11 +176,13 @@ async function processExpiredOffers() {
 
   for (const entry of expired.rows) {
     // Mark as expired
-    await query(
+    const expireResult = await query(
       `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW()
-       WHERE id = $1 AND business_id = $2`,
+       WHERE id = $1 AND business_id = $2 AND status = 'offered'
+       RETURNING id`,
       [entry.id, entry.business_id]
     );
+    if (expireResult.rows.length === 0) continue;
 
     // If auto mode, offer to next person
     if (entry.waitlist_mode === 'auto' && entry.offer_booking_start) {
@@ -207,6 +213,9 @@ async function processExpiredOffers() {
       );
 
       if (next.rows.length > 0) {
+        // Skip if the slot is less than 1 hour away — too late to offer
+        if (new Date(entry.offer_booking_start) < new Date(Date.now() + 60 * 60 * 1000)) continue;
+
         const token = crypto.randomBytes(20).toString('hex');
         const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
@@ -228,7 +237,7 @@ async function processExpiredOffers() {
 
         broadcast(entry.business_id, 'waitlist_match', {
           mode: 'auto_cascade',
-          offered_to: next.rows[0].client_name,
+          client_name: next.rows[0].client_name,
           expired_from: entry.client_name,
           slot_start: entry.offer_booking_start
         });

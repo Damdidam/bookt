@@ -78,6 +78,24 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
     }
 
+    // Verify practitioner belongs to business
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, bid]
+    );
+    if (pracCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Praticien invalide pour ce cabinet' });
+    }
+
+    // Verify service belongs to business
+    const svcCheck = await queryWithRLS(bid,
+      `SELECT id FROM services WHERE id = $1 AND business_id = $2`,
+      [service_id, bid]
+    );
+    if (svcCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Prestation invalide pour ce cabinet' });
+    }
+
     // Get next priority
     const maxP = await queryWithRLS(bid,
       `SELECT COALESCE(MAX(priority), 0) + 1 AS next_priority
@@ -189,8 +207,8 @@ router.post('/:id/offer', async (req, res, next) => {
         offer_sent_at = NOW(),
         offer_expires_at = $4,
         updated_at = NOW()
-       WHERE id = $5`,
-      [token, start_at, end_at, expiresAt.toISOString(), id]
+       WHERE id = $5 AND business_id = $6`,
+      [token, start_at, end_at, expiresAt.toISOString(), id, bid]
     );
 
     // TODO: Send email via Brevo when connected

@@ -205,8 +205,8 @@ function buildEventClassNames() {
     const cls = [];
     if (p._isGroup) {
       const members = p._members || [];
-      const hasCancel = members.some(m => m.status === 'cancelled');
-      const hasNoShow = members.some(m => m.status === 'no_show');
+      const hasCancel = members.every(m => m.status === 'cancelled');
+      const hasNoShow = members.every(m => m.status === 'no_show');
       const hasCompleted = members.every(m => m.status === 'completed');
       if (hasCancel) cls.push('ev-cancelled');
       else if (hasNoShow) cls.push('ev-no_show');
@@ -325,6 +325,7 @@ function buildEventDidMount() {
           info.el.classList.add('fc-event-dragging');
           info.el.style.setProperty('bottom', 'auto', 'important');
           info.el.style.zIndex = '999';
+          let cleanupTimer;
 
           function onMove(ev) {
             ev.preventDefault();
@@ -336,6 +337,7 @@ function buildEventDidMount() {
           }
 
           function onEnd() {
+            clearTimeout(cleanupTimer);
             document.removeEventListener('touchmove', onMove);
             document.removeEventListener('touchend', onEnd);
             info.el.classList.remove('fc-event-dragging');
@@ -351,6 +353,8 @@ function buildEventDidMount() {
             fetch('/api/bookings/' + info.event.id + '/resize', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+              // FE-26: toISOString() sends UTC; server parses via new Date() which handles UTC fine.
+              // Other time endpoints use toBrusselsISO for consistency — consider aligning if needed.
               body: JSON.stringify({ end_at: newEnd.toISOString() })
             }).then(function (r) {
               if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
@@ -368,6 +372,8 @@ function buildEventDidMount() {
 
           document.addEventListener('touchmove', onMove, { passive: false });
           document.addEventListener('touchend', onEnd);
+          // Safety timeout: clean up listeners if touchend never fires
+          cleanupTimer = setTimeout(() => { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); info.el.classList.remove('fc-event-dragging'); }, 10000);
         }, { passive: false });
       }
     }

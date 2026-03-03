@@ -19,6 +19,11 @@ router.post('/manual', async (req, res, next) => {
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
             services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color } = req.body;
 
+    // CRT-4: Basic client_email validation before using it for sending emails
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let client_email = req.body.client_email;
+    if (client_email && !EMAIL_RE.test(client_email)) client_email = null;
+
     if (!practitioner_id || !start_at) {
       return res.status(400).json({ error: 'practitioner_id et start_at requis' });
     }
@@ -166,15 +171,14 @@ router.post('/manual', async (req, res, next) => {
       calSyncPush(bid, bookings[0].id).catch(() => {});
 
       // Send confirmation email (non-blocking)
-      const clientEmail = req.body.client_email;
-      if (clientEmail && client_id) {
+      if (client_email && client_id) {
         (async () => {
           try {
             const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
             const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
             if (biz.rows[0] && cl.rows[0]) {
               await sendBookingConfirmation({
-                booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: clientEmail, service_name: custom_label || 'Rendez-vous libre', practitioner_name: '' },
+                booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: custom_label || 'Rendez-vous libre', practitioner_name: '' },
                 business: biz.rows[0]
               });
             }
@@ -199,6 +203,11 @@ router.post('/manual', async (req, res, next) => {
       }
     }
     const serviceList = multiServices || [{ service_id }];
+
+    // CRT-2: Validate service_id is present in non-freestyle mode
+    if (!serviceList[0]?.service_id) {
+      return res.status(400).json({ error: 'service_id ou services requis' });
+    }
 
     if (!practitioner_id || !start_at || serviceList.length === 0) {
       return res.status(400).json({ error: 'practitioner_id, start_at et au moins une prestation requis' });
@@ -265,6 +274,9 @@ router.post('/manual', async (req, res, next) => {
 
       const results = [];
       for (const slot of slots) {
+        // CRT-6: By design, group bookings do not support individual color/custom_label.
+        // These fields are omitted intentionally — group members share the same visual style
+        // derived from their service. Per-member customization may be added in a future iteration.
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
@@ -335,8 +347,7 @@ router.post('/manual', async (req, res, next) => {
     bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
 
     // Send confirmation email (non-blocking)
-    const clientEmailNormal = req.body.client_email;
-    if (clientEmailNormal && client_id) {
+    if (client_email && client_id) {
       (async () => {
         try {
           const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
@@ -345,7 +356,7 @@ router.post('/manual', async (req, res, next) => {
           const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);
           if (biz.rows[0] && cl.rows[0]) {
             await sendBookingConfirmation({
-              booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: clientEmailNormal, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
+              booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
               business: biz.rows[0]
             });
           }

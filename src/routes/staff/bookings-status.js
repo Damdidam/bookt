@@ -152,6 +152,16 @@ router.patch('/:id/status', async (req, res, next) => {
         );
       }
 
+      // STS-1 fix: Capture sibling client IDs in no_show BEFORE propagation changes their status
+      let siblingClientsToUndo = [];
+      if (old.rows[0].status === 'no_show' && status === 'confirmed' && old.rows[0].group_id) {
+        const sibsQ = await client.query(
+          `SELECT DISTINCT client_id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'no_show' AND client_id IS NOT NULL AND client_id != $4`,
+          [old.rows[0].group_id, bid, id, old.rows[0].client_id || '00000000-0000-0000-0000-000000000000']
+        );
+        siblingClientsToUndo = sibsQ.rows.map(r => r.client_id);
+      }
+
       // ===== Bug M9 fix + Bug H4 fix: Propagate status to group siblings respecting state machine =====
       let affectedSiblingIds = [];
       if (old.rows[0].group_id) {
@@ -223,8 +233,9 @@ router.patch('/:id/status', async (req, res, next) => {
         }
       }
 
-      // ===== UNDO: if reverting from no_show, decrement + potentially unblock =====
-      if (old.rows[0].status === 'no_show' && status !== 'no_show') {
+      // ===== UNDO: if reverting from no_show to confirmed, decrement + potentially unblock =====
+      // STS-13 fix: Only decrement strikes when reverting to confirmed, not when cancelling
+      if (old.rows[0].status === 'no_show' && status === 'confirmed') {
         // Helper to decrement strike and maybe unblock a client
         async function decrementStrikeAndMaybeUnblock(cid) {
           const updated = await client.query(
@@ -256,16 +267,10 @@ router.patch('/:id/status', async (req, res, next) => {
           await decrementStrikeAndMaybeUnblock(clientId);
         }
 
-        // Bug H5 fix: Also decrement strikes for sibling clients that were no_show
-        if (old.rows[0].group_id) {
-          const sibsToUndo = await client.query(
-            `SELECT DISTINCT client_id FROM bookings
-             WHERE group_id = $1 AND business_id = $2 AND id != $3
-             AND status = 'no_show' AND client_id IS NOT NULL AND client_id != $4`,
-            [old.rows[0].group_id, bid, id, old.rows[0].client_id || '00000000-0000-0000-0000-000000000000']
-          );
-          for (const sib of sibsToUndo.rows) {
-            await decrementStrikeAndMaybeUnblock(sib.client_id);
+        // Bug H5 fix + STS-1 fix: Decrement strikes for sibling clients captured BEFORE propagation
+        if (siblingClientsToUndo.length > 0) {
+          for (const sibClientId of siblingClientsToUndo) {
+            await decrementStrikeAndMaybeUnblock(sibClientId);
           }
         }
       }
@@ -331,7 +336,7 @@ router.patch('/:id/status', async (req, res, next) => {
          JSON.stringify(newAudit)]
       );
 
-      return { oldStatus: old.rows[0].status };
+      return { oldStatus: old.rows[0].status, affectedSiblingIds };
     });
 
     // Handle early returns from transaction
@@ -350,6 +355,12 @@ router.patch('/:id/status', async (req, res, next) => {
     }
 
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
+    // STS-10: Broadcast for each affected sibling
+    if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
+      for (const sibId of txResult.affectedSiblingIds) {
+        broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: sibId, status, old_status: txResult.oldStatus });
+      }
+    }
     if (status === 'cancelled') calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
     else calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
     res.json({ updated: true, status });
@@ -397,8 +408,9 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       );
 
       // Bug M14 fix: Propagate cancellation to group siblings
+      let affectedSiblingIds = [];
       if (bk.rows[0].group_id) {
-        await propagateGroupStatus(client, {
+        affectedSiblingIds = await propagateGroupStatus(client, {
           groupId: bk.rows[0].group_id,
           bid,
           excludeId: id,
@@ -406,10 +418,13 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
           cancelReason: 'Acompte remboursé manuellement (groupe)'
         });
 
-        // Also forfeit sibling deposits
+        // Also update sibling deposits (STS-6: use CASE for consistent status)
         await client.query(
-          `UPDATE bookings SET deposit_status = 'forfeit', updated_at = NOW()
-           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND deposit_required = true`,
+          `UPDATE bookings SET
+            deposit_status = CASE WHEN deposit_status = 'paid' THEN 'cancelled' ELSE deposit_status END,
+            updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND deposit_required = true
+             AND deposit_status NOT IN ('refunded', 'cancelled')`,
           [bk.rows[0].group_id, bid, id]
         );
       }
@@ -423,7 +438,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
          JSON.stringify({ deposit_status: 'refunded', status: 'cancelled', amount_cents: bk.rows[0].deposit_amount_cents })]
       );
 
-      return { ok: true };
+      return { ok: true, affectedSiblingIds };
     });
 
     if (txResult.error) {
@@ -432,6 +447,13 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
 
     broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: id, status: 'cancelled' });
     calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
+    // STS-11: calSyncDelete + SSE broadcast for affected siblings
+    if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
+      for (const sibId of txResult.affectedSiblingIds) {
+        calSyncDelete(bid, sibId).catch(e => console.warn('[CAL_SYNC] Sibling delete error:', e.message));
+        broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: sibId, status: 'cancelled' });
+      }
+    }
 
     // Process waitlist (same as cancellation)
     try {
@@ -499,7 +521,8 @@ router.delete('/:id', async (req, res, next) => {
       if (check.rows[0].group_id) {
         const siblings = await client.query(
           `SELECT id, status, client_id FROM bookings
-           WHERE group_id = $1 AND business_id = $2 AND status IN ('cancelled', 'no_show')`,
+           WHERE group_id = $1 AND business_id = $2 AND status IN ('cancelled', 'no_show')
+           FOR UPDATE`,
           [check.rows[0].group_id, bid]
         );
         bookingIds = siblings.rows.map(r => r.id);

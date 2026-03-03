@@ -53,6 +53,11 @@ router.put('/', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et week_start requis' });
     }
 
+    // Practitioner can only update their own featured slots
+    if (req.user.role === 'practitioner' && practitioner_id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Vous ne pouvez modifier que vos propres créneaux vedettes' });
+    }
+
     // Verify practitioner has featured_enabled
     const pracCheck = await queryWithRLS(bid,
       `SELECT featured_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,

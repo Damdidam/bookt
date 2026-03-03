@@ -34,11 +34,12 @@ async function calAddTodo() {
 
 async function fcToggleTodo(todoId, isDone) {
   try {
-    await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos/${todoId}`, {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos/${todoId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ is_done: isDone })
     });
+    if (!r.ok) throw new Error('Erreur');
     const todo = calState.fcDetailData.todos.find(t => String(t.id) === String(todoId));
     if (todo) todo.is_done = isDone;
     fcRenderTodos();
@@ -47,10 +48,11 @@ async function fcToggleTodo(todoId, isDone) {
 
 async function fcDeleteTodo(todoId) {
   try {
-    await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos/${todoId}`, {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos/${todoId}`, {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
+    if (!r.ok) throw new Error('Erreur');
     calState.fcDetailData.todos = calState.fcDetailData.todos.filter(t => String(t.id) !== String(todoId));
     fcRenderTodos();
   } catch (e) { gToast('Erreur', 'error'); }

@@ -35,6 +35,7 @@ async function calSaveAll() {
   // Build edit payload (non-time fields)
   const editPayload = {};
   if (String(newPrac) !== String(calState.fcEditOriginal.practitioner_id)) editPayload.practitioner_id = newPrac;
+  // FE-1: API PATCH /edit accepts `comment` and maps it to DB column `comment_client`
   if (newComment !== (calState.fcEditOriginal.comment || '')) editPayload.comment = newComment;
   if (newNote !== (calState.fcEditOriginal.internal_note || '')) editPayload.internal_note = newNote;
   if (isFreestyle) {
@@ -116,7 +117,7 @@ async function calSendNotification() {
  * Uses practitioner-specific hours if pracId provided, otherwise global.
  */
 function fcCheckBusinessHours(startDate, endDate, pracId) {
-  const bh = pracId && calState.fcPracBusinessHours[pracId] ? calState.fcPracBusinessHours[pracId] : calState.fcBusinessHours;
+  const bh = pracId && calState.fcPracBusinessHours?.[pracId] ? calState.fcPracBusinessHours[pracId] : calState.fcBusinessHours;
   if (bh.length === 0) return true;
   // Convert to Brussels TZ to get correct day/hours
   const startParts = startDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);

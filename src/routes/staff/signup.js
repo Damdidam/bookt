@@ -70,7 +70,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
     }
 
     // Hash password if provided
-    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    const passwordHash = password ? await bcrypt.hash(password, 12) : null;
 
     // ===== ATOMIC CREATION =====
     const client = await require('../../services/db').pool.connect();

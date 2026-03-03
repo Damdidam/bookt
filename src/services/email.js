@@ -8,12 +8,12 @@ const BREVO_API = 'https://api.brevo.com/v3/smtp/email';
 /** Escape a string for safe HTML insertion (prevents XSS) */
 function escHtml(s) {
   if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /** Validate that a string is a valid hex color; returns fallback if not */
 function safeColor(color, fallback) {
-  if (color && /^#[0-9a-fA-F]{3,8}$/.test(color)) return color;
+  if (color && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) return color;
   return fallback || '#0D7377';
 }
 
@@ -31,6 +31,10 @@ function safeColor(color, fallback) {
  * @returns {Promise<{success: boolean, messageId?: string, error?: string}>}
  */
 async function sendEmail(opts) {
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!EMAIL_RE.test(opts.to)) return { success: false, error: 'Invalid recipient email' };
+  if (opts.replyTo && !EMAIL_RE.test(opts.replyTo)) delete opts.replyTo;
+
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) {
     console.warn('[EMAIL] BREVO_API_KEY not set — email not sent:', opts.subject, '→', opts.to);
@@ -318,7 +322,8 @@ function getCategoryLabels(category) { return CATEGORY_LABELS[category] || CATEG
 
 // ── Session notes email ──
 async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, date, practitionerName, businessName, primaryColor }) {
-  const svcLower = escHtml((serviceName || 'rendez-vous').toLowerCase());
+  const safeSvcName = (serviceName || 'Rendez-vous').slice(0, 100).replace(/[\r\n]/g, ' ');
+  const svcLower = escHtml((safeSvcName || 'rendez-vous').toLowerCase());
   const safeFirstName = escHtml(toName ? toName.split(' ')[0] : '');
   const safePracName = escHtml(practitionerName);
   const safeBizName = escHtml(businessName);
@@ -342,7 +347,7 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
   return sendEmail({
     to,
     toName,
-    subject: `Notes — ${serviceName || 'Rendez-vous'} du ${date}`,
+    subject: `Notes — ${safeSvcName} du ${date}`,
     html
   });
 }

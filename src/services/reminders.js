@@ -157,7 +157,7 @@ async function process24hReminders(stats) {
       // Mark as sent only if at least one notification succeeded
       if (anySent) {
         await query(
-          `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2`,
+          `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
           [bk.id, bk.business_id]
         );
       }
@@ -252,7 +252,7 @@ async function process2hReminders(stats) {
       // Mark as sent only if at least one notification succeeded
       if (anySent) {
         await query(
-          `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2`,
+          `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
           [bk.id, bk.business_id]
         );
       }

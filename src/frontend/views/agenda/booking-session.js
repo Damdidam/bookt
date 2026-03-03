@@ -2,10 +2,9 @@
  * Session Notes - rich text editor for consultation reports.
  * Notes can be saved per booking and sent to the client by email.
  */
-import { api, calState, GendaUI } from '../../state.js';
+import { api, calState } from '../../state.js';
+import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
-
-const gToast = (m, t) => GendaUI.toast(m, t);
 
 /**
  * Sanitize rich text HTML — strip dangerous tags and event handlers
@@ -15,14 +14,20 @@ function sanitizeRichText(html) {
   if (!html) return '';
   const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
   // Remove dangerous tags and their content (including SVG, math, style, details, media, legacy)
-  let s = html.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
-  s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
-  // Remove event handlers (on*="...") — loop until stable to prevent chained handler bypass
+  // Loop until stable to handle nested blocked tags
+  let s = html;
   let prev;
   do {
     prev = s;
-    s = s.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    s = s.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
+    s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
   } while (s !== prev);
+  // Remove event handlers (on*="...") — loop until stable to prevent chained handler bypass
+  let prev2;
+  do {
+    prev2 = s;
+    s = s.replace(/[\s"'/<]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  } while (s !== prev2);
   // Remove dangerous protocol URLs in href/src/action (including HTML-entity-encoded variants)
   s = s.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
     // Decode HTML entities for protocol check
@@ -93,8 +98,8 @@ async function calSaveSession() {
   if (!body) return;
 
   const html = body.innerHTML.trim();
-  // Treat <br> only or empty as null
-  const content = html === '<br>' || html === '' ? null : html;
+  // Treat <br> only or empty as null; sanitize before sending to server
+  const content = html === '<br>' || html === '' ? null : sanitizeRichText(html);
 
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/session-notes`, {

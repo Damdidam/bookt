@@ -239,6 +239,8 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     // Bug H2 fix: Prevent DoS via unbounded date range
     const fromDate = new Date(from + 'T00:00:00Z');
     const toDate = new Date(to + 'T00:00:00Z');
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return res.status(400).json({ error: 'Dates invalides' });
+    if (toDate <= fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
     if ((toDate - fromDate) / 86400000 > 60) {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
@@ -357,6 +359,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Commentaire trop long (max 2000)' });
     }
 
+    const VALID_LANGS = ['fr', 'nl', 'en', 'de', 'unknown'];
+    const safeLang = VALID_LANGS.includes(client_language) ? client_language : 'unknown';
+
     const bizResult = await query(
       `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
     );
@@ -367,6 +372,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     const startDate = new Date(start_at);
     if (isNaN(startDate.getTime())) return res.status(400).json({ error: 'Date de début invalide' });
+    if (startDate < new Date()) return res.status(400).json({ error: 'Impossible de réserver dans le passé' });
 
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
     const startDateBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
@@ -408,6 +414,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Featured slot booking — use end_at or default 15 min
       endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 15 * 60000);
       if (isNaN(endDate.getTime())) return res.status(400).json({ error: 'Date de fin invalide' });
+      if (endDate.getTime() <= startDate.getTime()) return res.status(400).json({ error: 'La date de fin doit être après la date de début' });
       // Bug M10 fix: cap arbitrary-duration bookings at 4 hours
       const maxDuration = 4 * 60 * 60000; // 4 hours
       if (endDate.getTime() - startDate.getTime() > maxDuration) {
@@ -503,7 +510,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             language_preference, consent_sms, consent_email, consent_marketing, created_from)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
           [businessId, client_name, client_phone, client_email, client_bce||null,
-           client_language||'unknown', consent_sms===true, consent_email===true, consent_marketing===true]
+           safeLang, consent_sms===true, consent_email===true, consent_marketing===true]
         );
         clientId = nc.rows[0].id;
       }
@@ -1041,15 +1048,20 @@ router.post('/docs/:token/submit', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce formulaire a déjà été complété' });
     }
 
-    await query(
+    const updateResult = await query(
       `UPDATE pre_rdv_sends SET
         response_data = $1::jsonb,
         consent_given = $2,
         responded_at = NOW(),
         status = 'completed'
-       WHERE token = $3`,
+       WHERE token = $3 AND status IN ('sent', 'viewed')
+       RETURNING id`,
       [JSON.stringify(response_data || {}), consent_given, req.params.token]
     );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(409).json({ error: 'Ce formulaire a déjà été complété ou n\'est plus disponible' });
+    }
 
     res.json({ submitted: true });
   } catch (err) { next(err); }
@@ -1082,6 +1094,11 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 
     if (note && note.length > 2000) {
       return res.status(400).json({ error: 'Note trop longue (max 2000)' });
+    }
+
+    const VALID_TIMES = ['any', 'morning', 'afternoon'];
+    if (preferred_time && !VALID_TIMES.includes(preferred_time)) {
+      return res.status(400).json({ error: 'preferred_time invalide' });
     }
 
     const bizResult = await query(
@@ -1164,7 +1181,7 @@ router.get('/waitlist/:token', async (req, res, next) => {
     const expired = entry.status === 'offered' && new Date() > new Date(entry.offer_expires_at);
     if (expired) {
       await query(
-        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1 AND status = 'offered'`,
         [entry.id]
       );
     }
@@ -1399,15 +1416,28 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
         if (next.rows.length > 0) {
           const token = crypto.randomBytes(20).toString('hex');
           const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
-          await query(
+          const offerResult = await query(
             `UPDATE waitlist_entries SET
               status = 'offered', offer_token = $1,
               offer_booking_start = $2, offer_booking_end = $3,
               offer_sent_at = NOW(), offer_expires_at = $4, updated_at = NOW()
-             WHERE id = $5`,
+             WHERE id = $5 AND status = 'waiting'
+             RETURNING id`,
             [token, entry.offer_booking_start, entry.offer_booking_end,
              expiresAt.toISOString(), next.rows[0].id]
           );
+
+          // PUB-6: Send notification email to next client if offer was made
+          if (offerResult.rows.length > 0) {
+            try {
+              await query(
+                `INSERT INTO notifications (business_id, type, recipient_email, status, metadata)
+                 VALUES ($1, 'email_waitlist_offer', $2, 'queued', $3::jsonb)`,
+                [entry.business_id, next.rows[0].client_email,
+                 JSON.stringify({ waitlist_entry_id: next.rows[0].id, offer_token: token })]
+              );
+            } catch (notifErr) { console.warn('[WAITLIST] Notification error:', notifErr.message); }
+          }
         }
       }
     } catch (e) { /* non-blocking */ }

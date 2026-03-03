@@ -258,7 +258,7 @@ async function pushBookingToCalendar(connection, booking, queryFn) {
       externalLink = result.htmlLink;
     } else {
       const result = await outlookApiCall(accessToken,
-        `/me/events/${ext.external_event_id}`,
+        `/me/events/${encodeURIComponent(ext.external_event_id)}`,
         'PATCH', event
       );
       externalEventId = result.id;
@@ -315,7 +315,7 @@ async function deleteCalendarEvent(connection, bookingId, queryFn) {
         'DELETE'
       );
     } else {
-      await outlookApiCall(accessToken, `/me/events/${ext.external_event_id}`, 'DELETE');
+      await outlookApiCall(accessToken, `/me/events/${encodeURIComponent(ext.external_event_id)}`, 'DELETE');
     }
   } catch (err) {
     console.warn('[CAL-SYNC] Delete event failed:', err.message);
