@@ -16,6 +16,10 @@ import { calCheckConflict } from './booking-edit.js';
 async function fcOpenDetail(bookingId) {
   calState.fcCurrentEventId = bookingId;
   const modal = document.getElementById('calDetailModal');
+
+  // Cleanup: remove any leftover deposit banners from previous opens
+  document.querySelectorAll('.m-deposit-banner').forEach(el => el.remove());
+
   try {
     const r = await fetch(`/api/bookings/${bookingId}/detail`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     if (!r.ok) throw new Error('RDV introuvable');
@@ -119,6 +123,7 @@ async function fcOpenDetail(bookingId) {
       }
 
       const depEl = document.createElement('div');
+      depEl.className = 'm-deposit-banner';
       depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + borderCol + ';background:' + bgCol;
       depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${textCol}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -180,14 +185,14 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('uBookingColorWrap').innerHTML = cswHTML('uBookingColor', bookingColor, true);
     document.getElementById('mColorReset').style.display = b.color ? '' : 'none';
     calState._fcDefaultColor = defaultColor; // store for reset
-    document.getElementById('uBookingColor').addEventListener('change', function () {
+    document.getElementById('uBookingColor').onchange = function () {
       const c = this.value;
       document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
       document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
       saveBtn.style.background = c; saveBtn.style.boxShadow = `0 2px 8px ${c}40`;
       if (svcCard.style.display !== 'none') svcCard.style.borderLeftColor = c;
       document.getElementById('mColorReset').style.display = '';
-    });
+    };
 
     // -- Group siblings --
     const siblings = d.group_siblings || [];

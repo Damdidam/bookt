@@ -40,7 +40,7 @@ router.post('/manual', async (req, res, next) => {
           const conflict = await client.query(
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
-             AND status IN ('pending', 'confirmed', 'pending_deposit')
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
              AND start_at < $4 AND end_at > $3
              FOR UPDATE`,
             [bid, practitioner_id, realStart.toISOString(), realEnd.toISOString()]
@@ -87,15 +87,18 @@ router.post('/manual', async (req, res, next) => {
             if (depCents > 0) {
               const dlHours = dc.settings.deposit_deadline_hours || 48;
               const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-              await queryWithRLS(bid,
-                `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
-                 WHERE id = $3 AND business_id = $4`,
-                [depCents, deadline.toISOString(), bookings[0].id, bid]
-              );
-              bookings[0].status = 'pending_deposit';
-              bookings[0].deposit_required = true;
-              bookings[0].deposit_amount_cents = depCents;
+              // Only apply deposit if deadline is in the future (booking is far enough away)
+              if (deadline > new Date()) {
+                await queryWithRLS(bid,
+                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                   WHERE id = $3 AND business_id = $4`,
+                  [depCents, deadline.toISOString(), bookings[0].id, bid]
+                );
+                bookings[0].status = 'pending_deposit';
+                bookings[0].deposit_required = true;
+                bookings[0].deposit_amount_cents = depCents;
+              }
             }
           }
         } catch (e) { console.warn('[DEPOSIT] Freestyle check error:', e.message); }
@@ -172,7 +175,7 @@ router.post('/manual', async (req, res, next) => {
         const conflict = await client.query(
           `SELECT id FROM bookings
            WHERE business_id = $1 AND practitioner_id = $2
-           AND status IN ('pending', 'confirmed')
+           AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
            AND start_at < $4 AND end_at > $3
            FOR UPDATE`,
           [bid, practitioner_id, new Date(start_at).toISOString(), totalEnd]
@@ -238,18 +241,21 @@ router.post('/manual', async (req, res, next) => {
           if (depCents > 0) {
             const dlHours = dc.settings.deposit_deadline_hours || 48;
             const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-            const bkIds = bookings.map(b => b.id);
-            await queryWithRLS(bid,
-              `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
-               WHERE id = ANY($3) AND business_id = $4`,
-              [depCents, deadline.toISOString(), bkIds, bid]
-            );
-            bookings.forEach(b => {
-              b.status = 'pending_deposit';
-              b.deposit_required = true;
-              b.deposit_amount_cents = depCents;
-            });
+            // Only apply deposit if deadline is in the future
+            if (deadline > new Date()) {
+              const bkIds = bookings.map(b => b.id);
+              await queryWithRLS(bid,
+                `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                 WHERE id = ANY($3) AND business_id = $4`,
+                [depCents, deadline.toISOString(), bkIds, bid]
+              );
+              bookings.forEach(b => {
+                b.status = 'pending_deposit';
+                b.deposit_required = true;
+                b.deposit_amount_cents = depCents;
+              });
+            }
           }
         }
       } catch (e) { console.warn('[DEPOSIT] Normal check error:', e.message); }

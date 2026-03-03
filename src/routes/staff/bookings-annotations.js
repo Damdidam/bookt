@@ -99,7 +99,7 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
               biz.name AS business_name, biz.sector,
               (biz.theme->>'primary_color') AS primary_color
        FROM bookings b
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id

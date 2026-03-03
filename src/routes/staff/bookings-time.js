@@ -29,7 +29,7 @@ router.patch('/:id/move', async (req, res, next) => {
     // Fetch dragged booking + service info + group info
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
-              b.group_id, b.group_order,
+              b.group_id, b.group_order, b.status,
               s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -37,6 +37,12 @@ router.patch('/:id/move', async (req, res, next) => {
       [id, bid]
     );
     if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Guard: immutable statuses cannot be moved
+    const IMMUTABLE = ['cancelled', 'completed', 'no_show'];
+    if (IMMUTABLE.includes(old.rows[0].status)) {
+      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
 
     const draggedBooking = old.rows[0];
     const effectivePracId = practitioner_id || draggedBooking.practitioner_id;
@@ -96,7 +102,7 @@ router.patch('/:id/move', async (req, res, next) => {
               `SELECT id FROM bookings
                WHERE business_id = $1 AND practitioner_id = $2
                AND id != ALL($3)
-               AND status IN ('pending', 'confirmed', 'modified_pending')
+               AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
                AND start_at < $5 AND end_at > $4
                FOR UPDATE`,
               [bid, effectivePracId, groupIds, totalStart, totalEnd]
@@ -152,7 +158,7 @@ router.patch('/:id/move', async (req, res, next) => {
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
              AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
              AND start_at < $5 AND end_at > $4
              FOR UPDATE`,
             [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
@@ -215,7 +221,22 @@ router.patch('/:id/edit', async (req, res, next) => {
       return res.status(403).json({ error: 'Vous ne pouvez pas réaffecter un RDV à un autre praticien' });
     }
 
-    // If practitioner_id changes, check for conflicts
+    // Guard: immutable statuses cannot be edited
+    const statusCheck = await queryWithRLS(bid,
+      `SELECT status FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]
+    );
+    if (statusCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const IMMUTABLE_EDIT = ['cancelled', 'completed', 'no_show'];
+    if (IMMUTABLE_EDIT.includes(statusCheck.rows[0].status)) {
+      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
+
+    // If practitioner_id changes, check for conflicts (transaction vars)
+    let calState_editConflictNeeded = false;
+    let calState_editOverlap = false;
+    let calState_editMaxConcurrent = 1;
+    let calState_editTimes = null;
+
     if (practitioner_id !== undefined) {
       // Block reassigning a single member of a group booking
       const groupCheck = await queryWithRLS(bid,
@@ -246,22 +267,11 @@ router.patch('/:id/edit', async (req, res, next) => {
       }
 
       // Check conflicts with new practitioner's schedule (reuse bkTimes from above)
-      const globalAllowOverlap = await businessAllowsOverlap(bid);
-      if (!globalAllowOverlap && bkTimes.rows.length > 0) {
-        const maxConcurrent = await getMaxConcurrent(bid, practitioner_id);
-        const { start_at, end_at } = bkTimes.rows[0];
-        const conflict = await queryWithRLS(bid,
-          `SELECT id FROM bookings
-           WHERE business_id = $1 AND practitioner_id = $2
-           AND id != $3
-           AND status IN ('pending', 'confirmed', 'modified_pending')
-           AND start_at < $5 AND end_at > $4`,
-          [bid, practitioner_id, id, start_at, end_at]
-        );
-        if (conflict.rows.length >= maxConcurrent) {
-          return res.status(409).json({ error: 'Capacité maximale atteinte sur ce créneau' });
-        }
-      }
+      // This will be done inside a transaction below for atomicity
+      calState_editConflictNeeded = true;
+      calState_editOverlap = await businessAllowsOverlap(bid);
+      calState_editMaxConcurrent = calState_editOverlap ? Infinity : await getMaxConcurrent(bid, practitioner_id);
+      calState_editTimes = bkTimes.rows[0];
     }
 
     const sets = [];
@@ -286,10 +296,34 @@ router.patch('/:id/edit', async (req, res, next) => {
     sets.push('updated_at = NOW()');
     params.push(id, bid);
 
-    const result = await queryWithRLS(bid,
-      `UPDATE bookings SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING *`,
-      params
-    );
+    const updateSql = `UPDATE bookings SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING *`;
+
+    // If practitioner reassignment, wrap conflict check + update in a transaction
+    let result;
+    if (calState_editConflictNeeded && !calState_editOverlap && calState_editTimes) {
+      try {
+        result = await transactionWithRLS(bid, async (client) => {
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND id != $3
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND start_at < $5 AND end_at > $4
+             FOR UPDATE`,
+            [bid, practitioner_id, id, calState_editTimes.start_at, calState_editTimes.end_at]
+          );
+          if (conflict.rows.length >= calState_editMaxConcurrent) {
+            throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
+          }
+          return client.query(updateSql, params);
+        });
+      } catch (err) {
+        if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+        throw err;
+      }
+    } else {
+      result = await queryWithRLS(bid, updateSql, params);
+    }
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
@@ -327,14 +361,20 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     if (!end_at) return res.status(400).json({ error: 'end_at requis' });
 
-    // Get current booking to know start_at, end_at, practitioner, group
+    // Get current booking to know start_at, end_at, practitioner, group, status
     const current = await queryWithRLS(bid,
-      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id
+      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id, b.status
        FROM bookings b
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
     if (current.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Guard: immutable statuses cannot be resized
+    const IMMUTABLE_RESIZE = ['cancelled', 'completed', 'no_show'];
+    if (IMMUTABLE_RESIZE.includes(current.rows[0].status)) {
+      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
 
     // Block resize for grouped bookings (durations are service-defined)
     if (current.rows[0].group_id) {
@@ -352,7 +392,7 @@ router.patch('/:id/resize', async (req, res, next) => {
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
              AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
              AND start_at < $5 AND end_at > $4
              FOR UPDATE`,
             [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
@@ -414,7 +454,7 @@ router.patch('/:id/modify', async (req, res, next) => {
               s.name AS service_name, p.display_name AS practitioner_name,
               biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
        FROM bookings b
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
@@ -422,6 +462,12 @@ router.patch('/:id/modify', async (req, res, next) => {
       [id, bid]
     );
     if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+
+    // Guard: immutable statuses cannot be modified
+    const IMMUTABLE_MOD = ['cancelled', 'completed', 'no_show'];
+    if (IMMUTABLE_MOD.includes(old.rows[0].status)) {
+      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
 
     const oldBooking = old.rows[0];
 
@@ -438,7 +484,7 @@ router.patch('/:id/modify', async (req, res, next) => {
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
              AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending')
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
              AND start_at < $5 AND end_at > $4
              FOR UPDATE`,
             [bid, oldBooking.practitioner_id, id, start_at, end_at]

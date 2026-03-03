@@ -60,6 +60,12 @@ async function fcLoadMobileList() {
 
 function fcMobShift(dir) {
   calState.fcMobileDate.setDate(calState.fcMobileDate.getDate() + dir);
+  // Skip hidden days (e.g. weekends when calendar hides them)
+  let guard = 0;
+  while (calState.fcHiddenDays && calState.fcHiddenDays.includes(calState.fcMobileDate.getDay()) && guard < 7) {
+    calState.fcMobileDate.setDate(calState.fcMobileDate.getDate() + dir);
+    guard++;
+  }
   fcLoadMobileList();
   // Sync calendar too
   calState.fcCal.gotoDate(calState.fcMobileDate);

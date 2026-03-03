@@ -435,7 +435,7 @@ function buildEventDrop() {
       // In month view + collision -> offer to switch to day view for precise placement
       if (isCollision && calState.fcCal?.view?.type === 'dayGridMonth') {
         window._atPendingDaySwitch = targetDate;
-        gToast('<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Cr\u00e9neau occup\u00e9 \u2014 voir le jour pour replacer ?', 'error', { label: 'Voir le jour \u2192', fn: `atView('timeGridDay');fcCal.gotoDate(window._atPendingDaySwitch);document.getElementById('gToast').style.display='none'` });
+        gToast('<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Cr\u00e9neau occup\u00e9 \u2014 voir le jour pour replacer ?', 'error', { label: 'Voir le jour \u2192', fn: `atView('timeGridDay');calState.fcCal.gotoDate(window._atPendingDaySwitch);document.getElementById('gToast').style.display='none'` });
       } else {
         gToast(isCollision ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Cr\u00e9neau occup\u00e9 \u2014 impossible de d\u00e9placer ici' : e.message, 'error');
       }

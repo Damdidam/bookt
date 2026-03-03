@@ -114,7 +114,7 @@ router.get('/:id/detail', async (req, res, next) => {
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );

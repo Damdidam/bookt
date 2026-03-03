@@ -11,6 +11,9 @@ import { closeCalModal } from './booking-detail.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO } from '../../utils/format.js';
 
+// Escape string for use inside JS single-quoted onclick handlers
+function escJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
 // In-memory storage for notes/todos/reminders during creation
 let qcNotes = [];
 let qcTodos = [];
@@ -270,7 +273,7 @@ function calSearchClients(q) {
         const blTag = c.is_blocked
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
           : '';
-        return `<div class="ac-item" onclick="calPickClient('${c.id}','${esc(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${c.phone || ''} ${c.email || ''}</div></div>`;
+        return `<div class="ac-item" onclick="calPickClient('${c.id}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${c.phone || ''} ${c.email || ''}</div></div>`;
       }).join('');
       h += `<div class="ac-item ac-new" onclick="calNewClient()">+ ${categoryLabels.client} : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';

@@ -383,19 +383,34 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 15 * 60000);
     }
 
-    // Fetch practitioner capacity for overlap check
+    // Validate practitioner is active + booking_enabled + capacity
     const pracCap = await query(
-      `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1 AND business_id = $2`,
+      `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
+       FROM practitioners WHERE id = $1 AND business_id = $2`,
       [practitioner_id, businessId]
     );
+    if (pracCap.rows.length === 0 || !pracCap.rows[0].is_active || !pracCap.rows[0].booking_enabled) {
+      return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+    }
     const maxConcurrent = pracCap.rows[0]?.max_concurrent || 1;
+
+    // Validate practitioner offers this service
+    if (service_id) {
+      const psCheck = await query(
+        `SELECT 1 FROM practitioner_services WHERE service_id = $1 AND practitioner_id = $2`,
+        [service_id, practitioner_id]
+      );
+      if (psCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
+      }
+    }
 
     const result = await transactionWithRLS(businessId, async (client) => {
       // Conflict check (capacity-aware)
       const conflict = await client.query(
         `SELECT id FROM bookings
          WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('pending', 'confirmed')
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
          AND start_at < $4 AND end_at > $3 FOR UPDATE`,
         [businessId, practitioner_id, startDate.toISOString(), endDate.toISOString()]
       );
@@ -403,26 +418,52 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
       }
 
-      // Find or create client
+      // Find or create client (3-step matching: exact → phone → email)
       let clientId;
-      const existing = await client.query(
-        `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND (phone = $2 OR email = $3) LIMIT 1`,
+      let existingClient = null;
+
+      // Step 1: exact match (phone AND email)
+      const exactMatch = await client.query(
+        `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
         [businessId, client_phone, client_email]
       );
-      if (existing.rows.length > 0) {
+      if (exactMatch.rows.length > 0) {
+        existingClient = exactMatch.rows[0];
+      } else {
+        // Step 2: match by phone
+        const phoneMatch = await client.query(
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+          [businessId, client_phone]
+        );
+        if (phoneMatch.rows.length > 0) {
+          existingClient = phoneMatch.rows[0];
+        } else {
+          // Step 3: match by email
+          const emailMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+            [businessId, client_email]
+          );
+          if (emailMatch.rows.length > 0) {
+            existingClient = emailMatch.rows[0];
+          }
+        }
+      }
+
+      if (existingClient) {
         // Check if client is blocked
-        if (existing.rows[0].is_blocked) {
+        if (existingClient.is_blocked) {
           throw Object.assign(
             new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
             { type: 'blocked', status: 403 }
           );
         }
-        clientId = existing.rows[0].id;
+        clientId = existingClient.id;
+        // Update client info (only overwrite fields the client provides)
         await client.query(
           `UPDATE clients SET full_name=$1, email=$2, phone=$3, bce_number=COALESCE($4,bce_number),
            consent_sms=$5, consent_email=$6, consent_marketing=$7, updated_at=NOW() WHERE id=$8`,
           [client_name, client_email, client_phone, client_bce,
-           consent_sms!==false, consent_email!==false, consent_marketing===true, clientId]
+           consent_sms===true, consent_email===true, consent_marketing===true, clientId]
         );
       } else {
         const nc = await client.query(
@@ -430,7 +471,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             language_preference, consent_sms, consent_email, consent_marketing, created_from)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
           [businessId, client_name, client_phone, client_email, client_bce||null,
-           client_language||'unknown', consent_sms!==false, consent_email!==false, consent_marketing===true]
+           client_language||'unknown', consent_sms===true, consent_email===true, consent_marketing===true]
         );
         clientId = nc.rows[0].id;
       }
@@ -497,9 +538,9 @@ router.get('/booking/:token', async (req, res, next) => {
               biz.settings AS business_settings, biz.theme AS business_theme,
               biz.category AS business_category, biz.sector AS business_sector
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN clients c ON c.id = b.client_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`,
       [token]
@@ -689,7 +730,8 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 });
 
 // ============================================================
-// GET /api/public/booking/:token/confirm — landing page (redirect from email button)
+// GET /api/public/booking/:token/confirm — landing page (READ-ONLY)
+// Shows confirmation button, POST does the mutation
 // ============================================================
 router.get('/booking/:token/confirm', async (req, res, next) => {
   try {
@@ -709,13 +751,42 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 
     if (bk.status === 'confirmed') {
-      return res.send(confirmationPage('Déjà confirmé ', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
+      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
     }
     if (bk.status !== 'modified_pending') {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk.business_name));
     }
 
-    // Auto-confirm via GET
+    // Show confirmation landing page with a form button (no mutation on GET)
+    res.send(actionPage('Confirmer le rendez-vous', `<strong>${bk.service_name || 'Votre rendez-vous'}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅'));
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/booking/:token/confirm — actually confirms
+router.post('/booking/:token/confirm', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.status, b.start_at, s.name AS service_name, biz.name AS business_name, biz.theme
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`, [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+
+    const bk = result.rows[0];
+    const color = bk.theme?.primary_color || '#0D7377';
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+    if (bk.status === 'confirmed') {
+      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
+    }
+    if (bk.status !== 'modified_pending') {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk.business_name));
+    }
+
     await query(`UPDATE bookings SET status = 'confirmed', updated_at = NOW() WHERE public_token = $1`, [token]);
     await query(
       `INSERT INTO notifications (business_id, booking_id, type, status) SELECT business_id, id, 'email_modification_confirmed', 'queued' FROM bookings WHERE public_token = $1`, [token]
@@ -723,14 +794,42 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     const bid = (await query(`SELECT business_id FROM bookings WHERE public_token = $1`, [token])).rows[0]?.business_id;
     if (bid) broadcast(bid, 'booking_update', { action: 'confirmed', source: 'public' });
 
-    res.send(confirmationPage('Rendez-vous confirmé ', `${bk.service_name || 'Votre rendez-vous'} le <strong>${dt} à ${tm}</strong> est confirmé. Merci !`, color, bk.business_name));
+    res.send(confirmationPage('Rendez-vous confirmé ✅', `${bk.service_name || 'Votre rendez-vous'} le <strong>${dt} à ${tm}</strong> est confirmé. Merci !`, color, bk.business_name));
   } catch (err) { next(err); }
 });
 
 // ============================================================
-// GET /api/public/booking/:token/reject — landing page (redirect from email button)
+// GET /api/public/booking/:token/reject — landing page (READ-ONLY)
+// Shows reject button, POST does the mutation
 // ============================================================
 router.get('/booking/:token/reject', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.status, b.start_at, biz.name AS business_name, biz.theme, biz.phone AS business_phone
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`, [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+
+    const bk = result.rows[0];
+    const color = bk.theme?.primary_color || '#0D7377';
+
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a été annulé.', '#C62828', bk.business_name));
+    }
+    if (bk.status !== 'modified_pending') {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', bk.business_name));
+    }
+
+    // Show reject landing page with a form button (no mutation on GET)
+    res.send(actionPage('Refuser le nouveau créneau ?', 'Si ce créneau ne vous convient pas, vous pouvez le refuser et contacter le cabinet pour un autre horaire.', '#C62828', bk.business_name, token, 'reject', 'Refuser le créneau'));
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/booking/:token/reject — actually rejects
+router.post('/booking/:token/reject', async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(
@@ -776,6 +875,26 @@ function confirmationPage(title, message, color, businessName) {
   <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title.replace(/[]/g, '').trim()}</h1>
   <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0">${message}</p>
   ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${businessName} · Via Genda</p>` : ''}
+</div></body></html>`;
+}
+
+// Helper: build a standalone HTML action page (form with POST button)
+function actionPage(title, message, color, businessName, token, action, btnLabel) {
+  const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(title)} — ${escHtml(businessName) || 'Genda'}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
+<div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
+  <div style="width:56px;height:56px;border-radius:50%;background:${color}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+    <div style="font-size:24px">❓</div>
+  </div>
+  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title}</h1>
+  <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0 0 24px">${message}</p>
+  <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}">
+    <button type="submit" style="background:${color};color:#fff;border:none;border-radius:10px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px">${escHtml(btnLabel)}</button>
+  </form>
+  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${escHtml(businessName)} · Via Genda</p>` : ''}
 </div></body></html>`;
 }
 
@@ -1057,16 +1176,23 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
     try {
       booking = await transactionWithRLS(e.business_id, async (client) => {
       // Check slot still available WITH lock (inside transaction to prevent race condition)
+      // Fetch practitioner capacity
+      const pracCapWl = await client.query(
+        `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1 AND business_id = $2`,
+        [e.practitioner_id, e.business_id]
+      );
+      const maxConcurrentWl = pracCapWl.rows[0]?.max_concurrent || 1;
+
       const conflict = await client.query(
         `SELECT id FROM bookings
          WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('pending', 'confirmed')
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
          AND start_at < $4 AND end_at > $3
          FOR UPDATE`,
         [e.business_id, e.practitioner_id, e.offer_booking_start, e.offer_booking_end]
       );
 
-      if (conflict.rows.length > 0) {
+      if (conflict.rows.length >= maxConcurrentWl) {
         await client.query(
           `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
           [e.id]
@@ -1211,11 +1337,11 @@ router.get('/booking/:token/ics', async (req, res, next) => {
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.address AS business_address
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
-       JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN clients c ON c.id = b.client_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
-       WHERE b.token = $1 AND b.status IN ('confirmed','pending','modified_pending')`,
+       WHERE b.public_token = $1 AND b.status IN ('confirmed','pending','modified_pending')`,
       [req.params.token]
     );
     if (result.rows.length === 0) return res.status(404).send('Rendez-vous introuvable');
@@ -1223,17 +1349,17 @@ router.get('/booking/:token/ics', async (req, res, next) => {
     const bk = result.rows[0];
     const start = new Date(bk.start_at);
     const end = new Date(bk.end_at);
-    const summary = `${bk.service_name} — ${bk.practitioner_name}`;
+    const summary = `${bk.service_name || 'Rendez-vous'} — ${bk.practitioner_name || ''}`;
     const loc = bk.appointment_mode === 'visio' ? 'Visioconférence' : bk.appointment_mode === 'phone' ? 'Téléphone' : (bk.business_address || bk.business_name);
-    const desc = [bk.service_name, `Avec ${bk.practitioner_name}`, bk.business_name].join('\\n');
+    const desc = [bk.service_name || 'Rendez-vous', bk.practitioner_name ? `Avec ${bk.practitioner_name}` : '', bk.business_name].filter(Boolean).join('\\n');
 
-    function icalDt(d) {
-      return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') +
-        'T' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+    function icalDtUTC(d) {
+      return d.getUTCFullYear() + String(d.getUTCMonth()+1).padStart(2,'0') + String(d.getUTCDate()).padStart(2,'0') +
+        'T' + String(d.getUTCHours()).padStart(2,'0') + String(d.getUTCMinutes()).padStart(2,'0') + String(d.getUTCSeconds()).padStart(2,'0') + 'Z';
     }
     function esc(s) { return (s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
 
-    const ical = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:${bk.id}@genda.be\r\nDTSTART;TZID=Europe/Brussels:${icalDt(start)}\r\nDTEND;TZID=Europe/Brussels:${icalDt(end)}\r\nSUMMARY:${esc(summary)}\r\nDESCRIPTION:${esc(desc)}\r\nLOCATION:${esc(loc)}\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+    const ical = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:${bk.id}@genda.be\r\nDTSTART:${icalDtUTC(start)}\r\nDTEND:${icalDtUTC(end)}\r\nSUMMARY:${esc(summary)}\r\nDESCRIPTION:${esc(desc)}\r\nLOCATION:${esc(loc)}\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="rdv-genda.ics"`);

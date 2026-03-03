@@ -114,16 +114,16 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     `SELECT practitioner_id, start_at, end_at
      FROM bookings
      WHERE business_id = $1 AND practitioner_id = ANY($2)
-     AND start_at >= $3 AND start_at <= ($4::date + INTERVAL '1 day')
-     AND status IN ('pending', 'confirmed', 'pending_deposit')
+     AND end_at > $3 AND start_at <= ($4::date + INTERVAL '1 day')
+     AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
      ORDER BY start_at`,
     [businessId, practitionerIds, dateFrom, dateTo]
   );
 
-  // Group bookings by practitioner+date
+  // Group bookings by practitioner+date (Brussels timezone for correct day grouping)
   const bookingMap = {};
   for (const row of bookingsResult.rows) {
-    const dateStr = row.start_at.toISOString().split('T')[0];
+    const dateStr = row.start_at.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const key = `${row.practitioner_id}-${dateStr}`;
     if (!bookingMap[key]) bookingMap[key] = [];
     bookingMap[key].push({
@@ -137,7 +137,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     for (const pracId of practitionerIds) {
       const busyBlocks = await getBusyBlocks(query, businessId, pracId, new Date(dateFrom), new Date(dateTo));
       for (const block of busyBlocks) {
-        const dateStr = new Date(block.start_at).toISOString().split('T')[0];
+        const dateStr = new Date(block.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const key = `${pracId}-${dateStr}`;
         if (!bookingMap[key]) bookingMap[key] = [];
         bookingMap[key].push({
