@@ -37,7 +37,11 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   if (svcResult.rows.length === 0) throw Object.assign(new Error('Prestation introuvable'), { type: 'not_found' });
 
   const service = svcResult.rows[0];
-  const totalDuration = service.buffer_before_min + service.duration_min + service.buffer_after_min;
+  const totalDuration = (service.buffer_before_min || 0) + service.duration_min + (service.buffer_after_min || 0);
+
+  if (!totalDuration || totalDuration <= 0) {
+    throw Object.assign(new Error(`Durée de prestation invalide (${totalDuration} min)`), { type: 'validation' });
+  }
 
   // Check if mode is supported
   if (appointmentMode && !service.mode_options.includes(appointmentMode)) {
@@ -105,7 +109,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   const exceptionMap = {};
   for (const row of exceptResult.rows) {
-    const key = `${row.practitioner_id}-${row.date.toISOString().split('T')[0]}`;
+    const key = `${row.practitioner_id}-${new Date(row.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })}`;
     exceptionMap[key] = row;
   }
 

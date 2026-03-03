@@ -2,7 +2,7 @@
  * Booking Annotations — notes, session notes, todos, reminders, documents.
  */
 const router = require('express').Router();
-const { query, queryWithRLS } = require('../../services/db');
+const { queryWithRLS } = require('../../services/db');
 const { sendPreRdvEmail } = require('../../services/email');
 
 // ============================================================
@@ -82,6 +82,9 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     if (!session_notes || session_notes.trim() === '' || session_notes.trim() === '<br>') {
       return res.status(400).json({ error: 'Notes de séance vides' });
     }
+    if (session_notes.length > 50000) {
+      return res.status(400).json({ error: 'Notes de séance trop longues (max 50000 caractères)' });
+    }
 
     // Save notes first
     await queryWithRLS(bid,
@@ -118,10 +121,17 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     const { sendSessionNotesEmail } = require('../../services/email');
     const dateStr = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
 
+    // Sanitize session notes before sending by email (strip scripts, event handlers, dangerous tags)
+    let safeHTML = (session_notes || '');
+    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*>[\s\S]*?<\/\1>/gi, '');
+    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*\/?>/gi, '');
+    safeHTML = safeHTML.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    safeHTML = safeHTML.replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
+
     await sendSessionNotesEmail({
       to: d.client_email,
       toName: d.client_name,
-      sessionHTML: session_notes,
+      sessionHTML: safeHTML,
       serviceName: d.service_name || 'Rendez-vous',
       date: dateStr,
       practitionerName: d.practitioner_name,
@@ -151,6 +161,7 @@ router.post('/:id/notes', async (req, res, next) => {
     const bid = req.businessId;
     const { content, is_pinned } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
+    if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
 
     const result = await queryWithRLS(bid,
       `INSERT INTO booking_notes (booking_id, business_id, author_id, content, is_pinned)
@@ -184,6 +195,7 @@ router.post('/:id/todos', async (req, res, next) => {
     const bid = req.businessId;
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'Contenu requis' });
+    if (content.length > 5000) return res.status(400).json({ error: 'Contenu trop long (max 5000 caractères)' });
 
     const result = await queryWithRLS(bid,
       `INSERT INTO practitioner_todos (booking_id, business_id, user_id, content)
@@ -258,6 +270,7 @@ router.post('/:id/reminders', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { offset_minutes, channel, message } = req.body;
+    if (message && message.length > 5000) return res.status(400).json({ error: 'Message trop long (max 5000 caractères)' });
     const offset = parseInt(offset_minutes) || 30;
     const ch = ['browser', 'email', 'both'].includes(channel) ? channel : 'browser';
 
@@ -340,7 +353,7 @@ router.post('/:id/send-document', async (req, res, next) => {
     );
 
     // Get business info for email
-    const biz = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [bid]);
+    const biz = await queryWithRLS(bid, `SELECT name, email, address, theme FROM businesses WHERE id = $1`, [bid]);
 
     // Send email (non-blocking)
     sendPreRdvEmail({

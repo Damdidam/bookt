@@ -110,6 +110,8 @@ function initCalendar(initView, initSlotDur) {
   document.getElementById('fcCalendar')?.addEventListener('scroll', fcHideTooltip, true);
 
   // Update toolbar title & date on every navigation/view change
+  // Guard: remove existing listener to prevent accumulation if re-initialized
+  calState.fcCal.off('datesSet');
   calState.fcCal.on('datesSet', function () {
     atUpdateTitle();
   });

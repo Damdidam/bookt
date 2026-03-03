@@ -61,9 +61,20 @@ async function businessAllowsOverlap(bid) {
 async function checkPracAvailability(bid, pracId, startAt, endAt) {
   const start = new Date(startAt);
   const end = new Date(endAt);
-  const dateStr = start.toISOString().slice(0, 10); // YYYY-MM-DD
-  // DB weekday: 0=Monday..6=Sunday (ISO), JS getDay: 0=Sunday..6=Saturday
-  const jsDay = start.getDay();
+
+  // Convert to Brussels timezone for correct weekday + time extraction
+  const bxlStartParts = start.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+  // en-GB format: "DD/MM/YYYY, HH:MM:SS" → parts: [DD, MM, YYYY, HH, MM, SS]
+  const bxlStartH = parseInt(bxlStartParts[3]) || 0;
+  const bxlStartM = parseInt(bxlStartParts[4]) || 0;
+  const bxlEndParts = end.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+  const bxlEndH = parseInt(bxlEndParts[3]) || 0;
+  const bxlEndM = parseInt(bxlEndParts[4]) || 0;
+
+  const dateStr = start.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }); // YYYY-MM-DD in Brussels TZ
+  // DB weekday: 0=Monday..6=Sunday (ISO)
+  const bxlDate = new Date(dateStr + 'T12:00:00'); // noon to avoid DST edge
+  const jsDay = bxlDate.getDay(); // correct day because we're using Brussels date
   const dbDay = jsDay === 0 ? 6 : jsDay - 1;
 
   // 1. Check exceptions for this specific date
@@ -78,8 +89,8 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
     // custom_hours: check if booking fits
     const exStart = timeToMin(ex.start_time);
     const exEnd = timeToMin(ex.end_time);
-    const bkStart = start.getHours() * 60 + start.getMinutes();
-    const bkEnd = end.getHours() * 60 + end.getMinutes();
+    const bkStart = bxlStartH * 60 + bxlStartM;
+    const bkEnd = bxlEndH * 60 + bxlEndM;
     if (bkStart >= exStart && bkEnd <= exEnd) return { ok: true };
     return { ok: false, reason: 'Horaire hors des heures exceptionnelles du praticien' };
   }
@@ -95,8 +106,8 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
   }
 
   // Merge slots and check if booking fits within any merged window
-  const bkStart = start.getHours() * 60 + start.getMinutes();
-  const bkEnd = end.getHours() * 60 + end.getMinutes();
+  const bkStart = bxlStartH * 60 + bxlStartM;
+  const bkEnd = bxlEndH * 60 + bxlEndM;
   const slots = avail.rows.map(r => ({ s: timeToMin(r.start_time), e: timeToMin(r.end_time) })).sort((a, b) => a.s - b.s);
   const merged = [];
   for (const sl of slots) {
@@ -111,8 +122,9 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
 }
 
 function timeToMin(t) {
+  if (!t || typeof t !== 'string') return 0;
   const [h, m] = t.split(':').map(Number);
-  return h * 60 + (m || 0);
+  return (h || 0) * 60 + (m || 0);
 }
 
 /**

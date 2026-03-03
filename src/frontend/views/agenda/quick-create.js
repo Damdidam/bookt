@@ -12,7 +12,7 @@ import { cswHTML } from './color-swatches.js';
 import { MODE_ICO } from '../../utils/format.js';
 
 // Escape string for use inside JS single-quoted onclick handlers
-function escJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029'); }
 
 // In-memory storage for notes/todos/reminders during creation
 let qcNotes = [];

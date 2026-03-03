@@ -8,6 +8,22 @@ import { bridge } from '../../utils/window-bridge.js';
 const gToast = (m, t) => GendaUI.toast(m, t);
 
 /**
+ * Sanitize rich text HTML — strip dangerous tags and event handlers
+ * while keeping safe formatting (b, i, u, br, p, span, strong, em, ul, ol, li, a).
+ */
+function sanitizeRichText(html) {
+  if (!html) return '';
+  // Remove script/iframe/object/embed tags and their content
+  let s = html.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  s = s.replace(/<(script|iframe|object|embed|form|textarea|input|select|button)[^>]*\/?>/gi, '');
+  // Remove event handlers (on*="...")
+  s = s.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  // Remove javascript: URLs
+  s = s.replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
+  return s;
+}
+
+/**
  * Render session notes tab content for the current booking.
  */
 function fcRenderSession(booking) {
@@ -16,8 +32,8 @@ function fcRenderSession(booking) {
   const sendBtn = document.getElementById('seSendBtn');
   if (!body) return;
 
-  // Load existing content
-  body.innerHTML = booking.session_notes || '';
+  // Load existing content (sanitize to prevent stored XSS)
+  body.innerHTML = sanitizeRichText(booking.session_notes || '');
 
   // Status
   if (booking.session_notes_sent_at) {

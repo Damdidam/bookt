@@ -2,7 +2,7 @@
  * Booking Status — status changes, deposit refund, permanent delete.
  */
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete } = require('./bookings-helpers');
 
@@ -22,71 +22,70 @@ router.patch('/:id/status', async (req, res, next) => {
       return res.status(400).json({ error: `Statut invalide. Valeurs : ${validStatuses.join(', ')}` });
     }
 
-    const old = await queryWithRLS(bid,
-      `SELECT status, client_id FROM bookings WHERE id = $1 AND business_id = $2`,
-      [id, bid]
-    );
-    if (old.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    // ===== All DB mutations inside a single transaction =====
+    const txResult = await transactionWithRLS(bid, async (client) => {
+      // Lock the booking row to prevent concurrent modifications
+      const old = await client.query(
+        `SELECT status, client_id, deposit_required, deposit_status, deposit_amount_cents FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (old.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
 
-    // ===== STATE MACHINE: validate transition =====
-    const TRANSITIONS = {
-      pending:          ['confirmed', 'cancelled', 'no_show'],
-      confirmed:        ['completed', 'cancelled', 'no_show', 'modified_pending', 'pending_deposit'],
-      modified_pending: ['confirmed', 'cancelled'],
-      pending_deposit:  ['confirmed', 'cancelled'],
-      completed:        ['confirmed'],  // ré-ouvrir si erreur
-      no_show:          ['confirmed', 'cancelled'],
-      cancelled:        []  // un RDV annulé ne peut pas être ressuscité
-    };
-    const allowed = TRANSITIONS[old.rows[0].status] || [];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ error: `Transition ${old.rows[0].status} → ${status} non autorisée` });
-    }
+      // ===== STATE MACHINE: validate transition =====
+      const TRANSITIONS = {
+        pending:          ['confirmed', 'cancelled', 'no_show'],
+        confirmed:        ['completed', 'cancelled', 'no_show', 'modified_pending', 'pending_deposit'],
+        modified_pending: ['confirmed', 'cancelled'],
+        pending_deposit:  ['confirmed', 'cancelled'],
+        completed:        ['confirmed'],  // ré-ouvrir si erreur
+        no_show:          ['confirmed', 'cancelled'],
+        cancelled:        []  // un RDV annulé ne peut pas être ressuscité
+      };
+      const allowed = TRANSITIONS[old.rows[0].status] || [];
+      if (!allowed.includes(status)) {
+        return { error: 400, message: `Transition ${old.rows[0].status} → ${status} non autorisée` };
+      }
 
-    // cancel_reason only applies to cancellations
-    const updateFields = status === 'cancelled'
-      ? `status = $1, cancel_reason = $2, updated_at = NOW()`
-      : `status = $1, updated_at = NOW()`;
-    const updateParams = status === 'cancelled'
-      ? [status, cancel_reason || null, id, bid]
-      : [status, id, bid];
+      // Update booking status
+      if (status === 'cancelled') {
+        await client.query(
+          `UPDATE bookings SET status = $1, cancel_reason = $2, updated_at = NOW()
+           WHERE id = $3 AND business_id = $4`,
+          [status, cancel_reason || null, id, bid]
+        );
+      } else {
+        await client.query(
+          `UPDATE bookings SET status = $1, updated_at = NOW()
+           WHERE id = $2 AND business_id = $3`,
+          [status, id, bid]
+        );
+      }
 
-    await queryWithRLS(bid,
-      `UPDATE bookings SET ${updateFields}
-       WHERE id = $${status === 'cancelled' ? 3 : 2} AND business_id = $${status === 'cancelled' ? 4 : 3}`,
-      updateParams
-    );
-
-    // ===== DEPOSIT: mark as paid when pending_deposit → confirmed =====
-    if (old.rows[0].status === 'pending_deposit' && status === 'confirmed') {
-      try {
-        await queryWithRLS(bid,
+      // ===== DEPOSIT: mark as paid when pending_deposit → confirmed =====
+      if (old.rows[0].status === 'pending_deposit' && status === 'confirmed') {
+        await client.query(
           `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW()
            WHERE id = $1 AND business_id = $2`,
           [id, bid]
         );
-      } catch (e) { console.warn('[DEPOSIT] Mark paid error:', e.message); }
-    }
+      }
 
-    // ===== NO-SHOW STRIKE SYSTEM (guard: only increment if not already no_show) =====
-    if (status === 'no_show' && old.rows[0].status !== 'no_show') {
-      try {
-        // Get client_id + business settings
-        const bkInfo = await queryWithRLS(bid,
+      // ===== NO-SHOW STRIKE SYSTEM (guard: only increment if not already no_show) =====
+      if (status === 'no_show' && old.rows[0].status !== 'no_show') {
+        const bkInfo = await client.query(
           `SELECT b.client_id, biz.settings
            FROM bookings b
            JOIN businesses biz ON biz.id = b.business_id
-           WHERE b.id = $1`,
-          [id]
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
         );
         if (bkInfo.rows.length > 0 && bkInfo.rows[0].client_id) {
           const clientId = bkInfo.rows[0].client_id;
           const settings = bkInfo.rows[0].settings || {};
           const threshold = settings.noshow_block_threshold ?? 3;
-          const action = settings.noshow_block_action || 'block';
+          const blockAction = settings.noshow_block_action || 'block';
 
-          // Increment no_show_count
-          const updated = await queryWithRLS(bid,
+          const updated = await client.query(
             `UPDATE clients SET
               no_show_count = no_show_count + 1,
               last_no_show_at = NOW(),
@@ -96,10 +95,9 @@ router.patch('/:id/status', async (req, res, next) => {
             [clientId, bid]
           );
 
-          // Auto-block if threshold reached
           const count = updated.rows[0]?.no_show_count || 0;
-          if (threshold > 0 && count >= threshold && action === 'block') {
-            await queryWithRLS(bid,
+          if (threshold > 0 && count >= threshold && blockAction === 'block') {
+            await client.query(
               `UPDATE clients SET
                 is_blocked = true,
                 blocked_at = NOW(),
@@ -110,17 +108,13 @@ router.patch('/:id/status', async (req, res, next) => {
             );
           }
         }
-      } catch (e) {
-        console.warn('No-show strike error (non-blocking):', e.message);
       }
-    }
 
-    // ===== UNDO: if reverting from no_show, decrement + potentially unblock =====
-    if (old.rows[0].status === 'no_show' && status !== 'no_show') {
-      try {
+      // ===== UNDO: if reverting from no_show, decrement + potentially unblock =====
+      if (old.rows[0].status === 'no_show' && status !== 'no_show') {
         const clientId = old.rows[0].client_id;
         if (clientId) {
-          const updated = await queryWithRLS(bid,
+          const updated = await client.query(
             `UPDATE clients SET
               no_show_count = GREATEST(no_show_count - 1, 0),
               updated_at = NOW()
@@ -128,15 +122,14 @@ router.patch('/:id/status', async (req, res, next) => {
              RETURNING no_show_count, is_blocked, blocked_reason`,
             [clientId, bid]
           );
-          // Unblock client if they were auto-blocked and now below threshold
           const cl = updated.rows[0];
           if (cl && cl.is_blocked && cl.blocked_reason?.startsWith('Bloqué automatiquement')) {
-            const bizSettings = await queryWithRLS(bid,
+            const bizSettings = await client.query(
               `SELECT settings FROM businesses WHERE id = $1`, [bid]
             );
             const threshold = bizSettings.rows[0]?.settings?.noshow_block_threshold ?? 3;
             if (cl.no_show_count < threshold) {
-              await queryWithRLS(bid,
+              await client.query(
                 `UPDATE clients SET is_blocked = false, blocked_reason = NULL, blocked_at = NULL, updated_at = NOW()
                  WHERE id = $1 AND business_id = $2`,
                 [clientId, bid]
@@ -144,13 +137,11 @@ router.patch('/:id/status', async (req, res, next) => {
             }
           }
         }
-      } catch (e) { /* non-blocking */ }
-    }
+      }
 
-    // ===== DEPOSIT: refund logic on cancellation =====
-    if (status === 'cancelled') {
-      try {
-        const depInfo = await queryWithRLS(bid,
+      // ===== DEPOSIT: refund logic on cancellation =====
+      if (status === 'cancelled') {
+        const depInfo = await client.query(
           `SELECT b.deposit_required, b.deposit_status, b.start_at, b.created_at, biz.settings
            FROM bookings b JOIN businesses biz ON biz.id = b.business_id
            WHERE b.id = $1 AND b.business_id = $2`,
@@ -165,26 +156,50 @@ router.patch('/:id/status', async (req, res, next) => {
             const hoursUntilRdv = (new Date(dep.start_at) - new Date()) / 3600000;
             const minSinceCreated = (new Date() - new Date(dep.created_at)) / 60000;
             if (minSinceCreated <= graceMin) {
-              newDepStatus = 'refunded'; // grace period
+              newDepStatus = 'refunded';
             } else if (hoursUntilRdv >= cancelDeadlineH) {
-              newDepStatus = 'refunded'; // within deadline
+              newDepStatus = 'refunded';
             } else {
-              newDepStatus = 'cancelled'; // too late, deposit kept
+              newDepStatus = 'cancelled';
             }
           } else if (dep.deposit_status === 'pending') {
-            newDepStatus = 'cancelled'; // never paid
+            newDepStatus = 'cancelled';
           }
           if (newDepStatus) {
-            await queryWithRLS(bid,
+            await client.query(
               `UPDATE bookings SET deposit_status = $1 WHERE id = $2 AND business_id = $3`,
               [newDepStatus, id, bid]
             );
           }
         }
-      } catch (e) { console.warn('[DEPOSIT] Refund logic error:', e.message); }
+      }
+
+      // Audit log (inside transaction for consistency, enriched with deposit state)
+      const oldAudit = { status: old.rows[0].status };
+      const newAudit = { status, cancel_reason };
+      if (old.rows[0].deposit_required) {
+        oldAudit.deposit_status = old.rows[0].deposit_status;
+        oldAudit.deposit_amount_cents = old.rows[0].deposit_amount_cents;
+      }
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'booking', $3, 'status_change', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify(oldAudit),
+         JSON.stringify(newAudit)]
+      );
+
+      return { oldStatus: old.rows[0].status };
+    });
+
+    // Handle early returns from transaction
+    if (txResult.error) {
+      return res.status(txResult.error).json({ error: txResult.message });
     }
 
-    // ===== WAITLIST TRIGGER ON CANCEL =====
+    // ===== Post-transaction side effects (non-blocking) =====
+
+    // Waitlist trigger on cancel
     if (status === 'cancelled') {
       try {
         const { processWaitlistForCancellation } = require('../../services/waitlist');
@@ -192,16 +207,7 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { /* non-blocking */ }
     }
 
-    // Audit
-    await queryWithRLS(bid,
-      `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
-       VALUES ($1, $2, 'booking', $3, 'status_change', $4, $5)`,
-      [bid, req.user.id, id,
-       JSON.stringify({ status: old.rows[0].status }),
-       JSON.stringify({ status, cancel_reason })]
-    );
-
-    broadcast(bid, 'booking_update', { action: 'status_changed', status });
+    broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
     if (status === 'cancelled') calSyncDelete(bid, id).catch(() => {});
     else calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, status });
@@ -220,12 +226,18 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
     const { id } = req.params;
 
     const bk = await queryWithRLS(bid,
-      `SELECT deposit_required, deposit_status, deposit_amount_cents FROM bookings WHERE id = $1 AND business_id = $2`,
+      `SELECT deposit_required, deposit_status, deposit_amount_cents, status FROM bookings WHERE id = $1 AND business_id = $2`,
       [id, bid]
     );
     if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
     if (!bk.rows[0].deposit_required) return res.status(400).json({ error: 'Pas d\'acompte sur ce RDV' });
     if (bk.rows[0].deposit_status === 'refunded') return res.status(400).json({ error: 'Acompte déjà remboursé' });
+
+    // Only allow deposit refund on active bookings (respect state machine)
+    const REFUNDABLE = ['pending', 'confirmed', 'modified_pending', 'pending_deposit'];
+    if (!REFUNDABLE.includes(bk.rows[0].status)) {
+      return res.status(400).json({ error: `Impossible de rembourser un RDV en statut "${bk.rows[0].status}"` });
+    }
 
     await queryWithRLS(bid,
       `UPDATE bookings SET deposit_status = 'refunded', status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
@@ -239,7 +251,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       [bid, req.user.id, id, JSON.stringify({ deposit_status: 'refunded', amount_cents: bk.rows[0].deposit_amount_cents })]
     );
 
-    broadcast(bid, 'booking_update', { action: 'deposit_refunded' });
+    broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: id });
     calSyncDelete(bid, id).catch(() => {});
 
     // Process waitlist (same as cancellation)
@@ -271,37 +283,58 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'Seuls les RDV annulés ou no-show peuvent être supprimés' });
     }
 
-    // If deleting a no-show booking, decrement the client's no_show_count
-    if (check.rows[0].status === 'no_show' && check.rows[0].client_id) {
-      await queryWithRLS(bid,
-        `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
-        [check.rows[0].client_id, bid]
+    // Collect all booking IDs to delete (includes group siblings if applicable)
+    let bookingIds = [id];
+    if (check.rows[0].group_id) {
+      const siblings = await queryWithRLS(bid,
+        `SELECT id, status, client_id FROM bookings
+         WHERE group_id = $1 AND business_id = $2 AND status IN ('cancelled', 'no_show')`,
+        [check.rows[0].group_id, bid]
       );
+      bookingIds = siblings.rows.map(r => r.id);
+
+      // Decrement no_show_count for each no-show sibling with a client
+      for (const sib of siblings.rows) {
+        if (sib.status === 'no_show' && sib.client_id) {
+          await queryWithRLS(bid,
+            `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
+            [sib.client_id, bid]
+          );
+        }
+      }
+    } else {
+      // Single booking: decrement no_show_count if applicable
+      if (check.rows[0].status === 'no_show' && check.rows[0].client_id) {
+        await queryWithRLS(bid,
+          `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
+          [check.rows[0].client_id, bid]
+        );
+      }
     }
 
     // Sync delete to external calendar before removing from DB
-    calSyncDelete(bid, id).catch(() => {});
+    bookingIds.forEach(bId => calSyncDelete(bid, bId).catch(() => {}));
 
     // Delete related data first (cascade may handle this, but be explicit)
-    await queryWithRLS(bid, `DELETE FROM booking_notes WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
-    await queryWithRLS(bid, `DELETE FROM practitioner_todos WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
-    await queryWithRLS(bid, `DELETE FROM booking_reminders WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+    await queryWithRLS(bid, `DELETE FROM booking_notes WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
+    await queryWithRLS(bid, `DELETE FROM practitioner_todos WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
+    await queryWithRLS(bid, `DELETE FROM booking_reminders WHERE booking_id = ANY($1) AND business_id = $2`, [bookingIds, bid]);
 
-    // Delete the booking
+    // Delete the booking(s)
     await queryWithRLS(bid,
-      `DELETE FROM bookings WHERE id = $1 AND business_id = $2`,
-      [id, bid]
+      `DELETE FROM bookings WHERE id = ANY($1) AND business_id = $2`,
+      [bookingIds, bid]
     );
 
     // Audit
     await queryWithRLS(bid,
       `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data)
        VALUES ($1, $2, 'booking', $3, 'permanent_delete', $4)`,
-      [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status })]
+      [bid, req.user.id, id, JSON.stringify({ status: check.rows[0].status, group_id: check.rows[0].group_id, deleted_count: bookingIds.length })]
     );
 
-    broadcast(bid, 'booking_update', { action: 'deleted' });
-    res.json({ deleted: true });
+    broadcast(bid, 'booking_update', { action: 'deleted', booking_id: id });
+    res.json({ deleted: true, deleted_count: bookingIds.length });
   } catch (err) {
     next(err);
   }

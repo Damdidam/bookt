@@ -865,35 +865,40 @@ router.get('/booking/:token/reject', async (req, res, next) => {
 
 // Helper: build a standalone HTML confirmation/rejection page
 function confirmationPage(title, message, color, businessName) {
+  const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
+  const safeTitle = escHtml(title);
+  const safeBiz = escHtml(businessName);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} — ${businessName || 'Genda'}</title>
+<title>${safeTitle} — ${safeBiz || 'Genda'}</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 </head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
 <div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-  <div style="width:56px;height:56px;border-radius:50%;background:${color}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">${title.includes('') ? '' : title.includes('refusé') || title.includes('annulé') ? '' : 'ℹ'}</div>
+  <div style="width:56px;height:56px;border-radius:50%;background:${safeColor}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+    <div style="font-size:24px">${(title||'').includes('\u2705') ? '\u2705' : (title||'').includes('refus') || (title||'').includes('annul') ? '\u274C' : '\u2139\uFE0F'}</div>
   </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title.replace(/[]/g, '').trim()}</h1>
+  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${safeTitle}</h1>
   <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0">${message}</p>
-  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${businessName} · Via Genda</p>` : ''}
+  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${safeBiz} · Via Genda</p>` : ''}
 </div></body></html>`;
 }
 
 // Helper: build a standalone HTML action page (form with POST button)
 function actionPage(title, message, color, businessName, token, action, btnLabel) {
   const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escHtml(title)} — ${escHtml(businessName) || 'Genda'}</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 </head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
 <div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-  <div style="width:56px;height:56px;border-radius:50%;background:${color}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">❓</div>
+  <div style="width:56px;height:56px;border-radius:50%;background:${safeColor}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+    <div style="font-size:24px">\u2753</div>
   </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${title}</h1>
+  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${escHtml(title)}</h1>
   <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0 0 24px">${message}</p>
   <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}">
-    <button type="submit" style="background:${color};color:#fff;border:none;border-radius:10px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px">${escHtml(btnLabel)}</button>
+    <button type="submit" style="background:${safeColor};color:#fff;border:none;border-radius:10px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px">${escHtml(btnLabel)}</button>
   </form>
   ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${escHtml(businessName)} · Via Genda</p>` : ''}
 </div></body></html>`;
@@ -1032,7 +1037,7 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 
     // Check practitioner has waitlist enabled
     const pracResult = await query(
-      `SELECT waitlist_mode FROM practitioners WHERE id = $1 AND business_id = $2 AND is_active = true`,
+      `SELECT waitlist_mode FROM practitioners WHERE id = $1 AND business_id = $2 AND is_active = true AND booking_enabled = true`,
       [practitioner_id, businessId]
     );
     if (pracResult.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
@@ -1162,20 +1167,20 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 
     const e = entry.rows[0];
 
-    // Check not expired
-    if (new Date() > new Date(e.offer_expires_at)) {
-      await query(
-        `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
-        [e.id]
-      );
-      return res.status(410).json({ error: 'Cette offre a expiré' });
-    }
-
     const { transactionWithRLS } = require('../../services/db');
 
     let booking;
     try {
       booking = await transactionWithRLS(e.business_id, async (client) => {
+      // Re-check expiry INSIDE transaction to prevent race condition
+      if (new Date() > new Date(e.offer_expires_at)) {
+        await client.query(
+          `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
+          [e.id]
+        );
+        throw Object.assign(new Error('Cette offre a expiré'), { type: 'expired', status: 410 });
+      }
+
       // Check slot still available WITH lock (inside transaction to prevent race condition)
       // Fetch practitioner capacity
       const pracCapWl = await client.query(
@@ -1201,14 +1206,42 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         throw Object.assign(new Error('Ce créneau vient d\'être pris'), { type: 'conflict' });
       }
 
-      // Find or create client
+      // Find or create client (3-step matching: exact → phone → email)
       let clientId;
-      const existing = await client.query(
-        `SELECT id FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
-        [e.business_id, e.client_email]
-      );
-      if (existing.rows.length > 0) {
-        clientId = existing.rows[0].id;
+      let existingWlClient = null;
+
+      // Step 1: exact match (phone AND email)
+      if (e.client_phone && e.client_email) {
+        const exactMatch = await client.query(
+          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+          [e.business_id, e.client_phone, e.client_email]
+        );
+        if (exactMatch.rows.length > 0) existingWlClient = exactMatch.rows[0];
+      }
+      // Step 2: match by phone
+      if (!existingWlClient && e.client_phone) {
+        const phoneMatch = await client.query(
+          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+          [e.business_id, e.client_phone]
+        );
+        if (phoneMatch.rows.length > 0) existingWlClient = phoneMatch.rows[0];
+      }
+      // Step 3: match by email
+      if (!existingWlClient && e.client_email) {
+        const emailMatch = await client.query(
+          `SELECT id FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+          [e.business_id, e.client_email]
+        );
+        if (emailMatch.rows.length > 0) existingWlClient = emailMatch.rows[0];
+      }
+
+      if (existingWlClient) {
+        clientId = existingWlClient.id;
+        // Update client info
+        await client.query(
+          `UPDATE clients SET full_name = $1, email = COALESCE($2, email), phone = COALESCE($3, phone), updated_at = NOW() WHERE id = $4`,
+          [e.client_name, e.client_email, e.client_phone, clientId]
+        );
       } else {
         const nc = await client.query(
           `INSERT INTO clients (business_id, full_name, email, phone, created_from)
@@ -1246,6 +1279,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       return bk.rows[0];
     });
     } catch (err) {
+      if (err.type === 'expired') return res.status(410).json({ error: err.message });
       if (err.type === 'conflict') return res.status(409).json({ error: err.message });
       throw err;
     }
@@ -1342,7 +1376,7 @@ router.get('/booking/:token/ics', async (req, res, next) => {
        LEFT JOIN clients c ON c.id = b.client_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
-       WHERE b.public_token = $1 AND b.status IN ('confirmed','pending','modified_pending')`,
+       WHERE b.public_token = $1 AND b.status IN ('confirmed','pending','modified_pending','pending_deposit')`,
       [req.params.token]
     );
     if (result.rows.length === 0) return res.status(404).send('Rendez-vous introuvable');

@@ -228,7 +228,11 @@ router.patch('/:id/edit', async (req, res, next) => {
     if (statusCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
     const IMMUTABLE_EDIT = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_EDIT.includes(statusCheck.rows[0].status)) {
-      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+      // Allow annotation-only edits (comment, internal_note, custom_label, color)
+      // but block structural changes (practitioner reassignment)
+      if (practitioner_id !== undefined) {
+        return res.status(400).json({ error: 'Impossible de réaffecter un RDV dans cet état' });
+      }
     }
 
     // If practitioner_id changes, check for conflicts (transaction vars)
@@ -286,13 +290,6 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     if (sets.length === 0) return res.json({ updated: false });
 
-    // Capture old values for audit
-    const oldSnap = await queryWithRLS(bid,
-      `SELECT practitioner_id, comment_client, internal_note, custom_label, color
-       FROM bookings WHERE id = $1 AND business_id = $2`,
-      [id, bid]
-    );
-
     sets.push('updated_at = NOW()');
     params.push(id, bid);
 
@@ -300,9 +297,16 @@ router.patch('/:id/edit', async (req, res, next) => {
 
     // If practitioner reassignment, wrap conflict check + update in a transaction
     let result;
+    let oldSnap;
     if (calState_editConflictNeeded && !calState_editOverlap && calState_editTimes) {
       try {
-        result = await transactionWithRLS(bid, async (client) => {
+        const txRes = await transactionWithRLS(bid, async (client) => {
+          // Capture old values inside transaction for consistency
+          const snap = await client.query(
+            `SELECT practitioner_id, comment_client, internal_note, custom_label, color
+             FROM bookings WHERE id = $1 AND business_id = $2`,
+            [id, bid]
+          );
           const conflict = await client.query(
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
@@ -315,13 +319,22 @@ router.patch('/:id/edit', async (req, res, next) => {
           if (conflict.rows.length >= calState_editMaxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
-          return client.query(updateSql, params);
+          const r = await client.query(updateSql, params);
+          return { result: r, oldSnap: snap };
         });
+        result = txRes.result;
+        oldSnap = txRes.oldSnap;
       } catch (err) {
         if (err.type === 'conflict') return res.status(409).json({ error: err.message });
         throw err;
       }
     } else {
+      // Capture old values for audit (no transaction needed)
+      oldSnap = await queryWithRLS(bid,
+        `SELECT practitioner_id, comment_client, internal_note, custom_label, color
+         FROM bookings WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
       result = await queryWithRLS(bid, updateSql, params);
     }
 

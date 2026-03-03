@@ -3,7 +3,7 @@
  * Creates manual bookings (freestyle or service-based, single or grouped).
  */
 const router = require('express').Router();
-const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
 const { calSyncPush, businessAllowsOverlap, getMaxConcurrent } = require('./bookings-helpers');
@@ -23,6 +23,12 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et start_at requis' });
     }
 
+    // Validate appointment_mode if provided
+    const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
+    if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
+      return res.status(400).json({ error: `Mode invalide. Valeurs : ${VALID_MODES.join(', ')}` });
+    }
+
     // Check global overlap policy + practitioner capacity
     const globalAllowOverlap = await businessAllowsOverlap(bid);
     const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, practitioner_id);
@@ -30,10 +36,14 @@ router.post('/manual', async (req, res, next) => {
     // ── FREESTYLE MODE: no predefined service ──
     if (freestyle) {
       if (!end_at) return res.status(400).json({ error: 'end_at requis en mode libre' });
-      const bufBefore = parseInt(buffer_before_min) || 0;
-      const bufAfter = parseInt(buffer_after_min) || 0;
+      const bufBefore = Math.max(0, parseInt(buffer_before_min, 10) || 0);
+      const bufAfter = Math.max(0, parseInt(buffer_after_min, 10) || 0);
       const realStart = new Date(new Date(start_at).getTime() - bufBefore * 60000);
       const realEnd = new Date(new Date(end_at).getTime() + bufAfter * 60000);
+
+      if (realStart >= realEnd) {
+        return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
+      }
 
       const bookings = await transactionWithRLS(bid, async (client) => {
         if (!globalAllowOverlap) {
@@ -112,8 +122,8 @@ router.post('/manual', async (req, res, next) => {
       if (clientEmail && client_id) {
         (async () => {
           try {
-            const biz = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
-            const cl = await query(`SELECT full_name FROM clients WHERE id = $1`, [client_id]);
+            const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+            const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
             if (biz.rows[0] && cl.rows[0]) {
               await sendBookingConfirmation({
                 booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: clientEmail, service_name: custom_label || 'Rendez-vous libre', practitioner_name: '' },
@@ -243,18 +253,16 @@ router.post('/manual', async (req, res, next) => {
             const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
             // Only apply deposit if deadline is in the future
             if (deadline > new Date()) {
-              const bkIds = bookings.map(b => b.id);
+              // Only apply deposit to the first booking (group leader) to avoid duplicate charges
               await queryWithRLS(bid,
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                   deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
-                 WHERE id = ANY($3) AND business_id = $4`,
-                [depCents, deadline.toISOString(), bkIds, bid]
+                 WHERE id = $3 AND business_id = $4`,
+                [depCents, deadline.toISOString(), bookings[0].id, bid]
               );
-              bookings.forEach(b => {
-                b.status = 'pending_deposit';
-                b.deposit_required = true;
-                b.deposit_amount_cents = depCents;
-              });
+              bookings[0].status = 'pending_deposit';
+              bookings[0].deposit_required = true;
+              bookings[0].deposit_amount_cents = depCents;
             }
           }
         }
@@ -269,10 +277,10 @@ router.post('/manual', async (req, res, next) => {
     if (clientEmailNormal && client_id) {
       (async () => {
         try {
-          const biz = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
-          const cl = await query(`SELECT full_name FROM clients WHERE id = $1`, [client_id]);
-          const svc = await query(`SELECT name FROM services WHERE id = $1`, [bookings[0].service_id]);
-          const prac = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+          const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+          const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
+          const svc = await queryWithRLS(bid, `SELECT name FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
+          const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);
           if (biz.rows[0] && cl.rows[0]) {
             await sendBookingConfirmation({
               booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: clientEmailNormal, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
