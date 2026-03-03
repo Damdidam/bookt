@@ -227,7 +227,9 @@
 /* ===== QUICK START WIZARD ===== */
 
 /* Modal — wider, premium feel */
-.qs-modal{max-width:700px;max-height:92vh;border-radius:20px;overflow:hidden}
+.qs-modal{max-width:700px;max-height:92vh;border-radius:20px;overflow:hidden;display:flex;flex-direction:column}
+.qs-modal .modal-body{flex:1;overflow-y:auto;min-height:0}
+.qs-modal .modal-foot{flex-shrink:0}
 
 /* Progress indicator */
 .qs-progress{display:flex;align-items:center;justify-content:center;gap:0;padding:20px 22px 2px}
@@ -332,7 +334,7 @@
 
 /* Responsive */
 @media(max-width:800px){
-  .qs-modal{max-width:100%;max-height:95vh;border-radius:18px 18px 0 0;margin-top:auto}
+  .qs-modal{max-width:100%;max-height:95vh;border-radius:18px 18px 0 0;margin-top:auto;display:flex;flex-direction:column}
   .qs-cat-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
   .qs-cat-card{padding:16px 10px 12px}
   .qs-cat-icon svg{width:28px;height:28px}
