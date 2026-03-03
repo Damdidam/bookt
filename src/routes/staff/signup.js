@@ -155,29 +155,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
       const practitionerId = pracResult.rows[0].id;
 
-      // 4. Create default services from sector template
-      const templateServices = getSectorServices(sector, language || 'fr');
-      const serviceIds = [];
-
-      for (const svc of templateServices) {
-        const svcResult = await client.query(
-          `INSERT INTO services (business_id, name, category, duration_min,
-            buffer_after_min, price_cents, price_label, mode_options, color, sort_order, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, true)
-           RETURNING id`,
-          [businessId, svc.name, svc.category, svc.duration_min,
-           svc.buffer_after_min || 0, svc.price_cents, svc.price_label || null,
-           JSON.stringify(svc.mode_options || ['cabinet']),
-           svc.color || '#0D7377', svc.sort_order]
-        );
-        serviceIds.push(svcResult.rows[0].id);
-
-        // Link to practitioner
-        await client.query(
-          `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ($1, $2)`,
-          [practitionerId, svcResult.rows[0].id]
-        );
-      }
+      // 4. Services: skip — merchant will use Quick Start wizard on first visit
 
       // 5. Create default availability (Mon-Fri 9-12, 13-17)
       for (let weekday = 0; weekday <= 4; weekday++) {
