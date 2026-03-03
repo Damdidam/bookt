@@ -383,8 +383,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 15 * 60000);
     }
 
+    // Fetch practitioner capacity for overlap check
+    const pracCap = await query(
+      `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, businessId]
+    );
+    const maxConcurrent = pracCap.rows[0]?.max_concurrent || 1;
+
     const result = await transactionWithRLS(businessId, async (client) => {
-      // Conflict check
+      // Conflict check (capacity-aware)
       const conflict = await client.query(
         `SELECT id FROM bookings
          WHERE business_id = $1 AND practitioner_id = $2
@@ -392,7 +399,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
          AND start_at < $4 AND end_at > $3 FOR UPDATE`,
         [businessId, practitioner_id, startDate.toISOString(), endDate.toISOString()]
       );
-      if (conflict.rows.length > 0) {
+      if (conflict.rows.length >= maxConcurrent) {
         throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
       }
 

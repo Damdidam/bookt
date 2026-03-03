@@ -6,7 +6,7 @@ const router = require('express').Router();
 const { query, queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
-const { calSyncPush, businessAllowsOverlap } = require('./bookings-helpers');
+const { calSyncPush, businessAllowsOverlap, getMaxConcurrent } = require('./bookings-helpers');
 
 // ============================================================
 // POST /api/bookings/manual
@@ -23,8 +23,9 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et start_at requis' });
     }
 
-    // Check global overlap policy
+    // Check global overlap policy + practitioner capacity
     const globalAllowOverlap = await businessAllowsOverlap(bid);
+    const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, practitioner_id);
 
     // ── FREESTYLE MODE: no predefined service ──
     if (freestyle) {
@@ -44,8 +45,8 @@ router.post('/manual', async (req, res, next) => {
              FOR UPDATE`,
             [bid, practitioner_id, realStart.toISOString(), realEnd.toISOString()]
           );
-          if (conflict.rows.length > 0) {
-            throw Object.assign(new Error('Créneau déjà pris'), { type: 'conflict' });
+          if (conflict.rows.length >= maxConcurrent) {
+            throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
 
@@ -177,8 +178,8 @@ router.post('/manual', async (req, res, next) => {
           [bid, practitioner_id, new Date(start_at).toISOString(), totalEnd]
         );
 
-        if (conflict.rows.length > 0) {
-          throw Object.assign(new Error('Créneau déjà pris'), { type: 'conflict' });
+        if (conflict.rows.length >= maxConcurrent) {
+          throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
         }
       }
 

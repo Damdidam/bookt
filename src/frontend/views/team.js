@@ -101,6 +101,9 @@ function renderPractModal(p){
     <div class="field"><label>Incrément agenda</label><select id="p_slot_inc" style="width:100%;padding:8px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.85rem">
       ${[5,10,15,20,30,45,60].map(v=>`<option value="${v}"${(p?.slot_increment_min||15)===v?' selected':''}>${v} min</option>`).join('')}
     </select><span style="font-size:.7rem;color:var(--text-4)">Granularité de la grille horaire pour ce praticien</span></div>
+    <div class="field"><label>Capacité simultanée</label><select id="p_max_concurrent" style="width:100%;padding:8px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-size:.85rem">
+      ${[1,2,3,4,5,6,8,10].map(v=>`<option value="${v}"${(p?.max_concurrent||1)===v?' selected':''}>${v}${v===1?' (pas de chevauchement)':' RDV simultanés'}</option>`).join('')}
+    </select><span style="font-size:.7rem;color:var(--text-4)">Nombre maximum de RDV en même temps (ex: 4 cabines = 4 simultanés)</span></div>
     <div class="field-row"><div class="field"><label>Email</label><input id="p_email" type="email" value="${p?.email||''}"></div><div class="field"><label>Téléphone</label><input id="p_phone" value="${p?.phone||''}"></div></div>
     <div class="field"><label>Bio</label><textarea id="p_bio">${p?.bio||''}</textarea></div>
     <div class="field"><label>LinkedIn</label><input id="p_linkedin" value="${p?.linkedin_url||''}" placeholder="https://linkedin.com/in/..."></div>
@@ -145,7 +148,7 @@ async function pRemovePhoto(id){
 }
 
 async function savePract(id){
-  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15,waitlist_mode:document.getElementById('p_waitlist').value,vacation_until:document.getElementById('p_vacation').value||null,featured_enabled:document.getElementById('p_featured').checked};
+  const body={display_name:document.getElementById('p_name').value,title:document.getElementById('p_title').value||null,years_experience:parseInt(document.getElementById('p_years').value)||null,color:document.getElementById('p_color').value,email:document.getElementById('p_email').value||null,phone:document.getElementById('p_phone').value||null,bio:document.getElementById('p_bio').value||null,linkedin_url:document.getElementById('p_linkedin').value||null,booking_enabled:document.getElementById('p_booking').checked,slot_increment_min:parseInt(document.getElementById('p_slot_inc').value)||15,max_concurrent:parseInt(document.getElementById('p_max_concurrent').value)||1,waitlist_mode:document.getElementById('p_waitlist').value,vacation_until:document.getElementById('p_vacation').value||null,featured_enabled:document.getElementById('p_featured').checked};
   try{
     const url=id?`/api/practitioners/${id}`:'/api/practitioners';
     const method=id?'PATCH':'POST';

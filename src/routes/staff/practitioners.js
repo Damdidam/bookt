@@ -217,18 +217,19 @@ router.post('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { display_name, title, bio, color, email, phone,
-            years_experience, linkedin_url, booking_enabled, featured_enabled } = req.body;
+            years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent } = req.body;
 
     if (!display_name) return res.status(400).json({ error: 'Nom requis' });
 
     const result = await queryWithRLS(bid,
       `INSERT INTO practitioners (business_id, display_name, title, bio, color,
-        email, phone, years_experience, linkedin_url, booking_enabled, featured_enabled)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        email, phone, years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [bid, display_name, title || null, bio || null, color || '#0D7377',
        email || null, phone || null, years_experience || null,
-       linkedin_url || null, booking_enabled !== false, featured_enabled === true]
+       linkedin_url || null, booking_enabled !== false, featured_enabled === true,
+       parseInt(max_concurrent) || 1]
     );
 
     res.status(201).json({ practitioner: result.rows[0] });
@@ -244,7 +245,7 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const { id } = req.params;
     const fields = req.body;
     const allowed = ['display_name', 'title', 'bio', 'color', 'email', 'phone',
-      'years_experience', 'linkedin_url', 'booking_enabled', 'featured_enabled', 'is_active', 'sort_order', 'waitlist_mode', 'slot_increment_min', 'vacation_until'];
+      'years_experience', 'linkedin_url', 'booking_enabled', 'featured_enabled', 'is_active', 'sort_order', 'waitlist_mode', 'slot_increment_min', 'vacation_until', 'max_concurrent'];
 
     const sets = [];
     const params = [id, bid];

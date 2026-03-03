@@ -5,7 +5,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
-const { calSyncPush, businessAllowsOverlap, checkPracAvailability } = require('./bookings-helpers');
+const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent } = require('./bookings-helpers');
 
 // ============================================================
 // PATCH /api/bookings/:id/move — Drag & drop
@@ -47,6 +47,7 @@ router.patch('/:id/move', async (req, res, next) => {
     if (!availCheck.ok) return res.status(400).json({ error: availCheck.reason });
 
     const globalAllowOverlap = await businessAllowsOverlap(bid);
+    const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, effectivePracId);
 
     // ── GROUP MOVE: recalculate all slots from the first booking's new start ──
     if (draggedBooking.group_id) {
@@ -100,8 +101,8 @@ router.patch('/:id/move', async (req, res, next) => {
                FOR UPDATE`,
               [bid, effectivePracId, groupIds, totalStart, totalEnd]
             );
-            if (conflict.rows.length > 0) {
-              throw Object.assign(new Error('Créneau déjà pris — impossible de déplacer le groupe ici'), { type: 'conflict' });
+            if (conflict.rows.length >= maxConcurrent) {
+              throw Object.assign(new Error('Capacité maximale atteinte — impossible de déplacer le groupe ici'), { type: 'conflict' });
             }
           }
 
@@ -156,8 +157,8 @@ router.patch('/:id/move', async (req, res, next) => {
              FOR UPDATE`,
             [bid, effectivePracId, id, newStart.toISOString(), recalcEnd.toISOString()]
           );
-          if (conflict.rows.length > 0) {
-            throw Object.assign(new Error('Créneau déjà pris — un autre RDV chevauche cet horaire'), { type: 'conflict' });
+          if (conflict.rows.length >= maxConcurrent) {
+            throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
 
@@ -247,6 +248,7 @@ router.patch('/:id/edit', async (req, res, next) => {
       // Check conflicts with new practitioner's schedule (reuse bkTimes from above)
       const globalAllowOverlap = await businessAllowsOverlap(bid);
       if (!globalAllowOverlap && bkTimes.rows.length > 0) {
+        const maxConcurrent = await getMaxConcurrent(bid, practitioner_id);
         const { start_at, end_at } = bkTimes.rows[0];
         const conflict = await queryWithRLS(bid,
           `SELECT id FROM bookings
@@ -256,8 +258,8 @@ router.patch('/:id/edit', async (req, res, next) => {
            AND start_at < $5 AND end_at > $4`,
           [bid, practitioner_id, id, start_at, end_at]
         );
-        if (conflict.rows.length > 0) {
-          return res.status(409).json({ error: 'Conflit : ce praticien a déjà un RDV sur ce créneau' });
+        if (conflict.rows.length >= maxConcurrent) {
+          return res.status(409).json({ error: 'Capacité maximale atteinte sur ce créneau' });
         }
       }
     }
@@ -341,6 +343,7 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     // Atomic resize: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
+    const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, current.rows[0].practitioner_id);
     let resizeResult;
     try {
       resizeResult = await transactionWithRLS(bid, async (client) => {
@@ -354,8 +357,8 @@ router.patch('/:id/resize', async (req, res, next) => {
              FOR UPDATE`,
             [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
           );
-          if (conflict.rows.length > 0) {
-            throw Object.assign(new Error('Chevauchement — un autre RDV occupe ce créneau'), { type: 'conflict' });
+          if (conflict.rows.length >= maxConcurrent) {
+            throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
 
@@ -426,6 +429,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 
     // Atomic modify: conflict check + update in one transaction
     const globalAllowOverlap = await businessAllowsOverlap(bid);
+    const maxConcurrent = globalAllowOverlap ? Infinity : await getMaxConcurrent(bid, oldBooking.practitioner_id);
     let modifyResult;
     try {
       modifyResult = await transactionWithRLS(bid, async (client) => {
@@ -439,8 +443,8 @@ router.patch('/:id/modify', async (req, res, next) => {
              FOR UPDATE`,
             [bid, oldBooking.practitioner_id, id, start_at, end_at]
           );
-          if (conflict.rows.length > 0) {
-            throw Object.assign(new Error('Créneau déjà pris — un autre RDV chevauche cet horaire'), { type: 'conflict' });
+          if (conflict.rows.length >= maxConcurrent) {
+            throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
 

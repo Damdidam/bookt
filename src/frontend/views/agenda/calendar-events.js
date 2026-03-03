@@ -484,6 +484,10 @@ function buildEventOverlap() {
     if (sp && mp && sp !== mp) return true;
     const st = stillEvent.extendedProps?.status;
     if (['cancelled', 'completed', 'no_show'].includes(st)) return true;
+    // If practitioner has capacity > 1, allow overlap (eventAllow does the precise count check)
+    const pracId = mp || sp;
+    const prac = calState.fcPractitioners?.find(p => String(p.id) === String(pracId));
+    if (prac && (prac.max_concurrent || 1) > 1) return true;
     return false;
   };
 }
@@ -521,14 +525,19 @@ function buildEventAllow() {
     const myGroupId = draggedEvent.extendedProps?._groupId;
     const newStart = dropInfo.start, newEnd = dropInfo.end;
     const allEvents = calState.fcCal.getEvents();
+    // Capacity-aware: count overlaps vs max_concurrent
+    const prac = calState.fcPractitioners?.find(p => String(p.id) === String(myPrac));
+    const maxC = prac?.max_concurrent || 1;
+    let overlapCount = 0;
     for (const ev of allEvents) {
       if (ev.id === draggedEvent.id) continue;
       if (myGroupId && ev.extendedProps?._groupId === myGroupId) continue;
       if (ev.extendedProps?.practitioner_id !== myPrac) continue;
       const st = ev.extendedProps?.status;
       if (st === 'cancelled' || st === 'no_show' || st === 'completed') continue;
-      if (ev.start < newEnd && ev.end > newStart) return false;
+      if (ev.start < newEnd && ev.end > newStart) overlapCount++;
     }
+    if (overlapCount >= maxC) return false;
     return true;
   };
 }

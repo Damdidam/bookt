@@ -115,4 +115,14 @@ function timeToMin(t) {
   return h * 60 + (m || 0);
 }
 
-module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability };
+/**
+ * Get the max concurrent bookings allowed for a practitioner.
+ * Returns 1 by default (no overlap).
+ */
+async function getMaxConcurrent(bid, pracId) {
+  const r = await queryWithRLS(bid,
+    `SELECT max_concurrent FROM practitioners WHERE id = $1 AND business_id = $2`, [pracId, bid]);
+  return r.rows[0]?.max_concurrent || 1;
+}
+
+module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent };

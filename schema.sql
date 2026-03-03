@@ -84,6 +84,7 @@ CREATE TABLE practitioners (
   booking_enabled BOOLEAN DEFAULT true,                -- Can receive bookings
   sort_order      INTEGER DEFAULT 0,
   vacation_until  DATE,                               -- NULL = not on vacation
+  max_concurrent  SMALLINT DEFAULT 1,                 -- Max simultaneous bookings (1 = no overlap)
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );

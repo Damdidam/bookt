@@ -44,12 +44,14 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     throw Object.assign(new Error(`Mode "${appointmentMode}" non disponible pour cette prestation`), { type: 'validation' });
   }
 
-  // 3. Fetch practitioners for this service
+  // 3. Fetch practitioners for this service (with capacity)
   let practitionerIds;
+  const capacityMap = {}; // pracId → max_concurrent
   if (practitionerId) {
     // Verify this practitioner can do this service
     const psResult = await query(
-      `SELECT ps.practitioner_id FROM practitioner_services ps
+      `SELECT ps.practitioner_id, COALESCE(p.max_concurrent, 1) AS max_concurrent
+       FROM practitioner_services ps
        JOIN practitioners p ON p.id = ps.practitioner_id
        WHERE ps.service_id = $1 AND ps.practitioner_id = $2
        AND p.business_id = $3 AND p.is_active = true AND p.booking_enabled = true`,
@@ -57,10 +59,12 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     );
     if (psResult.rows.length === 0) throw Object.assign(new Error('Ce praticien ne propose pas cette prestation'), { type: 'validation' });
     practitionerIds = [practitionerId];
+    capacityMap[practitionerId] = psResult.rows[0].max_concurrent;
   } else {
     // Get all practitioners for this service
     const psResult = await query(
-      `SELECT ps.practitioner_id FROM practitioner_services ps
+      `SELECT ps.practitioner_id, COALESCE(p.max_concurrent, 1) AS max_concurrent
+       FROM practitioner_services ps
        JOIN practitioners p ON p.id = ps.practitioner_id
        WHERE ps.service_id = $1 AND p.business_id = $2
        AND p.is_active = true AND p.booking_enabled = true
@@ -68,6 +72,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
       [serviceId, businessId]
     );
     practitionerIds = psResult.rows.map(r => r.practitioner_id);
+    for (const r of psResult.rows) capacityMap[r.practitioner_id] = r.max_concurrent;
   }
 
   if (practitionerIds.length === 0) return [];
@@ -201,12 +206,10 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
           // Check if slot is in the past
           if (slotStart <= new Date()) continue;
 
-          // Check for conflicts with existing bookings
-          const hasConflict = dayBookings.some(bk => {
-            return slotStart < bk.end && slotEnd > bk.start;
-          });
+          // Check for conflicts with existing bookings (capacity-aware)
+          const overlapCount = dayBookings.filter(bk => slotStart < bk.end && slotEnd > bk.start).length;
 
-          if (!hasConflict) {
+          if (overlapCount < (capacityMap[pracId] || 1)) {
             slots.push({
               practitioner_id: pracId,
               date: dateStr,
