@@ -14,7 +14,19 @@ export const escH = esc;
 /** Show a toast notification */
 export function gToast(msg, type, action, duration) {
   const t = document.getElementById('gToast');
-  t.innerHTML = msg + (action ? `<button onclick="${action.fn}">${action.label}</button>` : '');
+  t.textContent = '';
+
+  const span = document.createElement('span');
+  span.textContent = msg;
+  t.appendChild(span);
+
+  if (action) {
+    const btn = document.createElement('button');
+    btn.textContent = action.label;
+    btn.addEventListener('click', typeof action.fn === 'function' ? action.fn : () => {});
+    t.appendChild(btn);
+  }
+
   t.style.display = 'flex';
   t.className = 'g-toast' + (type ? ' ' + type : '');
   clearTimeout(t._tm);

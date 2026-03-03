@@ -42,6 +42,9 @@ async function fcOpenDetail(bookingId) {
     hdrBg.style.background = `linear-gradient(135deg,${accentColor} 0%,${accentColor}AA 60%,${accentColor}55 100%)`;
 
     // -- Client hero --
+    // Sanitize IDs for safe injection into onclick handlers
+    const safeClientId = String(b.client_id).replace(/[^a-zA-Z0-9_-]/g, '');
+    const safeBookingId = String(b.id).replace(/[^a-zA-Z0-9_-]/g, '');
     const initials = (b.client_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const heroEl = document.getElementById('mClientHero');
     const freeTag = isFreestyle ? `<span class="m-free-tag" style="background:${accentColor}18;color:${accentColor}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> LIBRE</span>` : '';
@@ -49,20 +52,20 @@ async function fcOpenDetail(bookingId) {
       <div class="m-avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC)">${initials}</div>
       <div class="m-client-info">
         <div class="m-client-name">
-          <a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${b.client_id}')">${esc(b.client_name || '\u2014')}</a>
+          <a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${safeClientId}')">${esc(b.client_name || '\u2014')}</a>
           ${freeTag}
         </div>
         <div class="m-client-meta">
-          ${b.client_phone ? `<a href="tel:${b.client_phone}">${esc(b.client_phone)}</a>` : ''}
+          ${b.client_phone ? `<a href="tel:${encodeURIComponent(b.client_phone)}">${esc(b.client_phone)}</a>` : ''}
           ${b.client_phone && b.client_email ? '<span>\u00b7</span>' : ''}
-          ${b.client_email ? `<a href="mailto:${b.client_email}">${esc(b.client_email)}</a>` : ''}
+          ${b.client_email ? `<a href="mailto:${encodeURIComponent(b.client_email)}">${esc(b.client_email)}</a>` : ''}
         </div>
       </div>
       <div class="m-quick-actions">
-        ${b.client_phone ? `<a class="m-qbtn" href="tel:${b.client_phone}" title="Appeler"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>` : ''}
-        ${b.client_email ? `<a class="m-qbtn" href="mailto:${b.client_email}" title="Email"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></a>` : ''}
-        <button class="m-qbtn" onclick="closeCalModal('calDetailModal');openClientDetail('${b.client_id}')" title="Fiche client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-        <button class="m-qbtn" onclick="openWhiteboard('${b.id}','${b.client_id}')" title="Whiteboard" style="border-color:var(--primary);background:var(--primary-light)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D7377" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg></button>
+        ${b.client_phone ? `<a class="m-qbtn" href="tel:${encodeURIComponent(b.client_phone)}" title="Appeler"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>` : ''}
+        ${b.client_email ? `<a class="m-qbtn" href="mailto:${encodeURIComponent(b.client_email)}" title="Email"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></a>` : ''}
+        <button class="m-qbtn" onclick="closeCalModal('calDetailModal');openClientDetail('${safeClientId}')" title="Fiche client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+        <button class="m-qbtn" onclick="openWhiteboard('${safeBookingId}','${safeClientId}')" title="Whiteboard" style="border-color:var(--primary);background:var(--primary-light)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D7377" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg></button>
       </div>`;
 
     // -- Status strip --
@@ -204,8 +207,9 @@ async function fcOpenDetail(bookingId) {
         const isCur = sib.id === bookingId;
         const sT = new Date(sib.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+        const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
         gh += `<div class="m-group-item${isCur ? ' current' : ''}">
-          <span class="g-dot" style="background:${sib.service_color || 'var(--primary)'}"></span>
+          <span class="g-dot" style="background:${safeSibColor}"></span>
           <span style="font-weight:${isCur ? '700' : '400'}">${esc(sib.service_name || 'RDV libre')}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
         </div>`;
@@ -470,7 +474,7 @@ function fcRenderDocs(booking) {
             sel.innerHTML = '<option value="">Aucun template actif</option>';
           } else {
             const typeLabels = { info: 'Info', form: 'Formulaire', consent: 'Consentement' };
-            sel.innerHTML = templates.map(t => `<option value="${t.id}">${t.name} (${typeLabels[t.type] || t.type})</option>`).join('');
+            sel.innerHTML = templates.map(t => `<option value="${esc(String(t.id))}">${esc(t.name)} (${esc(typeLabels[t.type] || t.type)})</option>`).join('');
           }
         }
       })

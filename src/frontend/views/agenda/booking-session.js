@@ -13,11 +13,12 @@ const gToast = (m, t) => GendaUI.toast(m, t);
  */
 function sanitizeRichText(html) {
   if (!html) return '';
-  // Remove dangerous tags and their content (including SVG, math, style, details)
-  let s = html.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*>[\s\S]*?<\/\1>/gi, '');
-  s = s.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*\/?>/gi, '');
-  // Remove event handlers (on*="...")
-  s = s.replace(/[\s"'/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
+  // Remove dangerous tags and their content (including SVG, math, style, details, media, legacy)
+  let s = html.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
+  s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
+  // Remove event handlers (on*="...") — allow whitespace/newlines between "on" and event name to prevent bypass
+  s = s.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
   // Remove javascript: and data: URLs in href/src/action
   s = s.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
   return s;

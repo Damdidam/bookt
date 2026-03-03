@@ -1,4 +1,4 @@
-const { query } = require('./db');
+const { queryWithRLS } = require('./db');
 const { getBusyBlocks } = require('./calendar-sync');
 
 /**
@@ -19,7 +19,7 @@ const { getBusyBlocks } = require('./calendar-sync');
 
 async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFrom, dateTo, appointmentMode }) {
   // 1. Fetch business settings
-  const bizResult = await query(
+  const bizResult = await queryWithRLS(businessId,
     `SELECT settings FROM businesses WHERE id = $1 AND is_active = true`,
     [businessId]
   );
@@ -29,7 +29,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   const granularity = settings.slot_granularity_min || 15;
 
   // 2. Fetch service details
-  const svcResult = await query(
+  const svcResult = await queryWithRLS(businessId,
     `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options
      FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
     [serviceId, businessId]
@@ -53,7 +53,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   const capacityMap = {}; // pracId → max_concurrent
   if (practitionerId) {
     // Verify this practitioner can do this service
-    const psResult = await query(
+    const psResult = await queryWithRLS(businessId,
       `SELECT ps.practitioner_id, COALESCE(p.max_concurrent, 1) AS max_concurrent
        FROM practitioner_services ps
        JOIN practitioners p ON p.id = ps.practitioner_id
@@ -66,7 +66,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     capacityMap[practitionerId] = psResult.rows[0].max_concurrent;
   } else {
     // Get all practitioners for this service
-    const psResult = await query(
+    const psResult = await queryWithRLS(businessId,
       `SELECT ps.practitioner_id, COALESCE(p.max_concurrent, 1) AS max_concurrent
        FROM practitioner_services ps
        JOIN practitioners p ON p.id = ps.practitioner_id
@@ -82,7 +82,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   if (practitionerIds.length === 0) return [];
 
   // 4. Fetch availabilities for all relevant practitioners
-  const availResult = await query(
+  const availResult = await queryWithRLS(businessId,
     `SELECT practitioner_id, weekday, start_time, end_time
      FROM availabilities
      WHERE business_id = $1 AND practitioner_id = ANY($2) AND is_active = true
@@ -99,7 +99,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   }
 
   // 5. Fetch exceptions in date range
-  const exceptResult = await query(
+  const exceptResult = await queryWithRLS(businessId,
     `SELECT practitioner_id, date, type, start_time, end_time
      FROM availability_exceptions
      WHERE business_id = $1 AND practitioner_id = ANY($2)
@@ -115,7 +115,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   }
 
   // 6. Fetch existing bookings in date range (conflicts)
-  const bookingsResult = await query(
+  const bookingsResult = await queryWithRLS(businessId,
     `SELECT practitioner_id, start_at, end_at
      FROM bookings
      WHERE business_id = $1 AND practitioner_id = ANY($2)
@@ -140,7 +140,8 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   // 6b. Fetch busy blocks from external calendars (Google/Outlook)
   try {
     for (const pracId of practitionerIds) {
-      const busyBlocks = await getBusyBlocks(query, businessId, pracId, new Date(dateFrom), new Date(dateTo));
+      const rlsQuery = (sql, params) => queryWithRLS(businessId, sql, params);
+      const busyBlocks = await getBusyBlocks(rlsQuery, businessId, pracId, new Date(dateFrom), new Date(dateTo));
       for (const block of busyBlocks) {
         const dateStr = new Date(block.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const key = `${pracId}-${dateStr}`;

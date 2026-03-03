@@ -150,6 +150,10 @@ async function outlookApiCall(accessToken, path, method = 'GET', body = null) {
 // UNIFIED TOKEN MANAGEMENT
 // ============================================================
 
+// Bug M14 fix: Simple mutex to prevent concurrent token refreshes
+// Maps connection.id -> Promise of refresh result
+const _refreshLocks = new Map();
+
 async function getValidToken(connection, queryFn) {
   const now = new Date();
   const expiresAt = new Date(connection.token_expires_at);
@@ -164,32 +168,60 @@ async function getValidToken(connection, queryFn) {
     throw new Error('No refresh token available — reconnection required');
   }
 
-  let tokenData;
-  if (connection.provider === 'google') {
-    tokenData = await refreshGoogleToken(connection.refresh_token);
-  } else {
-    tokenData = await refreshOutlookToken(connection.refresh_token);
+  // Bug M14 fix: If a refresh is already in progress for this connection, wait for it
+  const lockKey = connection.id;
+  if (_refreshLocks.has(lockKey)) {
+    return _refreshLocks.get(lockKey);
   }
 
-  // Update stored tokens
-  await queryFn(
-    `UPDATE calendar_connections SET
-      access_token = $1,
-      token_expires_at = $2,
-      refresh_token = COALESCE($3, refresh_token),
-      status = 'active',
-      error_message = NULL,
-      updated_at = NOW()
-     WHERE id = $4`,
-    [
-      tokenData.access_token,
-      new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
-      tokenData.refresh_token || null,
-      connection.id
-    ]
-  );
+  const refreshPromise = (async () => {
+    try {
+      // Re-read the connection from DB to check if another process already refreshed the token
+      const freshConn = await queryFn(
+        `SELECT access_token, token_expires_at FROM calendar_connections WHERE id = $1`,
+        [connection.id]
+      );
+      if (freshConn.rows.length > 0) {
+        const freshExpiry = new Date(freshConn.rows[0].token_expires_at);
+        if (freshExpiry > new Date(Date.now() + 5 * 60000)) {
+          // Token was already refreshed by another request
+          return freshConn.rows[0].access_token;
+        }
+      }
 
-  return tokenData.access_token;
+      let tokenData;
+      if (connection.provider === 'google') {
+        tokenData = await refreshGoogleToken(connection.refresh_token);
+      } else {
+        tokenData = await refreshOutlookToken(connection.refresh_token);
+      }
+
+      // Update stored tokens
+      await queryFn(
+        `UPDATE calendar_connections SET
+          access_token = $1,
+          token_expires_at = $2,
+          refresh_token = COALESCE($3, refresh_token),
+          status = 'active',
+          error_message = NULL,
+          updated_at = NOW()
+         WHERE id = $4`,
+        [
+          tokenData.access_token,
+          new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+          tokenData.refresh_token || null,
+          connection.id
+        ]
+      );
+
+      return tokenData.access_token;
+    } finally {
+      _refreshLocks.delete(lockKey);
+    }
+  })();
+
+  _refreshLocks.set(lockKey, refreshPromise);
+  return refreshPromise;
 }
 
 // ============================================================

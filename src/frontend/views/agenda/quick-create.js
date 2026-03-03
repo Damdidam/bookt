@@ -14,6 +14,37 @@ import { MODE_ICO } from '../../utils/format.js';
 // Escape string for use inside JS single-quoted onclick handlers
 function escJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029'); }
 
+/**
+ * Build an ISO 8601 string that represents a Brussels-local date+time,
+ * preserving the intended wall-clock time instead of shifting to UTC.
+ * @param {string} date  "YYYY-MM-DD"
+ * @param {string} time  "HH:MM"
+ * @returns {string} e.g. "2026-03-03T14:30:00+01:00"
+ */
+function toBrusselsISO(date, time) {
+  // Create a Date that JS interprets as local — we only need it to derive the
+  // Brussels UTC offset for that specific instant.
+  const dt = new Date(date + 'T' + time + ':00');
+  // Compute offset between the JS-local interpretation and Brussels wall-clock
+  const bruFmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
+    second: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+  const parts = {};
+  bruFmt.formatToParts(dt).forEach(p => { parts[p.type] = p.value; });
+  // The offset in minutes between UTC and Brussels for this instant
+  const bruDate = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
+  const offsetMs = bruDate.getTime() - dt.getTime();
+  // offsetMs is negative when Brussels is ahead of UTC (which is normal)
+  // We want the offset from UTC that Brussels has: if Brussels is UTC+2, offsetMin = 120
+  const offsetMin = -Math.round(offsetMs / 60000);
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const absOff = Math.abs(offsetMin);
+  const offH = String(Math.floor(absOff / 60)).padStart(2, '0');
+  const offM = String(absOff % 60).padStart(2, '0');
+  return `${date}T${time}:00${sign}${offH}:${offM}`;
+}
+
 // In-memory storage for notes/todos/reminders during creation
 let qcNotes = [];
 let qcTodos = [];
@@ -32,8 +63,8 @@ function fcOpenQuickCreate(startStr, endStr) {
       d.setHours(now.getHours() + 1, 0, 0, 0);
     } else { d.setHours(9, 0, 0, 0); }
   }
-  document.getElementById('qcDate').value = d.toISOString().split('T')[0];
-  document.getElementById('qcTime').value = d.toTimeString().slice(0, 5);
+  document.getElementById('qcDate').value = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  document.getElementById('qcTime').value = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
   document.getElementById('qcClient').value = '';
   document.getElementById('qcClientId').value = '';
   document.getElementById('qcComment').value = '';
@@ -450,7 +481,7 @@ async function calCreateBooking() {
   if (!clientName) { calCreateBooking._busy = false; gToast('Nom requis', 'error'); return; }
   if (!date || !time) { calCreateBooking._busy = false; gToast('Date et heure requises', 'error'); return; }
 
-  const start_at = new Date(date + 'T' + time).toISOString();
+  const start_at = toBrusselsISO(date, time);
 
   try {
     const clientEmail = document.getElementById('qcClientEmail')?.value.trim() || '';
@@ -490,7 +521,7 @@ async function calCreateBooking() {
     if (isFreestyle) {
       const endTime = document.getElementById('qcFreeEnd').value;
       if (!endTime) { calCreateBooking._busy = false; gToast('Heure de fin requise', 'error'); return; }
-      const end_at = new Date(date + 'T' + endTime).toISOString();
+      const end_at = toBrusselsISO(date, endTime);
       body = {
         freestyle: true,
         practitioner_id: pracId,

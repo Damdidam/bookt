@@ -19,7 +19,7 @@ async function calSyncPush(businessId, bookingId) {
     const bk = await query(
       `SELECT b.*, s.name AS service_name, s.duration_min, c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
        FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN clients c ON c.id = b.client_id
-       WHERE b.id = $1`, [bookingId]
+       WHERE b.id = $1 AND b.business_id = $2`, [bookingId, businessId]
     );
     if (bk.rows.length === 0) return;
     const qFn = (sql, params) => query(sql, params);

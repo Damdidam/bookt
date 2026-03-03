@@ -53,7 +53,7 @@ router.get('/:slug', async (req, res, next) => {
       // Practitioners + specializations
       query(
         `SELECT p.id, p.display_name, p.title, p.bio, p.photo_url, p.color,
-                p.years_experience, p.email, p.linkedin_url, p.waitlist_mode,
+                p.years_experience, p.linkedin_url, p.waitlist_mode,
                 ARRAY_AGG(DISTINCT ps.service_id) FILTER (WHERE ps.service_id IS NOT NULL) AS service_ids,
                 ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS specialization_names
          FROM practitioners p
@@ -178,7 +178,6 @@ router.get('/:slug', async (req, res, next) => {
         photo_url: p.photo_url,
         color: p.color,
         years_experience: p.years_experience,
-        email: p.email,
         linkedin_url: p.linkedin_url,
         service_ids: (p.service_ids || []).filter(Boolean),
         specializations: (p.specialization_names || []).filter(Boolean),
@@ -335,6 +334,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       });
     }
 
+    const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
+    if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
+      return res.status(400).json({ error: 'Mode de rendez-vous invalide' });
+    }
+
+    if (client_comment && client_comment.length > 2000) {
+      return res.status(400).json({ error: 'Commentaire trop long (max 2000)' });
+    }
+
     const bizResult = await query(
       `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
     );
@@ -344,6 +352,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const { transactionWithRLS } = require('../../services/db');
 
     const startDate = new Date(start_at);
+    if (isNaN(startDate.getTime())) return res.status(400).json({ error: 'Date de début invalide' });
 
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
     const lockCheck = await query(
@@ -383,6 +392,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     } else {
       // Featured slot booking — use end_at or default 15 min
       endDate = end_at ? new Date(end_at) : new Date(startDate.getTime() + 15 * 60000);
+      if (isNaN(endDate.getTime())) return res.status(400).json({ error: 'Date de fin invalide' });
     }
 
     // Validate practitioner is active + booking_enabled + capacity
@@ -835,7 +845,7 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     }
 
     // Show confirmation landing page with a form button (no mutation on GET)
-    res.send(actionPage('Confirmer le rendez-vous', `<strong>${bk.service_name || 'Votre rendez-vous'}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅'));
+    res.send(actionPage('Confirmer le rendez-vous', `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅'));
   } catch (err) { next(err); }
 });
 
@@ -991,6 +1001,11 @@ router.post('/docs/:token/submit', async (req, res, next) => {
   try {
     const { response_data, consent_given } = req.body;
 
+    const responseStr = JSON.stringify(response_data || {});
+    if (responseStr.length > 50000) {
+      return res.status(400).json({ error: 'Données de réponse trop volumineuses (max 50 Ko)' });
+    }
+
     const check = await query(
       `SELECT ps.id, ps.status, dt.type AS template_type
        FROM pre_rdv_sends ps
@@ -1033,6 +1048,10 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 
     if (!practitioner_id || !service_id || !client_name || !client_email) {
       return res.status(400).json({ error: 'Praticien, prestation, nom et email requis' });
+    }
+
+    if (note && note.length > 2000) {
+      return res.status(400).json({ error: 'Note trop longue (max 2000)' });
     }
 
     const bizResult = await query(
@@ -1398,7 +1417,7 @@ router.get('/booking/:token/ics', async (req, res, next) => {
       return d.getUTCFullYear() + String(d.getUTCMonth()+1).padStart(2,'0') + String(d.getUTCDate()).padStart(2,'0') +
         'T' + String(d.getUTCHours()).padStart(2,'0') + String(d.getUTCMinutes()).padStart(2,'0') + String(d.getUTCSeconds()).padStart(2,'0') + 'Z';
     }
-    function esc(s) { return (s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+    function esc(s) { if (!s) return ''; return String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n').replace(/\r/g,''); }
 
     const ical = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Genda//Booking//FR\r\nBEGIN:VEVENT\r\nUID:${bk.id}@genda.be\r\nDTSTART:${icalDtUTC(start)}\r\nDTEND:${icalDtUTC(end)}\r\nSUMMARY:${esc(summary)}\r\nDESCRIPTION:${esc(desc)}\r\nLOCATION:${esc(loc)}\r\nSTATUS:CONFIRMED\r\nBEGIN:VALARM\r\nTRIGGER:-PT30M\r\nACTION:DISPLAY\r\nDESCRIPTION:Rappel RDV\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
 
@@ -1430,10 +1449,15 @@ router.get('/wb/:token', async (req, res, next) => {
 
     const row = link.rows[0];
     if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Ce lien a expiré' });
-    if (row.accessed_count >= row.max_accesses) return res.status(410).json({ error: 'Nombre maximum d\'accès atteint' });
 
-    // Increment access count
-    await query(`UPDATE whiteboard_links SET accessed_count = accessed_count + 1 WHERE id = $1`, [row.id]);
+    // Atomic increment: only bumps if still under limit (prevents TOCTOU race)
+    const upd = await query(
+      `UPDATE whiteboard_links SET accessed_count = accessed_count + 1
+       WHERE id = $1 AND accessed_count < max_accesses
+       RETURNING accessed_count`,
+      [row.id]
+    );
+    if (upd.rows.length === 0) return res.status(410).json({ error: 'Nombre maximum d\'accès atteint' });
 
     res.json({
       title: row.title,

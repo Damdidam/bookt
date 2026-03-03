@@ -23,6 +23,14 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id et start_at requis' });
     }
 
+    // Bug M6 fix: Validate start_at (and end_at if provided) as parseable dates
+    if (isNaN(new Date(start_at).getTime())) {
+      return res.status(400).json({ error: 'Date de début invalide' });
+    }
+    if (end_at && isNaN(new Date(end_at).getTime())) {
+      return res.status(400).json({ error: 'Date de fin invalide' });
+    }
+
     // Validate appointment_mode if provided
     const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
@@ -39,6 +47,15 @@ router.post('/manual', async (req, res, next) => {
     // Validate color hex format
     if (color !== undefined && color !== null && !/^#[0-9a-fA-F]{6}$/.test(color)) {
       return res.status(400).json({ error: 'Format de couleur invalide (ex: #FF5733)' });
+    }
+
+    // Bug M7 fix: Validate practitioner_id belongs to this business
+    const pracCheck = await queryWithRLS(bid,
+      'SELECT id FROM practitioners WHERE id = $1 AND business_id = $2',
+      [practitioner_id, bid]
+    );
+    if (pracCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Praticien invalide' });
     }
 
     // Check global overlap policy + practitioner capacity
@@ -105,7 +122,8 @@ router.post('/manual', async (req, res, next) => {
               : 0; // freestyle has no service price, use fixed or skip
             if (depCents > 0) {
               const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-              const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
+              // Bug M8 fix: Use realStart (actual booking start incl. buffer) instead of raw start_at
+              const deadline = new Date(realStart.getTime() - dlHours * 3600000);
               if (deadline > new Date()) {
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,

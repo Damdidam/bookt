@@ -65,7 +65,7 @@ router.patch('/:id/move', async (req, res, next) => {
     if (draggedBooking.group_id) {
       // Fetch all group members with their service durations, ordered
       const groupRes = await queryWithRLS(bid,
-        `SELECT b.id, b.start_at, b.end_at, b.group_order,
+        `SELECT b.id, b.start_at, b.end_at, b.group_order, b.practitioner_id,
                 s.duration_min, s.buffer_before_min, s.buffer_after_min
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
@@ -93,11 +93,20 @@ router.patch('/:id/move', async (req, res, next) => {
         const s = new Date(cursor);
         const e = new Date(s.getTime() + totalMin * 60000);
         cursor = e;
-        return { id: m.id, start_at: s.toISOString(), end_at: e.toISOString() };
+        return { id: m.id, start_at: s.toISOString(), end_at: e.toISOString(), practitioner_id: m.practitioner_id };
       });
 
       const totalStart = updates[0].start_at;
       const totalEnd = updates[updates.length - 1].end_at;
+
+      // Bug M12 fix: Check availability for ALL group members, not just the dragged one
+      for (const u of updates) {
+        const memberPracId = practitioner_id || u.practitioner_id;
+        if (memberPracId !== effectivePracId) {
+          const memberAvail = await checkPracAvailability(bid, memberPracId, u.start_at, u.end_at);
+          if (!memberAvail.ok) return res.status(400).json({ error: `Praticien indisponible pour le membre du groupe: ${memberAvail.reason}` });
+        }
+      }
 
       // Note: business hours validation is handled by frontend eventAllow
       // which checks the entire group range against practitioner availability
@@ -105,6 +114,16 @@ router.patch('/:id/move', async (req, res, next) => {
       // Atomic group move: conflict check + updates in one transaction
       try {
         await transactionWithRLS(bid, async (client) => {
+          // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
+          const statusRecheck = await client.query(
+            `SELECT id, status FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+            [id, bid]
+          );
+          const IMMUTABLE = ['cancelled', 'completed', 'no_show'];
+          if (statusRecheck.rows.length === 0 || IMMUTABLE.includes(statusRecheck.rows[0].status)) {
+            throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+          }
+
           if (!globalAllowOverlap) {
             const groupIds = groupMembers.map(m => m.id);
             const conflict = await client.query(
@@ -130,7 +149,7 @@ router.patch('/:id/move', async (req, res, next) => {
               params.push(practitioner_id);
               idx++;
             }
-            sql += ` WHERE id = $${idx} AND business_id = $${idx + 1}`;
+            sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} AND status NOT IN ('cancelled', 'completed', 'no_show')`;
             params.push(u.id, bid);
             await client.query(sql, params);
           }
@@ -144,7 +163,7 @@ router.patch('/:id/move', async (req, res, next) => {
           );
         });
       } catch (err) {
-        if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+        if (err.type === 'conflict' || err.type === 'immutable') return res.status(err.type === 'conflict' ? 409 : 400).json({ error: err.message });
         throw err;
       }
 
@@ -161,6 +180,16 @@ router.patch('/:id/move', async (req, res, next) => {
     let moveResult;
     try {
       moveResult = await transactionWithRLS(bid, async (client) => {
+        // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
+        const statusRecheck = await client.query(
+          `SELECT status FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+          [id, bid]
+        );
+        const IMMUTABLE_TX = ['cancelled', 'completed', 'no_show'];
+        if (statusRecheck.rows.length === 0 || IMMUTABLE_TX.includes(statusRecheck.rows[0].status)) {
+          throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+        }
+
         if (!globalAllowOverlap) {
           const conflict = await client.query(
             `SELECT id FROM bookings
@@ -186,16 +215,22 @@ router.patch('/:id/move', async (req, res, next) => {
           idx++;
         }
 
-        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING id, start_at, end_at, practitioner_id, deposit_required, deposit_deadline`;
+        sql += ` WHERE id = $${idx} AND business_id = $${idx + 1} AND status NOT IN ('cancelled', 'completed', 'no_show') RETURNING id, start_at, end_at, practitioner_id, deposit_required, deposit_deadline`;
         params.push(id, bid);
 
         const r = await client.query(sql, params);
 
         // Recalculate deposit deadline if booking has pending deposit
+        // Bug M11 fix: Ensure deadline doesn't shift to the past
         const moved = r.rows[0];
         if (moved && moved.deposit_required && moved.deposit_deadline) {
           const timeDelta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
-          const newDeadline = new Date(new Date(moved.deposit_deadline).getTime() + timeDelta);
+          let newDeadline = new Date(new Date(moved.deposit_deadline).getTime() + timeDelta);
+          // If new deadline would be in the past, set to NOW() + 1 hour minimum buffer
+          const minDeadline = new Date(Date.now() + 60 * 60000);
+          if (newDeadline < minDeadline) {
+            newDeadline = minDeadline;
+          }
           await client.query(
             `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
             [newDeadline.toISOString(), id, bid]
@@ -213,7 +248,7 @@ router.patch('/:id/move', async (req, res, next) => {
         return r;
       });
     } catch (err) {
-      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      if (err.type === 'conflict' || err.type === 'immutable') return res.status(err.type === 'conflict' ? 409 : 400).json({ error: err.message });
       throw err;
     }
 
@@ -245,15 +280,14 @@ router.patch('/:id/edit', async (req, res, next) => {
       return res.status(400).json({ error: 'Format de couleur invalide (ex: #FF5733)' });
     }
 
-    // Guard: immutable statuses cannot be edited
+    // Pre-flight existence check (non-authoritative; real guard is inside transaction)
     const statusCheck = await queryWithRLS(bid,
       `SELECT status FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]
     );
     if (statusCheck.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    // Early rejection for obvious immutable + structural changes (will be re-checked in tx)
     const IMMUTABLE_EDIT = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_EDIT.includes(statusCheck.rows[0].status)) {
-      // Allow annotation-only edits (comment, internal_note, custom_label, color)
-      // but block structural changes (practitioner reassignment)
       if (practitioner_id !== undefined) {
         return res.status(400).json({ error: 'Impossible de réaffecter un RDV dans cet état' });
       }
@@ -325,12 +359,15 @@ router.patch('/:id/edit', async (req, res, next) => {
     if (calState_editConflictNeeded && !calState_editOverlap && calState_editTimes) {
       try {
         const txRes = await transactionWithRLS(bid, async (client) => {
-          // Capture old values inside transaction for consistency
+          // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
           const snap = await client.query(
-            `SELECT practitioner_id, comment_client, internal_note, custom_label, color
-             FROM bookings WHERE id = $1 AND business_id = $2`,
+            `SELECT practitioner_id, comment_client, internal_note, custom_label, color, status
+             FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
             [id, bid]
           );
+          if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
+            throw Object.assign(new Error('Impossible de réaffecter un RDV dans cet état'), { type: 'immutable' });
+          }
           const conflict = await client.query(
             `SELECT id FROM bookings
              WHERE business_id = $1 AND practitioner_id = $2
@@ -366,17 +403,21 @@ router.patch('/:id/edit', async (req, res, next) => {
         result = txRes.result;
         oldSnap = txRes.oldSnap;
       } catch (err) {
-        if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+        if (err.type === 'conflict' || err.type === 'immutable') return res.status(err.type === 'conflict' ? 409 : 400).json({ error: err.message });
         throw err;
       }
     } else {
       // Wrap update + audit in transaction for atomicity
       const txRes = await transactionWithRLS(bid, async (client) => {
+        // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
         const snap = await client.query(
-          `SELECT practitioner_id, comment_client, internal_note, custom_label, color
-           FROM bookings WHERE id = $1 AND business_id = $2`,
+          `SELECT practitioner_id, comment_client, internal_note, custom_label, color, status
+           FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
           [id, bid]
         );
+        if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
+          throw Object.assign(new Error('Impossible de réaffecter un RDV dans cet état'), { type: 'immutable' });
+        }
         const r = await client.query(updateSql, params);
 
         if (r.rows.length > 0) {
@@ -400,12 +441,13 @@ router.patch('/:id/edit', async (req, res, next) => {
       oldSnap = txRes.oldSnap;
     }
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    if (!result || result.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
     broadcast(bid, 'booking_update', { action: 'edited' });
     calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, booking: result.rows[0] });
   } catch (err) {
+    if (err.type === 'immutable') return res.status(400).json({ error: err.message });
     next(err);
   }
 });
@@ -456,6 +498,15 @@ router.patch('/:id/resize', async (req, res, next) => {
     let resizeResult;
     try {
       resizeResult = await transactionWithRLS(bid, async (client) => {
+        // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
+        const statusRecheck = await client.query(
+          `SELECT status FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+          [id, bid]
+        );
+        if (statusRecheck.rows.length === 0 || ['cancelled', 'completed', 'no_show'].includes(statusRecheck.rows[0].status)) {
+          throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+        }
+
         if (!globalAllowOverlap) {
           const conflict = await client.query(
             `SELECT id FROM bookings
@@ -473,7 +524,7 @@ router.patch('/:id/resize', async (req, res, next) => {
 
         const r = await client.query(
           `UPDATE bookings SET end_at = $1, updated_at = NOW()
-           WHERE id = $2 AND business_id = $3
+           WHERE id = $2 AND business_id = $3 AND status NOT IN ('cancelled', 'completed', 'no_show')
            RETURNING id, start_at, end_at`,
           [end_at, id, bid]
         );
@@ -490,7 +541,7 @@ router.patch('/:id/resize', async (req, res, next) => {
         return r;
       });
     } catch (err) {
-      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      if (err.type === 'conflict' || err.type === 'immutable') return res.status(err.type === 'conflict' ? 409 : 400).json({ error: err.message });
       throw err;
     }
 
@@ -561,6 +612,15 @@ router.patch('/:id/modify', async (req, res, next) => {
     let modifyResult;
     try {
       modifyResult = await transactionWithRLS(bid, async (client) => {
+        // Bug H6 fix: Re-check status inside transaction with FOR UPDATE
+        const statusRecheck = await client.query(
+          `SELECT status FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+          [id, bid]
+        );
+        if (statusRecheck.rows.length === 0 || ['cancelled', 'completed', 'no_show'].includes(statusRecheck.rows[0].status)) {
+          throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+        }
+
         if (!globalAllowOverlap) {
           const conflict = await client.query(
             `SELECT id FROM bookings
@@ -579,16 +639,21 @@ router.patch('/:id/modify', async (req, res, next) => {
         const r = await client.query(
           `UPDATE bookings SET
             start_at = $1, end_at = $2, status = $3, updated_at = NOW()
-           WHERE id = $4 AND business_id = $5
+           WHERE id = $4 AND business_id = $5 AND status NOT IN ('cancelled', 'completed', 'no_show')
            RETURNING *`,
           [start_at, end_at, newStatus, id, bid]
         );
 
         // Recalculate deposit deadline if booking has pending deposit
+        // Bug M11 fix: Ensure deadline doesn't shift to the past
         const modified = r.rows[0];
         if (modified && modified.deposit_required && modified.deposit_deadline) {
           const timeDelta = new Date(start_at).getTime() - new Date(oldBooking.start_at).getTime();
-          const newDeadline = new Date(new Date(modified.deposit_deadline).getTime() + timeDelta);
+          let newDeadline = new Date(new Date(modified.deposit_deadline).getTime() + timeDelta);
+          const minDeadline = new Date(Date.now() + 60 * 60000);
+          if (newDeadline < minDeadline) {
+            newDeadline = minDeadline;
+          }
           await client.query(
             `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
             [newDeadline.toISOString(), id, bid]
@@ -607,7 +672,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         return r;
       });
     } catch (err) {
-      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      if (err.type === 'conflict' || err.type === 'immutable') return res.status(err.type === 'conflict' ? 409 : 400).json({ error: err.message });
       throw err;
     }
 

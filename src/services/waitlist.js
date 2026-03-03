@@ -41,10 +41,19 @@ async function processWaitlistForCancellation(bookingId) {
   }
 
   // 2. Find matching waitlist entries
+  // Bug M13 fix: Use Europe/Brussels timezone instead of server timezone
   const slotDate = new Date(bk.start_at);
-  const weekday = slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1; // 0=Mon
-  const slotHour = slotDate.getHours();
-  const timeOfDay = slotHour < 12 ? 'morning' : 'afternoon';
+  const brusselsStr = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels' });
+  // en-GB format: "DD/MM/YYYY, HH:MM:SS"
+  const brusselsParts = brusselsStr.split(', ');
+  const brusselsTimeParts = brusselsParts[1].split(':');
+  const brusselsHour = parseInt(brusselsTimeParts[0], 10);
+  // Get Brussels weekday: create a Date from the Brussels date string to extract the day
+  const brusselsDateParts = brusselsParts[0].split('/');
+  const brusselsDate = new Date(`${brusselsDateParts[2]}-${brusselsDateParts[1]}-${brusselsDateParts[0]}T${brusselsParts[1]}`);
+  const brusselsDayOfWeek = brusselsDate.getDay();
+  const weekday = brusselsDayOfWeek === 0 ? 6 : brusselsDayOfWeek - 1; // 0=Mon
+  const timeOfDay = brusselsHour < 12 ? 'morning' : 'afternoon';
 
   const matches = await query(
     `SELECT * FROM waitlist_entries
@@ -169,9 +178,17 @@ async function processExpiredOffers() {
 
     // If auto mode, offer to next person
     if (entry.waitlist_mode === 'auto' && entry.offer_booking_start) {
+      // Bug M13 fix: Use Europe/Brussels timezone instead of server timezone
       const slotDate = new Date(entry.offer_booking_start);
-      const weekday = slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1;
-      const timeOfDay = slotDate.getHours() < 12 ? 'morning' : 'afternoon';
+      const bStr = slotDate.toLocaleString('en-GB', { timeZone: 'Europe/Brussels' });
+      const bParts = bStr.split(', ');
+      const bTimeParts = bParts[1].split(':');
+      const bHour = parseInt(bTimeParts[0], 10);
+      const bDateParts = bParts[0].split('/');
+      const bDate = new Date(`${bDateParts[2]}-${bDateParts[1]}-${bDateParts[0]}T${bParts[1]}`);
+      const bDayOfWeek = bDate.getDay();
+      const weekday = bDayOfWeek === 0 ? 6 : bDayOfWeek - 1;
+      const timeOfDay = bHour < 12 ? 'morning' : 'afternoon';
 
       const next = await query(
         `SELECT * FROM waitlist_entries

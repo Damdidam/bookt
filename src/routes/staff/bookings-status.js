@@ -29,7 +29,7 @@ router.patch('/:id/status', async (req, res, next) => {
     const txResult = await transactionWithRLS(bid, async (client) => {
       // Lock the booking row to prevent concurrent modifications
       const old = await client.query(
-        `SELECT status, client_id, deposit_required, deposit_status, deposit_amount_cents FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        `SELECT status, client_id, deposit_required, deposit_status, deposit_amount_cents, group_id FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
         [id, bid]
       );
       if (old.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
@@ -62,6 +62,23 @@ router.patch('/:id/status', async (req, res, next) => {
            WHERE id = $2 AND business_id = $3`,
           [status, id, bid]
         );
+      }
+
+      // ===== Bug M9 fix: Propagate status change to group siblings =====
+      if (old.rows[0].group_id) {
+        if (status === 'cancelled') {
+          await client.query(
+            `UPDATE bookings SET status = $1, cancel_reason = $2, updated_at = NOW()
+             WHERE group_id = $3 AND business_id = $4 AND id != $5 AND status NOT IN ('cancelled')`,
+            [status, cancel_reason || null, old.rows[0].group_id, bid, id]
+          );
+        } else {
+          await client.query(
+            `UPDATE bookings SET status = $1, updated_at = NOW()
+             WHERE group_id = $2 AND business_id = $3 AND id != $4 AND status NOT IN ('cancelled')`,
+            [status, old.rows[0].group_id, bid, id]
+          );
+        }
       }
 
       // ===== DEPOSIT: mark as paid when pending_deposit → confirmed =====
@@ -237,6 +254,8 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
       if (!bk.rows[0].deposit_required) return { error: 400, message: 'Pas d\'acompte sur ce RDV' };
       if (bk.rows[0].deposit_status === 'refunded') return { error: 400, message: 'Acompte déjà remboursé' };
+      // Bug M10 fix: Only allow refund if deposit was actually paid
+      if (bk.rows[0].deposit_status !== 'paid') return { error: 400, message: 'L\'acompte n\'a pas encore été payé — impossible de rembourser' };
 
       const REFUNDABLE = ['pending', 'confirmed', 'modified_pending', 'pending_deposit'];
       if (!REFUNDABLE.includes(bk.rows[0].status)) {
@@ -249,10 +268,13 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         [id, bid]
       );
 
+      // Bug B5 fix: Include old_data in deposit-refund audit log
       await client.query(
-        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, new_data)
-         VALUES ($1, $2, 'booking', $3, 'deposit_refund', $4)`,
-        [bid, req.user.id, id, JSON.stringify({ deposit_status: 'refunded', amount_cents: bk.rows[0].deposit_amount_cents })]
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'booking', $3, 'deposit_refund', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ status: bk.rows[0].status, deposit_status: bk.rows[0].deposit_status, deposit_amount_cents: bk.rows[0].deposit_amount_cents }),
+         JSON.stringify({ deposit_status: 'refunded', status: 'cancelled', amount_cents: bk.rows[0].deposit_amount_cents })]
       );
 
       return { ok: true };
@@ -297,6 +319,30 @@ router.delete('/:id', async (req, res, next) => {
         return { error: 400, message: 'Seuls les RDV annulés ou no-show peuvent être supprimés' };
       }
 
+      // Bug B4 fix: Helper to decrement strike and reverse auto-block if below threshold
+      async function decrementStrikeAndMaybeUnblock(clientId) {
+        const updated = await client.query(
+          `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1), updated_at = NOW()
+           WHERE id = $1 AND business_id = $2
+           RETURNING no_show_count, is_blocked, blocked_reason`,
+          [clientId, bid]
+        );
+        const cl = updated.rows[0];
+        if (cl && cl.is_blocked && cl.blocked_reason?.startsWith('Bloqué automatiquement')) {
+          const bizSettings = await client.query(
+            `SELECT settings FROM businesses WHERE id = $1`, [bid]
+          );
+          const threshold = bizSettings.rows[0]?.settings?.noshow_block_threshold ?? 3;
+          if (cl.no_show_count < threshold) {
+            await client.query(
+              `UPDATE clients SET is_blocked = false, blocked_reason = NULL, blocked_at = NULL, updated_at = NOW()
+               WHERE id = $1 AND business_id = $2`,
+              [clientId, bid]
+            );
+          }
+        }
+      }
+
       let bookingIds = [id];
       if (check.rows[0].group_id) {
         const siblings = await client.query(
@@ -308,18 +354,12 @@ router.delete('/:id', async (req, res, next) => {
 
         for (const sib of siblings.rows) {
           if (sib.status === 'no_show' && sib.client_id) {
-            await client.query(
-              `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
-              [sib.client_id, bid]
-            );
+            await decrementStrikeAndMaybeUnblock(sib.client_id);
           }
         }
       } else {
         if (check.rows[0].status === 'no_show' && check.rows[0].client_id) {
-          await client.query(
-            `UPDATE clients SET no_show_count = GREATEST(0, no_show_count - 1) WHERE id = $1 AND business_id = $2`,
-            [check.rows[0].client_id, bid]
-          );
+          await decrementStrikeAndMaybeUnblock(check.rows[0].client_id);
         }
       }
 

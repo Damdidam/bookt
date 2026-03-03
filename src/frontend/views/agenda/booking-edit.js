@@ -2,6 +2,7 @@
  * Booking Edit - duration chips, conflict detection, edit diff display.
  */
 import { calState } from '../../state.js';
+import { esc } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 
 /**
@@ -56,7 +57,7 @@ function calCheckConflict() {
     if (newStart < ev.end && newEnd > ev.start) {
       const name = ev.extendedProps?.client_name || ev.title || 'RDV';
       const time = ev.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + ' \u2013 ' + ev.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-      conflicts.push(`<strong>${name}</strong> (${time})`);
+      conflicts.push(`<strong>${esc(name)}</strong> (${time})`);
     }
   }
 

@@ -130,10 +130,12 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     const dateStr = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
 
     // Sanitize session notes before sending by email (strip scripts, event handlers, dangerous tags)
+    const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
     let safeHTML = (session_notes || '');
-    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*>[\s\S]*?<\/\1>/gi, '');
-    safeHTML = safeHTML.replace(/<(script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img)[^>]*\/?>/gi, '');
-    safeHTML = safeHTML.replace(/[\s"'/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
+    safeHTML = safeHTML.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
+    // Remove event handlers — allow whitespace/newlines between "on" and event name to prevent bypass
+    safeHTML = safeHTML.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
     safeHTML = safeHTML.replace(/(href|src|action)\s*=\s*["']?\s*(javascript|data):/gi, '$1="');
 
     await sendSessionNotesEmail({
