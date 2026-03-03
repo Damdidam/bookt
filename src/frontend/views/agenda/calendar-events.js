@@ -3,7 +3,8 @@
  * Returns config objects for the FullCalendar options object.
  */
 import { api, calState } from '../../state.js';
-import { esc, gToast } from '../../utils/dom.js';
+import { esc, safeId, gToast } from '../../utils/dom.js';
+import { toBrusselsISO } from '../../utils/format.js';
 import { fcIsMobile } from '../../utils/touch.js';
 import { fcHexAlpha, fcRefresh } from './calendar-init.js';
 import { fcOpenDetail } from './booking-detail.js';
@@ -12,6 +13,16 @@ import { atView } from './calendar-toolbar.js';
 import { fsIsActive, fsHandleDateClick, fsBuildBackgroundEvents } from './calendar-featured.js';
 import { storeUndoAction } from './booking-undo.js';
 import { fcCheckBusinessHours } from './booking-save.js';
+
+// Default color fallback for practitioner/service/booking accents
+const DEFAULT_ACCENT = '#0D7377';
+
+/** Convert a JS Date to Brussels-timezone ISO string for API calls */
+function dateToBrusselsISO(d) {
+  const ds = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const ts = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
+  return toBrusselsISO(ds, ts);
+}
 
 // ── Tooltip locale maps ──
 const STATUS_FR = { confirmed: 'Confirm\u00e9', pending: 'En attente', completed: 'Termin\u00e9', cancelled: 'Annul\u00e9', no_show: 'Absent', modified_pending: 'Modifi\u00e9', pending_deposit: 'Acompte requis' };
@@ -88,7 +99,7 @@ function buildEventsCallback() {
     const params = new URLSearchParams({ from: info.startStr, to: info.endStr });
     if (calState.fcCurrentFilter !== 'all') params.set('practitioner_id', calState.fcCurrentFilter);
     fetch('/api/bookings?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
-      .then(r => r.json()).then(d => {
+      .then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).then(d => {
         const bookings = d.bookings || [];
         const grouped = {}, singles = [];
         bookings.forEach(b => {
@@ -103,7 +114,7 @@ function buildEventsCallback() {
         // Single events
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
-          const accent = b.booking_color || b.service_color || b.practitioner_color || '#0D7377';
+          const accent = b.booking_color || b.service_color || b.practitioner_color || DEFAULT_ACCENT;
           events.push({
             id: b.id, title: b.client_name || 'Sans nom',
             start: b.start_at, end: b.end_at,
@@ -117,7 +128,7 @@ function buildEventsCallback() {
         Object.keys(grouped).forEach(gid => {
           const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
           const first = members[0], last = members[members.length - 1];
-          const accent = first.booking_color || first.service_color || first.practitioner_color || '#0D7377';
+          const accent = first.booking_color || first.service_color || first.practitioner_color || DEFAULT_ACCENT;
           const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
           const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
           const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
@@ -165,8 +176,8 @@ function buildEventsCallback() {
 function buildEventContent() {
   return function (arg) {
     const p = arg.event.extendedProps;
-    const accent = p._accent || '#0D7377';
-    const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#0D7377';
+    const accent = p._accent || DEFAULT_ACCENT;
+    const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
     const isMonth = arg.view.type === 'dayGridMonth';
 
     // -- Month view (same for singles and groups) --
@@ -212,7 +223,7 @@ function buildEventClassNames() {
       else if (hasNoShow) cls.push('ev-no_show');
       else if (hasCompleted) cls.push('ev-completed');
     } else {
-      cls.push('ev-' + (p.status || 'confirmed'));
+      cls.push('ev-' + safeId(p.status || 'confirmed'));
     }
     return cls;
   };
@@ -228,8 +239,8 @@ function buildEventDidMount() {
     // Skip styling for featured background events
     if (p._isFeaturedSlot) return;
 
-    const accent = p._accent || '#0D7377';
-    const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#0D7377';
+    const accent = p._accent || DEFAULT_ACCENT;
+    const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
 
     // Ensure left border shows
     info.el.style.borderLeftWidth = '3px';
@@ -353,13 +364,11 @@ function buildEventDidMount() {
             fetch('/api/bookings/' + info.event.id + '/resize', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-              // FE-26: toISOString() sends UTC; server parses via new Date() which handles UTC fine.
-              // Other time endpoints use toBrusselsISO for consistency — consider aligning if needed.
-              body: JSON.stringify({ end_at: newEnd.toISOString() })
+              body: JSON.stringify({ end_at: dateToBrusselsISO(newEnd) })
             }).then(function (r) {
               if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
               var dur = Math.round((newEnd - info.event.start) / 60000);
-              storeUndoAction(info.event.id, 'resize', { end_at: origEnd.toISOString() });
+              storeUndoAction(info.event.id, 'resize', { end_at: dateToBrusselsISO(origEnd) });
               gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
             }).catch(function (err) {
               info.event.setEnd(origEnd);
@@ -406,8 +415,11 @@ function buildDateClick() {
  * Returns the `eventDrop` callback (drag & drop move).
  */
 function buildEventDrop() {
+  let _busy = false;
   return async function (info) {
+    if (_busy) { info.revert(); return; }
     if (fsIsActive()) { info.revert(); return; }
+    _busy = true;
     const ev = info.event, p = ev.extendedProps;
     // Capture old state BEFORE the API call (info.oldEvent has pre-drag values)
     const oldStart = info.oldEvent.start;
@@ -420,15 +432,15 @@ function buildEventDrop() {
       const r = await fetch(`/api/bookings/${bookingId}/move`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ start_at: ev.start.toISOString(), end_at: ev.end.toISOString(), practitioner_id: pracId })
+        body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start), practitioner_id: pracId })
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
       const result = await r.json();
       // Store undo state (only for non-group moves — group undo is complex)
       if (!result.group_moved) {
         storeUndoAction(bookingId, 'move', {
-          start_at: oldStart.toISOString(),
-          end_at: oldEnd.toISOString(),
+          start_at: dateToBrusselsISO(oldStart),
+          end_at: dateToBrusselsISO(oldEnd || oldStart),
           practitioner_id: oldPracId
         });
       }
@@ -437,7 +449,7 @@ function buildEventDrop() {
       calState.fcCal.refetchEvents();
     } catch (e) {
       // Save target date BEFORE revert (revert resets event.start to original)
-      const targetDate = info.event.start.toISOString().split('T')[0];
+      const targetDate = info.event.start.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       info.revert();
       const isCollision = e.message.includes('hevauche') || e.message.includes('pris') || e.message.includes('occup\u00e9');
       // In month view + collision -> offer to switch to day view for precise placement
@@ -447,7 +459,7 @@ function buildEventDrop() {
       } else {
         gToast(isCollision ? '\u2718 Cr\u00e9neau occup\u00e9 \u2014 impossible de d\u00e9placer ici' : e.message, 'error');
       }
-    }
+    } finally { _busy = false; }
   };
 }
 
@@ -455,26 +467,30 @@ function buildEventDrop() {
  * Returns the `eventResize` callback.
  */
 function buildEventResize() {
+  let _busy = false;
   return async function (info) {
+    if (_busy) { info.revert(); return; }
     if (fsIsActive()) { info.revert(); return; }
+    _busy = true;
     const ev = info.event;
     const oldEnd = info.oldEvent.end;
     try {
       const r = await fetch(`/api/bookings/${ev.id}/resize`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ end_at: ev.end.toISOString() })
+        body: JSON.stringify({ end_at: dateToBrusselsISO(ev.end || ev.start) })
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-      const dur = Math.round((ev.end - ev.start) / 60000);
-      storeUndoAction(ev.id, 'resize', { end_at: oldEnd.toISOString() });
+      const evEnd = ev.end || ev.start;
+      const dur = Math.round((evEnd - ev.start) / 60000);
+      storeUndoAction(ev.id, 'resize', { end_at: dateToBrusselsISO(oldEnd || ev.start) });
       gToast('Dur\u00e9e \u2192 ' + dur + ' min', 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
     } catch (e) {
       info.revert();
       gToast(e.message.includes('hevauche') || e.message.includes('cr\u00e9neau')
         ? '\u2718 Chevauchement \u2014 dur\u00e9e non modifi\u00e9e'
         : e.message, 'error');
-    }
+    } finally { _busy = false; }
   };
 }
 
@@ -543,16 +559,26 @@ function buildEventAllow() {
       if (String(ev.extendedProps?.practitioner_id) !== String(myPrac)) continue;
       const st = ev.extendedProps?.status;
       if (st === 'cancelled' || st === 'no_show' || st === 'completed') continue;
-      if (ev.start < newEnd && ev.end > newStart) overlapCount++;
+      const evEnd = ev.end || ev.start;
+      if (ev.start < newEnd && evEnd > newStart) overlapCount++;
     }
     if (overlapCount >= maxC) return false;
     return true;
   };
 }
 
+/**
+ * Returns the `eventWillUnmount` callback — cleans up tooltips when events are removed.
+ */
+function buildEventWillUnmount() {
+  return function () {
+    fcHideTooltip();
+  };
+}
+
 export {
   fcShowTooltip, fcMoveTooltip, fcHideTooltip,
   buildEventsCallback, buildEventContent, buildEventClassNames,
-  buildEventDidMount, buildDateClick, buildEventDrop, buildEventResize,
+  buildEventDidMount, buildEventWillUnmount, buildDateClick, buildEventDrop, buildEventResize,
   buildEventOverlap, buildEventAllow
 };

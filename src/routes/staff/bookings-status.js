@@ -326,11 +326,23 @@ router.patch('/:id/status', async (req, res, next) => {
       }
 
       // Audit log (inside transaction for consistency, enriched with deposit state)
+      // STS-V11-3 fix: Include deposit-related fields in old_data and new_data
       const oldAudit = { status: old.rows[0].status };
       const newAudit = { status, cancel_reason };
       if (old.rows[0].deposit_required) {
+        oldAudit.deposit_required = old.rows[0].deposit_required;
         oldAudit.deposit_status = old.rows[0].deposit_status;
         oldAudit.deposit_amount_cents = old.rows[0].deposit_amount_cents;
+        // Fetch current deposit state for new_data (may have changed during this transaction)
+        const currentDep = await client.query(
+          `SELECT deposit_status, deposit_amount_cents, deposit_required FROM bookings WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+        if (currentDep.rows.length > 0) {
+          newAudit.deposit_required = currentDep.rows[0].deposit_required;
+          newAudit.deposit_status = currentDep.rows[0].deposit_status;
+          newAudit.deposit_amount_cents = currentDep.rows[0].deposit_amount_cents;
+        }
       }
       await client.query(
         `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
@@ -351,6 +363,9 @@ router.patch('/:id/status', async (req, res, next) => {
     // ===== Post-transaction side effects (non-blocking) =====
 
     // Waitlist trigger on cancel
+    // STS-V11-7: Waitlist processing intentionally notifies ALL waiting clients regardless of
+    // remaining slot availability. Clients re-check availability when they accept the offer,
+    // so over-notification is safe and avoids complex real-time slot counting here.
     if (status === 'cancelled') {
       try {
         const { processWaitlistForCancellation } = require('../../services/waitlist');
@@ -375,6 +390,22 @@ router.patch('/:id/status', async (req, res, next) => {
     }
     if (status === 'cancelled') calSyncDelete(bid, id).catch(e => console.warn('[CAL_SYNC] Delete error:', e.message));
     else calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+
+    // STS-V11-1 fix: Cal sync for siblings on status change
+    if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
+      for (const sibId of txResult.affectedSiblingIds) {
+        try {
+          if (['cancelled', 'no_show'].includes(status)) {
+            await calSyncDelete(bid, sibId);
+          } else {
+            await calSyncPush(bid, sibId);
+          }
+        } catch (syncErr) {
+          console.error(`Cal sync failed for sibling ${sibId}:`, syncErr.message);
+        }
+      }
+    }
+
     res.json({ updated: true, status });
   } catch (err) {
     next(err);
@@ -551,6 +582,9 @@ router.delete('/:id', async (req, res, next) => {
           [check.rows[0].group_id, bid]
         );
         bookingIds = siblings.rows.map(r => r.id);
+        // STS-V11-2 fix: Ensure the principal booking ID is always included in deletion array
+        if (!bookingIds.includes(id)) bookingIds.push(id);
+        if (bookingIds.length === 0) bookingIds = [id];
 
         for (const sib of siblings.rows) {
           if (sib.status === 'no_show' && sib.client_id) {

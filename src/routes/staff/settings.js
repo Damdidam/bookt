@@ -2,6 +2,12 @@ const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 
+// V11-025: Strip HTML tags from text fields to prevent injection
+function stripHtml(str) {
+  if (!str || typeof str !== 'string') return str;
+  return str.replace(/<[^>]*>/g, '').trim();
+}
+
 router.use(requireAuth);
 
 // GET /api/business — full business details
@@ -14,7 +20,18 @@ router.get('/', async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
-    res.json({ business: result.rows[0] });
+    const business = result.rows[0];
+
+    // V11-016: Filter sensitive settings for non-owner roles
+    if (req.user.role !== 'owner' && business.settings) {
+      const filtered = { ...business.settings };
+      delete filtered.iban;
+      delete filtered.bic;
+      delete filtered.invoice_footer;
+      business.settings = filtered;
+    }
+
+    res.json({ business });
   } catch (err) {
     next(err);
   }
@@ -155,7 +172,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         langArray,
         social_links ? JSON.stringify(social_links) : null,
         page_sections ? JSON.stringify(page_sections) : null,
-        seo_title, seo_description,
+        stripHtml(seo_title), stripHtml(seo_description),
         theme ? JSON.stringify(theme) : null,
         bid
       ]

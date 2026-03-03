@@ -11,6 +11,41 @@ function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * Sanitize rich text HTML — strip dangerous tags, event handlers, and protocol URLs
+ * while keeping safe formatting (b, i, u, br, p, span, strong, em, ul, ol, li, a).
+ * SVC-V11-3: Server-side sanitization for sessionHTML before email injection.
+ */
+function sanitizeRichText(html) {
+  if (!html) return '';
+  const blocked = 'script|iframe|object|embed|form|textarea|input|select|button|svg|math|style|details|template|link|meta|base|img|video|audio|body|marquee|noscript|plaintext|xmp|listing|head|html|applet|layer|ilayer|bgsound|title';
+  let s = html;
+  let prev;
+  // Remove dangerous tags and their content (loop until stable for nested tags)
+  do {
+    prev = s;
+    s = s.replace(new RegExp('<(' + blocked + ')[^>]*>[\\s\\S]*?<\\/\\1>', 'gi'), '');
+    s = s.replace(new RegExp('<(' + blocked + ')[^>]*\\/?>', 'gi'), '');
+  } while (s !== prev);
+  // Remove event handlers (on*="...")
+  let prev2;
+  do {
+    prev2 = s;
+    s = s.replace(/[\s"'/<]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+  } while (s !== prev2);
+  // Remove dangerous protocol URLs in href/src/action
+  s = s.replace(/(href|src|action)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, attr, val) => {
+    const decoded = val.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                       .replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+                       .replace(/&[a-z]+;/gi, '');
+    if (/^\s*["']?\s*(javascript|data|vbscript|blob)\s*:/i.test(decoded)) {
+      return attr + '=""';
+    }
+    return match;
+  });
+  return s;
+}
+
 /** Validate that a string is a valid hex color; returns fallback if not */
 function safeColor(color, fallback) {
   if (color && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) return color;
@@ -166,7 +201,9 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
 
   const ctaText = template.type === 'info' ? 'Consulter le document' : 'Compléter le formulaire';
 
-  const subject = template.subject || `${template.name} — ${business.name}`;
+  // SVC-V11-12: Escape business name in subject (strip HTML tags for safety)
+  const safeBizNameSubject = (business.name || 'Genda').replace(/<[^>]*>/g, '');
+  const subject = template.subject || `${template.name} — ${safeBizNameSubject}`;
 
   const html = buildEmailHTML({
     title: template.name,
@@ -329,9 +366,11 @@ async function sendSessionNotesEmail({ to, toName, sessionHTML, serviceName, dat
   const safeBizName = escHtml(businessName);
   const safeDate = escHtml(date);
   const color = safeColor(primaryColor);
-  // sessionHTML is intentionally pre-sanitized rich text — do NOT escape it
-  // But sanitize dangerous style attributes (expression, behavior, binding, url())
+  // SVC-V11-3: Full server-side sanitization of sessionHTML (strip dangerous tags,
+  // event handlers, protocol URLs) before embedding in email
   if (sessionHTML) {
+    sessionHTML = sanitizeRichText(sessionHTML);
+    // Also strip dangerous CSS expressions in style attributes
     sessionHTML = sessionHTML.replace(/\bstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (match, val) => {
       if (/expression|behavior|binding|url\s*\(/i.test(val)) return '';
       return match;

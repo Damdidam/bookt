@@ -43,10 +43,18 @@ async function fcToggleTodo(todoId, isDone) {
     const todo = calState.fcDetailData.todos.find(t => String(t.id) === String(todoId));
     if (todo) todo.is_done = isDone;
     fcRenderTodos();
-  } catch (e) { gToast('Erreur', 'error'); }
+  } catch (e) {
+    // Revert checkbox state on error
+    const todo = calState.fcDetailData.todos.find(t => String(t.id) === String(todoId));
+    if (todo) todo.is_done = !isDone;
+    fcRenderTodos();
+    gToast('Erreur', 'error');
+  }
 }
 
 async function fcDeleteTodo(todoId) {
+  if (fcDeleteTodo._busy) return;
+  fcDeleteTodo._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/todos/${todoId}`, {
       method: 'DELETE',
@@ -56,6 +64,7 @@ async function fcDeleteTodo(todoId) {
     calState.fcDetailData.todos = calState.fcDetailData.todos.filter(t => String(t.id) !== String(todoId));
     fcRenderTodos();
   } catch (e) { gToast('Erreur', 'error'); }
+  finally { fcDeleteTodo._busy = false; }
 }
 
 // Expose to global scope for onclick handlers

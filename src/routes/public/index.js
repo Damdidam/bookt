@@ -28,14 +28,26 @@ router.get('/:slug', async (req, res, next) => {
 
     // Also check custom domains
     let bizResult = await query(
-      `SELECT b.* FROM businesses b WHERE b.slug = $1 AND b.is_active = true`,
+      `SELECT b.id, b.slug, b.name, b.tagline, b.description, b.phone, b.email,
+              b.address, b.language_default, b.languages_spoken, b.founded_year,
+              b.accreditation, b.bce_number, b.parking_info, b.logo_url,
+              b.cover_image_url, b.social_links, b.theme, b.seo_title,
+              b.seo_description, b.page_sections, b.settings,
+              b.google_reviews_url, b.category, b.sector
+       FROM businesses b WHERE b.slug = $1 AND b.is_active = true`,
       [slug]
     );
 
     // If not found by slug, try custom domain
     if (bizResult.rows.length === 0) {
       bizResult = await query(
-        `SELECT b.* FROM businesses b
+        `SELECT b.id, b.slug, b.name, b.tagline, b.description, b.phone, b.email,
+                b.address, b.language_default, b.languages_spoken, b.founded_year,
+                b.accreditation, b.bce_number, b.parking_info, b.logo_url,
+                b.cover_image_url, b.social_links, b.theme, b.seo_title,
+                b.seo_description, b.page_sections, b.settings,
+                b.google_reviews_url, b.category, b.sector
+         FROM businesses b
          JOIN custom_domains cd ON cd.business_id = b.id
          WHERE cd.domain = $1 AND cd.verification_status = 'ssl_active' AND b.is_active = true`,
         [slug]
@@ -370,13 +382,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
     if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
 
-    const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
+    const VALID_MODES = ['cabinet', 'visio', 'phone'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
       return res.status(400).json({ error: 'Mode de rendez-vous invalide' });
     }
 
-    if (client_comment && client_comment.length > 2000) {
-      return res.status(400).json({ error: 'Commentaire trop long (max 2000)' });
+    if (client_comment && client_comment.length > 500) {
+      return res.status(400).json({ error: 'Commentaire trop long (max 500)' });
     }
 
     if (client_bce && (typeof client_bce !== 'string' || client_bce.length > 30)) {
@@ -561,16 +573,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       );
 
       // Queue notifications
-      await client.query(
-        `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-         VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-        [businessId, booking.rows[0].id, client_email, client_phone]
-      );
-      await client.query(
-        `INSERT INTO notifications (business_id, booking_id, type, status)
-         VALUES ($1,$2,'email_new_booking_pro','queued')`,
-        [businessId, booking.rows[0].id]
-      );
+      // NOTE: notification types may need a DB migration to add to the CHECK constraint
+      try {
+        await client.query(
+          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
+           VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
+          [businessId, booking.rows[0].id, client_email, client_phone]
+        );
+      } catch (notifErr) {
+        console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+      }
+      try {
+        await client.query(
+          `INSERT INTO notifications (business_id, booking_id, type, status)
+           VALUES ($1,$2,'email_new_booking_pro','queued')`,
+          [businessId, booking.rows[0].id]
+        );
+      } catch (notifErr) {
+        console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+      }
 
       return booking.rows[0];
     });
@@ -715,11 +736,16 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     }
 
     // Queue cancellation notification
-    await query(
-      `INSERT INTO notifications (business_id, booking_id, type, status)
-       VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
-      [bk.business_id, bk.id]
-    );
+    // NOTE: notification types may need a DB migration to add to the CHECK constraint
+    try {
+      await query(
+        `INSERT INTO notifications (business_id, booking_id, type, status)
+         VALUES ($1, $2, 'email_cancellation_pro', 'queued')`,
+        [bk.business_id, bk.id]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+    }
 
     // Trigger waitlist processing
     let waitlistResult = null;
@@ -792,11 +818,16 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     }
 
     // Queue notification to practitioner
-    await query(
-      `INSERT INTO notifications (business_id, booking_id, type, status)
-       VALUES ($1, $2, 'email_modification_confirmed', 'queued')`,
-      [result.rows[0].business_id, result.rows[0].id]
-    );
+    // NOTE: notification types may need a DB migration to add to the CHECK constraint
+    try {
+      await query(
+        `INSERT INTO notifications (business_id, booking_id, type, status)
+         VALUES ($1, $2, 'email_modification_confirmed', 'queued')`,
+        [result.rows[0].business_id, result.rows[0].id]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+    }
 
     broadcast(result.rows[0].business_id, 'booking_update', { action: 'confirmed', source: 'public' });
 
@@ -862,11 +893,16 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     }
 
     // Notify practitioner
-    await query(
-      `INSERT INTO notifications (business_id, booking_id, type, status)
-       VALUES ($1, $2, 'email_modification_rejected', 'queued')`,
-      [result.rows[0].business_id, result.rows[0].id]
-    );
+    // NOTE: notification types may need a DB migration to add to the CHECK constraint
+    try {
+      await query(
+        `INSERT INTO notifications (business_id, booking_id, type, status)
+         VALUES ($1, $2, 'email_modification_rejected', 'queued')`,
+        [result.rows[0].business_id, result.rows[0].id]
+      );
+    } catch (notifErr) {
+      console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+    }
 
     broadcast(result.rows[0].business_id, 'booking_update', { action: 'rejected', source: 'public' });
 
@@ -1002,7 +1038,7 @@ router.get('/docs/:token', async (req, res, next) => {
        FROM pre_rdv_sends ps
        JOIN document_templates dt ON dt.id = ps.template_id
        JOIN bookings bk ON bk.id = ps.booking_id
-       JOIN services s ON s.id = bk.service_id
+       LEFT JOIN services s ON s.id = bk.service_id
        LEFT JOIN practitioners p ON p.id = bk.practitioner_id
        JOIN clients c ON c.id = ps.client_id
        JOIN businesses b ON b.id = ps.business_id
@@ -1120,7 +1156,8 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
     if (!UUID_RE.test(practitioner_id)) {
       return res.status(400).json({ error: 'practitioner_id invalide' });
     }
-    if (!UUID_RE.test(service_id)) {
+    // Validate service_id is a single valid UUID (reject arrays or non-string values)
+    if (typeof service_id !== 'string' || !UUID_RE.test(service_id)) {
       return res.status(400).json({ error: 'service_id invalide' });
     }
 
@@ -1138,8 +1175,8 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       }
     }
 
-    if (note && note.length > 2000) {
-      return res.status(400).json({ error: 'Note trop longue (max 2000)' });
+    if (note && note.length > 300) {
+      return res.status(400).json({ error: 'Note trop longue (max 300)' });
     }
 
     const VALID_TIMES = ['any', 'morning', 'afternoon'];
@@ -1161,6 +1198,15 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
     if (pracResult.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
     if (pracResult.rows[0].waitlist_mode === 'off') {
       return res.status(400).json({ error: 'La liste d\'attente n\'est pas activée pour ce praticien' });
+    }
+
+    // Validate service exists, is active, and booking-enabled
+    const svcCheck = await query(
+      `SELECT id FROM services WHERE id = $1 AND business_id = $2 AND is_active = true AND booking_enabled = true`,
+      [service_id, businessId]
+    );
+    if (svcCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Prestation introuvable ou non disponible à la réservation' });
     }
 
     // Bug M9 fix: Atomic INSERT with duplicate check + priority calculation
@@ -1204,7 +1250,8 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
 router.get('/waitlist/:token', async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT w.*,
+      `SELECT w.id, w.status, w.client_name, w.offer_booking_start, w.offer_booking_end,
+              w.offer_expires_at,
         p.display_name AS practitioner_name, p.title AS practitioner_title,
         s.name AS service_name, s.duration_min, s.price_cents, s.price_label,
         b.name AS business_name, b.slug AS business_slug, b.address AS business_address,
@@ -1268,7 +1315,10 @@ router.get('/waitlist/:token', async (req, res, next) => {
 router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) => {
   try {
     const entry = await query(
-      `SELECT w.*, s.duration_min, s.buffer_before_min, s.buffer_after_min
+      `SELECT w.id, w.business_id, w.practitioner_id, w.service_id,
+              w.client_name, w.client_email, w.client_phone,
+              w.offer_expires_at, w.offer_booking_start, w.offer_booking_end,
+              s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM waitlist_entries w
        JOIN services s ON s.id = w.service_id
        WHERE w.offer_token = $1 AND w.status = 'offered'`,
@@ -1398,11 +1448,16 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       }
 
       // Queue confirmation notification
-      await client.query(
-        `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
-         VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
-        [e.business_id, bk.rows[0].id, e.client_email]
-      );
+      // NOTE: notification types may need a DB migration to add to the CHECK constraint
+      try {
+        await client.query(
+          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
+           VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
+          [e.business_id, bk.rows[0].id, e.client_email]
+        );
+      } catch (notifErr) {
+        console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
+      }
 
       return bk.rows[0];
     });

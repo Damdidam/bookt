@@ -21,9 +21,11 @@ function fcRenderReminders() {
 }
 
 async function calAddReminder() {
-  const offset = parseInt(document.getElementById('calReminderOffset').value);
-  const channel = document.getElementById('calReminderChannel').value;
+  if (calAddReminder._busy) return;
+  calAddReminder._busy = true;
   try {
+    const offset = parseInt(document.getElementById('calReminderOffset').value);
+    const channel = document.getElementById('calReminderChannel').value;
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/reminders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
@@ -35,9 +37,12 @@ async function calAddReminder() {
     fcRenderReminders();
     gToast('Rappel ajout\u00e9', 'success');
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { calAddReminder._busy = false; }
 }
 
 async function fcDeleteReminder(remId) {
+  if (fcDeleteReminder._busy) return;
+  fcDeleteReminder._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/reminders/${remId}`, {
       method: 'DELETE',
@@ -47,6 +52,7 @@ async function fcDeleteReminder(remId) {
     calState.fcDetailData.reminders = calState.fcDetailData.reminders.filter(r => String(r.id) !== String(remId));
     fcRenderReminders();
   } catch (e) { gToast('Erreur', 'error'); }
+  finally { fcDeleteReminder._busy = false; }
 }
 
 // Expose to global scope for onclick handlers

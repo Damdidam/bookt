@@ -53,7 +53,11 @@ async function refreshGoogleToken(refreshToken) {
       grant_type: 'refresh_token'
     })
   });
-  if (!res.ok) throw new Error('Google token refresh failed');
+  // SVC-V11-10: Include status and response details in error
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(`Google token refresh failed: ${res.status} ${errBody.error_description || errBody.error || ''}`);
+  }
   return res.json();
 }
 
@@ -76,7 +80,11 @@ async function getGoogleUserInfo(accessToken) {
   const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { 'Authorization': `Bearer ${accessToken}` }
   });
-  if (!res.ok) return {};
+  // SVC-V11-10: Log error instead of silently swallowing
+  if (!res.ok) {
+    console.warn(`[CAL-SYNC] Google userinfo fetch failed: ${res.status}`);
+    return {};
+  }
   return res.json();
 }
 
@@ -127,7 +135,11 @@ async function refreshOutlookToken(refreshToken) {
       grant_type: 'refresh_token'
     })
   });
-  if (!res.ok) throw new Error('Outlook token refresh failed');
+  // SVC-V11-10: Include status and response details in error
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(`Outlook token refresh failed: ${res.status} ${errBody.error_description || errBody.error || ''}`);
+  }
   return res.json();
 }
 

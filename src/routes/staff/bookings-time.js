@@ -323,10 +323,20 @@ router.patch('/:id/edit', async (req, res, next) => {
       return res.status(403).json({ error: 'Accès interdit' });
     }
 
-    // CRT-12: Block ALL edits for immutable statuses (not just practitioner_id reassignment)
+    // CRT-V11: For immutable statuses, only block time-related and practitioner changes.
+    // Allow annotation-only edits (comment, internal_note, custom_label, color).
     const IMMUTABLE_EDIT = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_EDIT.includes(statusCheck.rows[0].status)) {
-      return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+      if (practitioner_id !== undefined) {
+        return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié (changement de praticien interdit)' });
+      }
+      // Only annotation fields are allowed for immutable statuses
+      const allowedFields = ['comment', 'internal_note', 'custom_label', 'color'];
+      const requestedFields = Object.keys(req.body).filter(k => req.body[k] !== undefined);
+      const hasDisallowedField = requestedFields.some(k => !allowedFields.includes(k));
+      if (hasDisallowedField) {
+        return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié (seuls commentaire, note interne, libellé et couleur sont autorisés)' });
+      }
     }
 
     // If practitioner_id changes, check for conflicts (transaction vars)
@@ -401,9 +411,9 @@ router.patch('/:id/edit', async (req, res, next) => {
              FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
             [id, bid]
           );
-          // CRT-12: Block ALL edits for immutable statuses
-          if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status)) {
-            throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+          // CRT-V11: Block practitioner reassignment for immutable statuses
+          if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
+            throw Object.assign(new Error('Ce RDV ne peut plus être modifié (changement de praticien interdit)'), { type: 'immutable' });
           }
           const conflict = await client.query(
             `SELECT id FROM bookings
@@ -452,8 +462,9 @@ router.patch('/:id/edit', async (req, res, next) => {
            FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
           [id, bid]
         );
-        if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status)) {
-          throw Object.assign(new Error('Ce RDV ne peut plus être modifié'), { type: 'immutable' });
+        // CRT-V11: Allow annotation-only edits for immutable statuses (no practitioner change in this branch)
+        if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
+          throw Object.assign(new Error('Ce RDV ne peut plus être modifié (changement de praticien interdit)'), { type: 'immutable' });
         }
         const r = await client.query(updateSql, params);
 
@@ -776,7 +787,7 @@ router.patch('/:id/modify', async (req, res, next) => {
         // Twilio SMS — will be wired when Twilio is configured
         const baseUrl = process.env.PUBLIC_URL || `https://genda.be`;
         const link = `${baseUrl}/booking/${oldBooking.public_token}`;
-        console.log(`[NOTIFY] SMS to ${oldBooking.client_phone}: booking modified → ${link}`);
+        console.error(`[NOTIFY] SMS to ${oldBooking.client_phone}: booking modified → ${link}`);
         notificationResult = { ...notificationResult, sms: 'queued' };
       } catch (e) {
         console.warn('SMS notification error:', e.message);

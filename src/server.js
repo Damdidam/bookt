@@ -233,6 +233,8 @@ app.listen(PORT, () => {
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
   // ===== WAITLIST CRON — check expired offers every 5 min =====
+  // SVC-V11-11: Interval could be made configurable via WAITLIST_CRON_INTERVAL_MS env var
+  const waitlistInterval = parseInt(process.env.WAITLIST_CRON_INTERVAL_MS, 10) || 5 * 60 * 1000;
   let waitlistRunning = false;
   setInterval(async () => {
     if (waitlistRunning) return;
@@ -248,9 +250,11 @@ app.listen(PORT, () => {
     } finally {
       waitlistRunning = false;
     }
-  }, 5 * 60 * 1000); // 5 minutes
+  }, waitlistInterval);
 
   // ===== REMINDERS CRON — send patient reminders every 10 min =====
+  // SVC-V11-11: Interval could be made configurable via REMINDER_CRON_INTERVAL_MS env var
+  const reminderInterval = parseInt(process.env.REMINDER_CRON_INTERVAL_MS, 10) || 10 * 60 * 1000;
   let reminderRunning = false;
   setInterval(async () => {
     if (reminderRunning) return;
@@ -267,7 +271,7 @@ app.listen(PORT, () => {
     } finally {
       reminderRunning = false;
     }
-  }, 10 * 60 * 1000); // 10 minutes
+  }, reminderInterval);
 });
 
 module.exports = app;

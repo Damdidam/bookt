@@ -33,7 +33,8 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   if (bizResult.rows.length === 0) throw Object.assign(new Error('Cabinet introuvable'), { type: 'not_found' });
 
   const settings = bizResult.rows[0].settings;
-  const granularity = settings.slot_granularity_min || 15;
+  // SVC-V11-9: Guard against zero/negative granularity (would cause infinite loop)
+  const granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
 
   // 2. Fetch service details
   const svcResult = await queryWithRLS(businessId,

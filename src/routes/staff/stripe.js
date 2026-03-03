@@ -204,6 +204,12 @@ async function handleStripeWebhook(req, res) {
   const sig = req.headers['stripe-signature'];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
+  // V11-023: Ensure webhook secret is configured before processing
+  if (!secret) {
+    console.error('[STRIPE WH] STRIPE_WEBHOOK_SECRET not configured');
+    return res.status(500).send('Webhook secret not configured');
+  }
+
   let event;
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, secret);

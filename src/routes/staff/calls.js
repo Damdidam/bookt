@@ -468,11 +468,13 @@ router.get('/usage', async (req, res, next) => {
 // UI: Dashboard > Appels (table with date, number, action, result, duration)
 router.get('/logs', async (req, res, next) => {
   try {
-    const { from, to, limit } = req.query;
+    const { from, to, limit, offset } = req.query;
     const bid = req.businessId;
 
     let sql = `
-      SELECT cl.*, b.public_token AS booking_token
+      SELECT cl.id, cl.business_id, cl.call_sid, cl.from_phone, cl.to_phone,
+             cl.action, cl.result, cl.duration_sec, cl.booking_id, cl.created_at,
+             b.public_token AS booking_token
       FROM call_logs cl
       LEFT JOIN bookings b ON b.id = cl.booking_id
       WHERE cl.business_id = $1`;
@@ -482,8 +484,10 @@ router.get('/logs', async (req, res, next) => {
     if (from) { sql += ` AND cl.created_at >= $${idx}`; params.push(from); idx++; }
     if (to) { sql += ` AND cl.created_at <= $${idx}`; params.push(to); idx++; }
 
-    sql += ` ORDER BY cl.created_at DESC LIMIT $${idx}`;
-    params.push(parseInt(limit) || 50);
+    // V11-024: Add pagination with LIMIT + OFFSET, cap at 200
+    const parsedLimit = Math.min(parseInt(limit) || 50, 200);
+    sql += ` ORDER BY cl.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(parsedLimit, parseInt(offset) || 0);
 
     const result = await queryWithRLS(bid, sql, params);
 

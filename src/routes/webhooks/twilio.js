@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { validate: isUuid } = require('uuid');
 const { query } = require('../../services/db');
 
 // Twilio request signature validation middleware
@@ -15,8 +16,8 @@ function validateTwilioSignature(req, res, next) {
       return res.status(403).send('Forbidden');
     }
   } catch (e) {
-    // TODO: If twilio module fails to load, log and skip validation
     console.warn('[TWILIO] Signature validation error:', e.message);
+    return res.status(403).json({ error: 'Signature validation failed' });
   }
   next();
 }
@@ -245,7 +246,14 @@ router.post('/voicemail/status', async (req, res) => {
     const { RecordingUrl, RecordingSid, RecordingDuration, CallSid } = req.body;
     const { bid, from } = req.query;
 
-    if (RecordingUrl && bid) {
+    if (RecordingUrl && bid && isUuid(bid)) {
+      // Validate business_id exists before inserting
+      const bizCheck = await query(`SELECT id FROM businesses WHERE id = $1 AND is_active = true`, [bid]);
+      if (bizCheck.rows.length === 0) {
+        console.warn('[TWILIO] Voicemail status: invalid business_id', bid);
+        return res.sendStatus(200);
+      }
+
       await query(
         `INSERT INTO call_voicemails (business_id, call_sid, from_phone, recording_url, recording_sid, duration_sec)
          VALUES ($1, $2, $3, $4, $5, $6)`,

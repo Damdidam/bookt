@@ -37,6 +37,8 @@ async function calAddNote() {
 }
 
 async function fcDeleteNote(noteId) {
+  if (fcDeleteNote._busy) return;
+  fcDeleteNote._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/notes/${noteId}`, {
       method: 'DELETE',
@@ -46,6 +48,7 @@ async function fcDeleteNote(noteId) {
     calState.fcDetailData.notes = calState.fcDetailData.notes.filter(n => String(n.id) !== String(noteId));
     fcRenderNotes();
   } catch (e) { gToast('Erreur', 'error'); }
+  finally { fcDeleteNote._busy = false; }
 }
 
 // Expose to global scope for onclick handlers

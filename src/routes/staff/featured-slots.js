@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -67,24 +67,27 @@ router.put('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Le mode vedette n\'est pas activé pour ce praticien' });
     }
 
-    // Delete existing for this practitioner + week
-    await queryWithRLS(bid,
-      `DELETE FROM featured_slots
-       WHERE business_id = $1 AND practitioner_id = $2
-         AND date >= $3::date AND date < ($3::date + interval '7 days')`,
-      [bid, practitioner_id, week_start]
-    );
+    // V11-005: Wrap DELETE + INSERT in a transaction for atomicity
+    await transactionWithRLS(bid, async (client) => {
+      // Delete existing for this practitioner + week
+      await client.query(
+        `DELETE FROM featured_slots
+         WHERE business_id = $1 AND practitioner_id = $2
+           AND date >= $3::date AND date < ($3::date + interval '7 days')`,
+        [bid, practitioner_id, week_start]
+      );
 
-    // Insert new slots (start_time only, no end_time)
-    if (slots && slots.length > 0) {
-      for (const s of slots) {
-        await queryWithRLS(bid,
-          `INSERT INTO featured_slots (business_id, practitioner_id, date, start_time)
-           VALUES ($1, $2, $3, $4)`,
-          [bid, practitioner_id, s.date, s.start_time]
-        );
+      // Insert new slots (start_time only, no end_time)
+      if (slots && slots.length > 0) {
+        for (const s of slots) {
+          await client.query(
+            `INSERT INTO featured_slots (business_id, practitioner_id, date, start_time)
+             VALUES ($1, $2, $3, $4)`,
+            [bid, practitioner_id, s.date, s.start_time]
+          );
+        }
       }
-    }
+    });
 
     res.json({ updated: true, count: (slots || []).length });
   } catch (err) {

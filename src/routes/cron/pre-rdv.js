@@ -9,11 +9,16 @@ const { query } = require('../../services/db');
 const { sendPreRdvEmail } = require('../../services/email');
 
 // Cron authentication via secret key (timing-safe comparison)
+// SVC-V11-16: Hash both values before comparing to avoid leaking secret length
 function requireCronKey(req, res, next) {
   const key = req.query.key || req.headers['x-cron-key'];
   const secret = process.env.CRON_SECRET;
-  if (!secret || !key || key.length !== secret.length ||
-      !crypto.timingSafeEqual(Buffer.from(key, 'utf8'), Buffer.from(secret, 'utf8'))) {
+  if (!secret || !key) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const ha = crypto.createHash('sha256').update(String(key)).digest();
+  const hb = crypto.createHash('sha256').update(String(secret)).digest();
+  if (!crypto.timingSafeEqual(ha, hb)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   next();
@@ -82,47 +87,54 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
         );
 
         for (const template of matching) {
-          // 4. Check if already sent for this booking+template
-          const existing = await query(
-            `SELECT id FROM pre_rdv_sends
-             WHERE booking_id = $1 AND template_id = $2`,
-            [booking.id, template.id]
-          );
-
-          if (existing.rows.length > 0) {
-            totalSkipped++;
-            continue;
-          }
-
-          // 5. Create send record + send email
-          const token = crypto.randomBytes(32).toString('hex');
-
-          await query(
-            `INSERT INTO pre_rdv_sends (business_id, booking_id, template_id, client_id, email_to, token, status)
-             VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
-            [booking.business_id, booking.id, template.id, booking.client_id, booking.client_email, token]
-          );
-
-          const business = {
-            name: template.business_name,
-            email: template.business_email,
-            address: template.business_address,
-            theme: template.theme
-          };
-
-          const result = await sendPreRdvEmail({ booking, template, token, business });
-
-          if (result.success) {
-            await query(
-              `UPDATE pre_rdv_sends SET status = 'sent', sent_at = NOW() WHERE token = $1`,
-              [token]
+          // SVC-V11-13: Wrap each notification insert+send in try/catch
+          // so one failure doesn't abort the entire batch
+          try {
+            // 4. Check if already sent for this booking+template
+            const existing = await query(
+              `SELECT id FROM pre_rdv_sends
+               WHERE booking_id = $1 AND template_id = $2`,
+              [booking.id, template.id]
             );
-            totalSent++;
-          } else {
+
+            if (existing.rows.length > 0) {
+              totalSkipped++;
+              continue;
+            }
+
+            // 5. Create send record + send email
+            const token = crypto.randomBytes(32).toString('hex');
+
             await query(
-              `UPDATE pre_rdv_sends SET status = 'failed' WHERE token = $1`,
-              [token]
+              `INSERT INTO pre_rdv_sends (business_id, booking_id, template_id, client_id, email_to, token, status)
+               VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+              [booking.business_id, booking.id, template.id, booking.client_id, booking.client_email, token]
             );
+
+            const business = {
+              name: template.business_name,
+              email: template.business_email,
+              address: template.business_address,
+              theme: template.theme
+            };
+
+            const result = await sendPreRdvEmail({ booking, template, token, business });
+
+            if (result.success) {
+              await query(
+                `UPDATE pre_rdv_sends SET status = 'sent', sent_at = NOW() WHERE token = $1`,
+                [token]
+              );
+              totalSent++;
+            } else {
+              await query(
+                `UPDATE pre_rdv_sends SET status = 'failed' WHERE token = $1`,
+                [token]
+              );
+              totalFailed++;
+            }
+          } catch (sendErr) {
+            console.error(`[CRON] Pre-RDV send error for booking=${booking.id} template=${template.id}:`, sendErr.message);
             totalFailed++;
           }
         }
@@ -142,14 +154,8 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
 // GET /api/cron/waitlist-expired — process expired waitlist offers
 // Run every 5-10 min. Moves expired offers to next in queue (auto mode).
 // ============================================================
-router.get('/waitlist-expired', async (req, res) => {
-  const key = req.query.key || req.headers['x-cron-key'];
-  const secret = process.env.CRON_SECRET;
-  if (!secret || !key || key.length !== secret.length ||
-      !crypto.timingSafeEqual(Buffer.from(key, 'utf8'), Buffer.from(secret, 'utf8'))) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
+// SVC-V11-7: Use shared requireCronKey middleware instead of duplicated inline check
+router.get('/waitlist-expired', requireCronKey, async (req, res) => {
   try {
     const { processExpiredOffers } = require('../../services/waitlist');
     const result = await processExpiredOffers();

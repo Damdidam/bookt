@@ -9,7 +9,7 @@ import { calState } from '../../state.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import {
   buildEventsCallback, buildEventContent, buildEventClassNames,
-  buildEventDidMount, buildDateClick, buildEventDrop, buildEventResize,
+  buildEventDidMount, buildEventWillUnmount, buildDateClick, buildEventDrop, buildEventResize,
   buildEventOverlap, buildEventAllow, fcHideTooltip
 } from './calendar-events.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
@@ -97,6 +97,7 @@ function initCalendar(initView, initSlotDur) {
       calState.fcCal.changeView('timeGridDay', date);
     },
     eventDidMount: buildEventDidMount(),
+    eventWillUnmount: buildEventWillUnmount(),
     dateClick: buildDateClick(),
     eventDrop: buildEventDrop(),
     eventResize: buildEventResize()

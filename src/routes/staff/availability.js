@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -70,23 +70,35 @@ router.put('/', async (req, res, next) => {
       return res.status(403).json({ error: 'Vous ne pouvez modifier que votre propre disponibilité' });
     }
 
-    // Delete existing schedule
-    await queryWithRLS(bid,
-      `DELETE FROM availabilities WHERE business_id = $1 AND practitioner_id = $2`,
-      [bid, practitioner_id]
+    // V11-004: Verify practitioner belongs to this business
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, bid]
     );
-
-    // Insert new schedule
-    // schedule = { "0": [{ start_time: "09:00", end_time: "12:00" }, ...], "1": [...], ... }
-    for (const [weekday, windows] of Object.entries(schedule)) {
-      for (const win of windows) {
-        await queryWithRLS(bid,
-          `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [bid, practitioner_id, parseInt(weekday), win.start_time, win.end_time]
-        );
-      }
+    if (pracCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable dans ce cabinet' });
     }
+
+    // V11-003: Wrap DELETE + INSERT in a transaction for atomicity
+    await transactionWithRLS(bid, async (client) => {
+      // Delete existing schedule
+      await client.query(
+        `DELETE FROM availabilities WHERE business_id = $1 AND practitioner_id = $2`,
+        [bid, practitioner_id]
+      );
+
+      // Insert new schedule
+      // schedule = { "0": [{ start_time: "09:00", end_time: "12:00" }, ...], "1": [...], ... }
+      for (const [weekday, windows] of Object.entries(schedule)) {
+        for (const win of windows) {
+          await client.query(
+            `INSERT INTO availabilities (business_id, practitioner_id, weekday, start_time, end_time)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [bid, practitioner_id, parseInt(weekday), win.start_time, win.end_time]
+          );
+        }
+      }
+    });
 
     res.json({ updated: true });
   } catch (err) {

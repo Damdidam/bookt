@@ -451,6 +451,7 @@ async function calCreateBooking() {
     const isFreestyle = document.getElementById('qcFreestyle').checked;
 
     if (!clientName) { gToast('Nom requis', 'error'); return; }
+    if (clientName.length > 200) { gToast('Nom trop long (max 200 caractères)', 'error'); return; }
     if (!date || !time) { gToast('Date et heure requises', 'error'); return; }
 
     const start_at = toBrusselsISO(date, time);
@@ -493,6 +494,8 @@ async function calCreateBooking() {
       const endTime = document.getElementById('qcFreeEnd').value;
       if (!endTime) { gToast('Heure de fin requise', 'error'); return; }
       const end_at = toBrusselsISO(date, endTime);
+      const customLabel = document.getElementById('qcFreeLabel').value.trim() || null;
+      if (customLabel && customLabel.length > 200) { gToast('Intitulé trop long (max 200 caractères)', 'error'); return; }
       body = {
         freestyle: true,
         practitioner_id: pracId,
@@ -501,7 +504,7 @@ async function calCreateBooking() {
         end_at,
         buffer_before_min: parseInt(document.getElementById('qcFreeBufBefore').value) || 0,
         buffer_after_min: parseInt(document.getElementById('qcFreeBufAfter').value) || 0,
-        custom_label: document.getElementById('qcFreeLabel').value.trim() || null,
+        custom_label: customLabel,
         color: document.getElementById('qcFreeColor')?.value || '#0D7377',
         appointment_mode: 'cabinet',
         comment: comment || null,

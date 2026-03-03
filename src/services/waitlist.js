@@ -167,13 +167,16 @@ async function processWaitlistForCancellation(bookingId, businessId) {
  */
 async function processExpiredOffers() {
   // Find expired offers
+  // SVC-V11-5: Add business_id to JOINs for cross-tenant isolation
+  // SVC-V11-14: Add FOR UPDATE SKIP LOCKED to prevent concurrent cron processing
   const expired = await query(
     `SELECT w.*, p.waitlist_mode, s.duration_min
      FROM waitlist_entries w
-     JOIN practitioners p ON p.id = w.practitioner_id
-     JOIN services s ON s.id = w.service_id
+     JOIN practitioners p ON p.id = w.practitioner_id AND p.business_id = w.business_id
+     JOIN services s ON s.id = w.service_id AND s.business_id = w.business_id
      WHERE w.status = 'offered'
-       AND w.offer_expires_at < NOW()`
+       AND w.offer_expires_at < NOW()
+     FOR UPDATE OF w SKIP LOCKED`
   );
 
   let processed = 0;

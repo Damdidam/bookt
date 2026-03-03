@@ -17,7 +17,16 @@ router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
-            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color } = req.body;
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, group_id, deposit_amount_cents } = req.body;
+
+    // CRT-V11-2: Validate group_id as UUID if provided
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (group_id && !UUID_RE.test(group_id)) return res.status(400).json({ error: 'Invalid group_id' });
+
+    // CRT-V11-5: Validate deposit_amount_cents as positive integer if provided
+    if (deposit_amount_cents !== undefined && (!Number.isInteger(deposit_amount_cents) || deposit_amount_cents <= 0)) {
+      return res.status(400).json({ error: 'Montant deposit invalide' });
+    }
 
     // CRT-4: Basic client_email validation before using it for sending emails
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -46,13 +55,12 @@ router.post('/manual', async (req, res, next) => {
     if (comment && comment.length > 5000) {
       return res.status(400).json({ error: 'Commentaire trop long (max 5000 caractères)' });
     }
-    if (custom_label && custom_label.length > 200) {
-      return res.status(400).json({ error: 'Libellé trop long (max 200 caractères)' });
+    // CRT-V11-3: Tighten custom_label length limit
+    if (custom_label && custom_label.length > 100) {
+      return res.status(400).json({ error: 'Label trop long (max 100)' });
     }
-    // Validate color hex format
-    if (color !== undefined && color !== null && !/^#[0-9a-fA-F]{6}$/.test(color)) {
-      return res.status(400).json({ error: 'Format de couleur invalide (ex: #FF5733)' });
-    }
+    // CRT-V11-1: Validate color — sanitize to null if not valid hex
+    const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : null;
 
     // Bug M7 fix: Validate practitioner_id belongs to this business
     const pracCheck = await queryWithRLS(bid,
@@ -122,7 +130,7 @@ router.post('/manual', async (req, res, next) => {
           [bid, practitioner_id, client_id || null,
            appointment_mode || 'cabinet',
            realStart.toISOString(), realEnd.toISOString(),
-           comment || null, custom_label || null, color || null]
+           comment || null, custom_label || null, safeColor]
         );
 
         await client.query(

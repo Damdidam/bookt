@@ -177,7 +177,13 @@ router.post('/', requireOwner, async (req, res, next) => {
     }
 
     res.status(201).json({ invoice: invResult.rows[0] });
-  } catch (err) { next(err); }
+  } catch (err) {
+    // V11-017: Handle duplicate invoice number gracefully
+    if (err.code === '23505' && err.constraint && err.constraint.includes('invoice_number')) {
+      return res.status(409).json({ error: 'Ce numéro de facture existe déjà. Veuillez réessayer.' });
+    }
+    next(err);
+  }
 });
 
 // ============================================================

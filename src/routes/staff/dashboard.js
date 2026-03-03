@@ -193,6 +193,9 @@ router.get('/summary', async (req, res, next) => {
 // GET /api/dashboard/analytics
 // Full analytics: revenue/bookings trends, peak hours, top services, status breakdown
 // UI: Dashboard > Analytics section (Pro feature)
+// V11-020: TODO — These analytics queries are heavy (7 queries per request).
+// Consider adding server-side caching (e.g., Redis or in-memory with TTL of 5-10 min)
+// or materialized views for larger businesses.
 // ============================================================
 router.get('/analytics', async (req, res, next) => {
   try {

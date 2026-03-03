@@ -105,8 +105,11 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
       }
     }
 
-    // Save file
-    const filename = `${id}.${ext}`;
+    // V11-019: Sanitize filename to prevent path traversal
+    const filename = path.basename(`${id}.${ext}`);
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Nom de fichier invalide' });
+    }
     fs.writeFileSync(path.join(uploadDir, filename), buffer);
 
     // Update DB

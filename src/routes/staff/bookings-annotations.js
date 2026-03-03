@@ -163,7 +163,8 @@ router.post('/:id/send-session-notes', async (req, res, next) => {
     let prev;
     do {
       prev = safeHTML;
-      safeHTML = safeHTML.replace(/[\s"'/]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+      // CRT-V11-4: Include < in character class to match frontend sanitizer (catches <onfocus= etc.)
+      safeHTML = safeHTML.replace(/[\s"'\/<]on\s*\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
     } while (safeHTML !== prev);
     // Block javascript: protocol in href attributes
     safeHTML = safeHTML.replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');

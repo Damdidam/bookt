@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { query } = require('../../services/db');
+const { query, pool } = require('../../services/db');
 const { authLimiter } = require('../../middleware/rate-limiter');
 const { requireAuth } = require('../../middleware/auth');
 
@@ -321,21 +321,25 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
 
     const rt = result.rows[0];
 
-    // Wrap password update + token invalidation in a transaction
+    // SVC-V11-1: Use a single connection for the transaction
+    // (pool.query() may use different connections for BEGIN/UPDATE/COMMIT)
     const hash = await bcrypt.hash(new_password, 12);
-    await query('BEGIN');
+    const client = await pool.connect();
     try {
-      await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, rt.user_id]);
+      await client.query('BEGIN');
+      await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, rt.user_id]);
 
       // Invalidate all other tokens for this user
-      await query(
+      await client.query(
         'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
         [rt.user_id]
       );
-      await query('COMMIT');
+      await client.query('COMMIT');
     } catch (txErr) {
-      await query('ROLLBACK');
+      await client.query('ROLLBACK');
       throw txErr;
+    } finally {
+      client.release();
     }
 
     // Fetch email for logging

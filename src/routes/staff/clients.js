@@ -121,7 +121,10 @@ router.get('/:id', async (req, res, next) => {
     const bid = req.businessId;
 
     const client = await queryWithRLS(bid,
-      `SELECT * FROM clients WHERE id = $1 AND business_id = $2`,
+      `SELECT id, business_id, full_name, phone, email, bce_number, notes,
+              consent_sms, consent_marketing, no_show_count, is_blocked,
+              blocked_at, blocked_reason, last_no_show_at, created_at, updated_at
+       FROM clients WHERE id = $1 AND business_id = $2`,
       [req.params.id, bid]
     );
     if (client.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
@@ -160,7 +163,8 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // PATCH /api/clients/:id — update client
-router.patch('/:id', async (req, res, next) => {
+// V11-013: Only owner/manager can edit client details
+router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { full_name, phone, email, bce_number, notes, consent_sms, consent_marketing } = req.body;

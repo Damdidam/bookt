@@ -1,10 +1,11 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const { query, queryWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, requireRole, resolvePractitionerScope } = require('../../middleware/auth');
 const { sendEmail } = require('../../services/email');
 
 router.use(requireAuth);
+router.use(resolvePractitionerScope);
 
 // ============================================================
 // LIST whiteboards (by client or booking)
@@ -17,6 +18,12 @@ router.get('/', async (req, res, next) => {
                FROM whiteboards
                WHERE business_id = $1 AND deleted_at IS NULL`;
     const params = [req.businessId];
+
+    // V11-008: Scope practitioners to their own whiteboards
+    if (req.practitionerFilter) {
+      sql += ` AND practitioner_id = $${params.length + 1}`;
+      params.push(req.practitionerFilter);
+    }
 
     if (client_id) { sql += ` AND client_id = $${params.length + 1}`; params.push(client_id); }
     if (booking_id) { sql += ` AND booking_id = $${params.length + 1}`; params.push(booking_id); }
@@ -106,8 +113,9 @@ router.put('/:id', async (req, res, next) => {
 
 // ============================================================
 // DELETE whiteboard (soft delete — GDPR)
+// V11-008: Only owner/manager can delete whiteboards
 // ============================================================
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `UPDATE whiteboards SET deleted_at = NOW(), canvas_data = NULL, text_layers = '[]', bg_image_url = NULL
@@ -120,8 +128,9 @@ router.delete('/:id', async (req, res, next) => {
 
 // ============================================================
 // GENERATE SECURE LINK (GDPR-compliant sharing)
+// V11-008: Only owner/manager can generate share links
 // ============================================================
-router.post('/:id/share', async (req, res, next) => {
+router.post('/:id/share', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const { expires_days = 7, max_accesses = 10 } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
@@ -150,8 +159,9 @@ router.post('/:id/share', async (req, res, next) => {
 
 // ============================================================
 // SEND SECURE LINK BY EMAIL
+// V11-008: Only owner/manager can send share links
 // ============================================================
-router.post('/:id/send', async (req, res, next) => {
+router.post('/:id/send', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const { email, expires_days = 7 } = req.body;
 
