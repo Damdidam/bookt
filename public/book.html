@@ -39,7 +39,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .step-sub{font-size:.85rem;color:var(--text-3);margin-bottom:18px}
 
 /* Service cards */
-.svc-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white);-webkit-tap-highlight-color:transparent}
+.svc-card{border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--white);-webkit-tap-highlight-color:transparent;position:relative}
 .svc-card:active{transform:scale(.98)}
 .svc-card.sel{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px var(--primary-soft)}
 .svc-card .top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -177,6 +177,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .vedette-slot.sel .prac-label{color:rgba(255,255,255,.8)}
 .vedette-count{font-size:.78rem;color:var(--text-4);margin-bottom:16px}
 
+/* Multi-service */
+.svc-card.disabled{opacity:.4;pointer-events:none}
+.svc-cat-label{font-size:.7rem;font-weight:800;color:var(--text-4);letter-spacing:.8px;text-transform:uppercase;padding:14px 0 6px}
+.svc-cat-label:first-child{padding-top:0}
+.cart-sticky{position:sticky;bottom:0;z-index:10;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1.5px solid var(--border-light);padding:14px 0;margin:16px -20px -40px;padding:14px 20px;transform:translateY(100%);transition:transform .25s cubic-bezier(.22,1,.36,1);pointer-events:none}
+.cart-sticky.show{transform:translateY(0);pointer-events:auto}
+.cart-sticky-inner{display:flex;align-items:center;gap:12px}
+.cart-info{flex:1;min-width:0}
+.cart-count{font-size:.82rem;font-weight:700;color:var(--text)}
+.cart-meta{font-size:.72rem;color:var(--text-4)}
+.cart-cta{padding:12px 20px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background .15s}
+.cart-cta:hover{background:var(--primary-hover)}
+.svc-card .svc-check{display:none;position:absolute;top:12px;right:12px;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;align-items:center;justify-content:center;font-size:.7rem}
+.svc-card.sel .svc-check{display:flex}
+
 @media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
@@ -206,6 +221,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <h2 class="step-title">Choisir une prestation</h2>
     <p class="step-sub">Quel type de rendez-vous souhaitez-vous ?</p>
     <div id="svcList"></div>
+    <div class="cart-sticky" id="cartSticky">
+      <div class="cart-sticky-inner">
+        <div class="cart-info">
+          <div class="cart-count" id="cartCount">0 prestations</div>
+          <div class="cart-meta" id="cartMeta">0 min · 0 €</div>
+        </div>
+        <button class="cart-cta" id="cartCta">Continuer →</button>
+      </div>
+    </div>
     <button class="btn-next" id="btnStep1" disabled>Continuer →</button>
   </div>
 
@@ -303,6 +327,9 @@ let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selecte
 let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
 let vedetteMode=false,vedetteSlots=[],lockedSet={};
+let selectedServices=[];
+let multiServiceMode=false;
+const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const pathParts=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
 slug=pathParts[0];
@@ -359,18 +386,68 @@ function initPage(){
   document.title='Prendre RDV — '+b.name;
   if(b.theme?.primary_color)document.documentElement.style.setProperty('--primary',b.theme.primary_color);
 
-  // Build service list
+  // Multi-service mode detection
+  const multiParam=urlParams.get('services');
+  if(multiParam&&siteData.business.multi_service_enabled){
+    multiServiceMode=true;
+    const ids=multiParam.split(',').filter(id=>UUID_RE.test(id)).slice(0,5);
+    selectedServices=siteData.services.filter(s=>ids.includes(s.id));
+  }else if(siteData.business.multi_service_enabled){
+    multiServiceMode=true;
+  }
+
+  // Update step titles for multi-service mode
+  if(multiServiceMode){
+    document.querySelector('#step1 .step-title').textContent='Choisissez vos prestations';
+    document.querySelector('#step1 .step-sub').textContent='Sélectionnez jusqu\u2019à 5 prestations (max).';
+    document.getElementById('btnStep1').style.display='none';
+  }
+
+  // Build service list (category-grouped)
   const list=document.getElementById('svcList');
-  list.innerHTML=siteData.services.map(s=>{
-    const price=s.price_cents?(s.price_cents/100).toFixed(0)+' €':(s.price_label||'Gratuit');
-    const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
-    return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
-  }).join('');
+  const svcs=siteData.services;
+  if(multiServiceMode){
+    // Group by category
+    const cats=new Map();
+    svcs.forEach(s=>{
+      const cat=s.category||'Autres';
+      if(!cats.has(cat))cats.set(cat,[]);
+      cats.get(cat).push(s);
+    });
+    let html='';
+    cats.forEach((items,cat)=>{
+      html+='<div class="svc-cat-label">'+cat+'</div>';
+      items.forEach(s=>{
+        const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+        const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
+        const isSel=selectedServices.some(x=>x.id===s.id);
+        html+='<div class="svc-card'+(isSel?' sel':'')+'" data-id="'+s.id+'">'
+          +'<span class="svc-check">\u2713</span>'
+          +'<div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div>'
+          +'<div class="meta">'+(s.duration_min||0)+' min</div><div class="svc-modes">'+modes+'</div></div>';
+      });
+    });
+    list.innerHTML=html;
+  }else{
+    list.innerHTML=svcs.map(s=>{
+      const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+      const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
+      return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
+    }).join('');
+  }
 
   // Click handlers
   list.querySelectorAll('.svc-card').forEach(c=>c.addEventListener('click',()=>selectService(c.dataset.id)));
 
+  // Update cart bar if pre-selected services
+  if(multiServiceMode&&selectedServices.length>0){
+    updateCartBar();
+    document.getElementById('btnStep1').disabled=selectedServices.length===0;
+    selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
+  }
+
   document.getElementById('btnStep1').addEventListener('click',()=>goNext());
+  document.getElementById('cartCta').addEventListener('click',()=>goNext());
   document.getElementById('btnStep2').addEventListener('click',()=>goNext());
   document.getElementById('btnStep3').addEventListener('click',()=>goNext());
   document.getElementById('btnStep4').addEventListener('click',()=>submitBooking());
@@ -502,17 +579,65 @@ function renderVedetteList(){
 
 // ──────── SERVICE ────────
 function selectService(id){
-  selectedService=siteData.services.find(s=>s.id===id);
-  document.querySelectorAll('.svc-card').forEach(c=>c.classList.toggle('sel',c.dataset.id===id));
-  document.getElementById('btnStep1').disabled=false;
-  // Reset downstream
+  if(multiServiceMode){
+    const idx=selectedServices.findIndex(s=>s.id===id);
+    if(idx>=0){
+      selectedServices.splice(idx,1);
+    }else if(selectedServices.length<5){
+      selectedServices.push(siteData.services.find(s=>s.id===id));
+    }
+    // Update card visuals
+    document.querySelectorAll('.svc-card').forEach(c=>{
+      const isSelected=selectedServices.some(s=>s.id===c.dataset.id);
+      c.classList.toggle('sel',isSelected);
+      c.classList.toggle('disabled',selectedServices.length>=5&&!isSelected);
+    });
+    updateCartBar();
+    document.getElementById('btnStep1').disabled=selectedServices.length===0;
+    // Also set selectedService for backward compat in downstream steps
+    selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
+  }else{
+    // Existing single-select logic
+    selectedService=siteData.services.find(s=>s.id===id);
+    document.querySelectorAll('.svc-card').forEach(c=>c.classList.toggle('sel',c.dataset.id===id));
+    document.getElementById('btnStep1').disabled=false;
+  }
   selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
   computeStepOrder();
 }
 
+// ──────── CART BAR ────────
+function updateCartBar(){
+  const bar=document.getElementById('cartSticky');
+  if(!bar)return;
+  const n=selectedServices.length;
+  bar.classList.toggle('show',n>0);
+  if(n===0)return;
+  const totalMin=selectedServices.reduce((s,svc)=>s+(svc.duration_min||0),0);
+  const totalPrice=selectedServices.reduce((s,svc)=>s+(svc.price_cents||0),0);
+  const hours=Math.floor(totalMin/60);
+  const mins=totalMin%60;
+  const durStr=hours>0?hours+'h'+(mins>0?String(mins).padStart(2,'0'):''):totalMin+' min';
+  const priceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
+  document.getElementById('cartCount').textContent=n+' prestation'+(n>1?'s':'');
+  document.getElementById('cartMeta').textContent=durStr+' \u00b7 '+priceStr;
+}
+
 // ──────── PRACTITIONER ────────
 function buildPractitioners(){
-  const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
+  let pracs;
+  if(multiServiceMode&&selectedServices.length>1){
+    // Filter practitioners to those who offer ALL selected services
+    pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
+    if(pracs.length===0){
+      const list=document.getElementById('pracList');
+      list.innerHTML='<div class="no-slots">Aucun praticien ne propose toutes les prestations sélectionnées.</div>';
+      document.getElementById('btnStep2').disabled=true;
+      return true;
+    }
+  }else{
+    pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
+  }
   // If no practitioner explicitly linked to this service, show ALL practitioners
   const displayPracs=pracs.length>0?pracs:siteData.practitioners;
   if(displayPracs.length<=1){selectedPractitioner=displayPracs[0]||siteData.practitioners[0];return false;}
@@ -536,7 +661,11 @@ function buildPractitioners(){
 function computeStepOrder(){
   if(vedetteMode){stepOrder=['vedette',4,5];computeProgressDots();return;}
   let showPrac=false;
-  if(selectedService){
+  if(multiServiceMode&&selectedServices.length>1){
+    const linked=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
+    const displayPracs=linked.length>0?linked:siteData.practitioners;
+    showPrac=displayPracs.length>1;
+  }else if(selectedService){
     const linked=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
     // If no practitioner explicitly linked, fall back to all practitioners
     const displayPracs=linked.length>0?linked:siteData.practitioners;
@@ -565,7 +694,15 @@ function goToStep(n){
     if(!showPrac){computeStepOrder();n=3;}
   }
   if(n===3&&!vedetteMode){
-    if(!selectedPractitioner){const pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));selectedPractitioner=pracs[0];}
+    if(!selectedPractitioner){
+      let pracs;
+      if(multiServiceMode&&selectedServices.length>1){
+        pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
+      }else{
+        pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
+      }
+      selectedPractitioner=pracs[0]||siteData.practitioners[0];
+    }
     buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
   }
   if(n===4)buildSummary();
@@ -588,7 +725,15 @@ function goPrev(){
 
 // ──────── MODE ────────
 function buildModeSelector(){
-  const modes=selectedService.mode_options||['cabinet'];
+  let modes;
+  if(multiServiceMode&&selectedServices.length>1){
+    // Compute mode intersection across all selected services
+    const allModes=selectedServices.map(s=>s.mode_options||['cabinet']);
+    modes=allModes[0].filter(m=>allModes.every(arr=>arr.includes(m)));
+    if(modes.length===0)modes=['cabinet'];
+  }else{
+    modes=selectedService.mode_options||['cabinet'];
+  }
   if(modes.length<=1){selectedMode=modes[0]||'cabinet';document.getElementById('modeRow').style.display='none';return;}
   selectedMode=modes[0];
   const row=document.getElementById('modeRow');
@@ -641,10 +786,18 @@ async function loadSlots(){
       if(weekOffset<8){weekOffset++;return loadSlots();}
     }
   }
-  const params=new URLSearchParams({service_id:selectedService.id,practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
-  if(selectedMode)params.set('appointment_mode',selectedMode);
+  let slotsUrl;
+  if(multiServiceMode&&selectedServices.length>1){
+    const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
+    if(selectedMode)params.set('appointment_mode',selectedMode);
+    slotsUrl='/api/public/'+slug+'/multi-slots?'+params;
+  }else{
+    const params=new URLSearchParams({service_id:selectedService.id,practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
+    if(selectedMode)params.set('appointment_mode',selectedMode);
+    slotsUrl='/api/public/'+slug+'/slots?'+params;
+  }
   try{
-    const sRes=await fetch('/api/public/'+slug+'/slots?'+params);
+    const sRes=await fetch(slotsUrl);
     const sData=await sRes.json();slotsData=sData.by_date||{};
   }catch(e){slotsData={};}
   weekHasFeatured=false;
@@ -784,18 +937,32 @@ function buildSummary(){
   const d=new Date(selectedSlot.start_at);
   const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
   var html='';
-  if(selectedService){
+  if(multiServiceMode&&selectedServices.length>1){
+    // List each service with name, duration, price
+    selectedServices.forEach(svc=>{
+      const p=svc.price_cents?(svc.price_cents/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+      html+='<div class="sum-row"><span class="label">'+svc.name+'</span><span class="val">'+svc.duration_min+' min \u00b7 '+p+'</span></div>';
+    });
+    // Totals
+    const totalMin=selectedServices.reduce((s,svc)=>s+svc.duration_min,0);
+    const totalPrice=selectedServices.reduce((s,svc)=>s+(svc.price_cents||0),0);
+    const totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
+    html+='<div class="sum-divider"></div>'
+      +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
+  }else if(selectedService){
     html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+selectedService.name+'</span></div>';
   }
   html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+selectedPractitioner.display_name+'</span></div>'
     +'<div class="sum-divider"></div>'
     +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
-    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>';
-  if(selectedService){
+    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
+  if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
     html+='<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
-    const price=selectedService.price_cents?(selectedService.price_cents/100).toFixed(0)+' €':'Gratuit';
+    const price=selectedService.price_cents?(selectedService.price_cents/100).toFixed(0)+' \u20ac':'Gratuit';
     html+='<div class="sum-divider"></div>'
       +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
+  }else if(multiServiceMode&&selectedServices.length>1){
+    html+='<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
   }
   document.getElementById('bookingSummary').innerHTML=html;
 }
@@ -830,7 +997,11 @@ async function submitBooking(){
       client_bce:bce||undefined,client_comment:comment||undefined,
       consent_sms:consent,consent_email:consent
     };
-    if(selectedService)bookingBody.service_id=selectedService.id;
+    if(multiServiceMode&&selectedServices.length>1){
+      bookingBody.service_ids=selectedServices.map(s=>s.id);
+    }else if(selectedService){
+      bookingBody.service_id=selectedService.id;
+    }
     if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
 
     const res=await fetch('/api/public/'+slug+'/bookings',{
@@ -844,10 +1015,17 @@ async function submitBooking(){
     const d=new Date(selectedSlot.start_at);
     const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
     var confirmHtml='';
-    if(selectedService)confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+selectedService.name+'</span></div>';
+    if(multiServiceMode&&selectedServices.length>1){
+      selectedServices.forEach(svc=>{
+        const p=svc.price_cents?(svc.price_cents/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+        confirmHtml+='<div class="row"><span class="l">'+svc.name+'</span><span class="v">'+svc.duration_min+' min \u00b7 '+p+'</span></div>';
+      });
+    }else if(selectedService){
+      confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+selectedService.name+'</span></div>';
+    }
     confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+selectedPractitioner.display_name+'</span></div>'
       +'<div class="row"><span class="l">Date</span><span class="v">'+dateStr+'</span></div>'
-      +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' – '+selectedSlot.end_time+'</span></div>';
+      +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
     if(selectedService)confirmHtml+='<div class="row"><span class="l">Mode</span><span class="v">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
     confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+email+'</span></div>'
       +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
@@ -902,8 +1080,10 @@ async function wlSubmit(){
 // ──────── CALENDAR BUTTONS ────────
 function buildCalendarButtons(startAt,endAt,token){
   const start=new Date(startAt);
-  const end=endAt?new Date(endAt):new Date(start.getTime()+(selectedService?.duration_min||30)*60000);
-  const title=(selectedService?.name||'RDV')+' — '+(selectedPractitioner?.display_name||'');
+  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce((s,svc)=>s+svc.duration_min,0):(selectedService?.duration_min||30);
+  const end=endAt?new Date(endAt):new Date(start.getTime()+totalDur*60000);
+  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(s=>s.name).join(' + '):(selectedService?.name||'RDV');
+  const title=calTitle+' \u2014 '+(selectedPractitioner?.display_name||'');
   const loc=siteData?.business?.address||'';
   const desc=title+' — '+(siteData?.business?.name||'Genda');
   function gf(d){return d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');}
@@ -918,8 +1098,10 @@ function buildCalendarButtons(startAt,endAt,token){
 }
 function downloadICS(){
   const start=new Date(selectedSlot.start_at);
-  const end=selectedSlot.end_at?new Date(selectedSlot.end_at):new Date(start.getTime()+(selectedService?.duration_min||30)*60000);
-  const title=(selectedService?.name||'RDV')+' — '+(selectedPractitioner?.display_name||'');
+  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce((s,svc)=>s+svc.duration_min,0):(selectedService?.duration_min||30);
+  const end=selectedSlot.end_at?new Date(selectedSlot.end_at):new Date(start.getTime()+totalDur*60000);
+  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(s=>s.name).join(' + '):(selectedService?.name||'RDV');
+  const title=calTitle+' \u2014 '+(selectedPractitioner?.display_name||'');
   const loc=siteData?.business?.address||'';
   function dt(d){return d.getUTCFullYear()+String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0')+'T'+String(d.getUTCHours()).padStart(2,'0')+String(d.getUTCMinutes()).padStart(2,'0')+String(d.getUTCSeconds()).padStart(2,'0')+'Z';}
   function esc(s){return(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');}

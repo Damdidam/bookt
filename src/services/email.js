@@ -287,9 +287,13 @@ async function sendModificationEmail({ booking, business }) {
 }
 
 /**
- * Send booking confirmation email after manual booking creation
+ * Send booking confirmation email after booking creation
+ * @param {Object} params
+ * @param {Object} params.booking - First booking (or single booking)
+ * @param {Object} params.business - Business row
+ * @param {Array}  [params.groupServices] - Optional array of {name, duration_min, price_cents} for multi-service groups
  */
-async function sendBookingConfirmation({ booking, business }) {
+async function sendBookingConfirmation({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
@@ -299,48 +303,65 @@ async function sendBookingConfirmation({ booking, business }) {
     : null;
 
   const color = safeColor(business.theme?.primary_color);
-  const serviceName = escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
   const practitionerName = escHtml(booking.practitioner_name || '');
   const safeClientName = escHtml(booking.client_name);
   const safeComment = escHtml(booking.comment);
 
-  let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">📅 ${dateStr}</div>`;
-  detailLines += `<div style="font-size:14px;color:#15613A">🕐 ${timeStr}${endTimeStr ? ' – ' + endTimeStr : ''}</div>`;
-  detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">💆 ${serviceName}</div>`;
-  if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">👤 ${practitionerName}</div>`;
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const serviceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
+
+  let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">\u{1F4C5} ${dateStr}</div>`;
+  detailLines += `<div style="font-size:14px;color:#15613A">\u{1F550} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
+
+  if (isMulti) {
+    detailLines += `<div style="font-size:13px;color:#15613A;margin-top:8px;font-weight:600">Prestations :</div>`;
+    groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+      detailLines += `<div style="font-size:13px;color:#15613A;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+    });
+    const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
+    detailLines += `<div style="font-size:14px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStr}${totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}</div>`;
+  } else {
+    detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">\u{1F486} ${serviceName}</div>`;
+  }
+  if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">\u{1F464} ${practitionerName}</div>`;
 
   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
   const hasPublicToken = booking.public_token;
 
   let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
-    <p>Votre rendez-vous est confirmé :</p>
+    <p>Votre rendez-vous est confirm\u00e9 :</p>
     <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
       ${detailLines}
     </div>`;
 
   if (booking.comment) {
-    bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">📝 <em>${safeComment}</em></p>`;
+    bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">\u{1F4DD} <em>${safeComment}</em></p>`;
   }
 
-  const ctaText = hasPublicToken ? 'Gérer mon rendez-vous' : null;
+  const ctaText = hasPublicToken ? 'G\u00e9rer mon rendez-vous' : null;
   const ctaUrl = hasPublicToken ? `${baseUrl}/api/public/booking/${booking.public_token}` : null;
 
   const html = buildEmailHTML({
-    title: 'Confirmation de votre rendez-vous',
-    preheader: `${serviceName} — ${dateStr} à ${timeStr}`,
+    title: isMulti ? 'Confirmation de vos prestations' : 'Confirmation de votre rendez-vous',
+    preheader: `${serviceName} \u2014 ${dateStr} \u00e0 ${timeStr}`,
     bodyHTML,
     ctaText,
     ctaUrl,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${business.name}${business.address ? ' · ' + business.address : ''} · Via Genda.be`
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
-    subject: `Confirmation de votre RDV — ${business.name}`,
+    subject: isMulti ? `Confirmation de vos ${groupServices.length} prestations \u2014 ${business.name}` : `Confirmation de votre RDV \u2014 ${business.name}`,
     html,
     fromName: business.name,
     replyTo: business.email

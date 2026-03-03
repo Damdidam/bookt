@@ -285,4 +285,283 @@ function minutesToTime(minutes) {
   return `${h}:${m}`;
 }
 
-module.exports = { getAvailableSlots };
+/**
+ * MULTI-SERVICE SLOT ENGINE
+ *
+ * Calculates available time slots for chained multi-service bookings.
+ * Same algorithm as getAvailableSlots, but totalDuration is the chained
+ * sum of all services with buffer_before from first and buffer_after from last only.
+ */
+async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, dateFrom, dateTo, appointmentMode }) {
+  // Deduplicate serviceIds while preserving order
+  if (!Array.isArray(serviceIds)) {
+    throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
+  }
+  serviceIds = [...new Set(serviceIds)];
+  if (serviceIds.length < 2) {
+    throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
+  }
+  if (serviceIds.length > 5) {
+    throw Object.assign(new Error('Maximum 5 prestations par réservation groupée'), { type: 'validation' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+    throw Object.assign(new Error('Format de date invalide'), { type: 'validation' });
+  }
+  if (dateFrom > dateTo) throw Object.assign(new Error('dateFrom doit être <= dateTo'), { type: 'validation' });
+  const daysDiff = (new Date(dateTo) - new Date(dateFrom)) / 86400000;
+  if (daysDiff > 90) throw Object.assign(new Error('Plage maximale : 90 jours'), { type: 'validation' });
+
+  // 1. Fetch business settings
+  const bizResult = await queryWithRLS(businessId,
+    `SELECT settings FROM businesses WHERE id = $1 AND is_active = true`,
+    [businessId]
+  );
+  if (bizResult.rows.length === 0) throw Object.assign(new Error('Cabinet introuvable'), { type: 'not_found' });
+
+  const settings = bizResult.rows[0].settings;
+  const granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+
+  // 2. Fetch all services in one query, preserving order from serviceIds array
+  const svcResult = await queryWithRLS(businessId,
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options
+     FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
+     ORDER BY array_position($1, id)`,
+    [serviceIds, businessId]
+  );
+
+  // Validate all services found
+  if (svcResult.rows.length !== serviceIds.length) {
+    const foundIds = new Set(svcResult.rows.map(r => r.id));
+    const missing = serviceIds.filter(id => !foundIds.has(id));
+    throw Object.assign(new Error(`Prestation(s) introuvable(s): ${missing.join(', ')}`), { type: 'not_found' });
+  }
+
+  const services = svcResult.rows;
+
+  // 3. Calculate chained duration: buffer_before from FIRST, buffer_after from LAST, no buffers between
+  const sumDurations = services.reduce((sum, s) => sum + s.duration_min, 0);
+  const bufferBefore = services[0].buffer_before_min || 0;
+  const bufferAfter = services[services.length - 1].buffer_after_min || 0;
+  const totalDuration = bufferBefore + sumDurations + bufferAfter;
+
+  if (!totalDuration || totalDuration <= 0) {
+    throw Object.assign(new Error(`Durée totale invalide (${totalDuration} min)`), { type: 'validation' });
+  }
+
+  // 4. Mode validation: if appointmentMode provided, ALL services must support it
+  if (appointmentMode) {
+    for (const svc of services) {
+      if (!(svc.mode_options || []).includes(appointmentMode)) {
+        throw Object.assign(
+          new Error(`Mode "${appointmentMode}" non disponible pour la prestation ${svc.id}`),
+          { type: 'validation' }
+        );
+      }
+    }
+  }
+
+  // 5. Find practitioners who offer ALL services (intersection)
+  let practitionerIds;
+  const capacityMap = {};
+  if (practitionerId) {
+    // Verify this practitioner offers ALL services
+    const psResult = await queryWithRLS(businessId,
+      `SELECT ps.practitioner_id, COALESCE(p.max_concurrent, 1) AS max_concurrent
+       FROM practitioner_services ps
+       JOIN practitioners p ON p.id = ps.practitioner_id
+       WHERE ps.service_id = ANY($1) AND ps.practitioner_id = $2
+       AND p.business_id = $3 AND p.is_active = true AND p.booking_enabled = true
+       GROUP BY ps.practitioner_id, p.max_concurrent
+       HAVING COUNT(DISTINCT ps.service_id) = $4`,
+      [serviceIds, practitionerId, businessId, serviceIds.length]
+    );
+    if (psResult.rows.length === 0) {
+      throw Object.assign(new Error('Ce praticien ne propose pas toutes les prestations sélectionnées'), { type: 'validation' });
+    }
+    practitionerIds = [practitionerId];
+    capacityMap[practitionerId] = psResult.rows[0].max_concurrent;
+  } else {
+    const psResult = await queryWithRLS(businessId,
+      `SELECT ps.practitioner_id, COALESCE(p.max_concurrent, 1) AS max_concurrent
+       FROM practitioner_services ps
+       JOIN practitioners p ON p.id = ps.practitioner_id
+       WHERE ps.service_id = ANY($1) AND p.business_id = $2
+       AND p.is_active = true AND p.booking_enabled = true
+       GROUP BY ps.practitioner_id, p.max_concurrent, p.sort_order
+       HAVING COUNT(DISTINCT ps.service_id) = $3
+       ORDER BY p.sort_order`,
+      [serviceIds, businessId, serviceIds.length]
+    );
+    practitionerIds = psResult.rows.map(r => r.practitioner_id);
+    for (const r of psResult.rows) capacityMap[r.practitioner_id] = r.max_concurrent;
+  }
+
+  if (practitionerIds.length === 0) return [];
+
+  // 6. Fetch availabilities, exceptions, bookings, busy blocks — same as getAvailableSlots
+  const availResult = await queryWithRLS(businessId,
+    `SELECT practitioner_id, weekday, start_time, end_time
+     FROM availabilities
+     WHERE business_id = $1 AND practitioner_id = ANY($2) AND is_active = true
+     ORDER BY weekday, start_time`,
+    [businessId, practitionerIds]
+  );
+
+  const availMap = {};
+  for (const row of availResult.rows) {
+    const key = `${row.practitioner_id}-${row.weekday}`;
+    if (!availMap[key]) availMap[key] = [];
+    availMap[key].push({ start: row.start_time, end: row.end_time });
+  }
+
+  const exceptResult = await queryWithRLS(businessId,
+    `SELECT practitioner_id, date, type, start_time, end_time
+     FROM availability_exceptions
+     WHERE business_id = $1 AND practitioner_id = ANY($2)
+     AND date >= $3 AND date <= $4`,
+    [businessId, practitionerIds, dateFrom, dateTo]
+  );
+
+  const exceptionMap = {};
+  for (const row of exceptResult.rows) {
+    const key = `${row.practitioner_id}-${new Date(row.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })}`;
+    if (!exceptionMap[key]) exceptionMap[key] = [];
+    exceptionMap[key].push(row);
+  }
+
+  const bookingsResult = await queryWithRLS(businessId,
+    `SELECT b.practitioner_id, b.start_at, b.end_at,
+            COALESCE(s.buffer_before_min, 0) AS buffer_before_min,
+            COALESCE(s.buffer_after_min, 0) AS buffer_after_min
+     FROM bookings b
+     LEFT JOIN services s ON s.id = b.service_id
+     WHERE b.business_id = $1 AND b.practitioner_id = ANY($2)
+     AND b.end_at > ($3::date AT TIME ZONE 'Europe/Brussels')
+     AND b.start_at <= (($4::date + INTERVAL '1 day') AT TIME ZONE 'Europe/Brussels')
+     AND b.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+     ORDER BY b.start_at`,
+    [businessId, practitionerIds, dateFrom, dateTo]
+  );
+
+  const bookingMap = {};
+  for (const row of bookingsResult.rows) {
+    const dateStr = row.start_at.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const key = `${row.practitioner_id}-${dateStr}`;
+    if (!bookingMap[key]) bookingMap[key] = [];
+    bookingMap[key].push({
+      start: row.start_at,
+      end: row.end_at,
+      buffer_before_min: row.buffer_before_min || 0,
+      buffer_after_min: row.buffer_after_min || 0
+    });
+  }
+
+  // Busy blocks from external calendars
+  try {
+    for (const pracId of practitionerIds) {
+      const rlsQuery = (sql, params) => queryWithRLS(businessId, sql, params);
+      const busyBlocks = await getBusyBlocks(rlsQuery, businessId, pracId, new Date(dateFrom), new Date(dateTo));
+      for (const block of busyBlocks) {
+        const dateStr = new Date(block.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const key = `${pracId}-${dateStr}`;
+        if (!bookingMap[key]) bookingMap[key] = [];
+        bookingMap[key].push({
+          start: new Date(block.start_at),
+          end: new Date(block.end_at)
+        });
+      }
+    }
+  } catch (e) {
+    if (e.code === '42P01') {
+      console.warn('Calendar busy blocks unavailable:', e.message);
+    } else {
+      throw e;
+    }
+  }
+
+  // 7. Generate slots — same loop as getAvailableSlots, using chained totalDuration
+  const now = new Date();
+  const slots = [];
+
+  function brusselsOffset(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00Z');
+    const utc = new Date(d.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const bxl = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
+    const hours = Math.round((bxl - utc) / 3600000);
+    return `${hours >= 0 ? '+' : '-'}${String(Math.abs(hours)).padStart(2, '0')}:00`;
+  }
+
+  function nextDateStr(ds) {
+    const [y, m, d] = ds.split('-').map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    return next.toISOString().split('T')[0];
+  }
+
+  for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
+    const dayDate = new Date(dateStr + 'T12:00:00Z');
+    const jsDay = dayDate.getUTCDay();
+    const weekday = jsDay === 0 ? 6 : jsDay - 1;
+    const tzOffset = brusselsOffset(dateStr);
+
+    for (const pracId of practitionerIds) {
+      const exKey = `${pracId}-${dateStr}`;
+      const exceptions = exceptionMap[exKey];
+
+      let windows;
+      if (exceptions) {
+        if (exceptions.some(ex => ex.type === 'closed')) continue;
+        const customWindows = exceptions.filter(ex => ex.type === 'custom_hours');
+        if (customWindows.length > 0) {
+          windows = customWindows.map(ex => ({ start: ex.start_time, end: ex.end_time }));
+        } else {
+          const avKey = `${pracId}-${weekday}`;
+          windows = availMap[avKey];
+          if (!windows || windows.length === 0) continue;
+        }
+      } else {
+        const avKey = `${pracId}-${weekday}`;
+        windows = availMap[avKey];
+        if (!windows || windows.length === 0) continue;
+      }
+
+      const bkKey = `${pracId}-${dateStr}`;
+      const dayBookings = bookingMap[bkKey] || [];
+
+      for (const window of windows) {
+        const windowStart = timeToMinutes(window.start);
+        const windowEnd = timeToMinutes(window.end);
+
+        for (let startMin = windowStart; startMin + totalDuration <= windowEnd; startMin += granularity) {
+          const slotStart = new Date(`${dateStr}T${minutesToTime(startMin)}:00${tzOffset}`);
+          const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
+
+          if (slotStart <= now) continue;
+
+          const overlapCount = dayBookings.filter(bk => {
+            const bkStart = new Date(bk.start.getTime() - (bk.buffer_before_min || 0) * 60000);
+            const bkEnd = new Date(bk.end.getTime() + (bk.buffer_after_min || 0) * 60000);
+            return slotStart < bkEnd && slotEnd > bkStart;
+          }).length;
+
+          if (overlapCount < (capacityMap[pracId] || 1)) {
+            // start_time/end_time = actual service time (excluding outer buffers)
+            const serviceStartMin = startMin + bufferBefore;
+            const serviceEndMin = serviceStartMin + sumDurations;
+            slots.push({
+              practitioner_id: pracId,
+              date: dateStr,
+              start_time: minutesToTime(serviceStartMin),
+              end_time: minutesToTime(serviceEndMin),
+              start_at: new Date(`${dateStr}T${minutesToTime(serviceStartMin)}:00${tzOffset}`).toISOString(),
+              end_at: new Date(`${dateStr}T${minutesToTime(serviceEndMin)}:00${tzOffset}`).toISOString()
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return slots;
+}
+
+module.exports = { getAvailableSlots, getAvailableSlotsMulti };

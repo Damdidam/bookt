@@ -63,7 +63,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_deposit_fixed_cents, settings_deposit_deadline_hours,
       settings_deposit_message, settings_deposit_deduct,
       // V23b cancellation policy
-      settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text
+      settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text,
+      // Multi-service booking
+      settings_multi_service_enabled
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
@@ -78,7 +80,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_deposit_fixed_cents !== undefined || settings_deposit_deadline_hours !== undefined
         || settings_deposit_message !== undefined || settings_deposit_deduct !== undefined
         || settings_cancel_deadline_hours !== undefined || settings_cancel_grace_minutes !== undefined
-        || settings_cancel_policy_text !== undefined) {
+        || settings_cancel_policy_text !== undefined
+        || settings_multi_service_enabled !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -105,6 +108,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_cancel_grace_minutes !== undefined) { const _v = parseInt(settings_cancel_grace_minutes); cur.cancel_grace_minutes = isNaN(_v) ? 240 : _v; }
       if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = settings_cancel_policy_text;
+      // Multi-service booking
+      if (settings_multi_service_enabled !== undefined) cur.multi_service_enabled = !!settings_multi_service_enabled;
       mergedSettings = cur;
     }
 

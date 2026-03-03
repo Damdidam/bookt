@@ -1,10 +1,10 @@
 const router = require('express').Router();
 const { query } = require('../../services/db');
-const { getAvailableSlots } = require('../../services/slot-engine');
+const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
-const { getCategoryLabels } = require('../../services/email');
+const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
 
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
@@ -180,6 +180,7 @@ router.get('/:slug', async (req, res, next) => {
         page_sections: sections,
         cancellation_window_hours: biz.settings?.cancel_deadline_hours ?? biz.settings?.cancellation_window_hours ?? 24,
         cancel_policy_text: biz.settings?.cancel_policy_text || null,
+        multi_service_enabled: !!biz.settings?.multi_service_enabled,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),
@@ -284,6 +285,89 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/public/:slug/multi-slots
+// Available slots for chained multi-service bookings
+// ============================================================
+router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const { service_ids, practitioner_id, date_from, date_to, appointment_mode } = req.query;
+
+    if (!service_ids) {
+      return res.status(400).json({ error: 'service_ids requis (UUIDs séparés par des virgules)' });
+    }
+
+    const ids = service_ids.split(',').map(s => s.trim()).filter(Boolean);
+    if (ids.length < 2) {
+      return res.status(400).json({ error: 'Au moins 2 service_ids requis' });
+    }
+    if (ids.length > 5) {
+      return res.status(400).json({ error: 'Maximum 5 prestations par réservation groupée' });
+    }
+    if (ids.some(id => !UUID_RE.test(id))) {
+      return res.status(400).json({ error: 'service_ids invalide(s)' });
+    }
+    if (practitioner_id && !UUID_RE.test(practitioner_id)) {
+      return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+
+    const bizResult = await query(
+      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`,
+      [slug]
+    );
+    if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+
+    const businessId = bizResult.rows[0].id;
+    const bizSettings = bizResult.rows[0].settings || {};
+
+    if (!bizSettings.multi_service_enabled) {
+      return res.status(400).json({ error: 'La réservation multi-prestations n\'est pas activée pour ce cabinet' });
+    }
+
+    const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const from = date_from || brusselsToday;
+    const defaultToDate = new Date(brusselsToday + 'T12:00:00Z');
+    defaultToDate.setUTCDate(defaultToDate.getUTCDate() + 14);
+    const to = date_to || defaultToDate.toLocaleDateString('en-CA', { timeZone: 'UTC' });
+
+    const fromDate = new Date(from + 'T00:00:00Z');
+    const toDate = new Date(to + 'T00:00:00Z');
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return res.status(400).json({ error: 'Dates invalides' });
+    if (toDate <= fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
+    if ((toDate - fromDate) / 86400000 > 60) {
+      return res.status(400).json({ error: 'Plage maximale : 60 jours' });
+    }
+
+    const slots = await getAvailableSlotsMulti({
+      businessId, serviceIds: ids,
+      practitionerId: practitioner_id || null,
+      dateFrom: from, dateTo: to, appointmentMode: appointment_mode
+    });
+
+    const byDate = {};
+    for (const slot of slots) {
+      if (!byDate[slot.date]) byDate[slot.date] = [];
+      byDate[slot.date].push(slot);
+    }
+
+    // Calculate total_duration_min from the services for metadata
+    // (re-derive from slot data: end_time - start_time of any slot gives sumDurations)
+    let totalDurationMin = 0;
+    if (slots.length > 0) {
+      const [eh, em] = slots[0].end_time.split(':').map(Number);
+      const [sh, sm] = slots[0].start_time.split(':').map(Number);
+      totalDurationMin = (eh * 60 + em) - (sh * 60 + sm);
+    }
+
+    res.json({ by_date: byDate, total: slots.length, total_duration_min: totalDurationMin });
+  } catch (err) {
+    if (err.type === 'validation') return res.status(400).json({ error: err.message });
+    if (err.type === 'not_found') return res.status(404).json({ error: err.message });
+    next(err);
+  }
+});
+
+// ============================================================
 // GET /api/public/:slug/featured-slots
 // Returns practitioner-curated slots + locked weeks for the public booking page
 // ============================================================
@@ -360,7 +444,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const {
-      service_id, practitioner_id, start_at, end_at, appointment_mode,
+      service_id, service_ids, practitioner_id, start_at, end_at, appointment_mode,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing
     } = req.body;
@@ -385,6 +469,28 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'service_id invalide' });
     }
 
+    // Multi-service: normalize service_ids
+    // - service_ids with > 1 element → multi-service flow
+    // - service_ids with exactly 1 element → treat as single service_id
+    // - service_id (singular) only → existing behavior
+    let isMultiService = false;
+    let effectiveServiceId = service_id; // used for single-service path
+    if (Array.isArray(service_ids) && service_ids.length > 1) {
+      if (service_ids.length > 5) {
+        return res.status(400).json({ error: 'Maximum 5 prestations par réservation groupée' });
+      }
+      if (service_ids.some(id => !UUID_RE.test(id))) {
+        return res.status(400).json({ error: 'service_ids invalide(s)' });
+      }
+      isMultiService = true;
+    } else if (Array.isArray(service_ids) && service_ids.length === 1) {
+      // Treat single-element array as regular single service
+      if (!UUID_RE.test(service_ids[0])) {
+        return res.status(400).json({ error: 'service_ids invalide(s)' });
+      }
+      effectiveServiceId = service_ids[0];
+    }
+
     // Bug B1 fix: length limits on client fields
     if (client_name && client_name.length > 200) return res.status(400).json({ error: 'Nom trop long (max 200)' });
     if (client_email && client_email.length > 320) return res.status(400).json({ error: 'Email trop long' });
@@ -394,7 +500,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (!emailRegex.test(client_email)) return res.status(400).json({ error: 'Format email invalide' });
     if (client_phone && !/^\+?[\d\s\-().]{6,}$/.test(client_phone)) return res.status(400).json({ error: 'Format téléphone invalide' });
 
-    const VALID_MODES = ['cabinet', 'visio', 'phone'];
+    const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
       return res.status(400).json({ error: 'Mode de rendez-vous invalide' });
     }
@@ -411,12 +517,18 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const safeLang = VALID_LANGS.includes(client_language) ? client_language : 'unknown';
 
     const bizResult = await query(
-      `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
+      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`, [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
+    const bizSettings = bizResult.rows[0].settings || {};
     const { transactionWithRLS } = require('../../services/db');
+
+    // Multi-service: check if enabled
+    if (isMultiService && !bizSettings.multi_service_enabled) {
+      return res.status(400).json({ error: 'La réservation multi-prestations n\'est pas activée pour ce cabinet' });
+    }
 
     const startDate = new Date(start_at);
     if (isNaN(startDate.getTime())) return res.status(400).json({ error: 'Date de début invalide' });
@@ -447,13 +559,321 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
     }
 
+    // ══════════════════════════════════════════════════════════
+    // MULTI-SERVICE BOOKING FLOW
+    // ══════════════════════════════════════════════════════════
+    if (isMultiService) {
+      // Fetch all services, preserving order
+      const multiSvcResult = await query(
+        `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents
+         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
+         ORDER BY array_position($1, id)`,
+        [service_ids, businessId]
+      );
+      if (multiSvcResult.rows.length !== service_ids.length) {
+        const foundIds = new Set(multiSvcResult.rows.map(r => r.id));
+        const missing = service_ids.filter(id => !foundIds.has(id));
+        return res.status(404).json({ error: `Prestation(s) introuvable(s): ${missing.join(', ')}` });
+      }
+      const multiServices = multiSvcResult.rows;
+
+      // Mode validation
+      if (appointment_mode) {
+        for (const svc of multiServices) {
+          if (!(svc.mode_options || []).includes(appointment_mode)) {
+            return res.status(400).json({ error: `Mode "${appointment_mode}" non disponible pour la prestation ${svc.id}` });
+          }
+        }
+      }
+
+      // Validate practitioner offers ALL services
+      const psMultiCheck = await query(
+        `SELECT COUNT(DISTINCT service_id)::int AS cnt
+         FROM practitioner_services WHERE service_id = ANY($1) AND practitioner_id = $2`,
+        [service_ids, practitioner_id]
+      );
+      if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
+        return res.status(400).json({ error: 'Ce praticien ne propose pas toutes les prestations sélectionnées' });
+      }
+
+      // Validate practitioner is active + booking_enabled + capacity
+      const multiPracCap = await query(
+        `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
+         FROM practitioners WHERE id = $1 AND business_id = $2`,
+        [practitioner_id, businessId]
+      );
+      if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
+        return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+      }
+      const multiMaxConcurrent = multiPracCap.rows[0]?.max_concurrent ?? 1;
+
+      // Calculate chained slots (buffer_before first only, buffer_after last only)
+      const groupId = require('crypto').randomUUID();
+      let cursor = new Date(startDate);
+      const chainedSlots = multiServices.map((svc, i) => {
+        const bufBefore = (i === 0) ? (svc.buffer_before_min || 0) : 0;
+        const bufAfter = (i === multiServices.length - 1) ? (svc.buffer_after_min || 0) : 0;
+        const totalDur = bufBefore + svc.duration_min + bufAfter;
+        const slotStart = new Date(cursor);
+        const slotEnd = new Date(slotStart.getTime() + totalDur * 60000);
+        cursor = slotEnd;
+        return {
+          service_id: svc.id,
+          start_at: slotStart.toISOString(),
+          end_at: slotEnd.toISOString(),
+          group_order: i
+        };
+      });
+
+      const totalEnd = new Date(chainedSlots[chainedSlots.length - 1].end_at);
+
+      const multiResult = await transactionWithRLS(businessId, async (client) => {
+        // Conflict check for entire chained range
+        const conflict = await client.query(
+          `SELECT id FROM bookings
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+           AND start_at < $4 AND end_at > $3 FOR UPDATE`,
+          [businessId, practitioner_id, startDate.toISOString(), totalEnd.toISOString()]
+        );
+        if (conflict.rows.length >= multiMaxConcurrent) {
+          throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+        }
+
+        // Find or create client (same 3-step matching as single-service)
+        let clientId;
+        let existingClient = null;
+        let matchType = null;
+
+        const exactMatch = await client.query(
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+          [businessId, client_phone, client_email]
+        );
+        if (exactMatch.rows.length > 0) {
+          existingClient = exactMatch.rows[0];
+          matchType = 'exact';
+        } else {
+          const phoneMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+            [businessId, client_phone]
+          );
+          if (phoneMatch.rows.length > 0) {
+            existingClient = phoneMatch.rows[0];
+            matchType = 'phone';
+          } else {
+            const emailMatch = await client.query(
+              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+              [businessId, client_email]
+            );
+            if (emailMatch.rows.length > 0) {
+              existingClient = emailMatch.rows[0];
+              matchType = 'email';
+            }
+          }
+        }
+
+        if (existingClient) {
+          if (existingClient.is_blocked) {
+            throw Object.assign(
+              new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
+              { type: 'blocked', status: 403 }
+            );
+          }
+          clientId = existingClient.id;
+          if (matchType === 'exact') {
+            await client.query(
+              `UPDATE clients SET
+                full_name = COALESCE(NULLIF($1, ''), full_name),
+                email = COALESCE(NULLIF($2, ''), email),
+                phone = COALESCE(NULLIF($3, ''), phone),
+                bce_number = COALESCE($4, bce_number),
+                consent_sms = COALESCE($5, consent_sms),
+                consent_email = COALESCE($6, consent_email),
+                consent_marketing = COALESCE($7, consent_marketing),
+                updated_at = NOW()
+               WHERE id = $8`,
+              [client_name, client_email, client_phone, client_bce,
+               consent_sms === true ? true : (consent_sms === false ? false : null),
+               consent_email === true ? true : (consent_email === false ? false : null),
+               consent_marketing === true ? true : (consent_marketing === false ? false : null),
+               clientId]
+            );
+          } else if (matchType === 'phone') {
+            await client.query(
+              `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+               WHERE id = $1 AND business_id = $3`,
+              [clientId, client_name, businessId]
+            );
+          } else if (matchType === 'email') {
+            await client.query(
+              `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+               WHERE id = $1 AND business_id = $3`,
+              [clientId, client_name, businessId]
+            );
+          }
+        } else {
+          const nc = await client.query(
+            `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
+              language_preference, consent_sms, consent_email, consent_marketing, created_from)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
+            [businessId, client_name, client_phone, client_email, client_bce||null,
+             safeLang, consent_sms===true, consent_email===true, consent_marketing===true]
+          );
+          clientId = nc.rows[0].id;
+        }
+
+        // Insert each booking with group_id and group_order
+        const bookings = [];
+        for (const slot of chainedSlots) {
+          const bk = await client.query(
+            `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+              channel, appointment_mode, start_at, end_at, status, comment_client,
+              group_id, group_order)
+             VALUES ($1,$2,$3,$4,'web',$5,$6,$7,'confirmed',$8,$9,$10)
+             RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
+            [businessId, practitioner_id, slot.service_id, clientId,
+             appointment_mode||'cabinet', slot.start_at, slot.end_at,
+             client_comment||null, groupId, slot.group_order]
+          );
+          bookings.push(bk.rows[0]);
+        }
+
+        // Deposit on first booking only (same pattern as bookings-creation.js)
+        if (clientId && bookings.length > 0) {
+          try {
+            await client.query('SAVEPOINT deposit_sp');
+            const depCheck = await client.query(
+              `SELECT c.no_show_count, biz.settings
+               FROM clients c JOIN businesses biz ON biz.id = c.business_id
+               WHERE c.id = $1 AND c.business_id = $2`,
+              [clientId, businessId]
+            );
+            const dc = depCheck.rows[0];
+            if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
+              const svcPriceResult = await client.query(
+                `SELECT COALESCE(SUM(s.price_cents), 0) AS total_price
+                 FROM bookings b JOIN services s ON s.id = b.service_id
+                 WHERE b.id = ANY($1) AND b.business_id = $2`,
+                [bookings.map(b => b.id), businessId]
+              );
+              const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
+              let depCents = 0;
+              if (dc.settings.deposit_type === 'fixed') {
+                depCents = dc.settings.deposit_fixed_cents || 2500;
+              } else {
+                depCents = Math.round(totalPrice * (dc.settings.deposit_percent || 50) / 100);
+              }
+              if (depCents > 0) {
+                const dlHours = dc.settings.deposit_deadline_hours ?? 48;
+                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+                if (deadline > new Date()) {
+                  // Deposit amount on the first booking only
+                  await client.query(
+                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                     WHERE id = $3 AND business_id = $4`,
+                    [depCents, deadline.toISOString(), bookings[0].id, businessId]
+                  );
+                  bookings[0].status = 'pending_deposit';
+                  bookings[0].deposit_required = true;
+                  bookings[0].deposit_amount_cents = depCents;
+                  // Set pending_deposit status on all other group members (no deposit amount)
+                  if (bookings.length > 1) {
+                    const otherIds = bookings.slice(1).map(b => b.id);
+                    await client.query(
+                      `UPDATE bookings SET status = 'pending_deposit'
+                       WHERE id = ANY($1) AND business_id = $2`,
+                      [otherIds, businessId]
+                    );
+                    for (let i = 1; i < bookings.length; i++) {
+                      bookings[i].status = 'pending_deposit';
+                    }
+                  }
+                }
+              }
+            }
+          } catch (depErr) {
+            await client.query('ROLLBACK TO SAVEPOINT deposit_sp');
+            console.error('Deposit check failed:', depErr.message);
+          }
+        }
+
+        // Queue notifications for first booking
+        try {
+          await client.query('SAVEPOINT notif_multi_sp1');
+          await client.query(
+            `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
+             VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
+            [businessId, bookings[0].id, client_email, client_phone]
+          );
+        } catch (notifErr) {
+          await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp1');
+          console.error('Notification insert failed:', notifErr.message);
+        }
+        try {
+          await client.query('SAVEPOINT notif_multi_sp2');
+          await client.query(
+            `INSERT INTO notifications (business_id, booking_id, type, status)
+             VALUES ($1,$2,'email_new_booking_pro','queued')`,
+            [businessId, bookings[0].id]
+          );
+        } catch (notifErr) {
+          await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp2');
+          console.error('Notification insert failed:', notifErr.message);
+        }
+
+        return bookings;
+      });
+
+      broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+
+      // Send multi-service confirmation email (non-blocking)
+      (async () => {
+        try {
+          const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
+          const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+          if (bizRow.rows[0]) {
+            const lastBooking = multiResult[multiResult.length - 1];
+            await sendBookingConfirmation({
+              booking: {
+                ...multiResult[0],
+                end_at: lastBooking.end_at,
+                client_name, client_email,
+                practitioner_name: pracRow.rows[0]?.display_name || '',
+                comment: client_comment
+              },
+              business: bizRow.rows[0],
+              groupServices: multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }))
+            });
+          }
+        } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
+      })();
+
+      return res.status(201).json({
+        booking: {
+          id: multiResult[0].id, token: multiResult[0].public_token,
+          start_at: multiResult[0].start_at, end_at: multiResult[0].end_at, status: multiResult[0].status,
+          cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${multiResult[0].public_token}`
+        },
+        bookings: multiResult.map(b => ({
+          id: b.id, token: b.public_token,
+          start_at: b.start_at, end_at: b.end_at, status: b.status,
+          group_order: b.group_order
+        })),
+        group_id: groupId
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // SINGLE-SERVICE BOOKING FLOW (existing behavior unchanged)
+    // ══════════════════════════════════════════════════════════
     let endDate;
 
-    if (service_id) {
+    if (effectiveServiceId) {
       const svcResult = await query(
         `SELECT duration_min, buffer_before_min, buffer_after_min
          FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
-        [service_id, businessId]
+        [effectiveServiceId, businessId]
       );
       if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
       const service = svcResult.rows[0];
@@ -484,10 +904,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const maxConcurrent = pracCap.rows[0]?.max_concurrent ?? 1;
 
     // Validate practitioner offers this service
-    if (service_id) {
+    if (effectiveServiceId) {
       const psCheck = await query(
         `SELECT 1 FROM practitioner_services WHERE service_id = $1 AND practitioner_id = $2`,
-        [service_id, practitioner_id]
+        [effectiveServiceId, practitioner_id]
       );
       if (psCheck.rows.length === 0) {
         return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
@@ -602,7 +1022,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           channel, appointment_mode, start_at, end_at, status, comment_client)
          VALUES ($1,$2,$3,$4,'web',$5,$6,$7,'confirmed',$8)
          RETURNING id, public_token, start_at, end_at, status`,
-        [businessId, practitioner_id, service_id, clientId,
+        [businessId, practitioner_id, effectiveServiceId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), client_comment||null]
       );
 

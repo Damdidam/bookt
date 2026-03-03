@@ -55,6 +55,17 @@ async function loadSettings(){
           <span style="position:absolute;left:${overlapOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
         </label>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);margin-top:10px">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Réservation multi-prestations</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Les clients peuvent réserver plusieurs prestations en un seul rendez-vous (ex: épilation + soin visage)</div>
+        </div>
+        <label style="position:relative;display:inline-flex;width:44px;height:24px;flex-shrink:0;margin-left:16px">
+          <input type="checkbox" id="s_multi_service" ${!!(b.settings?.multi_service_enabled)?'checked':''} onchange="saveMultiServicePolicy()" style="opacity:0;width:0;height:0">
+          <span style="position:absolute;inset:0;border-radius:100px;background:${!!(b.settings?.multi_service_enabled)?'var(--primary)':'var(--border)'};transition:all .2s;cursor:pointer"></span>
+          <span style="position:absolute;left:${!!(b.settings?.multi_service_enabled)?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+        </label>
+      </div>
     </div></div>`;
 
     // 3b. Rappels patients
@@ -260,6 +271,18 @@ async function loadSettings(){
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
+async function saveMultiServicePolicy(){
+  const on=document.getElementById('s_multi_service').checked;
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_multi_service_enabled:on})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(on?'Multi-prestations activé':'Multi-prestations désactivé','success');
+    const span=document.getElementById('s_multi_service').parentElement;
+    span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
+    span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveOverlapPolicy(){
   const on=document.getElementById('s_overlap').checked;
   try{
@@ -422,6 +445,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
-export { loadSettings, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
