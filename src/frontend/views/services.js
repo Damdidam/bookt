@@ -50,7 +50,7 @@ async function loadServices(){
 async function openServiceModal(editId){
   let sectorCats=[];
   try{
-    const r=await fetch('/api/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const r=await fetch('/api/business/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});
     if(r.ok){const data=await r.json();sectorCats=data.categories||[];}
   }catch(e){console.warn('Failed to load sector categories:',e.message);}
   if(editId){
