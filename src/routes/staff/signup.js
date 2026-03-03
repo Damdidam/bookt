@@ -90,7 +90,9 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         coiffeur:'beaute', esthetique:'beaute',
         comptable:'juridique_finance', avocat:'juridique_finance',
         photographe:'creatif',
-        veterinaire:'autre', autre:'autre'
+        veterinaire:'autre',
+        barbier: 'beaute', coaching: 'sante', garage: 'autre',
+        autre:'autre'
       };
       const validCategories = ['sante','beaute','juridique_finance','education','creatif','autre'];
       const finalCategory = validCategories.includes(category) ? category : (SECTOR_TO_CAT[sector] || 'autre');

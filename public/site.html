@@ -242,6 +242,41 @@ body.warm-bg{background:var(--surface)}body.warm-bg .nav{background:color-mix(in
 /* Multi-service selection */
 .svc-cat-label{font-size:.7rem;font-weight:800;color:var(--text-4);letter-spacing:.8px;text-transform:uppercase;padding:14px 0 6px}
 .svc-cat-label:first-child{padding-top:0}
+.svc-cat-label svg { width:14px; height:14px; vertical-align:-2px; margin-right:4px; }
+.cat-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 0 12px;
+  margin: 0 0 8px;
+}
+.cat-tabs::-webkit-scrollbar { display: none }
+.cat-tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 100px;
+  border: 1.5px solid var(--border, #E0DDD8);
+  background: var(--white, #fff);
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-2, #6B6560);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s ease;
+}
+.cat-tab:hover { border-color: var(--primary); color: var(--primary); }
+.cat-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.cat-tab svg { width: 16px; height: 16px; flex-shrink: 0; }
+.cat-tab.active svg { stroke: #fff; }
 .svc-row.selected{border-color:var(--primary-border);background:var(--primary-light)}
 .svc-row.selected::before{opacity:1!important}
 .svc-row.disabled{opacity:.4;pointer-events:none}
@@ -271,7 +306,7 @@ body.warm-bg{background:var(--surface)}body.warm-bg .nav{background:color-mix(in
 
   <section class="section reveal" id="team" style="display:none"><div class="section-tag"><span class="line"></span> L'ÉQUIPE</div><h2 class="section-title">Les personnes derrière le cabinet</h2><p class="section-sub" id="teamSub">—</p><div class="team-grid" id="teamGrid"></div></section><div class="divider" id="teamDivider" style="display:none"></div>
 
-  <section class="section reveal" id="services"><div class="section-tag"><span class="line"></span> PRESTATIONS</div><h2 class="section-title">Réservez en ligne</h2><p class="section-sub">Choisissez votre prestation et sélectionnez un créneau.</p><div class="svc-list" id="svcList"></div></section><div class="divider"></div>
+  <section class="section reveal" id="services"><div class="section-tag"><span class="line"></span> PRESTATIONS</div><h2 class="section-title">Réservez en ligne</h2><p class="section-sub">Choisissez votre prestation et sélectionnez un créneau.</p><div id="catTabs" class="cat-tabs" style="display:none"></div><div class="svc-list" id="svcList"></div></section><div class="divider"></div>
 
   <section class="section reveal" id="gallerySection" style="display:none"><div class="section-tag"><span class="line"></span> RÉALISATIONS</div><h2 class="section-title">Nos projets</h2><p class="section-sub">Quelques réalisations et moments en images.</p><div class="gallery-grid" id="galleryGrid"></div></section><div class="divider" id="galleryDivider" style="display:none"></div>
 
@@ -540,11 +575,15 @@ function render(d){
       if (a === 'Autres') return 1; if (b === 'Autres') return -1; return a.localeCompare(b);
     });
 
+    // Build category icon lookup from sector_categories
+    const catIconMap = {};
+    (d.sector_categories || []).forEach(c => { if (c.icon_svg) catIconMap[c.label] = c.icon_svg; });
+
     const multiEnabled = b.multi_service_enabled;
     let svcHtml = '';
     catKeys.forEach(cat => {
       if (catKeys.length > 1) {
-        svcHtml += '<div class="svc-cat-label">' + esc(cat) + '</div>';
+        svcHtml += '<div class="svc-cat-label">' + (catIconMap[cat] || '') + ' ' + esc(cat) + '</div>';
       }
       grouped[cat].forEach(s => {
         const price = s.price_cents ? (s.price_cents/100).toFixed(0) + ' \u20ac' : (s.price_label || '');
@@ -566,6 +605,66 @@ function render(d){
       });
     });
     document.getElementById('svcList').innerHTML = svcHtml;
+
+    // Build category tabs from API data
+    const sectorCats = d.sector_categories || [];
+    const usedCategories = new Set(d.services.map(s => s.category).filter(Boolean));
+    // Only show tabs for categories that have services + "Toutes"
+    const activeCats = sectorCats.filter(c => usedCategories.has(c.label));
+
+    if (activeCats.length > 1) {
+      let tabsHtml = '<div class="cat-tab active" data-cat="__all__">';
+      // "All" icon: grid/list icon
+      tabsHtml += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+      tabsHtml += ' Toutes</div>';
+      activeCats.forEach(c => {
+        tabsHtml += '<div class="cat-tab" data-cat="' + esc(c.label) + '">';
+        if (c.icon_svg) tabsHtml += c.icon_svg;
+        tabsHtml += ' ' + esc(c.label) + '</div>';
+      });
+      // Add tabs for custom categories (not in catalog but used by services)
+      const catalogLabels = new Set(sectorCats.map(c => c.label));
+      usedCategories.forEach(cat => {
+        if (!catalogLabels.has(cat)) {
+          tabsHtml += '<div class="cat-tab" data-cat="' + esc(cat) + '">' + esc(cat) + '</div>';
+        }
+      });
+
+      const tabsEl = document.getElementById('catTabs');
+      tabsEl.innerHTML = tabsHtml;
+      tabsEl.style.display = 'flex';
+
+      // Tab click handler
+      tabsEl.addEventListener('click', function(e) {
+        const tab = e.target.closest('.cat-tab');
+        if (!tab) return;
+        tabsEl.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const cat = tab.dataset.cat;
+
+        // Filter services
+        const catLabels = document.querySelectorAll('#svcList .svc-cat-label');
+        const svcRows = document.querySelectorAll('#svcList .svc-row');
+
+        if (cat === '__all__') {
+          catLabels.forEach(el => el.style.display = '');
+          svcRows.forEach(el => el.style.display = '');
+        } else {
+          let currentCat = '';
+          // Walk through all children of svcList
+          const children = document.getElementById('svcList').children;
+          for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            if (child.classList.contains('svc-cat-label')) {
+              currentCat = child.textContent.trim();
+              child.style.display = currentCat === cat ? '' : 'none';
+            } else {
+              child.style.display = currentCat === cat ? '' : 'none';
+            }
+          }
+        }
+      });
+    }
   }
 
   // About

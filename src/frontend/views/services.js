@@ -47,22 +47,38 @@ async function loadServices(){
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
-function openServiceModal(editId){
+async function openServiceModal(editId){
+  let sectorCats=[];
+  try{
+    const r=await fetch('/api/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(r.ok){const data=await r.json();sectorCats=data.categories||[];}
+  }catch(e){console.warn('Failed to load sector categories:',e.message);}
   if(editId){
-    fetch(`/api/services`,{headers:{'Authorization':'Bearer '+api.getToken()}}).then(r=>r.json()).then(d=>{
-      renderServiceModal(d.services.find(s=>s.id===editId));
-    });
-  }else{renderServiceModal(null);}
+    const sr=await fetch(`/api/services`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await sr.json();
+    renderServiceModal(d.services.find(s=>s.id===editId),sectorCats);
+  }else{renderServiceModal(null,sectorCats);}
 }
 
-function renderServiceModal(svc){
+function renderServiceModal(svc,sectorCats){
   const isEdit=!!svc;
   const svcLabel=categoryLabels.service.toLowerCase();
   let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la '+svcLabel:'Nouvelle '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${svc?.name||''}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field-row"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${svc?.duration_min||30}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${svc?.price_cents?(svc.price_cents/100):''}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
   m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
-  m+=`<div class="field"><label>Catégorie</label><input id="svc_cat" value="${svc?.category||''}" placeholder="Ex: Consultation, Soin..."></div>`;
+  m+=`<div class="field"><label>Catégorie</label><select id="svc_cat" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;background:var(--white)">`;
+  m+=`<option value="">— Choisir une catégorie —</option>`;
+  const currentCat=svc?.category||'';
+  (sectorCats||[]).forEach(c=>{
+    const sel=c.label===currentCat?' selected':'';
+    const suffix=c.source==='custom'?' (personnalisée)':'';
+    m+=`<option value="${c.label}"${sel}>${c.label}${suffix}</option>`;
+  });
+  const isUnknown=currentCat&&!(sectorCats||[]).some(c=>c.label===currentCat);
+  if(isUnknown){m+=`<option value="${currentCat}" selected>${currentCat} (personnalisée)</option>`;}
+  m+=`<option value="__custom__">+ Catégorie personnalisée...</option>`;
+  m+=`</select></div>`;
   m+=`<div class="field"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
   const modes=svc?.mode_options||['cabinet'];
   // Only show mode options for sectors that can do remote consultations
@@ -91,6 +107,18 @@ function renderServiceModal(svc){
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   document.getElementById('svc_color_wrap').innerHTML=cswHTML('svc_color',svc?.color||'#0D7377',false);
+  document.getElementById('svc_cat').addEventListener('change',function(){
+    if(this.value==='__custom__'){
+      const v=prompt('Nom de la catégorie personnalisée :');
+      if(v&&v.trim()){
+        const opt=document.createElement('option');
+        opt.value=v.trim();
+        opt.textContent=v.trim()+' (personnalisée)';
+        opt.selected=true;
+        this.insertBefore(opt,this.querySelector('option[value="__custom__"]'));
+      }else{this.value='';}
+    }
+  });
 }
 
 async function saveService(id){

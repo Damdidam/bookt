@@ -65,7 +65,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // V23b cancellation policy
       settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text,
       // Multi-service booking
-      settings_multi_service_enabled
+      settings_multi_service_enabled,
+      // Sector
+      sector
     } = req.body;
 
     // Merge individual settings fields into settings JSONB
@@ -111,6 +113,22 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // Multi-service booking
       if (settings_multi_service_enabled !== undefined) cur.multi_service_enabled = !!settings_multi_service_enabled;
       mergedSettings = cur;
+    }
+
+    // Sector validation & category derivation
+    const SECTOR_TO_CAT = {
+      medecin:'sante', dentiste:'sante', kine:'sante', osteopathe:'sante', bien_etre:'sante',
+      coiffeur:'beaute', esthetique:'beaute', barbier:'beaute',
+      comptable:'juridique_finance', avocat:'juridique_finance',
+      photographe:'creatif', coaching:'sante',
+      veterinaire:'autre', garage:'autre', autre:'autre'
+    };
+    let derivedCategory = null;
+    if (sector !== undefined) {
+      if (!SECTOR_TO_CAT[sector]) {
+        return res.status(400).json({ error: 'Secteur invalide. Valeurs: ' + Object.keys(SECTOR_TO_CAT).join(', ') });
+      }
+      derivedCategory = SECTOR_TO_CAT[sector];
     }
 
     // If slug is changing, sanitise then verify uniqueness (global check, no RLS)
@@ -165,8 +183,10 @@ router.patch('/', requireOwner, async (req, res, next) => {
         seo_title = COALESCE($19, seo_title),
         seo_description = COALESCE($20, seo_description),
         theme = COALESCE($21::jsonb, theme),
+        sector = COALESCE($22, sector),
+        category = COALESCE($23, category),
         updated_at = NOW()
-       WHERE id = $22
+       WHERE id = $24
        RETURNING *`,
       [
         name, finalSlug || slug, phone, email, address, language_default,
@@ -179,6 +199,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         page_sections ? JSON.stringify(page_sections) : null,
         stripHtml(seo_title), stripHtml(seo_description),
         theme ? JSON.stringify(theme) : null,
+        sector || null, derivedCategory,
         bid
       ]
     );
@@ -231,6 +252,41 @@ router.patch('/dev/plan', requireOwner, async (req, res, next) => {
     );
     res.json({ plan: result.rows[0].plan });
   } catch (err) { next(err); }
+});
+
+// GET /api/sector-categories — catalog + custom categories for this business
+router.get('/sector-categories', requireAuth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    // Get business sector
+    const bizResult = await queryWithRLS(businessId,
+      `SELECT sector FROM businesses WHERE id = $1`, [businessId]);
+    if (!bizResult.rows[0]) return res.status(404).json({ error: 'Business introuvable' });
+    const sector = bizResult.rows[0].sector || 'autre';
+
+    // Get catalog categories for this sector
+    const catalogResult = await query(
+      `SELECT label, icon_svg, sort_order, 'catalog' AS source FROM sector_categories
+       WHERE sector = $1 AND is_active = true ORDER BY sort_order`,
+      [sector]
+    );
+
+    // Get custom categories already used by this business (not in catalog)
+    const catalogLabels = catalogResult.rows.map(r => r.label);
+    const customResult = await queryWithRLS(businessId,
+      `SELECT DISTINCT category AS label FROM services
+       WHERE business_id = $1 AND category IS NOT NULL AND category != ''
+       AND category != ALL($2)
+       ORDER BY category`,
+      [businessId, catalogLabels]
+    );
+    const customRows = customResult.rows.map(r => ({ ...r, icon_svg: null, sort_order: 999, source: 'custom' }));
+
+    res.json({ sector, categories: [...catalogResult.rows, ...customRows] });
+  } catch (err) {
+    console.error('[SETTINGS] sector-categories error:', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 module.exports = router;

@@ -35,6 +35,13 @@ async function loadSettings(){
       <div class="field"><label>Pied de page facture</label><input id="s_inv_footer" value="${esc(b.settings?.invoice_footer||'')}" placeholder="Ex: Petit entrepreneur - TVA non applicable art. 56bis CTVA"></div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveBusiness()">Enregistrer</button></div></div>`;
 
+    // 1b. Secteur d'activité
+    const sectorOptions=[['coiffeur','Coiffeur\u00b7se'],['esthetique','Esthétique'],['barbier','Barbier'],['bien_etre','Massage & Bien-être'],['kine','Kinésithérapie'],['medecin','Médecin'],['dentiste','Dentiste'],['osteopathe','Ostéopathe'],['veterinaire','Vétérinaire / Toilettage'],['comptable','Comptable'],['avocat','Avocat'],['photographe','Photographe'],['coaching','Coaching sportif'],['garage','Garage / Auto'],['autre','Autre']];
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Secteur d'activité</h3></div><div class="sc-body">
+      <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le secteur détermine les catégories de prestations et la terminologie de votre interface.</p>
+      <div class="field"><label>Secteur</label><select id="s_sector" style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;background:var(--surface);color:var(--text);font-family:var(--sans)">${sectorOptions.map(([v,l])=>`<option value="${v}"${b.sector===v?' selected':''}>${l}</option>`).join('')}</select></div>
+    </div><div class="sc-foot"><button class="btn-primary" onclick="saveSector()">Enregistrer</button></div></div>`;
+
     // 2. SEO
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> SEO & Référencement</h3></div><div class="sc-body">
       <div class="field"><label>Titre SEO</label><input id="s_seo_title" value="${esc(b.seo_title||'')}" placeholder="Titre affiché dans Google (max 60 car.)"><div class="hint">Par défaut : "[Nom] — [Tagline]"</div></div>
@@ -387,6 +394,16 @@ async function saveSEO(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveSector(){
+  const sector=document.getElementById('s_sector').value;
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({sector})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Secteur mis à jour. La page va se recharger...','success');
+    setTimeout(()=>location.reload(),1200);
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function changePassword(){
   const cur=document.getElementById('s_pwd_current').value;
   const nw=document.getElementById('s_pwd_new').value;
@@ -445,6 +462,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
-export { loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };

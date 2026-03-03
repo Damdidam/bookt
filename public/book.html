@@ -181,6 +181,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .svc-card.disabled{opacity:.4;pointer-events:none}
 .svc-cat-label{font-size:.7rem;font-weight:800;color:var(--text-4);letter-spacing:.8px;text-transform:uppercase;padding:14px 0 6px}
 .svc-cat-label:first-child{padding-top:0}
+.cat-tabs{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 0 12px;margin:0 0 8px}
+.cat-tabs::-webkit-scrollbar{display:none}
+.cat-tab{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:100px;border:1.5px solid var(--border-light,#E0DDD8);background:#fff;font-size:.78rem;font-weight:600;color:var(--text-2,#6B6560);cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.cat-tab:hover{border-color:var(--primary);color:var(--primary)}
+.cat-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.cat-tab svg{width:16px;height:16px;flex-shrink:0}
+.cat-tab.active svg{stroke:#fff}
+.svc-cat-label svg{width:14px;height:14px;vertical-align:-2px;margin-right:4px}
 .cart-sticky{position:sticky;bottom:0;z-index:10;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1.5px solid var(--border-light);padding:14px 0;margin:16px -20px -40px;padding:14px 20px;transform:translateY(100%);transition:transform .25s cubic-bezier(.22,1,.36,1);pointer-events:none}
 .cart-sticky.show{transform:translateY(0);pointer-events:auto}
 .cart-sticky-inner{display:flex;align-items:center;gap:12px}
@@ -220,6 +228,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   <div class="step" data-step="1" id="step1">
     <h2 class="step-title">Choisir une prestation</h2>
     <p class="step-sub">Quel type de rendez-vous souhaitez-vous ?</p>
+    <div id="catTabs" class="cat-tabs" style="display:none"></div>
     <div id="svcList"></div>
     <div class="cart-sticky" id="cartSticky">
       <div class="cart-sticky-inner">
@@ -403,6 +412,10 @@ function initPage(){
     document.getElementById('btnStep1').style.display='none';
   }
 
+  // Build category icon lookup from sector_categories
+  const catIconMap={};
+  (siteData.sector_categories||[]).forEach(c=>{if(c.icon_svg)catIconMap[c.label]=c.icon_svg;});
+
   // Build service list (category-grouped)
   const list=document.getElementById('svcList');
   const svcs=siteData.services;
@@ -416,7 +429,7 @@ function initPage(){
     });
     let html='';
     cats.forEach((items,cat)=>{
-      html+='<div class="svc-cat-label">'+cat+'</div>';
+      html+='<div class="svc-cat-label">'+(catIconMap[cat]||'')+' '+cat+'</div>';
       items.forEach(s=>{
         const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
         const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
@@ -429,15 +442,78 @@ function initPage(){
     });
     list.innerHTML=html;
   }else{
-    list.innerHTML=svcs.map(s=>{
-      const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
-      const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
-      return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
-    }).join('');
+    // Group by category even in single-service mode
+    const cats=new Map();
+    svcs.forEach(s=>{
+      const cat=s.category||'Autres';
+      if(!cats.has(cat))cats.set(cat,[]);
+      cats.get(cat).push(s);
+    });
+    if(cats.size>1){
+      let html='';
+      cats.forEach((items,cat)=>{
+        html+='<div class="svc-cat-label">'+(catIconMap[cat]||'')+' '+cat+'</div>';
+        items.forEach(s=>{
+          const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+          const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
+          html+='<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
+        });
+      });
+      list.innerHTML=html;
+    }else{
+      list.innerHTML=svcs.map(s=>{
+        const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+        const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
+        return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
+      }).join('');
+    }
   }
 
   // Click handlers
   list.querySelectorAll('.svc-card').forEach(c=>c.addEventListener('click',()=>selectService(c.dataset.id)));
+
+  // Build and render category tab bar
+  const sectorCats=siteData.sector_categories||[];
+  const usedCats=new Set(siteData.services.map(s=>s.category).filter(Boolean));
+  const activeCats=sectorCats.filter(c=>usedCats.has(c.label));
+  if(activeCats.length>1){
+    let tabsHtml='<div class="cat-tab active" data-cat="__all__">';
+    tabsHtml+='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+    tabsHtml+=' Toutes</div>';
+    activeCats.forEach(c=>{
+      tabsHtml+='<div class="cat-tab" data-cat="'+c.label.replace(/"/g,'&quot;')+'">';
+      if(c.icon_svg)tabsHtml+=c.icon_svg;
+      tabsHtml+=' '+c.label+'</div>';
+    });
+    // Custom categories not in catalog
+    const catalogLabels=new Set(sectorCats.map(c=>c.label));
+    usedCats.forEach(cat=>{
+      if(!catalogLabels.has(cat)){
+        tabsHtml+='<div class="cat-tab" data-cat="'+cat.replace(/"/g,'&quot;')+'">'+cat+'</div>';
+      }
+    });
+    const tabsEl=document.getElementById('catTabs');
+    tabsEl.innerHTML=tabsHtml;
+    tabsEl.style.display='flex';
+    tabsEl.addEventListener('click',function(e){
+      const tab=e.target.closest('.cat-tab');
+      if(!tab)return;
+      tabsEl.querySelectorAll('.cat-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      const cat=tab.dataset.cat;
+      const children=document.getElementById('svcList').children;
+      let currentCat='';
+      for(let i=0;i<children.length;i++){
+        const child=children[i];
+        if(child.classList.contains('svc-cat-label')){
+          currentCat=child.textContent.trim();
+          child.style.display=cat==='__all__'||currentCat===cat?'':'none';
+        }else{
+          child.style.display=cat==='__all__'||currentCat===cat?'':'none';
+        }
+      }
+    });
+  }
 
   // Update cart bar if pre-selected services
   if(multiServiceMode&&selectedServices.length>0){

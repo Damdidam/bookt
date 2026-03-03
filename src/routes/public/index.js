@@ -18,6 +18,26 @@ const SECTOR_PRACTITIONER = {
 };
 
 // ============================================================
+// GET /api/public/sector-categories
+// Sector categories catalog (public, no auth)
+// ============================================================
+router.get('/sector-categories', async (req, res) => {
+  try {
+    const { sector } = req.query;
+    if (!sector) return res.status(400).json({ error: 'sector query param requis' });
+    const result = await query(
+      `SELECT label, icon_svg, sort_order FROM sector_categories
+       WHERE sector = $1 AND is_active = true ORDER BY sort_order`,
+      [sector]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[PUBLIC] sector-categories error:', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ============================================================
 // GET /api/public/:slug
 // FULL mini-site data — everything needed to render the public page
 // UI: The entire booking-minisite-public.html
@@ -155,6 +175,13 @@ router.get('/:slug', async (req, res, next) => {
       hours[row.weekday] = { opens: row.opens, closes: row.closes };
     }
 
+    // Sector categories catalog
+    const sectorCatsResult = await query(
+      `SELECT label, icon_svg, sort_order FROM sector_categories
+       WHERE sector = $1 AND is_active = true ORDER BY sort_order`,
+      [biz.sector || 'autre']
+    );
+
     // ===== RESPONSE =====
     res.json({
       business: {
@@ -184,7 +211,8 @@ router.get('/:slug', async (req, res, next) => {
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),
-        practitioner_label: SECTOR_PRACTITIONER[biz.sector] || 'Praticien·ne'
+        practitioner_label: SECTOR_PRACTITIONER[biz.sector] || 'Praticien·ne',
+        sector: biz.sector || 'autre'
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
@@ -217,6 +245,7 @@ router.get('/:slug', async (req, res, next) => {
       gallery,
       news,
       hours,
+      sector_categories: sectorCatsResult.rows,
       next_available: nextSlot,
       practitioner_count: pracResult.rows.length
     });

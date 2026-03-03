@@ -29,6 +29,9 @@ export const SECTOR_LABELS = {
   kine: { owner:'Gérant·e', practitioner:'Kinésithérapeute', manager:'Responsable', receptionist:'Secrétaire' },
   comptable: { owner:'Gérant·e', practitioner:'Collaborateur·rice', manager:'Office Manager', receptionist:'Secrétaire' },
   avocat: { owner:'Associé·e gérant·e', practitioner:'Avocat·e', manager:'Office Manager', receptionist:'Secrétaire juridique' },
+  barbier: { owner:'Gérant·e', practitioner:'Barbier', manager:'Responsable', receptionist:'Réceptionniste' },
+  coaching: { owner:'Gérant·e', practitioner:'Coach', manager:'Responsable', receptionist:'Réceptionniste' },
+  garage: { owner:'Gérant·e', practitioner:'Mécanicien·ne', manager:'Chef d\'atelier', receptionist:'Réceptionniste' },
   autre: { owner:'Gérant·e', practitioner:'Membre', manager:'Responsable', receptionist:'Réceptionniste' }
 };
 
@@ -47,7 +50,9 @@ export const SECTOR_TO_CATEGORY = {
   coiffeur:'beaute', esthetique:'beaute',
   comptable:'juridique_finance', avocat:'juridique_finance',
   photographe:'creatif',
-  veterinaire:'autre', autre:'autre'
+  veterinaire:'autre',
+  barbier:'beaute', coaching:'sante', garage:'autre',
+  autre:'autre'
 };
 
 export const userRole = user?.role || 'owner';
