@@ -101,7 +101,8 @@ async function loadServices(){
 }
 
 function renderServiceCard(s){
-  const price=s.price_cents?`${(s.price_cents/100).toFixed(0)} €`:(s.price_label||'Gratuit');
+  const varPrices=(s.variants||[]).map(v=>v.price_cents).filter(p=>p>0);
+  const price=varPrices.length>0?`${Math.min(...varPrices)/100}\u2013${Math.max(...varPrices)/100} \u20ac`:s.price_cents?`${(s.price_cents/100).toFixed(0)} \u20ac`:(s.price_label||'Gratuit');
   const modes=(s.mode_options||['cabinet']).map(m=>`<span class="mode-tag">${{cabinet:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Cabinet',visio:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Visio',phone:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Tél'}[m]||m}</span>`).join('');
   const physOnly=['coiffeur','esthetique','kine','dentiste','veterinaire'].includes(userSector);
   const pIds=s.practitioner_ids||[];
@@ -118,7 +119,7 @@ function renderServiceCard(s){
 
   return `<div class="svc-card${s.is_active===false?' inactive':''}" style="border-left-color:${s.color||'var(--primary)'}">
     <h4>${esc(s.name)}</h4>
-    <div class="svc-meta">${s.duration_min}min \u00b7 Buffer: ${s.buffer_before_min||0}+${s.buffer_after_min||0}min</div>
+    ${varPrices.length===0?`<div class="svc-meta">${s.duration_min}min \u00b7 Buffer: ${s.buffer_before_min||0}+${s.buffer_after_min||0}min</div>`:''}
     <div class="svc-price">${price}</div>
     ${s.description?`<div style="font-size:.75rem;color:var(--text-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.description)}</div>`:''}
     ${s.variants&&s.variants.length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${s.variants.map(v=>`<span style="font-size:.68rem;padding:2px 8px;border-radius:6px;background:var(--surface);color:var(--text-3);font-weight:500">${esc(v.name)}${v.price_cents?' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac':''}</span>`).join('')}</div>`:''}
