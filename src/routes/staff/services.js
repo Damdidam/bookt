@@ -52,55 +52,57 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
       return res.status(400).json({ error: 'Trop de praticiens (max 100)' });
     }
 
-    const result = await queryWithRLS(bid,
-      `INSERT INTO services (business_id, name, category, duration_min,
-        buffer_before_min, buffer_after_min, price_cents, price_label,
-        mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-       RETURNING *`,
-      [bid, name, category || null, duration_min,
-       buffer_before_min || 0, buffer_after_min || 0,
-       price_cents || null, price_label || null,
-       JSON.stringify(mode_options || ['cabinet']),
-       prep_instructions_fr || null, prep_instructions_nl || null,
-       color || null, description || null,
-       available_schedule ? JSON.stringify(available_schedule) : null]
-    );
-
-    // Create variants if provided
-    if (Array.isArray(variants) && variants.length > 0) {
-      const svcId = result.rows[0].id;
-      for (let i = 0; i < variants.length; i++) {
-        const v = variants[i];
-        if (!v.name || !v.duration_min || v.duration_min <= 0) continue;
-        await queryWithRLS(bid,
-          `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [bid, svcId, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i]
-        );
-      }
-    }
-
-    // Link practitioners (validate they belong to this business)
-    if (practitioner_ids && practitioner_ids.length > 0) {
-      const validPracs = await queryWithRLS(bid,
-        `SELECT id FROM practitioners WHERE id = ANY($1) AND business_id = $2`,
-        [practitioner_ids, bid]
+    // Use transaction to ensure service + variants + practitioner links are atomic
+    const service = await transactionWithRLS(bid, async (client) => {
+      const result = await client.query(
+        `INSERT INTO services (business_id, name, category, duration_min,
+          buffer_before_min, buffer_after_min, price_cents, price_label,
+          mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         RETURNING *`,
+        [bid, name, category || null, duration_min,
+         buffer_before_min || 0, buffer_after_min || 0,
+         price_cents || null, price_label || null,
+         JSON.stringify(mode_options || ['cabinet']),
+         prep_instructions_fr || null, prep_instructions_nl || null,
+         color || null, description || null,
+         available_schedule ? JSON.stringify(available_schedule) : null]
       );
-      const validIds = validPracs.rows.map(r => r.id);
-      if (validIds.length > 0) {
-        const values = validIds.map((pid, i) =>
-          `($${i * 2 + 1}, $${i * 2 + 2})`
-        ).join(', ');
-        const params = validIds.flatMap(pid => [pid, result.rows[0].id]);
-        await queryWithRLS(bid,
-          `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ${values}`,
-          params
-        );
-      }
-    }
 
-    res.status(201).json({ service: result.rows[0] });
+      const svc = result.rows[0];
+
+      // Create variants if provided
+      if (Array.isArray(variants) && variants.length > 0) {
+        for (let i = 0; i < variants.length; i++) {
+          const v = variants[i];
+          if (!v.name || !v.duration_min || v.duration_min <= 0) continue;
+          await client.query(
+            `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [bid, svc.id, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i]
+          );
+        }
+      }
+
+      // Link practitioners (validate they belong to this business)
+      if (practitioner_ids && practitioner_ids.length > 0) {
+        const validPracs = await client.query(
+          `SELECT id FROM practitioners WHERE id = ANY($1) AND business_id = $2`,
+          [practitioner_ids, bid]
+        );
+        const validIds = validPracs.rows.map(r => r.id);
+        for (const pid of validIds) {
+          await client.query(
+            `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ($1, $2)`,
+            [pid, svc.id]
+          );
+        }
+      }
+
+      return svc;
+    });
+
+    res.status(201).json({ service });
   } catch (err) {
     next(err);
   }
@@ -137,12 +139,18 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     for (const [key, val] of Object.entries(fields)) {
       if (allowed.includes(key)) {
         sets.push(`${key} = $${idx}`);
-        params.push((key === 'mode_options' || key === 'available_schedule') ? JSON.stringify(val) : val);
+        // JSON fields: stringify non-null values, pass null as SQL NULL
+        if (key === 'mode_options' || key === 'available_schedule') {
+          params.push(val != null ? JSON.stringify(val) : null);
+        } else {
+          params.push(val);
+        }
         idx++;
       }
     }
 
-    if (sets.length === 0) {
+    // Allow variant-only updates (no service field changes) to proceed
+    if (sets.length === 0 && !Array.isArray(fields.variants)) {
       return res.status(400).json({ error: 'Aucun champ à modifier' });
     }
 

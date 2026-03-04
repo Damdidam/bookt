@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { query } = require('../../services/db');
+const { query, queryWithRLS } = require('../../services/db');
 const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
@@ -144,18 +144,22 @@ router.get('/:slug', async (req, res, next) => {
       )
     ]);
 
-    // Fetch service variants (separate query, not in Promise.all since we need bid)
-    const variantsResult = await query(
-      `SELECT id, service_id, name, duration_min, price_cents, sort_order
-       FROM service_variants
-       WHERE business_id = $1 AND is_active = true
-       ORDER BY sort_order, name`,
-      [bid]
-    );
+    // Fetch service variants (use queryWithRLS to satisfy RLS policies)
     const varByService = {};
-    for (const v of variantsResult.rows) {
-      if (!varByService[v.service_id]) varByService[v.service_id] = [];
-      varByService[v.service_id].push(v);
+    try {
+      const variantsResult = await queryWithRLS(bid,
+        `SELECT id, service_id, name, duration_min, price_cents, sort_order
+         FROM service_variants
+         WHERE business_id = $1 AND is_active = true
+         ORDER BY sort_order, name`,
+        [bid]
+      );
+      for (const v of variantsResult.rows) {
+        if (!varByService[v.service_id]) varByService[v.service_id] = [];
+        varByService[v.service_id].push(v);
+      }
+    } catch (e) {
+      console.warn('service_variants query failed:', e.message);
     }
 
     const specializations = specResult.rows;
@@ -640,7 +644,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         for (let i = 0; i < multiServices.length; i++) {
           const vid = variant_ids[i];
           if (vid && UUID_RE.test(vid)) {
-            const vr = await query(
+            const vr = await queryWithRLS(businessId,
               `SELECT duration_min, price_cents FROM service_variants
                WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
               [vid, multiServices[i].id, businessId]
@@ -971,7 +975,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       // Override duration from variant if provided
       if (resolvedVariantId) {
-        const vr = await query(
+        const vr = await queryWithRLS(businessId,
           `SELECT duration_min FROM service_variants
            WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
           [resolvedVariantId, effectiveServiceId, businessId]
