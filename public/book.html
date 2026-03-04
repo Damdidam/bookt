@@ -231,6 +231,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .svc-var-item .vn{flex:1;font-size:.82rem;font-weight:600;min-width:0}
 .svc-var-item .vd{font-size:.72rem;color:var(--text-4);white-space:nowrap}
 .svc-var-item .vp{font-size:.85rem;font-weight:700;color:var(--primary);white-space:nowrap}
+.svc-card.no-book{cursor:default;opacity:.85}
+.svc-card.no-book:active{transform:none}
+.svc-card.no-book .svc-var-item{cursor:default;pointer-events:none;opacity:.7}
+.svc-card.no-book .svc-var-item:hover{border-color:var(--border-light);background:var(--white)}
+.svc-no-book-msg{margin-top:8px;padding:10px 12px;border-radius:8px;background:var(--surface);font-size:.78rem;color:var(--text-3);line-height:1.4}
+.svc-no-book-msg a{color:var(--primary);font-weight:700;text-decoration:none}
+.svc-no-book-msg svg{width:14px;height:14px;vertical-align:-2px;margin-right:4px}
 </style>
 </head>
 <body>
@@ -490,12 +497,12 @@ function initPage(){
   // Build service card HTML (shared helper)
   function buildSvcCardHTML(s,isMulti){
     const hasVars=s.variants&&s.variants.length>0;
+    const noBook=s.bookable_online===false;
     const isSel=isMulti?selectedServices.some(x=>x.id===s.id):false;
     const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
-    let h='<div class="svc-card'+(hasVars?' has-vars':'')+(isSel?' sel':'')+'" data-id="'+s.id+'">';
-    if(isMulti)h+='<span class="svc-check">\u2713</span>';
+    let h='<div class="svc-card'+(hasVars?' has-vars':'')+(noBook?' no-book':'')+(isSel?' sel':'')+'" data-id="'+s.id+'">';
+    if(isMulti&&!noBook)h+='<span class="svc-check">\u2713</span>';
     if(hasVars){
-      // Service with variants: show name header + inline variant list
       h+='<div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span></div>';
       if(s.description)h+='<div class="svc-desc">'+s.description+'</div>';
       h+='<div class="svc-variants">';
@@ -509,11 +516,15 @@ function initPage(){
       h+='</div>';
       if(modes)h+='<div class="svc-modes">'+modes+'</div>';
     }else{
-      // Service without variants: show name + price + duration
       h+='<div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+svcDisplayPrice(s)+'</span></div>';
       h+='<div class="meta">'+svcDurationLabel(s)+'</div>';
       if(s.description)h+='<div class="svc-desc">'+s.description+'</div>';
       if(modes)h+='<div class="svc-modes">'+modes+'</div>';
+    }
+    if(noBook){
+      var phone=siteData.business.phone||'';
+      h+='<div class="svc-no-book-msg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
+        +'Non r\u00e9servable en ligne.'+(phone?' Contactez-nous au <a href="tel:'+phone+'">'+phone+'</a>':' Veuillez nous contacter par t\u00e9l\u00e9phone.')+'</div>';
     }
     h+='</div>';
     return h;
@@ -541,11 +552,12 @@ function initPage(){
   list.innerHTML=svcHtml;
 
   // Click handlers — variant items get their own handler, non-variant cards keep the old one
-  list.querySelectorAll('.svc-var-item').forEach(vi=>vi.addEventListener('click',function(e){
+  // Exclude .no-book services from all click handlers
+  list.querySelectorAll('.svc-card:not(.no-book) .svc-var-item').forEach(vi=>vi.addEventListener('click',function(e){
     e.stopPropagation();
     selectVariant(vi.dataset.svcId, parseInt(vi.dataset.varIdx));
   }));
-  list.querySelectorAll('.svc-card:not(.has-vars)').forEach(c=>c.addEventListener('click',()=>selectService(c.dataset.id)));
+  list.querySelectorAll('.svc-card:not(.has-vars):not(.no-book)').forEach(c=>c.addEventListener('click',()=>selectService(c.dataset.id)));
 
   // Build and render category tab bar
   const sectorCats=siteData.sector_categories||[];
@@ -731,7 +743,7 @@ function renderVedetteList(){
 // ──────── SERVICE ────────
 function selectService(id){
   var svc=siteData.services.find(function(s){return s.id===id;});
-  if(!svc)return;
+  if(!svc||svc.bookable_online===false)return;
   // Services with variants are handled by selectVariant() — this is for non-variant services only
   if(multiServiceMode){
     var idx=selectedServices.findIndex(function(s){return s.id===id;});
@@ -761,7 +773,7 @@ function selectService(id){
 }
 function selectVariant(svcId, varIdx){
   var svc=siteData.services.find(function(s){return s.id===svcId;});
-  if(!svc||!svc.variants||!svc.variants[varIdx])return;
+  if(!svc||svc.bookable_online===false||!svc.variants||!svc.variants[varIdx])return;
   var variant=svc.variants[varIdx];
   if(multiServiceMode){
     // If this service already selected, check if clicking same variant (deselect) or different (switch)

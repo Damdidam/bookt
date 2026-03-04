@@ -111,6 +111,7 @@ CREATE TABLE services (
   prep_instructions_nl TEXT,                            -- NL version
   description         TEXT,                              -- Description visible par les clients
   is_active           BOOLEAN DEFAULT true,
+  bookable_online     BOOLEAN DEFAULT true,             -- false = display-only, must call to book
   sort_order          INTEGER DEFAULT 0,
   color               VARCHAR(7),                       -- Dot color in service list
   created_at          TIMESTAMPTZ DEFAULT NOW(),

@@ -340,6 +340,9 @@ function renderServiceModal(svc,sectorCats,prefill){
     m+=`</div>`;
   }
   m+=`</div></div>`;
+  // Bookable online toggle
+  const isBookable=svc?svc.bookable_online!==false:true;
+  m+=`<div class="field" style="margin-top:10px"><label class="svc-switch"><input type="checkbox" id="svc_bookable_online" ${isBookable?'checked':''}><span class="svc-switch-track"></span> R\u00e9servable en ligne</label></div>`;
   m+=`</div>`; // end section 3
 
   // ── SECTION 4: Affectation ──
@@ -438,6 +441,7 @@ async function saveService(id){
   const priceVal=document.getElementById('svc_price').value;
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
+  body.bookable_online=document.getElementById('svc_bookable_online').checked;
   // Schedule restriction
   body.available_schedule=buildScheduleFromEditor();
   const varRows=document.querySelectorAll('#svc_variants_list .svc-var-row');

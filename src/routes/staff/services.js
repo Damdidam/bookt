@@ -41,7 +41,8 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
     const bid = req.businessId;
     const { name, category, duration_min, buffer_before_min, buffer_after_min,
             price_cents, price_label, mode_options, prep_instructions_fr,
-            prep_instructions_nl, color, description, available_schedule, practitioner_ids, variants } = req.body;
+            prep_instructions_nl, color, description, available_schedule, practitioner_ids, variants,
+            bookable_online } = req.body;
 
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
@@ -57,8 +58,8 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
       const result = await client.query(
         `INSERT INTO services (business_id, name, category, duration_min,
           buffer_before_min, buffer_after_min, price_cents, price_label,
-          mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule, bookable_online)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING *`,
         [bid, name, category || null, duration_min,
          buffer_before_min || 0, buffer_after_min || 0,
@@ -66,7 +67,8 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
          JSON.stringify(mode_options || ['cabinet']),
          prep_instructions_fr || null, prep_instructions_nl || null,
          color || null, description || null,
-         available_schedule ? JSON.stringify(available_schedule) : null]
+         available_schedule ? JSON.stringify(available_schedule) : null,
+         bookable_online !== false]
       );
 
       const svc = result.rows[0];
@@ -130,7 +132,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     // Build dynamic update
     const allowed = ['name', 'category', 'duration_min', 'buffer_before_min',
       'buffer_after_min', 'price_cents', 'price_label', 'mode_options',
-      'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description', 'available_schedule'];
+      'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description', 'available_schedule', 'bookable_online'];
 
     const sets = [];
     const params = [id, bid];

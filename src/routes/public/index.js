@@ -103,7 +103,7 @@ router.get('/:slug', async (req, res, next) => {
       // Services
       query(
         `SELECT id, name, category, duration_min, price_cents, price_label,
-                mode_options, prep_instructions_fr, prep_instructions_nl, color, description
+                mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -258,6 +258,7 @@ router.get('/:slug', async (req, res, next) => {
         prep_instructions_nl: s.prep_instructions_nl,
         color: s.color,
         description: s.description || null,
+        bookable_online: s.bookable_online !== false,
         variants: (varByService[s.id] || []).map(v => ({
           id: v.id, name: v.name, duration_min: v.duration_min,
           price_cents: v.price_cents,
