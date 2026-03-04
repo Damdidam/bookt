@@ -9,6 +9,7 @@ import { cswHTML } from './agenda/color-swatches.js';
 let allPractitioners=[];
 let allSectorCats=[];
 let allTemplateGroups=[];
+let allServices=[];
 
 const DAY_LABELS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 
@@ -23,6 +24,7 @@ async function loadServices(){
     ]);
     const sd=await sr.json(), pd=await pr.json();
     const svcs=sd.services||[];
+    allServices=svcs;
     allPractitioners=pd.practitioners||[];
     if(cr.ok){const cd=await cr.json();allSectorCats=cd.categories||[];}
     // Pre-fetch templates for "+" buttons
@@ -71,6 +73,7 @@ async function loadServices(){
         h+=`<span class="svc-cat-label">${esc(cat)}</span>`;
         h+=`<span class="svc-cat-count">${groupSvcs.length}</span>`;
         h+=`<button class="svc-cat-add" onclick="event.stopPropagation();svcAddFromTemplate('${esc(cat)}')" title="Ajouter une prestation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
+        if(cat!=='Autres')h+=`<button class="svc-cat-add" onclick="event.stopPropagation();svcDeleteCategory('${esc(cat)}')" title="Supprimer cette catégorie" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
         h+=`<span class="svc-cat-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg></span>`;
         h+=`</div>`;
         h+=`<div class="svc-cat-body">`;
@@ -135,6 +138,32 @@ async function svcNewCategory(){
     const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:v.trim()})});
     if(!r.ok)throw new Error((await r.json()).error);
     GendaUI.toast('Cat\u00e9gorie cr\u00e9\u00e9e','success');loadServices();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function svcDeleteCategory(cat){
+  const svcsInCat=allServices.filter(s=>(s.category||'Autres')===cat);
+  const msg=svcsInCat.length>0
+    ?`Supprimer la catégorie "${cat}" et ses ${svcsInCat.length} prestation(s) ?\n\nCette action est irréversible.`
+    :`Supprimer la catégorie "${cat}" (vide) ?`;
+  if(!confirm(msg))return;
+  try{
+    let errors=0;
+    // Delete all services in this category
+    for(const s of svcsInCat){
+      try{
+        const r=await fetch(`/api/services/${s.id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+        if(!r.ok)errors++;
+      }catch(e){errors++;}
+    }
+    // Delete the business_category if it exists
+    const bizCat=allSectorCats.find(c=>c.label===cat&&c.source==='custom');
+    if(bizCat?.id){
+      await fetch(`/api/business/categories/${bizCat.id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}}).catch(()=>{});
+    }
+    if(errors>0)GendaUI.toast(`${errors} erreur(s) lors de la suppression`,'error');
+    else GendaUI.toast(`Catégorie "${cat}" supprimée`,'success');
+    loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -478,15 +507,19 @@ function qsGoStep2(){
   modal.querySelector('.modal-h h3').textContent='Ajustez vos prestations';
   const durations=[15,30,45,60,90,120];
   let body=`<p class="qs-subtitle">Modifiez les noms, dur\u00e9es et prix selon votre carte</p>`;
+  // Build set of existing service names (lowercase) per category to detect duplicates
+  const existingNames=new Set(allServices.map(s=>(s.name||'').trim().toLowerCase()));
+
   const selectedGroups=qsGroups.filter(g=>qsSelectedCats.has(g.category));
   selectedGroups.forEach(g=>{
     body+=`<div class="qs-cat-section"><div class="qs-cat-header">${g.icon_svg||defaultIcon}<h4>${g.category}</h4><span class="qs-cat-badge">${g.templates.length}</span></div>`;
     g.templates.forEach((t,i)=>{
       const price=t.suggested_price_cents?Math.round(t.suggested_price_cents/100):'';
       const dur=t.suggested_duration_min||30;
-      body+=`<div class="qs-tpl-row" data-category="${g.category}">
-        <input type="checkbox" class="qs-tpl-check" checked onchange="qsToggleTpl(this)">
-        <input class="qs-tpl-name" value="${t.name}">
+      const alreadyExists=existingNames.has((t.name||'').trim().toLowerCase());
+      body+=`<div class="qs-tpl-row${alreadyExists?' unchecked':''}" data-category="${g.category}">
+        <input type="checkbox" class="qs-tpl-check" ${alreadyExists?'':'checked'} onchange="qsToggleTpl(this)">
+        <input class="qs-tpl-name" value="${t.name}">${alreadyExists?'<span style="font-size:.68rem;color:var(--orange,#e65100);font-weight:500;white-space:nowrap">déjà créée</span>':''}
         <div class="qs-dur-chips">`;
       durations.forEach(d=>{
         body+=`<span class="qs-dur-chip${d===dur?' active':''}" onclick="qsDur(this,${d})">${d}</span>`;
@@ -568,6 +601,6 @@ function svcAddVariant(){
 }
 function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();}
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcToggleSection, svcNewCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcToggleSection, svcNewCategory, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };
