@@ -1,12 +1,12 @@
 /**
- * Booking Ungroup — PATCH /:id/ungroup
+ * Booking Ungroup — PATCH /:id/ungroup + DELETE /:id/group-remove
  * Detaches a booking from its group, optionally reassigning practitioner
- * and/or replacing service.
+ * and/or replacing service. Also allows removing a member entirely.
  */
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
-const { calSyncPush, businessAllowsOverlap, getMaxConcurrent } = require('./bookings-helpers');
+const { calSyncPush, calSyncDelete, businessAllowsOverlap, getMaxConcurrent } = require('./bookings-helpers');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -231,6 +231,134 @@ router.patch('/:id/ungroup', async (req, res, next) => {
     res.json({
       updated: true,
       booking: result.booking,
+      remaining_group_size: result.remaining_group_size
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
+// DELETE /api/bookings/:id/group-remove — Remove a member from its group
+// Permanently deletes the booking. Remaining group is re-sequenced.
+// If only 1 member left, it is also ungrouped.
+// UI: Calendar → detail modal → Group section → 🗑 button
+// ============================================================
+router.delete('/:id/group-remove', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    // Only owner/manager/staff can remove — not practitioners
+    if (req.user.role === 'practitioner') {
+      return res.status(403).json({ error: 'Seuls les gestionnaires peuvent supprimer une prestation du groupe' });
+    }
+
+    // 1. Fetch the booking
+    const bkRes = await queryWithRLS(bid,
+      `SELECT b.id, b.group_id, b.group_order, b.status, b.start_at, b.end_at,
+              b.practitioner_id, b.service_id
+       FROM bookings b
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [id, bid]
+    );
+    if (bkRes.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const booking = bkRes.rows[0];
+
+    // 2. Must be part of a group
+    if (!booking.group_id) {
+      return res.status(400).json({ error: 'Ce RDV ne fait pas partie d\'un groupe' });
+    }
+
+    // 3. Transaction: delete + resequence remaining group
+    let result;
+    try {
+      result = await transactionWithRLS(bid, async (client) => {
+        // Lock the booking FOR UPDATE
+        const lock = await client.query(
+          `SELECT id, group_id, group_order, status, service_id, practitioner_id, start_at, end_at
+           FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+          [id, bid]
+        );
+        if (lock.rows.length === 0) throw Object.assign(new Error('RDV introuvable'), { type: 'not_found' });
+        const locked = lock.rows[0];
+
+        // Re-check group_id (concurrency guard)
+        if (!locked.group_id) throw Object.assign(new Error('Ce RDV ne fait plus partie d\'un groupe'), { type: 'bad_request' });
+
+        const groupId = locked.group_id;
+
+        // Delete related records first (foreign key dependencies)
+        await client.query(`DELETE FROM booking_notes WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+        await client.query(`DELETE FROM practitioner_todos WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+        await client.query(`DELETE FROM booking_reminders WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+        await client.query(`DELETE FROM pre_rdv_sends WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+
+        // Delete the booking itself
+        await client.query(
+          `DELETE FROM bookings WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+
+        // Count remaining members in the group
+        const remainRes = await client.query(
+          `SELECT id, group_order FROM bookings
+           WHERE group_id = $1 AND business_id = $2
+           ORDER BY group_order`,
+          [groupId, bid]
+        );
+        const remaining = remainRes.rows;
+
+        if (remaining.length === 1) {
+          // Only 1 member left → ungroup it (no group of 1)
+          await client.query(
+            `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [remaining[0].id, bid]
+          );
+        } else if (remaining.length > 1) {
+          // Re-sequence group_order (0, 1, 2...)
+          for (let i = 0; i < remaining.length; i++) {
+            if (remaining[i].group_order !== i) {
+              await client.query(
+                `UPDATE bookings SET group_order = $1, updated_at = NOW()
+                 WHERE id = $2 AND business_id = $3`,
+                [i, remaining[i].id, bid]
+              );
+            }
+          }
+        }
+
+        // Audit log
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'booking', $3, 'group_remove', $4, $5)`,
+          [bid, req.user.id, id,
+           JSON.stringify({
+             group_id: groupId,
+             group_order: locked.group_order,
+             service_id: locked.service_id,
+             practitioner_id: locked.practitioner_id,
+             start_at: locked.start_at,
+             end_at: locked.end_at
+           }),
+           JSON.stringify({ remaining_group_size: remaining.length })]
+        );
+
+        return { remaining_group_size: remaining.length };
+      });
+    } catch (err) {
+      if (err.type === 'bad_request' || err.type === 'not_found') return res.status(err.type === 'not_found' ? 404 : 400).json({ error: err.message });
+      throw err;
+    }
+
+    // Post-transaction: broadcast + calendar sync delete
+    broadcast(bid, 'booking_update', { action: 'group_member_removed' });
+    calSyncDelete(bid, id).catch(() => {});
+
+    res.json({
+      deleted: true,
       remaining_group_size: result.remaining_group_size
     });
   } catch (err) {

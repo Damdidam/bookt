@@ -135,9 +135,35 @@ async function fcConfirmUngroup(siblingId) {
   }
 }
 
+/**
+ * Remove a member from the group entirely (permanent delete).
+ * Shows a confirmation dialog before proceeding.
+ * @param {string} siblingId — the booking ID to remove
+ * @param {string} serviceName — display name for confirmation message
+ */
+async function fcRemoveFromGroup(siblingId, serviceName) {
+  if (!confirm(`Supprimer « ${serviceName} » du groupe ?\n\nCette action est irréversible.`)) return;
+
+  try {
+    const r = await fetch(`/api/bookings/${siblingId}/group-remove`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.error || 'Erreur');
+    }
+    gToast('Prestation supprimée du groupe', 'success');
+    closeCalModal('calDetailModal');
+    fcRefresh();
+  } catch (e) {
+    gToast('Erreur : ' + e.message, 'error');
+  }
+}
+
 /** Remove the ungroup panel from the DOM */
 function fcHideUngroupPanel() {
   document.querySelectorAll('.m-ungroup-panel').forEach(el => el.remove());
 }
 
-bridge({ fcShowUngroupPanel, fcUngroupPracChange, fcConfirmUngroup, fcHideUngroupPanel });
+bridge({ fcShowUngroupPanel, fcUngroupPracChange, fcConfirmUngroup, fcHideUngroupPanel, fcRemoveFromGroup });

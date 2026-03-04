@@ -119,6 +119,10 @@ textarea.m-input{resize:vertical;min-height:38px}
 .g-detach-btn:hover{background:var(--red-bg);color:var(--red);border-color:var(--red)}
 .m-group-item.current .g-detach-btn{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:rgba(255,255,255,.7)}
 .m-group-item.current .g-detach-btn:hover{background:rgba(255,255,255,.25);color:#fff;border-color:rgba(255,255,255,.5)}
+.g-delete-btn{flex-shrink:0;width:24px;height:24px;border-radius:6px;border:1px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-4);transition:all .15s;padding:0;margin-left:2px}
+.g-delete-btn:hover{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+.m-group-item.current .g-delete-btn{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:rgba(255,255,255,.7)}
+.m-group-item.current .g-delete-btn:hover{background:rgba(255,200,200,.3);color:#fff;border-color:rgba(255,255,255,.5)}
 
 /* ── Ungroup panel ── */
 .m-ungroup-panel{margin:4px 0 6px;padding:12px 14px;border-radius:10px;border:1.5px solid var(--primary);background:var(--primary-light);animation:ugSlide .2s ease}
