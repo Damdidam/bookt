@@ -38,7 +38,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   // 2. Fetch service details
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule
      FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
     [serviceId, businessId]
   );
@@ -239,6 +239,16 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
         if (!windows || windows.length === 0) continue; // Not available this day
       }
 
+      // Service time restrictions — intersect with practitioner windows
+      if (service.available_schedule?.type === 'restricted') {
+        const svcWindows = (service.available_schedule.windows || [])
+          .filter(w => w.day === weekday)
+          .map(w => ({ start: w.from, end: w.to }));
+        if (svcWindows.length === 0) continue; // service not available this day
+        windows = intersectWindows(windows, svcWindows);
+        if (windows.length === 0) continue;
+      }
+
       // Get bookings for this practitioner on this date
       const bkKey = `${pracId}-${dateStr}`;
       const dayBookings = bookingMap[bkKey] || [];
@@ -298,6 +308,26 @@ function minutesToTime(minutes) {
 }
 
 /**
+ * Intersect two sets of time windows.
+ * Each window: { start: "HH:MM", end: "HH:MM" }
+ * Returns the overlapping segments.
+ */
+function intersectWindows(windowsA, windowsB) {
+  const result = [];
+  for (const a of windowsA) {
+    const aStart = timeToMinutes(a.start), aEnd = timeToMinutes(a.end);
+    for (const b of windowsB) {
+      const bStart = timeToMinutes(b.start), bEnd = timeToMinutes(b.end);
+      const start = Math.max(aStart, bStart), end = Math.min(aEnd, bEnd);
+      if (start < end) {
+        result.push({ start: minutesToTime(start), end: minutesToTime(end) });
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * MULTI-SERVICE SLOT ENGINE
  *
  * Calculates available time slots for chained multi-service bookings.
@@ -335,7 +365,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
 
   // 2. Fetch all services in one query, preserving order from serviceIds array
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule
      FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
      ORDER BY array_position($1, id)`,
     [serviceIds, businessId]
@@ -550,6 +580,19 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
         windows = availMap[avKey];
         if (!windows || windows.length === 0) continue;
       }
+
+      // Multi-service time restrictions — intersect all services' schedules
+      for (const svc of services) {
+        if (svc.available_schedule?.type === 'restricted') {
+          const svcWindows = (svc.available_schedule.windows || [])
+            .filter(w => w.day === weekday)
+            .map(w => ({ start: w.from, end: w.to }));
+          if (svcWindows.length === 0) { windows = []; break; }
+          windows = intersectWindows(windows, svcWindows);
+          if (windows.length === 0) break;
+        }
+      }
+      if (windows.length === 0) continue;
 
       const bkKey = `${pracId}-${dateStr}`;
       const dayBookings = bookingMap[bkKey] || [];

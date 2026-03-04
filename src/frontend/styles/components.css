@@ -85,6 +85,30 @@
 .svc-card .svc-actions{display:flex;gap:5px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light)}
 .svc-card.inactive{opacity:.45;border-left-color:var(--text-4)}
 
+/* ===== SERVICE CATEGORY SECTIONS ===== */
+.svc-cat-section{margin-bottom:12px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--white);overflow:hidden}
+.svc-cat-header{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none;background:var(--surface);border-bottom:1px solid var(--border-light);transition:background .15s}
+.svc-cat-header:hover{background:var(--bg-card)}
+.svc-cat-icon{display:flex;align-items:center}
+.svc-cat-icon svg{width:20px;height:20px;color:var(--text-3)}
+.svc-cat-label{font-size:.88rem;font-weight:700;color:var(--text);flex:1}
+.svc-cat-count{font-size:.72rem;font-weight:600;color:var(--text-4);background:var(--border-light);padding:2px 8px;border-radius:10px}
+.svc-cat-add{background:none;border:1.5px solid var(--primary);color:var(--primary);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;padding:0;flex-shrink:0;position:relative}
+.svc-cat-add:hover{background:var(--primary);color:var(--white)}
+.svc-cat-chevron{display:flex;transition:transform .2s;color:var(--text-4)}
+.svc-cat-section.collapsed .svc-cat-chevron{transform:rotate(-90deg)}
+.svc-cat-body{padding:12px 16px}
+.svc-cat-section.collapsed .svc-cat-body{display:none}
+.svc-tpl-picker{position:absolute;top:100%;right:0;z-index:100;min-width:280px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg,0 4px 24px rgba(0,0,0,.15));overflow:hidden;margin-top:4px}
+.svc-tpl-picker-title{font-size:.72rem;font-weight:700;color:var(--text-4);padding:8px 12px;border-bottom:1px solid var(--border-light);text-transform:uppercase;letter-spacing:.5px}
+.svc-tpl-picker-item{padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .1s;border-bottom:1px solid var(--border-light)}
+.svc-tpl-picker-item:last-child{border-bottom:none}
+.svc-tpl-picker-item:hover{background:var(--surface)}
+.svc-tpl-picker-name{font-size:.82rem;font-weight:500;color:var(--text)}
+.svc-tpl-picker-meta{font-size:.72rem;color:var(--text-4)}
+.svc-tpl-picker-custom{border-top:1px solid var(--border)}
+.svc-tpl-picker-custom .svc-tpl-picker-name{color:var(--primary);font-weight:600}
+
 /* ===== HOURS / AVAILABILITY ===== */
 .hours-schedule{margin-top:12px}
 .pract-block{margin-bottom:24px}

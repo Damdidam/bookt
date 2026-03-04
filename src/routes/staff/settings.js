@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
-const { requireAuth, requireOwner } = require('../../middleware/auth');
+const { requireAuth, requireOwner, requireRole } = require('../../middleware/auth');
 
 // V11-025: Strip HTML tags from text fields to prevent injection
 function stripHtml(str) {
@@ -301,7 +301,7 @@ router.get('/service-templates', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/sector-categories — catalog + custom categories for this business
+// GET /api/business/sector-categories — catalog + custom categories for this business
 router.get('/sector-categories', requireAuth, async (req, res) => {
   try {
     const businessId = req.businessId;
@@ -318,22 +318,76 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
       [sector]
     );
 
-    // Get custom categories already used by this business (not in catalog)
     const catalogLabels = catalogResult.rows.map(r => r.label);
-    const customResult = await queryWithRLS(businessId,
+
+    // Get custom categories from business_categories table
+    let bizCatRows = [];
+    try {
+      const bizCatResult = await queryWithRLS(businessId,
+        `SELECT id, label, icon_svg, sort_order, 'custom' AS source FROM business_categories
+         WHERE business_id = $1 ORDER BY sort_order, label`,
+        [businessId]
+      );
+      bizCatRows = bizCatResult.rows.filter(r => !catalogLabels.includes(r.label));
+    } catch (e) {
+      if (e.code !== '42P01') throw e; // table doesn't exist yet
+    }
+
+    // Get custom categories already used in services (not in catalog or business_categories)
+    const allKnownLabels = [...catalogLabels, ...bizCatRows.map(r => r.label)];
+    const svcCustomResult = await queryWithRLS(businessId,
       `SELECT DISTINCT category AS label FROM services
        WHERE business_id = $1 AND category IS NOT NULL AND category != ''
        AND category != ALL($2)
        ORDER BY category`,
-      [businessId, catalogLabels]
+      [businessId, allKnownLabels]
     );
-    const customRows = customResult.rows.map(r => ({ ...r, icon_svg: null, sort_order: 999, source: 'custom' }));
+    const svcCustomRows = svcCustomResult.rows.map(r => ({ ...r, icon_svg: null, sort_order: 999, source: 'custom' }));
 
-    res.json({ sector, categories: [...catalogResult.rows, ...customRows] });
+    res.json({ sector, categories: [...catalogResult.rows, ...bizCatRows, ...svcCustomRows] });
   } catch (err) {
     console.error('[SETTINGS] sector-categories error:', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
+});
+
+// POST /api/business/categories — create a custom category
+router.post('/categories', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { label } = req.body;
+    if (!label || !label.trim()) return res.status(400).json({ error: 'Label requis' });
+
+    // Check for duplicate
+    try {
+      const existing = await queryWithRLS(bid,
+        `SELECT id FROM business_categories WHERE business_id = $1 AND LOWER(label) = LOWER($2)`,
+        [bid, label.trim()]
+      );
+      if (existing.rows.length > 0) return res.status(409).json({ error: 'Cette catégorie existe déjà' });
+    } catch (e) {
+      if (e.code !== '42P01') throw e;
+    }
+
+    const result = await queryWithRLS(bid,
+      `INSERT INTO business_categories (business_id, label) VALUES ($1, $2) RETURNING *`,
+      [bid, label.trim()]
+    );
+    res.status(201).json({ category: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/business/categories/:id — delete a custom category
+router.delete('/categories/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const result = await queryWithRLS(bid,
+      `DELETE FROM business_categories WHERE id = $1 AND business_id = $2 RETURNING id`,
+      [req.params.id, bid]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Catégorie introuvable' });
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

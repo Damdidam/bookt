@@ -41,7 +41,7 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
     const bid = req.businessId;
     const { name, category, duration_min, buffer_before_min, buffer_after_min,
             price_cents, price_label, mode_options, prep_instructions_fr,
-            prep_instructions_nl, color, description, practitioner_ids, variants } = req.body;
+            prep_instructions_nl, color, description, available_schedule, practitioner_ids, variants } = req.body;
 
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
@@ -55,15 +55,16 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
     const result = await queryWithRLS(bid,
       `INSERT INTO services (business_id, name, category, duration_min,
         buffer_before_min, buffer_after_min, price_cents, price_label,
-        mode_options, prep_instructions_fr, prep_instructions_nl, color, description)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [bid, name, category || null, duration_min,
        buffer_before_min || 0, buffer_after_min || 0,
        price_cents || null, price_label || null,
        JSON.stringify(mode_options || ['cabinet']),
        prep_instructions_fr || null, prep_instructions_nl || null,
-       color || null, description || null]
+       color || null, description || null,
+       available_schedule ? JSON.stringify(available_schedule) : null]
     );
 
     // Create variants if provided
@@ -127,7 +128,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     // Build dynamic update
     const allowed = ['name', 'category', 'duration_min', 'buffer_before_min',
       'buffer_after_min', 'price_cents', 'price_label', 'mode_options',
-      'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description'];
+      'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description', 'available_schedule'];
 
     const sets = [];
     const params = [id, bid];
@@ -136,7 +137,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     for (const [key, val] of Object.entries(fields)) {
       if (allowed.includes(key)) {
         sets.push(`${key} = $${idx}`);
-        params.push(key === 'mode_options' ? JSON.stringify(val) : val);
+        params.push((key === 'mode_options' || key === 'available_schedule') ? JSON.stringify(val) : val);
         idx++;
       }
     }
