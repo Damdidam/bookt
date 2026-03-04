@@ -246,8 +246,14 @@ function renderServiceModal(svc,sectorCats,prefill){
   const isEdit=!!svc;
   const pf=prefill||{};
   const svcLabel=categoryLabels.service.toLowerCase();
+  const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
+
   let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le '+svcLabel:'Nouveau '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
-  m+=`<div class="field"><label>Cat\u00e9gorie</label><select id="svc_cat" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;background:var(--white)">`;
+
+  // ── SECTION 1: Informations ──
+  m+=sec('Informations');
+  // Category
+  m+=`<div class="field"><label>Cat\u00e9gorie</label><select id="svc_cat">`;
   m+=`<option value="">\u2014 Choisir une cat\u00e9gorie \u2014</option>`;
   const currentCat=svc?.category||pf.category||'';
   (sectorCats||[]).forEach(c=>{
@@ -259,13 +265,34 @@ function renderServiceModal(svc,sectorCats,prefill){
   if(isUnknown){m+=`<option value="${currentCat}" selected>${currentCat} (personnalis\u00e9e)</option>`;}
   m+=`<option value="__custom__">+ Cat\u00e9gorie personnalis\u00e9e...</option>`;
   m+=`</select></div>`;
-  m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
-  m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="svc_desc" rows="2" placeholder="D\u00e9crivez la prestation pour vos clients..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;resize:vertical">${svc?.description||''}</textarea></div>`;
+  // Name + Color (same row)
+  m+=`<div class="field-row" style="align-items:flex-end">`;
+  m+=`<div class="field" style="flex:1"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
+  m+=`<div class="field" style="flex:0 0 auto"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
+  m+=`</div>`;
+  // Description
+  m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="svc_desc" rows="2" placeholder="D\u00e9crivez la prestation pour vos clients...">${svc?.description||''}</textarea></div>`;
+  m+=`</div>`; // end section 1
+
+  // ── SECTION 2: Tarification ──
+  m+=sec('Tarification');
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
   m+=`<div class="field-row"><div class="field"><label>Dur\u00e9e (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5"></div><div class="field"><label>Prix (\u20ac)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
+  m+=`<div class="field"><label>Label prix <span style="font-weight:400;color:var(--text-4)">(si pas de montant)</span></label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
+  // Variants
+  const existingVars=svc?.variants||[];
+  m+=`<div class="field"><label>Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label><div id="svc_variants_list">`;
+  existingVars.forEach(v=>{
+    m+=`<div class="svc-var-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input class="svc-var-name" value="${esc(v.name)}" placeholder="Nom" style="flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-dur" value="${v.duration_min}" min="5" step="5" placeholder="Min" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-price" value="${v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="\u20ac" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="hidden" class="svc-var-id" value="${v.id}"><button type="button" onclick="svcRemoveVariant(this)" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1">&times;</button></div>`;
+  });
+  m+=`</div><button type="button" class="btn-outline btn-sm" onclick="svcAddVariant()" style="margin-top:4px;font-size:.78rem">+ Variante</button><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Ex: Courts (60min, 45\u20ac), Mi-Longs (75min, 55\u20ac)</div></div>`;
+  m+=`</div>`; // end section 2
+
+  // ── SECTION 3: Planification ──
+  m+=sec('Planification');
   m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer apr\u00e8s (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
-  m+=`<div class="field"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
+  // Consultation modes (conditional)
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
@@ -276,15 +303,7 @@ function renderServiceModal(svc,sectorCats,prefill){
     <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> T\u00e9l</label>
   </div></div>`;
   }
-  m+=`<div class="field"><label>Label prix (si pas de montant)</label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
-  // Variants section
-  const existingVars=svc?.variants||[];
-  m+=`<div class="field"><label>Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label><div id="svc_variants_list">`;
-  existingVars.forEach(v=>{
-    m+=`<div class="svc-var-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input class="svc-var-name" value="${esc(v.name)}" placeholder="Nom" style="flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-dur" value="${v.duration_min}" min="5" step="5" placeholder="Min" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-price" value="${v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="\u20ac" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="hidden" class="svc-var-id" value="${v.id}"><button type="button" onclick="svcRemoveVariant(this)" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1">&times;</button></div>`;
-  });
-  m+=`</div><button type="button" class="btn-outline btn-sm" onclick="svcAddVariant()" style="margin-top:4px;font-size:.78rem">+ Variante</button><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Ex: Courts (60min, 45\u20ac), Mi-Longs (75min, 55\u20ac)</div></div>`;
-  // Schedule restriction section
+  // Schedule restriction
   const sched=svc?.available_schedule||null;
   const isRestricted=sched?.type==='restricted';
   m+=`<div class="field"><label>Disponibilit\u00e9</label>`;
@@ -310,19 +329,24 @@ function renderServiceModal(svc,sectorCats,prefill){
   }
   m+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:4px">D\u00e9finissez les jours et heures o\u00f9 cette prestation est disponible</div>`;
   m+=`</div></div>`;
-  // Practitioner assignment
+  m+=`</div>`; // end section 3
+
+  // ── SECTION 4: Affectation ──
   const assignedIds=svc?.practitioner_ids||[];
   if(allPractitioners.length>0){
+    m+=sec('Affectation');
     m+=`<div class="field"><label>Assign\u00e9 \u00e0</label><div id="svc_practitioners" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">`;
     allPractitioners.forEach(p=>{
       const checked=assignedIds.includes(p.id)?'checked':'';
       m+=`<label style="font-size:.82rem;display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" class="svc_pract_cb" value="${p.id}" ${checked}> ${p.display_name}</label>`;
     });
     m+=`</div><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Si aucun coch\u00e9, la prestation sera disponible pour tous</div></div>`;
+    m+=`</div>`; // end section 4
   }
+
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Cr\u00e9er'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
-  document.getElementById('svc_color_wrap').innerHTML=cswHTML('svc_color',svc?.color||pf.color||'#0D7377',false);
+  document.getElementById('svc_color_wrap').innerHTML=cswHTML('svc_color',svc?.color||pf.color||'#0D7377',true);
   document.getElementById('svc_cat').addEventListener('change',function(){
     if(this.value==='__custom__'){
       const v=prompt('Nom de la cat\u00e9gorie personnalis\u00e9e :');

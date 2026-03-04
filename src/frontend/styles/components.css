@@ -109,6 +109,13 @@
 .svc-tpl-picker-custom{border-top:1px solid var(--border)}
 .svc-tpl-picker-custom .svc-tpl-picker-name{color:var(--primary);font-weight:600}
 
+/* Service modal sections */
+.svc-section{margin:18px 0 12px}
+.svc-section:first-child{margin-top:0}
+.svc-section-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.svc-section-title{font-size:.78rem;font-weight:600;color:var(--text-3);white-space:nowrap}
+.svc-section-line{flex:1;height:1px;background:var(--border-light)}
+
 /* ===== HOURS / AVAILABILITY ===== */
 .hours-schedule{margin-top:12px}
 .pract-block{margin-bottom:24px}
