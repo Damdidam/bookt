@@ -257,14 +257,44 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
   }
 });
 
-// DELETE /api/services/:id — soft delete (set inactive)
-router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+// PATCH /api/services/:id/deactivate — soft delete (set inactive)
+router.patch('/:id/deactivate', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `UPDATE services SET is_active = false, updated_at = NOW()
        WHERE id = $1 AND business_id = $2`,
       [req.params.id, req.businessId]
     );
+    res.json({ deactivated: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/services/:id — permanent delete (blocked if bookings exist)
+router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    // Check for any bookings referencing this service
+    const bookings = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM bookings WHERE service_id = $1 AND business_id = $2`,
+      [id, bid]
+    );
+    if (bookings.rows[0].cnt > 0) {
+      return res.status(409).json({
+        error: `Impossible de supprimer : ${bookings.rows[0].cnt} réservation(s) liée(s). Annulez-les d'abord ou désactivez la prestation.`
+      });
+    }
+
+    // No bookings → safe to hard delete (variants + practitioner_services cascade)
+    const result = await queryWithRLS(bid,
+      `DELETE FROM services WHERE id = $1 AND business_id = $2 RETURNING id`,
+      [id, bid]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+
     res.json({ deleted: true });
   } catch (err) {
     next(err);

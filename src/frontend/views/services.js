@@ -49,7 +49,8 @@ async function loadServices(){
           <div style="font-size:.72rem;color:var(--text-4);margin-top:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${pNames}</div>
           <div class="svc-actions">
             <button class="btn-outline btn-sm" onclick="openServiceModal('${s.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier</button>
-            ${s.is_active!==false?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver cette ${categoryLabels.service.toLowerCase()} ?'))deleteService('${s.id}')">Désactiver</button>`:`<span style="font-size:.72rem;color:var(--text-4);padding:5px">Inactive</span>`}
+            ${s.is_active!==false?`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver cette ${categoryLabels.service.toLowerCase()} ?'))deactivateService('${s.id}')">Désactiver</button>`:`<button class="btn-outline btn-sm" onclick="if(confirm('Réactiver cette ${categoryLabels.service.toLowerCase()} ?'))reactivateService('${s.id}')">Réactiver</button>`}
+            <button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer définitivement cette ${categoryLabels.service.toLowerCase()} ? Cette action est irréversible.'))deleteService('${s.id}')" title="Supprimer définitivement"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
           </div>
         </div>`;
       });
@@ -167,11 +168,27 @@ async function saveService(id){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function deactivateService(id){
+  try{
+    const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(categoryLabels.service+' désactivée','success');loadServices();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function reactivateService(id){
+  try{
+    const r=await fetch(`/api/services/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(categoryLabels.service+' réactivée','success');loadServices();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function deleteService(id){
   try{
     const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast(categoryLabels.service+' désactivée','success');loadServices();
+    GendaUI.toast(categoryLabels.service+' supprimée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -342,6 +359,6 @@ function svcAddVariant(){
 }
 function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();}
 
-bridge({ loadServices, openServiceModal, saveService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant });
 
-export { loadServices, openServiceModal, saveService, deleteService, openQuickStart };
+export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };
