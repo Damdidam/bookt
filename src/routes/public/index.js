@@ -5,6 +5,7 @@ const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter'
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
+const { checkPracAvailability } = require('../staff/bookings-helpers');
 
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
@@ -656,6 +657,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       const totalEnd = new Date(chainedSlots[chainedSlots.length - 1].end_at);
 
+      // Validate booking fits within practitioner's availability window
+      const availCheck = await checkPracAvailability(businessId, practitioner_id, startDate, totalEnd);
+      if (!availCheck.ok) {
+        return res.status(400).json({ error: availCheck.reason });
+      }
+
       const multiResult = await transactionWithRLS(businessId, async (client) => {
         // Conflict check for entire chained range
         const conflict = await client.query(
@@ -941,6 +948,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       if (psCheck.rows.length === 0) {
         return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
       }
+    }
+
+    // Validate booking fits within practitioner's availability window
+    const availCheck = await checkPracAvailability(businessId, practitioner_id, startDate, endDate);
+    if (!availCheck.ok) {
+      return res.status(400).json({ error: availCheck.reason });
     }
 
     const result = await transactionWithRLS(businessId, async (client) => {
