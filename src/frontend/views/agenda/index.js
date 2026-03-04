@@ -106,8 +106,17 @@ function fcFilterCategory(cat, el) {
     const allBtn = document.querySelector('.cat-chip[data-cat="__all__"]');
     if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
   }
-  // Refetch events so the filter callback excludes hidden categories
-  if (calState.fcCal) calState.fcCal.refetchEvents();
+  // Use FullCalendar's native API to show/hide events instantly
+  if (calState.fcCal) {
+    calState.fcCal.getEvents().forEach(ev => {
+      const p = ev.extendedProps;
+      if (p._isFeaturedSlot) return;
+      const svcId = p._isGroup ? p._members?.[0]?.service_id : p.service_id;
+      const svc = svcId && calState.fcServices?.find(s => s.id === svcId);
+      const cat = svc?.category || '';
+      ev.setProp('display', calState.fcHiddenCategories.has(cat) ? 'none' : 'auto');
+    });
+  }
   // Refresh mobile list if active
   if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
 }
