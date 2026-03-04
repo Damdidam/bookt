@@ -125,7 +125,10 @@ async function openClientDetail(id){
           const dl = {paid:'Payé',refunded:'Remboursé',cancelled:'Conservé',pending:'En attente'}[b.deposit_status] || '';
           return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(0)}\u20ac ${dl}</span>`;
         })() : '';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name||'RDV libre'}${depTag}</span><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${stLabels[b.status]||b.status}</span></div>`;
+        const createdDt=b.created_at?new Date(b.created_at):null;
+        const createdStr=createdDt?createdDt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'';
+        const creatorStr=b.channel==='web'?'Client (en ligne)':b.created_by_name||'Staff';
+        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem"><div style="display:flex;flex-direction:column;gap:2px"><span style="color:var(--text)">${dt.toLocaleDateString('fr-BE',{day:'numeric',month:'short'})} — ${b.service_name||'RDV libre'}${depTag}</span><span style="font-size:.65rem;color:var(--text-4)">Créé le ${createdStr} par ${creatorStr}</span></div><span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12;white-space:nowrap">${stLabels[b.status]||b.status}</span></div>`;
       });
       m+=`</div>`;
     } else {

@@ -135,7 +135,15 @@ router.get('/:id', async (req, res, next) => {
     let bkSql = `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.deposit_required, b.deposit_status, b.deposit_amount_cents,
               b.custom_label, b.internal_note, b.session_notes, b.session_notes_sent_at,
-              s.name AS service_name, p.display_name AS practitioner_name
+              b.created_at, b.channel,
+              s.name AS service_name, p.display_name AS practitioner_name,
+              (SELECT COALESCE(pr.display_name, u.email)
+               FROM audit_logs al
+               LEFT JOIN users u ON u.id = al.actor_user_id
+               LEFT JOIN practitioners pr ON pr.user_id = u.id AND pr.business_id = al.business_id
+               WHERE al.entity_type = 'booking' AND al.entity_id = b.id AND al.action = 'create'
+               LIMIT 1
+              ) AS created_by_name
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        JOIN practitioners p ON p.id = b.practitioner_id
