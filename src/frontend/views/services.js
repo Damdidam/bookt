@@ -2,6 +2,7 @@
  * Services (Prestations) view module.
  */
 import { api, userSector, categoryLabels, GendaUI } from '../state.js';
+import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 
@@ -42,6 +43,8 @@ async function loadServices(){
           <h4>${s.name}</h4>
           <div class="svc-meta">${s.duration_min}min · Buffer: ${s.buffer_before_min||0}+${s.buffer_after_min||0}min${s.category?' · '+s.category:''}</div>
           <div class="svc-price">${price}</div>
+          ${s.description?`<div style="font-size:.75rem;color:var(--text-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.description)}</div>`:''}
+          ${s.variants&&s.variants.length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${s.variants.map(v=>`<span style="font-size:.68rem;padding:2px 8px;border-radius:6px;background:var(--surface);color:var(--text-3);font-weight:500">${esc(v.name)}${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''}</span>`).join('')}</div>`:''}
           ${physOnly?'':`<div class="svc-modes">${modes}</div>`}
           <div style="font-size:.72rem;color:var(--text-4);margin-top:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ${pNames}</div>
           <div class="svc-actions">
@@ -86,6 +89,7 @@ function renderServiceModal(svc,sectorCats){
   m+=`<option value="__custom__">+ Catégorie personnalisée...</option>`;
   m+=`</select></div>`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${svc?.name||''}" placeholder="Ex: Consultation initiale"></div>`;
+  m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez la prestation pour vos clients..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;resize:vertical">${svc?.description||''}</textarea></div>`;
   m+=`<div class="field-row"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${svc?.duration_min||30}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${svc?.price_cents?(svc.price_cents/100):''}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
   m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
   m+=`<div class="field"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
@@ -103,6 +107,13 @@ function renderServiceModal(svc,sectorCats){
   // Physical-only sector: modes handled in saveService()
   }
   m+=`<div class="field"><label>Label prix (si pas de montant)</label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
+  // Variants section
+  const existingVars=svc?.variants||[];
+  m+=`<div class="field"><label>Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label><div id="svc_variants_list">`;
+  existingVars.forEach(v=>{
+    m+=`<div class="svc-var-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input class="svc-var-name" value="${esc(v.name)}" placeholder="Nom" style="flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-dur" value="${v.duration_min}" min="5" step="5" placeholder="Min" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-price" value="${v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="hidden" class="svc-var-id" value="${v.id}"><button type="button" onclick="svcRemoveVariant(this)" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1">&times;</button></div>`;
+  });
+  m+=`</div><button type="button" class="btn-outline btn-sm" onclick="svcAddVariant()" style="margin-top:4px;font-size:.78rem">+ Variante</button><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Ex: Courts (60min, 45€), Mi-Longs (75min, 55€)</div></div>`;
   // Practitioner assignment
   const assignedIds=svc?.practitioner_ids||[];
   if(allPractitioners.length>0){
@@ -143,6 +154,9 @@ async function saveService(id){
   }
   const priceVal=document.getElementById('svc_price').value;
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
+  body.description=document.getElementById('svc_desc')?.value.trim()||null;
+  const varRows=document.querySelectorAll('#svc_variants_list .svc-var-row');
+  body.variants=[...varRows].map(row=>({id:row.querySelector('.svc-var-id').value||undefined,name:row.querySelector('.svc-var-name').value.trim(),duration_min:parseInt(row.querySelector('.svc-var-dur').value)||0,price_cents:row.querySelector('.svc-var-price').value?Math.round(parseFloat(row.querySelector('.svc-var-price').value)*100):null})).filter(v=>v.name&&v.duration_min>0);
   try{
     const url=id?`/api/services/${id}`:'/api/services';
     const method=id?'PATCH':'POST';
@@ -323,6 +337,11 @@ async function qsSubmitAll(){
   loadServices();
 }
 
-bridge({ loadServices, openServiceModal, saveService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount });
+function svcAddVariant(){
+  document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',`<div class="svc-var-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input class="svc-var-name" value="" placeholder="Nom" style="flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-dur" value="" min="5" step="5" placeholder="Min" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-price" value="" step="0.01" placeholder="€" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="hidden" class="svc-var-id" value=""><button type="button" onclick="svcRemoveVariant(this)" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1">&times;</button></div>`);
+}
+function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();}
+
+bridge({ loadServices, openServiceModal, saveService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant });
 
 export { loadServices, openServiceModal, saveService, deleteService, openQuickStart };

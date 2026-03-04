@@ -88,9 +88,11 @@ router.post('/', requireOwner, async (req, res, next) => {
     if (booking_id && invoiceItems.length === 0) {
       const bkResult = await queryWithRLS(bid,
         `SELECT b.*, s.name AS service_name, s.price_cents, s.duration_min,
+                sv.name AS variant_name, sv.price_cents AS variant_price_cents,
                 c.full_name, c.email, c.phone, c.bce_number, c.id AS c_id
          FROM bookings b
          JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN clients c ON c.id = b.client_id
          WHERE b.id = $1 AND b.business_id = $2`,
         [booking_id, bid]
@@ -101,10 +103,11 @@ router.post('/', requireOwner, async (req, res, next) => {
           client = { id: bk.c_id, full_name: bk.full_name, email: bk.email,
                      phone: bk.phone, bce_number: bk.bce_number };
         }
+        const svcLabel = bk.variant_name ? `${bk.service_name} — ${bk.variant_name}` : bk.service_name;
         invoiceItems = [{
-          description: `${bk.service_name} — ${new Date(bk.start_at).toLocaleDateString('fr-BE')}`,
+          description: `${svcLabel} — ${new Date(bk.start_at).toLocaleDateString('fr-BE')}`,
           quantity: 1,
-          unit_price_cents: bk.price_cents || 0,
+          unit_price_cents: bk.variant_price_cents ?? bk.price_cents ?? 0,
           vat_rate: vat_rate || 21
         }];
       }

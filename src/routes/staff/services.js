@@ -17,6 +17,18 @@ router.get('/', async (req, res, next) => {
        ORDER BY s.sort_order, s.name`,
       [req.businessId]
     );
+    // Attach variants to each service
+    const varResult = await queryWithRLS(req.businessId,
+      `SELECT * FROM service_variants WHERE business_id = $1 AND is_active = true ORDER BY sort_order, name`,
+      [req.businessId]
+    );
+    const varByService = {};
+    for (const v of varResult.rows) {
+      if (!varByService[v.service_id]) varByService[v.service_id] = [];
+      varByService[v.service_id].push(v);
+    }
+    for (const s of result.rows) s.variants = varByService[s.id] || [];
+
     res.json({ services: result.rows });
   } catch (err) {
     next(err);
@@ -29,7 +41,7 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
     const bid = req.businessId;
     const { name, category, duration_min, buffer_before_min, buffer_after_min,
             price_cents, price_label, mode_options, prep_instructions_fr,
-            prep_instructions_nl, color, practitioner_ids } = req.body;
+            prep_instructions_nl, color, description, practitioner_ids, variants } = req.body;
 
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
@@ -43,16 +55,30 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
     const result = await queryWithRLS(bid,
       `INSERT INTO services (business_id, name, category, duration_min,
         buffer_before_min, buffer_after_min, price_cents, price_label,
-        mode_options, prep_instructions_fr, prep_instructions_nl, color)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        mode_options, prep_instructions_fr, prep_instructions_nl, color, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [bid, name, category || null, duration_min,
        buffer_before_min || 0, buffer_after_min || 0,
        price_cents || null, price_label || null,
        JSON.stringify(mode_options || ['cabinet']),
        prep_instructions_fr || null, prep_instructions_nl || null,
-       color || null]
+       color || null, description || null]
     );
+
+    // Create variants if provided
+    if (Array.isArray(variants) && variants.length > 0) {
+      const svcId = result.rows[0].id;
+      for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        if (!v.name || !v.duration_min || v.duration_min <= 0) continue;
+        await queryWithRLS(bid,
+          `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [bid, svcId, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i]
+        );
+      }
+    }
 
     // Link practitioners (validate they belong to this business)
     if (practitioner_ids && practitioner_ids.length > 0) {
@@ -101,7 +127,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     // Build dynamic update
     const allowed = ['name', 'category', 'duration_min', 'buffer_before_min',
       'buffer_after_min', 'price_cents', 'price_label', 'mode_options',
-      'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order'];
+      'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description'];
 
     const sets = [];
     const params = [id, bid];
@@ -150,6 +176,59 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
       );
     }
 
+    // Reconcile variants if provided
+    if (Array.isArray(fields.variants)) {
+      const svcId = id;
+      const incoming = fields.variants;
+      const existing = await queryWithRLS(bid,
+        `SELECT id FROM service_variants WHERE service_id = $1 AND business_id = $2`,
+        [svcId, bid]
+      );
+      const existingIds = new Set(existing.rows.map(r => r.id));
+      const incomingIds = new Set(incoming.filter(v => v.id).map(v => v.id));
+
+      // Soft-delete removed variants
+      for (const eid of existingIds) {
+        if (!incomingIds.has(eid)) {
+          await queryWithRLS(bid,
+            `UPDATE service_variants SET is_active = false, updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [eid, bid]
+          );
+        }
+      }
+
+      // Upsert incoming
+      for (let i = 0; i < incoming.length; i++) {
+        const v = incoming[i];
+        if (!v.name || !v.duration_min || v.duration_min <= 0) continue;
+        if (v.id && existingIds.has(v.id)) {
+          // Update existing
+          await queryWithRLS(bid,
+            `UPDATE service_variants SET name = $1, duration_min = $2, price_cents = $3,
+              sort_order = $4, is_active = true, updated_at = NOW()
+             WHERE id = $5 AND business_id = $6`,
+            [v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.id, bid]
+          );
+          // Recalculate end_at for future bookings using this variant
+          const totalMin = (result.rows[0].buffer_before_min || 0) + v.duration_min + (result.rows[0].buffer_after_min || 0);
+          await queryWithRLS(bid,
+            `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
+             WHERE service_variant_id = $2 AND business_id = $3
+             AND status IN ('pending', 'confirmed', 'modified_pending') AND start_at > NOW()`,
+            [totalMin, v.id, bid]
+          );
+        } else {
+          // Insert new
+          await queryWithRLS(bid,
+            `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [bid, svcId, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i]
+          );
+        }
+      }
+    }
+
     // Update practitioner links if provided (validate they belong to this business)
     if (fields.practitioner_ids) {
       await transactionWithRLS(bid, async (client) => {
@@ -190,6 +269,110 @@ router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) =>
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// VARIANT CRUD
+// ============================================================
+
+// GET /api/services/:serviceId/variants
+router.get('/:serviceId/variants', async (req, res, next) => {
+  try {
+    const result = await queryWithRLS(req.businessId,
+      `SELECT * FROM service_variants
+       WHERE service_id = $1 AND business_id = $2 AND is_active = true
+       ORDER BY sort_order, name`,
+      [req.params.serviceId, req.businessId]
+    );
+    res.json({ variants: result.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/services/:serviceId/variants
+router.post('/:serviceId/variants', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { serviceId } = req.params;
+    const { name, duration_min, price_cents, sort_order } = req.body;
+
+    if (!name || !duration_min || duration_min <= 0) {
+      return res.status(400).json({ error: 'name et duration_min (> 0) requis' });
+    }
+
+    // Verify service exists
+    const svc = await queryWithRLS(bid,
+      `SELECT id FROM services WHERE id = $1 AND business_id = $2`, [serviceId, bid]);
+    if (svc.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+
+    const result = await queryWithRLS(bid,
+      `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [bid, serviceId, name, duration_min, price_cents ?? null, sort_order ?? 0]
+    );
+    res.status(201).json({ variant: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/services/:serviceId/variants/:variantId
+router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { variantId } = req.params;
+    const fields = req.body;
+
+    const allowed = ['name', 'duration_min', 'price_cents', 'sort_order', 'is_active'];
+    const sets = [];
+    const params = [variantId, bid];
+    let idx = 3;
+
+    for (const [key, val] of Object.entries(fields)) {
+      if (allowed.includes(key)) {
+        sets.push(`${key} = $${idx}`);
+        params.push(val);
+        idx++;
+      }
+    }
+    if (sets.length === 0) return res.status(400).json({ error: 'Aucun champ à modifier' });
+    sets.push('updated_at = NOW()');
+
+    const result = await queryWithRLS(bid,
+      `UPDATE service_variants SET ${sets.join(', ')} WHERE id = $1 AND business_id = $2 RETURNING *`,
+      params
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Variante introuvable' });
+
+    // If duration changed, recalculate end_at for future bookings
+    if (fields.duration_min !== undefined) {
+      const v = result.rows[0];
+      const svc = await queryWithRLS(bid,
+        `SELECT buffer_before_min, buffer_after_min FROM services WHERE id = $1 AND business_id = $2`,
+        [v.service_id, bid]
+      );
+      if (svc.rows.length > 0) {
+        const totalMin = (svc.rows[0].buffer_before_min || 0) + v.duration_min + (svc.rows[0].buffer_after_min || 0);
+        await queryWithRLS(bid,
+          `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
+           WHERE service_variant_id = $2 AND business_id = $3
+           AND status IN ('pending', 'confirmed', 'modified_pending') AND start_at > NOW()`,
+          [totalMin, variantId, bid]
+        );
+      }
+    }
+
+    res.json({ variant: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/services/:serviceId/variants/:variantId — soft delete
+router.delete('/:serviceId/variants/:variantId', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    await queryWithRLS(req.businessId,
+      `UPDATE service_variants SET is_active = false, updated_at = NOW()
+       WHERE id = $1 AND business_id = $2`,
+      [req.params.variantId, req.businessId]
+    );
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

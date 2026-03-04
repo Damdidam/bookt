@@ -109,6 +109,7 @@ CREATE TABLE services (
   mode_options        JSONB DEFAULT '["cabinet"]'::jsonb, -- ["cabinet","visio","phone"]
   prep_instructions_fr TEXT,                            -- "Apportez vos fiches 281.10..."
   prep_instructions_nl TEXT,                            -- NL version
+  description         TEXT,                              -- Description visible par les clients
   is_active           BOOLEAN DEFAULT true,
   sort_order          INTEGER DEFAULT 0,
   color               VARCHAR(7),                       -- Dot color in service list
@@ -131,6 +132,27 @@ CREATE TABLE practitioner_services (
 );
 
 CREATE INDEX idx_ps_service ON practitioner_services(service_id);
+
+-- ============================================================
+-- 5b. SERVICE_VARIANTS (options par prestation : Courts/Mi-Longs/Longs)
+-- UI: Public booking modal — variant selection cards
+--     Dashboard > Prestations > Edit modal > Variantes section
+-- ============================================================
+CREATE TABLE service_variants (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id   UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  service_id    UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  name          VARCHAR(200) NOT NULL,              -- "Courts (au dessus épaule)"
+  duration_min  INTEGER NOT NULL,                   -- Override durée
+  price_cents   INTEGER,                            -- Override prix
+  sort_order    INTEGER DEFAULT 0,
+  is_active     BOOLEAN DEFAULT true,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_service_variants_service ON service_variants(service_id, sort_order);
+CREATE INDEX idx_service_variants_business ON service_variants(business_id);
 
 -- ============================================================
 -- 6. AVAILABILITIES (horaires hebdo)
@@ -208,6 +230,7 @@ CREATE TABLE bookings (
   business_id             UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   practitioner_id         UUID NOT NULL REFERENCES practitioners(id),
   service_id              UUID NOT NULL REFERENCES services(id),
+  service_variant_id      UUID REFERENCES service_variants(id), -- Optional variant (Courts/Mi-Longs/Longs)
   client_id               UUID NOT NULL REFERENCES clients(id),
   channel                 VARCHAR(10) DEFAULT 'web'     -- 'web' | 'phone' | 'manual'
     CHECK (channel IN ('web', 'phone', 'manual')),

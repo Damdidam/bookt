@@ -103,7 +103,7 @@ router.get('/:slug', async (req, res, next) => {
       // Services
       query(
         `SELECT id, name, category, duration_min, price_cents, price_label,
-                mode_options, prep_instructions_fr, prep_instructions_nl, color
+                mode_options, prep_instructions_fr, prep_instructions_nl, color, description
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -143,6 +143,20 @@ router.get('/:slug', async (req, res, next) => {
         [bid]
       )
     ]);
+
+    // Fetch service variants (separate query, not in Promise.all since we need bid)
+    const variantsResult = await query(
+      `SELECT id, service_id, name, duration_min, price_cents, sort_order
+       FROM service_variants
+       WHERE business_id = $1 AND is_active = true
+       ORDER BY sort_order, name`,
+      [bid]
+    );
+    const varByService = {};
+    for (const v of variantsResult.rows) {
+      if (!varByService[v.service_id]) varByService[v.service_id] = [];
+      varByService[v.service_id].push(v);
+    }
 
     const specializations = specResult.rows;
     const testimonials = testResult.rows.map(t => ({
@@ -238,7 +252,13 @@ router.get('/:slug', async (req, res, next) => {
         mode_options: s.mode_options,
         prep_instructions_fr: s.prep_instructions_fr,
         prep_instructions_nl: s.prep_instructions_nl,
-        color: s.color
+        color: s.color,
+        description: s.description || null,
+        variants: (varByService[s.id] || []).map(v => ({
+          id: v.id, name: v.name, duration_min: v.duration_min,
+          price_cents: v.price_cents,
+          price_label: v.price_cents != null ? `${(v.price_cents / 100).toFixed(2).replace('.', ',')} €` : null
+        }))
       })),
       specializations,
       testimonials,
@@ -262,7 +282,7 @@ router.get('/:slug', async (req, res, next) => {
 router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const { service_id, practitioner_id, date_from, date_to, appointment_mode } = req.query;
+    const { service_id, practitioner_id, date_from, date_to, appointment_mode, variant_id } = req.query;
 
     if (!service_id) {
       return res.status(400).json({ error: 'service_id requis' });
@@ -272,6 +292,9 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     }
     if (practitioner_id && !UUID_RE.test(practitioner_id)) {
       return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+    if (variant_id && !UUID_RE.test(variant_id)) {
+      return res.status(400).json({ error: 'variant_id invalide' });
     }
 
     const bizResult = await query(
@@ -299,7 +322,8 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     const slots = await getAvailableSlots({
       businessId, serviceId: service_id,
       practitionerId: practitioner_id || null,
-      dateFrom: from, dateTo: to, appointmentMode: appointment_mode
+      dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
+      variantId: variant_id || null
     });
 
     const byDate = {};
@@ -321,13 +345,14 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
 router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const { service_ids, practitioner_id, date_from, date_to, appointment_mode } = req.query;
+    const { service_ids, variant_ids, practitioner_id, date_from, date_to, appointment_mode } = req.query;
 
     if (!service_ids) {
       return res.status(400).json({ error: 'service_ids requis (UUIDs séparés par des virgules)' });
     }
 
     const ids = service_ids.split(',').map(s => s.trim()).filter(Boolean);
+    const vids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
     if (ids.length < 2) {
       return res.status(400).json({ error: 'Au moins 2 service_ids requis' });
     }
@@ -371,7 +396,8 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
     const slots = await getAvailableSlotsMulti({
       businessId, serviceIds: ids,
       practitionerId: practitioner_id || null,
-      dateFrom: from, dateTo: to, appointmentMode: appointment_mode
+      dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
+      variantIds: vids.length > 0 ? vids : null
     });
 
     const byDate = {};
@@ -475,6 +501,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const { slug } = req.params;
     const {
       service_id, service_ids, practitioner_id, start_at, end_at, appointment_mode,
+      variant_id, variant_ids,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing
     } = req.body;
@@ -607,6 +634,27 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
       const multiServices = multiSvcResult.rows;
 
+      // Resolve variant overrides for duration/price (multi-service)
+      const resolvedVariantIds = [];
+      if (Array.isArray(variant_ids) && variant_ids.length > 0) {
+        for (let i = 0; i < multiServices.length; i++) {
+          const vid = variant_ids[i];
+          if (vid && UUID_RE.test(vid)) {
+            const vr = await query(
+              `SELECT duration_min, price_cents FROM service_variants
+               WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
+              [vid, multiServices[i].id, businessId]
+            );
+            if (vr.rows.length === 0) return res.status(404).json({ error: `Variante introuvable: ${vid}` });
+            multiServices[i].duration_min = vr.rows[0].duration_min;
+            if (vr.rows[0].price_cents != null) multiServices[i].price_cents = vr.rows[0].price_cents;
+            resolvedVariantIds.push(vid);
+          } else {
+            resolvedVariantIds.push(null);
+          }
+        }
+      }
+
       // Mode validation
       if (appointment_mode) {
         for (const svc of multiServices) {
@@ -649,6 +697,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         cursor = slotEnd;
         return {
           service_id: svc.id,
+          service_variant_id: resolvedVariantIds[i] || null,
           start_at: slotStart.toISOString(),
           end_at: slotEnd.toISOString(),
           group_order: i
@@ -762,12 +811,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const bookings = [];
         for (const slot of chainedSlots) {
           const bk = await client.query(
-            `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+            `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
               group_id, group_order)
-             VALUES ($1,$2,$3,$4,'web',$5,$6,$7,'confirmed',$8,$9,$10)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,'confirmed',$9,$10,$11)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
-            [businessId, practitioner_id, slot.service_id, clientId,
+            [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at,
              client_comment||null, groupId, slot.group_order]
           );
@@ -905,6 +954,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     // ══════════════════════════════════════════════════════════
     let endDate;
 
+    // Resolve single-service variant
+    let resolvedVariantId = null;
+    if (variant_id && UUID_RE.test(variant_id)) {
+      resolvedVariantId = variant_id;
+    }
+
     if (effectiveServiceId) {
       const svcResult = await query(
         `SELECT duration_min, buffer_before_min, buffer_after_min
@@ -913,6 +968,18 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       );
       if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
       const service = svcResult.rows[0];
+
+      // Override duration from variant if provided
+      if (resolvedVariantId) {
+        const vr = await query(
+          `SELECT duration_min FROM service_variants
+           WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
+          [resolvedVariantId, effectiveServiceId, businessId]
+        );
+        if (vr.rows.length === 0) return res.status(404).json({ error: 'Variante introuvable' });
+        service.duration_min = vr.rows[0].duration_min;
+      }
+
       // PUB-V12-005: Buffer times are intentionally included in end_at for calendar blocking purposes
       const totalDuration = (service.buffer_before_min || 0) + service.duration_min + (service.buffer_after_min || 0);
       endDate = new Date(startDate.getTime() + totalDuration * 60000);
@@ -1060,11 +1127,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       // Create booking
       const booking = await client.query(
-        `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+        `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client)
-         VALUES ($1,$2,$3,$4,'web',$5,$6,$7,'confirmed',$8)
+         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,'confirmed',$9)
          RETURNING id, public_token, start_at, end_at, status`,
-        [businessId, practitioner_id, effectiveServiceId, clientId,
+        [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), client_comment||null]
       );
 

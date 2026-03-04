@@ -40,7 +40,7 @@ function fcShowTooltip(event, x, y) {
   const dur = end ? Math.round((end - start) / 60000) : p.duration_min || 0;
 
   let html = `<div class="tt-name">${esc(p.client_name || event.title || '\u2014')}</div>`;
-  html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>${esc(p.service_name || p.custom_label || 'RDV libre')}</div>`;
+  html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>${esc(p.variant_name ? (p.service_name||'RDV libre')+' \u2014 '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'))}</div>`;
   html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>${dateStr}</div>`;
   html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>${timeStr} (${dur} min)</div>`;
   if (p.practitioner_name) html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>${esc(p.practitioner_name)}</div>`;
@@ -60,7 +60,7 @@ function fcShowTooltip(event, x, y) {
   if (p._isGroup && p._members) {
     html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.15)">`;
     p._members.forEach(m => {
-      html += `<div class="tt-row"><span class="tt-icon">\u2022</span>${esc(m.service_name || 'RDV')} \u2014 ${esc(m.client_name || '')}</div>`;
+      html += `<div class="tt-row"><span class="tt-icon">\u2022</span>${esc(m.variant_name ? (m.service_name||'RDV')+' \u2014 '+m.variant_name : (m.service_name || 'RDV'))} \u2014 ${esc(m.client_name || '')}</div>`;
     });
     html += `</div>`;
   }
@@ -190,12 +190,12 @@ function buildEventContent() {
     // -- Week/Day: group container --
     if (p._isGroup) {
       const members = p._members || [];
-      const svcs = members.map(m => esc(m.service_name || m.custom_label || 'RDV libre')).join(' \u00b7 ');
+      const svcs = members.map(m => esc(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'))).join(' \u00b7 ');
       return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || 'Groupe')} <span style="font-size:.58rem;opacity:.5"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>${members.length}</span></span><span class="ev-service">${svcs}</span></div>` };
     }
 
     // -- Week/Day: single event --
-    const svcLabel = esc(p.service_name || p.custom_label || 'RDV libre');
+    const svcLabel = esc(p.variant_name ? (p.service_name||'RDV libre')+' \u2014 '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'));
     const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">\ud83d\udcb0\u2713</span>' : '<span class="ev-badge-dep" title="Acompte en attente">\ud83d\udcb0</span>') : '';
     const badges = [
       (p.internal_note ? '<span class="ev-badge ev-badge-note" style="background:' + safeAccent + '"></span>' : ''),

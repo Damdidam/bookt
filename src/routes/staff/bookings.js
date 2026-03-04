@@ -29,10 +29,12 @@ router.get('/', async (req, res, next) => {
              b.group_id, b.group_order, b.custom_label,
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+             sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
       FROM bookings b
       LEFT JOIN services s ON s.id = b.service_id
+      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
       JOIN practitioners p ON p.id = b.practitioner_id
       LEFT JOIN clients c ON c.id = b.client_id
       WHERE b.business_id = $1`;
@@ -109,11 +111,13 @@ router.get('/:id/detail', async (req, res, next) => {
 
     const booking = await queryWithRLS(bid,
       `SELECT b.*, s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               c.no_show_count, c.is_blocked
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`,
@@ -162,10 +166,12 @@ router.get('/:id/detail', async (req, res, next) => {
     if (bk.group_id) {
       const grp = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
-                b.practitioner_id, b.service_id,
-                s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color
+                b.practitioner_id, b.service_id, b.service_variant_id,
+                s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+                sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          WHERE b.group_id = $1 AND b.business_id = $2
          ORDER BY b.group_order`,
         [bk.group_id, bid]

@@ -17,7 +17,7 @@ const { getBusyBlocks } = require('./calendar-sync');
  * 3. Return flat list of available slots
  */
 
-async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFrom, dateTo, appointmentMode }) {
+async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFrom, dateTo, appointmentMode, variantId }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
     throw Object.assign(new Error('Format de date invalide'), { type: 'validation' });
   }
@@ -45,6 +45,18 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   if (svcResult.rows.length === 0) throw Object.assign(new Error('Prestation introuvable'), { type: 'not_found' });
 
   const service = svcResult.rows[0];
+
+  // Override duration from variant if provided
+  if (variantId) {
+    const varResult = await queryWithRLS(businessId,
+      `SELECT duration_min FROM service_variants
+       WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
+      [variantId, serviceId, businessId]
+    );
+    if (varResult.rows.length === 0) throw Object.assign(new Error('Variante introuvable'), { type: 'not_found' });
+    service.duration_min = varResult.rows[0].duration_min;
+  }
+
   const totalDuration = (service.buffer_before_min || 0) + service.duration_min + (service.buffer_after_min || 0);
 
   if (!totalDuration || totalDuration <= 0) {
@@ -292,7 +304,7 @@ function minutesToTime(minutes) {
  * Same algorithm as getAvailableSlots, but totalDuration is the chained
  * sum of all services with buffer_before from first and buffer_after from last only.
  */
-async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, dateFrom, dateTo, appointmentMode }) {
+async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, dateFrom, dateTo, appointmentMode, variantIds }) {
   // Deduplicate serviceIds while preserving order
   if (!Array.isArray(serviceIds)) {
     throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
@@ -337,6 +349,21 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
   }
 
   const services = svcResult.rows;
+
+  // Override durations from variants if provided
+  if (Array.isArray(variantIds) && variantIds.length > 0) {
+    for (let i = 0; i < services.length; i++) {
+      const vid = variantIds[i];
+      if (!vid) continue;
+      const vr = await queryWithRLS(businessId,
+        `SELECT duration_min FROM service_variants
+         WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
+        [vid, services[i].id, businessId]
+      );
+      if (vr.rows.length === 0) throw Object.assign(new Error(`Variante introuvable: ${vid}`), { type: 'not_found' });
+      services[i].duration_min = vr.rows[0].duration_min;
+    }
+  }
 
   // 3. Calculate chained duration: buffer_before from FIRST, buffer_after from LAST, no buffers between
   const sumDurations = services.reduce((sum, s) => sum + s.duration_min, 0);

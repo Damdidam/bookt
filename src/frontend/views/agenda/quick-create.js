@@ -200,18 +200,50 @@ function qcGetPracServices() {
   });
 }
 
+/** Handle service selection change — populate variant dropdown if needed */
+function qcServiceChanged(idx) {
+  const sel = document.getElementById('qcSvcSel' + idx);
+  const varSel = document.getElementById('qcVarSel' + idx);
+  if (!sel || !varSel) { qcUpdateTotal(); return; }
+  const svcId = sel.value;
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const variants = svc?.variants || [];
+  if (variants.length > 0) {
+    varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
+    varSel.style.display = '';
+  } else {
+    varSel.innerHTML = '';
+    varSel.style.display = 'none';
+  }
+  qcUpdateTotal();
+}
+
 /** Rebuild all service dropdowns with filtered options, preserving selections */
 function qcRefreshServiceDropdowns() {
   const filtered = qcGetPracServices();
   const filteredIds = new Set(filtered.map(s => String(s.id)));
-  document.querySelectorAll('.qc-svc-item select').forEach(sel => {
+  document.querySelectorAll('.qc-svc-item').forEach(item => {
+    const sel = item.querySelector('[id^="qcSvcSel"]');
+    if (!sel) return;
     const curVal = sel.value;
     sel.innerHTML = filtered.map(s => {
       const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
       return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`;
     }).join('');
-    // Preserve selection if still valid, otherwise default to first
     if (filteredIds.has(String(curVal))) sel.value = curVal;
+    // Refresh variant dropdown for the selected service
+    const varSel = item.querySelector('.qc-var-sel');
+    if (varSel) {
+      const svc = calState.fcServices.find(s => String(s.id) === String(sel.value));
+      const variants = svc?.variants || [];
+      if (variants.length > 0) {
+        varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
+        varSel.style.display = '';
+      } else {
+        varSel.innerHTML = '';
+        varSel.style.display = 'none';
+      }
+    }
   });
   qcUpdateTotal();
 }
@@ -224,12 +256,13 @@ function qcAddService() {
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
     <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
-    <select onchange="qcUpdateTotal()" id="qcSvcSel${idx}">${opts}</select>
+    <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${opts}</select>
+    <select class="qc-var-sel" id="qcVarSel${idx}" style="display:none;font-size:.78rem;max-width:140px" onchange="qcUpdateTotal()"></select>
     <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
     <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
-  qcUpdateTotal();
+  qcServiceChanged(idx);
 }
 
 function qcRemoveService(idx) {
@@ -245,12 +278,16 @@ function qcUpdateTotal() {
   const svcItems = document.querySelectorAll('.qc-svc-item');
   let availModes = null;
   svcItems.forEach((item, i) => {
-    const sel = item.querySelector('select');
+    const sel = item.querySelector('[id^="qcSvcSel"]');
     if (!sel) return;
     const opt = sel.options[sel.selectedIndex];
-    const dur = parseInt(opt?.dataset.dur || 30);
+    let dur = parseInt(opt?.dataset.dur || 30);
     const buf = parseInt(opt?.dataset.buf || 0);
     const color = opt?.dataset.color || '#0D7377';
+    const varSel = item.querySelector('.qc-var-sel');
+    if (varSel?.value && varSel.selectedIndex > 0) {
+      dur = parseInt(varSel.options[varSel.selectedIndex]?.dataset.dur || dur);
+    }
     total += dur + buf;
     if (i === 0) firstColor = color;
     const durEl = item.querySelector('.qc-svc-dur');
@@ -554,8 +591,14 @@ async function calCreateBooking() {
         client_email: clientEmail || undefined
       };
     } else {
-      const serviceItems = document.querySelectorAll('.qc-svc-item select');
-      const services = [...serviceItems].map(sel => ({ service_id: sel.value }));
+      const svcItemEls = document.querySelectorAll('.qc-svc-item');
+      const services = [...svcItemEls].map(item => {
+        const svcSel = item.querySelector('[id^="qcSvcSel"]');
+        const varSel = item.querySelector('.qc-var-sel');
+        const obj = { service_id: svcSel.value };
+        if (varSel?.value) obj.variant_id = varSel.value;
+        return obj;
+      });
       if (services.length === 0) { gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
 
       body = {
@@ -568,6 +611,7 @@ async function calCreateBooking() {
       };
       if (services.length === 1) {
         body.service_id = services[0].service_id;
+        if (services[0].variant_id) body.variant_id = services[0].variant_id;
       } else {
         body.services = services;
       }
@@ -658,6 +702,7 @@ function setupQuickCreateListeners() {
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
   qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
+  qcServiceChanged,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcSwitchTab, qcAddNote, qcDeleteNote, qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder

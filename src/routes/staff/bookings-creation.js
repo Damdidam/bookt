@@ -246,6 +246,22 @@ router.post('/manual', async (req, res, next) => {
       }
     }
 
+    // Resolve variant overrides for duration
+    for (const s of serviceList) {
+      const vid = s.variant_id;
+      if (!vid) continue;
+      if (!UUID_RE.test(vid)) return res.status(400).json({ error: 'variant_id invalide' });
+      const vr = await queryWithRLS(bid,
+        `SELECT duration_min, price_cents FROM service_variants
+         WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
+        [vid, s.service_id, bid]
+      );
+      if (vr.rows.length === 0) return res.status(404).json({ error: `Variante ${vid} introuvable` });
+      // Override service duration for slot calculation
+      svcMap[s.service_id] = { ...svcMap[s.service_id], duration_min: vr.rows[0].duration_min };
+      s._variant_price = vr.rows[0].price_cents;
+    }
+
     // Validate practitioner is assigned to all selected services
     const psCheck = await queryWithRLS(bid,
       `SELECT service_id FROM practitioner_services
@@ -276,6 +292,7 @@ router.post('/manual', async (req, res, next) => {
       cursor = slotEnd; // next service starts where this one ends
       return {
         service_id: s.service_id,
+        service_variant_id: s.variant_id || null,
         start_at: slotStart.toISOString(),
         end_at: slotEnd.toISOString(),
         group_order: i
@@ -309,12 +326,12 @@ router.post('/manual', async (req, res, next) => {
         // These fields are omitted intentionally — group members share the same visual style
         // derived from their service. Per-member customization may be added in a future iteration.
         const result = await client.query(
-          `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
+          `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
             group_id, group_order)
-           VALUES ($1, $2, $3, $4, 'manual', $5, $6, $7, 'confirmed', $8, $9, $10)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11)
            RETURNING *`,
-          [bid, practitioner_id, slot.service_id, client_id || null,
+          [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
            slot.start_at, slot.end_at,
            comment || null,
@@ -341,8 +358,10 @@ router.post('/manual', async (req, res, next) => {
         const dc = depCheck.rows[0];
         if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
           const svcPriceResult = await client.query(
-            `SELECT COALESCE(SUM(s.price_cents), 0) AS total_price
-             FROM bookings b JOIN services s ON s.id = b.service_id
+            `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
+             FROM bookings b
+             JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
              WHERE b.id = ANY($1) AND b.business_id = $2`,
             [results.map(b => b.id), bid]
           );

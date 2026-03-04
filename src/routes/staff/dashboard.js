@@ -43,12 +43,14 @@ router.get('/summary', async (req, res, next) => {
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.internal_note,
               s.name AS service_name, s.duration_min,
+              sv.name AS variant_name,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name,
               (SELECT COUNT(*) FROM practitioner_todos t WHERE t.booking_id = b.id AND t.is_done = false) AS todo_count,
               (SELECT COUNT(*) FROM booking_notes n WHERE n.booking_id = b.id) AS note_count
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.business_id = $1
@@ -65,9 +67,10 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status IN ('confirmed', 'completed')) AS total_bookings,
         COUNT(*) FILTER (WHERE status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
-        COALESCE(SUM(s.price_cents) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
+        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        WHERE b.business_id = $1
        AND b.start_at >= $2
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}`,
@@ -214,9 +217,10 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COUNT(*) FILTER (WHERE b.status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
-        COALESCE(SUM(s.price_cents) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
+        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        WHERE b.business_id = $1 AND b.start_at >= $2
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY day ORDER BY day`,
@@ -241,9 +245,10 @@ router.get('/analytics', async (req, res, next) => {
     // 3. Top services
     const topServices = await queryWithRLS(bid,
       `SELECT s.name, s.color, COUNT(b.id) AS count,
-        COALESCE(SUM(s.price_cents), 0) AS revenue
+        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS revenue
        FROM bookings b
        JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        WHERE b.business_id = $1
        AND b.status IN ('confirmed', 'completed')
        AND b.start_at >= $2
@@ -270,9 +275,10 @@ router.get('/analytics', async (req, res, next) => {
       `SELECT
         TO_CHAR(b.start_at AT TIME ZONE 'Europe/Brussels', 'YYYY-MM') AS month,
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
-        COALESCE(SUM(s.price_cents) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
+        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
-       JOIN services s ON s.id = b.service_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        WHERE b.business_id = $1 AND b.start_at >= $2
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        GROUP BY month ORDER BY month`,

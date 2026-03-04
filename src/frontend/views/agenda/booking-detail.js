@@ -171,8 +171,8 @@ async function fcOpenDetail(bookingId) {
       const groupStart = new Date(siblings[0].start_at);
       const groupEnd = new Date(siblings[siblings.length - 1].end_at);
       const totalDur = Math.round((groupEnd - groupStart) / 60000);
-      const totalPrice = siblings.reduce((sum, sib) => sum + (sib.price_cents || 0), 0);
-      const svcNames = siblings.map(sib => esc(sib.service_name || 'RDV libre')).join(' + ');
+      const totalPrice = siblings.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      const svcNames = siblings.map(sib => { const nm = sib.service_name || 'RDV libre'; return esc(sib.variant_name ? nm + ' \u2014 ' + sib.variant_name : nm); }).join(' + ');
       svcCard.innerHTML = `
         <div style="flex:1;min-width:0">
           <div class="m-svc-name">${svcNames}</div>
@@ -184,14 +184,15 @@ async function fcOpenDetail(bookingId) {
       bufSec.style.display = 'none';
       svcCard.style.display = 'flex';
       svcCard.style.borderLeftColor = accentColor;
-      const dur = b.duration_min || Math.round((e - s) / 60000);
-      const priceStr = b.price_cents ? ' \u00b7 ' + (b.price_cents / 100).toFixed(2) + '\u20ac' : '';
+      const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
+      const displayPrice = b.variant_price_cents ?? b.price_cents;
+      const svcDisplayName = b.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : b.service_name;
       svcCard.innerHTML = `
         <div>
-          <div class="m-svc-name">${esc(b.service_name)}</div>
-          <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}${priceStr ? '' : ''}</div>
+          <div class="m-svc-name">${esc(svcDisplayName)}</div>
+          <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}</div>
         </div>
-        ${b.price_cents ? '<div class="m-svc-price">' + (b.price_cents / 100).toFixed(2) + '\u20ac</div>' : ''}`;
+        ${displayPrice ? '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>' : ''}`;
     }
 
     // -- Save button color (custom or freestyle = accent color) --
@@ -239,7 +240,7 @@ async function fcOpenDetail(bookingId) {
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
         gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}">
           <span class="g-dot" style="background:${safeSibColor}"></span>
-          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.service_name || 'RDV libre')}</span>
+          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.variant_name ? (sib.service_name||'RDV libre')+' \u2014 '+sib.variant_name : (sib.service_name || 'RDV libre'))}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
           ${detachBtn}${deleteBtn}
         </div>`;

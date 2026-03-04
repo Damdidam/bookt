@@ -201,6 +201,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .svc-card.sel .svc-check{display:flex}
 
 @media(max-width:500px){.fr{grid-template-columns:1fr}.slots-grid{grid-template-columns:repeat(3,1fr)}}
+
+/* Variant modal */
+.var-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease}
+.var-modal{background:var(--white);border-radius:20px 20px 0 0;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,0);animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+.var-modal-h{display:flex;align-items:center;justify-content:space-between;padding:20px 20px 8px;position:sticky;top:0;background:var(--white);z-index:1}
+.var-modal-h h3{font-family:var(--serif);font-size:1.2rem;font-weight:400}
+.var-modal-close{background:none;border:none;font-size:1.4rem;color:var(--text-3);cursor:pointer;padding:8px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+.var-modal-desc{padding:0 20px 12px;font-size:.82rem;color:var(--text-3);line-height:1.5}
+.var-list{padding:0 16px 20px;display:flex;flex-direction:column;gap:6px}
+.var-card{display:flex;align-items:center;gap:12px;padding:16px;border:1.5px solid var(--border-light);border-radius:var(--radius-sm);background:var(--white);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.var-card:active{transform:scale(.98)}
+.var-card:hover{border-color:var(--primary);background:var(--primary-light)}
+.var-card .var-dot{width:8px;height:8px;border-radius:4px;background:var(--primary);flex-shrink:0}
+.var-card .var-info{flex:1;min-width:0}
+.var-card .var-name{font-size:.88rem;font-weight:700}
+.var-card .var-meta{font-size:.73rem;color:var(--text-4)}
+.var-card .var-price{font-size:.9rem;font-weight:700;color:var(--primary);flex-shrink:0}
+.svc-card .svc-desc{font-size:.72rem;color:var(--text-4);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.svc-card .svc-opts{font-size:.65rem;color:var(--primary);font-weight:600;margin-top:2px}
 </style>
 </head>
 <body>
@@ -337,7 +357,46 @@ let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
 let vedetteMode=false,vedetteSlots=[],lockedSet={};
 let selectedServices=[];
+let selectedVariants={};
 let multiServiceMode=false;
+
+function svcDisplayPrice(s){
+  if(s.variants&&s.variants.length>0){
+    var prices=s.variants.filter(function(v){return v.price_cents!=null;}).map(function(v){return v.price_cents;});
+    if(prices.length>0)return 'Dès '+(Math.min.apply(null,prices)/100).toFixed(0)+' \u20ac';
+    return s.price_label||'';
+  }
+  return s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+}
+function svcDurationLabel(s){
+  if(s.variants&&s.variants.length>0){
+    var durs=s.variants.map(function(v){return v.duration_min;});
+    var mn=Math.min.apply(null,durs),mx=Math.max.apply(null,durs);
+    return mn===mx?mn+' min':mn+'\u2013'+mx+' min';
+  }
+  return (s.duration_min||0)+' min';
+}
+function showVariantModal(service,callback){
+  var ex=document.getElementById('variantModal');if(ex)ex.remove();
+  var h='<div class="var-overlay" id="variantModal" onclick="if(event.target===this)this.remove()">';
+  h+='<div class="var-modal"><div class="var-modal-h"><h3>'+service.name+'</h3><button class="var-modal-close" onclick="document.getElementById(\'variantModal\').remove()">&times;</button></div>';
+  if(service.description)h+='<p class="var-modal-desc">'+service.description+'</p>';
+  h+='<div class="var-list">';
+  service.variants.forEach(function(v,i){
+    var price=v.price_cents?(v.price_cents/100).toFixed(0)+' \u20ac':'';
+    h+='<div class="var-card" data-idx="'+i+'"><div class="var-dot"></div><div class="var-info"><div class="var-name">'+v.name+'</div><div class="var-meta">'+v.duration_min+' min</div></div><div class="var-price">'+price+'</div></div>';
+  });
+  h+='</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',h);
+  document.querySelectorAll('#variantModal .var-card').forEach(function(card){
+    card.addEventListener('click',function(){
+      var idx=parseInt(card.dataset.idx);
+      var variant=service.variants[idx];
+      document.getElementById('variantModal').remove();
+      callback(variant);
+    });
+  });
+}
 const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const pathParts=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
@@ -433,13 +492,16 @@ function initPage(){
     cats.forEach((items,cat)=>{
       html+='<div class="svc-cat-label">'+(catIconMap[cat]||'')+' '+cat+'</div>';
       items.forEach(s=>{
-        const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+        const price=svcDisplayPrice(s);
         const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
         const isSel=selectedServices.some(x=>x.id===s.id);
         html+='<div class="svc-card'+(isSel?' sel':'')+'" data-id="'+s.id+'">'
           +'<span class="svc-check">\u2713</span>'
           +'<div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div>'
-          +'<div class="meta">'+(s.duration_min||0)+' min</div><div class="svc-modes">'+modes+'</div></div>';
+          +'<div class="meta">'+svcDurationLabel(s)+'</div>'
+          +(s.description?'<div class="svc-desc">'+s.description+'</div>':'')
+          +(s.variants&&s.variants.length>0?'<div class="svc-opts">'+s.variants.length+' option'+(s.variants.length>1?'s':'')+'</div>':'')
+          +'<div class="svc-modes">'+modes+'</div></div>';
       });
     });
     list.innerHTML=html;
@@ -456,17 +518,17 @@ function initPage(){
       cats.forEach((items,cat)=>{
         html+='<div class="svc-cat-label">'+(catIconMap[cat]||'')+' '+cat+'</div>';
         items.forEach(s=>{
-          const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+          const price=svcDisplayPrice(s);
           const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
-          html+='<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
+          html+='<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+svcDurationLabel(s)+'</div>'+(s.description?'<div class="svc-desc">'+s.description+'</div>':'')+(s.variants&&s.variants.length>0?'<div class="svc-opts">'+s.variants.length+' option'+(s.variants.length>1?'s':'')+'</div>':'')+'<div class="svc-modes">'+modes+'</div></div>';
         });
       });
       list.innerHTML=html;
     }else{
       list.innerHTML=svcs.map(s=>{
-        const price=s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+        const price=svcDisplayPrice(s);
         const modes=(s.mode_options||[]).map(m=>'<span class="svc-mode">'+(MODE_LABELS[m]||m)+'</span>').join('');
-        return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+s.duration_min+' min</div><div class="svc-modes">'+modes+'</div></div>';
+        return '<div class="svc-card" data-id="'+s.id+'"><div class="top"><div class="dot" style="background:'+(s.color||'var(--primary)')+'"></div><span class="name">'+s.name+'</span><span class="price">'+price+'</span></div><div class="meta">'+svcDurationLabel(s)+'</div>'+(s.description?'<div class="svc-desc">'+s.description+'</div>':'')+(s.variants&&s.variants.length>0?'<div class="svc-opts">'+s.variants.length+' option'+(s.variants.length>1?'s':'')+'</div>':'')+'<div class="svc-modes">'+modes+'</div></div>';
       }).join('');
     }
   }
@@ -657,31 +719,63 @@ function renderVedetteList(){
 
 // ──────── SERVICE ────────
 function selectService(id){
+  var svc=siteData.services.find(function(s){return s.id===id;});
+  if(!svc)return;
   if(multiServiceMode){
-    const idx=selectedServices.findIndex(s=>s.id===id);
+    var idx=selectedServices.findIndex(function(s){return s.id===id;});
     if(idx>=0){
       selectedServices.splice(idx,1);
+      delete selectedVariants[id];
+      _updateSvcCards();updateCartBar();
+      document.getElementById('btnStep1').disabled=selectedServices.length===0;
+      selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
+      selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+      computeStepOrder();
     }else if(selectedServices.length<5){
-      selectedServices.push(siteData.services.find(s=>s.id===id));
+      if(svc.variants&&svc.variants.length>0){
+        showVariantModal(svc,function(variant){
+          selectedVariants[id]=variant;
+          selectedServices.push(svc);
+          _updateSvcCards();updateCartBar();
+          document.getElementById('btnStep1').disabled=false;
+          selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
+          selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+          computeStepOrder();
+        });
+        return;
+      }
+      selectedServices.push(svc);
+      _updateSvcCards();updateCartBar();
+      document.getElementById('btnStep1').disabled=false;
+      selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
+      selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+      computeStepOrder();
     }
-    // Update card visuals
-    document.querySelectorAll('.svc-card').forEach(c=>{
-      const isSelected=selectedServices.some(s=>s.id===c.dataset.id);
-      c.classList.toggle('sel',isSelected);
-      c.classList.toggle('disabled',selectedServices.length>=5&&!isSelected);
-    });
-    updateCartBar();
-    document.getElementById('btnStep1').disabled=selectedServices.length===0;
-    // Also set selectedService for backward compat in downstream steps
-    selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
   }else{
-    // Existing single-select logic
-    selectedService=siteData.services.find(s=>s.id===id);
-    document.querySelectorAll('.svc-card').forEach(c=>c.classList.toggle('sel',c.dataset.id===id));
+    if(svc.variants&&svc.variants.length>0){
+      showVariantModal(svc,function(variant){
+        selectedVariants[id]=variant;
+        selectedService=svc;
+        document.querySelectorAll('.svc-card').forEach(function(c){c.classList.toggle('sel',c.dataset.id===id);});
+        document.getElementById('btnStep1').disabled=false;
+        selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+        computeStepOrder();
+      });
+      return;
+    }
+    selectedService=svc;
+    document.querySelectorAll('.svc-card').forEach(function(c){c.classList.toggle('sel',c.dataset.id===id);});
     document.getElementById('btnStep1').disabled=false;
+    selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+    computeStepOrder();
   }
-  selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
-  computeStepOrder();
+}
+function _updateSvcCards(){
+  document.querySelectorAll('.svc-card').forEach(function(c){
+    var isSelected=selectedServices.some(function(s){return s.id===c.dataset.id;});
+    c.classList.toggle('sel',isSelected);
+    c.classList.toggle('disabled',selectedServices.length>=5&&!isSelected);
+  });
 }
 
 // ──────── CART BAR ────────
@@ -691,8 +785,8 @@ function updateCartBar(){
   const n=selectedServices.length;
   bar.classList.toggle('show',n>0);
   if(n===0)return;
-  const totalMin=selectedServices.reduce((s,svc)=>s+(svc.duration_min||0),0);
-  const totalPrice=selectedServices.reduce((s,svc)=>s+(svc.price_cents||0),0);
+  const totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:(svc.duration_min||0));},0);
+  const totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
   const hours=Math.floor(totalMin/60);
   const mins=totalMin%60;
   const durStr=hours>0?hours+'h'+(mins>0?String(mins).padStart(2,'0'):''):totalMin+' min';
@@ -870,10 +964,13 @@ async function loadSlots(){
   if(multiServiceMode&&selectedServices.length>1){
     const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
     if(selectedMode)params.set('appointment_mode',selectedMode);
+    var vids=selectedServices.map(function(s){return selectedVariants[s.id]?selectedVariants[s.id].id:'';}).join(',');
+    if(vids.replace(/,/g,''))params.set('variant_ids',vids);
     slotsUrl='/api/public/'+slug+'/multi-slots?'+params;
   }else{
     const params=new URLSearchParams({service_id:selectedService.id,practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
     if(selectedMode)params.set('appointment_mode',selectedMode);
+    if(selectedVariants[selectedService.id])params.set('variant_id',selectedVariants[selectedService.id].id);
     slotsUrl='/api/public/'+slug+'/slots?'+params;
   }
   try{
@@ -1017,19 +1114,23 @@ function buildSummary(){
   const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
   var html='';
   if(multiServiceMode&&selectedServices.length>1){
-    // List each service with name, duration, price
-    selectedServices.forEach(svc=>{
-      const p=svc.price_cents?(svc.price_cents/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
-      html+='<div class="sum-row"><span class="label">'+svc.name+'</span><span class="val">'+svc.duration_min+' min \u00b7 '+p+'</span></div>';
+    selectedServices.forEach(function(svc){
+      var v=selectedVariants[svc.id];
+      var name=v?svc.name+' \u2014 '+v.name:svc.name;
+      var dur=v?v.duration_min:svc.duration_min;
+      var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
+      var p=pc?(pc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+      html+='<div class="sum-row"><span class="label">'+name+'</span><span class="val">'+dur+' min \u00b7 '+p+'</span></div>';
     });
-    // Totals
-    const totalMin=selectedServices.reduce((s,svc)=>s+svc.duration_min,0);
-    const totalPrice=selectedServices.reduce((s,svc)=>s+(svc.price_cents||0),0);
-    const totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
+    var totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
+    var totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+    var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
     html+='<div class="sum-divider"></div>'
       +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
   }else if(selectedService){
-    html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+selectedService.name+'</span></div>';
+    var sv=selectedVariants[selectedService.id];
+    var svcName=sv?selectedService.name+' \u2014 '+sv.name:selectedService.name;
+    html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+svcName+'</span></div>';
   }
   html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+selectedPractitioner.display_name+'</span></div>'
     +'<div class="sum-divider"></div>'
@@ -1037,7 +1138,9 @@ function buildSummary(){
     +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
   if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
     html+='<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
-    const price=selectedService.price_cents?(selectedService.price_cents/100).toFixed(0)+' \u20ac':'Gratuit';
+    var sv2=selectedVariants[selectedService.id];
+    var sumPc=sv2&&sv2.price_cents!=null?sv2.price_cents:selectedService.price_cents;
+    const price=sumPc?(sumPc/100).toFixed(0)+' \u20ac':'Gratuit';
     html+='<div class="sum-divider"></div>'
       +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
   }else if(multiServiceMode&&selectedServices.length>1){
@@ -1078,8 +1181,11 @@ async function submitBooking(){
     };
     if(multiServiceMode&&selectedServices.length>1){
       bookingBody.service_ids=selectedServices.map(s=>s.id);
+      var bvids=selectedServices.map(function(s){return selectedVariants[s.id]?selectedVariants[s.id].id:null;});
+      if(bvids.some(function(v){return v;}))bookingBody.variant_ids=bvids;
     }else if(selectedService){
       bookingBody.service_id=selectedService.id;
+      if(selectedVariants[selectedService.id])bookingBody.variant_id=selectedVariants[selectedService.id].id;
     }
     if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
 
@@ -1095,12 +1201,18 @@ async function submitBooking(){
     const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
     var confirmHtml='';
     if(multiServiceMode&&selectedServices.length>1){
-      selectedServices.forEach(svc=>{
-        const p=svc.price_cents?(svc.price_cents/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
-        confirmHtml+='<div class="row"><span class="l">'+svc.name+'</span><span class="v">'+svc.duration_min+' min \u00b7 '+p+'</span></div>';
+      selectedServices.forEach(function(svc){
+        var cv=selectedVariants[svc.id];
+        var cn=cv?svc.name+' \u2014 '+cv.name:svc.name;
+        var cd=cv?cv.duration_min:svc.duration_min;
+        var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
+        var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+        confirmHtml+='<div class="row"><span class="l">'+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
     }else if(selectedService){
-      confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+selectedService.name+'</span></div>';
+      var cv2=selectedVariants[selectedService.id];
+      var confirmName=cv2?selectedService.name+' \u2014 '+cv2.name:selectedService.name;
+      confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+confirmName+'</span></div>';
     }
     confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+selectedPractitioner.display_name+'</span></div>'
       +'<div class="row"><span class="l">Date</span><span class="v">'+dateStr+'</span></div>'
@@ -1159,9 +1271,9 @@ async function wlSubmit(){
 // ──────── CALENDAR BUTTONS ────────
 function buildCalendarButtons(startAt,endAt,token){
   const start=new Date(startAt);
-  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce((s,svc)=>s+svc.duration_min,0):(selectedService?.duration_min||30);
+  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0):(selectedVariants[selectedService?.id]?.duration_min||selectedService?.duration_min||30);
   const end=endAt?new Date(endAt):new Date(start.getTime()+totalDur*60000);
-  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(s=>s.name).join(' + '):(selectedService?.name||'RDV');
+  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(function(s){var v=selectedVariants[s.id];return v?s.name+' \u2014 '+v.name:s.name;}).join(' + '):(function(){var v=selectedVariants[selectedService?.id];return v?selectedService.name+' \u2014 '+v.name:(selectedService?.name||'RDV');}());
   const title=calTitle+' \u2014 '+(selectedPractitioner?.display_name||'');
   const loc=siteData?.business?.address||'';
   const desc=title+' — '+(siteData?.business?.name||'Genda');
@@ -1177,9 +1289,9 @@ function buildCalendarButtons(startAt,endAt,token){
 }
 function downloadICS(){
   const start=new Date(selectedSlot.start_at);
-  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce((s,svc)=>s+svc.duration_min,0):(selectedService?.duration_min||30);
+  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0):(selectedVariants[selectedService?.id]?.duration_min||selectedService?.duration_min||30);
   const end=selectedSlot.end_at?new Date(selectedSlot.end_at):new Date(start.getTime()+totalDur*60000);
-  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(s=>s.name).join(' + '):(selectedService?.name||'RDV');
+  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(function(s){var v=selectedVariants[s.id];return v?s.name+' \u2014 '+v.name:s.name;}).join(' + '):(function(){var v=selectedVariants[selectedService?.id];return v?selectedService.name+' \u2014 '+v.name:(selectedService?.name||'RDV');}());
   const title=calTitle+' \u2014 '+(selectedPractitioner?.display_name||'');
   const loc=siteData?.business?.address||'';
   function dt(d){return d.getUTCFullYear()+String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0')+'T'+String(d.getUTCHours()).padStart(2,'0')+String(d.getUTCMinutes()).padStart(2,'0')+String(d.getUTCSeconds()).padStart(2,'0')+'Z';}
