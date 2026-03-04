@@ -256,7 +256,9 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`<div class="field"><label>Cat\u00e9gorie</label><select id="svc_cat">`;
   m+=`<option value="">\u2014 Choisir une cat\u00e9gorie \u2014</option>`;
   const currentCat=svc?.category||pf.category||'';
+  const usedCats=new Set(allServices.map(s=>s.category).filter(Boolean));
   (sectorCats||[]).forEach(c=>{
+    if(c.source!=='custom'&&!usedCats.has(c.label)&&c.label!==currentCat)return;
     const sel=c.label===currentCat?' selected':'';
     const suffix=c.source==='custom'?' (personnalis\u00e9e)':'';
     m+=`<option value="${c.label}"${sel}>${c.label}${suffix}</option>`;
@@ -276,58 +278,66 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   // ── SECTION 2: Tarification ──
   m+=sec('Tarification');
+  const existingVars=svc?.variants||[];
+  const hasVars=existingVars.length>0;
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
+  m+=`<div id="svc_pricing_main"${hasVars?' style="display:none"':''}>`;
   m+=`<div class="field-row"><div class="field"><label>Dur\u00e9e (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5"></div><div class="field"><label>Prix (\u20ac)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
   m+=`<div class="field"><label>Label prix <span style="font-weight:400;color:var(--text-4)">(si pas de montant)</span></label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
+  m+=`</div>`;
   // Variants
-  const existingVars=svc?.variants||[];
   m+=`<div class="field"><label>Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label><div id="svc_variants_list">`;
   existingVars.forEach(v=>{
-    m+=`<div class="svc-var-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input class="svc-var-name" value="${esc(v.name)}" placeholder="Nom" style="flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-dur" value="${v.duration_min}" min="5" step="5" placeholder="Min" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-price" value="${v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="\u20ac" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="hidden" class="svc-var-id" value="${v.id}"><button type="button" onclick="svcRemoveVariant(this)" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1">&times;</button></div>`;
+    m+=svcVarRowHTML(v);
   });
   m+=`</div><button type="button" class="btn-outline btn-sm" onclick="svcAddVariant()" style="margin-top:4px;font-size:.78rem">+ Variante</button><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Ex: Courts (60min, 45\u20ac), Mi-Longs (75min, 55\u20ac)</div></div>`;
   m+=`</div>`; // end section 2
 
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
-  m+=`<div class="field-row"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer apr\u00e8s (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  m+=`<div class="field-row" id="svc_buffers_row"${hasVars?' style="display:none"':''}><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer apr\u00e8s (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
   // Consultation modes (conditional)
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
   if(showModes){
-  m+=`<div class="field"><label>Modes de consultation</label><div style="display:flex;gap:8px;margin-top:4px">
-    <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Cabinet</label>
-    <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> Visio</label>
-    <label style="font-size:.82rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> T\u00e9l</label>
+  m+=`<div class="field"><label>Modes de consultation</label><div style="display:flex;gap:12px;margin-top:4px">
+    <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Cabinet</label>
+    <label class="svc-mode-opt"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> Visio</label>
+    <label class="svc-mode-opt"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> T\u00e9l</label>
   </div></div>`;
   }
   // Schedule restriction
   const sched=svc?.available_schedule||null;
   const isRestricted=sched?.type==='restricted';
-  m+=`<div class="field"><label>Disponibilit\u00e9</label>`;
-  m+=`<div style="margin-top:4px"><label style="font-size:.82rem;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="svc_sched_toggle" ${isRestricted?'checked':''} onchange="svcToggleSched()"> Restreindre les horaires</label></div>`;
-  m+=`<div id="svc_sched_editor" style="display:${isRestricted?'block':'none'};margin-top:8px;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:10px">`;
+  m+=`<div class="field"><label class="svc-switch"><input type="checkbox" id="svc_sched_toggle" ${isRestricted?'checked':''} onchange="svcToggleSched()"><span class="svc-switch-track"></span> Restreindre les horaires</label>`;
+  m+=`<div id="svc_sched_editor" class="svc-sched-editor"${isRestricted?'':' style="display:none"'}>`;
+  const DAY_SHORTS=['L','M','M','J','V','S','D'];
+  m+=`<div class="svc-day-bar">`;
   for(let d=0;d<7;d++){
-    const dayWindows=isRestricted?(sched.windows||[]).filter(w=>w.day===d):[];
-    const active=dayWindows.length>0;
-    m+=`<div class="svc-sched-day" data-day="${d}" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border-light)">`;
-    m+=`<label style="width:36px;font-size:.78rem;font-weight:600;padding-top:6px">${DAY_LABELS[d]}</label>`;
-    m+=`<input type="checkbox" class="svc-sched-day-cb" ${active?'checked':''} onchange="svcSchedDayToggle(this)" style="margin-top:7px">`;
-    m+=`<div class="svc-sched-windows" style="flex:1">`;
+    const dayW=isRestricted?(sched.windows||[]).filter(w=>w.day===d):[];
+    m+=`<button type="button" class="svc-day-pill${dayW.length>0?' active':''}" data-day="${d}" onclick="svcDayPillClick(this)">${DAY_SHORTS[d]}</button>`;
+  }
+  m+=`</div>`;
+  for(let d=0;d<7;d++){
+    const dayW=isRestricted?(sched.windows||[]).filter(w=>w.day===d):[];
+    const active=dayW.length>0;
+    m+=`<div class="svc-sched-day" data-day="${d}"${active?'':' style="display:none"'}>`;
+    m+=`<input type="checkbox" class="svc-sched-day-cb" ${active?'checked':''} style="display:none">`;
+    m+=`<span class="svc-sched-day-name">${DAY_LABELS[d]}</span>`;
+    m+=`<div class="svc-sched-windows">`;
     if(active){
-      dayWindows.forEach(w=>{
-        m+=`<div class="svc-sched-win" style="display:flex;gap:4px;align-items:center;margin-bottom:4px"><input type="time" class="svc-sched-from" value="${w.from}" style="padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem"><span style="font-size:.78rem">\u2014</span><input type="time" class="svc-sched-to" value="${w.to}" style="padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem"><button type="button" onclick="this.closest('.svc-sched-win').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem">&times;</button></div>`;
+      dayW.forEach(w=>{
+        m+=`<div class="svc-sched-win"><input type="time" class="svc-sched-from" value="${w.from}"><span>\u2014</span><input type="time" class="svc-sched-to" value="${w.to}"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">\u00d7</button></div>`;
       });
     }else{
-      m+=`<div class="svc-sched-win" style="display:none;gap:4px;align-items:center;margin-bottom:4px"><input type="time" class="svc-sched-from" value="09:00" style="padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem"><span style="font-size:.78rem">\u2014</span><input type="time" class="svc-sched-to" value="12:00" style="padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem"><button type="button" onclick="this.closest('.svc-sched-win').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem">&times;</button></div>`;
+      m+=`<div class="svc-sched-win" style="display:none"><input type="time" class="svc-sched-from" value="09:00"><span>\u2014</span><input type="time" class="svc-sched-to" value="12:00"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">\u00d7</button></div>`;
     }
     m+=`</div>`;
-    m+=`<button type="button" onclick="svcSchedAddWin(this)" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:.72rem;padding-top:6px;white-space:nowrap">+ plage</button>`;
+    m+=`<button type="button" onclick="svcSchedAddWin(this)" class="svc-sched-add">+</button>`;
     m+=`</div>`;
   }
-  m+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:4px">D\u00e9finissez les jours et heures o\u00f9 cette prestation est disponible</div>`;
   m+=`</div></div>`;
   m+=`</div>`; // end section 3
 
@@ -386,8 +396,7 @@ function svcSchedDayToggle(cb){
 function svcSchedAddWin(btn){
   const day=btn.closest('.svc-sched-day');
   const container=day.querySelector('.svc-sched-windows');
-  container.insertAdjacentHTML('beforeend',`<div class="svc-sched-win" style="display:flex;gap:4px;align-items:center;margin-bottom:4px"><input type="time" class="svc-sched-from" value="09:00" style="padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem"><span style="font-size:.78rem">\u2014</span><input type="time" class="svc-sched-to" value="12:00" style="padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem"><button type="button" onclick="this.closest('.svc-sched-win').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem">&times;</button></div>`);
-  // Ensure day checkbox is checked
+  container.insertAdjacentHTML('beforeend',`<div class="svc-sched-win"><input type="time" class="svc-sched-from" value="09:00"><span>\u2014</span><input type="time" class="svc-sched-to" value="12:00"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">\u00d7</button></div>`);
   const cb=day.querySelector('.svc-sched-day-cb');
   if(cb)cb.checked=true;
 }
@@ -656,11 +665,43 @@ async function qsSubmitAll(){
   loadServices();
 }
 
-function svcAddVariant(){
-  document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',`<div class="svc-var-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><input class="svc-var-name" value="" placeholder="Nom" style="flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-dur" value="" min="5" step="5" placeholder="Min" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="number" class="svc-var-price" value="" step="0.01" placeholder="\u20ac" style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem"><input type="hidden" class="svc-var-id" value=""><button type="button" onclick="svcRemoveVariant(this)" style="background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1">&times;</button></div>`);
+function svcVarRowHTML(v){
+  return `<div class="svc-var-row"><input class="svc-var-name" value="${v?esc(v.name):''}" placeholder="Nom"><input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="Min"><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="\u20ac"><input type="hidden" class="svc-var-id" value="${v?.id||''}"><button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">\u00d7</button></div>`;
 }
-function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();}
+function svcAddVariant(){
+  document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',svcVarRowHTML(null));
+  svcUpdatePricingVis();
+}
+function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();svcUpdatePricingVis();}
+function svcUpdatePricingVis(){
+  const n=document.querySelectorAll('#svc_variants_list .svc-var-row').length;
+  const p=document.getElementById('svc_pricing_main');
+  const b=document.getElementById('svc_buffers_row');
+  if(p)p.style.display=n>0?'none':'';
+  if(b)b.style.display=n>0?'none':'';
+}
+function svcDayPillClick(btn){
+  btn.classList.toggle('active');
+  const d=btn.dataset.day;
+  const dayEl=document.querySelector(`.svc-sched-day[data-day="${d}"]`);
+  if(!dayEl)return;
+  const cb=dayEl.querySelector('.svc-sched-day-cb');
+  if(btn.classList.contains('active')){
+    dayEl.style.display='flex';
+    if(cb)cb.checked=true;
+    const wins=dayEl.querySelectorAll('.svc-sched-win');
+    if(wins.length===0||[...wins].every(w=>w.style.display==='none')){
+      const hidden=[...wins].find(w=>w.style.display==='none');
+      if(hidden)hidden.style.display='flex';
+      else svcSchedAddWin(dayEl.querySelector('.svc-sched-add'));
+    }
+    wins.forEach(w=>{if(w.style.display==='none')w.style.display='flex';});
+  }else{
+    dayEl.style.display='none';
+    if(cb)cb.checked=false;
+  }
+}
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcToggleSection, svcNewCategory, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcNewCategory, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };

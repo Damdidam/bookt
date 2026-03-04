@@ -115,6 +115,37 @@
 .svc-section-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .svc-section-title{font-size:.78rem;font-weight:600;color:var(--text-3);white-space:nowrap}
 .svc-section-line{flex:1;height:1px;background:var(--border-light)}
+/* Variant rows */
+.svc-var-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.svc-var-row .svc-var-name{flex:2;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem}
+.svc-var-row input[type="number"]{width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem}
+.svc-var-x{background:none;border:none;color:var(--red);cursor:pointer;padding:4px;font-size:1.1rem;line-height:1}
+/* Toggle switch */
+.svc-switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;font-weight:500}
+.svc-switch input{display:none}
+.svc-switch-track{width:34px;height:18px;border-radius:9px;background:var(--border);position:relative;transition:.2s;flex-shrink:0}
+.svc-switch-track::after{content:'';width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.svc-switch input:checked+.svc-switch-track{background:var(--primary)}
+.svc-switch input:checked+.svc-switch-track::after{left:18px}
+/* Schedule editor */
+.svc-sched-editor{margin-top:8px;padding:12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)}
+.svc-day-bar{display:flex;gap:4px;margin-bottom:10px}
+.svc-day-pill{width:32px;height:28px;border-radius:6px;border:1.5px solid var(--border);background:var(--white);color:var(--text-3);font-size:.72rem;font-weight:600;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center}
+.svc-day-pill:hover{border-color:var(--primary)}
+.svc-day-pill.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.svc-sched-day{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px solid var(--border-light)}
+.svc-sched-day-name{width:32px;font-size:.75rem;font-weight:600;color:var(--text-2);padding-top:5px;flex-shrink:0}
+.svc-sched-windows{flex:1;display:flex;flex-direction:column;gap:4px}
+.svc-sched-win{display:flex;gap:4px;align-items:center}
+.svc-sched-win input[type="time"]{padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem}
+.svc-sched-win span{font-size:.78rem;color:var(--text-4)}
+.svc-sched-x{background:none;border:none;color:var(--red);cursor:pointer;font-size:.9rem;padding:2px 4px;line-height:1}
+.svc-sched-add{background:none;border:none;color:var(--primary);cursor:pointer;font-size:.82rem;font-weight:600;padding:4px;flex-shrink:0}
+/* Mode options */
+.svc-mode-opt{font-size:.82rem;display:flex;align-items:center;gap:4px;cursor:pointer}
+/* Color dots smaller in modal */
+.modal .csw-inline{gap:3px}
+.modal .csw-inline .csw-dot{width:15px;height:15px;border-radius:4px;border-width:1.5px}
 
 /* ===== HOURS / AVAILABILITY ===== */
 .hours-schedule{margin-top:12px}
