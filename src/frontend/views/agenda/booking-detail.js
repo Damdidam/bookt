@@ -219,19 +219,27 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('mColorReset').style.display = '';
     };
 
+    // -- Frozen status (used by group detach buttons and bottom bar) --
+    const isFrozen = ['cancelled', 'no_show'].includes(b.status);
+
     // -- Group siblings (render list) --
     const groupEl = document.getElementById('mGroupSiblings');
+    calState.fcGroupSiblings = siblings; // store for ungroup module
     if (isGroup) {
+      const canDetach = !isFrozen && userRole !== 'practitioner';
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span><span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
       siblings.forEach(sib => {
         const isCur = String(sib.id) === String(bookingId);
         const sT = new Date(sib.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
-        gh += `<div class="m-group-item${isCur ? ' current' : ''}">
+        const sibFrozen = ['cancelled', 'no_show'].includes(sib.status);
+        const detachBtn = (canDetach && !sibFrozen) ? `<button class="g-detach-btn" onclick="fcShowUngroupPanel('${sib.id}')" title="Détacher du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="m7 11 2 2 4-4"/><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg></button>` : '';
+        gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}">
           <span class="g-dot" style="background:${safeSibColor}"></span>
-          <span style="font-weight:${isCur ? '700' : '400'}">${esc(sib.service_name || 'RDV libre')}</span>
+          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.service_name || 'RDV libre')}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
+          ${detachBtn}
         </div>`;
       });
       gh += '</div></div>';
@@ -284,7 +292,6 @@ async function fcOpenDetail(bookingId) {
     fcRenderNotes(); fcRenderSession(b); fcRenderTodos(); fcRenderReminders(); fcRenderDocs(b);
 
     // -- Bottom bar: show/hide buttons based on status --
-    const isFrozen = ['cancelled', 'no_show'].includes(b.status);
     document.getElementById('mBtnSave').style.display = isFrozen ? 'none' : '';
     document.getElementById('mBtnNotify').style.display = isFrozen ? 'none' : '';
     document.getElementById('mBtnCancel').style.display = isFrozen ? 'none' : '';
@@ -327,7 +334,8 @@ function switchCalTab(el, tab) {
 const ACTION_LABELS = {
   create: 'Cr\u00e9\u00e9', move: 'D\u00e9plac\u00e9', modify: 'Horaire modifi\u00e9',
   resize: 'Dur\u00e9e modifi\u00e9e', edit: 'Modifi\u00e9', status_change: 'Statut chang\u00e9',
-  group_move: 'Groupe d\u00e9plac\u00e9', deposit_refund: 'Acompte rembours\u00e9'
+  group_move: 'Groupe d\u00e9plac\u00e9', deposit_refund: 'Acompte rembours\u00e9',
+  ungroup: 'D\u00e9tach\u00e9 du groupe'
 };
 const ACTION_ICONS = {
   create: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
@@ -337,7 +345,8 @@ const ACTION_ICONS = {
   edit: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
   status_change: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   group_move: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-  deposit_refund: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'
+  deposit_refund: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  ungroup: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg>'
 };
 const STATUS_MAP = {
   pending: 'En attente', confirmed: 'Confirm\u00e9', completed: 'Termin\u00e9',

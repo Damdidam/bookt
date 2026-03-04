@@ -27,6 +27,7 @@ import './booking-edit.js';
 import './booking-save.js';
 import './booking-undo.js';
 import './booking-detail.js';
+import './booking-ungroup.js';
 import './calendar-toolbar.js';
 import './calendar-mobile.js';
 import './calendar-featured.js';

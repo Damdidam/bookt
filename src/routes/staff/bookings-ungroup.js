@@ -1,0 +1,241 @@
+/**
+ * Booking Ungroup — PATCH /:id/ungroup
+ * Detaches a booking from its group, optionally reassigning practitioner
+ * and/or replacing service.
+ */
+const router = require('express').Router();
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
+const { broadcast } = require('../../services/sse');
+const { calSyncPush, businessAllowsOverlap, getMaxConcurrent } = require('./bookings-helpers');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ============================================================
+// PATCH /api/bookings/:id/ungroup — Detach a booking from its group
+// Optionally reassign practitioner and/or replace service.
+// UI: Calendar → detail modal → Group section → ✂️ button
+// ============================================================
+router.patch('/:id/ungroup', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    const { practitioner_id, service_id } = req.body;
+
+    // Only owner/manager/staff can ungroup — not practitioners
+    if (req.user.role === 'practitioner') {
+      return res.status(403).json({ error: 'Seuls les gestionnaires peuvent détacher une prestation du groupe' });
+    }
+
+    // 1. Fetch the booking
+    const bkRes = await queryWithRLS(bid,
+      `SELECT b.id, b.group_id, b.group_order, b.status, b.start_at, b.end_at,
+              b.practitioner_id, b.service_id
+       FROM bookings b
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [id, bid]
+    );
+    if (bkRes.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const booking = bkRes.rows[0];
+
+    // 2. Must be part of a group
+    if (!booking.group_id) {
+      return res.status(400).json({ error: 'Ce RDV ne fait pas partie d\'un groupe' });
+    }
+
+    // 3. Block if frozen status
+    const FROZEN = ['cancelled', 'no_show'];
+    if (FROZEN.includes(booking.status)) {
+      return res.status(400).json({ error: 'Impossible de détacher un RDV annulé ou no-show' });
+    }
+
+    // 4. Validate practitioner_id if provided
+    let newPracId = booking.practitioner_id;
+    if (practitioner_id) {
+      if (!UUID_RE.test(practitioner_id)) return res.status(400).json({ error: 'practitioner_id invalide' });
+      const pracCheck = await queryWithRLS(bid,
+        `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2 AND is_active = true`,
+        [practitioner_id, bid]
+      );
+      if (pracCheck.rows.length === 0) return res.status(400).json({ error: 'Praticien introuvable ou inactif' });
+      newPracId = practitioner_id;
+    }
+
+    // 5. Validate service_id if provided + compute new end_at
+    let newServiceId = booking.service_id;
+    let newEndAt = booking.end_at;
+    if (service_id) {
+      if (!UUID_RE.test(service_id)) return res.status(400).json({ error: 'service_id invalide' });
+      const svcCheck = await queryWithRLS(bid,
+        `SELECT id, duration_min, buffer_before_min, buffer_after_min
+         FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
+        [service_id, bid]
+      );
+      if (svcCheck.rows.length === 0) return res.status(400).json({ error: 'Prestation introuvable ou inactive' });
+
+      // Validate practitioner is assigned to this service
+      const psCheck = await queryWithRLS(bid,
+        `SELECT 1 FROM practitioner_services
+         WHERE practitioner_id = $1 AND service_id = $2`,
+        [newPracId, service_id]
+      );
+      if (psCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
+      }
+
+      // Recalculate end_at from start_at + service duration (detached = standalone, so include buffers)
+      const svc = svcCheck.rows[0];
+      const totalMin = (svc.buffer_before_min || 0) + svc.duration_min + (svc.buffer_after_min || 0);
+      newEndAt = new Date(new Date(booking.start_at).getTime() + totalMin * 60000).toISOString();
+      newServiceId = service_id;
+    }
+
+    // Also validate practitioner assignment for existing service when only practitioner changes
+    if (practitioner_id && !service_id && booking.service_id) {
+      const psCheck = await queryWithRLS(bid,
+        `SELECT 1 FROM practitioner_services
+         WHERE practitioner_id = $1 AND service_id = $2`,
+        [newPracId, booking.service_id]
+      );
+      if (psCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
+      }
+    }
+
+    // 6. Transaction: ungroup + conflict check + resequence
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
+
+    let result;
+    try {
+      result = await transactionWithRLS(bid, async (client) => {
+        // Lock the booking FOR UPDATE
+        const lock = await client.query(
+          `SELECT id, group_id, status, start_at, end_at, practitioner_id, service_id
+           FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+          [id, bid]
+        );
+        if (lock.rows.length === 0) throw Object.assign(new Error('RDV introuvable'), { type: 'not_found' });
+        const locked = lock.rows[0];
+
+        // Re-check group_id + status (concurrency guard)
+        if (!locked.group_id) throw Object.assign(new Error('Ce RDV ne fait plus partie d\'un groupe'), { type: 'bad_request' });
+        if (FROZEN.includes(locked.status)) throw Object.assign(new Error('RDV gelé'), { type: 'bad_request' });
+
+        // Conflict check if practitioner or duration changed
+        const pracChanged = String(newPracId) !== String(locked.practitioner_id);
+        const timeChanged = newEndAt !== locked.end_at;
+        if ((pracChanged || timeChanged) && !globalAllowOverlap) {
+          const maxConc = await getMaxConcurrent(bid, newPracId);
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND id != $3
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND start_at < $5 AND end_at > $4
+             FOR UPDATE`,
+            [bid, newPracId, id, locked.start_at, newEndAt]
+          );
+          if (conflict.rows.length >= maxConc) {
+            throw Object.assign(new Error('Conflit : capacité maximale atteinte sur ce créneau pour ce praticien'), { type: 'conflict' });
+          }
+        }
+
+        // Build UPDATE for the detached booking
+        const sets = ['group_id = NULL', 'group_order = NULL', 'updated_at = NOW()'];
+        const params = [];
+        let idx = 1;
+
+        if (pracChanged) {
+          sets.push(`practitioner_id = $${idx}`);
+          params.push(newPracId);
+          idx++;
+        }
+        if (service_id) {
+          sets.push(`service_id = $${idx}`);
+          params.push(newServiceId);
+          idx++;
+        }
+        if (timeChanged) {
+          sets.push(`end_at = $${idx}`);
+          params.push(newEndAt);
+          idx++;
+        }
+
+        params.push(id, bid);
+        const updateSql = `UPDATE bookings SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING *`;
+        const updated = await client.query(updateSql, params);
+
+        // Count remaining members in the group
+        const remainRes = await client.query(
+          `SELECT id, group_order FROM bookings
+           WHERE group_id = $1 AND business_id = $2 AND id != $3
+           ORDER BY group_order`,
+          [locked.group_id, bid, id]
+        );
+        const remaining = remainRes.rows;
+
+        if (remaining.length === 1) {
+          // Only 1 member left → also ungroup it (no group of 1)
+          await client.query(
+            `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [remaining[0].id, bid]
+          );
+        } else if (remaining.length > 1) {
+          // Re-sequence group_order (0, 1, 2...)
+          for (let i = 0; i < remaining.length; i++) {
+            if (remaining[i].group_order !== i) {
+              await client.query(
+                `UPDATE bookings SET group_order = $1, updated_at = NOW()
+                 WHERE id = $2 AND business_id = $3`,
+                [i, remaining[i].id, bid]
+              );
+            }
+          }
+        }
+
+        // Audit log
+        const oldData = {
+          group_id: locked.group_id,
+          group_order: locked.group_order,
+          practitioner_id: locked.practitioner_id,
+          service_id: locked.service_id,
+          end_at: locked.end_at
+        };
+        const newData = {
+          practitioner_id: newPracId,
+          service_id: newServiceId,
+          end_at: newEndAt,
+          remaining_group_size: remaining.length
+        };
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'booking', $3, 'ungroup', $4, $5)`,
+          [bid, req.user.id, id, JSON.stringify(oldData), JSON.stringify(newData)]
+        );
+
+        return { booking: updated.rows[0], remaining_group_size: remaining.length };
+      });
+    } catch (err) {
+      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      if (err.type === 'bad_request' || err.type === 'not_found') return res.status(err.type === 'not_found' ? 404 : 400).json({ error: err.message });
+      throw err;
+    }
+
+    // 7. Post-transaction: broadcast + calendar sync
+    broadcast(bid, 'booking_update', { action: 'ungrouped' });
+    calSyncPush(bid, id).catch(() => {});
+
+    // 8. Response
+    res.json({
+      updated: true,
+      booking: result.booking,
+      remaining_group_size: result.remaining_group_size
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+module.exports = router;

@@ -114,7 +114,23 @@ textarea.m-input{resize:vertical;min-height:38px}
 .m-group-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;margin-bottom:3px;font-size:.78rem;border:1px solid var(--border-light)}
 .m-group-item.current{background:var(--primary);color:#fff;border-color:var(--primary)}
 .m-group-item .g-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.m-group-item .g-time{margin-left:auto;font-size:.72rem;opacity:.7}
+.m-group-item .g-time{font-size:.72rem;opacity:.7;white-space:nowrap}
+.g-detach-btn{flex-shrink:0;width:24px;height:24px;border-radius:6px;border:1px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-4);transition:all .15s;padding:0;margin-left:4px}
+.g-detach-btn:hover{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+.m-group-item.current .g-detach-btn{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:rgba(255,255,255,.7)}
+.m-group-item.current .g-detach-btn:hover{background:rgba(255,255,255,.25);color:#fff;border-color:rgba(255,255,255,.5)}
+
+/* ── Ungroup panel ── */
+.m-ungroup-panel{margin:4px 0 6px;padding:12px 14px;border-radius:10px;border:1.5px solid var(--primary);background:var(--primary-light);animation:ugSlide .2s ease}
+@keyframes ugSlide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.ug-header{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--primary);margin-bottom:10px}
+.ug-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ug-label{font-size:.72rem;font-weight:600;color:var(--text-3);width:70px;flex-shrink:0}
+.ug-select{flex:1;font-size:.78rem;padding:6px 10px;border-radius:6px}
+.ug-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.ug-btn{padding:6px 14px;border-radius:8px;font-size:.75rem;font-weight:700;cursor:pointer;border:none;font-family:var(--sans);transition:all .15s;display:flex;align-items:center;gap:4px}
+.ug-btn-cancel{background:var(--surface);color:var(--text-3)}.ug-btn-cancel:hover{background:var(--border-light)}
+.ug-btn-confirm{background:var(--primary);color:#fff;box-shadow:0 2px 6px rgba(13,115,119,.2)}.ug-btn-confirm:hover{background:var(--primary-hover)}
 
 /* ── Diff banner ── */
 .diff{padding:3px 10px;border-radius:5px;font-size:.78rem;font-weight:600}

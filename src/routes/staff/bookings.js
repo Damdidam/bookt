@@ -162,6 +162,7 @@ router.get('/:id/detail', async (req, res, next) => {
     if (bk.group_id) {
       const grp = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
+                b.practitioner_id, b.service_id,
                 s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
@@ -190,5 +191,6 @@ router.use(require('./bookings-creation'));
 router.use(require('./bookings-status'));
 router.use(require('./bookings-time'));
 router.use(require('./bookings-annotations'));
+router.use(require('./bookings-ungroup'));
 
 module.exports = router;
