@@ -106,11 +106,8 @@ function fcFilterCategory(cat, el) {
     const allBtn = document.querySelector('.cat-chip[data-cat="__all__"]');
     if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
   }
-  // Apply CSS hiding on calendar events
-  document.querySelectorAll('[data-category]').forEach(evEl => {
-    const evCat = evEl.getAttribute('data-category');
-    evEl.style.display = calState.fcHiddenCategories.has(evCat) ? 'none' : '';
-  });
+  // Refetch events so the filter callback excludes hidden categories
+  if (calState.fcCal) calState.fcCal.refetchEvents();
   // Refresh mobile list if active
   if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
 }

@@ -147,7 +147,7 @@ function buildEventsCallback() {
           });
         });
 
-        // Filter by status visibility toggles
+        // Filter by status + category visibility
         const filtered = events.filter(ev => {
           const p = ev.extendedProps;
           if (p._isGroup) {
@@ -156,10 +156,17 @@ function buildEventsCallback() {
             const allNoShow = members.every(m => m.status === 'no_show');
             if (allCancelled && !calState.fcShowCancelled) return false;
             if (allNoShow && !calState.fcShowNoShow) return false;
-            return true;
+          } else {
+            if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
+            if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
           }
-          if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
-          if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
+          // Category filter
+          if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
+            const svcId = p._isGroup ? p._members?.[0]?.service_id : p.service_id;
+            const svc = svcId && calState.fcServices?.find(s => s.id === svcId);
+            const cat = svc?.category || '';
+            if (calState.fcHiddenCategories.has(cat)) return false;
+          }
           return true;
         });
         // Inject featured slots background events if mode is active
