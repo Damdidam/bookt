@@ -23,10 +23,15 @@ async function fcLoadMobileList() {
     calState.fcAllBookings = d.bookings || [];
   } catch (e) { calState.fcAllBookings = []; }
 
-  // Apply status visibility filter
+  // Apply status + category visibility filters
   calState.fcAllBookings = calState.fcAllBookings.filter(b => {
     if (b.status === 'cancelled' && !calState.fcShowCancelled) return false;
     if (b.status === 'no_show' && !calState.fcShowNoShow) return false;
+    if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
+      const svc = calState.fcServices?.find(s => s.id === b.service_id);
+      const cat = svc?.category || '';
+      if (calState.fcHiddenCategories.has(cat)) return false;
+    }
     return true;
   });
 

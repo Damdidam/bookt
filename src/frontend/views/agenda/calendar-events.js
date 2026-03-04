@@ -251,6 +251,15 @@ function buildEventDidMount() {
 
     info.el.setAttribute('data-eid', info.event.id);
 
+    // Category attribute for filter chips
+    const svcId = p._isGroup ? p._members?.[0]?.service_id : p.service_id;
+    const svcDef = svcId && calState.fcServices?.find(s => s.id === svcId);
+    const cat = svcDef?.category || '';
+    info.el.setAttribute('data-category', cat);
+    if (calState.fcHiddenCategories && calState.fcHiddenCategories.has(cat)) {
+      info.el.style.display = 'none';
+    }
+
     // Resolve booking ID (for groups -> first member)
     const bookingId = p._isGroup ? p._members?.[0]?.id : info.event.id;
 

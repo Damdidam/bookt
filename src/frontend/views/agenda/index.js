@@ -80,6 +80,41 @@ function fcToggleStatus(status, el) {
   fcRefresh();
 }
 
+// ── Category filter ──
+function fcFilterCategory(cat, el) {
+  if (cat === '__all__') {
+    // Toggle all: if all visible -> hide all, else show all
+    const allChips = document.querySelectorAll('.cat-chip:not([data-cat="__all__"])');
+    const allVisible = calState.fcHiddenCategories.size === 0;
+    if (allVisible) {
+      allChips.forEach(c => { c.classList.remove('active'); calState.fcHiddenCategories.add(c.dataset.cat); });
+      el.classList.remove('active');
+    } else {
+      calState.fcHiddenCategories.clear();
+      allChips.forEach(c => c.classList.add('active'));
+      el.classList.add('active');
+    }
+  } else {
+    if (calState.fcHiddenCategories.has(cat)) {
+      calState.fcHiddenCategories.delete(cat);
+      el.classList.add('active');
+    } else {
+      calState.fcHiddenCategories.add(cat);
+      el.classList.remove('active');
+    }
+    // Update "Tout" chip
+    const allBtn = document.querySelector('.cat-chip[data-cat="__all__"]');
+    if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
+  }
+  // Apply CSS hiding on calendar events
+  document.querySelectorAll('[data-category]').forEach(evEl => {
+    const evCat = evEl.getAttribute('data-category');
+    evEl.style.display = calState.fcHiddenCategories.has(evCat) ? 'none' : '';
+  });
+  // Refresh mobile list if active
+  if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
+}
+
 // ── Main loadAgenda ──
 async function loadAgenda() {
   const c = getContentArea();
@@ -163,6 +198,24 @@ async function loadAgenda() {
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   }
 
+  // Build category filter chips
+  const catSet = new Set();
+  calState.fcServices.forEach(s => { if (s.is_active !== false) catSet.add(s.category || ''); });
+  const categories = [...catSet].sort((a, b) => (a || 'zzz').localeCompare(b || 'zzz'));
+  calState.fcHiddenCategories = new Set();
+  let catChipsHtml = '';
+  if (categories.length > 1) {
+    catChipsHtml = `<div class="at-row-cats" id="atCatFilters">`;
+    catChipsHtml += `<div class="cat-chip active" data-cat="__all__" onclick="fcFilterCategory('__all__',this)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
+    categories.forEach(cat => {
+      const label = cat || 'Autres';
+      const svcOfCat = calState.fcServices.find(s => (s.category || '') === cat && s.is_active !== false);
+      const color = svcOfCat?.color || 'var(--primary)';
+      catChipsHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
+    });
+    catChipsHtml += `</div>`;
+  }
+
   // Build unified toolbar
   const mobile = fcIsMobile();
   const initView = mobile ? 'timeGridDay' : 'timeGridWeek';
@@ -173,6 +226,8 @@ async function loadAgenda() {
   toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="timeGridDay" onclick="atView('timeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button>${fsBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
   // Desktop: Row 2 -- filter pills
   toolbar += `<div class="at-row-filters">${pillsHtml}</div>`;
+  // Desktop: Row 3 -- category filter chips (if multiple categories)
+  if (catChipsHtml) toolbar += catChipsHtml;
   // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)
   toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Auj.</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
   // Mobile: Row 2 -- pills scrollable
@@ -236,6 +291,6 @@ async function loadAgenda() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory });
 
 export { loadAgenda };

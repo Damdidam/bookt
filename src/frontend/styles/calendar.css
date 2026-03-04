@@ -17,6 +17,12 @@
 .agenda-toolbar .at-view-btn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
 .agenda-toolbar .at-date{font-size:.76rem;color:var(--text-4);white-space:nowrap;flex-shrink:0;margin-left:4px}
 .at-row-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.at-row-cats{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px;padding-top:4px;border-top:1px solid var(--border-light)}
+.cat-chip{padding:4px 12px;border-radius:100px;font-size:.68rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-4);transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;user-select:none}
+.cat-chip:hover{border-color:var(--text-4);background:var(--surface)}
+.cat-chip.active{border-color:var(--primary-soft);background:var(--primary-light);color:var(--primary)}
+.cat-chip:not(.active){opacity:.5;text-decoration:line-through}
+.cat-chip .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .agenda-toolbar .at-sep{width:1px;height:20px;background:var(--border-light);flex-shrink:0}
 /* Sticky day headers — below 2-row toolbar (~82px) */
 .content.agenda-active .fc .fc-header-toolbar{display:none!important}
