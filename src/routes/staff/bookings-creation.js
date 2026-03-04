@@ -231,7 +231,7 @@ router.post('/manual', async (req, res, next) => {
     // Fetch all service durations
     const svcIds = serviceList.map(s => s.service_id);
     const svcResult = await queryWithRLS(bid,
-      `SELECT id, duration_min, buffer_before_min, buffer_after_min
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min
        FROM services WHERE business_id = $1 AND id = ANY($2)`,
       [bid, svcIds]
     );
@@ -243,6 +243,20 @@ router.post('/manual', async (req, res, next) => {
       if (!svcMap[s.service_id]) return res.status(404).json({ error: `Prestation ${s.service_id} introuvable` });
       if (!svcMap[s.service_id].duration_min || svcMap[s.service_id].duration_min <= 0) {
         return res.status(400).json({ error: `Durée invalide pour la prestation ${s.service_id}` });
+      }
+    }
+
+    // Validate practitioner is assigned to all selected services
+    const psCheck = await queryWithRLS(bid,
+      `SELECT service_id FROM practitioner_services
+       WHERE practitioner_id = $1 AND service_id = ANY($2)`,
+      [practitioner_id, svcIds]
+    );
+    const assignedSvcIds = new Set(psCheck.rows.map(r => r.service_id));
+    for (const s of serviceList) {
+      if (!assignedSvcIds.has(s.service_id)) {
+        const svcName = svcMap[s.service_id]?.name || s.service_id;
+        return res.status(400).json({ error: `Le praticien ne propose pas la prestation "${svcName}"` });
       }
     }
 

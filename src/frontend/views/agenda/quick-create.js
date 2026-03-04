@@ -79,6 +79,8 @@ function fcOpenQuickCreate(startStr, endStr) {
   prSel.onchange = function () {
     const sel = calState.fcPractitioners.find(p => String(p.id) === this.value);
     if (qcPracDot) qcPracDot.style.background = sel?.color || 'var(--primary)';
+    // Refresh service dropdowns for the new practitioner
+    qcRefreshServiceDropdowns();
   };
 
   // Init service list with one entry
@@ -183,9 +185,42 @@ function qcUpdateFreeDuration() {
 }
 
 // ── Service management ──
+
+/** Get services filtered by the currently selected practitioner */
+function qcGetPracServices() {
+  const pracId = document.getElementById('qcPrac')?.value;
+  return calState.fcServices.filter(s => {
+    if (s.is_active === false) return false;
+    // If service has practitioner_ids, check the selected practitioner is assigned
+    if (pracId && s.practitioner_ids && s.practitioner_ids.length > 0) {
+      return s.practitioner_ids.some(pid => String(pid) === String(pracId));
+    }
+    // If no practitioner_ids info, show the service (backwards compat)
+    return true;
+  });
+}
+
+/** Rebuild all service dropdowns with filtered options, preserving selections */
+function qcRefreshServiceDropdowns() {
+  const filtered = qcGetPracServices();
+  const filteredIds = new Set(filtered.map(s => String(s.id)));
+  document.querySelectorAll('.qc-svc-item select').forEach(sel => {
+    const curVal = sel.value;
+    sel.innerHTML = filtered.map(s => {
+      const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
+      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`;
+    }).join('');
+    // Preserve selection if still valid, otherwise default to first
+    if (filteredIds.has(String(curVal))) sel.value = curVal;
+  });
+  qcUpdateTotal();
+}
+
 function qcAddService() {
   const idx = viewState.qcServiceCount++;
-  const opts = calState.fcServices.filter(s => s.is_active !== false).map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
+  const filtered = qcGetPracServices();
+  const opts = filtered.map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
+  if (!opts) { gToast('Aucune prestation disponible pour ce praticien', 'error'); return; }
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
     <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
@@ -622,7 +657,7 @@ function setupQuickCreateListeners() {
 // Expose to global scope for onclick handlers
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
-  qcAddService, qcRemoveService, qcUpdateTotal,
+  qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcSwitchTab, qcAddNote, qcDeleteNote, qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder

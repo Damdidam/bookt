@@ -147,6 +147,10 @@ async function fcOpenDetail(bookingId) {
       if (calState.fcDetailData.documents.length > 0) { cDocs.textContent = calState.fcDetailData.documents.length; cDocs.style.display = 'flex'; } else { cDocs.style.display = 'none'; }
     }
 
+    // -- Group siblings (fetched early for service card + horaire) --
+    const siblings = d.group_siblings || [];
+    const isGroup = siblings.length > 1;
+
     // -- Freestyle vs Normal cards --
     const freeCard = document.getElementById('mFreeCard');
     const svcCard = document.getElementById('mSvcCard');
@@ -158,6 +162,23 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('uFreeLabel').value = b.custom_label || '';
       document.getElementById('uBufBefore').value = 0;
       document.getElementById('uBufAfter').value = 0;
+    } else if (isGroup) {
+      // Group booking: show all services summary
+      freeCard.style.display = 'none';
+      bufSec.style.display = 'none';
+      svcCard.style.display = 'flex';
+      svcCard.style.borderLeftColor = accentColor;
+      const groupStart = new Date(siblings[0].start_at);
+      const groupEnd = new Date(siblings[siblings.length - 1].end_at);
+      const totalDur = Math.round((groupEnd - groupStart) / 60000);
+      const totalPrice = siblings.reduce((sum, sib) => sum + (sib.price_cents || 0), 0);
+      const svcNames = siblings.map(sib => esc(sib.service_name || 'RDV libre')).join(' + ');
+      svcCard.innerHTML = `
+        <div style="flex:1;min-width:0">
+          <div class="m-svc-name">${svcNames}</div>
+          <div class="m-svc-meta">${siblings.length} prestations \u00b7 ${totalDur} min</div>
+        </div>
+        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2) + '\u20ac</div>' : ''}`;
     } else {
       freeCard.style.display = 'none';
       bufSec.style.display = 'none';
@@ -198,10 +219,9 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('mColorReset').style.display = '';
     };
 
-    // -- Group siblings --
-    const siblings = d.group_siblings || [];
+    // -- Group siblings (render list) --
     const groupEl = document.getElementById('mGroupSiblings');
-    if (siblings.length > 1) {
+    if (isGroup) {
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span><span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
       siblings.forEach(sib => {
         const isCur = String(sib.id) === String(bookingId);
@@ -219,15 +239,16 @@ async function fcOpenDetail(bookingId) {
       groupEl.style.display = 'block';
     } else { groupEl.style.display = 'none'; }
 
-    // -- Horaire --
+    // -- Horaire (use full group range if grouped) --
+    const groupEndDate = isGroup ? new Date(siblings[siblings.length - 1].end_at) : e;
     const ds = s.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const stm = s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
-    const etm = e.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
+    const etm = groupEndDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
     calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', internal_note: b.internal_note || '', custom_label: b.custom_label || '', color: b.color || '', client_phone: b.client_phone || '', client_email: b.client_email || '' };
-    const dm = Math.round((e - s) / 60000);
+    const dm = Math.round((groupEndDate - s) / 60000);
     document.querySelectorAll('.m-chip').forEach(c => c.classList.toggle('active', parseInt(c.textContent) === dm || ({ '1h': 60, '1h30': 90, '2h': 120 }[c.textContent.trim()] === dm)));
     document.getElementById('calEditDiff').style.display = 'none';
     document.getElementById('calNotifyPanel').style.display = 'none';

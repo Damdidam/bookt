@@ -162,7 +162,7 @@ router.get('/:id/detail', async (req, res, next) => {
     if (bk.group_id) {
       const grp = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
-                s.name AS service_name, s.duration_min, s.color AS service_color
+                s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          WHERE b.group_id = $1 AND b.business_id = $2
