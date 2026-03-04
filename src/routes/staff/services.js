@@ -118,7 +118,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     // Validate numeric fields
     const numericFields = ['duration_min', 'buffer_before_min', 'buffer_after_min', 'price_cents'];
     for (const nf of numericFields) {
-      if (fields[nf] !== undefined) {
+      if (fields[nf] !== undefined && fields[nf] !== null) {
         const parsed = parseInt(fields[nf]);
         if (isNaN(parsed) || parsed < 0) {
           return res.status(400).json({ error: `${nf} doit être un nombre >= 0` });
