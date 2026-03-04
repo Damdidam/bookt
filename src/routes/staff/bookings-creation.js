@@ -212,7 +212,7 @@ router.post('/manual', async (req, res, next) => {
         }
       }
     }
-    const serviceList = multiServices || [{ service_id }];
+    const serviceList = multiServices || [{ service_id, variant_id: req.body.variant_id || null }];
 
     // CRT-2: Validate service_id is present in non-freestyle mode
     if (!serviceList[0]?.service_id) {
@@ -246,7 +246,8 @@ router.post('/manual', async (req, res, next) => {
       }
     }
 
-    // Resolve variant overrides for duration
+    // Resolve variant overrides for duration (stored per-item, not per-service,
+    // because the same service can appear multiple times with different variants)
     for (const s of serviceList) {
       const vid = s.variant_id;
       if (!vid) continue;
@@ -257,8 +258,7 @@ router.post('/manual', async (req, res, next) => {
         [vid, s.service_id, bid]
       );
       if (vr.rows.length === 0) return res.status(404).json({ error: `Variante ${vid} introuvable` });
-      // Override service duration for slot calculation
-      svcMap[s.service_id] = { ...svcMap[s.service_id], duration_min: vr.rows[0].duration_min };
+      s._variant_duration = vr.rows[0].duration_min;
       s._variant_price = vr.rows[0].price_cents;
     }
 
@@ -284,9 +284,10 @@ router.post('/manual', async (req, res, next) => {
     // service and trailing buffer of last service to avoid double-counting gaps.
     const slots = serviceList.map((s, i) => {
       const svc = svcMap[s.service_id];
+      const dur = s._variant_duration || svc.duration_min;
       const bufBefore = (i === 0) ? (svc.buffer_before_min || 0) : 0;
       const bufAfter = (i === serviceList.length - 1) ? (svc.buffer_after_min || 0) : 0;
-      const totalDur = bufBefore + svc.duration_min + bufAfter;
+      const totalDur = bufBefore + dur + bufAfter;
       const slotStart = new Date(cursor);
       const slotEnd = new Date(slotStart.getTime() + totalDur * 60000);
       cursor = slotEnd; // next service starts where this one ends
