@@ -99,7 +99,7 @@
 .svc-cat-section.collapsed .svc-cat-chevron{transform:rotate(-90deg)}
 .svc-cat-body{padding:12px 16px}
 .svc-cat-section.collapsed .svc-cat-body{display:none}
-.svc-tpl-picker{position:absolute;top:100%;right:0;z-index:100;min-width:280px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg,0 4px 24px rgba(0,0,0,.15));overflow:hidden;margin-top:4px}
+.svc-tpl-picker{z-index:1000;min-width:280px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg,0 4px 24px rgba(0,0,0,.15));overflow:hidden}
 .svc-tpl-picker-title{font-size:.72rem;font-weight:700;color:var(--text-4);padding:8px 12px;border-bottom:1px solid var(--border-light);text-transform:uppercase;letter-spacing:.5px}
 .svc-tpl-picker-item{padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .1s;border-bottom:1px solid var(--border-light)}
 .svc-tpl-picker-item:last-child{border-bottom:none}
@@ -355,6 +355,10 @@
 .qs-back{display:flex;align-items:center;gap:4px;font-size:.82rem;color:var(--text-3);cursor:pointer;border:none;background:none;font-family:var(--sans);padding:8px 14px;border-radius:8px;transition:all .2s;font-weight:600}
 .qs-back:hover{background:var(--surface);color:var(--text-2)}
 .qs-back svg{width:16px;height:16px}
+
+/* Add custom row button in QS step 2 */
+.qs-add-row{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:2px dashed var(--border);border-radius:8px;background:none;color:var(--primary);cursor:pointer;margin:6px 0 2px;transition:all .15s}
+.qs-add-row:hover{background:var(--primary);color:var(--white);border-color:var(--primary)}
 
 /* Responsive */
 @media(max-width:800px){

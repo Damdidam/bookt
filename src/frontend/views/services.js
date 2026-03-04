@@ -55,9 +55,15 @@ async function loadServices(){
         catMap[cat].push(s);
       });
       // Build ordered list of categories: sector cats first (by sort_order), then custom, then "Autres"
+      // Catalog categories only show if they have services; custom categories always show
       const catOrder=[];
       const catIcons={};
-      allSectorCats.forEach(c=>{catIcons[c.label]=c.icon_svg||'';if(!catOrder.includes(c.label))catOrder.push(c.label);});
+      allSectorCats.forEach(c=>{
+        catIcons[c.label]=c.icon_svg||'';
+        const hasServices=!!catMap[c.label]&&catMap[c.label].length>0;
+        const isCustom=c.source==='custom';
+        if((hasServices||isCustom)&&!catOrder.includes(c.label))catOrder.push(c.label);
+      });
       Object.keys(catMap).forEach(cat=>{if(!catOrder.includes(cat))catOrder.push(cat);});
       // Move "Autres" to end
       const autresIdx=catOrder.indexOf('Autres');
@@ -72,8 +78,9 @@ async function loadServices(){
         if(iconSvg)h+=`<span class="svc-cat-icon">${iconSvg}</span>`;
         h+=`<span class="svc-cat-label">${esc(cat)}</span>`;
         h+=`<span class="svc-cat-count">${groupSvcs.length}</span>`;
-        h+=`<button class="svc-cat-add" onclick="event.stopPropagation();svcAddFromTemplate('${esc(cat)}')" title="Ajouter une prestation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
-        if(cat!=='Autres')h+=`<button class="svc-cat-add" onclick="event.stopPropagation();svcDeleteCategory('${esc(cat)}')" title="Supprimer cette catégorie" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
+        const safeCatAttr=esc(cat).replace(/'/g,"\\'");
+        h+=`<button class="svc-cat-add" onclick="event.stopPropagation();svcAddFromTemplate('${safeCatAttr}')" title="Ajouter une prestation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
+        if(cat!=='Autres')h+=`<button class="svc-cat-add" onclick="event.stopPropagation();svcDeleteCategory('${safeCatAttr}')" title="Supprimer cette catégorie" style="color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
         h+=`<span class="svc-cat-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg></span>`;
         h+=`</div>`;
         h+=`<div class="svc-cat-body">`;
@@ -175,30 +182,31 @@ function svcAddFromTemplate(cat){
     openServiceModal(null,{category:cat,color:catColor(cat)});
     return;
   }
-  // Show template picker dropdown
-  const existing=document.querySelectorAll('.svc-tpl-picker');
-  existing.forEach(el=>el.remove());
+  // Show template picker dropdown — appended to body to avoid overflow:hidden clipping
+  document.querySelectorAll('.svc-tpl-picker').forEach(el=>el.remove());
 
-  // Find the header button
-  const section=document.querySelector(`.svc-cat-section[data-cat="${cat}"]`);
+  const section=document.querySelector(`.svc-cat-section[data-cat="${CSS.escape(cat)}"]`);
   const btn=section?.querySelector('.svc-cat-add');
   if(!btn)return;
 
-  let dd=`<div class="svc-tpl-picker">`;
+  const rect=btn.getBoundingClientRect();
+  let dd=`<div class="svc-tpl-picker" style="position:fixed;top:${rect.bottom+4}px;left:${Math.max(8,rect.right-280)}px;right:auto">`;
   dd+=`<div class="svc-tpl-picker-title">${esc(cat)} \u2014 Templates</div>`;
   group.templates.forEach(t=>{
     const price=t.suggested_price_cents?`${Math.round(t.suggested_price_cents/100)}\u20ac`:'';
-    dd+=`<div class="svc-tpl-picker-item" onclick="svcPickTemplate('${esc(cat)}','${esc(t.name)}',${t.suggested_duration_min||30},${t.suggested_price_cents||0})">
+    const safeCat=esc(cat).replace(/'/g,"\\'");
+    const safeName=esc(t.name).replace(/'/g,"\\'");
+    dd+=`<div class="svc-tpl-picker-item" onclick="svcPickTemplate('${safeCat}','${safeName}',${t.suggested_duration_min||30},${t.suggested_price_cents||0})">
       <span class="svc-tpl-picker-name">${esc(t.name)}</span>
       <span class="svc-tpl-picker-meta">${t.suggested_duration_min||30}min${price?' \u00b7 '+price:''}</span>
     </div>`;
   });
-  dd+=`<div class="svc-tpl-picker-item svc-tpl-picker-custom" onclick="svcPickTemplate('${esc(cat)}','',30,0)">
+  const safeCat2=esc(cat).replace(/'/g,"\\'");
+  dd+=`<div class="svc-tpl-picker-item svc-tpl-picker-custom" onclick="svcPickTemplate('${safeCat2}','',30,0)">
     <span class="svc-tpl-picker-name">+ Cr\u00e9er manuellement</span>
   </div>`;
   dd+=`</div>`;
-  btn.style.position='relative';
-  btn.insertAdjacentHTML('afterend',dd);
+  document.body.insertAdjacentHTML('beforeend',dd);
   // Close on outside click
   setTimeout(()=>{
     document.addEventListener('click',function closePicker(e){
@@ -528,6 +536,8 @@ function qsGoStep2(){
         <div class="qs-price-wrap"><input type="number" class="qs-tpl-price" value="${price}" step="1" min="0"><span>\u20ac</span></div>
       </div>`;
     });
+    const safeCatQs=g.category.replace(/'/g,"\\'");
+    body+=`<button type="button" class="qs-add-row" onclick="qsAddCustomRow(this,'${safeCatQs}')" title="Ajouter une prestation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
     body+=`</div>`;
   });
   modal.querySelector('.modal-body').innerHTML=body;
@@ -536,6 +546,7 @@ function qsGoStep2(){
     <button class="qs-back" onclick="qsBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Retour</button>
     <span class="qs-count" id="qsTplCount"><strong>${totalTpl}</strong> ${svcsLabel}</span>
     <button class="btn-primary qs-submit" onclick="qsSubmitAll()" id="qsSubmitBtn">Cr\u00e9er ${totalTpl} ${totalTpl>1?svcsLabel:svcLabel}</button>`;
+  modal.querySelector('.modal-foot').style.alignItems='center';
   qsUpdateCount();
 }
 
@@ -554,6 +565,31 @@ function qsToggleTpl(cb){
   const row=cb.closest('.qs-tpl-row');
   row.classList.toggle('unchecked',!cb.checked);
   qsUpdateCount();
+}
+
+function qsAddCustomRow(btn,cat){
+  const durations=[15,30,45,60,90,120];
+  let row=`<div class="qs-tpl-row" data-category="${cat}">
+    <input type="checkbox" class="qs-tpl-check" checked onchange="qsToggleTpl(this)">
+    <input class="qs-tpl-name" value="" placeholder="Nom de la prestation">
+    <div class="qs-dur-chips">`;
+  durations.forEach(d=>{
+    row+=`<span class="qs-dur-chip${d===30?' active':''}" onclick="qsDur(this,${d})">${d}</span>`;
+  });
+  row+=`</div><input type="hidden" class="qs-tpl-dur" value="30">
+    <div class="qs-price-wrap"><input type="number" class="qs-tpl-price" value="" step="1" min="0" placeholder="0"><span>\u20ac</span></div>
+  </div>`;
+  btn.insertAdjacentHTML('beforebegin',row);
+  // Update badge count in category header
+  const section=btn.closest('.qs-cat-section');
+  const badge=section?.querySelector('.qs-cat-badge');
+  if(badge){
+    const count=section.querySelectorAll('.qs-tpl-row').length;
+    badge.textContent=count;
+  }
+  qsUpdateCount();
+  // Focus the new name input
+  btn.previousElementSibling?.querySelector('.qs-tpl-name')?.focus();
 }
 
 function qsUpdateCount(){
@@ -601,6 +637,6 @@ function svcAddVariant(){
 }
 function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();}
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcToggleSection, svcNewCategory, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcToggleSection, svcNewCategory, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };
