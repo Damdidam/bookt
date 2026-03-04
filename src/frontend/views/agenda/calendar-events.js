@@ -160,11 +160,9 @@ function buildEventsCallback() {
             if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
             if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
           }
-          // Category filter
+          // Category filter (use service_category from API directly)
           if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
-            const svcId = p._isGroup ? p._members?.[0]?.service_id : p.service_id;
-            const svc = svcId && calState.fcServices?.find(s => s.id === svcId);
-            const cat = svc?.category || '';
+            const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
             if (calState.fcHiddenCategories.has(cat)) return false;
           }
           return true;
@@ -258,10 +256,8 @@ function buildEventDidMount() {
 
     info.el.setAttribute('data-eid', info.event.id);
 
-    // Category attribute for filter chips
-    const svcId = p._isGroup ? p._members?.[0]?.service_id : p.service_id;
-    const svcDef = svcId && calState.fcServices?.find(s => s.id === svcId);
-    const cat = svcDef?.category || '';
+    // Category attribute for filter chips (use service_category from API directly)
+    const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
     info.el.setAttribute('data-category', cat);
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.has(cat)) {
       info.el.style.display = 'none';

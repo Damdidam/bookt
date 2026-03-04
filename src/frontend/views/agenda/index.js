@@ -111,9 +111,7 @@ function fcFilterCategory(cat, el) {
     calState.fcCal.getEvents().forEach(ev => {
       const p = ev.extendedProps;
       if (p._isFeaturedSlot) return;
-      const svcId = p._isGroup ? p._members?.[0]?.service_id : p.service_id;
-      const svc = svcId && calState.fcServices?.find(s => s.id === svcId);
-      const cat = svc?.category || '';
+      const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
       ev.setProp('display', calState.fcHiddenCategories.has(cat) ? 'none' : 'auto');
     });
   }

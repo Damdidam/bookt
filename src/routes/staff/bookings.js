@@ -23,12 +23,12 @@ router.get('/', async (req, res, next) => {
     const effectivePractitionerId = req.practitionerFilter || practitioner_id;
 
     let sql = `
-      SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+      SELECT b.id, b.service_id, b.start_at, b.end_at, b.status, b.appointment_mode,
              b.channel, b.comment_client, b.public_token,
              b.internal_note, b.color AS booking_color,
              b.group_id, b.group_order, b.custom_label,
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
-             s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+             s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.color AS service_color,
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
