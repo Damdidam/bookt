@@ -271,24 +271,34 @@ router.patch('/:id/deactivate', requireRole('owner', 'manager'), async (req, res
   }
 });
 
-// DELETE /api/services/:id — permanent delete (blocked if bookings exist)
+// DELETE /api/services/:id — permanent delete (blocked only if active bookings exist)
 router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
 
-    // Check for any bookings referencing this service
-    const bookings = await queryWithRLS(bid,
-      `SELECT COUNT(*)::int AS cnt FROM bookings WHERE service_id = $1 AND business_id = $2`,
+    // Only block on active bookings (pending, confirmed, modified_pending)
+    const active = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM bookings
+       WHERE service_id = $1 AND business_id = $2
+       AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
       [id, bid]
     );
-    if (bookings.rows[0].cnt > 0) {
+    if (active.rows[0].cnt > 0) {
       return res.status(409).json({
-        error: `Impossible de supprimer : ${bookings.rows[0].cnt} réservation(s) liée(s). Annulez-les d'abord ou désactivez la prestation.`
+        error: `Impossible de supprimer : ${active.rows[0].cnt} réservation(s) active(s). Annulez-les d'abord ou désactivez la prestation.`
       });
     }
 
-    // No bookings → safe to hard delete (variants + practitioner_services cascade)
+    // Remove terminal bookings (cancelled, completed, no_show) that would block FK
+    await queryWithRLS(bid,
+      `DELETE FROM bookings
+       WHERE service_id = $1 AND business_id = $2
+       AND status IN ('cancelled', 'completed', 'no_show')`,
+      [id, bid]
+    );
+
+    // Safe to hard delete (variants + practitioner_services cascade)
     const result = await queryWithRLS(bid,
       `DELETE FROM services WHERE id = $1 AND business_id = $2 RETURNING id`,
       [id, bid]
