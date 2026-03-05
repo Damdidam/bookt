@@ -28,6 +28,8 @@ const CAT_BG_PALETTE=['#FCE4EC','#E3F2FD','#E8F5E9','#FFF3E0','#F3E5F5','#E0F7FA
 const CSW_COLORS=['#0D7377','#2196F3','#3F51B5','#9C27B0','#E91E63','#F44336','#FF9800','#FFB300','#4CAF50','#00BCD4','#795548','#607D8B'];
 function catColor(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CSW_COLORS[Math.abs(h)%CSW_COLORS.length];}
 function catBg(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CAT_BG_PALETTE[Math.abs(h)%CAT_BG_PALETTE.length];}
+// Safe string for JS inside HTML attribute: JS-escape first, then HTML-escape
+function jsAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ===== MAIN RENDER =====
 
@@ -98,7 +100,7 @@ async function loadServices(){
         const iconSvg=meta.icon_svg||'';
         const desc=meta.description||'';
         const bg=catBg(cat);
-        const safeCat=esc(cat).replace(/'/g,"\\'");
+        const safeCat=jsAttr(cat);
         const defaultCatIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
 
         h+=`<div class="svc-category" data-cat="${esc(cat)}" data-sort="${ci}" draggable="true" ondragstart="svcDragStart(event,'cat')" ondragover="svcDragOver(event,'cat')" ondragleave="svcDragLeave(event)" ondrop="svcDrop(event,'cat')">`;
@@ -213,7 +215,7 @@ function openCategoryModal(catLabel){
   let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
   m+=`<div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
-  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveCategory('${esc(catId)}','${esc(label).replace(/'/g,"\\'")}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   document.getElementById('cat_modal_name').focus();
 }
@@ -324,11 +326,19 @@ document.addEventListener('dragend',cleanupDrag);
 async function persistCatOrder(){
   const cats=[...document.querySelectorAll('#svcCatList .svc-category')];
   const order=[];
-  cats.forEach((el,i)=>{
-    const label=el.dataset.cat;
-    const meta=catMeta[label];
+  // Ensure all categories have business_categories entries (catalog cats may not)
+  for(let i=0;i<cats.length;i++){
+    const label=cats[i].dataset.cat;
+    let meta=catMeta[label];
+    if(!meta?.id&&label!=='Autres'){
+      // Create a business_categories entry for this catalog category
+      try{
+        const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label})});
+        if(r.ok){const d=await r.json();catMeta[label]={...catMeta[label],id:d.category.id};meta=catMeta[label];}
+      }catch(e){}
+    }
     if(meta?.id)order.push({id:meta.id,sort_order:i});
-  });
+  }
   if(!order.length)return;
   try{await fetch('/api/business/categories/reorder',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({order})});}catch(e){console.warn('Reorder failed:',e);}
 }
@@ -356,14 +366,14 @@ function svcAddFromTemplate(cat){
   dd+=`<div class="svc-tpl-picker-title">${esc(cat)} — Templates</div>`;
   group.templates.forEach(t=>{
     const price=t.suggested_price_cents?`${Math.round(t.suggested_price_cents/100)}€`:'';
-    const safeCat=esc(cat).replace(/'/g,"\\'");
-    const safeName=esc(t.name).replace(/'/g,"\\'");
+    const safeCat=jsAttr(cat);
+    const safeName=jsAttr(t.name);
     dd+=`<div class="svc-tpl-picker-item" onclick="svcPickTemplate('${safeCat}','${safeName}',${t.suggested_duration_min||30},${t.suggested_price_cents||0})">
       <span class="svc-tpl-picker-name">${esc(t.name)}</span>
       <span class="svc-tpl-picker-meta">${t.suggested_duration_min||30}min${price?' · '+price:''}</span>
     </div>`;
   });
-  const safeCat2=esc(cat).replace(/'/g,"\\'");
+  const safeCat2=jsAttr(cat);
   dd+=`<div class="svc-tpl-picker-item svc-tpl-picker-custom" onclick="svcPickTemplate('${safeCat2}','',30,0)">
     <span class="svc-tpl-picker-name">+ Créer manuellement</span>
   </div></div>`;
@@ -407,57 +417,59 @@ function renderServiceModal(svc,sectorCats,prefill){
   const svcLabel=categoryLabels.service.toLowerCase();
   const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
 
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le '+svcLabel:'Nouveau '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
+  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal svc-modal"><div class="modal-h"><h3>${isEdit?'Modifier le '+svcLabel:'Nouveau '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
 
-  // SECTION 1: Informations
+  // ── SECTION 1: Informations ──
   m+=sec('Informations');
-  m+=`<div class="field"><label>Catégorie</label><select id="svc_cat">`;
-  m+=`<option value="">— Choisir une catégorie —</option>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:12px">`;
+  m+=`<div class="field" style="flex:1"><label>Catégorie</label><select id="svc_cat">`;
+  m+=`<option value="">— Choisir —</option>`;
   const currentCat=svc?.category||pf.category||'';
   const usedCats=new Set(allServices.map(s=>s.category).filter(Boolean));
   (sectorCats||[]).forEach(c=>{
     if(c.source!=='custom'&&!usedCats.has(c.label)&&c.label!==currentCat)return;
     const sel=c.label===currentCat?' selected':'';
-    const suffix=c.source==='custom'?' (personnalisée)':'';
-    m+=`<option value="${c.label}"${sel}>${c.label}${suffix}</option>`;
+    const suffix=c.source==='custom'?' (perso.)':'';
+    m+=`<option value="${esc(c.label)}"${sel}>${esc(c.label)}${suffix}</option>`;
   });
   const isUnknown=currentCat&&!(sectorCats||[]).some(c=>c.label===currentCat);
-  if(isUnknown)m+=`<option value="${currentCat}" selected>${currentCat} (personnalisée)</option>`;
-  m+=`<option value="__custom__">+ Catégorie personnalisée...</option>`;
+  if(isUnknown)m+=`<option value="${esc(currentCat)}" selected>${esc(currentCat)} (perso.)</option>`;
+  m+=`<option value="__custom__">+ Personnalisée...</option>`;
   m+=`</select></div>`;
-  m+=`<div class="field-row" style="align-items:flex-end">`;
-  m+=`<div class="field" style="flex:1"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field" style="flex:0 0 auto"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
   m+=`</div>`;
-  m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez la prestation pour vos clients...">${svc?.description||''}</textarea></div>`;
+  m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
+  m+=`<div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez cette prestation...">${esc(svc?.description||'')}</textarea></div>`;
   m+=`</div>`;
 
-  // SECTION 2: Tarification
+  // ── SECTION 2: Tarification ──
   m+=sec('Tarification');
   const existingVars=svc?.variants||[];
   const hasVars=existingVars.length>0;
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
   m+=`<div id="svc_pricing_main"${hasVars?' style="display:none"':''}>`;
-  m+=`<div class="field-row"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div></div>`;
-  m+=`<div class="field"><label>Label prix <span style="font-weight:400;color:var(--text-4)">(si pas de montant)</span></label><input id="svc_plabel" value="${svc?.price_label||''}" placeholder="Ex: Sur devis, Gratuit..."></div>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
   m+=`</div>`;
-  m+=`<div class="field"><label>Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel — chacune peut avoir sa description)</span></label><div id="svc_variants_list">`;
+  m+=`<div style="margin-top:${hasVars?'0':'14'}px"><label style="display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:8px">Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label>`;
+  m+=`<div id="svc_variants_list">`;
   existingVars.forEach(v=>{m+=svcVarRowHTML(v);});
-  m+=`</div><button type="button" class="btn-outline btn-sm" onclick="svcAddVariant()" style="margin-top:4px;font-size:.78rem">+ Variante</button></div>`;
+  m+=`</div>`;
+  m+=`<button type="button" class="svc-var-add" onclick="svcAddVariant()">${PLUS_SVG} Ajouter une variante</button>`;
+  m+=`</div>`;
   m+=`</div>`;
 
-  // SECTION 3: Planification
+  // ── SECTION 3: Planification ──
   m+=sec('Planification');
-  m+=`<div class="field-row" id="svc_buffers_row"${hasVars?' style="display:none"':''}><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px${hasVars?';display:none':''}"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
   if(showModes){
-    m+=`<div class="field"><label>Modes de consultation</label><div style="display:flex;gap:12px;margin-top:4px">
+    m+=`<div class="field"><label>Mode</label><div style="display:flex;gap:10px;margin-top:4px">
       <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Cabinet</label>
       <label class="svc-mode-opt"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> Visio</label>
-      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> Tél</label>
+      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> Tél.</label>
     </div></div>`;
   }
   const sched=svc?.available_schedule||null;
@@ -478,25 +490,25 @@ function renderServiceModal(svc,sectorCats,prefill){
     m+=`<input type="checkbox" class="svc-sched-day-cb" ${active?'checked':''} style="display:none">`;
     m+=`<span class="svc-sched-day-name">${DAY_LABELS[d]}</span>`;
     m+=`<div class="svc-sched-windows">`;
-    if(active){dayW.forEach(w=>{m+=`<div class="svc-sched-win"><input type="time" class="svc-sched-from" value="${w.from}"><span>—</span><input type="time" class="svc-sched-to" value="${w.to}"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">×</button></div>`;});}
-    else{m+=`<div class="svc-sched-win" style="display:none"><input type="time" class="svc-sched-from" value="09:00"><span>—</span><input type="time" class="svc-sched-to" value="12:00"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">×</button></div>`;}
+    if(active){dayW.forEach(w=>{m+=`<div class="svc-sched-win"><input type="time" class="svc-sched-from" value="${w.from}"><span>—</span><input type="time" class="svc-sched-to" value="${w.to}"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">${X_SVG}</button></div>`;});}
+    else{m+=`<div class="svc-sched-win" style="display:none"><input type="time" class="svc-sched-from" value="09:00"><span>—</span><input type="time" class="svc-sched-to" value="12:00"><button type="button" onclick="this.closest('.svc-sched-win').remove()" class="svc-sched-x">${X_SVG}</button></div>`;}
     m+=`</div><button type="button" onclick="svcSchedAddWin(this)" class="svc-sched-add">+</button></div>`;
   }
   m+=`</div></div>`;
   const isBookable=svc?svc.bookable_online!==false:true;
-  m+=`<div class="field" style="margin-top:10px"><label class="svc-switch"><input type="checkbox" id="svc_bookable_online" ${isBookable?'checked':''}><span class="svc-switch-track"></span> Réservable en ligne</label></div>`;
+  m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_bookable_online" ${isBookable?'checked':''}><span class="svc-switch-track"></span> Réservable en ligne</label></div>`;
   m+=`</div>`;
 
-  // SECTION 4: Affectation
+  // ── SECTION 4: Affectation ──
   const assignedIds=svc?.practitioner_ids||[];
   if(allPractitioners.length>0){
     m+=sec('Affectation');
-    m+=`<div class="field"><label>Assigné à</label><div id="svc_practitioners" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">`;
+    m+=`<div class="field" style="margin-bottom:0"><label>Praticiens assignés</label><div id="svc_practitioners" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">`;
     allPractitioners.forEach(p=>{
       const checked=assignedIds.includes(p.id)?'checked':'';
-      m+=`<label style="font-size:.82rem;display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" class="svc_pract_cb" value="${p.id}" ${checked}> ${p.display_name}</label>`;
+      m+=`<label style="font-size:.82rem;display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:.15s"><input type="checkbox" class="svc_pract_cb" value="${p.id}" ${checked}> ${esc(p.display_name)}</label>`;
     });
-    m+=`</div><div style="font-size:.72rem;color:var(--text-4);margin-top:4px">Si aucun coché, la prestation sera disponible pour tous</div></div>`;
+    m+=`</div><div style="font-size:.72rem;color:var(--text-4);margin-top:5px">Si aucun coché → disponible pour tous</div></div>`;
     m+=`</div>`;
   }
 
@@ -507,7 +519,7 @@ function renderServiceModal(svc,sectorCats,prefill){
     if(this.value==='__custom__'){
       const v=prompt('Nom de la catégorie personnalisée :');
       if(v&&v.trim()){
-        const opt=document.createElement('option');opt.value=v.trim();opt.textContent=v.trim()+' (personnalisée)';opt.selected=true;
+        const opt=document.createElement('option');opt.value=v.trim();opt.textContent=v.trim()+' (perso.)';opt.selected=true;
         this.insertBefore(opt,this.querySelector('option[value="__custom__"]'));
       }else{this.value='';}
     }
@@ -595,7 +607,16 @@ async function deleteService(id){
 // ===== VARIANT ROW (in modal) =====
 
 function svcVarRowHTML(v){
-  return `<div class="svc-var-row"><input class="svc-var-name" value="${v?esc(v.name):''}" placeholder="Nom"><input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="Min"><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€"><input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)"><input type="hidden" class="svc-var-id" value="${v?.id||''}"><button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">×</button></div>`;
+  return `<div class="svc-var-row">
+    <div class="svc-var-top-row">
+      <input class="svc-var-name" value="${v?esc(v.name):''}" placeholder="Nom de la variante">
+      <input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="Min">
+      <input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€">
+      <button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">${X_SVG}</button>
+    </div>
+    <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)">
+    <input type="hidden" class="svc-var-id" value="${v?.id||''}">
+  </div>`;
 }
 function svcAddVariant(){document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',svcVarRowHTML(null));svcUpdatePricingVis();}
 function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();svcUpdatePricingVis();}
@@ -671,7 +692,7 @@ function qsGoStep2(){
       body+=`</div><input type="hidden" class="qs-tpl-dur" value="${dur}">
         <div class="qs-price-wrap"><input type="number" class="qs-tpl-price" value="${price}" step="1" min="0"><span>€</span></div></div>`;
     });
-    const safeCatQs=g.category.replace(/'/g,"\\'");
+    const safeCatQs=jsAttr(g.category);
     body+=`<button type="button" class="qs-add-row" onclick="qsAddCustomRow(this,'${safeCatQs}')" title="Ajouter">${PLUS_SVG}</button></div>`;
   });
   modal.querySelector('.modal-body').innerHTML=body;
