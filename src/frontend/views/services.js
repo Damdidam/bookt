@@ -290,6 +290,7 @@ function svcDragStart(e,type){
   item.classList.add('dragging');
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain','');
+  e.stopPropagation(); // Prevent service dragstart from bubbling to parent category
 }
 
 function svcDragOver(e,type){
