@@ -11,7 +11,7 @@ let allPractitioners=[];
 let allSectorCats=[];
 let allTemplateGroups=[];
 let allServices=[];
-let catMeta={}; // { label: { id, icon_svg, description, sort_order, source } }
+let catMeta={}; // { label: { id, icon_svg, description, sort_order, source, color } }
 
 const DAY_LABELS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 const GRIP_SVG='<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
@@ -237,7 +237,7 @@ async function saveCategory(catId,oldLabel){
       const svcsToUpdate=allServices.filter(s=>s.category===(oldLabel||name));
       const updates={};
       if(oldLabel&&oldLabel!==name)updates.category=name;
-      if(color)updates.color=color;
+      if(color&&color!==(catMeta[oldLabel||name]?.color||null))updates.color=color;
       if(Object.keys(updates).length>0){
         for(const s of svcsToUpdate){
           await fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(updates)});
@@ -362,7 +362,7 @@ async function persistSvcOrder(container){
 function svcAddFromTemplate(cat){
   const group=allTemplateGroups.find(g=>g.category===cat);
   if(!group||!group.templates||group.templates.length===0){
-    openServiceModal(null,{category:cat,color:catColor(cat)});return;
+    openServiceModal(null,{category:cat,color:catMeta[cat]?.color||catColor(cat)});return;
   }
   document.querySelectorAll('.svc-tpl-picker').forEach(el=>el.remove());
   const section=document.querySelector(`.svc-category[data-cat="${CSS.escape(cat)}"]`);
@@ -397,7 +397,7 @@ function svcAddFromTemplate(cat){
 
 function svcPickTemplate(cat,name,dur,priceCents){
   document.querySelectorAll('.svc-tpl-picker').forEach(el=>el.remove());
-  const prefill={category:cat,color:catColor(cat)};
+  const prefill={category:cat,color:catMeta[cat]?.color||catColor(cat)};
   if(name)prefill.name=name;
   if(dur)prefill.duration_min=dur;
   if(priceCents)prefill.price_cents=priceCents;
@@ -738,7 +738,7 @@ async function qsSubmitAll(){
     const name=row.querySelector('.qs-tpl-name').value.trim();if(!name)return;
     const cat=row.dataset.category;const dur=parseInt(row.querySelector('.qs-tpl-dur').value)||30;
     const priceVal=parseFloat(row.querySelector('.qs-tpl-price').value);const pIds=allPractitioners.map(p=>p.id);
-    toCreate.push({name,category:cat,duration_min:dur,price_cents:priceVal?Math.round(priceVal*100):null,buffer_before_min:0,buffer_after_min:0,mode_options:['cabinet'],color:catColor(cat),practitioner_ids:pIds});
+    toCreate.push({name,category:cat,duration_min:dur,price_cents:priceVal?Math.round(priceVal*100):null,buffer_before_min:0,buffer_after_min:0,mode_options:['cabinet'],color:catMeta[cat]?.color||catColor(cat),practitioner_ids:pIds});
   });
   if(!toCreate.length){GendaUI.toast('Sélectionnez au moins une prestation','error');return;}
   const btn=document.getElementById('qsSubmitBtn');const svcsLabel=categoryLabels.services.toLowerCase();
