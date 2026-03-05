@@ -280,9 +280,11 @@ function svcDragStart(e,type){
 
 function svcDragOver(e,type){
   if(dragType!==type)return;
+  const target=type==='cat'?e.target.closest('.svc-category'):e.target.closest('.svc-row');
+  // Prevent cross-category service drag visual
+  if(type==='svc'&&dragEl&&target&&dragEl.parentNode!==target.parentNode)return;
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
-  const target=type==='cat'?e.target.closest('.svc-category'):e.target.closest('.svc-row');
   if(target&&target!==dragEl)target.classList.add('drag-over');
 }
 
@@ -295,6 +297,8 @@ function svcDrop(e,type){
   e.preventDefault();
   const target=type==='cat'?e.target.closest('.svc-category'):e.target.closest('.svc-row');
   if(!target||!dragEl||target===dragEl){cleanupDrag();return;}
+  // Prevent cross-category service drag
+  if(type==='svc'&&dragEl.parentNode!==target.parentNode){cleanupDrag();return;}
   target.classList.remove('drag-over');
   // Reorder in DOM
   const parent=dragEl.parentNode;

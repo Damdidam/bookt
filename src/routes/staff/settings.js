@@ -328,13 +328,28 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
          WHERE business_id = $1 ORDER BY sort_order, label`,
         [businessId]
       );
-      bizCatRows = bizCatResult.rows.filter(r => !catalogLabels.includes(r.label));
+      bizCatRows = bizCatResult.rows;
     } catch (e) {
       if (e.code !== '42P01') throw e; // table doesn't exist yet
     }
 
+    // Merge catalog categories with business_categories overrides (for descriptions/icons)
+    const bizCatMap = {};
+    for (const r of bizCatRows) bizCatMap[r.label] = r;
+
+    const mergedCatalog = catalogResult.rows.map(cat => {
+      const biz = bizCatMap[cat.label];
+      if (biz) {
+        return { ...cat, id: biz.id, description: biz.description || null, icon_svg: biz.icon_svg || cat.icon_svg };
+      }
+      return cat;
+    });
+
+    // Custom-only categories (in business_categories but NOT in catalog)
+    const customOnly = bizCatRows.filter(r => !catalogLabels.includes(r.label));
+
     // Get custom categories already used in services (not in catalog or business_categories)
-    const allKnownLabels = [...catalogLabels, ...bizCatRows.map(r => r.label)];
+    const allKnownLabels = [...catalogLabels, ...customOnly.map(r => r.label)];
     const svcCustomResult = await queryWithRLS(businessId,
       `SELECT DISTINCT category AS label FROM services
        WHERE business_id = $1 AND category IS NOT NULL AND category != ''
@@ -344,7 +359,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
     );
     const svcCustomRows = svcCustomResult.rows.map(r => ({ ...r, icon_svg: null, sort_order: 999, source: 'custom' }));
 
-    res.json({ sector, categories: [...catalogResult.rows, ...bizCatRows, ...svcCustomRows] });
+    res.json({ sector, categories: [...mergedCatalog, ...customOnly, ...svcCustomRows] });
   } catch (err) {
     console.error('[SETTINGS] sector-categories error:', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -358,13 +373,20 @@ router.post('/categories', requireRole('owner', 'manager'), async (req, res, nex
     const { label, description, icon_svg } = req.body;
     if (!label || !label.trim()) return res.status(400).json({ error: 'Label requis' });
 
-    // Check for duplicate
+    // Upsert: if category already exists, update it instead of returning 409
     try {
       const existing = await queryWithRLS(bid,
         `SELECT id FROM business_categories WHERE business_id = $1 AND LOWER(label) = LOWER($2)`,
         [bid, label.trim()]
       );
-      if (existing.rows.length > 0) return res.status(409).json({ error: 'Cette catégorie existe déjà' });
+      if (existing.rows.length > 0) {
+        const result = await queryWithRLS(bid,
+          `UPDATE business_categories SET label = $1, description = $2, icon_svg = COALESCE($3, icon_svg)
+           WHERE id = $4 AND business_id = $5 RETURNING *`,
+          [label.trim(), description?.trim() || null, icon_svg || null, existing.rows[0].id, bid]
+        );
+        return res.json({ category: result.rows[0] });
+      }
     } catch (e) {
       if (e.code !== '42P01') throw e;
     }
