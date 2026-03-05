@@ -3,11 +3,11 @@
  */
 import { bridge } from '../../utils/window-bridge.js';
 
-const CSW_PALETTE = ['#0D7377','#2196F3','#3F51B5','#9C27B0','#E91E63','#F44336','#FF9800','#FFB300','#4CAF50','#00BCD4','#795548','#607D8B'];
+const CSW_PALETTE = ['#1E3A8A','#B91C1C','#059669','#EA580C','#7C3AED','#DB2777','#0EA5A4','#374151'];
 
 function cswHTML(hiddenId, selected, inline) {
   const safeHid = String(hiddenId).replace(/[^a-zA-Z0-9_-]/g, '');
-  const safeSelected = /^#[0-9a-fA-F]{3,8}$/.test(selected) ? selected : '#0D7377';
+  const safeSelected = /^#[0-9a-fA-F]{3,8}$/.test(selected) ? selected : '#1E3A8A';
   const cls = inline ? 'csw-inline' : 'csw';
   let h = `<div class="${cls}">`;
   CSW_PALETTE.forEach(c => {
@@ -29,11 +29,11 @@ function cswPick(el, hiddenId) {
 
 function cswSelect(hiddenId, color) {
   const inp = document.getElementById(hiddenId);
-  if (inp) inp.value = color || '#0D7377';
+  if (inp) inp.value = color || '#1E3A8A';
   const wrap = inp?.previousElementSibling;
   if (!wrap) return;
   wrap.querySelectorAll('.csw-dot').forEach(d => {
-    d.classList.toggle('active', d.dataset.color.toLowerCase() === (color || '#0D7377').toLowerCase());
+    d.classList.toggle('active', d.dataset.color.toLowerCase() === (color || '#1E3A8A').toLowerCase());
   });
 }
 

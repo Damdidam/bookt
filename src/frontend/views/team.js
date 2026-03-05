@@ -121,7 +121,7 @@ function renderPractModal(p){
     </div>`:''}
   </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="savePract(${isEdit?"'"+p.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
-  document.getElementById('p_color_wrap').innerHTML=cswHTML('p_color',p?.color||'#0D7377',false);
+  document.getElementById('p_color_wrap').innerHTML=cswHTML('p_color',p?.color||'#1E3A8A',false);
   if(isEdit) window.loadPracCalSync(p.id);
 }
 

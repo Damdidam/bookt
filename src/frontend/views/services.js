@@ -25,7 +25,7 @@ const PHONE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 
 // Pastel palette for category icon backgrounds
 const CAT_BG_PALETTE=['#FCE4EC','#E3F2FD','#E8F5E9','#FFF3E0','#F3E5F5','#E0F7FA','#FFF8E1','#E8EAF6','#FFEBEE','#E0F2F1','#FBE9E7','#ECEFF1'];
-const CSW_COLORS=['#0D7377','#2196F3','#3F51B5','#9C27B0','#E91E63','#F44336','#FF9800','#FFB300','#4CAF50','#00BCD4','#795548','#607D8B'];
+const CSW_COLORS=['#1E3A8A','#B91C1C','#059669','#EA580C','#7C3AED','#DB2777','#0EA5A4','#374151'];
 function catColor(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CSW_COLORS[Math.abs(h)%CSW_COLORS.length];}
 function catBg(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CAT_BG_PALETTE[Math.abs(h)%CAT_BG_PALETTE.length];}
 // Safe string for JS inside HTML attribute: JS-escape first, then HTML-escape
@@ -212,7 +212,7 @@ function openCategoryModal(catLabel){
   const label=isEdit?catLabel:'';
   const desc=meta.description||'';
   const catId=meta.id||'';
-  const color=meta.color||'#0D7377';
+  const color=meta.color||'#1E3A8A';
 
   let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
@@ -584,7 +584,7 @@ async function saveService(id){
   const priceVal=document.getElementById('svc_price').value;
   const selectedCat=document.getElementById('svc_cat').value||null;
   const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
-  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#0D7377',mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
+  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.available_schedule=buildScheduleFromEditor();
