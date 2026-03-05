@@ -110,6 +110,25 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
   }
 });
 
+// PATCH /api/services/reorder — batch update sort_order (MUST be before /:id)
+router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { order } = req.body;
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'order array requis' });
+    for (const item of order) {
+      const sets = ['sort_order = $1'];
+      const vals = [item.sort_order, item.id, bid];
+      if (item.category !== undefined) { sets.push('category = $4'); vals.push(item.category); }
+      await queryWithRLS(bid,
+        `UPDATE services SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+        vals
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // PATCH /api/services/:id — update a service
 router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
@@ -411,25 +430,6 @@ router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'),
     }
 
     res.json({ variant: result.rows[0] });
-  } catch (err) { next(err); }
-});
-
-// PATCH /api/services/reorder — batch update sort_order
-router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next) => {
-  try {
-    const bid = req.businessId;
-    const { order } = req.body;
-    if (!Array.isArray(order)) return res.status(400).json({ error: 'order array requis' });
-    for (const item of order) {
-      const sets = ['sort_order = $1'];
-      const vals = [item.sort_order, item.id, bid];
-      if (item.category !== undefined) { sets.push('category = $4'); vals.push(item.category); }
-      await queryWithRLS(bid,
-        `UPDATE services SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
-        vals
-      );
-    }
-    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

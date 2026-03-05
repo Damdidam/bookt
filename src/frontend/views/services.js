@@ -266,12 +266,16 @@ async function svcDeleteCategory(cat){
 
 // ===== DRAG & DROP =====
 
-let dragEl=null, dragType=null;
+let dragEl=null, dragType=null, dragFromHandle=false;
+
+// Track mousedown on drag handle (e.target in dragstart is always the draggable element, not the child clicked)
+document.addEventListener('mousedown',e=>{if(e.target.closest('.drag-handle'))dragFromHandle=true;});
+document.addEventListener('mouseup',()=>{dragFromHandle=false;});
 
 function svcDragStart(e,type){
-  const handle=e.target.closest('.drag-handle');
+  if(!dragFromHandle){e.preventDefault();return;}
   const item=type==='cat'?e.target.closest('.svc-category'):e.target.closest('.svc-row');
-  if(!handle&&e.target!==item){e.preventDefault();return;}
+  if(!item){e.preventDefault();return;}
   dragEl=item; dragType=type;
   item.classList.add('dragging');
   e.dataTransfer.effectAllowed='move';
@@ -313,7 +317,7 @@ function svcDrop(e,type){
 function cleanupDrag(){
   if(dragEl)dragEl.classList.remove('dragging');
   document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
-  dragEl=null;dragType=null;
+  dragEl=null;dragType=null;dragFromHandle=false;
 }
 document.addEventListener('dragend',cleanupDrag);
 
