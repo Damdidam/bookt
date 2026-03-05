@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Catégories & Prestations</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Plus Jakarta Sans',sans-serif; background:#F5F4F1; color:#1A1816; padding:32px; }
+h1 { font-size:1.5rem; font-weight:800; margin-bottom:8px; }
+.subtitle { font-size:.9rem; color:#6B6560; margin-bottom:32px; }
+
+/* Top bar */
+.top-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border-radius:10px; border:none; font-family:inherit; font-weight:600; font-size:.85rem; cursor:pointer; transition:all .15s; }
+.btn-primary { background:#0D7377; color:#fff; }
+.btn-primary:hover { background:#0a5c5f; }
+.btn-ghost { background:transparent; color:#6B6560; border:1.5px solid #E0DDD8; }
+.btn-ghost:hover { background:#fff; }
+.btn-sm { padding:7px 12px; font-size:.8rem; }
+.btn-xs { padding:5px 10px; font-size:.75rem; border-radius:8px; }
+.btn-danger { color:#C62828; border-color:#FFCDD2; }
+.btn-danger:hover { background:#FFF5F5; }
+
+/* SVG icon base */
+.gi { width:16px; height:16px; display:inline-block; vertical-align:middle; flex-shrink:0; }
+.gi-sm { width:14px; height:14px; }
+.gi-lg { width:20px; height:20px; }
+
+/* Category */
+.category { background:#fff; border-radius:16px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:hidden; }
+.cat-header { display:flex; align-items:center; gap:12px; padding:18px 24px; cursor:pointer; user-select:none; border-bottom:1px solid #F0EEED; }
+.cat-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.cat-icon .gi { width:22px; height:22px; }
+.cat-info { flex:1; min-width:0; }
+.cat-name { font-size:1.05rem; font-weight:700; }
+.cat-count { font-size:.78rem; color:#9C958E; margin-top:2px; }
+.cat-comment { font-size:.82rem; color:#6B6560; margin-top:4px; line-height:1.5; font-style:italic; }
+.cat-actions { display:flex; gap:6px; }
+.chevron { transition:transform .2s; color:#9C958E; display:flex; }
+.chevron.open { transform:rotate(180deg); }
+
+/* Service row */
+.cat-body { padding:0 24px 16px; }
+.svc-row { display:flex; align-items:flex-start; gap:14px; padding:16px; margin-top:12px; background:#FAFAF8; border-radius:12px; border:1px solid #F0EEED; }
+.svc-color { width:4px; border-radius:4px; align-self:stretch; flex-shrink:0; }
+.svc-info { flex:1; min-width:0; }
+.svc-top { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+.svc-name { font-size:.95rem; font-weight:700; }
+.svc-price { font-size:.85rem; font-weight:600; color:#0D7377; }
+.svc-duration { font-size:.78rem; color:#9C958E; }
+.svc-comment { font-size:.8rem; color:#6B6560; margin-top:6px; line-height:1.5; font-style:italic; }
+.svc-meta { display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap; }
+.svc-badge { display:inline-flex; align-items:center; gap:4px; font-size:.7rem; font-weight:600; padding:3px 8px; border-radius:6px; background:#E8F5E9; color:#2E7D32; }
+.svc-badge .gi { width:12px; height:12px; }
+.svc-badge.offline { background:#FFF3E0; color:#E65100; }
+.svc-actions { display:flex; gap:6px; flex-shrink:0; align-self:center; }
+
+/* Variants */
+.var-list { margin-top:10px; margin-left:18px; border-left:2px solid #E0DDD8; padding-left:14px; }
+.var-row { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; background:#fff; border-radius:10px; margin-bottom:6px; border:1px solid #F0EEED; }
+.var-dot { width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+.var-info { flex:1; }
+.var-top { display:flex; align-items:center; gap:8px; }
+.var-name { font-size:.85rem; font-weight:600; }
+.var-price { font-size:.8rem; font-weight:600; color:#0D7377; }
+.var-duration { font-size:.75rem; color:#9C958E; }
+.var-comment { font-size:.78rem; color:#6B6560; margin-top:4px; line-height:1.4; font-style:italic; }
+.var-actions { display:flex; gap:4px; flex-shrink:0; align-self:center; }
+
+/* Add buttons */
+.add-row { display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; margin-top:12px; border:2px dashed #E0DDD8; border-radius:12px; color:#9C958E; font-size:.85rem; font-weight:600; cursor:pointer; transition:all .15s; }
+.add-row:hover { border-color:#0D7377; color:#0D7377; background:#F0FAFA; }
+.add-row .gi { width:15px; height:15px; }
+.add-var { margin-top:8px; padding:8px; font-size:.8rem; border-radius:8px; }
+
+/* Section label */
+.section-label { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#9C958E; margin-bottom:12px; }
+
+/* Drag handle */
+.drag-handle { color:#D0CBC4; cursor:grab; display:flex; align-items:center; flex-shrink:0; }
+.drag-handle:hover { color:#9C958E; }
+.drag-handle .gi { width:18px; height:18px; }
+</style>
+</head>
+<body>
+
+<h1>Catégories & Prestations</h1>
+<p class="subtitle">Gérez vos catégories, services et variantes — chaque niveau peut avoir sa propre description.</p>
+
+<div class="top-bar">
+  <div class="section-label" style="margin:0">3 catégories · 7 prestations</div>
+  <button class="btn btn-primary">
+    <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Nouvelle catégorie
+  </button>
+</div>
+
+<!-- ═══════════ CATEGORY 1: Épilation ═══════════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="drag-handle">
+      <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+    </span>
+    <div class="cat-icon" style="background:#FCE4EC">
+      <!-- Sparkle / Zap icon -->
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#E91E63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    </div>
+    <div class="cat-info">
+      <div class="cat-name">Épilation</div>
+      <div class="cat-count">3 prestations</div>
+      <div class="cat-comment">Nous utilisons la technologie laser de dernière génération — indolore, efficace et durable. Résultats visibles dès la première séance.</div>
+    </div>
+    <div class="cat-actions">
+      <button class="btn btn-ghost btn-xs" title="Modifier">
+        <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+        <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
+    <span class="chevron open">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+  </div>
+
+  <div class="cat-body">
+
+    <!-- Service 1.1 -->
+    <div class="svc-row">
+      <div class="svc-color" style="background:#E91E63"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Épilation jambes</span>
+          <span class="svc-price">40 – 70 €</span>
+          <span class="svc-duration">· 30 – 60 min</span>
+        </div>
+        <div class="svc-comment">Jambes lisses et douces grâce à notre cire tiède hypoallergénique, parfaite pour les peaux sensibles.</div>
+        <div class="svc-meta">
+          <span class="svc-badge">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Réservable en ligne
+          </span>
+        </div>
+
+        <!-- Variants -->
+        <div class="var-list">
+          <div class="var-row">
+            <div class="var-dot" style="background:#E91E63"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">Demi-jambes</span>
+                <span class="var-price">40 €</span>
+                <span class="var-duration">· 30 min</span>
+              </div>
+              <div class="var-comment">Du genou à la cheville — idéal pour un entretien rapide.</div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="var-row">
+            <div class="var-dot" style="background:#E91E63"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">Jambes complètes</span>
+                <span class="var-price">70 €</span>
+                <span class="var-duration">· 60 min</span>
+              </div>
+              <div class="var-comment">De la cheville à l'aine — résultat impeccable garanti.</div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="add-row add-var">
+            <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ajouter une variante
+          </div>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Service 1.2 -->
+    <div class="svc-row">
+      <div class="svc-color" style="background:#E91E63"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Épilation maillot</span>
+          <span class="svc-price">25 – 45 €</span>
+          <span class="svc-duration">· 15 – 30 min</span>
+        </div>
+        <div class="svc-comment">Au choix classique, échancré ou intégral — dans le respect total de votre intimité.</div>
+        <div class="svc-meta">
+          <span class="svc-badge">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Réservable en ligne
+          </span>
+        </div>
+
+        <div class="var-list">
+          <div class="var-row">
+            <div class="var-dot" style="background:#E91E63"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">Maillot classique</span>
+                <span class="var-price">25 €</span>
+                <span class="var-duration">· 15 min</span>
+              </div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="var-row">
+            <div class="var-dot" style="background:#E91E63"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">Maillot intégral</span>
+                <span class="var-price">45 €</span>
+                <span class="var-duration">· 30 min</span>
+              </div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="add-row add-var">
+            <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ajouter une variante
+          </div>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Service 1.3 (no variants) -->
+    <div class="svc-row">
+      <div class="svc-color" style="background:#E91E63"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Épilation sourcils</span>
+          <span class="svc-price">12 €</span>
+          <span class="svc-duration">· 10 min</span>
+        </div>
+        <div class="svc-comment">Mise en forme au fil ou à la pince — regard net et structuré.</div>
+        <div class="svc-meta">
+          <span class="svc-badge">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Réservable en ligne
+          </span>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="add-row">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Ajouter une prestation
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CATEGORY 2: Soins visage ═══════════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="drag-handle">
+      <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+    </span>
+    <div class="cat-icon" style="background:#E3F2FD">
+      <!-- Droplets / skincare icon -->
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#1976D2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-4 8-7.6 8-12a8 8 0 0 0-16 0c0 4.4 4 8 8 12Z"/><path d="M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>
+    </div>
+    <div class="cat-info">
+      <div class="cat-name">Soins du visage</div>
+      <div class="cat-count">2 prestations</div>
+      <div class="cat-comment">Des soins sur-mesure adaptés à chaque type de peau, avec des produits bio et naturels sélectionnés par nos expertes.</div>
+    </div>
+    <div class="cat-actions">
+      <button class="btn btn-ghost btn-xs" title="Modifier">
+        <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+        <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
+    <span class="chevron open">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+  </div>
+
+  <div class="cat-body">
+    <div class="svc-row">
+      <div class="svc-color" style="background:#2196F3"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Soin hydratant complet</span>
+          <span class="svc-price">85 €</span>
+          <span class="svc-duration">· 60 min</span>
+        </div>
+        <div class="svc-comment">Nettoyage profond, gommage, masque et massage — votre peau retrouve éclat et souplesse.</div>
+        <div class="svc-meta">
+          <span class="svc-badge">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Réservable en ligne
+          </span>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="svc-row">
+      <div class="svc-color" style="background:#2196F3"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Peeling doux</span>
+          <span class="svc-price">55 €</span>
+          <span class="svc-duration">· 30 min</span>
+        </div>
+        <div class="svc-meta">
+          <span class="svc-badge offline">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+            Sur rendez-vous tél.
+          </span>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="add-row">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Ajouter une prestation
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CATEGORY 3: Massage ═══════════ -->
+<div class="category">
+  <div class="cat-header">
+    <span class="drag-handle">
+      <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+    </span>
+    <div class="cat-icon" style="background:#E8F5E9">
+      <!-- Leaf / wellness icon -->
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+    </div>
+    <div class="cat-info">
+      <div class="cat-name">Massages & Bien-être</div>
+      <div class="cat-count">2 prestations</div>
+      <div class="cat-comment">Laissez-vous porter par nos massages relaxants dans un cadre apaisant. Huiles essentielles bio incluses.</div>
+    </div>
+    <div class="cat-actions">
+      <button class="btn btn-ghost btn-xs" title="Modifier">
+        <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+        <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
+    <span class="chevron open">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+  </div>
+
+  <div class="cat-body">
+    <div class="svc-row">
+      <div class="svc-color" style="background:#4CAF50"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Massage relaxant</span>
+          <span class="svc-price">60 – 110 €</span>
+          <span class="svc-duration">· 30 – 90 min</span>
+        </div>
+        <div class="svc-comment">Un moment de détente absolue — pressions douces sur tout le corps pour relâcher les tensions.</div>
+        <div class="svc-meta">
+          <span class="svc-badge">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Réservable en ligne
+          </span>
+        </div>
+
+        <div class="var-list">
+          <div class="var-row">
+            <div class="var-dot" style="background:#4CAF50"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">30 minutes</span>
+                <span class="var-price">60 €</span>
+                <span class="var-duration">· 30 min</span>
+              </div>
+              <div class="var-comment">Ciblé dos et épaules — parfait sur la pause déjeuner.</div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="var-row">
+            <div class="var-dot" style="background:#4CAF50"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">60 minutes</span>
+                <span class="var-price">85 €</span>
+                <span class="var-duration">· 60 min</span>
+              </div>
+              <div class="var-comment">Corps complet — notre best-seller.</div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="var-row">
+            <div class="var-dot" style="background:#4CAF50"></div>
+            <div class="var-info">
+              <div class="var-top">
+                <span class="var-name">90 minutes — Premium</span>
+                <span class="var-price">110 €</span>
+                <span class="var-duration">· 90 min</span>
+              </div>
+              <div class="var-comment">L'expérience ultime : corps, visage, cuir chevelu. Inclut une tisane offerte.</div>
+            </div>
+            <div class="var-actions">
+              <button class="btn btn-ghost btn-xs" title="Modifier">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+                <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="add-row add-var">
+            <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ajouter une variante
+          </div>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="svc-row">
+      <div class="svc-color" style="background:#4CAF50"></div>
+      <span class="drag-handle" style="align-self:center">
+        <svg class="gi" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+      </span>
+      <div class="svc-info">
+        <div class="svc-top">
+          <span class="svc-name">Massage aux pierres chaudes</span>
+          <span class="svc-price">95 €</span>
+          <span class="svc-duration">· 75 min</span>
+        </div>
+        <div class="svc-comment">Pierres de basalte chauffées placées sur les points d'énergie — détente musculaire profonde.</div>
+        <div class="svc-meta">
+          <span class="svc-badge">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+            Réservable en ligne
+          </span>
+        </div>
+      </div>
+      <div class="svc-actions">
+        <button class="btn btn-ghost btn-xs" title="Modifier">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-xs btn-danger" title="Supprimer">
+          <svg class="gi gi-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="add-row">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Ajouter une prestation
+    </div>
+  </div>
+</div>
+
+<!-- Add category -->
+<div class="add-row" style="border-color:#0D7377; color:#0D7377; background:#F0FAFA; font-weight:700;">
+  <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  Nouvelle catégorie
+</div>
+
+</body>
+</html>

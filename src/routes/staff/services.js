@@ -79,9 +79,9 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
           const v = variants[i];
           if (!v.name || !v.duration_min || v.duration_min <= 0) continue;
           await client.query(
-            `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [bid, svc.id, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i]
+            `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order, description)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [bid, svc.id, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.description || null]
           );
         }
       }
@@ -217,9 +217,9 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
           // Update existing
           await queryWithRLS(bid,
             `UPDATE service_variants SET name = $1, duration_min = $2, price_cents = $3,
-              sort_order = $4, is_active = true, updated_at = NOW()
-             WHERE id = $5 AND business_id = $6`,
-            [v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.id, bid]
+              sort_order = $4, description = $5, is_active = true, updated_at = NOW()
+             WHERE id = $6 AND business_id = $7`,
+            [v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.description || null, v.id, bid]
           );
           // Recalculate end_at for future bookings using this variant
           const totalMin = (result.rows[0].buffer_before_min || 0) + v.duration_min + (result.rows[0].buffer_after_min || 0);
@@ -232,9 +232,9 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
         } else {
           // Insert new
           await queryWithRLS(bid,
-            `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [bid, svcId, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i]
+            `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order, description)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [bid, svcId, v.name, v.duration_min, v.price_cents ?? null, v.sort_order ?? i, v.description || null]
           );
         }
       }
@@ -344,7 +344,7 @@ router.post('/:serviceId/variants', requireRole('owner', 'manager'), async (req,
   try {
     const bid = req.businessId;
     const { serviceId } = req.params;
-    const { name, duration_min, price_cents, sort_order } = req.body;
+    const { name, duration_min, price_cents, sort_order, description } = req.body;
 
     if (!name || !duration_min || duration_min <= 0) {
       return res.status(400).json({ error: 'name et duration_min (> 0) requis' });
@@ -356,9 +356,9 @@ router.post('/:serviceId/variants', requireRole('owner', 'manager'), async (req,
     if (svc.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
 
     const result = await queryWithRLS(bid,
-      `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [bid, serviceId, name, duration_min, price_cents ?? null, sort_order ?? 0]
+      `INSERT INTO service_variants (business_id, service_id, name, duration_min, price_cents, sort_order, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [bid, serviceId, name, duration_min, price_cents ?? null, sort_order ?? 0, description || null]
     );
     res.status(201).json({ variant: result.rows[0] });
   } catch (err) { next(err); }
@@ -371,7 +371,7 @@ router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'),
     const { variantId } = req.params;
     const fields = req.body;
 
-    const allowed = ['name', 'duration_min', 'price_cents', 'sort_order', 'is_active'];
+    const allowed = ['name', 'duration_min', 'price_cents', 'sort_order', 'is_active', 'description'];
     const sets = [];
     const params = [variantId, bid];
     let idx = 3;
@@ -411,6 +411,25 @@ router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'),
     }
 
     res.json({ variant: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/services/reorder — batch update sort_order
+router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { order } = req.body;
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'order array requis' });
+    for (const item of order) {
+      const sets = ['sort_order = $1'];
+      const vals = [item.sort_order, item.id, bid];
+      if (item.category !== undefined) { sets.push('category = $4'); vals.push(item.category); }
+      await queryWithRLS(bid,
+        `UPDATE services SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+        vals
+      );
+    }
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

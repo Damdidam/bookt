@@ -324,7 +324,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
     let bizCatRows = [];
     try {
       const bizCatResult = await queryWithRLS(businessId,
-        `SELECT id, label, icon_svg, sort_order, 'custom' AS source FROM business_categories
+        `SELECT id, label, icon_svg, sort_order, description, 'custom' AS source FROM business_categories
          WHERE business_id = $1 ORDER BY sort_order, label`,
         [businessId]
       );
@@ -355,7 +355,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
 router.post('/categories', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { label } = req.body;
+    const { label, description, icon_svg } = req.body;
     if (!label || !label.trim()) return res.status(400).json({ error: 'Label requis' });
 
     // Check for duplicate
@@ -370,10 +370,50 @@ router.post('/categories', requireRole('owner', 'manager'), async (req, res, nex
     }
 
     const result = await queryWithRLS(bid,
-      `INSERT INTO business_categories (business_id, label) VALUES ($1, $2) RETURNING *`,
-      [bid, label.trim()]
+      `INSERT INTO business_categories (business_id, label, description, icon_svg)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [bid, label.trim(), description?.trim() || null, icon_svg || null]
     );
     res.status(201).json({ category: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/business/categories/reorder — batch update sort_order (MUST be before /:id)
+router.patch('/categories/reorder', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { order } = req.body;
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'order array requis' });
+    for (const item of order) {
+      await queryWithRLS(bid,
+        `UPDATE business_categories SET sort_order = $1 WHERE id = $2 AND business_id = $3`,
+        [item.sort_order, item.id, bid]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/business/categories/:id — update a custom category
+router.patch('/categories/:id', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const allowed = ['label', 'description', 'icon_svg', 'sort_order'];
+    const sets = []; const vals = [req.params.id, bid]; let idx = 3;
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        sets.push(`${key} = $${idx++}`);
+        vals.push(key === 'label' ? req.body[key].trim() : (key === 'description' ? (req.body[key]?.trim() || null) : req.body[key]));
+      }
+    }
+    if (sets.length === 0) return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+
+    const result = await queryWithRLS(bid,
+      `UPDATE business_categories SET ${sets.join(', ')} WHERE id = $1 AND business_id = $2 RETURNING *`,
+      vals
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Catégorie introuvable' });
+    res.json({ category: result.rows[0] });
   } catch (err) { next(err); }
 });
 
