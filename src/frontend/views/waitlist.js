@@ -98,7 +98,7 @@ function wlOpenAdd(){
     const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
     const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
     const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-    let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
+    let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
     m+=`<div class="field"><label>Nom du client *</label><input id="wla_name" placeholder="Nom complet"></div>`;
     m+=`<div class="field"><label>Email *</label><input id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
     m+=`<div class="field"><label>T\u00e9l\u00e9phone</label><input id="wla_phone" placeholder="+32..."></div>`;
@@ -144,7 +144,7 @@ async function wlSaveAdd(){
 
 // -- Offer a slot --
 function wlOffer(entryId,clientName,pracId,svcId){
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
+  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal"><div class="modal-h"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
   m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou d\u00e9cliner. L'offre expire apr\u00e8s <strong>2 heures</strong>.</p>`;
   m+=`<div class="field"><label>Date</label><input type="date" id="wlo_date" value="${new Date().toISOString().split('T')[0]}"></div>`;
   m+=`<div class="field"><label>Heure de d\u00e9but</label><input type="time" id="wlo_start" value="09:00" step="900"></div>`;
@@ -202,7 +202,7 @@ function wlDetail(idx){
   const days=(e.preferred_days||[]).map(d=>DAY_S[d]||d).join(', ');
   const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal" style="max-width:520px"><div class="modal-h"><h3>${esc(e.client_name)}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
+  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal" style="max-width:520px"><div class="modal-h"><h3>${esc(e.client_name)}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
 
   // Status badge
   m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${WL_ST[e.status]||e.status}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;

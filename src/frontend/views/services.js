@@ -214,7 +214,7 @@ function openCategoryModal(catLabel){
   const catId=meta.id||'';
   const color=meta.color||'#0D7377';
 
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
+  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
   m+=`<div class="field-color"><label>Couleur</label><div id="cat_color_wrap"></div></div></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
@@ -426,7 +426,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   const svcLabel=categoryLabels.service.toLowerCase();
   const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
 
-  let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal svc-modal"><div class="modal-h"><h3>${isEdit?'Modifier le '+svcLabel:'Nouveau '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
+  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal svc-modal"><div class="modal-h"><h3>${isEdit?'Modifier le '+svcLabel:'Nouveau '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
@@ -656,7 +656,7 @@ async function openQuickStart(){
 
 function qsRenderStep1(){
   const svcsLabel=categoryLabels.services.toLowerCase();
-  let m=`<div class="modal-overlay qs-overlay" onclick="if(event.target===this)this.remove()"><div class="modal qs-modal">
+  let m=`<div class="modal-overlay qs-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal qs-modal">
     <div class="qs-progress"><div class="qs-step active">1</div><div class="qs-line"></div><div class="qs-step">2</div></div>
     <div class="modal-h"><h3>Choisissez vos catégories</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div>
     <div class="modal-body"><p class="qs-subtitle">Décochez les catégories qui ne vous concernent pas</p><div class="qs-cat-grid">`;
