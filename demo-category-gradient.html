@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo — Dégradé header catégorie</title>
+<style>
+  :root {
+    --white:#FFFFFF;--surface:#F8FAFB;--text:#1A2332;--text-3:#6B7A90;
+    --text-4:#9DACBA;--border-light:#E8ECF0;--primary:#0D7377;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F2F5;padding:40px 24px}
+  h1{text-align:center;font-size:1.1rem;color:var(--text-3);margin-bottom:32px;font-weight:500}
+
+  .svc-category{background:var(--white);border-radius:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden;max-width:700px;margin-left:auto;margin-right:auto}
+  .svc-cat-header{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border-light);transition:background .15s}
+  .svc-cat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .svc-cat-icon svg{width:20px;height:20px}
+  .svc-cat-info{flex:1;min-width:0}
+  .svc-cat-name{font-size:1rem;font-weight:700;color:var(--text)}
+  .svc-cat-count{font-size:.75rem;color:var(--text-4);margin-top:1px}
+  .svc-cat-chevron{color:var(--text-4);font-size:.9rem;flex-shrink:0;margin-left:4px;transition:transform .2s}
+  .drag-handle{cursor:grab;color:var(--text-4);display:flex;align-items:center}
+
+  .svc-cat-body{padding:12px 20px 16px}
+  .svc-row-placeholder{padding:12px;background:var(--surface);border-radius:10px;margin-top:8px;font-size:.82rem;color:var(--text-4);text-align:center}
+
+  /* ========================================
+     LE DÉGRADÉ SUBTIL — la seule nouveauté
+     ======================================== */
+  .svc-cat-header[data-color] {
+    /* Dégradé de gauche (couleur de la catégorie à 10% opacité) vers transparent */
+    /* Bordure bottom colorée aussi, très subtile */
+  }
+
+  .label{display:inline-block;margin-bottom:6px;font-size:.7rem;font-weight:600;color:var(--primary);background:#EDF8F7;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+  .section{margin-bottom:40px;max-width:700px;margin-left:auto;margin-right:auto}
+</style>
+</head>
+<body>
+
+<h1>🎨 Dégradé catégorie — Comparaison avant / après</h1>
+
+<!-- ==================== AVANT ==================== -->
+<div class="section">
+  <span class="label">❌ Avant — sans couleur</span>
+
+  <div class="svc-category">
+    <div class="svc-cat-header">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#EDF8F7;color:#0D7377"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Soins visage</div><div class="svc-cat-count">4 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+  </div>
+
+  <div class="svc-category">
+    <div class="svc-cat-header">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#FFF7ED;color:#EA580C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Épilation</div><div class="svc-cat-count">6 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+  </div>
+
+  <div class="svc-category">
+    <div class="svc-cat-header">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#F5F3FF;color:#7C3AED"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01z"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Massages</div><div class="svc-cat-count">3 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== APRÈS ==================== -->
+<div class="section">
+  <span class="label">✅ Après — avec dégradé subtil</span>
+
+  <!-- Soins visage — Teal #0D7377 -->
+  <div class="svc-category">
+    <div class="svc-cat-header" style="background:linear-gradient(135deg, rgba(13,115,119,0.08) 0%, rgba(13,115,119,0.02) 60%, transparent 100%); border-bottom-color:rgba(13,115,119,0.15)">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#EDF8F7;color:#0D7377"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Soins visage</div><div class="svc-cat-count">4 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+    <div class="svc-cat-body">
+      <div class="svc-row-placeholder">Soin éclat · Soin hydratant · Peeling · Micro-needling</div>
+    </div>
+  </div>
+
+  <!-- Épilation — Orange #EA580C -->
+  <div class="svc-category">
+    <div class="svc-cat-header" style="background:linear-gradient(135deg, rgba(234,88,12,0.08) 0%, rgba(234,88,12,0.02) 60%, transparent 100%); border-bottom-color:rgba(234,88,12,0.15)">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#FFF7ED;color:#EA580C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Épilation</div><div class="svc-cat-count">6 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+    <div class="svc-cat-body">
+      <div class="svc-row-placeholder">Jambes complètes · Maillot · Aisselles · Bras · Dos · Torse</div>
+    </div>
+  </div>
+
+  <!-- Massages — Violet #7C3AED -->
+  <div class="svc-category">
+    <div class="svc-cat-header" style="background:linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(124,58,237,0.02) 60%, transparent 100%); border-bottom-color:rgba(124,58,237,0.15)">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#F5F3FF;color:#7C3AED"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01z"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Massages</div><div class="svc-cat-count">3 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+    <div class="svc-cat-body">
+      <div class="svc-row-placeholder">Californien · Deep tissue · Pierres chaudes</div>
+    </div>
+  </div>
+
+  <!-- Onglerie — Rose #E11D48 -->
+  <div class="svc-category">
+    <div class="svc-cat-header" style="background:linear-gradient(135deg, rgba(225,29,72,0.08) 0%, rgba(225,29,72,0.02) 60%, transparent 100%); border-bottom-color:rgba(225,29,72,0.15)">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#FFF1F2;color:#E11D48"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Onglerie</div><div class="svc-cat-count">5 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+    <div class="svc-cat-body">
+      <div class="svc-row-placeholder">Manucure · Pose gel · Nail art · Pédicure · Semi-permanent</div>
+    </div>
+  </div>
+
+  <!-- Coiffure — Bleu #2563EB -->
+  <div class="svc-category">
+    <div class="svc-cat-header" style="background:linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(37,99,235,0.02) 60%, transparent 100%); border-bottom-color:rgba(37,99,235,0.15)">
+      <span class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="4" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/></svg></span>
+      <div class="svc-cat-icon" style="background:#EFF6FF;color:#2563EB"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div>
+      <div class="svc-cat-info"><div class="svc-cat-name">Coiffure</div><div class="svc-cat-count">7 prestations</div></div>
+      <span class="svc-cat-chevron">▾</span>
+    </div>
+    <div class="svc-cat-body">
+      <div class="svc-row-placeholder">Coupe femme · Coupe homme · Brushing · Couleur · Mèches · Balayage · Lissage</div>
+    </div>
+  </div>
+</div>
+
+<div style="max-width:700px;margin:0 auto 40px;padding:20px;background:var(--white);border-radius:12px;border:1.5px solid var(--border-light)">
+  <p style="font-size:.85rem;color:var(--text);line-height:1.7;margin:0">
+    <strong>Technique CSS :</strong><br>
+    <code style="font-size:.78rem;background:#F3F4F6;padding:2px 6px;border-radius:4px">background: linear-gradient(135deg, rgba(R,G,B, 0.08) 0%, rgba(R,G,B, 0.02) 60%, transparent 100%)</code><br>
+    <code style="font-size:.78rem;background:#F3F4F6;padding:2px 6px;border-radius:4px">border-bottom-color: rgba(R,G,B, 0.15)</code>
+  </p>
+  <p style="font-size:.78rem;color:var(--text-3);margin-top:8px">
+    → Dégradé 135° (haut-gauche vers bas-droit), opacité 8% max → très subtil, lisible sur fond blanc.<br>
+    → Le border-bottom prend aussi la teinte à 15% pour renforcer la cohérence visuelle.
+  </p>
+</div>
+
+</body>
+</html>
