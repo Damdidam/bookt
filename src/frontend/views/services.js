@@ -49,7 +49,7 @@ async function loadServices(){
     if(cr.ok){const cd=await cr.json();allSectorCats=cd.categories||[];}
     // Build catMeta
     catMeta={};
-    allSectorCats.forEach(c=>{catMeta[c.label]={id:c.id||null,icon_svg:c.icon_svg||'',description:c.description||'',sort_order:c.sort_order||0,source:c.source||'catalog'};});
+    allSectorCats.forEach(c=>{catMeta[c.label]={id:c.id||null,icon_svg:c.icon_svg||'',description:c.description||'',sort_order:c.sort_order||0,source:c.source||'catalog',color:c.color||null};});
     // Pre-fetch templates
     try{
       const tr=await fetch('/api/business/service-templates',{headers:{'Authorization':'Bearer '+api.getToken()}});
@@ -211,34 +211,41 @@ function openCategoryModal(catLabel){
   const label=isEdit?catLabel:'';
   const desc=meta.description||'';
   const catId=meta.id||'';
+  const color=meta.color||'#0D7377';
 
   let m=`<div class="modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
-  m+=`<div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
+  m+=`<div class="field-color"><label>Couleur</label><div id="cat_color_wrap"></div></div></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  document.getElementById('cat_color_wrap').innerHTML=cswHTML('cat_color',color,true);
   document.getElementById('cat_modal_name').focus();
 }
 
 async function saveCategory(catId,oldLabel){
   const name=document.getElementById('cat_modal_name').value.trim();
   const desc=document.getElementById('cat_modal_desc').value.trim()||null;
+  const color=document.getElementById('cat_color')?.value||null;
   if(!name){GendaUI.toast('Nom requis','error');return;}
   try{
     if(catId){
       // Update existing
-      const r=await fetch(`/api/business/categories/${catId}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc})});
+      const r=await fetch(`/api/business/categories/${catId}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
       if(!r.ok)throw new Error((await r.json()).error);
-      // If name changed, update all services in old category
-      if(oldLabel&&oldLabel!==name){
-        const svcsToUpdate=allServices.filter(s=>s.category===oldLabel);
+      // If name or color changed, update all services in this category
+      const svcsToUpdate=allServices.filter(s=>s.category===(oldLabel||name));
+      const updates={};
+      if(oldLabel&&oldLabel!==name)updates.category=name;
+      if(color)updates.color=color;
+      if(Object.keys(updates).length>0){
         for(const s of svcsToUpdate){
-          await fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({category:name})});
+          await fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(updates)});
         }
       }
     }else{
       // Create new
-      const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc})});
+      const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
       if(!r.ok)throw new Error((await r.json()).error);
     }
     document.querySelector('.modal-overlay')?.remove();
@@ -421,8 +428,7 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
-  m+=`<div class="svc-form-row" style="margin-bottom:12px">`;
-  m+=`<div class="field" style="flex:1"><label>Catégorie</label><select id="svc_cat">`;
+  m+=`<div class="field" style="margin-bottom:12px"><label>Catégorie</label><select id="svc_cat">`;
   m+=`<option value="">— Choisir —</option>`;
   const currentCat=svc?.category||pf.category||'';
   const usedCats=new Set(allServices.map(s=>s.category).filter(Boolean));
@@ -436,8 +442,6 @@ function renderServiceModal(svc,sectorCats,prefill){
   if(isUnknown)m+=`<option value="${esc(currentCat)}" selected>${esc(currentCat)} (perso.)</option>`;
   m+=`<option value="__custom__">+ Personnalisée...</option>`;
   m+=`</select></div>`;
-  m+=`<div class="field-color"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
-  m+=`</div>`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez cette prestation...">${esc(svc?.description||'')}</textarea></div>`;
   m+=`</div>`;
@@ -514,7 +518,6 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
-  document.getElementById('svc_color_wrap').innerHTML=cswHTML('svc_color',svc?.color||pf.color||'#0D7377',true);
   document.getElementById('svc_cat').addEventListener('change',function(){
     if(this.value==='__custom__'){
       const v=prompt('Nom de la catégorie personnalisée :');
@@ -577,7 +580,9 @@ async function saveService(id){
   if(physicalOnlySectors.includes(userSector)){modes=['cabinet'];}
   else{modes=[];if(document.getElementById('svc_m_cab')?.checked)modes.push('cabinet');if(document.getElementById('svc_m_vis')?.checked)modes.push('visio');if(document.getElementById('svc_m_tel')?.checked)modes.push('phone');}
   const priceVal=document.getElementById('svc_price').value;
-  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:document.getElementById('svc_cat').value||null,color:document.getElementById('svc_color').value,mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
+  const selectedCat=document.getElementById('svc_cat').value||null;
+  const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
+  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#0D7377',mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.available_schedule=buildScheduleFromEditor();

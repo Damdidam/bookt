@@ -324,7 +324,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
     let bizCatRows = [];
     try {
       const bizCatResult = await queryWithRLS(businessId,
-        `SELECT id, label, icon_svg, sort_order, description, 'custom' AS source FROM business_categories
+        `SELECT id, label, icon_svg, sort_order, description, color, 'custom' AS source FROM business_categories
          WHERE business_id = $1 ORDER BY sort_order, label`,
         [businessId]
       );
@@ -340,7 +340,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
     const mergedCatalog = catalogResult.rows.map(cat => {
       const biz = bizCatMap[cat.label];
       if (biz) {
-        return { ...cat, id: biz.id, description: biz.description || null, icon_svg: biz.icon_svg || cat.icon_svg };
+        return { ...cat, id: biz.id, description: biz.description || null, icon_svg: biz.icon_svg || cat.icon_svg, color: biz.color || null };
       }
       return cat;
     });
@@ -370,7 +370,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
 router.post('/categories', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { label, description, icon_svg } = req.body;
+    const { label, description, icon_svg, color } = req.body;
     if (!label || !label.trim()) return res.status(400).json({ error: 'Label requis' });
 
     // Upsert: if category already exists, update it instead of returning 409
@@ -381,9 +381,9 @@ router.post('/categories', requireRole('owner', 'manager'), async (req, res, nex
       );
       if (existing.rows.length > 0) {
         const result = await queryWithRLS(bid,
-          `UPDATE business_categories SET label = $1, description = $2, icon_svg = COALESCE($3, icon_svg)
-           WHERE id = $4 AND business_id = $5 RETURNING *`,
-          [label.trim(), description?.trim() || null, icon_svg || null, existing.rows[0].id, bid]
+          `UPDATE business_categories SET label = $1, description = $2, icon_svg = COALESCE($3, icon_svg), color = COALESCE($4, color)
+           WHERE id = $5 AND business_id = $6 RETURNING *`,
+          [label.trim(), description?.trim() || null, icon_svg || null, color || null, existing.rows[0].id, bid]
         );
         return res.json({ category: result.rows[0] });
       }
@@ -392,9 +392,9 @@ router.post('/categories', requireRole('owner', 'manager'), async (req, res, nex
     }
 
     const result = await queryWithRLS(bid,
-      `INSERT INTO business_categories (business_id, label, description, icon_svg)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [bid, label.trim(), description?.trim() || null, icon_svg || null]
+      `INSERT INTO business_categories (business_id, label, description, icon_svg, color)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [bid, label.trim(), description?.trim() || null, icon_svg || null, color || null]
     );
     res.status(201).json({ category: result.rows[0] });
   } catch (err) { next(err); }
@@ -420,7 +420,7 @@ router.patch('/categories/reorder', requireRole('owner', 'manager'), async (req,
 router.patch('/categories/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const allowed = ['label', 'description', 'icon_svg', 'sort_order'];
+    const allowed = ['label', 'description', 'icon_svg', 'sort_order', 'color'];
     const sets = []; const vals = [req.params.id, bid]; let idx = 3;
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
