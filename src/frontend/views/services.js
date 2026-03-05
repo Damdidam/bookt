@@ -75,7 +75,8 @@ async function loadServices(){
       allSectorCats.forEach(c=>{
         const hasServices=!!catMap[c.label]&&catMap[c.label].length>0;
         const isCustom=c.source==='custom';
-        if((hasServices||isCustom)&&!catOrder.includes(c.label))catOrder.push(c.label);
+        const isAdopted=!!c.id; // has a business_categories entry → user explicitly created/adopted it
+        if((hasServices||isCustom||isAdopted)&&!catOrder.includes(c.label))catOrder.push(c.label);
       });
       Object.keys(catMap).forEach(cat=>{if(!catOrder.includes(cat))catOrder.push(cat);});
       const autresIdx=catOrder.indexOf('Autres');
