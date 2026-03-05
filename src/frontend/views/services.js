@@ -436,7 +436,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   if(isUnknown)m+=`<option value="${esc(currentCat)}" selected>${esc(currentCat)} (perso.)</option>`;
   m+=`<option value="__custom__">+ Personnalisée...</option>`;
   m+=`</select></div>`;
-  m+=`<div class="field" style="flex:0 0 auto"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
+  m+=`<div class="field-color"><label>Couleur</label><div id="svc_color_wrap"></div></div>`;
   m+=`</div>`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez cette prestation...">${esc(svc?.description||'')}</textarea></div>`;
@@ -461,7 +461,7 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
-  m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px${hasVars?';display:none':''}"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
@@ -610,8 +610,8 @@ function svcVarRowHTML(v){
   return `<div class="svc-var-row">
     <div class="svc-var-top-row">
       <input class="svc-var-name" value="${v?esc(v.name):''}" placeholder="Nom de la variante">
-      <input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="Min">
-      <input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€">
+      <div class="svc-var-field"><span class="svc-var-label">Durée</span><input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="min"></div>
+      <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€"></div>
       <button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">${X_SVG}</button>
     </div>
     <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)">
@@ -622,8 +622,8 @@ function svcAddVariant(){document.getElementById('svc_variants_list').insertAdja
 function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();svcUpdatePricingVis();}
 function svcUpdatePricingVis(){
   const n=document.querySelectorAll('#svc_variants_list .svc-var-row').length;
-  const p=document.getElementById('svc_pricing_main');const b=document.getElementById('svc_buffers_row');
-  if(p)p.style.display=n>0?'none':'';if(b)b.style.display=n>0?'none':'';
+  const p=document.getElementById('svc_pricing_main');
+  if(p)p.style.display=n>0?'none':'';
 }
 
 // ===== QUICK START WIZARD =====

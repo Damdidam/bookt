@@ -159,6 +159,10 @@
 
 /* Service modal — wider & flex layout */
 .svc-modal{max-width:620px;display:flex;flex-direction:column;max-height:90vh}
+.svc-modal .modal-h{background:linear-gradient(135deg,#0D7377 0%,#0A5E61 100%);color:#fff;border-bottom:none;border-radius:16px 16px 0 0}
+.svc-modal .modal-h h3{color:#fff}
+.svc-modal .modal-h .close{color:rgba(255,255,255,.6)}
+.svc-modal .modal-h .close:hover{background:rgba(255,255,255,.15);color:#fff}
 .svc-modal .modal-body{flex:1;overflow-y:auto;min-height:0;padding:0}
 .svc-modal .modal-foot{flex-shrink:0}
 /* Service modal sections */
@@ -169,8 +173,11 @@
 .svc-section-line{flex:1;height:1px;background:var(--border-light)}
 /* Variant cards in modal */
 .svc-var-row{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
-.svc-var-row .svc-var-top-row{display:flex;gap:8px;align-items:center;grid-column:1/-1}
+.svc-var-row .svc-var-top-row{display:flex;gap:8px;align-items:flex-end;grid-column:1/-1}
 .svc-var-row .svc-var-name{flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem;background:var(--white)}
+.svc-var-field{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.svc-var-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-4)}
+.svc-var-field input[type="number"]{width:72px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem;background:var(--white)}
 .svc-var-row input[type="number"]{width:72px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem;background:var(--white)}
 .svc-var-row .svc-var-desc{grid-column:1;padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem;color:var(--text-3);background:var(--white)}
 .svc-var-x{background:none;border:none;color:var(--text-4);cursor:pointer;padding:4px;border-radius:6px;transition:.15s;display:flex;align-items:center;justify-content:center;width:28px;height:28px}
@@ -180,15 +187,17 @@
 .svc-var-add:hover{border-color:var(--primary);background:rgba(13,115,119,.03)}
 .svc-var-add svg{width:14px;height:14px}
 /* Inline form row in service modal */
-.svc-form-row{display:flex;gap:10px;align-items:flex-end}
+.svc-form-row{display:flex;gap:12px;align-items:flex-end}
 .svc-form-row .field{flex:1;margin-bottom:0}
+.svc-form-row .field-color{flex:0 0 auto;margin-bottom:0;display:flex;flex-direction:column;gap:5px}
+.svc-form-row .field-color label{font-size:.78rem;font-weight:600;color:var(--text-3)}
 /* Toggle switch */
-.svc-switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;font-weight:500}
+.svc-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:.82rem;font-weight:500;position:relative}
 .svc-switch input{display:none}
-.svc-switch-track{width:34px;height:18px;border-radius:9px;background:var(--border);position:relative;transition:.2s;flex-shrink:0}
-.svc-switch-track::after{content:'';width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.svc-switch-track{display:inline-block;width:38px;min-width:38px;height:22px;border-radius:11px;background:var(--border);position:relative;transition:.2s;flex-shrink:0;vertical-align:middle}
+.svc-switch-track::after{content:'';width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .svc-switch input:checked+.svc-switch-track{background:var(--primary)}
-.svc-switch input:checked+.svc-switch-track::after{left:18px}
+.svc-switch input:checked+.svc-switch-track::after{left:19px}
 /* Schedule editor */
 .svc-sched-editor{margin-top:8px;padding:12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)}
 .svc-day-bar{display:flex;gap:4px;margin-bottom:10px}
