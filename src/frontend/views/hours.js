@@ -57,7 +57,7 @@ function addSlot(pid,day){
   const ds=last?last.end_time:'09:00:00';
   const hr=parseInt(ds.split(':')[0]);
   const de=`${String(Math.min(hr+4,20)).padStart(2,'0')}:00`;
-  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal" style="max-width:340px"><div class="modal-h"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
+  let m=`<div class="modal-overlay"><div class="modal" style="max-width:340px"><div class="modal-h"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
     <div class="field-row"><div class="field"><label>Début</label><input type="time" id="slot_start" value="${ds.slice(0,5)}"></div><div class="field"><label>Fin</label><input type="time" id="slot_end" value="${de}"></div></div>
   </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="confirmAddSlot('${pid}',${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
@@ -83,7 +83,7 @@ async function saveSchedule(pid){
 
 function openExceptionModal(){
   const pids=Object.entries(scheduleData).map(([id,d])=>`<option value="${id}">${d.name}</option>`).join('');
-  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal" style="max-width:400px"><div class="modal-h"><h3>Nouvelle exception</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
+  let m=`<div class="modal-overlay"><div class="modal" style="max-width:400px"><div class="modal-h"><h3>Nouvelle exception</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
     <div class="field"><label>Praticien</label><select id="exc_pract">${pids}</select></div>
     <div class="field"><label>Date</label><input type="date" id="exc_date" value="${new Date().toISOString().split('T')[0]}"></div>
     <div class="field"><label>Type</label><select id="exc_type" onchange="document.getElementById('exc_times').style.display=this.value==='custom'?'flex':'none'"><option value="closed">Fermé toute la journée</option><option value="custom">Horaires modifiés</option></select></div>

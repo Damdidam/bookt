@@ -86,7 +86,7 @@ function renderPractModal(p){
   const photoSrc=p?.photo_url||'';
   const initials=p?.display_name?p.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase():'';
   const pracLbl=sectorLabels.practitioner.toLowerCase();
-  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier':'Nouveau '+pracLbl}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
+  let m=`<div class="modal-overlay"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier':'Nouveau '+pracLbl}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
     <div style="text-align:center;margin-bottom:16px">
       <div id="p_photo_preview" style="width:80px;height:80px;border-radius:50%;margin:0 auto 10px;overflow:hidden;background:${p?.color||'var(--primary)'};display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative" onclick="document.getElementById('p_photo_input').click()" title="Cliquer pour changer la photo">
         ${photoSrc?`<img src="${photoSrc}" style="width:100%;height:100%;object-fit:cover">`:`<span style="color:#fff;font-size:1.5rem;font-weight:600">${initials||'+'}</span>`}
@@ -187,7 +187,7 @@ async function openPracTasks(pracId,pracName){
     const pendingTodos=todos.filter(t=>!t.is_done), doneTodos=todos.filter(t=>t.is_done);
     const pendingReminders=reminders.filter(r=>!r.is_sent), sentReminders=reminders.filter(r=>r.is_sent);
 
-    let h=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal" style="max-width:560px"><div class="modal-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> ${pracName}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body" style="max-height:70vh;overflow-y:auto">`;
+    let h=`<div class="modal-overlay"><div class="modal" style="max-width:560px"><div class="modal-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> ${pracName}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body" style="max-height:70vh;overflow-y:auto">`;
 
     // Todos
     h+=`<div style="font-size:.82rem;font-weight:700;margin-bottom:8px">Tâches en cours (${pendingTodos.length})</div>`;
@@ -256,7 +256,7 @@ async function reactivatePract(id){
 
 function openInviteModal(practId,name){
   const sl=SECTOR_LABELS[userSector]||SECTOR_LABELS.autre;
-  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal" style="max-width:440px"><div class="modal-h"><h3>Créer un accès — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
+  let m=`<div class="modal-overlay"><div class="modal" style="max-width:440px"><div class="modal-h"><h3>Créer un accès — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
     <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
     <div class="field"><label>Email *</label><input id="inv_email" type="email" placeholder="email@exemple.com"></div>
     <div class="field"><label>Mot de passe temporaire *</label><input id="inv_pwd" type="text" value="${generateTempPwd()}" style="font-family:monospace"><div class="hint">Communiquez ce mot de passe. Il pourra être changé plus tard.</div></div>
@@ -291,7 +291,7 @@ function openRoleModal(practId,name,currentRole){
     {value:'receptionist',label:sl.receptionist,desc:'Voit l\'agenda de tous, gère les RDV et clients'},
     {value:'manager',label:sl.manager,desc:'Agenda de tous, clients, documents, statistiques'}
   ];
-  let m=`<div class="modal-overlay" onmousedown="this._md=event.target" onclick="if(event.target===this&&this._md===this)this.remove()"><div class="modal" style="max-width:460px"><div class="modal-h"><h3>Modifier le rôle — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
+  let m=`<div class="modal-overlay"><div class="modal" style="max-width:460px"><div class="modal-h"><h3>Modifier le rôle — ${name}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
   m+=`<div style="display:flex;flex-direction:column;gap:8px">`;
   roles.forEach(r=>{
     const checked=r.value===currentRole?'checked':'';
