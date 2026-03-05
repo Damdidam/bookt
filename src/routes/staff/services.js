@@ -53,6 +53,15 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
       return res.status(400).json({ error: 'Trop de praticiens (max 100)' });
     }
 
+    // Check for duplicate name within same category
+    const dupCheck = await queryWithRLS(bid,
+      `SELECT id FROM services WHERE business_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2)) AND COALESCE(category,'') = COALESCE($3,'') AND is_active != false`,
+      [bid, name, category || null]
+    );
+    if (dupCheck.rows.length > 0) {
+      return res.status(409).json({ error: `Une prestation "${name}" existe déjà dans cette catégorie` });
+    }
+
     // Use transaction to ensure service + variants + practitioner links are atomic
     const service = await transactionWithRLS(bid, async (client) => {
       const result = await client.query(
@@ -173,6 +182,22 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     // Allow variant-only updates (no service field changes) to proceed
     if (sets.length === 0 && !Array.isArray(fields.variants)) {
       return res.status(400).json({ error: 'Aucun champ à modifier' });
+    }
+
+    // Check for duplicate name within same category (only if name or category changed)
+    if (fields.name || fields.category !== undefined) {
+      const currentSvc = await queryWithRLS(bid, `SELECT name, category FROM services WHERE id = $1 AND business_id = $2`, [id, bid]);
+      if (currentSvc.rows.length > 0) {
+        const newName = fields.name || currentSvc.rows[0].name;
+        const newCat = fields.category !== undefined ? fields.category : currentSvc.rows[0].category;
+        const dupCheck = await queryWithRLS(bid,
+          `SELECT id FROM services WHERE business_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2)) AND COALESCE(category,'') = COALESCE($3,'') AND id != $4 AND is_active != false`,
+          [bid, newName, newCat || null, id]
+        );
+        if (dupCheck.rows.length > 0) {
+          return res.status(409).json({ error: `Une prestation "${newName}" existe déjà dans cette catégorie` });
+        }
+      }
     }
 
     sets.push('updated_at = NOW()');

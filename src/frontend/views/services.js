@@ -587,6 +587,11 @@ async function saveService(id){
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.available_schedule=buildScheduleFromEditor();
+  // Duplicate check: same name + same category (exclude current service if editing)
+  const dupName=body.name.trim().toLowerCase();
+  const dupCat=(body.category||'').toLowerCase();
+  const dup=allServices.find(s=>s.name.trim().toLowerCase()===dupName&&(s.category||'').toLowerCase()===dupCat&&s.is_active!==false&&s.id!==id);
+  if(dup){GendaUI.toast('Une prestation avec ce nom existe déjà dans cette catégorie','error');return;}
   const varRows=document.querySelectorAll('#svc_variants_list .svc-var-row');
   body.variants=[...varRows].map(row=>({id:row.querySelector('.svc-var-id').value||undefined,name:row.querySelector('.svc-var-name').value.trim(),duration_min:parseInt(row.querySelector('.svc-var-dur').value)||0,price_cents:row.querySelector('.svc-var-price').value?Math.round(parseFloat(row.querySelector('.svc-var-price').value)*100):null,description:row.querySelector('.svc-var-desc')?.value.trim()||null})).filter(v=>v.name&&v.duration_min>0);
   try{
