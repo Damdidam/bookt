@@ -28,6 +28,7 @@ const CAT_BG_PALETTE=['#FCE4EC','#E3F2FD','#E8F5E9','#FFF3E0','#F3E5F5','#E0F7FA
 const CSW_COLORS=['#1E3A8A','#B91C1C','#059669','#EA580C','#7C3AED','#DB2777','#0EA5A4','#374151'];
 function catColor(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CSW_COLORS[Math.abs(h)%CSW_COLORS.length];}
 function catBg(cat){let h=0;for(let i=0;i<cat.length;i++)h=((h<<5)-h)+cat.charCodeAt(i);return CAT_BG_PALETTE[Math.abs(h)%CAT_BG_PALETTE.length];}
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
 // Safe string for JS inside HTML attribute: JS-escape first, then HTML-escape
 function jsAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
@@ -105,7 +106,9 @@ async function loadServices(){
         const defaultCatIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
 
         h+=`<div class="svc-category" data-cat="${esc(cat)}" data-sort="${ci}" draggable="true" ondragstart="svcDragStart(event,'cat')" ondragover="svcDragOver(event,'cat')" ondragleave="svcDragLeave(event)" ondrop="svcDrop(event,'cat')">`;
-        h+=`<div class="svc-cat-header" onclick="svcToggleSection(this)">`;
+        const catClr=meta.color||catColor(cat);
+        const rgb=hexToRgb(catClr);
+        h+=`<div class="svc-cat-header" style="background:linear-gradient(135deg,rgba(${rgb},0.08) 0%,rgba(${rgb},0.02) 60%,transparent 100%);border-bottom-color:rgba(${rgb},0.15)" onclick="svcToggleSection(this)">`;
         h+=`<span class="drag-handle" onclick="event.stopPropagation()">${GRIP_SVG}</span>`;
         h+=`<div class="svc-cat-icon" style="background:${bg}">${iconSvg||defaultCatIcon}</div>`;
         h+=`<div class="svc-cat-info">`;
