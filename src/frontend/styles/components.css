@@ -475,6 +475,41 @@
 .tm-badge.has-login{background:var(--gold-bg);color:var(--gold)}
 .team-member .tm-actions{display:flex;gap:6px;flex-wrap:wrap}
 
+/* Work dots */
+.tm-work-dots{display:flex;gap:2px;align-items:center;margin-bottom:10px;padding:6px 0}
+.tm-work-dot-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+.tm-work-dot{width:8px;height:8px;border-radius:50%;transition:var(--transition)}
+.tm-work-dot.on{background:var(--green)}
+.tm-work-dot.off{background:var(--border-light)}
+.tm-work-dot-label{font-size:.5rem;color:var(--text-4);font-weight:600}
+.tm-regime-label{font-size:.65rem;font-weight:700;color:var(--text-3);margin-left:6px}
+
+/* Skills chips */
+.tm-skills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.tm-skill-chip{padding:2px 8px;border-radius:100px;font-size:.6rem;font-weight:600}
+.tm-skill-chip.level-1{background:#FEF3C7;color:#92400E}
+.tm-skill-chip.level-2{background:#DCFCE7;color:#15803D}
+.tm-skill-chip.level-3{background:#EDE9FE;color:#6D28D9}
+
+/* Skill editor in modal */
+.skill-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.skill-row input{flex:1}
+.skill-level-chips{display:flex;gap:4px}
+.skill-level-chip{padding:4px 10px;border-radius:100px;font-size:.7rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .12s;font-family:var(--sans)}
+.skill-level-chip:hover{border-color:var(--border)}
+.skill-level-chip.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+
+/* Leave table */
+.leave-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.leave-table th{text-align:left;font-size:.68rem;color:var(--text-4);text-transform:uppercase;letter-spacing:.3px;padding:6px 8px}
+.leave-table td{padding:8px;border-top:1px solid var(--border-light)}
+.leave-table input{width:60px;text-align:center;padding:4px 6px;border:1.5px solid var(--border-light);border-radius:6px;font-size:.82rem;font-family:var(--sans)}
+.leave-table input:focus{border-color:var(--primary);outline:none;box-shadow:0 0 0 3px rgba(13,115,119,.06)}
+.leave-solde{font-weight:700;border-radius:4px;padding:2px 6px;font-size:.82rem}
+.leave-solde.ok{color:var(--green)}
+.leave-solde.warn{color:#D97706}
+.leave-solde.danger{color:var(--red)}
+
 /* ===== THEME PICKER ===== */
 .theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
 .theme-card{background:var(--white);border:2px solid var(--border-light);border-radius:var(--radius);padding:0;cursor:pointer;transition:var(--transition);overflow:hidden;position:relative}

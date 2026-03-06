@@ -2,10 +2,116 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
-const { queryWithRLS, query } = require('../../services/db');
+const { queryWithRLS, query, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 router.use(requireAuth);
+
+// ============================================================
+// Helpers
+// ============================================================
+
+/**
+ * Convert JS Date.getDay() (0=Sun) to availabilities weekday (0=Mon).
+ */
+function toAvailWeekday(jsDate) {
+  return (jsDate.getDay() + 6) % 7;
+}
+
+/**
+ * Check if a date is a working day for a practitioner.
+ */
+function isWorkDay(date, workDays, holidayDates) {
+  if (holidayDates) {
+    const ds = date.toISOString().slice(0, 10);
+    if (holidayDates.has(ds)) return false;
+  }
+  if (!workDays || workDays.size === 0) return true;
+  return workDays.has(toAvailWeekday(date));
+}
+
+/**
+ * Get the effective period for a specific day within an absence.
+ */
+function getEffectivePeriod(dayDate, absDateFrom, absDateTo, periodStart, periodEnd) {
+  const dayStr = dayDate.toISOString().slice(0, 10);
+  const fromStr = new Date(absDateFrom).toISOString().slice(0, 10);
+  const toStr = new Date(absDateTo).toISOString().slice(0, 10);
+  if (fromStr === toStr) return periodStart || 'full';
+  if (dayStr === fromStr) return periodStart || 'full';
+  if (dayStr === toStr) return periodEnd || 'full';
+  return 'full';
+}
+
+/**
+ * Compute used leave days for practitioners in a given year.
+ * Returns Map<pracId, { conge, maladie, formation, recuperation, autre }>
+ */
+async function computeUsedLeave(bid, practitionerIds, year) {
+  const used = new Map();
+  if (!practitionerIds || practitionerIds.length === 0) return used;
+
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+
+  // Fetch absences for the year
+  const absResult = await queryWithRLS(bid,
+    `SELECT practitioner_id, type, date_from, date_to, period, period_end
+     FROM staff_absences
+     WHERE business_id = $1
+       AND practitioner_id = ANY($2::uuid[])
+       AND date_from <= $3::date AND date_to >= $4::date`,
+    [bid, practitionerIds, yearEnd, yearStart]
+  );
+
+  if (absResult.rows.length === 0) return used;
+
+  // Fetch work days for relevant practitioners
+  const pracIds = [...new Set(absResult.rows.map(r => r.practitioner_id))];
+  const wdResult = await queryWithRLS(bid,
+    `SELECT DISTINCT practitioner_id, weekday FROM availabilities
+     WHERE business_id = $1 AND is_active = true AND practitioner_id = ANY($2::uuid[])`,
+    [bid, pracIds]
+  );
+  const workDaysMap = new Map();
+  wdResult.rows.forEach(r => {
+    if (!workDaysMap.has(r.practitioner_id)) workDaysMap.set(r.practitioner_id, new Set());
+    workDaysMap.get(r.practitioner_id).add(r.weekday);
+  });
+
+  // Fetch holidays for the year
+  let holidayDates = new Set();
+  try {
+    const holResult = await queryWithRLS(bid,
+      `SELECT date FROM business_holidays WHERE business_id = $1 AND date >= $2::date AND date <= $3::date`,
+      [bid, yearStart, yearEnd]
+    );
+    holResult.rows.forEach(r => holidayDates.add(new Date(r.date).toISOString().slice(0, 10)));
+  } catch (e) { /* table might not exist */ }
+
+  // Count days per absence
+  const yStart = new Date(yearStart);
+  const yEnd = new Date(yearEnd);
+
+  absResult.rows.forEach(row => {
+    if (!used.has(row.practitioner_id)) {
+      used.set(row.practitioner_id, { conge: 0, maladie: 0, formation: 0, recuperation: 0, autre: 0 });
+    }
+    const from = new Date(Math.max(new Date(row.date_from), yStart));
+    const to = new Date(Math.min(new Date(row.date_to), yEnd));
+    const workDays = workDaysMap.get(row.practitioner_id) || null;
+
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+      if (!isWorkDay(d, workDays, holidayDates)) continue;
+      const dayPeriod = getEffectivePeriod(d, row.date_from, row.date_to, row.period, row.period_end);
+      const val = dayPeriod === 'full' ? 1 : 0.5;
+      const type = used.get(row.practitioner_id)[row.type] !== undefined ? row.type : 'autre';
+      used.get(row.practitioner_id)[type] += val;
+    }
+  });
+
+  return used;
+}
 
 // ============================================================
 // GET /api/practitioners/me — current practitioner's own profile
@@ -77,27 +183,22 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
 
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
 
-    // V13-019: Check practitioner exists before writing file
     const pracCheck = await queryWithRLS(bid, `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]);
     if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
-    // Parse data URI
     const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
     if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP requis)' });
 
     const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
     const buffer = Buffer.from(match[2], 'base64');
 
-    // Max 2MB
     if (buffer.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
     }
 
-    // Ensure dir exists
     const uploadDir = path.join(__dirname, '../../../public/uploads/practitioners');
     fs.mkdirSync(uploadDir, { recursive: true });
 
-    // Delete old photo if exists
     const old = await queryWithRLS(bid,
       `SELECT photo_url FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
     );
@@ -109,14 +210,12 @@ router.post('/:id/photo', requireOwner, async (req, res, next) => {
       }
     }
 
-    // V11-019: Sanitize filename to prevent path traversal
     const filename = path.basename(`${id}.${ext}`);
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       return res.status(400).json({ error: 'Nom de fichier invalide' });
     }
     fs.writeFileSync(path.join(uploadDir, filename), buffer);
 
-    // Update DB
     const photoUrl = `/uploads/practitioners/${filename}?t=${Date.now()}`;
     await queryWithRLS(bid,
       `UPDATE practitioners SET photo_url = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
@@ -154,11 +253,15 @@ router.delete('/:id/photo', requireOwner, async (req, res, next) => {
 });
 
 // ============================================================
-// GET /api/practitioners — list all practitioners with stats
+// GET /api/practitioners — list all practitioners with enriched data
+// Returns: practitioners + skills + work_days + leave_balance
 // ============================================================
 router.get('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
+    const currentYear = new Date().getFullYear();
+
+    // 1. Main practitioners query (existing)
     const result = await queryWithRLS(bid,
       `SELECT p.*,
         u.email AS user_email, u.role AS user_role, u.last_login_at, u.is_active AS user_active,
@@ -173,25 +276,104 @@ router.get('/', async (req, res, next) => {
        ORDER BY p.sort_order, p.display_name`,
       [bid]
     );
-    res.json({ practitioners: result.rows });
+
+    const practitioners = result.rows;
+    const pracIds = practitioners.map(p => p.id);
+
+    if (pracIds.length === 0) {
+      return res.json({ practitioners: [] });
+    }
+
+    // 2. Batch fetch skills
+    let skillsMap = {};
+    try {
+      const skillsResult = await queryWithRLS(bid,
+        `SELECT practitioner_id, skill_name, level, sort_order
+         FROM practitioner_skills
+         WHERE business_id = $1
+         ORDER BY practitioner_id, sort_order`,
+        [bid]
+      );
+      skillsResult.rows.forEach(r => {
+        if (!skillsMap[r.practitioner_id]) skillsMap[r.practitioner_id] = [];
+        skillsMap[r.practitioner_id].push({ skill_name: r.skill_name, level: r.level, sort_order: r.sort_order });
+      });
+    } catch (e) { /* table might not exist yet */ }
+
+    // 3. Batch fetch work days (from availabilities)
+    const workDaysMap = {};
+    try {
+      const wdResult = await queryWithRLS(bid,
+        `SELECT DISTINCT practitioner_id, weekday
+         FROM availabilities
+         WHERE business_id = $1 AND is_active = true`,
+        [bid]
+      );
+      wdResult.rows.forEach(r => {
+        if (!workDaysMap[r.practitioner_id]) workDaysMap[r.practitioner_id] = [];
+        if (!workDaysMap[r.practitioner_id].includes(r.weekday)) {
+          workDaysMap[r.practitioner_id].push(r.weekday);
+        }
+      });
+      // Sort each array
+      Object.values(workDaysMap).forEach(arr => arr.sort((a, b) => a - b));
+    } catch (e) { /* ignore */ }
+
+    // 4. Batch fetch leave balances for current year
+    let leaveBalancesMap = {};
+    try {
+      const lbResult = await queryWithRLS(bid,
+        `SELECT practitioner_id, type, total_days
+         FROM leave_balances
+         WHERE business_id = $1 AND year = $2`,
+        [bid, currentYear]
+      );
+      lbResult.rows.forEach(r => {
+        if (!leaveBalancesMap[r.practitioner_id]) leaveBalancesMap[r.practitioner_id] = {};
+        leaveBalancesMap[r.practitioner_id][r.type] = { total: parseFloat(r.total_days), used: 0 };
+      });
+    } catch (e) { /* table might not exist yet */ }
+
+    // 5. Compute used leave days
+    const usedMap = await computeUsedLeave(bid, pracIds, currentYear);
+
+    // 6. Merge used into leave balances
+    usedMap.forEach((usedObj, pracId) => {
+      if (!leaveBalancesMap[pracId]) leaveBalancesMap[pracId] = {};
+      for (const [type, days] of Object.entries(usedObj)) {
+        if (days > 0) {
+          if (!leaveBalancesMap[pracId][type]) {
+            leaveBalancesMap[pracId][type] = { total: 0, used: days };
+          } else {
+            leaveBalancesMap[pracId][type].used = days;
+          }
+        }
+      }
+    });
+
+    // 7. Enrich each practitioner
+    practitioners.forEach(p => {
+      p.skills = skillsMap[p.id] || [];
+      p.work_days = workDaysMap[p.id] || [];
+      p.leave_balance = leaveBalancesMap[p.id] || {};
+    });
+
+    res.json({ practitioners });
   } catch (err) { next(err); }
 });
 
 // ============================================================
 // GET /api/practitioners/:id/tasks — todos + reminders for a practitioner
-// UI: Team page → "<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Tâches" button
 // ============================================================
 router.get('/:id/tasks', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
 
-    // V12-013: Practitioner can only view their own tasks
     if (req.user.role === 'practitioner' && id !== req.user.practitionerId) {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }
 
-    // Todos linked to this practitioner's bookings
     const todos = await queryWithRLS(bid,
       `SELECT t.id, t.content, t.is_done, t.done_at, t.created_at, t.booking_id,
               b.start_at AS booking_start, b.end_at AS booking_end,
@@ -209,7 +391,6 @@ router.get('/:id/tasks', async (req, res, next) => {
       [bid, id]
     );
 
-    // Reminders for this practitioner's bookings
     const reminders = await queryWithRLS(bid,
       `SELECT r.id, r.remind_at, r.message, r.channel, r.is_sent, r.sent_at, r.booking_id,
               b.start_at AS booking_start,
@@ -229,25 +410,177 @@ router.get('/:id/tasks', async (req, res, next) => {
 });
 
 // ============================================================
+// PUT /api/practitioners/:id/skills — replace all skills
+// Body: { skills: [{ skill_name, level, sort_order }] }
+// ============================================================
+router.put('/:id/skills', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { skills } = req.body;
+
+    if (!Array.isArray(skills)) {
+      return res.status(400).json({ error: 'skills doit être un tableau' });
+    }
+
+    // Verify practitioner belongs to business
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
+    );
+    if (pracCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable' });
+    }
+
+    await transactionWithRLS(bid, async (client) => {
+      // Delete existing skills
+      await client.query(
+        `DELETE FROM practitioner_skills WHERE business_id = $1 AND practitioner_id = $2`,
+        [bid, id]
+      );
+
+      // Insert new skills
+      for (let i = 0; i < skills.length; i++) {
+        const s = skills[i];
+        if (!s.skill_name || !s.skill_name.trim()) continue;
+        const level = Math.max(1, Math.min(3, parseInt(s.level) || 2));
+        await client.query(
+          `INSERT INTO practitioner_skills (business_id, practitioner_id, skill_name, level, sort_order)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [bid, id, s.skill_name.trim(), level, s.sort_order ?? i]
+        );
+      }
+    });
+
+    // Return updated skills
+    const result = await queryWithRLS(bid,
+      `SELECT skill_name, level, sort_order FROM practitioner_skills
+       WHERE business_id = $1 AND practitioner_id = $2 ORDER BY sort_order`,
+      [bid, id]
+    );
+
+    res.json({ skills: result.rows });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/practitioners/:id/leave-balance?year=2026
+// Returns quotas + computed used days
+// ============================================================
+router.get('/:id/leave-balance', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    // Practitioner can only view their own
+    if (req.user.role === 'practitioner' && id !== req.user.practitionerId) {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+
+    // Fetch quotas
+    const lbResult = await queryWithRLS(bid,
+      `SELECT type, total_days FROM leave_balances
+       WHERE business_id = $1 AND practitioner_id = $2 AND year = $3`,
+      [bid, id, year]
+    );
+
+    const balances = {};
+    lbResult.rows.forEach(r => {
+      balances[r.type] = { total: parseFloat(r.total_days), used: 0 };
+    });
+
+    // Compute used days
+    const usedMap = await computeUsedLeave(bid, [id], year);
+    const used = usedMap.get(id);
+    if (used) {
+      for (const [type, days] of Object.entries(used)) {
+        if (days > 0) {
+          if (!balances[type]) balances[type] = { total: 0, used: days };
+          else balances[type].used = days;
+        }
+      }
+    }
+
+    // Recent absences for this practitioner
+    const absResult = await queryWithRLS(bid,
+      `SELECT id, date_from, date_to, type, period, period_end, note, created_at
+       FROM staff_absences
+       WHERE business_id = $1 AND practitioner_id = $2
+       ORDER BY date_from DESC LIMIT 5`,
+      [bid, id]
+    );
+
+    res.json({ year, balances, recent_absences: absResult.rows });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// PUT /api/practitioners/:id/leave-balance — set/update quotas
+// Body: { year, balances: { conge: 20, formation: 5, recuperation: 3 } }
+// ============================================================
+router.put('/:id/leave-balance', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { year, balances } = req.body;
+
+    if (!year || !balances) {
+      return res.status(400).json({ error: 'year et balances requis' });
+    }
+
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
+    );
+    if (pracCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable' });
+    }
+
+    const validTypes = ['conge', 'maladie', 'formation', 'recuperation'];
+    for (const [type, totalDays] of Object.entries(balances)) {
+      if (!validTypes.includes(type)) continue;
+      const total = parseFloat(totalDays);
+      if (isNaN(total) || total < 0) continue;
+
+      await queryWithRLS(bid,
+        `INSERT INTO leave_balances (business_id, practitioner_id, year, type, total_days)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (practitioner_id, year, type)
+         DO UPDATE SET total_days = EXCLUDED.total_days, updated_at = NOW()`,
+        [bid, id, year, type, total]
+      );
+    }
+
+    res.json({ updated: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/practitioners — create new practitioner
 // ============================================================
 router.post('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { display_name, title, bio, color, email, phone,
-            years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent } = req.body;
+            years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent,
+            contract_type, weekly_hours_target, hire_date,
+            emergency_contact_name, emergency_contact_phone, internal_note } = req.body;
 
     if (!display_name) return res.status(400).json({ error: 'Nom requis' });
 
     const result = await queryWithRLS(bid,
       `INSERT INTO practitioners (business_id, display_name, title, bio, color,
-        email, phone, years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        email, phone, years_experience, linkedin_url, booking_enabled, featured_enabled, max_concurrent,
+        contract_type, weekly_hours_target, hire_date,
+        emergency_contact_name, emergency_contact_phone, internal_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [bid, display_name, title || null, bio || null, color || '#0D7377',
        email || null, phone || null, years_experience || null,
        linkedin_url || null, booking_enabled !== false, featured_enabled === true,
-       parseInt(max_concurrent) || 1]
+       parseInt(max_concurrent) || 1,
+       contract_type || 'cdi', weekly_hours_target ? parseFloat(weekly_hours_target) : null,
+       hire_date || null, emergency_contact_name || null, emergency_contact_phone || null,
+       internal_note || null]
     );
 
     res.status(201).json({ practitioner: result.rows[0] });
@@ -263,7 +596,10 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     const { id } = req.params;
     const fields = req.body;
     const allowed = ['display_name', 'title', 'bio', 'color', 'email', 'phone',
-      'years_experience', 'linkedin_url', 'booking_enabled', 'featured_enabled', 'is_active', 'sort_order', 'waitlist_mode', 'slot_increment_min', 'vacation_until', 'max_concurrent'];
+      'years_experience', 'linkedin_url', 'booking_enabled', 'featured_enabled',
+      'is_active', 'sort_order', 'waitlist_mode', 'slot_increment_min', 'vacation_until', 'max_concurrent',
+      'contract_type', 'weekly_hours_target', 'hire_date',
+      'emergency_contact_name', 'emergency_contact_phone', 'internal_note'];
 
     const sets = [];
     const params = [id, bid];
@@ -308,14 +644,12 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
     const bid = req.businessId;
     const pracId = req.params.id;
 
-    // Deactivate practitioner
     await queryWithRLS(bid,
       `UPDATE practitioners SET is_active = false, booking_enabled = false, updated_at = NOW()
        WHERE id = $1 AND business_id = $2`,
       [pracId, bid]
     );
 
-    // Cleanup: remove from all service assignments so priorities auto-recalculate
     await queryWithRLS(bid,
       `DELETE FROM practitioner_services
        WHERE practitioner_id = $1
@@ -329,7 +663,6 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
 
 // ============================================================
 // POST /api/practitioners/:id/invite — create login for practitioner
-// Sends an invite (creates user account linked to practitioner)
 // ============================================================
 router.post('/:id/invite', requireOwner, async (req, res, next) => {
   try {
@@ -341,11 +674,9 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
     if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
     if (password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (minimum 8 caractères)' });
 
-    // Validate role
     const validRoles = ['manager', 'practitioner', 'receptionist'];
     const userRole = validRoles.includes(role) ? role : 'practitioner';
 
-    // Check practitioner exists
     const pract = await queryWithRLS(bid,
       `SELECT id, user_id, display_name FROM practitioners WHERE id = $1 AND business_id = $2`,
       [id, bid]
@@ -353,14 +684,12 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
     if (pract.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
     if (pract.rows[0].user_id) return res.status(400).json({ error: 'Ce praticien a déjà un compte' });
 
-    // Check email not taken in this business
     const existing = await query(
       `SELECT id FROM users WHERE email = $1 AND business_id = $2`,
       [email.toLowerCase().trim(), bid]
     );
     if (existing.rows.length > 0) return res.status(409).json({ error: 'Cet email est déjà utilisé' });
 
-    // Create user
     const hash = password ? await bcrypt.hash(password, 12) : null;
     const userResult = await query(
       `INSERT INTO users (business_id, email, password_hash, role)
@@ -370,7 +699,6 @@ router.post('/:id/invite', requireOwner, async (req, res, next) => {
     );
     const userId = userResult.rows[0].id;
 
-    // Link to practitioner
     await queryWithRLS(bid,
       `UPDATE practitioners SET user_id = $1, email = $2, updated_at = NOW()
        WHERE id = $3 AND business_id = $4`,
@@ -399,7 +727,6 @@ router.patch('/:id/role', requireOwner, async (req, res, next) => {
       return res.status(400).json({ error: `Rôle invalide. Valeurs acceptées : ${validRoles.join(', ')}` });
     }
 
-    // Find practitioner + linked user
     const pract = await queryWithRLS(bid,
       `SELECT p.id, p.user_id, p.display_name, u.role AS current_role
        FROM practitioners p
@@ -411,12 +738,10 @@ router.patch('/:id/role', requireOwner, async (req, res, next) => {
     if (pract.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
     if (!pract.rows[0].user_id) return res.status(400).json({ error: 'Ce praticien n\'a pas de compte utilisateur' });
 
-    // Prevent changing owner role
     if (pract.rows[0].current_role === 'owner') {
       return res.status(403).json({ error: 'Impossible de modifier le rôle du propriétaire' });
     }
 
-    // Update role
     await query(
       `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
       [role, pract.rows[0].user_id, bid]
