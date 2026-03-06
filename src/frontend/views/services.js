@@ -34,7 +34,18 @@ function jsAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").re
 
 // ===== MAIN RENDER =====
 
+// Persist collapsed state across re-renders
+let collapsedCats=new Set();
+function saveCollapsedState(){
+  collapsedCats=new Set();
+  document.querySelectorAll('.svc-category.collapsed').forEach(el=>{const cat=el.dataset.cat;if(cat)collapsedCats.add(cat);});
+}
+function restoreCollapsedState(){
+  collapsedCats.forEach(cat=>{const el=document.querySelector(`.svc-category[data-cat="${CSS.escape(cat)}"]`);if(el)el.classList.add('collapsed');});
+}
+
 async function loadServices(){
+  saveCollapsedState();
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
@@ -135,6 +146,7 @@ async function loadServices(){
       h+=`<div class="svc-add-row svc-add-cat" onclick="openCategoryModal()" style="margin-top:8px">${PLUS_SVG} Nouvelle catégorie</div>`;
     }
     c.innerHTML=h;
+    restoreCollapsedState();
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
