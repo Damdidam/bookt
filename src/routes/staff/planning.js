@@ -146,6 +146,126 @@ function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeri
   return false;
 }
 
+/** Shift a date string (YYYY-MM-DD) by N days */
+function shiftDate(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** String-based effective period (same logic as getEffectivePeriod but pure strings) */
+function effectivePeriodStr(dateStr, fromStr, toStr, period, periodEnd) {
+  if (fromStr === toStr) return period || 'full';
+  if (dateStr === fromStr) return period || 'full';
+  if (dateStr === toStr) return periodEnd || 'full';
+  return 'full';
+}
+
+/**
+ * Auto-split existing absences to make room for a new one.
+ * Instead of rejecting overlaps with 409, we split existing absences around the new one.
+ *
+ * Example: existing congé Mon→Fri + new formation Wed→Wed
+ *        → congé Mon→Tue + formation Wed + congé Thu→Fri
+ *
+ * Handles half-day leftovers: if new is AM-only on a day where existing is full,
+ * the PM half is preserved as a single-day leftover.
+ *
+ * @returns {number} Number of existing absences that were split
+ */
+async function splitOverlappingAbsences(bid, pracId, newFrom, newTo, newPeriod, newPeriodEnd, excludeId, actorName) {
+  const existing = await queryWithRLS(bid,
+    `SELECT id, date_from, date_to, type, note, period, period_end FROM staff_absences
+     WHERE business_id = $1 AND practitioner_id = $2
+     AND date_from <= $4::date AND date_to >= $3::date`,
+    [bid, pracId, newFrom, newTo]
+  );
+
+  let splitCount = 0;
+
+  for (const abs of existing.rows) {
+    if (excludeId && abs.id === excludeId) continue;
+
+    const exFrom = new Date(abs.date_from).toISOString().slice(0, 10);
+    const exTo = new Date(abs.date_to).toISOString().slice(0, 10);
+    const overlapStart = exFrom > newFrom ? exFrom : newFrom;
+    const overlapEnd = exTo < newTo ? exTo : newTo;
+
+    // Check if any overlapping day actually has a period conflict
+    let hasConflict = false;
+    for (let d = new Date(overlapStart + 'T12:00:00Z');
+         d.toISOString().slice(0, 10) <= overlapEnd;
+         d.setUTCDate(d.getUTCDate() + 1)) {
+      const ds = d.toISOString().slice(0, 10);
+      const exP = effectivePeriodStr(ds, exFrom, exTo, abs.period, abs.period_end);
+      const newP = effectivePeriodStr(ds, newFrom, newTo, newPeriod, newPeriodEnd);
+      if (periodsConflict(exP, newP)) { hasConflict = true; break; }
+    }
+    if (!hasConflict) continue;
+
+    // ── Before leftover: [exFrom, day before overlapStart] ──
+    const dayBefore = shiftDate(overlapStart, -1);
+    if (exFrom <= dayBefore) {
+      await queryWithRLS(bid,
+        `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [bid, pracId, exFrom, dayBefore, abs.type, abs.note, abs.period || 'full', 'full']
+      );
+    }
+
+    // ── After leftover: [day after overlapEnd, exTo] ──
+    const dayAfter = shiftDate(overlapEnd, 1);
+    if (dayAfter <= exTo) {
+      await queryWithRLS(bid,
+        `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [bid, pracId, dayAfter, exTo, abs.type, abs.note, 'full', abs.period_end || 'full']
+      );
+    }
+
+    // ── Half-day leftovers on boundary days ──
+    // overlapStart: if new is half-day but existing covers full → keep the other half
+    const exPStart = effectivePeriodStr(overlapStart, exFrom, exTo, abs.period, abs.period_end);
+    const newPStart = effectivePeriodStr(overlapStart, newFrom, newTo, newPeriod, newPeriodEnd);
+    if (exPStart === 'full' && (newPStart === 'am' || newPStart === 'pm')) {
+      const keep = newPStart === 'am' ? 'pm' : 'am';
+      await queryWithRLS(bid,
+        `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [bid, pracId, overlapStart, overlapStart, abs.type, abs.note, keep, keep]
+      );
+    }
+    // overlapEnd (if different day): same logic
+    if (overlapEnd !== overlapStart) {
+      const exPEnd = effectivePeriodStr(overlapEnd, exFrom, exTo, abs.period, abs.period_end);
+      const newPEnd = effectivePeriodStr(overlapEnd, newFrom, newTo, newPeriod, newPeriodEnd);
+      if (exPEnd === 'full' && (newPEnd === 'am' || newPEnd === 'pm')) {
+        const keep = newPEnd === 'am' ? 'pm' : 'am';
+        await queryWithRLS(bid,
+          `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [bid, pracId, overlapEnd, overlapEnd, abs.type, abs.note, keep, keep]
+        );
+      }
+    }
+
+    // Log and delete the original
+    await logAbsence(bid, abs.id, 'auto_split', {
+      reason: 'Découpé automatiquement pour nouvelle absence',
+      original: { date_from: exFrom, date_to: exTo, type: abs.type, period: abs.period, period_end: abs.period_end },
+      new_absence: { date_from: newFrom, date_to: newTo }
+    }, actorName);
+
+    await queryWithRLS(bid,
+      `DELETE FROM staff_absences WHERE id = $1 AND business_id = $2`,
+      [abs.id, bid]
+    );
+    splitCount++;
+  }
+
+  return splitCount;
+}
+
 /** Parse month range from query param */
 function parseMonthRange(monthParam) {
   if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
@@ -254,23 +374,9 @@ router.post('/absences', requireOwner, async (req, res, next) => {
     );
     if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
-    // Fetch work days + holidays for overlap check
-    const workDaysMap = await getPractitionerWorkDays(bid, [practitioner_id]);
-    const workDays = workDaysMap.get(practitioner_id) || null;
-    const holidays = await getHolidays(bid, date_from, date_to);
-
-    // Fetch all existing absences that could overlap (date range intersection)
-    const existingAbs = await queryWithRLS(bid,
-      `SELECT id, date_from, date_to, period, period_end FROM staff_absences
-       WHERE business_id = $1 AND practitioner_id = $2
-         AND date_from <= $4::date AND date_to >= $3::date`,
-      [bid, practitioner_id, date_from, date_to]
-    );
-
-    // Day-by-day overlap check (skips non-working days and holidays)
-    if (hasOverlapConflict(existingAbs.rows, date_from, date_to, absPeriod, absPeriodEnd, null, workDays, holidays.dateSet)) {
-      return res.status(409).json({ error: 'Une absence existe déjà sur cette période pour ce praticien' });
-    }
+    // Auto-split existing absences that overlap (instead of rejecting)
+    const actorName = req.user?.name || req.user?.email || 'Système';
+    const splitCount = await splitOverlappingAbsences(bid, practitioner_id, date_from, date_to, absPeriod, absPeriodEnd, null, actorName);
 
     // Count impacted bookings
     const impacted = await queryWithRLS(bid,
@@ -293,12 +399,14 @@ router.post('/absences', requireOwner, async (req, res, next) => {
     const pracName = pracCheck.rows[0].display_name;
     await logAbsence(bid, absence.id, 'created', {
       type: absType, period: absPeriod, period_end: absPeriodEnd,
-      date_from, date_to, practitioner: pracName
-    }, req.user?.name || req.user?.email || 'Système');
+      date_from, date_to, practitioner: pracName,
+      ...(splitCount > 0 ? { auto_split: splitCount } : {})
+    }, actorName);
 
     res.status(201).json({
       absence,
-      impacted_bookings: parseInt(impacted.rows[0].cnt)
+      impacted_bookings: parseInt(impacted.rows[0].cnt),
+      auto_splits: splitCount
     });
   } catch (err) { next(err); }
 });
@@ -342,21 +450,9 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
     const newPeriod = period || old.period || 'full';
     const newPeriodEnd = period_end || old.period_end || 'full';
 
-    // Fetch work days + holidays
-    const workDaysMap = await getPractitionerWorkDays(bid, [old.practitioner_id]);
-    const workDays = workDaysMap.get(old.practitioner_id) || null;
-    const holidays = await getHolidays(bid, newFrom, newTo);
-
-    const existingAbs = await queryWithRLS(bid,
-      `SELECT id, date_from, date_to, period, period_end FROM staff_absences
-       WHERE business_id = $1 AND practitioner_id = $2
-         AND date_from <= $4::date AND date_to >= $3::date`,
-      [bid, old.practitioner_id, newFrom, newTo]
-    );
-
-    if (hasOverlapConflict(existingAbs.rows, newFrom, newTo, newPeriod, newPeriodEnd, id, workDays, holidays.dateSet)) {
-      return res.status(409).json({ error: 'Une absence existe déjà sur cette période pour ce praticien' });
-    }
+    // Auto-split any other absences that overlap with the new range (exclude self)
+    await splitOverlappingAbsences(bid, old.practitioner_id, newFrom, newTo, newPeriod, newPeriodEnd, id,
+      req.user?.name || req.user?.email || 'Système');
 
     sets.push('updated_at = NOW()');
 
