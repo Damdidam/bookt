@@ -168,6 +168,26 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     new Date(r.date).toISOString().slice(0, 10)
   ));
 
+  // 5e. Fetch staff absences in date range (congés, maladie, formation…)
+  const absenceResult = await queryWithRLS(businessId,
+    `SELECT practitioner_id, date_from, date_to, period, period_end
+     FROM staff_absences
+     WHERE business_id = $1 AND practitioner_id = ANY($2)
+     AND date_from <= $4::date AND date_to >= $3::date`,
+    [businessId, practitionerIds, dateFrom, dateTo]
+  );
+  const absenceMap = {};
+  for (const row of absenceResult.rows) {
+    const pid = row.practitioner_id;
+    if (!absenceMap[pid]) absenceMap[pid] = [];
+    absenceMap[pid].push({
+      from: new Date(row.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+      to: new Date(row.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+      period: row.period || 'full',
+      periodEnd: row.period_end || 'full'
+    });
+  }
+
   // 6. Fetch existing bookings in date range (conflicts)
   const bookingsResult = await queryWithRLS(businessId,
     `SELECT b.practitioner_id, b.start_at, b.end_at,
@@ -259,6 +279,10 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     if (hasBizSchedule && (!bizWindows || bizWindows.length === 0)) continue;
 
     for (const pracId of practitionerIds) {
+      // Check staff absences (congés, maladie…)
+      const absencePeriod = getAbsencePeriod(absenceMap[pracId], dateStr);
+      if (absencePeriod === 'full') continue; // Fully absent → skip
+
       // Check exceptions
       const exKey = `${pracId}-${dateStr}`;
       const exceptions = exceptionMap[exKey];
@@ -281,6 +305,12 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
         const avKey = `${pracId}-${weekday}`;
         windows = availMap[avKey];
         if (!windows || windows.length === 0) continue; // Not available this day
+      }
+
+      // Restrict windows for half-day absence (am/pm)
+      if (absencePeriod === 'am' || absencePeriod === 'pm') {
+        windows = restrictWindowsForAbsence(windows, absencePeriod);
+        if (windows.length === 0) continue;
       }
 
       // Intersect with business hours (salon-level constraint)
@@ -375,6 +405,41 @@ function intersectWindows(windowsA, windowsB) {
     }
   }
   return result;
+}
+
+/**
+ * Determine if a practitioner is absent on a given date, and what period.
+ * Returns null (not absent), 'full', 'am', or 'pm'.
+ */
+function getAbsencePeriod(absences, dateStr) {
+  if (!absences) return null;
+  for (const abs of absences) {
+    if (dateStr >= abs.from && dateStr <= abs.to) {
+      if (abs.from === abs.to) return abs.period;
+      if (dateStr === abs.from) return abs.period;
+      if (dateStr === abs.to) return abs.periodEnd;
+      return 'full'; // middle day → fully absent
+    }
+  }
+  return null;
+}
+
+/**
+ * Restrict time windows for half-day absence.
+ * 'am' absence blocks before 13:00, 'pm' blocks from 13:00 onward.
+ */
+function restrictWindowsForAbsence(windows, period) {
+  const noon = 780; // 13:00 in minutes
+  return windows.map(w => {
+    const ws = timeToMinutes(w.start), we = timeToMinutes(w.end);
+    if (period === 'am') {
+      if (we <= noon) return null; // entire window in morning → blocked
+      return { start: ws < noon ? '13:00' : w.start, end: w.end };
+    } else { // pm
+      if (ws >= noon) return null; // entire window in afternoon → blocked
+      return { start: w.start, end: we > noon ? '13:00' : w.end };
+    }
+  }).filter(Boolean);
 }
 
 /**
@@ -595,6 +660,26 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     new Date(r.date).toISOString().slice(0, 10)
   ));
 
+  // 6c. Fetch staff absences in date range (congés, maladie, formation…)
+  const absenceResult2 = await queryWithRLS(businessId,
+    `SELECT practitioner_id, date_from, date_to, period, period_end
+     FROM staff_absences
+     WHERE business_id = $1 AND practitioner_id = ANY($2)
+     AND date_from <= $4::date AND date_to >= $3::date`,
+    [businessId, practitionerIds, dateFrom, dateTo]
+  );
+  const absenceMap2 = {};
+  for (const row of absenceResult2.rows) {
+    const pid = row.practitioner_id;
+    if (!absenceMap2[pid]) absenceMap2[pid] = [];
+    absenceMap2[pid].push({
+      from: new Date(row.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+      to: new Date(row.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+      period: row.period || 'full',
+      periodEnd: row.period_end || 'full'
+    });
+  }
+
   // Busy blocks from external calendars
   try {
     for (const pracId of practitionerIds) {
@@ -653,6 +738,10 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     if (hasBizSchedule2 && (!bizWindows2 || bizWindows2.length === 0)) continue;
 
     for (const pracId of practitionerIds) {
+      // Check staff absences (congés, maladie…)
+      const absencePeriod2 = getAbsencePeriod(absenceMap2[pracId], dateStr);
+      if (absencePeriod2 === 'full') continue; // Fully absent → skip
+
       const exKey = `${pracId}-${dateStr}`;
       const exceptions = exceptionMap[exKey];
 
@@ -671,6 +760,12 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
         const avKey = `${pracId}-${weekday}`;
         windows = availMap[avKey];
         if (!windows || windows.length === 0) continue;
+      }
+
+      // Restrict windows for half-day absence (am/pm)
+      if (absencePeriod2 === 'am' || absencePeriod2 === 'pm') {
+        windows = restrictWindowsForAbsence(windows, absencePeriod2);
+        if (windows.length === 0) continue;
       }
 
       // Intersect with business hours (salon-level constraint)

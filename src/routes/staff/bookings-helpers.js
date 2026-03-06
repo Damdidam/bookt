@@ -78,6 +78,31 @@ async function checkPracAvailability(bid, pracId, startAt, endAt) {
   const jsDay = bxlDate.getDay(); // correct day because we're using Brussels date
   const dbDay = jsDay === 0 ? 6 : jsDay - 1;
 
+  // 0. Check staff absences (congés, maladie, formation…)
+  const absCheck = await queryWithRLS(bid,
+    `SELECT date_from, date_to, period, period_end FROM staff_absences
+     WHERE business_id = $1 AND practitioner_id = $2
+     AND date_from <= $3::date AND date_to >= $3::date`,
+    [bid, pracId, dateStr]
+  );
+  if (absCheck.rows.length > 0) {
+    const abs = absCheck.rows[0];
+    const absFrom = new Date(abs.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const absTo = new Date(abs.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    let period;
+    if (absFrom === absTo) period = abs.period || 'full';
+    else if (dateStr === absFrom) period = abs.period || 'full';
+    else if (dateStr === absTo) period = abs.period_end || 'full';
+    else period = 'full'; // middle day
+
+    const bkStartMin = bxlStartH * 60 + bxlStartM;
+    const noon = 780; // 13:00
+
+    if (period === 'full') return { ok: false, reason: 'Ce praticien est absent ce jour (congé/absence)' };
+    if (period === 'am' && bkStartMin < noon) return { ok: false, reason: 'Ce praticien est absent le matin' };
+    if (period === 'pm' && bkStartMin >= noon) return { ok: false, reason: 'Ce praticien est absent l\'après-midi' };
+  }
+
   // 1. Check exceptions for this specific date
   const exc = await queryWithRLS(bid,
     `SELECT type, start_time, end_time FROM availability_exceptions
