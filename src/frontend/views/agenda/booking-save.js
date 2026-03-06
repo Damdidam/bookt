@@ -44,6 +44,15 @@ async function calSaveAll() {
   // Color for all booking types (empty = reset to default)
   if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
+  // Group practitioner reassignment must go through /move, not /edit
+  // (the /edit endpoint blocks practitioner changes on grouped bookings)
+  let groupPracReassign = null;
+  const isGrouped = !!calState.fcCurrentBooking?.group_id;
+  if (isGrouped && editPayload.practitioner_id) {
+    groupPracReassign = editPayload.practitioner_id;
+    delete editPayload.practitioner_id;
+  }
+
   const hasFieldChanges = Object.keys(editPayload).length > 0;
 
   // Save client contact changes (phone/email)
@@ -76,6 +85,8 @@ async function calSaveAll() {
 
   // If time changed -> show notify panel
   if (timeChanged) {
+    // Store pending group practitioner change for calDoSaveTime to pick up
+    if (groupPracReassign) calState._groupPracReassign = groupPracReassign;
     document.getElementById('calNotifyPanel').style.display = 'block';
     document.getElementById('calNotifyPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     calState.fcSelectedNotifyChannel = null;
@@ -84,8 +95,22 @@ async function calSaveAll() {
     return; // Wait for notify selection
   }
 
+  // Group practitioner reassignment (no time change) → /move with same time + new practitioner
+  if (groupPracReassign) {
+    const start_at = toBrusselsISO(nd, ns);
+    const end_at = toBrusselsISO(nd, ne);
+    try {
+      const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/move`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ start_at, end_at, practitioner_id: groupPracReassign })
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    } catch (e) { gToast('Erreur: ' + e.message, 'error'); return; }
+  }
+
   // No time change -> just close
-  if (hasFieldChanges || clientContactChanged) gToast('RDV mis \u00e0 jour', 'success');
+  if (hasFieldChanges || clientContactChanged || groupPracReassign) gToast('RDV mis \u00e0 jour', 'success');
   else gToast('Aucun changement');
   closeCalModal('calDetailModal');
   fcRefresh();
@@ -166,10 +191,13 @@ async function calDoSaveTime(notify, channel) {
     // -- Save --
     let r;
     if (isGrouped) {
+      // Use pending practitioner reassignment if set, otherwise keep current
+      const groupPracId = calState._groupPracReassign || calState.fcCurrentBooking.practitioner_id;
+      delete calState._groupPracReassign;
       r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/move`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ start_at, end_at, practitioner_id: calState.fcCurrentBooking.practitioner_id })
+        body: JSON.stringify({ start_at, end_at, practitioner_id: groupPracId })
       });
     } else {
       r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/modify`, {

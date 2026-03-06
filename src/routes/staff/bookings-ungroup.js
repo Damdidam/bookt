@@ -366,4 +366,171 @@ router.delete('/:id/group-remove', async (req, res, next) => {
   }
 });
 
+// ============================================================
+// POST /api/bookings/:id/group-add — Add a service to an existing group
+// Creates a new booking chained after the last group member.
+// UI: Calendar → detail modal → Group section → ➕ button
+// ============================================================
+router.post('/:id/group-add', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    const { service_id, variant_id } = req.body;
+
+    // Only owner/manager/staff can add to group — not practitioners
+    if (req.user.role === 'practitioner') {
+      return res.status(403).json({ error: 'Seuls les gestionnaires peuvent ajouter une prestation au groupe' });
+    }
+
+    if (!service_id) return res.status(400).json({ error: 'service_id requis' });
+    if (!UUID_RE.test(service_id)) return res.status(400).json({ error: 'service_id invalide' });
+    if (variant_id && !UUID_RE.test(variant_id)) return res.status(400).json({ error: 'variant_id invalide' });
+
+    // 1. Fetch the reference booking
+    const bkRes = await queryWithRLS(bid,
+      `SELECT b.id, b.group_id, b.practitioner_id, b.client_id, b.status,
+              b.appointment_mode
+       FROM bookings b
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [id, bid]
+    );
+    if (bkRes.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const booking = bkRes.rows[0];
+
+    if (!booking.group_id) {
+      return res.status(400).json({ error: 'Ce RDV ne fait pas partie d\'un groupe' });
+    }
+
+    const FROZEN = ['cancelled', 'no_show'];
+    if (FROZEN.includes(booking.status)) {
+      return res.status(400).json({ error: 'Impossible d\'ajouter à un groupe annulé ou no-show' });
+    }
+
+    // 2. Fetch service info + duration
+    const svcRes = await queryWithRLS(bid,
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, is_active
+       FROM services WHERE id = $1 AND business_id = $2`,
+      [service_id, bid]
+    );
+    if (svcRes.rows.length === 0 || !svcRes.rows[0].is_active) {
+      return res.status(400).json({ error: 'Prestation introuvable ou inactive' });
+    }
+    const svc = svcRes.rows[0];
+
+    // 3. Validate variant if provided
+    let variantDuration = null;
+    let variantPrice = null;
+    if (variant_id) {
+      const vRes = await queryWithRLS(bid,
+        `SELECT id, duration_min, price_cents FROM service_variants
+         WHERE id = $1 AND service_id = $2`,
+        [variant_id, service_id]
+      );
+      if (vRes.rows.length === 0) return res.status(400).json({ error: 'Variante introuvable' });
+      variantDuration = vRes.rows[0].duration_min;
+      variantPrice = vRes.rows[0].price_cents;
+    }
+
+    // 4. Validate practitioner is assigned to this service
+    const psCheck = await queryWithRLS(bid,
+      `SELECT 1 FROM practitioner_services
+       WHERE practitioner_id = $1 AND service_id = $2`,
+      [booking.practitioner_id, service_id]
+    );
+    if (psCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
+    }
+
+    // 5. Fetch all group members to find last end_at + max group_order
+    const groupRes = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.end_at, b.group_order
+       FROM bookings b
+       WHERE b.group_id = $1 AND b.business_id = $2
+       ORDER BY b.group_order`,
+      [booking.group_id, bid]
+    );
+    const members = groupRes.rows;
+    if (members.length === 0) return res.status(400).json({ error: 'Groupe vide' });
+
+    const lastMember = members[members.length - 1];
+    const newGroupOrder = (lastMember.group_order ?? members.length - 1) + 1;
+    const newStart = new Date(lastMember.end_at);
+
+    // Only apply buffer_after for the new last member (not buffer_before since it chains)
+    const dur = variantDuration || svc.duration_min;
+    const bufAfter = svc.buffer_after_min || 0;
+    const totalMin = dur + bufAfter;
+    const newEnd = new Date(newStart.getTime() + totalMin * 60000);
+
+    // Also remove buffer_after from previous last member if it had one
+    // (The previous last member's buffer_after was included in its duration;
+    //  now it's no longer the last, but we don't change its time — accepted trade-off)
+
+    // 6. Transaction: conflict check + insert
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
+
+    let result;
+    try {
+      result = await transactionWithRLS(bid, async (client) => {
+        // Lock group members
+        await client.query(
+          `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 FOR UPDATE`,
+          [booking.group_id, bid]
+        );
+
+        // Conflict check for the new time range
+        if (!globalAllowOverlap) {
+          const maxConc = await getMaxConcurrent(bid, booking.practitioner_id);
+          const conflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE business_id = $1 AND practitioner_id = $2
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+             AND start_at < $4 AND end_at > $3
+             FOR UPDATE`,
+            [bid, booking.practitioner_id, newStart.toISOString(), newEnd.toISOString()]
+          );
+          if (conflict.rows.length >= maxConc) {
+            throw Object.assign(new Error('Conflit : capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
+          }
+        }
+
+        // Insert the new group member
+        const ins = await client.query(
+          `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
+            channel, appointment_mode, start_at, end_at, status, group_id, group_order)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10)
+           RETURNING *`,
+          [bid, booking.practitioner_id, service_id, variant_id || null, booking.client_id,
+           booking.appointment_mode || 'cabinet',
+           newStart.toISOString(), newEnd.toISOString(),
+           booking.group_id, newGroupOrder]
+        );
+
+        // Audit log
+        await client.query(
+          `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+           VALUES ($1, $2, 'booking', $3, 'create', $4, $5)`,
+          [bid, req.user.id, ins.rows[0].id,
+           JSON.stringify({ group_id: booking.group_id, added_to_group: true }),
+           JSON.stringify({ service_id, group_order: newGroupOrder })]
+        );
+
+        return ins.rows[0];
+      });
+    } catch (err) {
+      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      throw err;
+    }
+
+    broadcast(bid, 'booking_update', { action: 'group_member_added' });
+    calSyncPush(bid, result.id).catch(() => {});
+
+    res.json({ added: true, booking: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
