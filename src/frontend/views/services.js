@@ -512,17 +512,50 @@ function renderServiceModal(svc,sectorCats,prefill){
   const assignedIds=svc?.practitioner_ids||[];
   if(allPractitioners.length>0){
     m+=sec('Affectation');
-    m+=`<div class="field" style="margin-bottom:0"><label>Praticiens assignés</label><div id="svc_practitioners" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">`;
+    m+=`<div class="field" style="margin-bottom:0"><label>Praticiens assignés</label><div class="section-hint" style="font-size:.72rem;color:var(--text-4);margin:2px 0 8px">Cliquez dans l'ordre de priorité</div>`;
+    m+=`<div id="svc_practitioners" class="prac-priority${assignedIds.length>0?' has-selection':''}">`;
     allPractitioners.forEach(p=>{
-      const checked=assignedIds.includes(p.id)?'checked':'';
-      m+=`<label style="font-size:.82rem;display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:.15s"><input type="checkbox" class="svc_pract_cb" value="${p.id}" ${checked}> ${esc(p.display_name)}</label>`;
+      const rank=assignedIds.indexOf(p.id);
+      const isSelected=rank>=0;
+      const order=isSelected?rank+1:0;
+      const rankClass=isSelected?` selected rank-${Math.min(order,4)}`:'';
+      const initials=p.display_name?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)||'??';
+      m+=`<div class="prac-pill${rankClass}" data-pid="${p.id}"${isSelected?` data-order="${order}"`:''} onclick="svcTogglePrac(this)">`;
+      m+=`<div class="prac-avatar" style="background:${p.color||'var(--primary)'}">${initials}</div>`;
+      m+=`<span class="prac-name">${esc(p.display_name)}</span>`;
+      m+=`<span class="prac-badge">${isSelected?order:''}</span>`;
+      m+=`</div>`;
     });
-    m+=`</div><div style="font-size:.72rem;color:var(--text-4);margin-top:5px">Si aucun coché → disponible pour tous</div></div>`;
+    m+=`</div>`;
+    m+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Si aucun sélectionné → disponible pour tous à égalité</div></div>`;
     m+=`</div>`;
   }
 
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+}
+
+// ===== PRACTITIONER PRIORITY =====
+
+function svcTogglePrac(pill){
+  const container=pill.closest('.prac-priority');
+  const pills=[...container.querySelectorAll('.prac-pill')];
+  if(pill.classList.contains('selected')){
+    pill.classList.remove('selected');pill.removeAttribute('data-order');
+  }else{
+    const maxOrder=Math.max(0,...pills.filter(p=>p.dataset.order).map(p=>parseInt(p.dataset.order)));
+    pill.classList.add('selected');pill.dataset.order=maxOrder+1;
+  }
+  // Recalculate sequential ranks
+  const selected=pills.filter(p=>p.dataset.order).sort((a,b)=>parseInt(a.dataset.order)-parseInt(b.dataset.order));
+  pills.forEach(p=>{p.classList.remove('rank-1','rank-2','rank-3','rank-4');p.querySelector('.prac-badge').textContent='';});
+  selected.forEach((p,i)=>{const rank=i+1;p.dataset.order=rank;p.querySelector('.prac-badge').textContent=rank;p.classList.add('rank-'+Math.min(rank,4));});
+  container.classList.toggle('has-selection',selected.length>0);
+}
+
+function svcGetPracOrder(){
+  const pills=[...document.querySelectorAll('#svc_practitioners .prac-pill[data-order]')];
+  return pills.sort((a,b)=>parseInt(a.dataset.order)-parseInt(b.dataset.order)).map(p=>p.dataset.pid);
 }
 
 // ===== SCHEDULE HELPERS =====
@@ -578,7 +611,7 @@ async function saveService(id){
   const priceVal=document.getElementById('svc_price').value;
   const selectedCat=document.getElementById('svc_cat').value||null;
   const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
-  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:[...document.querySelectorAll('.svc_pract_cb:checked')].map(cb=>cb.value)};
+  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder()};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.available_schedule=buildScheduleFromEditor();
@@ -756,6 +789,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };

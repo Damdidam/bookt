@@ -139,6 +139,26 @@
 .svc-category.drag-over{box-shadow:0 0 0 2px var(--primary)}
 .svc-row.drag-over{border-top:2px solid var(--primary)}
 
+/* Practitioner priority pills */
+.prac-priority{display:flex;flex-wrap:wrap;gap:8px}
+.prac-pill{position:relative;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:2px solid var(--border-light);background:var(--white);cursor:pointer;transition:all .2s;user-select:none}
+.prac-pill:hover{border-color:#CBD5E1}
+.prac-pill .prac-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.prac-pill .prac-name{font-size:.85rem;font-weight:600;color:var(--text-3);transition:color .2s}
+.prac-pill .prac-badge{display:none;position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--text);color:#fff;font-size:.65rem;font-weight:800;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.prac-pill.selected .prac-name{color:var(--text)}
+.prac-pill.selected .prac-badge{display:flex}
+.prac-pill.rank-1{border-color:#1E293B;background:#F8FAFC}
+.prac-pill.rank-1 .prac-badge{background:#1E293B}
+.prac-pill.rank-2{border-color:#475569;background:#FAFBFC}
+.prac-pill.rank-2 .prac-badge{background:#475569}
+.prac-pill.rank-3{border-color:#94A3B8;background:#FDFDFE}
+.prac-pill.rank-3 .prac-badge{background:#94A3B8}
+.prac-pill.rank-4{border-color:#CBD5E1;background:#FEFEFE}
+.prac-pill.rank-4 .prac-badge{background:#CBD5E1;color:#475569}
+.prac-priority.has-selection .prac-pill:not(.selected){opacity:.45}
+.prac-priority.has-selection .prac-pill:not(.selected):hover{opacity:.7}
+
 /* Icon button (edit/delete) */
 .svc-icon-btn{display:inline-flex;align-items:center;justify-content:center;padding:5px;border-radius:8px;border:1.5px solid var(--border-light);background:transparent;color:var(--text-3);cursor:pointer;transition:all .15s}
 .svc-icon-btn:hover{background:var(--white);border-color:var(--border)}
