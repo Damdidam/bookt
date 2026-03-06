@@ -673,16 +673,6 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
-    // If deactivated via PATCH, also cleanup service assignments
-    if (fields.is_active === false) {
-      await queryWithRLS(bid,
-        `DELETE FROM practitioner_services
-         WHERE practitioner_id = $1
-           AND service_id IN (SELECT id FROM services WHERE business_id = $2)`,
-        [id, bid]
-      );
-    }
-
     res.json({ practitioner: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -701,12 +691,7 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
       [pracId, bid]
     );
 
-    await queryWithRLS(bid,
-      `DELETE FROM practitioner_services
-       WHERE practitioner_id = $1
-         AND service_id IN (SELECT id FROM services WHERE business_id = $2)`,
-      [pracId, bid]
-    );
+    // Keep practitioner_services intact so competencies are preserved on reactivation
 
     res.json({ deleted: true });
   } catch (err) { next(err); }
