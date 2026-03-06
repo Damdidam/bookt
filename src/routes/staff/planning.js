@@ -6,8 +6,9 @@ const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 router.use(requireAuth);
 
 // ============================================================
-// Helper: log absence activity
+// Helpers
 // ============================================================
+
 async function logAbsence(bid, absenceId, action, details, actorName) {
   try {
     await queryWithRLS(bid,
@@ -20,14 +21,73 @@ async function logAbsence(bid, absenceId, action, details, actorName) {
   }
 }
 
+/**
+ * Get the effective period for a specific day within an absence.
+ * - First day → period (period_start)
+ * - Last day → period_end
+ * - Middle days → 'full'
+ * - Single day → period
+ */
+function getEffectivePeriod(dayDate, absDateFrom, absDateTo, periodStart, periodEnd) {
+  const dayStr = dayDate.toISOString().slice(0, 10);
+  const fromStr = new Date(absDateFrom).toISOString().slice(0, 10);
+  const toStr = new Date(absDateTo).toISOString().slice(0, 10);
+  if (fromStr === toStr) return periodStart || 'full';
+  if (dayStr === fromStr) return periodStart || 'full';
+  if (dayStr === toStr) return periodEnd || 'full';
+  return 'full';
+}
+
+/** Check if two periods conflict (both occupy the same half of the day) */
+function periodsConflict(p1, p2) {
+  if (p1 === 'full' || p2 === 'full') return true;
+  return p1 === p2; // am+am or pm+pm conflict; am+pm don't
+}
+
+/** Check if a day is a weekend (Saturday=6 or Sunday=0) */
+function isWeekend(date) {
+  const dow = date.getDay();
+  return dow === 0 || dow === 6;
+}
+
+/**
+ * Day-by-day overlap check with period awareness.
+ * Skips weekends. Excludes an optional absenceId (for edit mode).
+ * Returns true if there's a conflict.
+ */
+function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeriodEnd, excludeId) {
+  const from = new Date(newFrom);
+  const to = new Date(newTo);
+
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    if (isWeekend(d)) continue;
+
+    const newDayPeriod = getEffectivePeriod(d, newFrom, newTo, newPeriod, newPeriodEnd);
+
+    for (const existing of existingAbsences) {
+      if (excludeId && existing.id === excludeId) continue;
+      const exFrom = new Date(existing.date_from);
+      const exTo = new Date(existing.date_to);
+
+      // Check if this existing absence covers the current day
+      if (d >= exFrom && d <= exTo) {
+        const exDayPeriod = getEffectivePeriod(d, existing.date_from, existing.date_to, existing.period, existing.period_end);
+        if (periodsConflict(newDayPeriod, exDayPeriod)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 // ============================================================
 // GET /api/planning/absences?month=2026-03
-// Returns absences for the given month (or current month)
 // ============================================================
 router.get('/absences', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const monthParam = req.query.month; // e.g. "2026-03"
+    const monthParam = req.query.month;
     let dateFrom, dateTo;
 
     if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
@@ -60,7 +120,7 @@ router.get('/absences', async (req, res, next) => {
 });
 
 // ============================================================
-// GET /api/planning/absences/:id — single absence
+// GET /api/planning/absences/:id
 // ============================================================
 router.get('/absences/:id', async (req, res, next) => {
   try {
@@ -83,7 +143,7 @@ router.get('/absences/:id', async (req, res, next) => {
 router.post('/absences', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { practitioner_id, date_from, date_to, type, note, period } = req.body;
+    const { practitioner_id, date_from, date_to, type, note, period, period_end } = req.body;
 
     if (!practitioner_id) return res.status(400).json({ error: 'Praticien requis' });
     if (!date_from || !date_to) return res.status(400).json({ error: 'Dates requises' });
@@ -94,6 +154,7 @@ router.post('/absences', requireOwner, async (req, res, next) => {
 
     const validPeriods = ['full', 'am', 'pm'];
     const absPeriod = validPeriods.includes(period) ? period : 'full';
+    const absPeriodEnd = validPeriods.includes(period_end) ? period_end : 'full';
 
     // Check practitioner belongs to this business
     const pracCheck = await queryWithRLS(bid,
@@ -102,19 +163,16 @@ router.post('/absences', requireOwner, async (req, res, next) => {
     );
     if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
-    // Check for overlapping absences (with period awareness)
-    const overlapQuery = `SELECT id, period FROM staff_absences
+    // Fetch all existing absences that could overlap (date range intersection)
+    const existingAbs = await queryWithRLS(bid,
+      `SELECT id, date_from, date_to, period, period_end FROM staff_absences
        WHERE business_id = $1 AND practitioner_id = $2
-         AND date_from <= $4::date AND date_to >= $3::date`;
-    const overlap = await queryWithRLS(bid, overlapQuery, [bid, practitioner_id, date_from, date_to]);
+         AND date_from <= $4::date AND date_to >= $3::date`,
+      [bid, practitioner_id, date_from, date_to]
+    );
 
-    // Allow overlap only if periods are complementary (am vs pm)
-    const hasRealOverlap = overlap.rows.some(o => {
-      if (absPeriod === 'full' || o.period === 'full') return true;
-      if (absPeriod === o.period) return true;
-      return false; // am + pm = OK
-    });
-    if (hasRealOverlap) {
+    // Day-by-day overlap check with period awareness (skips weekends)
+    if (hasOverlapConflict(existingAbs.rows, date_from, date_to, absPeriod, absPeriodEnd, null)) {
       return res.status(409).json({ error: 'Une absence existe déjà sur cette période pour ce praticien' });
     }
 
@@ -128,9 +186,9 @@ router.post('/absences', requireOwner, async (req, res, next) => {
     );
 
     const result = await queryWithRLS(bid,
-      `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [bid, practitioner_id, date_from, date_to, absType, note || null, absPeriod]
+      `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [bid, practitioner_id, date_from, date_to, absType, note || null, absPeriod, absPeriodEnd]
     );
 
     const absence = result.rows[0];
@@ -138,7 +196,8 @@ router.post('/absences', requireOwner, async (req, res, next) => {
     // Log creation
     const pracName = pracCheck.rows[0].display_name;
     await logAbsence(bid, absence.id, 'created', {
-      type: absType, period: absPeriod, date_from, date_to, practitioner: pracName
+      type: absType, period: absPeriod, period_end: absPeriodEnd,
+      date_from, date_to, practitioner: pracName
     }, req.user?.name || req.user?.email || 'Système');
 
     res.status(201).json({
@@ -155,9 +214,9 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { date_from, date_to, type, note, period } = req.body;
+    const { date_from, date_to, type, note, period, period_end } = req.body;
 
-    // Fetch current values for change logging
+    // Fetch current values
     const current = await queryWithRLS(bid,
       `SELECT sa.*, p.display_name AS practitioner_name FROM staff_absences sa
        JOIN practitioners p ON p.id = sa.practitioner_id
@@ -177,8 +236,27 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
     if (type !== undefined) { sets.push(`type = $${idx}`); params.push(type); idx++; if (type !== old.type) changes.type = { from: old.type, to: type }; }
     if (note !== undefined) { sets.push(`note = $${idx}`); params.push(note); idx++; if (note !== old.note) changes.note = { from: old.note, to: note }; }
     if (period !== undefined) { sets.push(`period = $${idx}`); params.push(period); idx++; if (period !== old.period) changes.period = { from: old.period, to: period }; }
+    if (period_end !== undefined) { sets.push(`period_end = $${idx}`); params.push(period_end); idx++; if (period_end !== old.period_end) changes.period_end = { from: old.period_end, to: period_end }; }
 
     if (sets.length === 0) return res.status(400).json({ error: 'Rien à modifier' });
+
+    // Overlap check for the updated values (exclude self)
+    const newFrom = date_from || old.date_from?.toISOString?.()?.slice(0,10) || old.date_from;
+    const newTo = date_to || old.date_to?.toISOString?.()?.slice(0,10) || old.date_to;
+    const newPeriod = period || old.period || 'full';
+    const newPeriodEnd = period_end || old.period_end || 'full';
+
+    const existingAbs = await queryWithRLS(bid,
+      `SELECT id, date_from, date_to, period, period_end FROM staff_absences
+       WHERE business_id = $1 AND practitioner_id = $2
+         AND date_from <= $4::date AND date_to >= $3::date`,
+      [bid, old.practitioner_id, newFrom, newTo]
+    );
+
+    if (hasOverlapConflict(existingAbs.rows, newFrom, newTo, newPeriod, newPeriodEnd, id)) {
+      return res.status(409).json({ error: 'Une absence existe déjà sur cette période pour ce praticien' });
+    }
+
     sets.push('updated_at = NOW()');
 
     const result = await queryWithRLS(bid,
@@ -186,7 +264,6 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
       params
     );
 
-    // Log modification
     if (Object.keys(changes).length > 0) {
       await logAbsence(bid, id, 'modified', { changes, practitioner: old.practitioner_name },
         req.user?.name || req.user?.email || 'Système');
@@ -197,13 +274,12 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
 });
 
 // ============================================================
-// DELETE /api/planning/absences/:id — delete absence
+// DELETE /api/planning/absences/:id
 // ============================================================
 router.delete('/absences/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
-    // Fetch before delete for logging
     const current = await queryWithRLS(bid,
       `SELECT sa.*, p.display_name AS practitioner_name FROM staff_absences sa
        JOIN practitioners p ON p.id = sa.practitioner_id
@@ -215,7 +291,8 @@ router.delete('/absences/:id', requireOwner, async (req, res, next) => {
 
     // Log BEFORE delete (FK cascade will remove logs otherwise)
     await logAbsence(bid, req.params.id, 'cancelled', {
-      type: old.type, period: old.period, date_from: old.date_from, date_to: old.date_to,
+      type: old.type, period: old.period, period_end: old.period_end,
+      date_from: old.date_from, date_to: old.date_to,
       practitioner: old.practitioner_name
     }, req.user?.name || req.user?.email || 'Système');
 
@@ -228,7 +305,7 @@ router.delete('/absences/:id', requireOwner, async (req, res, next) => {
 });
 
 // ============================================================
-// GET /api/planning/absences/:id/logs — activity logs
+// GET /api/planning/absences/:id/logs
 // ============================================================
 router.get('/absences/:id/logs', async (req, res, next) => {
   try {
@@ -244,13 +321,12 @@ router.get('/absences/:id/logs', async (req, res, next) => {
 });
 
 // ============================================================
-// POST /api/planning/absences/:id/notify — send email to practitioner
+// POST /api/planning/absences/:id/notify — send email
 // ============================================================
 router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
 
-    // Get absence + practitioner email
     const result = await queryWithRLS(bid,
       `SELECT sa.*, p.display_name AS practitioner_name, p.email AS practitioner_email
        FROM staff_absences sa
@@ -263,17 +339,14 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
     const abs = result.rows[0];
     if (!abs.practitioner_email) return res.status(400).json({ error: 'Ce praticien n\'a pas d\'adresse email' });
 
-    // Get business info
     const bizResult = await queryWithRLS(bid,
       `SELECT name, email, theme FROM businesses WHERE id = $1`, [bid]
     );
     const business = bizResult.rows[0] || { name: 'Genda' };
 
-    // Build type label
     const typeLabels = { conge: 'Congé', maladie: 'Maladie', formation: 'Formation', autre: 'Absence' };
-    const periodLabels = { full: 'Journée complète', am: 'Matin uniquement', pm: 'Après-midi uniquement' };
+    const periodLabels = { full: 'Journée complète', am: 'Matin', pm: 'Après-midi' };
     const typeLabel = typeLabels[abs.type] || 'Absence';
-    const periodLabel = periodLabels[abs.period] || 'Journée complète';
 
     const dateFrom = new Date(abs.date_from).toLocaleDateString('fr-BE', {
       timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -284,6 +357,16 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
 
     const isSameDay = abs.date_from === abs.date_to ||
       new Date(abs.date_from).toDateString() === new Date(abs.date_to).toDateString();
+
+    let periodInfo = '';
+    if (isSameDay) {
+      periodInfo = periodLabels[abs.period] || 'Journée complète';
+    } else {
+      const startP = abs.period === 'pm' ? ' (à partir de l\'après-midi)' : '';
+      const endP = abs.period_end === 'am' ? ' (jusqu\'au matin)' : '';
+      periodInfo = `Du ${dateFrom}${startP} au ${dateTo}${endP}`;
+    }
+
     const dateRange = isSameDay ? dateFrom : `du ${dateFrom} au ${dateTo}`;
 
     const bodyHTML = `
@@ -291,9 +374,8 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
       <p>Ceci est une confirmation de votre absence enregistrée :</p>
       <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
         <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:6px">${escHtml(typeLabel)}</div>
-        <div style="font-size:13px;color:#3D3832;margin-bottom:4px">📅 ${escHtml(dateRange)}</div>
-        <div style="font-size:13px;color:#3D3832;margin-bottom:4px">🕐 ${escHtml(periodLabel)}</div>
-        ${abs.note ? `<div style="font-size:13px;color:#6B6560;margin-top:8px;font-style:italic">📝 ${escHtml(abs.note)}</div>` : ''}
+        <div style="font-size:13px;color:#3D3832;margin-bottom:4px">${escHtml(periodInfo)}</div>
+        ${abs.note ? `<div style="font-size:13px;color:#6B6560;margin-top:8px;font-style:italic">${escHtml(abs.note)}</div>` : ''}
       </div>
       <p style="font-size:13px;color:#9C958E">Ce document fait office de confirmation. Conservez-le pour vos dossiers.</p>`;
 
@@ -315,7 +397,6 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
       replyTo: business.email
     });
 
-    // Log email sent
     await logAbsence(bid, abs.id, 'email_sent', {
       to: abs.practitioner_email, success: emailResult.success
     }, req.user?.name || req.user?.email || 'Système');
@@ -329,8 +410,8 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
 });
 
 // ============================================================
-// GET /api/planning/absences/stats?month=2026-03
-// Counters per practitioner per type
+// GET /api/planning/stats?month=2026-03
+// Counters per practitioner per type — EXCLUDES WEEKENDS
 // ============================================================
 router.get('/stats', async (req, res, next) => {
   try {
@@ -352,9 +433,8 @@ router.get('/stats', async (req, res, next) => {
       dateTo = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
     }
 
-    // Count days per practitioner per type, accounting for half-days
     const result = await queryWithRLS(bid,
-      `SELECT sa.practitioner_id, sa.type, sa.period,
+      `SELECT sa.practitioner_id, sa.type, sa.period, sa.period_end,
               sa.date_from, sa.date_to,
               p.display_name AS practitioner_name
        FROM staff_absences sa
@@ -366,7 +446,6 @@ router.get('/stats', async (req, res, next) => {
       [bid, dateFrom, dateTo]
     );
 
-    // Calculate days per practitioner per type
     const stats = {};
     const monthStart = new Date(dateFrom);
     const monthEnd = new Date(dateTo);
@@ -383,14 +462,17 @@ router.get('/stats', async (req, res, next) => {
 
       let days = 0;
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        days += row.period === 'full' ? 1 : 0.5;
+        // Skip weekends — they don't count as absence days
+        if (isWeekend(d)) continue;
+
+        const dayPeriod = getEffectivePeriod(d, row.date_from, row.date_to, row.period, row.period_end);
+        days += dayPeriod === 'full' ? 1 : 0.5;
       }
 
       stats[row.practitioner_id][row.type] += days;
       stats[row.practitioner_id].total += days;
     });
 
-    // Global totals
     const totals = { conge: 0, maladie: 0, formation: 0, autre: 0, total: 0 };
     Object.values(stats).forEach(s => {
       totals.conge += s.conge;
@@ -405,8 +487,7 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // ============================================================
-// GET /api/planning/impact?practitioner_id=xxx&date_from=...&date_to=...
-// Preview impact before creating absence
+// GET /api/planning/impact
 // ============================================================
 router.get('/impact', async (req, res, next) => {
   try {
@@ -417,7 +498,6 @@ router.get('/impact', async (req, res, next) => {
       return res.status(400).json({ error: 'practitioner_id, date_from, date_to requis' });
     }
 
-    // Impacted bookings
     const bookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status,
               c.full_name AS client_name, s.name AS service_name
