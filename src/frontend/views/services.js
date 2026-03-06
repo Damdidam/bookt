@@ -88,6 +88,8 @@ async function loadServices(){
       const catMap={};
       svcs.forEach(s=>{const cat=s.category||'Autres';if(!catMap[cat])catMap[cat]=[];catMap[cat].push(s);});
       // Build ordered category list
+      // Sort categories by user-defined sort_order
+      allSectorCats.sort((a,b)=>(a.sort_order??999)-(b.sort_order??999));
       const catOrder=[];
       allSectorCats.forEach(c=>{
         const hasServices=!!catMap[c.label]&&catMap[c.label].length>0;

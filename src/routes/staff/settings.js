@@ -340,7 +340,7 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
     const mergedCatalog = catalogResult.rows.map(cat => {
       const biz = bizCatMap[cat.label];
       if (biz) {
-        return { ...cat, id: biz.id, description: biz.description || null, icon_svg: biz.icon_svg || cat.icon_svg, color: biz.color || null };
+        return { ...cat, id: biz.id, description: biz.description || null, icon_svg: biz.icon_svg || cat.icon_svg, color: biz.color || null, sort_order: biz.sort_order != null ? biz.sort_order : cat.sort_order };
       }
       return cat;
     });
@@ -359,7 +359,9 @@ router.get('/sector-categories', requireAuth, async (req, res) => {
     );
     const svcCustomRows = svcCustomResult.rows.map(r => ({ ...r, icon_svg: null, sort_order: 999, source: 'custom' }));
 
-    res.json({ sector, categories: [...mergedCatalog, ...customOnly, ...svcCustomRows] });
+    const allCats = [...mergedCatalog, ...customOnly, ...svcCustomRows];
+    allCats.sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+    res.json({ sector, categories: allCats });
   } catch (err) {
     console.error('[SETTINGS] sector-categories error:', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
