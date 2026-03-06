@@ -286,6 +286,16 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
+    // If deactivated via PATCH, also cleanup service assignments
+    if (fields.is_active === false) {
+      await queryWithRLS(bid,
+        `DELETE FROM practitioner_services
+         WHERE practitioner_id = $1
+           AND service_id IN (SELECT id FROM services WHERE business_id = $2)`,
+        [id, bid]
+      );
+    }
+
     res.json({ practitioner: result.rows[0] });
   } catch (err) { next(err); }
 });
@@ -295,11 +305,24 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 // ============================================================
 router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
-    await queryWithRLS(req.businessId,
+    const bid = req.businessId;
+    const pracId = req.params.id;
+
+    // Deactivate practitioner
+    await queryWithRLS(bid,
       `UPDATE practitioners SET is_active = false, booking_enabled = false, updated_at = NOW()
        WHERE id = $1 AND business_id = $2`,
-      [req.params.id, req.businessId]
+      [pracId, bid]
     );
+
+    // Cleanup: remove from all service assignments so priorities auto-recalculate
+    await queryWithRLS(bid,
+      `DELETE FROM practitioner_services
+       WHERE practitioner_id = $1
+         AND service_id IN (SELECT id FROM services WHERE business_id = $2)`,
+      [pracId, bid]
+    );
+
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });
