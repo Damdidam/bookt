@@ -492,21 +492,6 @@
 .tm-work-dot-label{font-size:.5rem;color:var(--text-4);font-weight:600}
 .tm-regime-label{font-size:.65rem;font-weight:700;color:var(--text-3);margin-left:6px}
 
-/* Skills chips */
-.tm-skills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
-.tm-skill-chip{padding:2px 8px;border-radius:100px;font-size:.6rem;font-weight:600}
-.tm-skill-chip.level-1{background:#FEF3C7;color:#92400E}
-.tm-skill-chip.level-2{background:#DCFCE7;color:#15803D}
-.tm-skill-chip.level-3{background:#EDE9FE;color:#6D28D9}
-
-/* Skill editor in modal */
-.skill-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-light)}
-.skill-row input{flex:1}
-.skill-level-chips{display:flex;gap:4px}
-.skill-level-chip{padding:4px 10px;border-radius:100px;font-size:.7rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .12s;font-family:var(--sans)}
-.skill-level-chip:hover{border-color:var(--border)}
-.skill-level-chip.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
-
 /* Service assignments in practitioner modal */
 .svc-assign-group{margin-bottom:6px;border:1px solid var(--border-light);border-radius:8px;overflow:hidden}
 .svc-assign-cat{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);cursor:pointer;user-select:none;border-bottom:1px solid var(--border-light)}

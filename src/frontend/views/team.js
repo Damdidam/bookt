@@ -1,6 +1,6 @@
 /**
  * Team (Équipe) view module — v2
- * Premium cal-modal, skills, leave balances, enriched cards
+ * Premium cal-modal, service assignments, leave balances, enriched cards
  */
 import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
@@ -8,7 +8,6 @@ import { cswHTML } from './agenda/color-swatches.js';
 
 let pPendingPhoto = null;
 let teamCurrentTab = 'profile';
-let teamEditSkills = []; // mutable copy for editing
 let teamLeaveYear = new Date().getFullYear();
 let teamEditSchedule = {}; // mutable copy of schedule for editing (weekday -> [{start_time,end_time}])
 let teamEditPracId = null; // practitioner id being edited
@@ -38,7 +37,6 @@ const ICONS = {
 
 const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const CONTRACT_LABELS = { cdi: 'CDI', cdd: 'CDD', independant: 'Indépendant', stagiaire: 'Stagiaire', interim: 'Intérim' };
-const LEVEL_LABELS = { 1: 'Junior', 2: 'Confirmé', 3: 'Expert' };
 const TYPE_LABELS = { conge: 'Congé', maladie: 'Maladie', formation: 'Formation', recuperation: 'Récup.' };
 
 // ============================================================
@@ -150,11 +148,6 @@ async function loadTeam() {
             <div class="tm-stat"><div class="v">${p.service_count || 0}</div><div class="l">${categoryLabels.services}</div></div>
           </div>
 
-          <!-- Skills chips -->
-          ${p.skills && p.skills.length > 0 ? `<div class="tm-skills">${p.skills.slice(0, 4).map(s =>
-            `<span class="tm-skill-chip level-${s.level}">${esc(s.skill_name)}</span>`
-          ).join('')}${p.skills.length > 4 ? `<span class="tm-skill-chip" style="background:var(--surface);color:var(--text-4)">+${p.skills.length - 4}</span>` : ''}</div>` : ''}
-
           <div class="tm-badges">
             <span class="tm-badge ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'Actif' : 'Inactif'}</span>
             ${p.contract_type && p.contract_type !== 'cdi' ? `<span class="tm-badge" style="background:#F0F9FF;color:#0369A1">${CONTRACT_LABELS[p.contract_type] || p.contract_type}</span>` : ''}
@@ -211,7 +204,6 @@ function openPractModal(editId) {
 function renderPractModal(p) {
   pPendingPhoto = null;
   teamCurrentTab = 'profile';
-  teamEditSkills = p?.skills ? JSON.parse(JSON.stringify(p.skills)) : [];
   teamLeaveYear = new Date().getFullYear();
 
   // Initialize assigned services
@@ -324,14 +316,6 @@ function renderPractModal(p) {
       <!-- TAB: COMPÉTENCES -->
       <div class="cal-panel" id="team-panel-skills">
         <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Compétences</span><span class="m-sec-line"></span></div>
-          <div id="tm_skills_list">${renderSkillsList()}</div>
-          <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-            <input class="m-input" id="tm_new_skill" placeholder="Nouvelle compétence..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();teamAddSkill()}">
-            <button class="m-btn m-btn-primary" style="padding:8px 14px;font-size:.75rem" onclick="teamAddSkill()"><svg class="gi" style="width:12px;height:12px" ${ICONS.plus.slice(4)}> Ajouter</button>
-          </div>
-        </div>
-        <div class="m-sec" style="margin-top:20px">
           <div class="m-sec-head"><span class="m-sec-title">Prestations assignées</span><span class="m-sec-line"></span></div>
           <div id="tm_services_list">${renderServicesList()}</div>
         </div>
@@ -445,45 +429,6 @@ function teamSwitchTab(tab) {
   });
   document.querySelectorAll('#teamModalOverlay .cal-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('team-panel-' + tab)?.classList.add('active');
-}
-
-// ============================================================
-// Skills management
-// ============================================================
-
-function renderSkillsList() {
-  if (teamEditSkills.length === 0) {
-    return `<div style="font-size:.78rem;color:var(--text-4);padding:12px 0">Aucune compétence ajoutée</div>`;
-  }
-  return teamEditSkills.map((s, i) => `
-    <div class="skill-row">
-      <span style="font-size:.72rem;color:var(--text-4);width:20px;text-align:center">${i + 1}</span>
-      <input class="m-input" value="${esc(s.skill_name)}" style="flex:1" onchange="teamEditSkills[${i}].skill_name=this.value">
-      <div class="skill-level-chips">
-        ${[1, 2, 3].map(lv => `<span class="skill-level-chip${s.level === lv ? ' active' : ''}" onclick="teamSetSkillLevel(${i},${lv})">${LEVEL_LABELS[lv]}</span>`).join('')}
-      </div>
-      <button style="background:none;border:none;cursor:pointer;color:var(--text-4);padding:4px" onclick="teamRemoveSkill(${i})" title="Supprimer"><svg class="gi" style="width:14px;height:14px" ${ICONS.trash.slice(4)}></button>
-    </div>
-  `).join('');
-}
-
-function teamAddSkill() {
-  const input = document.getElementById('tm_new_skill');
-  const name = input.value.trim();
-  if (!name) return;
-  teamEditSkills.push({ skill_name: name, level: 2, sort_order: teamEditSkills.length });
-  input.value = '';
-  document.getElementById('tm_skills_list').innerHTML = renderSkillsList();
-}
-
-function teamRemoveSkill(idx) {
-  teamEditSkills.splice(idx, 1);
-  document.getElementById('tm_skills_list').innerHTML = renderSkillsList();
-}
-
-function teamSetSkillLevel(idx, level) {
-  teamEditSkills[idx].level = level;
-  document.getElementById('tm_skills_list').innerHTML = renderSkillsList();
 }
 
 // ============================================================
@@ -760,17 +705,6 @@ async function savePract(id) {
         body: JSON.stringify({ photo: pPendingPhoto })
       });
       pPendingPhoto = null;
-    }
-
-    // Save skills if we have any (or if we cleared them)
-    if (pracId) {
-      try {
-        await fetch(`/api/practitioners/${pracId}/skills`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-          body: JSON.stringify({ skills: teamEditSkills.map((s, i) => ({ skill_name: s.skill_name, level: s.level, sort_order: i })) })
-        });
-      } catch (e) { /* skills table might not exist yet */ }
     }
 
     // Save service assignments (prestations)
@@ -1094,7 +1028,7 @@ bridge({
   openInviteModal, generateTempPwd, sendInvite,
   openRoleModal, saveRole,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
-  teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave,
+  teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
   teamToggleService, teamToggleCatServices, teamToggleAllServices
 });
@@ -1104,7 +1038,7 @@ export {
   openPracTasks, togglePracTodo,
   openInviteModal, sendInvite, openRoleModal, saveRole,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
-  teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave,
+  teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
   teamToggleService, teamToggleCatServices, teamToggleAllServices
 };
