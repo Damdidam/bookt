@@ -34,18 +34,23 @@ function jsAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").re
 
 // ===== MAIN RENDER =====
 
-// Persist collapsed state across re-renders
-let collapsedCats=new Set();
-function saveCollapsedState(){
-  collapsedCats=new Set();
-  document.querySelectorAll('.svc-category.collapsed').forEach(el=>{const cat=el.dataset.cat;if(cat)collapsedCats.add(cat);});
+// Persist open/collapsed state across re-renders (default: all collapsed)
+let openCats=null; // null = first load (all collapsed), Set = user has interacted
+function saveOpenState(){
+  if(!document.querySelector('.svc-category'))return; // nothing rendered yet
+  openCats=new Set();
+  document.querySelectorAll('.svc-category:not(.collapsed)').forEach(el=>{const cat=el.dataset.cat;if(cat)openCats.add(cat);});
 }
 function restoreCollapsedState(){
-  collapsedCats.forEach(cat=>{const el=document.querySelector(`.svc-category[data-cat="${CSS.escape(cat)}"]`);if(el)el.classList.add('collapsed');});
+  document.querySelectorAll('.svc-category').forEach(el=>{
+    const cat=el.dataset.cat;
+    if(openCats&&openCats.has(cat))el.classList.remove('collapsed');
+    else el.classList.add('collapsed');
+  });
 }
 
 async function loadServices(){
-  saveCollapsedState();
+  saveOpenState();
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
