@@ -335,19 +335,20 @@ async function saveCustomColor(){
 // Gallery CRUD
 function openGalleryModal(item){
   const isEdit=!!item;
-  const ov=document.createElement('div');ov.className='modal-overlay';
-  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la photo':'Ajouter une photo'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="modal-body">
-      <div class="fg"><label class="fl">URL de l'image *</label><input class="fi" id="galUrl" value="${item?.image_url||''}" placeholder="https://i.imgur.com/...jpg">
+  const ov=document.createElement('div');ov.className='m-overlay open';ov.id='galModal';
+  ov.innerHTML=`<div class="m-dialog m-md">
+    <div class="m-header-simple"><h3>${isEdit?'Modifier la photo':'Ajouter une photo'}</h3><button class="m-close" onclick="document.getElementById('galModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="m-body">
+      <div><label class="m-field-label">URL de l'image *</label><input class="m-input" id="galUrl" value="${item?.image_url||''}" placeholder="https://i.imgur.com/...jpg">
         <p style="font-size:.68rem;color:var(--text-4);margin-top:3px">Hébergez vos images sur <a href="https://imgur.com" target="_blank" style="color:var(--primary)">Imgur</a>, <a href="https://cloudinary.com" target="_blank" style="color:var(--primary)">Cloudinary</a> ou similaire.</p>
       </div>
       <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'}">
         <img id="galPreviewImg" src="${item?.image_url||''}" style="width:100%;height:auto;max-height:200px;object-fit:cover">
       </div>
-      <div class="fg"><label class="fl">Titre</label><input class="fi" id="galTitle" value="${item?.title||''}" placeholder="Ex: Notre cabinet"></div>
-      <div class="fg"><label class="fl">Légende</label><input class="fi" id="galCaption" value="${item?.caption||''}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
+      <div><label class="m-field-label">Titre</label><input class="m-input" id="galTitle" value="${item?.title||''}" placeholder="Ex: Notre cabinet"></div>
+      <div><label class="m-field-label">Légende</label><input class="m-input" id="galCaption" value="${item?.caption||''}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
     </div>
-    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="galSaveBtn" onclick="saveGalleryItem('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
+    <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('galModal').remove()">Annuler</button><button class="m-btn m-btn-primary" id="galSaveBtn" onclick="saveGalleryItem('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
   document.body.appendChild(ov);
   // Live preview
@@ -375,7 +376,7 @@ async function saveGalleryItem(id){
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({image_url:url,title:title||null,caption:caption||null})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('galModal')?.remove();
     GendaUI.toast(id?'Photo modifiée':'Photo ajoutée','success');
     loadSiteSection();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Ajouter';}
@@ -414,21 +415,22 @@ async function deleteGalleryItem(id){
 function openNewsModal(item){
   const isEdit=!!item;
   const tagTypes=[{val:'info',label:'Info',color:'var(--primary)'},{val:'alert',label:'Alerte',color:'var(--gold)'},{val:'new',label:'Nouveau',color:'var(--green)'},{val:'promo',label:'Promo',color:'#D946EF'}];
-  const ov=document.createElement('div');ov.className='modal-overlay';
-  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier l\'article':'Publier un article'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="modal-body">
-      <div class="fg"><label class="fl">Titre *</label><input class="fi" id="newsTitle" value="${item?.title||''}" placeholder="Ex: Nouveau service de téléconsultation"></div>
-      <div class="fg"><label class="fl">Contenu *</label><textarea class="fi" id="newsContent" style="min-height:120px;resize:vertical" placeholder="Rédigez votre article...">${item?.content||''}</textarea></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="fg"><label class="fl">Tag (optionnel)</label><input class="fi" id="newsTag" value="${item?.tag||''}" placeholder="Ex: Nouveau, Important"></div>
-        <div class="fg"><label class="fl">Type de tag</label><select class="fi" id="newsTagType" style="padding:8px 12px">
+  const ov=document.createElement('div');ov.className='m-overlay open';ov.id='newsModal';
+  ov.innerHTML=`<div class="m-dialog m-md">
+    <div class="m-header-simple"><h3>${isEdit?'Modifier l\'article':'Publier un article'}</h3><button class="m-close" onclick="document.getElementById('newsModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="m-body">
+      <div><label class="m-field-label">Titre *</label><input class="m-input" id="newsTitle" value="${item?.title||''}" placeholder="Ex: Nouveau service de téléconsultation"></div>
+      <div><label class="m-field-label">Contenu *</label><textarea class="m-input" id="newsContent" style="min-height:120px;resize:vertical" placeholder="Rédigez votre article...">${item?.content||''}</textarea></div>
+      <div class="m-row m-row-2">
+        <div><label class="m-field-label">Tag (optionnel)</label><input class="m-input" id="newsTag" value="${item?.tag||''}" placeholder="Ex: Nouveau, Important"></div>
+        <div><label class="m-field-label">Type de tag</label><select class="m-input" id="newsTagType">
           ${tagTypes.map(t=>`<option value="${t.val}"${item?.tag_type===t.val?' selected':''}>${t.label}</option>`).join('')}
         </select></div>
       </div>
-      <div class="fg"><label class="fl">Image (URL, optionnel)</label><input class="fi" id="newsImage" value="${item?.image_url||''}" placeholder="https://..."></div>
-      <div class="fg"><label class="fl">Date de publication</label><input class="fi" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toISOString().split('T')[0]}"></div>
+      <div><label class="m-field-label">Image (URL, optionnel)</label><input class="m-input" id="newsImage" value="${item?.image_url||''}" placeholder="https://..."></div>
+      <div><label class="m-field-label">Date de publication</label><input class="m-input" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toISOString().split('T')[0]}"></div>
     </div>
-    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
+    <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('newsModal').remove()">Annuler</button><button class="m-btn m-btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
   </div>`;
   document.body.appendChild(ov);
   document.getElementById('newsTitle').focus();
@@ -449,7 +451,7 @@ async function saveNewsItem(id){
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({title,content,tag:tag||null,tag_type,image_url:image_url||null,published_at})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('newsModal')?.remove();
     GendaUI.toast(id?'Article modifié':'Article publié','success');
     loadSiteSection();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Publier';}
@@ -543,19 +545,20 @@ async function saveSEO(){
 // Testimonials CRUD
 function openTestimonialModal(item){
   const isEdit=!!item;
-  const ov=document.createElement('div');ov.className='modal-overlay';
-  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier le témoignage':'Ajouter un témoignage'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="modal-body">
-      <div class="fg"><label class="fl">Nom du client *</label><input class="fi" id="testAuthor" value="${item?.author_name||''}" placeholder="Ex: Marie D."></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="fg"><label class="fl">Fonction / Contexte</label><input class="fi" id="testRole" value="${item?.author_role||''}" placeholder="Ex: Patiente depuis 2020"></div>
-        <div class="fg"><label class="fl">Note (1-5)</label><select class="fi" id="testRating" style="padding:8px 12px">
+  const ov=document.createElement('div');ov.className='m-overlay open';ov.id='testModal';
+  ov.innerHTML=`<div class="m-dialog m-md">
+    <div class="m-header-simple"><h3>${isEdit?'Modifier le témoignage':'Ajouter un témoignage'}</h3><button class="m-close" onclick="document.getElementById('testModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="m-body">
+      <div><label class="m-field-label">Nom du client *</label><input class="m-input" id="testAuthor" value="${item?.author_name||''}" placeholder="Ex: Marie D."></div>
+      <div class="m-row m-row-2">
+        <div><label class="m-field-label">Fonction / Contexte</label><input class="m-input" id="testRole" value="${item?.author_role||''}" placeholder="Ex: Patiente depuis 2020"></div>
+        <div><label class="m-field-label">Note (1-5)</label><select class="m-input" id="testRating">
           ${[5,4,3,2,1].map(n=>'<option value="'+n+'"'+(item?.rating===n?' selected':(!item&&n===5?' selected':''))+'>'+(Array.from({length:n},()=>'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg>').join(''))+' ('+n+')</option>').join('')}
         </select></div>
       </div>
-      <div class="fg"><label class="fl">Témoignage *</label><textarea class="fi" id="testContent" style="min-height:100px;resize:vertical" placeholder="Ce que le client dit de votre cabinet...">${item?.content||''}</textarea></div>
+      <div><label class="m-field-label">Témoignage *</label><textarea class="m-input" id="testContent" style="min-height:100px;resize:vertical" placeholder="Ce que le client dit de votre cabinet...">${item?.content||''}</textarea></div>
     </div>
-    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="testSaveBtn" onclick="saveTestimonial('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
+    <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('testModal').remove()">Annuler</button><button class="m-btn m-btn-primary" id="testSaveBtn" onclick="saveTestimonial('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
   document.body.appendChild(ov);
   document.getElementById('testAuthor').focus();
@@ -575,7 +578,7 @@ async function saveTestimonial(id){
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({author_name,author_role:author_role||null,author_initials:initials,content,rating})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('testModal')?.remove();
     GendaUI.toast(id?'Témoignage modifié':'Témoignage ajouté','success');
     loadSiteSection();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Ajouter';}
@@ -604,19 +607,20 @@ async function deleteTestimonial(id){
 function openValueModal(item){
   const isEdit=!!item;
   const icons=['<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 6 3 6 3s3 0 6-3v-5"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 1 8-1.5 5-4.5 8-9 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2"/><path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/></svg>','<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>'];
-  const ov=document.createElement('div');ov.className='modal-overlay';
-  ov.innerHTML=`<div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la valeur':'Ajouter une valeur'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="modal-body">
-      <div class="fg"><label class="fl">Icône</label>
+  const ov=document.createElement('div');ov.className='m-overlay open';ov.id='valModal';
+  ov.innerHTML=`<div class="m-dialog m-sm">
+    <div class="m-header-simple"><h3>${isEdit?'Modifier la valeur':'Ajouter une valeur'}</h3><button class="m-close" onclick="document.getElementById('valModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="m-body">
+      <div><label class="m-field-label">Icône</label>
         <div id="valIconPicker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
           ${icons.map(ic=>'<button type="button" onclick="document.getElementById(\'valIcon\').value=\''+ic+'\';document.querySelectorAll(\'#valIconPicker button\').forEach(b=>b.style.outline=\'\');this.style.outline=\'2px solid var(--primary)\'" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border-light);background:var(--white);font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s'+(item?.icon===ic?';outline:2px solid var(--primary)':'')+'">'+ic+'</button>').join('')}
         </div>
-        <input class="fi" id="valIcon" value="${item?.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}" placeholder="Emoji ou texte" style="max-width:80px">
+        <input class="m-input" id="valIcon" value="${item?.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}" placeholder="Emoji ou texte" style="max-width:80px">
       </div>
-      <div class="fg"><label class="fl">Titre *</label><input class="fi" id="valTitle" value="${item?.title||''}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
-      <div class="fg"><label class="fl">Description *</label><input class="fi" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque patient est unique, nous prenons le temps"></div>
+      <div><label class="m-field-label">Titre *</label><input class="m-input" id="valTitle" value="${item?.title||''}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
+      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque patient est unique, nous prenons le temps"></div>
     </div>
-    <div class="modal-foot"><button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
+    <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('valModal').remove()">Annuler</button><button class="m-btn m-btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
   document.body.appendChild(ov);
   document.getElementById('valTitle').focus();
@@ -634,7 +638,7 @@ async function saveValue(id){
     const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({icon,title,description})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('valModal')?.remove();
     GendaUI.toast(id?'Valeur modifiée':'Valeur ajoutée','success');
     loadSiteSection();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');btn.disabled=false;btn.textContent=id?'Enregistrer':'Ajouter';}
