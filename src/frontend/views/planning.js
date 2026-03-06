@@ -829,7 +829,8 @@ async function _doCheckImpact() {
   zone.innerHTML = `<h4>Impact</h4><div style="text-align:center;padding:12px;color:var(--text-4);font-size:.75rem"><div class="spinner" style="margin:0 auto 8px;width:18px;height:18px"></div>Analyse…</div>`;
 
   try {
-    const r = await fetch(`/api/planning/impact?practitioner_id=${pracId}&date_from=${from}&date_to=${to}`, {
+    const { period: absPeriod, period_end: absPeriodEnd } = planGetSelectedPeriods();
+    const r = await fetch(`/api/planning/impact?practitioner_id=${pracId}&date_from=${from}&date_to=${to}&period=${absPeriod}&period_end=${absPeriodEnd}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
     const data = await r.json();

@@ -680,7 +680,7 @@ router.get('/stats', async (req, res, next) => {
 router.get('/impact', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { practitioner_id, date_from, date_to } = req.query;
+    const { practitioner_id, date_from, date_to, period, period_end } = req.query;
 
     if (!practitioner_id || !date_from || !date_to) {
       return res.status(400).json({ error: 'practitioner_id, date_from, date_to requis' });
@@ -688,7 +688,8 @@ router.get('/impact', async (req, res, next) => {
 
     const bookings = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.status,
-              c.full_name AS client_name, s.name AS service_name
+              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
+              s.name AS service_name
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -698,6 +699,28 @@ router.get('/impact', async (req, res, next) => {
        ORDER BY b.start_at`,
       [bid, practitioner_id, date_from, date_to]
     );
+
+    // Filter by half-day period if provided (am = before 13:00, pm = 13:00+)
+    const absPeriod = period || 'full';
+    const absPeriodEnd = period_end || absPeriod;
+    let filtered = bookings.rows;
+    if (absPeriod !== 'full' || absPeriodEnd !== 'full') {
+      filtered = bookings.rows.filter(b => {
+        const bxlH = new Date(b.start_at).toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false, hour: '2-digit' });
+        const hour = parseInt(bxlH) || 0;
+        const dateStr = new Date(b.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        // Determine effective period for this booking's date
+        let dayPeriod;
+        if (date_from === date_to) dayPeriod = absPeriod;
+        else if (dateStr === date_from) dayPeriod = absPeriod;
+        else if (dateStr === date_to) dayPeriod = absPeriodEnd;
+        else dayPeriod = 'full'; // middle day
+        if (dayPeriod === 'full') return true;
+        if (dayPeriod === 'am') return hour < 13;
+        if (dayPeriod === 'pm') return hour >= 13;
+        return true;
+      });
+    }
 
     // Coverage check: which services are ONLY covered by this practitioner?
     const pracServices = await queryWithRLS(bid,
@@ -722,8 +745,8 @@ router.get('/impact', async (req, res, next) => {
     }
 
     res.json({
-      impacted_bookings: bookings.rows,
-      count: bookings.rows.length,
+      impacted_bookings: filtered,
+      count: filtered.length,
       coverage: uncoveredServices.length === 0 ? 'ok' : 'at_risk',
       uncovered_services: uncoveredServices
     });
