@@ -550,7 +550,7 @@ function renderScheduleEditor() {
       h += `<span class="day-closed">Fermé</span>`;
     } else {
       slots.forEach((s, i) => {
-        h += `<span class="slot-chip">${(s.start_time || '').slice(0, 5)} – ${(s.end_time || '').slice(0, 5)}<button class="remove-slot" onclick="teamRemoveSlot(${d},${i})">${ICONS.close}</button></span>`;
+        h += `<span class="slot-chip"><span class="slot-chip-text" onclick="teamEditSlot(${d},${i})" title="Cliquer pour modifier">${(s.start_time || '').slice(0, 5)} – ${(s.end_time || '').slice(0, 5)}</span><button class="remove-slot" onclick="teamRemoveSlot(${d},${i})">${ICONS.close}</button></span>`;
       });
     }
     h += `<button class="add-slot-btn" onclick="teamAddSlot(${d})">+ Ajouter</button>
@@ -580,6 +580,29 @@ function teamConfirmAddSlot(day) {
   if (!teamEditSchedule[day]) teamEditSchedule[day] = [];
   teamEditSchedule[day].push({ start_time: st, end_time: en });
   teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  document.getElementById('teamSlotModal')?.remove();
+  document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
+}
+
+function teamEditSlot(day, idx) {
+  const slot = teamEditSchedule[day]?.[idx];
+  if (!slot) return;
+  const st = (slot.start_time || '09:00:00').slice(0, 5);
+  const en = (slot.end_time || '18:00:00').slice(0, 5);
+
+  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
+    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="time" class="m-input" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="tm_slot_end" value="${en}"></div></div>
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});document.getElementById('teamSlotModal').remove()" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend', m);
+}
+
+function teamConfirmEditSlot(day, idx) {
+  const st = document.getElementById('tm_slot_start').value + ':00';
+  const en = document.getElementById('tm_slot_end').value + ':00';
+  if (teamEditSchedule[day] && teamEditSchedule[day][idx]) {
+    teamEditSchedule[day][idx] = { start_time: st, end_time: en };
+    teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }
   document.getElementById('teamSlotModal')?.remove();
   document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
 }
@@ -767,9 +790,33 @@ async function pRemovePhoto(id) {
 
 async function deactivatePract(id) {
   try {
+    // First call: check for future bookings (no query params → 409 if bookings exist)
     const r = await fetch(`/api/practitioners/${id}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
-    if (!r.ok) throw new Error((await r.json()).error);
-    GendaUI.toast(sectorLabels.practitioner + ' désactivé', 'success');
+
+    if (r.status === 409) {
+      const data = await r.json();
+      const count = data.future_bookings_count || 0;
+
+      // Step 1: Confirm deactivation
+      if (!confirm(`Ce ${sectorLabels.practitioner.toLowerCase()} a ${count} RDV à venir.\n\nVoulez-vous quand même le désactiver ?`)) return;
+
+      // Step 2: Ask about the bookings
+      const cancelThem = confirm(`Souhaitez-vous annuler les ${count} RDV à venir ?\n\n• OK = Annuler les RDV\n• Annuler = Garder les RDV tels quels`);
+
+      const qp = cancelThem ? '?cancel_bookings=true' : '?keep_bookings=true';
+      const r2 = await fetch(`/api/practitioners/${id}${qp}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      if (!r2.ok) throw new Error((await r2.json()).error);
+      const result = await r2.json();
+      if (result.cancelled_count > 0) {
+        GendaUI.toast(`${sectorLabels.practitioner} désactivé, ${result.cancelled_count} RDV annulés`, 'success');
+      } else {
+        GendaUI.toast(sectorLabels.practitioner + ' désactivé (RDV conservés)', 'success');
+      }
+    } else if (!r.ok) {
+      throw new Error((await r.json()).error);
+    } else {
+      GendaUI.toast(sectorLabels.practitioner + ' désactivé', 'success');
+    }
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
 }
@@ -989,6 +1036,7 @@ bridge({
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
+  teamEditSlot, teamConfirmEditSlot,
   teamToggleService, teamToggleCatServices, teamToggleAllServices
 });
 
@@ -999,5 +1047,6 @@ export {
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
+  teamEditSlot, teamConfirmEditSlot,
   teamToggleService, teamToggleCatServices, teamToggleAllServices
 };

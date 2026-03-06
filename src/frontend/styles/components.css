@@ -431,6 +431,8 @@
 .slot-chip:hover{background:var(--primary-soft)}
 .slot-chip .remove-slot{background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--primary);padding:0 2px;opacity:.4;transition:opacity .15s}
 .slot-chip .remove-slot:hover{opacity:1}
+.slot-chip-text{cursor:pointer;border-bottom:1px dashed transparent;transition:border-color .15s}
+.slot-chip:hover .slot-chip-text{border-bottom-color:var(--primary)}
 .add-slot-btn{padding:5px 12px;border:1.5px dashed var(--border);border-radius:7px;font-size:.75rem;color:var(--text-4);cursor:pointer;background:transparent;font-family:var(--sans);transition:var(--transition)}
 .add-slot-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
 .day-closed{font-size:.78rem;color:var(--text-4);font-style:italic}

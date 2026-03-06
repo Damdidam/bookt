@@ -679,12 +679,48 @@ router.patch('/:id', requireOwner, async (req, res, next) => {
 
 // ============================================================
 // DELETE /api/practitioners/:id — deactivate practitioner
+// Checks for future bookings; returns 409 if found (unless
+// ?cancel_bookings=true or ?keep_bookings=true is passed).
 // ============================================================
 router.delete('/:id', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
     const pracId = req.params.id;
+    const cancelBookings = req.query.cancel_bookings === 'true';
+    const keepBookings = req.query.keep_bookings === 'true';
 
+    // Count future active bookings for this practitioner
+    const futureRes = await queryWithRLS(bid,
+      `SELECT COUNT(*)::int AS cnt FROM bookings
+       WHERE practitioner_id = $1 AND business_id = $2
+       AND start_at > NOW()
+       AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+      [pracId, bid]
+    );
+    const futureCount = futureRes.rows[0].cnt;
+
+    // If future bookings exist and no explicit choice made → 409 with count
+    if (futureCount > 0 && !cancelBookings && !keepBookings) {
+      return res.status(409).json({
+        error: `Ce praticien a ${futureCount} RDV à venir.`,
+        future_bookings_count: futureCount
+      });
+    }
+
+    // Cancel future bookings if requested
+    let cancelledCount = 0;
+    if (cancelBookings && futureCount > 0) {
+      const cancelRes = await queryWithRLS(bid,
+        `UPDATE bookings SET status = 'cancelled', updated_at = NOW()
+         WHERE practitioner_id = $1 AND business_id = $2
+         AND start_at > NOW()
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+        [pracId, bid]
+      );
+      cancelledCount = cancelRes.rowCount;
+    }
+
+    // Deactivate the practitioner
     await queryWithRLS(bid,
       `UPDATE practitioners SET is_active = false, booking_enabled = false, updated_at = NOW()
        WHERE id = $1 AND business_id = $2`,
@@ -693,7 +729,7 @@ router.delete('/:id', requireOwner, async (req, res, next) => {
 
     // Keep practitioner_services intact so competencies are preserved on reactivation
 
-    res.json({ deleted: true });
+    res.json({ deleted: true, cancelled_count: cancelledCount, future_bookings_kept: keepBookings ? futureCount : 0 });
   } catch (err) { next(err); }
 });
 
