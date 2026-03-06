@@ -110,44 +110,44 @@ async function openInvoiceModal(type='invoice'){
   const title=isQuote?'Nouveau devis':'Nouvelle facture';
 
   const modal=document.createElement('div');
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML=`<div style="background:var(--white);border-radius:var(--radius);padding:28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <h3 style="font-size:1.1rem;font-weight:700;color:var(--text);margin:0">${title}</h3>
-      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  modal.className='m-overlay open';modal.id='invModal';
+  modal.innerHTML=`<div class="m-dialog m-md">
+    <div class="m-header-simple">
+      <h3>${title}</h3>
+      <button class="m-close" onclick="document.getElementById('invModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
 
-    <div style="display:grid;gap:12px">
+    <div class="m-body" style="display:grid;gap:12px">
       <div>
-        <label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Client</label>
-        <select id="invClient" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+        <label class="m-field-label">Client</label>
+        <select class="m-input" id="invClient">
           <option value="">\u2014 Sélectionner un client \u2014</option>
           ${clients.map(c=>`<option value="${c.id}">${esc(c.full_name)}${c.email?' ('+esc(c.email)+')':''}</option>`).join('')}
         </select>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="m-row m-row-2">
         <div>
-          <label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Taux TVA (%)</label>
-          <select id="invVat" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+          <label class="m-field-label">Taux TVA (%)</label>
+          <select class="m-input" id="invVat">
             <option value="21">21% (standard)</option>
             <option value="6">6% (réduit)</option>
             <option value="0">0% (exempté)</option>
           </select>
         </div>
         <div>
-          <label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">${isQuote?'Validité (jours)':'Échéance (jours)'}</label>
-          <input id="invDueDays" type="number" value="30" min="0" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+          <label class="m-field-label">${isQuote?'Validité (jours)':'Échéance (jours)'}</label>
+          <input class="m-input" id="invDueDays" type="number" value="30" min="0">
         </div>
       </div>
 
       <div>
-        <label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">TVA client (optionnel)</label>
-        <input id="invClientBce" placeholder="BE0XXX.XXX.XXX" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+        <label class="m-field-label">TVA client (optionnel)</label>
+        <input class="m-input" id="invClientBce" placeholder="BE0XXX.XXX.XXX">
       </div>
 
       <div>
-        <label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:6px">Lignes</label>
+        <label class="m-field-label">Lignes</label>
         <div id="invLines"></div>
         <button onclick="addInvoiceLine()" style="margin-top:6px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;cursor:pointer">+ Ajouter une ligne</button>
       </div>
@@ -155,14 +155,15 @@ async function openInvoiceModal(type='invoice'){
       <div id="invTotals" style="text-align:right;padding:10px 0;border-top:1px solid var(--border)"></div>
 
       <div>
-        <label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Notes</label>
-        <textarea id="invNotes" rows="2" placeholder="Conditions, remarques..." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;resize:vertical"></textarea>
+        <label class="m-field-label">Notes</label>
+        <textarea class="m-input" id="invNotes" rows="2" placeholder="Conditions, remarques..." style="resize:vertical"></textarea>
       </div>
     </div>
 
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
-      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;cursor:pointer">Annuler</button>
-      <button onclick="saveInvoice('${type}')" style="padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.82rem;font-weight:600;cursor:pointer">${isQuote?'Créer le devis':'Créer la facture'}</button>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="document.getElementById('invModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-primary" onclick="saveInvoice('${type}')">${isQuote?'Créer le devis':'Créer la facture'}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -227,7 +228,7 @@ async function saveInvoice(type){
       notes:document.getElementById('invNotes')?.value?.trim()||undefined
     };
     const r=await api.post('/api/invoices',body);
-    document.querySelector('div[style*="position:fixed"][style*="inset:0"]')?.remove();
+    document.getElementById('invModal')?.remove();
     GendaUI.toast(type==='quote'?'Devis créé !':'Facture créée !','success');
     loadInvoices();
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}

@@ -424,7 +424,7 @@ function historyDetail(entry) {
 async function loadBookingHistory() {
   const el = document.getElementById('mHistoryTimeline');
   if (!el) return;
-  el.innerHTML = '<div class="cal-empty" style="padding:20px;opacity:.6">Chargement...</div>';
+  el.innerHTML = '<div class="m-empty" style="padding:20px;opacity:.6">Chargement...</div>';
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/history`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
@@ -432,7 +432,7 @@ async function loadBookingHistory() {
     if (!r.ok) throw new Error('Erreur');
     const { history } = await r.json();
     if (!history || history.length === 0) {
-      el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Aucun historique</div>';
+      el.innerHTML = '<div class="m-empty"><div class="m-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Aucun historique</div>';
       return;
     }
     el.innerHTML = history.map(entry => {
@@ -451,7 +451,7 @@ async function loadBookingHistory() {
       </div>`;
     }).join('');
   } catch (e) {
-    el.innerHTML = '<div class="cal-empty" style="color:var(--red)">Erreur de chargement</div>';
+    el.innerHTML = '<div class="m-empty" style="color:var(--red)">Erreur de chargement</div>';
   }
 }
 
@@ -464,7 +464,7 @@ function fcRenderDocs(booking) {
   const docs = calState.fcDetailData.documents || [];
 
   if (docs.length === 0) {
-    listEl.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">📄</div>Aucun document envoyé</div>';
+    listEl.innerHTML = '<div class="m-empty"><div class="m-empty-icon">📄</div>Aucun document envoyé</div>';
   } else {
     const stColors = { pending: '#9C958E', sent: '#E6A817', viewed: '#3B82F6', completed: '#1B7A42' };
     const stLabels = { pending: 'En attente', sent: 'Envoyé', viewed: 'Consulté', completed: 'Complété' };

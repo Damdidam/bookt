@@ -78,37 +78,38 @@ async function openDocModal(type,editId){
   const isEdit=!!existing;
   const title=isEdit?'Modifier le document':type==='info'?"Nouvelle fiche d'info":type==='form'?'Nouveau formulaire':'Nouveau consentement';
   const modal=document.createElement('div');
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML=`<div style="background:var(--white);border-radius:var(--radius);padding:28px;width:620px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <h3 style="font-size:1.1rem;font-weight:700;margin:0">${title}</h3>
-      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer">&times;</button>
+  modal.className='m-overlay open';modal.id='docModal';
+  modal.innerHTML=`<div class="m-dialog m-lg">
+    <div class="m-header-simple">
+      <h3>${title}</h3>
+      <button class="m-close" onclick="document.getElementById('docModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div style="display:grid;gap:12px">
-      <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Nom du document *</label>
-        <input id="docName" value="${esc(existing?.name||'')}" placeholder="Ex: Fiche anamn&egrave;se premi&egrave;re consultation" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Prestation li&eacute;e</label>
-          <select id="docService" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+    <div class="m-body" style="display:grid;gap:12px">
+      <div><label class="m-field-label">Nom du document *</label>
+        <input class="m-input" id="docName" value="${esc(existing?.name||'')}" placeholder="Ex: Fiche anamn&egrave;se premi&egrave;re consultation"></div>
+      <div class="m-row m-row-2">
+        <div><label class="m-field-label">Prestation li&eacute;e</label>
+          <select class="m-input" id="docService">
             <option value="">Toutes les prestations</option>
             ${services.map(s=>`<option value="${s.id}" ${existing?.service_id===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
           </select></div>
-        <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Envoyer J-</label>
-          <input id="docDays" type="number" min="1" max="14" value="${existing?.send_days_before||2}" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem">
+        <div><label class="m-field-label">Envoyer J-</label>
+          <input class="m-input" id="docDays" type="number" min="1" max="14" value="${existing?.send_days_before||2}">
           <div style="font-size:.68rem;color:var(--text-4);margin-top:2px">Jours avant le RDV</div></div>
       </div>
-      <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Objet email (optionnel)</label>
-        <input id="docSubject" value="${esc(existing?.subject||'')}" placeholder="Par d&eacute;faut: nom du document + nom du cabinet" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem"></div>
-      <div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:4px">Contenu *</label>
-        <textarea id="docContent" rows="6" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;resize:vertical;font-family:inherit">${esc(existing?.content_html||'')}</textarea>
+      <div><label class="m-field-label">Objet email (optionnel)</label>
+        <input class="m-input" id="docSubject" value="${esc(existing?.subject||'')}" placeholder="Par d&eacute;faut: nom du document + nom du cabinet"></div>
+      <div><label class="m-field-label">Contenu *</label>
+        <textarea class="m-input" id="docContent" rows="6" style="resize:vertical;font-family:inherit">${esc(existing?.content_html||'')}</textarea>
         <div style="font-size:.68rem;color:var(--text-4);margin-top:2px">HTML accept&eacute; : h2, p, ul, li, strong</div></div>
-      ${type!=='info'?`<div><label style="font-size:.75rem;font-weight:600;color:var(--text-3);text-transform:uppercase;display:block;margin-bottom:6px">Champs du formulaire</label>
+      ${type!=='info'?`<div><label class="m-field-label">Champs du formulaire</label>
         <div id="docFields"></div>
         <button onclick="addDocField()" style="margin-top:6px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;cursor:pointer">+ Ajouter un champ</button></div>`:''}
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px">
-      <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:9px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;cursor:pointer">Annuler</button>
-      <button onclick="saveDoc('${type}','${editId||''}')" style="padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.82rem;font-weight:600;cursor:pointer">${isEdit?'Enregistrer':'Cr&eacute;er'}</button>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="document.getElementById('docModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-primary" onclick="saveDoc('${type}','${editId||''}')">${isEdit?'Enregistrer':'Cr&eacute;er'}</button>
     </div></div>`;
   document.body.appendChild(modal);
   if(type!=='info'&&existing?.form_fields?.length>0){existing.form_fields.forEach(f=>addDocField(f));}
@@ -159,7 +160,7 @@ async function saveDoc(type,editId){
   try{
     if(editId){await api.patch(`/api/documents/${editId}`,body);}
     else{await api.post('/api/documents',body);}
-    document.querySelector('div[style*="position:fixed"][style*="inset:0"]')?.remove();
+    document.getElementById('docModal')?.remove();
     GendaUI.toast(editId?'Document modifi\u00e9':'Document cr\u00e9\u00e9 !','success');loadDocuments();
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }

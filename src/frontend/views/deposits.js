@@ -128,18 +128,19 @@ function showDepositAudit(bookingId){
   const depStatusLabels={pending:'En attente',paid:'Pay\u00e9',refunded:'Rembours\u00e9',cancelled:'Conserv\u00e9'};
 
   const modal=document.createElement('div');
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center';
-  modal.onclick=e=>{if(e.target===modal)modal.remove();};
-  modal.innerHTML=`<div style="background:var(--white);border-radius:var(--radius);padding:24px;width:500px;max-width:95vw;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <h3 style="font-size:1rem;font-weight:700;color:var(--text);margin:0">Historique acompte</h3>
-      <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-3)">\u00d7</button>
+  modal.className='m-overlay open';modal.id='depAuditModal';
+  modal.innerHTML=`<div class="m-dialog m-md">
+    <div class="m-header-simple">
+      <h3>Historique acompte</h3>
+      <button class="m-close" onclick="document.getElementById('depAuditModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
-      <div style="font-size:.85rem;font-weight:600">${esc(dep.client_name)} \u2014 ${esc(dep.service_name)}</div>
-      <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
+    <div class="m-body">
+      <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
+        <div style="font-size:.85rem;font-weight:600">${esc(dep.client_name)} \u2014 ${esc(dep.service_name)}</div>
+        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
+      </div>
+      ${auditHtml}
     </div>
-    ${auditHtml}
   </div>`;
   document.body.appendChild(modal);
 }

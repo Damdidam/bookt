@@ -437,7 +437,7 @@ function qcRenderNotes() {
   const el = document.getElementById('qcNoteList');
   if (!el) return;
   if (qcNotes.length === 0) {
-    el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">📝</div>Aucune note pour l\'instant</div>';
+    el.innerHTML = '<div class="m-empty"><div class="m-empty-icon">📝</div>Aucune note pour l\'instant</div>';
     return;
   }
   el.innerHTML = qcNotes.map((n, i) => `<div class="note-card${n.is_pinned ? ' pinned' : ''}">
@@ -468,7 +468,7 @@ function qcRenderTodos() {
   const el = document.getElementById('qcTodoList');
   if (!el) return;
   if (qcTodos.length === 0) {
-    el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">✅</div>Aucune tâche pour l\'instant</div>';
+    el.innerHTML = '<div class="m-empty"><div class="m-empty-icon">✅</div>Aucune tâche pour l\'instant</div>';
     return;
   }
   el.innerHTML = qcTodos.map((t, i) => `<div class="todo-item">
@@ -499,7 +499,7 @@ function qcRenderReminders() {
   const el = document.getElementById('qcReminderList');
   if (!el) return;
   if (qcReminders.length === 0) {
-    el.innerHTML = '<div class="cal-empty"><div class="cal-empty-icon">⏰</div>Aucun rappel pour l\'instant</div>';
+    el.innerHTML = '<div class="m-empty"><div class="m-empty-icon">⏰</div>Aucun rappel pour l\'instant</div>';
     return;
   }
   el.innerHTML = qcReminders.map((r, i) => `<div class="reminder-card">

@@ -177,14 +177,8 @@
 .svc-tpl-picker-custom{border-top:1px solid var(--border)}
 .svc-tpl-picker-custom .svc-tpl-picker-name{color:var(--primary);font-weight:600}
 
-/* Service modal — wider & flex layout */
-.svc-modal{max-width:620px;display:flex;flex-direction:column;max-height:90vh}
-.svc-modal .modal-h{background:linear-gradient(135deg,#0D7377 0%,#0A5E61 100%);color:#fff;border-bottom:none;border-radius:16px 16px 0 0}
-.svc-modal .modal-h h3{color:#fff}
-.svc-modal .modal-h .close{color:rgba(255,255,255,.6)}
-.svc-modal .modal-h .close:hover{background:rgba(255,255,255,.15);color:#fff}
-.svc-modal .modal-body{flex:1;overflow-y:auto;min-height:0;padding:0}
-.svc-modal .modal-foot{flex-shrink:0}
+/* Service modal — wider layout override */
+.svc-modal{max-width:620px}
 /* Service modal sections */
 .svc-section{padding:20px 24px;border-bottom:1px solid var(--border-light)}
 .svc-section:last-child{border-bottom:none}
