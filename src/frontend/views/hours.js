@@ -1,25 +1,30 @@
 /**
  * Hours / Disponibilités view module.
+ * Manages practitioner weekly schedules, exceptions, and business holidays.
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 
 const DAYS_WEEK=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 let scheduleData={};
+let holidaysData=[];
 
 async function loadHours(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
-    const[ar,pr,er]=await Promise.all([
+    const year = new Date().getFullYear();
+    const[ar,pr,er,hr]=await Promise.all([
       fetch('/api/availabilities',{headers:{'Authorization':'Bearer '+api.getToken()}}),
       fetch('/api/dashboard',{headers:{'Authorization':'Bearer '+api.getToken()}}),
-      fetch('/api/availabilities/exceptions',{headers:{'Authorization':'Bearer '+api.getToken()}})
+      fetch('/api/availabilities/exceptions',{headers:{'Authorization':'Bearer '+api.getToken()}}),
+      fetch(`/api/availabilities/holidays?year=${year}`,{headers:{'Authorization':'Bearer '+api.getToken()}})
     ]);
-    const ad=await ar.json(),pd=await pr.json(),ed=await er.json();
+    const ad=await ar.json(),pd=await pr.json(),ed=await er.json(),hd=await hr.json();
     const avails=ad.availabilities||{};
     const practs=pd.practitioners||[];
     const excepts=ed.exceptions||[];
+    holidaysData=hd.holidays||[];
     scheduleData={};
     practs.forEach(p=>{
       const pa=avails[p.id];
@@ -41,6 +46,7 @@ async function loadHours(){
       h+=`</div></div>`;
     });
 
+    // Exceptions section
     h+=`<div class="card"><div class="card-h"><h3>Exceptions & congés</h3><button class="btn-primary btn-sm" onclick="openExceptionModal()">+ Ajouter</button></div>`;
     if(excepts.length===0){h+=`<div class="empty">Aucune exception planifiée</div>`;}
     else{h+=`<div style="padding:10px 18px">`;excepts.forEach(ex=>{
@@ -48,6 +54,21 @@ async function loadHours(){
       h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><div><span style="font-size:.85rem;font-weight:600">${dt}</span><span style="font-size:.78rem;color:var(--text-4);margin-left:8px">${ex.practitioner_name} — ${ex.type==='closed'?'Fermé':ex.start_time?.slice(0,5)+' – '+ex.end_time?.slice(0,5)}</span>${ex.note?`<span style="font-size:.72rem;color:var(--text-4);margin-left:8px">(${ex.note})</span>`:''}</div><button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ?'))deleteException('${ex.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
     });h+=`</div>`;}
     h+=`</div>`;
+
+    // Holidays section
+    h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;margin-right:6px;vertical-align:middle"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>Jours fériés ${year}</h3><div style="display:flex;gap:6px"><button class="btn-outline btn-sm" onclick="prefillBelgianHolidays(${year})" style="font-size:.72rem">Pré-remplir fériés belges</button><button class="btn-primary btn-sm" onclick="openHolidayModal()">+ Ajouter</button></div></div>`;
+    if(holidaysData.length===0){
+      h+=`<div class="empty" style="padding:20px;text-align:center"><p style="font-size:.82rem;color:var(--text-4);margin-bottom:10px">Aucun jour férié enregistré pour ${year}</p><button class="btn-outline btn-sm" onclick="prefillBelgianHolidays(${year})" style="font-size:.78rem">Pré-remplir les jours fériés belges</button></div>`;
+    } else {
+      h+=`<div style="padding:10px 18px">`;
+      holidaysData.forEach(hol => {
+        const dt=new Date(hol.date).toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'long'});
+        h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-light)"><div style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" fill="none" stroke="#C2410C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span style="font-size:.85rem;font-weight:600">${dt}</span><span style="font-size:.78rem;color:var(--text-4)">${hol.name}</span></div><button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ?'))deleteHoliday('${hol.id}')" style="padding:3px 8px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
+      });
+      h+=`</div>`;
+    }
+    h+=`</div>`;
+
     c.innerHTML=h;
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
@@ -106,6 +127,66 @@ async function deleteException(id){
   try{await fetch(`/api/availabilities/exceptions/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});GendaUI.toast('Exception supprimée','success');loadHours();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
-bridge({ loadHours, addSlot, confirmAddSlot, removeSlot, saveSchedule, openExceptionModal, saveException, deleteException });
+// ===== HOLIDAYS =====
 
-export { loadHours, addSlot, confirmAddSlot, removeSlot, saveSchedule, openExceptionModal, saveException, deleteException };
+function openHolidayModal() {
+  let m=`<div class="modal-overlay"><div class="modal" style="max-width:400px"><div class="modal-h"><h3>Nouveau jour férié</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">
+    <div class="field"><label>Date</label><input type="date" id="hol_date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div class="field"><label>Nom</label><input id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
+  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+}
+
+async function saveHoliday() {
+  const date = document.getElementById('hol_date')?.value;
+  const name = document.getElementById('hol_name')?.value;
+  if (!date || !name) { GendaUI.toast('Date et nom requis', 'error'); return; }
+  try {
+    const r = await fetch('/api/availabilities/holidays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ date, name })
+    });
+    if (!r.ok) throw new Error((await r.json()).error);
+    document.querySelector('.modal-overlay')?.remove();
+    GendaUI.toast('Jour férié ajouté', 'success');
+    loadHours();
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+
+async function deleteHoliday(id) {
+  try {
+    await fetch(`/api/availabilities/holidays/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    GendaUI.toast('Jour férié supprimé', 'success');
+    loadHours();
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+
+async function prefillBelgianHolidays(year) {
+  try {
+    const r = await fetch('/api/availabilities/holidays/prefill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ year })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    GendaUI.toast(`${data.inserted} jour${data.inserted > 1 ? 's' : ''} férié${data.inserted > 1 ? 's' : ''} ajouté${data.inserted > 1 ? 's' : ''} (${data.total} au total pour ${year})`, 'success');
+    loadHours();
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+
+bridge({
+  loadHours, addSlot, confirmAddSlot, removeSlot, saveSchedule,
+  openExceptionModal, saveException, deleteException,
+  openHolidayModal, saveHoliday, deleteHoliday, prefillBelgianHolidays
+});
+
+export {
+  loadHours, addSlot, confirmAddSlot, removeSlot, saveSchedule,
+  openExceptionModal, saveException, deleteException,
+  openHolidayModal, saveHoliday, deleteHoliday, prefillBelgianHolidays
+};

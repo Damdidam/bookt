@@ -186,4 +186,119 @@ router.delete('/exceptions/:id', async (req, res, next) => {
   }
 });
 
+// ===== HOLIDAYS (jours fériés) =====
+
+/**
+ * Compute Easter Sunday for a given year (Anonymous Gregorian algorithm / Meeus).
+ * Returns a Date object.
+ */
+function computeEaster(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Get Belgian legal holidays for a given year.
+ * Returns array of { date: 'YYYY-MM-DD', name: '...' }
+ */
+function getBelgianHolidays(year) {
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+
+  const easter = computeEaster(year);
+
+  return [
+    { date: `${year}-01-01`, name: 'Nouvel An' },
+    { date: fmt(addDays(easter, 1)), name: 'Lundi de Pâques' },
+    { date: `${year}-05-01`, name: 'Fête du Travail' },
+    { date: fmt(addDays(easter, 39)), name: 'Ascension' },
+    { date: fmt(addDays(easter, 50)), name: 'Lundi de Pentecôte' },
+    { date: `${year}-07-21`, name: 'Fête nationale' },
+    { date: `${year}-08-15`, name: 'Assomption' },
+    { date: `${year}-11-01`, name: 'Toussaint' },
+    { date: `${year}-11-11`, name: 'Armistice' },
+    { date: `${year}-12-25`, name: 'Noël' }
+  ];
+}
+
+// GET /api/availabilities/holidays?year=2026
+router.get('/holidays', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const year = req.query.year || new Date().getFullYear();
+    const result = await queryWithRLS(bid,
+      `SELECT * FROM business_holidays
+       WHERE business_id = $1 AND EXTRACT(YEAR FROM date) = $2
+       ORDER BY date`,
+      [bid, year]
+    );
+    res.json({ holidays: result.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/availabilities/holidays — add a single holiday
+router.post('/holidays', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { date, name } = req.body;
+    if (!date || !name) return res.status(400).json({ error: 'Date et nom requis' });
+
+    const result = await queryWithRLS(bid,
+      `INSERT INTO business_holidays (business_id, date, name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (business_id, date) DO UPDATE SET name = EXCLUDED.name
+       RETURNING *`,
+      [bid, date, name]
+    );
+    res.status(201).json({ holiday: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/availabilities/holidays/:id
+router.delete('/holidays/:id', async (req, res, next) => {
+  try {
+    await queryWithRLS(req.businessId,
+      `DELETE FROM business_holidays WHERE id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
+
+// POST /api/availabilities/holidays/prefill — prefill Belgian legal holidays
+router.post('/holidays/prefill', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const year = parseInt(req.body.year) || new Date().getFullYear();
+    const holidays = getBelgianHolidays(year);
+
+    let inserted = 0;
+    for (const h of holidays) {
+      const result = await queryWithRLS(bid,
+        `INSERT INTO business_holidays (business_id, date, name)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (business_id, date) DO NOTHING
+         RETURNING id`,
+        [bid, h.date, h.name]
+      );
+      if (result.rows.length > 0) inserted++;
+    }
+
+    res.json({ inserted, total: holidays.length, year });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

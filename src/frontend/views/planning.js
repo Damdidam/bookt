@@ -1,8 +1,8 @@
 /**
- * Planning v3 — Staff Absences (PRO)
- * Monthly grid with minimalist labels, half-day support (period + period_end),
+ * Planning v4 — Staff Absences (PRO)
+ * Monthly grid with dynamic working days (from availabilities),
+ * holiday support, CSV export, email planning, minimalist labels C/M/F/A,
  * premium modal, activity logs, email notification, per-practitioner counters.
- * Weekends excluded from counters. Day-by-day overlap prevention.
  */
 import { api, sectorLabels } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
@@ -32,7 +32,10 @@ const ICONS = {
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   sunrise: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="8 6 12 2 16 6"/></svg>',
   sunset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="9" x2="12" y2="2"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="16 6 12 10 8 6"/></svg>',
-  activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+  activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>'
 };
 
 const TYPE_ICONS = { conge: ICONS.sun, maladie: ICONS.thermometer, formation: ICONS.graduationCap, autre: ICONS.pauseCircle };
@@ -48,6 +51,9 @@ let practitioners = [];
 let absences = [];
 let absenceMap = {};
 let statsData = {};
+let practitionerWorkDays = {}; // { pracId: [0,1,2,3,4] } weekdays from availabilities (0=Mon)
+let holidaysList = []; // [{ date: 'YYYY-MM-DD', name: '...' }]
+let holidaysSet = new Set(); // Set of 'YYYY-MM-DD'
 
 function initMonth() {
   const now = new Date();
@@ -57,6 +63,46 @@ function initMonth() {
 
 function monthKey() {
   return `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Convert JS Date.getDay() (0=Sun) to availabilities weekday (0=Mon).
+ */
+function toAvailWeekday(jsDate) {
+  return (jsDate.getDay() + 6) % 7;
+}
+
+/**
+ * Check if a practitioner works on a specific date.
+ * Uses practitionerWorkDays data from the availabilities table.
+ * Fallback: if no data, consider all days as working days.
+ */
+function isPracWorkDay(pracId, jsDate) {
+  // Check holidays first
+  const ds = `${jsDate.getFullYear()}-${String(jsDate.getMonth() + 1).padStart(2, '0')}-${String(jsDate.getDate()).padStart(2, '0')}`;
+  if (holidaysSet.has(ds)) return false;
+  // Check practitioner schedule
+  const days = practitionerWorkDays[pracId];
+  if (!days || days.length === 0) return true; // Fallback: all days are workdays
+  return days.includes(toAvailWeekday(jsDate));
+}
+
+/**
+ * Check if ANY practitioner works on a specific date.
+ * Used for column headers and summary row.
+ */
+function isAnybodyWorking(jsDate) {
+  const ds = `${jsDate.getFullYear()}-${String(jsDate.getMonth() + 1).padStart(2, '0')}-${String(jsDate.getDate()).padStart(2, '0')}`;
+  if (holidaysSet.has(ds)) return false;
+  return practitioners.some(p => isPracWorkDay(p.id, jsDate));
+}
+
+/**
+ * Get holiday name for a date string, or null.
+ */
+function getHolidayName(dateStr) {
+  const h = holidaysList.find(h => h.date === dateStr);
+  return h ? h.name : null;
 }
 
 /**
@@ -96,6 +142,11 @@ async function renderPlanning() {
     practitioners = (pracData.practitioners || []).filter(p => p.is_active);
     absences = absData.absences || [];
     statsData = statsResult;
+
+    // Store working days and holidays from the absences response
+    practitionerWorkDays = absData.workingDays || {};
+    holidaysList = absData.holidays || [];
+    holidaysSet = new Set(holidaysList.map(h => h.date));
 
     buildAbsenceMap();
     c.innerHTML = buildHTML();
@@ -151,6 +202,8 @@ function buildHTML() {
       <span class="plan-title">${ICONS.calendar} Planning du personnel <span class="plan-pro-badge">PRO</span></span>
     </div>
     <div style="display:flex;gap:8px">
+      <button class="btn-outline btn-sm" onclick="planExportCSV()" style="display:flex;align-items:center;gap:4px">${ICONS.download} Export</button>
+      <button class="btn-outline btn-sm" onclick="planOpenSendModal()" style="display:flex;align-items:center;gap:4px">${ICONS.send} Envoyer</button>
       <button class="btn-primary" onclick="planOpenModal()">${ICONS.plus} Nouvelle absence</button>
     </div>
   </div>`;
@@ -177,11 +230,20 @@ function buildHTML() {
   h += `<div class="plan-grid-wrap"><div class="plan-grid"><table class="plan-table"><thead><tr>`;
   h += `<th class="plan-prac-col">${esc(pracLabel)}</th>`;
   for (let d = 1; d <= daysInMonth; d++) {
-    const dow = new Date(currentYear, currentMonth, d).getDay();
-    const isWeekend = dow === 0 || dow === 6;
+    const dt = new Date(currentYear, currentMonth, d);
+    const dow = dt.getDay();
+    const anyoneWorking = isAnybodyWorking(dt);
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const holiday = getHolidayName(dateStr);
     const isToday = d === todayDay;
-    const cls = isToday ? 'plan-today' : (isWeekend ? 'plan-weekend' : '');
-    h += `<th class="${cls}">${DAY_NAMES[dow]}<br>${d}</th>`;
+
+    let cls = '';
+    if (isToday) cls = 'plan-today';
+    else if (holiday) cls = 'plan-holiday';
+    else if (!anyoneWorking) cls = 'plan-closed-day';
+
+    const tooltip = holiday ? ` title="${esc(holiday)}"` : '';
+    h += `<th class="${cls}"${tooltip}>${DAY_NAMES[dow]}<br>${d}${holiday ? '<span class="plan-holiday-dot"></span>' : ''}</th>`;
   }
   h += `</tr></thead><tbody>`;
 
@@ -214,17 +276,29 @@ function buildHTML() {
     </td>`;
 
     for (let d = 1; d <= daysInMonth; d++) {
-      const dow = new Date(currentYear, currentMonth, d).getDay();
-      const isWeekend = dow === 0 || dow === 6;
+      const dt = new Date(currentYear, currentMonth, d);
       const isToday = d === todayDay;
-      let cls = 'plan-day-cell' + (isWeekend ? ' plan-weekend' : '') + (isToday ? ' plan-today' : '');
       const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const holiday = getHolidayName(dateStr);
+      const pracWorks = isPracWorkDay(p.id, dt);
+
+      let cls = 'plan-day-cell';
+      if (isToday) cls += ' plan-today';
+      if (holiday) cls += ' plan-holiday';
+      else if (!pracWorks) cls += ' plan-off-day';
 
       let inner = '';
       const dayAbsences = pAbsMap[d] || [];
 
-      if (dayAbsences.length === 0) {
-        if (isWeekend && dow === 0) inner = `<span class="plan-avail-marker" style="opacity:.3">—</span>`;
+      if (holiday) {
+        // Holiday — show flag icon
+        inner = `<span class="plan-holiday-marker" title="${esc(holiday)}">${ICONS.flag}</span>`;
+      } else if (!pracWorks) {
+        // Non-working day for this practitioner — show dash
+        inner = `<span class="plan-avail-marker">—</span>`;
+      } else if (dayAbsences.length === 0) {
+        // Working day, no absence — empty
+        inner = '';
       } else if (dayAbsences.length === 1 && dayAbsences[0].period === 'full') {
         const a = dayAbsences[0];
         const label = TYPE_LABELS[a.type] || 'A';
@@ -255,18 +329,21 @@ function buildHTML() {
   // Summary row
   h += `<tr class="plan-summary-row"><td style="text-align:left;padding-left:16px;font-size:.72rem">Effectif</td>`;
   for (let d = 1; d <= daysInMonth; d++) {
-    const dow = new Date(currentYear, currentMonth, d).getDay();
-    if (dow === 0 || dow === 6) {
+    const dt = new Date(currentYear, currentMonth, d);
+    const anyoneWorking = isAnybodyWorking(dt);
+
+    if (!anyoneWorking) {
       h += `<td>—</td>`;
     } else {
       let present = 0;
       practitioners.forEach(p => {
+        if (!isPracWorkDay(p.id, dt)) return; // Doesn't work this day
         const dayAbs = (absenceMap[p.id] || {})[d] || [];
         const hasFullAbsence = dayAbs.some(a => a.period === 'full');
         if (!hasFullAbsence) present++;
       });
-      const total = practitioners.length;
-      const cls = present >= Math.ceil(total * 0.7) ? 'count-good' : (present >= Math.ceil(total * 0.4) ? 'count-warn' : 'count-bad');
+      const totalWorking = practitioners.filter(p => isPracWorkDay(p.id, dt)).length;
+      const cls = present >= Math.ceil(totalWorking * 0.7) ? 'count-good' : (present >= Math.ceil(totalWorking * 0.4) ? 'count-warn' : 'count-bad');
       h += `<td class="${cls}">${present}</td>`;
     }
   }
@@ -285,6 +362,91 @@ function formatDays(n) {
 function planPrevMonth() { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderPlanning(); }
 function planNextMonth() { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderPlanning(); }
 function planGoToday() { const now = new Date(); currentYear = now.getFullYear(); currentMonth = now.getMonth(); renderPlanning(); }
+
+// ── Export CSV ──
+function planExportCSV() {
+  window.open('/api/planning/export?month=' + monthKey() + '&format=csv', '_blank');
+}
+
+// ── Send planning modal ──
+function planOpenSendModal() {
+  const old = document.getElementById('planSendOverlay');
+  if (old) old.remove();
+
+  const pracOptions = practitioners.map(p =>
+    `<option value="${p.id}">${esc(p.display_name)}${p.email ? '' : ' (pas d\'email)'}</option>`
+  ).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'planSendOverlay';
+  overlay.className = 'cal-modal-overlay open';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div class="cal-modal" style="max-width:400px">
+      <div class="m-header">
+        <div class="m-header-bg" style="background:linear-gradient(135deg,#0D7377,#0A5A5E)"></div>
+        <button class="m-close" onclick="document.getElementById('planSendOverlay').remove()">${ICONS.close}</button>
+        <div class="m-header-content">
+          <div class="m-client-hero">
+            <div class="m-avatar" style="background:#0D7377">${ICONS.send}</div>
+            <div class="m-client-info">
+              <div class="m-client-name">Envoyer le planning</div>
+              <div class="m-client-meta"><span>Par email au praticien</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cal-modal-body" style="padding:20px 24px">
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title">Praticien</span><span class="m-sec-line"></span></div>
+          <select id="planSendPrac" class="m-input">${pracOptions}</select>
+        </div>
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title">Mois</span><span class="m-sec-line"></span></div>
+          <input type="month" id="planSendMonth" class="m-input" value="${monthKey()}">
+        </div>
+      </div>
+      <div class="m-bottom">
+        <div style="flex:1"></div>
+        <button class="m-btn m-btn-ghost" onclick="document.getElementById('planSendOverlay').remove()">Annuler</button>
+        <button class="m-btn m-btn-primary" id="planSendBtn" onclick="planDoSendPlanning()" style="display:flex;align-items:center;gap:4px">${ICONS.send} Envoyer</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+async function planDoSendPlanning() {
+  const btn = document.getElementById('planSendBtn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `${ICONS.send} Envoi...`;
+
+  const pracId = document.getElementById('planSendPrac')?.value;
+  const month = document.getElementById('planSendMonth')?.value;
+
+  try {
+    const r = await fetch('/api/planning/send-planning', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + api.getToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ practitioner_id: pracId, month })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      btn.innerHTML = `${ICONS.checkCircle} Envoyé`;
+      setTimeout(() => { document.getElementById('planSendOverlay')?.remove(); }, 1500);
+    } else {
+      alert(data.error || 'Erreur d\'envoi');
+      btn.disabled = false;
+      btn.innerHTML = `${ICONS.send} Envoyer`;
+    }
+  } catch (e) {
+    alert('Erreur: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = `${ICONS.send} Envoyer`;
+  }
+}
 
 // ── Premium Modal ──
 let _editingAbsenceId = null;
@@ -480,7 +642,6 @@ function planOnDatesChange() {
     // Multi-day
     if (singleEl) singleEl.style.display = 'none';
     if (multiEl) multiEl.style.display = 'block';
-    // Set defaults if nothing active
     if (!document.querySelector('#planPeriodStart .plan-period-pill.active')) {
       const first = document.querySelector('#planPeriodStart .plan-period-pill[data-period="full"]');
       if (first) first.classList.add('active');
@@ -746,7 +907,8 @@ bridge({
   planSwitchTab, planOnDatesChange,
   planSaveAbsence, planDeleteAbsence,
   planNotifyPractitioner, planCheckImpact,
-  planUpdateHeader, planLoadLogs
+  planUpdateHeader, planLoadLogs,
+  planExportCSV, planOpenSendModal, planDoSendPlanning
 });
 
 export { loadPlanning };

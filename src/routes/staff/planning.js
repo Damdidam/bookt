@@ -44,23 +44,89 @@ function periodsConflict(p1, p2) {
   return p1 === p2; // am+am or pm+pm conflict; am+pm don't
 }
 
-/** Check if a day is a weekend (Saturday=6 or Sunday=0) */
-function isWeekend(date) {
-  const dow = date.getDay();
-  return dow === 0 || dow === 6;
+/**
+ * Convert JS Date.getDay() (0=Sun) to availabilities weekday (0=Mon).
+ * Formula: (jsGetDay + 6) % 7
+ */
+function toAvailWeekday(jsDate) {
+  return (jsDate.getDay() + 6) % 7;
+}
+
+/**
+ * Check if a date is a working day for a practitioner.
+ * @param {Date} date
+ * @param {Set<number>|null} workDays — Set of avail weekdays (0=Mon..6=Sun). Null = all days are workdays.
+ * @param {Set<string>|null} holidayDates — Set of 'YYYY-MM-DD' strings for holidays.
+ */
+function isWorkDay(date, workDays, holidayDates) {
+  // Check holidays first
+  if (holidayDates) {
+    const ds = date.toISOString().slice(0, 10);
+    if (holidayDates.has(ds)) return false;
+  }
+  // If no workDays data, fallback: all days are workdays
+  if (!workDays || workDays.size === 0) return true;
+  return workDays.has(toAvailWeekday(date));
+}
+
+/**
+ * Fetch working days for a set of practitioners.
+ * Returns Map<pracId, Set<weekday>> where weekday is avail format (0=Mon).
+ */
+async function getPractitionerWorkDays(bid, practitionerIds) {
+  if (!practitionerIds || practitionerIds.length === 0) return new Map();
+  const result = await queryWithRLS(bid,
+    `SELECT DISTINCT practitioner_id, weekday
+     FROM availabilities
+     WHERE business_id = $1 AND is_active = true
+       AND practitioner_id = ANY($2::uuid[])`,
+    [bid, practitionerIds]
+  );
+  const map = new Map();
+  result.rows.forEach(r => {
+    if (!map.has(r.practitioner_id)) map.set(r.practitioner_id, new Set());
+    map.get(r.practitioner_id).add(r.weekday);
+  });
+  return map;
+}
+
+/**
+ * Fetch business holidays for a date range.
+ * Returns Set of 'YYYY-MM-DD' strings + array of { date, name }.
+ */
+async function getHolidays(bid, dateFrom, dateTo) {
+  try {
+    const result = await queryWithRLS(bid,
+      `SELECT date, name FROM business_holidays
+       WHERE business_id = $1 AND date >= $2::date AND date <= $3::date
+       ORDER BY date`,
+      [bid, dateFrom, dateTo]
+    );
+    const dateSet = new Set();
+    const list = [];
+    result.rows.forEach(r => {
+      const ds = new Date(r.date).toISOString().slice(0, 10);
+      dateSet.add(ds);
+      list.push({ date: ds, name: r.name });
+    });
+    return { dateSet, list };
+  } catch (e) {
+    // Table might not exist yet — graceful fallback
+    return { dateSet: new Set(), list: [] };
+  }
 }
 
 /**
  * Day-by-day overlap check with period awareness.
- * Skips weekends. Excludes an optional absenceId (for edit mode).
+ * Skips non-working days and holidays. Excludes an optional absenceId (for edit mode).
  * Returns true if there's a conflict.
  */
-function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeriodEnd, excludeId) {
+function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeriodEnd, excludeId, workDays, holidayDates) {
   const from = new Date(newFrom);
   const to = new Date(newTo);
 
   for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-    if (isWeekend(d)) continue;
+    if (!isWorkDay(d, workDays, holidayDates)) continue;
 
     const newDayPeriod = getEffectivePeriod(d, newFrom, newTo, newPeriod, newPeriodEnd);
 
@@ -69,7 +135,6 @@ function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeri
       const exFrom = new Date(existing.date_from);
       const exTo = new Date(existing.date_to);
 
-      // Check if this existing absence covers the current day
       if (d >= exFrom && d <= exTo) {
         const exDayPeriod = getEffectivePeriod(d, existing.date_from, existing.date_to, existing.period, existing.period_end);
         if (periodsConflict(newDayPeriod, exDayPeriod)) {
@@ -81,28 +146,32 @@ function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeri
   return false;
 }
 
+/** Parse month range from query param */
+function parseMonthRange(monthParam) {
+  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const dateFrom = `${monthParam}-01`;
+    const [y, m] = monthParam.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const dateTo = `${monthParam}-${String(lastDay).padStart(2, '0')}`;
+    return { dateFrom, dateTo };
+  }
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const dateFrom = `${y}-${m}-01`;
+  const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+  const dateTo = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  return { dateFrom, dateTo };
+}
+
 // ============================================================
 // GET /api/planning/absences?month=2026-03
+// Returns absences + workingDays per practitioner + holidays
 // ============================================================
 router.get('/absences', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const monthParam = req.query.month;
-    let dateFrom, dateTo;
-
-    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
-      dateFrom = `${monthParam}-01`;
-      const [y, m] = monthParam.split('-').map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      dateTo = `${monthParam}-${String(lastDay).padStart(2, '0')}`;
-    } else {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      dateFrom = `${y}-${m}-01`;
-      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-      dateTo = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
-    }
+    const { dateFrom, dateTo } = parseMonthRange(req.query.month);
 
     const result = await queryWithRLS(bid,
       `SELECT sa.*, p.display_name AS practitioner_name, p.color AS practitioner_color, p.email AS practitioner_email
@@ -115,7 +184,29 @@ router.get('/absences', async (req, res, next) => {
       [bid, dateFrom, dateTo]
     );
 
-    res.json({ absences: result.rows });
+    // Fetch all active practitioners to get workingDays
+    const pracResult = await queryWithRLS(bid,
+      `SELECT DISTINCT practitioner_id, weekday
+       FROM availabilities
+       WHERE business_id = $1 AND is_active = true`,
+      [bid]
+    );
+    const workingDays = {};
+    pracResult.rows.forEach(r => {
+      if (!workingDays[r.practitioner_id]) workingDays[r.practitioner_id] = [];
+      workingDays[r.practitioner_id].push(r.weekday);
+    });
+    // Sort each array for consistency
+    Object.values(workingDays).forEach(arr => arr.sort((a, b) => a - b));
+
+    // Fetch holidays for the month
+    const holidays = await getHolidays(bid, dateFrom, dateTo);
+
+    res.json({
+      absences: result.rows,
+      workingDays,
+      holidays: holidays.list
+    });
   } catch (err) { next(err); }
 });
 
@@ -163,6 +254,11 @@ router.post('/absences', requireOwner, async (req, res, next) => {
     );
     if (pracCheck.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
 
+    // Fetch work days + holidays for overlap check
+    const workDaysMap = await getPractitionerWorkDays(bid, [practitioner_id]);
+    const workDays = workDaysMap.get(practitioner_id) || null;
+    const holidays = await getHolidays(bid, date_from, date_to);
+
     // Fetch all existing absences that could overlap (date range intersection)
     const existingAbs = await queryWithRLS(bid,
       `SELECT id, date_from, date_to, period, period_end FROM staff_absences
@@ -171,8 +267,8 @@ router.post('/absences', requireOwner, async (req, res, next) => {
       [bid, practitioner_id, date_from, date_to]
     );
 
-    // Day-by-day overlap check with period awareness (skips weekends)
-    if (hasOverlapConflict(existingAbs.rows, date_from, date_to, absPeriod, absPeriodEnd, null)) {
+    // Day-by-day overlap check (skips non-working days and holidays)
+    if (hasOverlapConflict(existingAbs.rows, date_from, date_to, absPeriod, absPeriodEnd, null, workDays, holidays.dateSet)) {
       return res.status(409).json({ error: 'Une absence existe déjà sur cette période pour ce praticien' });
     }
 
@@ -246,6 +342,11 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
     const newPeriod = period || old.period || 'full';
     const newPeriodEnd = period_end || old.period_end || 'full';
 
+    // Fetch work days + holidays
+    const workDaysMap = await getPractitionerWorkDays(bid, [old.practitioner_id]);
+    const workDays = workDaysMap.get(old.practitioner_id) || null;
+    const holidays = await getHolidays(bid, newFrom, newTo);
+
     const existingAbs = await queryWithRLS(bid,
       `SELECT id, date_from, date_to, period, period_end FROM staff_absences
        WHERE business_id = $1 AND practitioner_id = $2
@@ -253,7 +354,7 @@ router.patch('/absences/:id', requireOwner, async (req, res, next) => {
       [bid, old.practitioner_id, newFrom, newTo]
     );
 
-    if (hasOverlapConflict(existingAbs.rows, newFrom, newTo, newPeriod, newPeriodEnd, id)) {
+    if (hasOverlapConflict(existingAbs.rows, newFrom, newTo, newPeriod, newPeriodEnd, id, workDays, holidays.dateSet)) {
       return res.status(409).json({ error: 'Une absence existe déjà sur cette période pour ce praticien' });
     }
 
@@ -411,27 +512,12 @@ router.post('/absences/:id/notify', requireOwner, async (req, res, next) => {
 
 // ============================================================
 // GET /api/planning/stats?month=2026-03
-// Counters per practitioner per type — EXCLUDES WEEKENDS
+// Counters per practitioner per type — EXCLUDES non-working days & holidays
 // ============================================================
 router.get('/stats', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const monthParam = req.query.month;
-    let dateFrom, dateTo;
-
-    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
-      dateFrom = `${monthParam}-01`;
-      const [y, m] = monthParam.split('-').map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      dateTo = `${monthParam}-${String(lastDay).padStart(2, '0')}`;
-    } else {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      dateFrom = `${y}-${m}-01`;
-      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-      dateTo = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
-    }
+    const { dateFrom, dateTo } = parseMonthRange(req.query.month);
 
     const result = await queryWithRLS(bid,
       `SELECT sa.practitioner_id, sa.type, sa.period, sa.period_end,
@@ -446,6 +532,11 @@ router.get('/stats', async (req, res, next) => {
       [bid, dateFrom, dateTo]
     );
 
+    // Fetch work days for all practitioners in the result
+    const pracIds = [...new Set(result.rows.map(r => r.practitioner_id))];
+    const workDaysMap = await getPractitionerWorkDays(bid, pracIds);
+    const holidays = await getHolidays(bid, dateFrom, dateTo);
+
     const stats = {};
     const monthStart = new Date(dateFrom);
     const monthEnd = new Date(dateTo);
@@ -459,11 +550,12 @@ router.get('/stats', async (req, res, next) => {
       }
       const from = new Date(Math.max(new Date(row.date_from), monthStart));
       const to = new Date(Math.min(new Date(row.date_to), monthEnd));
+      const workDays = workDaysMap.get(row.practitioner_id) || null;
 
       let days = 0;
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        // Skip weekends — they don't count as absence days
-        if (isWeekend(d)) continue;
+        // Skip non-working days and holidays
+        if (!isWorkDay(d, workDays, holidays.dateSet)) continue;
 
         const dayPeriod = getEffectivePeriod(d, row.date_from, row.date_to, row.period, row.period_end);
         days += dayPeriod === 'full' ? 1 : 0.5;
@@ -515,6 +607,247 @@ router.get('/impact', async (req, res, next) => {
       impacted_bookings: bookings.rows,
       count: bookings.rows.length
     });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/planning/export?month=2026-03&format=csv
+// Export planning as CSV
+// ============================================================
+router.get('/export', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { dateFrom, dateTo } = parseMonthRange(req.query.month);
+    const monthLabel = req.query.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    // Fetch practitioners
+    const pracResult = await queryWithRLS(bid,
+      `SELECT id, display_name FROM practitioners WHERE business_id = $1 AND is_active = true ORDER BY display_name`,
+      [bid]
+    );
+    const pracs = pracResult.rows;
+    const pracIds = pracs.map(p => p.id);
+
+    // Fetch absences
+    const absResult = await queryWithRLS(bid,
+      `SELECT sa.* FROM staff_absences sa
+       WHERE sa.business_id = $1 AND sa.date_from <= $3::date AND sa.date_to >= $2::date`,
+      [bid, dateFrom, dateTo]
+    );
+
+    // Build absence map
+    const absMap = {};
+    absResult.rows.forEach(a => {
+      if (!absMap[a.practitioner_id]) absMap[a.practitioner_id] = {};
+      const from = new Date(a.date_from);
+      const to = new Date(a.date_to);
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        const ds = d.toISOString().slice(0, 10);
+        const ep = getEffectivePeriod(d, a.date_from, a.date_to, a.period, a.period_end);
+        absMap[a.practitioner_id][ds] = { type: a.type, period: ep };
+      }
+    });
+
+    // Fetch work days + holidays
+    const workDaysMap = await getPractitionerWorkDays(bid, pracIds);
+    const holidays = await getHolidays(bid, dateFrom, dateTo);
+
+    const typeLabels = { conge: 'C', maladie: 'M', formation: 'F', autre: 'A' };
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const daysInMonth = new Date(parseInt(dateFrom.slice(0, 4)), parseInt(dateFrom.slice(5, 7)), 0).getDate();
+
+    // Build CSV
+    let csv = '\uFEFF'; // BOM for Excel UTF-8
+    // Header row: Praticien, then each day
+    csv += 'Praticien';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(parseInt(dateFrom.slice(0, 4)), parseInt(dateFrom.slice(5, 7)) - 1, d);
+      csv += `;${dayNames[dt.getDay()]} ${d}`;
+    }
+    csv += '\n';
+
+    // Data rows
+    pracs.forEach(p => {
+      csv += `"${p.display_name.replace(/"/g, '""')}"`;
+      const workDays = workDaysMap.get(p.id) || null;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(parseInt(dateFrom.slice(0, 4)), parseInt(dateFrom.slice(5, 7)) - 1, d);
+        const ds = dt.toISOString().slice(0, 10);
+
+        if (holidays.dateSet.has(ds)) {
+          csv += ';JF';
+        } else if (!isWorkDay(dt, workDays, null)) {
+          csv += ';—';
+        } else {
+          const abs = absMap[p.id]?.[ds];
+          if (abs) {
+            const label = typeLabels[abs.type] || 'A';
+            csv += `;${label}${abs.period === 'am' ? '/AM' : abs.period === 'pm' ? '/PM' : ''}`;
+          } else {
+            csv += ';';
+          }
+        }
+      }
+      csv += '\n';
+    });
+
+    const filename = `planning-${monthLabel}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/planning/send-planning — send monthly planning by email
+// ============================================================
+router.post('/send-planning', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { practitioner_id, month } = req.body;
+
+    if (!practitioner_id) return res.status(400).json({ error: 'Praticien requis' });
+
+    const pracResult = await queryWithRLS(bid,
+      `SELECT id, display_name, email FROM practitioners WHERE id = $1 AND business_id = $2`,
+      [practitioner_id, bid]
+    );
+    if (pracResult.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
+    const prac = pracResult.rows[0];
+    if (!prac.email) return res.status(400).json({ error: 'Ce praticien n\'a pas d\'adresse email' });
+
+    const { dateFrom, dateTo } = parseMonthRange(month);
+    const monthLabel = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const [year, mon] = monthLabel.split('-').map(Number);
+    const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    const monthName = `${monthNames[mon - 1]} ${year}`;
+
+    // Fetch absences
+    const absResult = await queryWithRLS(bid,
+      `SELECT sa.* FROM staff_absences sa
+       WHERE sa.business_id = $1 AND sa.practitioner_id = $2
+         AND sa.date_from <= $4::date AND sa.date_to >= $3::date
+       ORDER BY sa.date_from`,
+      [bid, practitioner_id, dateFrom, dateTo]
+    );
+
+    // Fetch work days + holidays
+    const workDaysMap = await getPractitionerWorkDays(bid, [practitioner_id]);
+    const workDays = workDaysMap.get(practitioner_id) || null;
+    const holidays = await getHolidays(bid, dateFrom, dateTo);
+
+    const bizResult = await queryWithRLS(bid,
+      `SELECT name, email, theme FROM businesses WHERE id = $1`, [bid]
+    );
+    const business = bizResult.rows[0] || { name: 'Genda' };
+
+    const typeLabels = { conge: 'Congé', maladie: 'Maladie', formation: 'Formation', autre: 'Autre' };
+    const typeColors = { conge: '#3B82F6', maladie: '#EF4444', formation: '#8B5CF6', autre: '#6B7280' };
+    const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const daysInMonth = new Date(year, mon, 0).getDate();
+
+    // Build absence map for this practitioner
+    const absMap = {};
+    let totalAbsDays = 0;
+    const typeCounts = { conge: 0, maladie: 0, formation: 0, autre: 0 };
+
+    absResult.rows.forEach(a => {
+      const from = new Date(Math.max(new Date(a.date_from), new Date(dateFrom)));
+      const to = new Date(Math.min(new Date(a.date_to), new Date(dateTo)));
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        if (!isWorkDay(d, workDays, holidays.dateSet)) continue;
+        const ds = d.toISOString().slice(0, 10);
+        const ep = getEffectivePeriod(d, a.date_from, a.date_to, a.period, a.period_end);
+        absMap[ds] = { type: a.type, period: ep };
+        const dayVal = ep === 'full' ? 1 : 0.5;
+        totalAbsDays += dayVal;
+        typeCounts[a.type] = (typeCounts[a.type] || 0) + dayVal;
+      }
+    });
+
+    // Count total working days in month
+    let totalWorkDays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(year, mon - 1, d);
+      if (isWorkDay(dt, workDays, holidays.dateSet)) totalWorkDays++;
+    }
+
+    // Build HTML table for the email
+    let tableRows = '';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(year, mon - 1, d);
+      const ds = dt.toISOString().slice(0, 10);
+      const dayName = dayNamesShort[dt.getDay()];
+      const isHoliday = holidays.dateSet.has(ds);
+      const isOff = !isWorkDay(dt, workDays, holidays.dateSet);
+      const abs = absMap[ds];
+      const holidayName = isHoliday ? holidays.list.find(h => h.date === ds)?.name : null;
+
+      let status = '';
+      let bgColor = '#FFFFFF';
+      if (isHoliday) {
+        status = `Férié${holidayName ? ' — ' + escHtml(holidayName) : ''}`;
+        bgColor = '#FFF7ED';
+      } else if (isOff) {
+        status = 'Repos';
+        bgColor = '#F9FAFB';
+      } else if (abs) {
+        status = escHtml(typeLabels[abs.type]) + (abs.period !== 'full' ? ` (${abs.period === 'am' ? 'Matin' : 'Après-midi'})` : '');
+        bgColor = abs.type === 'conge' ? '#DBEAFE' : abs.type === 'maladie' ? '#FEE2E2' : abs.type === 'formation' ? '#EDE9FE' : '#F3F4F6';
+      }
+
+      tableRows += `<tr style="border-bottom:1px solid #E5E7EB">
+        <td style="padding:6px 10px;font-size:13px;color:#374151;font-weight:500;background:${bgColor}">${dayName} ${d}</td>
+        <td style="padding:6px 10px;font-size:13px;color:#374151;background:${bgColor}">${status}</td>
+      </tr>`;
+    }
+
+    // Summary badges
+    let summaryHTML = '';
+    Object.entries(typeCounts).forEach(([type, count]) => {
+      if (count > 0) {
+        summaryHTML += `<span style="display:inline-block;padding:3px 10px;margin:2px 4px;border-radius:12px;font-size:12px;font-weight:600;background:${typeColors[type]}20;color:${typeColors[type]}">${escHtml(typeLabels[type])}: ${count % 1 === 0 ? count : count.toFixed(1)}j</span>`;
+      }
+    });
+
+    const bodyHTML = `
+      <p>Bonjour <strong>${escHtml(prac.display_name)}</strong>,</p>
+      <p>Voici votre planning pour le mois de <strong>${escHtml(monthName)}</strong> :</p>
+      <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
+        <div style="font-size:13px;color:#6B6560;margin-bottom:6px">Jours travaillés : <strong>${totalWorkDays - totalAbsDays}/${totalWorkDays}</strong></div>
+        <div style="font-size:13px;color:#6B6560">Absences : <strong>${totalAbsDays % 1 === 0 ? totalAbsDays : totalAbsDays.toFixed(1)} jour${totalAbsDays > 1 ? 's' : ''}</strong></div>
+        ${summaryHTML ? `<div style="margin-top:8px">${summaryHTML}</div>` : ''}
+      </div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;margin:16px 0">
+        <thead><tr style="background:#F3F4F6"><th style="padding:8px 10px;font-size:12px;font-weight:600;color:#6B7280;text-align:left">Jour</th><th style="padding:8px 10px;font-size:12px;font-weight:600;color:#6B7280;text-align:left">Statut</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <p style="font-size:13px;color:#9C958E">Planning généré automatiquement. Contactez votre responsable pour toute correction.</p>`;
+
+    const html = buildEmailHTML({
+      title: `Planning — ${monthName}`,
+      preheader: `Votre planning ${monthName}`,
+      bodyHTML,
+      businessName: business.name,
+      primaryColor: business.theme?.primary_color,
+      footerText: `${business.name} · Via Genda.be`
+    });
+
+    const emailResult = await sendEmail({
+      to: prac.email,
+      toName: prac.display_name,
+      subject: `Planning ${monthName} — ${business.name}`,
+      html,
+      fromName: business.name,
+      replyTo: business.email
+    });
+
+    if (emailResult.success) {
+      res.json({ sent: true, to: prac.email });
+    } else {
+      res.status(500).json({ error: emailResult.error || 'Erreur d\'envoi' });
+    }
   } catch (err) { next(err); }
 });
 

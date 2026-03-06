@@ -279,6 +279,9 @@
 .plan-table th.plan-prac-col{width:170px;text-align:left;padding-left:16px}
 .plan-table th.plan-today{color:var(--primary);background:#F6FCFC}
 .plan-table th.plan-weekend{color:#B45309;background:#FFFBEB}
+.plan-table th.plan-closed-day{color:#9CA3AF;background:#F9FAFB}
+.plan-table th.plan-holiday{color:#C2410C;background:#FFF7ED;position:relative}
+.plan-holiday-dot{display:inline-block;width:4px;height:4px;border-radius:50%;background:#C2410C;margin-left:2px;vertical-align:super}
 
 /* Practitioner row */
 .plan-prac-row td{border-bottom:1px solid #DFE3E8;padding:0;height:54px;vertical-align:middle}
@@ -298,7 +301,13 @@
 .plan-day-cell{text-align:center;cursor:pointer;position:relative;transition:background .1s;vertical-align:middle}
 .plan-day-cell:hover{background:rgba(13,115,119,.04)}
 .plan-day-cell.plan-weekend{background:rgba(181,139,9,.03)}
+.plan-day-cell.plan-off-day{background:#F9FAFB;cursor:default}
+.plan-day-cell.plan-off-day:hover{background:#F9FAFB}
+.plan-day-cell.plan-holiday{background:#FFF7ED;cursor:default}
+.plan-day-cell.plan-holiday:hover{background:#FFF7ED}
 .plan-day-cell.plan-today{background:#F6FCFC}
+.plan-holiday-marker{display:flex;align-items:center;justify-content:center;opacity:.35}
+.plan-holiday-marker svg{width:12px;height:12px;stroke:#C2410C}
 
 /* Absence blocks — minimalist labels */
 .plan-abs-block{display:flex;align-items:center;justify-content:center;width:calc(100% - 6px);margin:2px 3px;padding:3px 0;border-radius:5px;font-size:.62rem;font-weight:800;letter-spacing:.3px;cursor:pointer;transition:all .12s}
