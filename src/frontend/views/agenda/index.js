@@ -126,20 +126,36 @@ async function loadAgenda() {
   document.querySelector('.main').classList.add('agenda-mode');
   c.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
   try {
-    const [prRes, svRes, avRes, bizRes] = await Promise.all([
-      fetch('/api/practitioners', { headers: { 'Authorization': 'Bearer ' + api.getToken() } }),
-      fetch('/api/services', { headers: { 'Authorization': 'Bearer ' + api.getToken() } }),
-      fetch('/api/availabilities', { headers: { 'Authorization': 'Bearer ' + api.getToken() } }),
-      fetch('/api/business', { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
+    const auth = { headers: { 'Authorization': 'Bearer ' + api.getToken() } };
+    const [prRes, svRes, avRes, bizRes, bhRes] = await Promise.all([
+      fetch('/api/practitioners', auth),
+      fetch('/api/services', auth),
+      fetch('/api/availabilities', auth),
+      fetch('/api/business', auth),
+      fetch('/api/business-hours', auth)
     ]);
     const prD = await prRes.json(), svD = await svRes.json(), avD = await avRes.json(), bizD = await bizRes.json();
+    const bhD = await bhRes.json();
     calState.fcPractitioners = prD.practitioners || [];
     calState.fcServices = svD.services || [];
     calState.fcAllowOverlap = !!(bizD.business?.settings?.allow_overlap);
 
-    // Compute calendar bounds from availability data
+    // Compute calendar bounds — prefer business_schedule (salon hours), fallback to practitioner avails
     const avails = avD.availabilities || {};
+    const bizSched = bhD.schedule || {};
+    const hasBizSched = Object.keys(bizSched).length > 0;
+
     const allStarts = [], allEnds = [];
+    // Business schedule bounds (primary)
+    if (hasBizSched) {
+      for (const day of Object.keys(bizSched)) {
+        for (const slot of bizSched[day]) {
+          if (slot.start_time) allStarts.push(slot.start_time);
+          if (slot.end_time) allEnds.push(slot.end_time);
+        }
+      }
+    }
+    // Also include practitioner avails for completeness
     for (const pracId of Object.keys(avails)) {
       const sched = avails[pracId].schedule || {};
       for (const day of Object.keys(sched)) {
@@ -159,13 +175,29 @@ async function loadAgenda() {
       calState.fcSlotMin = '08:00:00'; calState.fcSlotMax = '19:00:00';
     }
 
-    // Compute hidden days (no availability at all) and business hours
+    // Compute hidden days and business hours
     // DB weekday: 0=Monday...6=Sunday. FullCalendar: 0=Sunday...6=Saturday
     const dbDayToFcDay = d => (d + 1) % 7; // 0(Mon)->1, 4(Fri)->5, 6(Sun)->0
     const normTime = t => { if (!t) return '09:00'; const s = String(t); return s.slice(0, 5); }; // "09:00:00" -> "09:00"
     const activeDays = new Set();
     calState.fcBusinessHours = [];
     calState.fcPracBusinessHours = {};
+
+    // Use business schedule as primary business hours for calendar shading
+    if (hasBizSched) {
+      for (const day of Object.keys(bizSched)) {
+        const slots = bizSched[day];
+        if (slots.length > 0) {
+          const fcDay = dbDayToFcDay(parseInt(day));
+          activeDays.add(fcDay);
+          slots.forEach(s => {
+            calState.fcBusinessHours.push({ daysOfWeek: [fcDay], startTime: normTime(s.start_time), endTime: normTime(s.end_time) });
+          });
+        }
+      }
+    }
+
+    // Always compute per-practitioner hours (for practitioner filtering)
     for (const pracId of Object.keys(avails)) {
       const sched = avails[pracId].schedule || {};
       if (!calState.fcPracBusinessHours[pracId]) calState.fcPracBusinessHours[pracId] = [];
@@ -173,15 +205,16 @@ async function loadAgenda() {
         const slots = sched[day].filter(s => s.is_active !== false);
         if (slots.length > 0) {
           const fcDay = dbDayToFcDay(parseInt(day));
-          activeDays.add(fcDay);
+          if (!hasBizSched) activeDays.add(fcDay); // fallback: use practitioner data for active days
           slots.forEach(s => {
             const entry = { daysOfWeek: [fcDay], startTime: normTime(s.start_time), endTime: normTime(s.end_time) };
-            calState.fcBusinessHours.push(entry);
+            if (!hasBizSched) calState.fcBusinessHours.push(entry); // fallback
             calState.fcPracBusinessHours[pracId].push(entry);
           });
         }
       }
     }
+
     // Days 0-6 not in activeDays -> hidden
     calState.fcHiddenDays = [];
     for (let d = 0; d < 7; d++) { if (!activeDays.has(d)) calState.fcHiddenDays.push(d); }

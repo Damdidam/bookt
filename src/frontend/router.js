@@ -9,7 +9,7 @@ const SECTION_TITLES = {
   bookings: 'Agenda',
   clients: 'Clients',
   services: 'Prestations',
-  hours: 'Disponibilités',
+  hours: 'Horaires',
   waitlist: "Liste d'attente",
   team: 'Équipe',
   planning: 'Planning',

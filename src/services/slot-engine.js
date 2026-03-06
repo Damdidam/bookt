@@ -134,6 +134,40 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     exceptionMap[key].push(row);
   }
 
+  // 5b. Fetch business schedule (salon opening hours)
+  const bizSchedResult = await queryWithRLS(businessId,
+    `SELECT weekday, start_time, end_time FROM business_schedule
+     WHERE business_id = $1 AND is_active = true ORDER BY weekday, start_time`,
+    [businessId]
+  );
+  const bizScheduleMap = {};
+  for (const row of bizSchedResult.rows) {
+    if (!bizScheduleMap[row.weekday]) bizScheduleMap[row.weekday] = [];
+    bizScheduleMap[row.weekday].push({ start: row.start_time, end: row.end_time });
+  }
+  const hasBizSchedule = Object.keys(bizScheduleMap).length > 0;
+
+  // 5c. Fetch business closures in date range
+  const bizClosureResult = await queryWithRLS(businessId,
+    `SELECT date_from, date_to FROM business_closures
+     WHERE business_id = $1 AND date_to >= $2::date AND date_from <= $3::date`,
+    [businessId, dateFrom, dateTo]
+  );
+  const bizClosures = bizClosureResult.rows.map(r => ({
+    from: new Date(r.date_from).toISOString().slice(0, 10),
+    to: new Date(r.date_to).toISOString().slice(0, 10)
+  }));
+
+  // 5d. Fetch business holidays in date range
+  const bizHolidayResult = await queryWithRLS(businessId,
+    `SELECT date FROM business_holidays
+     WHERE business_id = $1 AND date >= $2::date AND date <= $3::date`,
+    [businessId, dateFrom, dateTo]
+  );
+  const bizHolidaySet = new Set(bizHolidayResult.rows.map(r =>
+    new Date(r.date).toISOString().slice(0, 10)
+  ));
+
   // 6. Fetch existing bookings in date range (conflicts)
   const bookingsResult = await queryWithRLS(businessId,
     `SELECT b.practitioner_id, b.start_at, b.end_at,
@@ -214,6 +248,16 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     const weekday = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon, 6=Sun
     const tzOffset = brusselsOffset(dateStr);
 
+    // Skip if business holiday
+    if (bizHolidaySet.has(dateStr)) continue;
+
+    // Skip if in a business closure range
+    if (bizClosures.some(c => dateStr >= c.from && dateStr <= c.to)) continue;
+
+    // Skip if salon is closed this weekday (only when business_schedule has data)
+    const bizWindows = bizScheduleMap[weekday];
+    if (hasBizSchedule && (!bizWindows || bizWindows.length === 0)) continue;
+
     for (const pracId of practitionerIds) {
       // Check exceptions
       const exKey = `${pracId}-${dateStr}`;
@@ -237,6 +281,12 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
         const avKey = `${pracId}-${weekday}`;
         windows = availMap[avKey];
         if (!windows || windows.length === 0) continue; // Not available this day
+      }
+
+      // Intersect with business hours (salon-level constraint)
+      if (hasBizSchedule && bizWindows && bizWindows.length > 0) {
+        windows = intersectWindows(windows, bizWindows);
+        if (windows.length === 0) continue;
       }
 
       // Service time restrictions — intersect with practitioner windows
@@ -513,6 +563,38 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     });
   }
 
+  // 6b. Fetch business schedule, closures, holidays (same as getAvailableSlots)
+  const bizSchedResult2 = await queryWithRLS(businessId,
+    `SELECT weekday, start_time, end_time FROM business_schedule
+     WHERE business_id = $1 AND is_active = true ORDER BY weekday, start_time`,
+    [businessId]
+  );
+  const bizScheduleMap2 = {};
+  for (const row of bizSchedResult2.rows) {
+    if (!bizScheduleMap2[row.weekday]) bizScheduleMap2[row.weekday] = [];
+    bizScheduleMap2[row.weekday].push({ start: row.start_time, end: row.end_time });
+  }
+  const hasBizSchedule2 = Object.keys(bizScheduleMap2).length > 0;
+
+  const bizClosureResult2 = await queryWithRLS(businessId,
+    `SELECT date_from, date_to FROM business_closures
+     WHERE business_id = $1 AND date_to >= $2::date AND date_from <= $3::date`,
+    [businessId, dateFrom, dateTo]
+  );
+  const bizClosures2 = bizClosureResult2.rows.map(r => ({
+    from: new Date(r.date_from).toISOString().slice(0, 10),
+    to: new Date(r.date_to).toISOString().slice(0, 10)
+  }));
+
+  const bizHolidayResult2 = await queryWithRLS(businessId,
+    `SELECT date FROM business_holidays
+     WHERE business_id = $1 AND date >= $2::date AND date <= $3::date`,
+    [businessId, dateFrom, dateTo]
+  );
+  const bizHolidaySet2 = new Set(bizHolidayResult2.rows.map(r =>
+    new Date(r.date).toISOString().slice(0, 10)
+  ));
+
   // Busy blocks from external calendars
   try {
     for (const pracId of practitionerIds) {
@@ -560,6 +642,16 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     const weekday = jsDay === 0 ? 6 : jsDay - 1;
     const tzOffset = brusselsOffset(dateStr);
 
+    // Skip if business holiday
+    if (bizHolidaySet2.has(dateStr)) continue;
+
+    // Skip if in a business closure range
+    if (bizClosures2.some(c => dateStr >= c.from && dateStr <= c.to)) continue;
+
+    // Skip if salon is closed this weekday
+    const bizWindows2 = bizScheduleMap2[weekday];
+    if (hasBizSchedule2 && (!bizWindows2 || bizWindows2.length === 0)) continue;
+
     for (const pracId of practitionerIds) {
       const exKey = `${pracId}-${dateStr}`;
       const exceptions = exceptionMap[exKey];
@@ -579,6 +671,12 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
         const avKey = `${pracId}-${weekday}`;
         windows = availMap[avKey];
         if (!windows || windows.length === 0) continue;
+      }
+
+      // Intersect with business hours (salon-level constraint)
+      if (hasBizSchedule2 && bizWindows2 && bizWindows2.length > 0) {
+        windows = intersectWindows(windows, bizWindows2);
+        if (windows.length === 0) continue;
       }
 
       // Multi-service time restrictions — intersect all services' schedules

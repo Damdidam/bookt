@@ -390,6 +390,14 @@
 .add-slot-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
 .day-closed{font-size:.78rem;color:var(--text-4);font-style:italic}
 
+/* ===== BUSINESS HOURS ===== */
+.biz-hours-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;background:var(--primary-light);border-radius:12px;font-size:.85rem;color:var(--text-2)}
+.biz-hours-summary .summary-main{font-weight:600;color:var(--text)}
+.biz-hours-summary .summary-badge{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:100px;background:var(--primary);color:#fff}
+.closure-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.closure-dates{font-size:.85rem;font-weight:600}
+.closure-reason{font-size:.78rem;color:var(--text-4);margin-left:8px}
+
 /* ===== ANALYTICS ===== */
 .an-period{display:flex;gap:2px;background:var(--surface);border-radius:9px;padding:3px;margin-bottom:22px}
 .an-period button{padding:7px 18px;border-radius:7px;font-size:.78rem;font-weight:600;color:var(--text-3);cursor:pointer;border:none;background:transparent;font-family:var(--sans);transition:var(--transition)}

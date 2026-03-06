@@ -43,6 +43,7 @@ const galleryRoutes = require('./routes/staff/gallery');
 const newsRoutes = require('./routes/staff/news');
 const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
+const businessHoursRoutes = require('./routes/staff/business-hours');
 const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 const stripeRoutes = require('./routes/staff/stripe');
@@ -168,6 +169,7 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/featured-slots', featuredSlotsRoutes);
 app.use('/api/planning', planningRoutes);
+app.use('/api/business-hours', requireAuth, businessHoursRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/cron', preRdvCron);
 

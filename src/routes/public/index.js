@@ -136,12 +136,19 @@ router.get('/:slug', async (req, res, next) => {
         : { rows: [] },
       // Custom domain
       query(`SELECT domain, verification_status FROM custom_domains WHERE business_id = $1 AND verification_status = 'ssl_active'`, [bid]),
-      // Availabilities / hours
+      // Hours: prefer business_schedule (salon-level), fallback to practitioner availabilities
       query(
-        `SELECT DISTINCT weekday, MIN(start_time) AS opens, MAX(end_time) AS closes
-         FROM availabilities WHERE business_id = $1 AND is_active = true GROUP BY weekday ORDER BY weekday`,
+        `SELECT weekday, MIN(start_time) AS opens, MAX(end_time) AS closes
+         FROM business_schedule WHERE business_id = $1 AND is_active = true GROUP BY weekday ORDER BY weekday`,
         [bid]
-      )
+      ).then(async r => {
+        if (r.rows.length > 0) return r;
+        return query(
+          `SELECT DISTINCT weekday, MIN(start_time) AS opens, MAX(end_time) AS closes
+           FROM availabilities WHERE business_id = $1 AND is_active = true GROUP BY weekday ORDER BY weekday`,
+          [bid]
+        );
+      })
     ]);
 
     // Fetch service variants (use queryWithRLS to satisfy RLS policies)
