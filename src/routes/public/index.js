@@ -234,6 +234,7 @@ router.get('/:slug', async (req, res, next) => {
         cancellation_window_hours: biz.settings?.cancel_deadline_hours ?? biz.settings?.cancellation_window_hours ?? 24,
         cancel_policy_text: biz.settings?.cancel_policy_text || null,
         multi_service_enabled: !!biz.settings?.multi_service_enabled,
+        practitioner_choice_enabled: !!biz.settings?.practitioner_choice_enabled,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),

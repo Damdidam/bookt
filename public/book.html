@@ -382,6 +382,7 @@ const MODE_ICONS={cabinet:'<svg class="gi" viewBox="0 0 24 24" fill="none" strok
 
 // State
 let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selectedMode=null,selectedDate=null,selectedSlot=null,slotsData={},weekOffset=0,weekHasFeatured=false;
+let noPrefSelected=false; // true when client explicitly chose "Pas de préférence"
 let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
 let vedetteMode=false,vedetteSlots=[],lockedSet={};
@@ -772,21 +773,21 @@ function selectService(id){
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=selectedServices.length===0;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
-      selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+      selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
     }else if(selectedServices.length<5){
       selectedServices.push(svc);
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=false;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
-      selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+      selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
     }
   }else{
     selectedService=svc;
     _updateSvcCards();
     document.getElementById('btnStep1').disabled=false;
-    selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+    selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
     computeStepOrder();
   }
 }
@@ -804,7 +805,7 @@ function selectVariant(svcId, varIdx){
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=selectedServices.length===0;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
-      selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+      selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
     }else if(idx>=0){
       // Switch variant
@@ -817,7 +818,7 @@ function selectVariant(svcId, varIdx){
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=false;
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
-      selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+      selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
     }
   }else{
@@ -834,7 +835,7 @@ function selectVariant(svcId, varIdx){
     selectedService=svc;
     _updateSvcCards();
     document.getElementById('btnStep1').disabled=false;
-    selectedPractitioner=null;selectedMode=null;selectedDate=null;selectedSlot=null;
+    selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
     computeStepOrder();
   }
 }
@@ -876,7 +877,6 @@ function updateCartBar(){
 function buildPractitioners(){
   let pracs;
   if(multiServiceMode&&selectedServices.length>1){
-    // Filter practitioners to those who offer ALL selected services
     pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
     if(pracs.length===0){
       const list=document.getElementById('pracList');
@@ -887,19 +887,46 @@ function buildPractitioners(){
   }else{
     pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
   }
-  // If no practitioner explicitly linked to this service, show ALL practitioners
   const displayPracs=pracs.length>0?pracs:siteData.practitioners;
-  if(displayPracs.length<=1){selectedPractitioner=displayPracs[0]||siteData.practitioners[0];return false;}
+
+  // If practitioner choice is disabled by business → auto-assign
+  if(!siteData.business.practitioner_choice_enabled){
+    selectedPractitioner=displayPracs[0]||siteData.practitioners[0];
+    noPrefSelected=false;
+    return false;
+  }
+  // If only 1 practitioner → auto-assign even if setting is on
+  if(displayPracs.length<=1){
+    selectedPractitioner=displayPracs[0]||siteData.practitioners[0];
+    noPrefSelected=false;
+    return false;
+  }
+
+  // Build list with "Pas de préférence" + practitioner cards
   const list=document.getElementById('pracList');
-  list.innerHTML=displayPracs.map(p=>{
+  let html='<div class="prac-card" data-id="no-pref">'
+    +'<div class="prac-avatar" style="background:var(--text-4)">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+    +'</div>'
+    +'<div class="prac-info"><h4>Pas de préférence</h4><p>Premier praticien disponible</p></div></div>';
+
+  html+=displayPracs.map(p=>{
     const pi=p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+p.photo_url+'"></div>'
       :'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'">'+pi+'</div>';
     return '<div class="prac-card" data-id="'+p.id+'">'+av+'<div class="prac-info"><h4>'+p.display_name+'</h4><p>'+(p.title||'')+(p.years_experience?' · '+p.years_experience+' ans':'')+'</p></div></div>';
   }).join('');
+
+  list.innerHTML=html;
   list.querySelectorAll('.prac-card').forEach(c=>c.addEventListener('click',()=>{
-    selectedPractitioner=siteData.practitioners.find(p=>p.id===c.dataset.id);
-    list.querySelectorAll('.prac-card').forEach(x=>x.classList.toggle('sel',x.dataset.id===c.dataset.id));
+    if(c.dataset.id==='no-pref'){
+      selectedPractitioner=null;
+      noPrefSelected=true;
+    }else{
+      selectedPractitioner=siteData.practitioners.find(p=>p.id===c.dataset.id);
+      noPrefSelected=false;
+    }
+    list.querySelectorAll('.prac-card').forEach(x=>x.classList.toggle('sel',x===c));
     document.getElementById('btnStep2').disabled=false;
   }));
   document.getElementById('btnStep2').disabled=true;
@@ -910,17 +937,18 @@ function buildPractitioners(){
 function computeStepOrder(){
   if(vedetteMode){stepOrder=['vedette',4,5];computeProgressDots();return;}
   let showPrac=false;
-  if(multiServiceMode&&selectedServices.length>1){
-    const linked=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
-    const displayPracs=linked.length>0?linked:siteData.practitioners;
-    showPrac=displayPracs.length>1;
-  }else if(selectedService){
-    const linked=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
-    // If no practitioner explicitly linked, fall back to all practitioners
-    const displayPracs=linked.length>0?linked:siteData.practitioners;
-    showPrac=displayPracs.length>1;
-  }else{
-    showPrac=siteData.practitioners.length>1;
+  if(siteData.business.practitioner_choice_enabled){
+    if(multiServiceMode&&selectedServices.length>1){
+      const linked=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
+      const displayPracs=linked.length>0?linked:siteData.practitioners;
+      showPrac=displayPracs.length>1;
+    }else if(selectedService){
+      const linked=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
+      const displayPracs=linked.length>0?linked:siteData.practitioners;
+      showPrac=displayPracs.length>1;
+    }else{
+      showPrac=siteData.practitioners.length>1;
+    }
   }
   stepOrder=showPrac?[1,2,3,4,5]:[1,3,4,5];
   renderProgress();
@@ -946,7 +974,7 @@ function goToStep(n){
     if(!showPrac){computeStepOrder();n=3;}
   }
   if(n===3&&!vedetteMode){
-    if(!selectedPractitioner){
+    if(!selectedPractitioner&&!noPrefSelected){
       let pracs;
       if(multiServiceMode&&selectedServices.length>1){
         pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
@@ -1042,13 +1070,15 @@ async function loadSlots(){
   }
   let slotsUrl;
   if(multiServiceMode&&selectedServices.length>1){
-    const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
+    const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),date_from:dateFrom,date_to:dateTo});
+    if(selectedPractitioner)params.set('practitioner_id',selectedPractitioner.id);
     if(selectedMode)params.set('appointment_mode',selectedMode);
     var vids=selectedServices.map(function(s){return selectedVariants[s.id]?selectedVariants[s.id].id:'';}).join(',');
     if(vids.replace(/,/g,''))params.set('variant_ids',vids);
     slotsUrl='/api/public/'+slug+'/multi-slots?'+params;
   }else{
-    const params=new URLSearchParams({service_id:selectedService.id,practitioner_id:selectedPractitioner.id,date_from:dateFrom,date_to:dateTo});
+    const params=new URLSearchParams({service_id:selectedService.id,date_from:dateFrom,date_to:dateTo});
+    if(selectedPractitioner)params.set('practitioner_id',selectedPractitioner.id);
     if(selectedMode)params.set('appointment_mode',selectedMode);
     if(selectedVariants[selectedService.id])params.set('variant_id',selectedVariants[selectedService.id].id);
     slotsUrl='/api/public/'+slug+'/slots?'+params;
@@ -1212,7 +1242,8 @@ function buildSummary(){
     var svcName=sv?selectedService.name+' \u2014 '+sv.name:selectedService.name;
     html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+svcName+'</span></div>';
   }
-  html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+selectedPractitioner.display_name+'</span></div>'
+  var sumPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
+  html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+sumPracName+'</span></div>'
     +'<div class="sum-divider"></div>'
     +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
     +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
@@ -1251,8 +1282,9 @@ async function submitBooking(){
   btn.disabled=true;btn.textContent='Réservation en cours...';
 
   try{
+    var bookingPracId=selectedPractitioner?selectedPractitioner.id:selectedSlot.practitioner_id;
     var bookingBody={
-      practitioner_id:selectedPractitioner.id,
+      practitioner_id:bookingPracId,
       start_at:selectedSlot.start_at,
       appointment_mode:selectedMode||'cabinet',
       client_name:name,client_phone:phone,client_email:email,
@@ -1294,7 +1326,8 @@ async function submitBooking(){
       var confirmName=cv2?selectedService.name+' \u2014 '+cv2.name:selectedService.name;
       confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+confirmName+'</span></div>';
     }
-    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+selectedPractitioner.display_name+'</span></div>'
+    var confPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
+    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+confPracName+'</span></div>'
       +'<div class="row"><span class="l">Date</span><span class="v">'+dateStr+'</span></div>'
       +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
     if(selectedService)confirmHtml+='<div class="row"><span class="l">Mode</span><span class="v">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
@@ -1314,7 +1347,7 @@ async function submitBooking(){
 const WL_DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 function renderWlCTA(){
   const area=document.getElementById('wlArea');if(!area)return;
-  if(!selectedPractitioner||!selectedPractitioner.waitlist_mode||selectedPractitioner.waitlist_mode==='off'){area.innerHTML='';return;}
+  if(!selectedPractitioner||!selectedPractitioner.waitlist_mode||selectedPractitioner.waitlist_mode==='off'||noPrefSelected){area.innerHTML='';return;}
   if(area.querySelector('.wl-form')||area.querySelector('.wl-success'))return;
   area.innerHTML='<div class="wl-cta"><div style="font-size:1.5rem;margin-bottom:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></div><div class="wl-cta-title">Aucun horaire ne vous convient ?</div><div class="wl-cta-sub">Inscrivez-vous sur la liste d\'attente.</div><button class="wl-cta-btn" onclick="wlShowForm()">Rejoindre la liste d\'attente</button></div>';
 }
@@ -1331,6 +1364,7 @@ function wlShowForm(){
   area.querySelectorAll('.wl-day').forEach(b=>b.addEventListener('click',()=>b.classList.toggle('on')));
 }
 async function wlSubmit(){
+  if(!selectedPractitioner){showError('Veuillez choisir un praticien.');return;}
   const name=document.getElementById('wlName').value.trim(),email=document.getElementById('wlEmail').value.trim();
   const phoneRaw=document.getElementById('wlPhone').value.trim();
   if(!name||!email){showError('Nom et email requis.');return;}

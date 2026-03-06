@@ -75,6 +75,22 @@ async function loadSettings(){
       </div>
     </div></div>`;
 
+    // 3a-bis. Réservation en ligne
+    const pracChoiceOn=!!(b.settings?.practitioner_choice_enabled);
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Réservation en ligne</h3></div><div class="sc-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Choix du praticien par le client</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Permet au client de choisir son praticien lors de la réservation en ligne. S'il ne choisit pas, le premier disponible sera assigné automatiquement.</div>
+        </div>
+        <label style="position:relative;display:inline-flex;width:44px;height:24px;flex-shrink:0;margin-left:16px">
+          <input type="checkbox" id="s_practitioner_choice" ${pracChoiceOn?'checked':''} onchange="savePractitionerChoiceSetting()" style="opacity:0;width:0;height:0">
+          <span style="position:absolute;inset:0;border-radius:100px;background:${pracChoiceOn?'var(--primary)':'var(--border)'};transition:all .2s;cursor:pointer"></span>
+          <span style="position:absolute;left:${pracChoiceOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+        </label>
+      </div>
+    </div></div>`;
+
     // 3a. Calendrier — incrément + liste d'attente
     const slotInc = b.settings?.slot_increment_min || 15;
     const wlMode = b.settings?.waitlist_mode || 'off';
@@ -294,6 +310,18 @@ async function loadSettings(){
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
+async function savePractitionerChoiceSetting(){
+  const on=document.getElementById('s_practitioner_choice').checked;
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_practitioner_choice_enabled:on})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(on?'Choix du praticien activé':'Choix du praticien désactivé','success');
+    const span=document.getElementById('s_practitioner_choice').parentElement;
+    span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
+    span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveCalendarSettings(){
   try{
     const data={
@@ -490,6 +518,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveCalendarSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
-export { loadSettings, saveCalendarSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
