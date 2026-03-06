@@ -186,6 +186,19 @@ function qcUpdateFreeDuration() {
 
 // ── Service management ──
 
+/** Get service IDs already picked in existing dropdowns (optionally exclude one index) */
+function qcGetSelectedServiceIds(excludeIdx) {
+  const ids = new Set();
+  document.querySelectorAll('.qc-svc-item').forEach(item => {
+    const sel = item.querySelector('[id^="qcSvcSel"]');
+    if (!sel) return;
+    const idx = parseInt(sel.id.replace('qcSvcSel', ''));
+    if (idx === excludeIdx) return;
+    if (sel.value) ids.add(String(sel.value));
+  });
+  return ids;
+}
+
 /** Get services filtered by the currently selected practitioner */
 function qcGetPracServices() {
   const pracId = document.getElementById('qcPrac')?.value;
@@ -200,7 +213,7 @@ function qcGetPracServices() {
   });
 }
 
-/** Handle service selection change — populate variant dropdown if needed */
+/** Handle service selection change — populate variant dropdown if needed + prevent duplicates */
 function qcServiceChanged(idx) {
   const sel = document.getElementById('qcSvcSel' + idx);
   const varSel = document.getElementById('qcVarSel' + idx);
@@ -215,7 +228,27 @@ function qcServiceChanged(idx) {
     varSel.innerHTML = '';
     varSel.style.display = 'none';
   }
+  // Refresh other dropdowns to disable services already picked
+  qcSyncServiceOptions();
   qcUpdateTotal();
+}
+
+/** Sync all service dropdowns: disable options already selected elsewhere */
+function qcSyncServiceOptions() {
+  const allFiltered = qcGetPracServices();
+  document.querySelectorAll('.qc-svc-item').forEach(item => {
+    const sel = item.querySelector('[id^="qcSvcSel"]');
+    if (!sel) return;
+    const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
+    const taken = qcGetSelectedServiceIds(myIdx);
+    const curVal = sel.value;
+    sel.innerHTML = allFiltered.map(s => {
+      const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
+      const disabled = taken.has(String(s.id)) ? ' disabled' : '';
+      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${s.duration_min} min)</option>`;
+    }).join('');
+    sel.value = curVal;
+  });
 }
 
 /** Rebuild all service dropdowns with filtered options, preserving selections */
@@ -225,10 +258,13 @@ function qcRefreshServiceDropdowns() {
   document.querySelectorAll('.qc-svc-item').forEach(item => {
     const sel = item.querySelector('[id^="qcSvcSel"]');
     if (!sel) return;
+    const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
+    const taken = qcGetSelectedServiceIds(myIdx);
     const curVal = sel.value;
     sel.innerHTML = filtered.map(s => {
       const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`;
+      const disabled = taken.has(String(s.id)) ? ' disabled' : '';
+      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${s.duration_min} min)</option>`;
     }).join('');
     if (filteredIds.has(String(curVal))) sel.value = curVal;
     // Refresh variant dropdown for the selected service
@@ -251,7 +287,10 @@ function qcRefreshServiceDropdowns() {
 function qcAddService() {
   const idx = viewState.qcServiceCount++;
   const filtered = qcGetPracServices();
-  const opts = filtered.map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
+  const taken = qcGetSelectedServiceIds(-1);
+  const available = filtered.filter(s => !taken.has(String(s.id)));
+  if (available.length === 0) { gToast('Toutes les prestations sont déjà ajoutées', 'error'); viewState.qcServiceCount--; return; }
+  const opts = available.map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
   if (!opts) { gToast('Aucune prestation disponible pour ce praticien', 'error'); return; }
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
@@ -269,7 +308,7 @@ function qcRemoveService(idx) {
   const el = document.getElementById('qcSvc' + idx);
   if (el) el.remove();
   if (document.querySelectorAll('.qc-svc-item').length === 0) qcAddService();
-  else qcUpdateTotal();
+  else { qcSyncServiceOptions(); qcUpdateTotal(); }
 }
 
 function qcUpdateTotal() {
@@ -702,7 +741,7 @@ function setupQuickCreateListeners() {
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
   qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
-  qcServiceChanged,
+  qcServiceChanged, qcSyncServiceOptions,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcSwitchTab, qcAddNote, qcDeleteNote, qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder
