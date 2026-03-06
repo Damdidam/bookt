@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo — Priorité praticiens</title>
+<style>
+  :root{--white:#FFF;--surface:#F8FAFB;--text:#1A2332;--text-3:#6B7A90;--text-4:#9DACBA;--border-light:#E8ECF0;--primary:#0D7377}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F2F5;padding:40px 24px}
+  h1{text-align:center;font-size:1.1rem;color:var(--text-3);margin-bottom:10px;font-weight:500}
+  .subtitle{text-align:center;font-size:.8rem;color:var(--text-4);margin-bottom:32px}
+
+  .section{max-width:550px;margin:0 auto 40px;background:var(--white);border-radius:16px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .label{display:inline-block;margin-bottom:16px;font-size:.7rem;font-weight:600;color:var(--primary);background:#EDF8F7;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+  .section-title{font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:4px}
+  .section-hint{font-size:.72rem;color:var(--text-4);margin-bottom:14px}
+
+  /* ===== PRACTITIONER PRIORITY PILLS ===== */
+  .prac-priority{display:flex;flex-wrap:wrap;gap:8px}
+
+  .prac-pill{
+    position:relative;
+    display:flex;align-items:center;gap:8px;
+    padding:10px 16px;
+    border-radius:12px;
+    border:2px solid var(--border-light);
+    background:var(--white);
+    cursor:pointer;
+    transition:all .2s ease;
+    user-select:none;
+  }
+  .prac-pill:hover{border-color:#CBD5E1}
+
+  .prac-pill .prac-avatar{
+    width:32px;height:32px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.7rem;font-weight:700;color:#fff;
+    flex-shrink:0;
+    transition:all .2s;
+  }
+
+  .prac-pill .prac-name{
+    font-size:.85rem;font-weight:600;color:var(--text-3);
+    transition:color .2s;
+  }
+
+  .prac-pill .prac-badge{
+    display:none;
+    position:absolute;
+    top:-6px;right:-6px;
+    width:22px;height:22px;
+    border-radius:50%;
+    background:var(--text);
+    color:#fff;
+    font-size:.65rem;font-weight:800;
+    align-items:center;justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.2);
+    transition:all .2s;
+  }
+
+  /* Selected states — progressively lighter */
+  .prac-pill.selected{border-color:#374151}
+  .prac-pill.selected .prac-name{color:var(--text)}
+  .prac-pill.selected .prac-badge{display:flex}
+
+  .prac-pill.rank-1{border-color:#1E293B;background:#F8FAFC}
+  .prac-pill.rank-1 .prac-badge{background:#1E293B}
+
+  .prac-pill.rank-2{border-color:#475569;background:#FAFBFC}
+  .prac-pill.rank-2 .prac-badge{background:#475569}
+
+  .prac-pill.rank-3{border-color:#94A3B8;background:#FDFDFE}
+  .prac-pill.rank-3 .prac-badge{background:#94A3B8}
+
+  .prac-pill.rank-4{border-color:#CBD5E1;background:#FEFEFE}
+  .prac-pill.rank-4 .prac-badge{background:#CBD5E1;color:#475569}
+
+  /* Unselected when others are selected → faded */
+  .prac-priority.has-selection .prac-pill:not(.selected){
+    opacity:.45;
+  }
+  .prac-priority.has-selection .prac-pill:not(.selected):hover{
+    opacity:.7;
+  }
+
+  .equal-note{
+    margin-top:10px;
+    font-size:.72rem;
+    color:var(--text-4);
+    display:flex;align-items:center;gap:5px;
+  }
+  .equal-note svg{width:14px;height:14px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<h1>🎯 Priorité praticiens — Nouvelle UX</h1>
+<p class="subtitle">Cliquez dans l'ordre de préférence. Re-cliquez pour désélectionner.</p>
+
+<!-- ===== DEMO AUCUN SÉLECTIONNÉ ===== -->
+<div class="section">
+  <span class="label">État initial — aucune priorité</span>
+  <div class="section-title">Praticiens assignés</div>
+  <div class="section-hint">Cliquez pour définir l'ordre de priorité</div>
+  <div class="prac-priority" id="demo1">
+    <div class="prac-pill" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#DB2777">SA</div>
+      <span class="prac-name">Sophie Arnaud</span>
+      <span class="prac-badge"></span>
+    </div>
+    <div class="prac-pill" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#059669">MC</div>
+      <span class="prac-name">Marie Collet</span>
+      <span class="prac-badge"></span>
+    </div>
+    <div class="prac-pill" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#1E3A8A">HA</div>
+      <span class="prac-name">Hakim Abbes</span>
+      <span class="prac-badge"></span>
+    </div>
+  </div>
+  <div class="equal-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    Si aucun sélectionné → disponible pour tous à égalité
+  </div>
+</div>
+
+<!-- ===== DEMO AVEC PRIORITÉS ===== -->
+<div class="section">
+  <span class="label">Avec priorités définies</span>
+  <div class="section-title">Praticiens assignés</div>
+  <div class="section-hint">Cliquez pour définir l'ordre de priorité</div>
+  <div class="prac-priority has-selection" id="demo2">
+    <div class="prac-pill selected rank-1" data-order="1" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#DB2777">SA</div>
+      <span class="prac-name">Sophie Arnaud</span>
+      <span class="prac-badge">1</span>
+    </div>
+    <div class="prac-pill selected rank-2" data-order="2" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#059669">MC</div>
+      <span class="prac-name">Marie Collet</span>
+      <span class="prac-badge">2</span>
+    </div>
+    <div class="prac-pill" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#1E3A8A">HA</div>
+      <span class="prac-name">Hakim Abbes</span>
+      <span class="prac-badge"></span>
+    </div>
+  </div>
+  <div class="equal-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    Sophie en priorité, puis Marie. Hakim n'est pas assigné.
+  </div>
+</div>
+
+<!-- ===== DEMO 4 PRATICIENS ===== -->
+<div class="section">
+  <span class="label">Salon avec 4 praticiens — tous ordonnés</span>
+  <div class="section-title">Praticiens assignés</div>
+  <div class="section-hint">Cliquez pour définir l'ordre de priorité</div>
+  <div class="prac-priority has-selection" id="demo3">
+    <div class="prac-pill selected rank-1" data-order="1" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#DB2777">SA</div>
+      <span class="prac-name">Sophie</span>
+      <span class="prac-badge">1</span>
+    </div>
+    <div class="prac-pill selected rank-2" data-order="2" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#059669">MC</div>
+      <span class="prac-name">Marie</span>
+      <span class="prac-badge">2</span>
+    </div>
+    <div class="prac-pill selected rank-3" data-order="3" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#1E3A8A">HA</div>
+      <span class="prac-name">Hakim</span>
+      <span class="prac-badge">3</span>
+    </div>
+    <div class="prac-pill selected rank-4" data-order="4" onclick="togglePrac(this)">
+      <div class="prac-avatar" style="background:#EA580C">LT</div>
+      <span class="prac-name">Laura</span>
+      <span class="prac-badge">4</span>
+    </div>
+  </div>
+  <div class="equal-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    Sophie prioritaire → Marie → Hakim → Laura en dernier
+  </div>
+</div>
+
+<script>
+function togglePrac(pill) {
+  const container = pill.closest('.prac-priority');
+  const pills = [...container.querySelectorAll('.prac-pill')];
+
+  if (pill.classList.contains('selected')) {
+    // Deselect
+    pill.classList.remove('selected');
+    pill.removeAttribute('data-order');
+  } else {
+    // Select — assign next order
+    const maxOrder = Math.max(0, ...pills.filter(p => p.dataset.order).map(p => parseInt(p.dataset.order)));
+    pill.classList.add('selected');
+    pill.dataset.order = maxOrder + 1;
+  }
+
+  // Recalculate ranks
+  const selected = pills.filter(p => p.dataset.order).sort((a, b) => parseInt(a.dataset.order) - parseInt(b.dataset.order));
+
+  // Reset all
+  pills.forEach(p => {
+    p.classList.remove('rank-1', 'rank-2', 'rank-3', 'rank-4');
+    p.querySelector('.prac-badge').textContent = '';
+  });
+
+  // Reassign sequential ranks
+  selected.forEach((p, i) => {
+    const rank = i + 1;
+    p.dataset.order = rank;
+    p.querySelector('.prac-badge').textContent = rank;
+    p.classList.add('rank-' + Math.min(rank, 4));
+  });
+
+  // Toggle container class
+  container.classList.toggle('has-selection', selected.length > 0);
+}
+</script>
+
+</body>
+</html>
