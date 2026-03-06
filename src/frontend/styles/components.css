@@ -354,6 +354,47 @@
 .plan-impact.warn{background:#FEF3C7;color:#92400E}
 .plan-impact.ok{background:#D1FAE5;color:#065F46}
 
+/* Absence modal — 2-column grid */
+.plan-abs-grid{display:grid;grid-template-columns:1fr 240px;gap:20px}
+@media(max-width:680px){.plan-abs-grid{grid-template-columns:1fr}}
+
+/* Shortcut chips */
+.plan-shortcut-chips{display:flex;gap:6px;margin-bottom:14px}
+.plan-shortcut-chip{padding:6px 12px;border-radius:100px;font-size:.7rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;transition:all .15s;font-family:inherit;color:var(--text-3)}
+.plan-shortcut-chip:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+
+/* Segment block (Début/Fin) */
+.plan-seg-block{padding:12px 14px;border:1px solid var(--border-light);border-radius:10px;background:var(--surface);margin-bottom:10px}
+.plan-seg-block .m-field-label{margin-bottom:6px;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--text-4)}
+.plan-seg-pills{display:flex;gap:4px;margin-top:8px}
+.plan-seg-pill{padding:6px 12px;border-radius:6px;font-size:.72rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;transition:all .12s;font-family:inherit;color:var(--text-3)}
+.plan-seg-pill:hover{border-color:var(--border)}
+.plan-seg-pill.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+
+/* Impact card (right column) */
+.plan-impact-card{padding:14px;border:1px solid var(--border-light);border-radius:10px;background:var(--surface);position:sticky;top:0}
+.plan-impact-card h4{font-size:.78rem;font-weight:700;margin:0 0 10px;color:var(--text-2)}
+.plan-impact-card svg{width:14px;height:14px;flex-shrink:0;vertical-align:-2px}
+.plan-impact-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light);font-size:.78rem}
+.plan-impact-row:last-child{border-bottom:none}
+.plan-impact-count{font-weight:700;display:flex;align-items:center;gap:4px}
+.plan-impact-btn{font-size:.7rem;font-weight:600;color:var(--primary);background:none;border:none;cursor:pointer;padding:2px 6px}
+.plan-impact-btn:hover{text-decoration:underline}
+.plan-coverage-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:.7rem;font-weight:700}
+.plan-coverage-badge svg{width:12px;height:12px}
+.plan-coverage-badge.ok{background:#D1FAE5;color:#065F46}
+.plan-coverage-badge.at-risk{background:#FEF3C7;color:#92400E}
+.plan-coverage-badge.critical{background:#FEE2E2;color:#991B1B}
+.plan-impact-list{max-height:0;overflow:hidden;transition:max-height .25s ease}
+.plan-impact-list.open{max-height:300px;overflow-y:auto}
+.plan-impact-item{padding:6px 0;border-bottom:1px solid var(--border-light);font-size:.72rem;color:var(--text-3)}
+.plan-impact-item:last-child{border-bottom:none}
+.plan-coverage-detail{font-size:.72rem;color:var(--text-4);margin-top:6px;padding:6px 8px;background:rgba(245,158,11,.08);border-radius:6px}
+
+/* Date validation error */
+.plan-date-error{font-size:.7rem;color:#DC2626;margin-top:4px;display:none}
+.plan-date-error.show{display:block}
+
 /* Log timeline */
 .plan-log-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);position:relative}
 .plan-log-item:last-child{border-bottom:none}

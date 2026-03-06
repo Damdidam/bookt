@@ -603,9 +603,33 @@ router.get('/impact', async (req, res, next) => {
       [bid, practitioner_id, date_from, date_to]
     );
 
+    // Coverage check: which services are ONLY covered by this practitioner?
+    const pracServices = await queryWithRLS(bid,
+      `SELECT DISTINCT s.id, s.name FROM practitioner_services ps
+       JOIN services s ON s.id = ps.service_id
+       WHERE ps.practitioner_id = $1 AND s.business_id = $2 AND s.is_active = true`,
+      [practitioner_id, bid]
+    );
+
+    const uncoveredServices = [];
+    for (const svc of pracServices.rows) {
+      const others = await queryWithRLS(bid,
+        `SELECT COUNT(*) AS cnt FROM practitioner_services ps
+         JOIN practitioners p ON p.id = ps.practitioner_id
+         WHERE ps.service_id = $1 AND p.business_id = $2
+           AND p.is_active = true AND p.booking_enabled = true AND p.id != $3`,
+        [svc.id, bid, practitioner_id]
+      );
+      if (parseInt(others.rows[0].cnt) === 0) {
+        uncoveredServices.push(svc.name);
+      }
+    }
+
     res.json({
       impacted_bookings: bookings.rows,
-      count: bookings.rows.length
+      count: bookings.rows.length,
+      coverage: uncoveredServices.length === 0 ? 'ok' : 'at_risk',
+      uncovered_services: uncoveredServices
     });
   } catch (err) { next(err); }
 });

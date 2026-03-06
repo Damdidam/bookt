@@ -13,7 +13,7 @@ const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 const TYPE_LABELS = { conge: 'C', maladie: 'M', formation: 'F', autre: 'A' };
-const TYPE_NAMES = { conge: 'Congé', maladie: 'Maladie', formation: 'Formation', autre: 'Autre' };
+const TYPE_NAMES = { conge: 'Congé', maladie: 'Maladie', formation: 'Formation', autre: 'Indispo' };
 const PERIOD_LABELS = { full: 'Journée', am: 'Matin', pm: 'Après-midi' };
 
 // SVG Icons (Lucide-style)
@@ -485,13 +485,21 @@ function planOpenModal(pracId, dateStr, absId) {
   const pracInitials = selectedPrac ? (selectedPrac.display_name || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
   const pracColor = selectedPrac?.color || '#1E3A8A';
 
+  // For single day, Fin segments mirror Début
+  const startSeg = isMultiDay ? currentPeriod : currentPeriod;
+  const endSeg = isMultiDay ? currentPeriodEnd : currentPeriod;
+
   const overlay = document.createElement('div');
   overlay.id = 'planAbsOverlay';
   overlay.className = 'cal-modal-overlay open';
   overlay.onclick = e => { if (e.target === overlay) planCloseModal(); };
 
+  const segPills = (prefix, activeSeg) => ['full', 'am', 'pm'].map(s =>
+    `<div class="plan-seg-pill${activeSeg === s ? ' active' : ''}" data-seg="${s}" onclick="planPickSeg('${prefix}',this)">${PERIOD_LABELS[s]}</div>`
+  ).join('');
+
   overlay.innerHTML = `
-    <div class="cal-modal" style="max-width:540px;overflow:hidden;display:flex;flex-direction:column;max-height:85vh">
+    <div class="cal-modal" style="max-width:680px;overflow:hidden;display:flex;flex-direction:column;max-height:90vh">
 
       <!-- Header -->
       <div class="m-header">
@@ -502,7 +510,7 @@ function planOpenModal(pracId, dateStr, absId) {
             <div class="m-avatar" style="background:${esc(pracColor)}">${pracInitials}</div>
             <div class="m-client-info">
               <div class="m-client-name" id="planModalTitle">${isEdit ? esc(absData?.practitioner_name || '') : 'Nouvelle absence'}</div>
-              <div class="m-client-meta"><span id="planModalSubtitle">${isEdit ? esc(TYPE_NAMES[currentType]) : 'Planifiez une absence'}</span></div>
+              <div class="m-client-meta"><span id="planModalSubtitle">Planifiez une absence</span></div>
             </div>
           </div>
         </div>
@@ -518,89 +526,77 @@ function planOpenModal(pracId, dateStr, absId) {
       <div class="cal-modal-body" style="padding:20px 24px;overflow-y:auto;flex:1;min-height:0">
 
         <div class="cal-panel active" id="planPanelDetails">
+          <div class="plan-abs-grid">
 
-          <!-- Type -->
-          <div class="m-sec">
-            <div class="m-sec-head"><span class="m-sec-title">Type</span><span class="m-sec-line"></span></div>
-            <div class="plan-type-pills" id="planTypePills">
-              ${['conge', 'maladie', 'formation', 'autre'].map(t => `
-                <div class="plan-type-pill${currentType === t ? ' active-' + t : ''}" data-type="${t}" onclick="planPickType(this)">
-                  ${TYPE_ICONS[t]} ${TYPE_NAMES[t]}
-                </div>`).join('')}
-            </div>
-          </div>
+            <!-- LEFT column: Form -->
+            <div class="plan-abs-form">
 
-          <!-- Practitioner -->
-          <div class="m-sec">
-            <div class="m-sec-head"><span class="m-sec-title">Praticien</span><span class="m-sec-line"></span></div>
-            <select id="planAbsPrac" class="m-input" ${isEdit ? 'disabled' : ''} onchange="planUpdateHeader()">${pracOptions}</select>
-          </div>
+              <!-- Type -->
+              <div class="m-sec">
+                <div class="m-sec-head"><span class="m-sec-title">Type</span><span class="m-sec-line"></span></div>
+                <div class="plan-type-pills" id="planTypePills">
+                  ${['conge', 'maladie', 'formation', 'autre'].map(t => `
+                    <div class="plan-type-pill${currentType === t ? ' active-' + t : ''}" data-type="${t}" onclick="planPickType(this)">
+                      ${TYPE_ICONS[t]} ${TYPE_NAMES[t]}
+                    </div>`).join('')}
+                </div>
+              </div>
 
-          <!-- Period dates -->
-          <div class="m-sec">
-            <div class="m-sec-head"><span class="m-sec-title">Période</span><span class="m-sec-line"></span></div>
-            <div class="m-row m-row-2">
-              <div>
-                <div class="m-field-label">Du</div>
+              <!-- Practitioner -->
+              <div class="m-sec">
+                <div class="m-sec-head"><span class="m-sec-title">Praticien</span><span class="m-sec-line"></span></div>
+                <select id="planAbsPrac" class="m-input" ${isEdit ? 'disabled' : ''} onchange="planUpdateHeader();planCheckImpact()">${pracOptions}</select>
+              </div>
+
+              <!-- Shortcuts -->
+              <div class="m-sec">
+                <div class="m-sec-head"><span class="m-sec-title">Raccourcis</span><span class="m-sec-line"></span></div>
+                <div class="plan-shortcut-chips">
+                  <button class="plan-shortcut-chip" onclick="planApplyShortcut('half')">½ journée</button>
+                  <button class="plan-shortcut-chip" onclick="planApplyShortcut('full')">1 jour</button>
+                  <button class="plan-shortcut-chip" onclick="planApplyShortcut('multi')">Plusieurs jours</button>
+                </div>
+              </div>
+
+              <!-- Début -->
+              <div class="plan-seg-block">
+                <div class="m-field-label">Début</div>
                 <input type="date" id="planAbsFrom" class="m-input" value="${abFrom}" onchange="planOnDatesChange()">
+                <div class="plan-seg-pills" id="planSegStart">${segPills('start', startSeg)}</div>
               </div>
-              <div>
-                <div class="m-field-label">Au</div>
+
+              <!-- Fin -->
+              <div class="plan-seg-block" id="planEndBlock" style="${isMultiDay ? '' : 'display:none'}">
+                <div class="m-field-label">Fin</div>
                 <input type="date" id="planAbsTo" class="m-input" value="${abTo}" onchange="planOnDatesChange()">
+                <div class="plan-seg-pills" id="planSegEnd">${segPills('end', endSeg)}</div>
+              </div>
+
+              <!-- Hidden To sync for single day -->
+              ${!isMultiDay ? '' : ''}
+
+              <!-- Date error -->
+              <div class="plan-date-error" id="planDateError">La date de fin doit être après la date de début</div>
+
+              <!-- Note -->
+              <div class="m-sec" style="margin-top:4px">
+                <div class="m-sec-head"><span class="m-sec-title">Note <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></span><span class="m-sec-line"></span></div>
+                <textarea id="planAbsNote" class="m-input" rows="2" placeholder="Vacances, formation coloration...">${esc(absData?.note || '')}</textarea>
               </div>
             </div>
-          </div>
 
-          <!-- Day period — SINGLE DAY -->
-          <div class="m-sec" id="planPeriodSingle" style="display:${isMultiDay ? 'none' : 'block'}">
-            <div class="m-sec-head"><span class="m-sec-title">Journée</span><span class="m-sec-line"></span></div>
-            <div class="plan-period-pills" id="planPeriodPillsSingle">
-              <div class="plan-period-pill${!isMultiDay && currentPeriod === 'full' ? ' active' : ''}" data-period="full" onclick="planPickPeriodSingle(this)">
-                ${ICONS.clock} Journée complète
-              </div>
-              <div class="plan-period-pill${!isMultiDay && currentPeriod === 'am' ? ' active' : ''}" data-period="am" onclick="planPickPeriodSingle(this)">
-                ${ICONS.sunrise} Matin
-              </div>
-              <div class="plan-period-pill${!isMultiDay && currentPeriod === 'pm' ? ' active' : ''}" data-period="pm" onclick="planPickPeriodSingle(this)">
-                ${ICONS.sunset} Après-midi
-              </div>
-            </div>
-          </div>
-
-          <!-- Day period — MULTI DAY (start + end) -->
-          <div class="m-sec" id="planPeriodMulti" style="display:${isMultiDay ? 'block' : 'none'}">
-            <div class="m-sec-head"><span class="m-sec-title">Journée</span><span class="m-sec-line"></span></div>
-            <div style="margin-bottom:10px">
-              <div class="m-field-label">Premier jour</div>
-              <div class="plan-period-pills" id="planPeriodStart">
-                <div class="plan-period-pill${isMultiDay && currentPeriod === 'full' ? ' active' : ''}" data-period="full" onclick="planPickPeriodStart(this)">
-                  ${ICONS.clock} Journée complète
-                </div>
-                <div class="plan-period-pill${isMultiDay && currentPeriod === 'pm' ? ' active' : ''}" data-period="pm" onclick="planPickPeriodStart(this)">
-                  ${ICONS.sunset} À partir de l'après-midi
+            <!-- RIGHT column: Impact -->
+            <div class="plan-abs-impact">
+              <div class="plan-impact-card" id="planImpactZone">
+                <h4>Impact</h4>
+                <div style="text-align:center;padding:12px;color:var(--text-4);font-size:.75rem">
+                  <div class="spinner" style="margin:0 auto 8px;width:18px;height:18px"></div>
+                  Analyse en cours…
                 </div>
               </div>
             </div>
-            <div>
-              <div class="m-field-label">Dernier jour</div>
-              <div class="plan-period-pills" id="planPeriodEnd">
-                <div class="plan-period-pill${isMultiDay && currentPeriodEnd === 'full' ? ' active' : ''}" data-period="full" onclick="planPickPeriodEnd(this)">
-                  ${ICONS.clock} Journée complète
-                </div>
-                <div class="plan-period-pill${isMultiDay && currentPeriodEnd === 'am' ? ' active' : ''}" data-period="am" onclick="planPickPeriodEnd(this)">
-                  ${ICONS.sunrise} Jusqu'au matin
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Note -->
-          <div class="m-sec">
-            <div class="m-sec-head"><span class="m-sec-title">Note</span><span class="m-sec-line"></span></div>
-            <textarea id="planAbsNote" class="m-input" rows="2" placeholder="Vacances, formation coloration...">${esc(absData?.note || '')}</textarea>
           </div>
-
-          <div id="planImpactZone"></div>
         </div>
 
         <!-- Log panel -->
@@ -617,11 +613,12 @@ function planOpenModal(pracId, dateStr, absId) {
         ${isEdit && absData?.practitioner_email ? `<button class="m-btn m-btn-ghost" onclick="planNotifyPractitioner('${absId}')" style="display:flex;align-items:center;gap:4px">${ICONS.mail} Notifier</button>` : ''}
         <div style="flex:1"></div>
         <button class="m-btn m-btn-ghost" onclick="planCloseModal()">Annuler</button>
-        <button class="m-btn m-btn-primary" id="planAbsSaveBtn" onclick="planSaveAbsence()">${isEdit ? 'Enregistrer' : 'Confirmer'}</button>
+        <button class="m-btn m-btn-primary" id="planAbsSaveBtn" onclick="planSaveAbsence()">Enregistrer l'absence</button>
       </div>
     </div>`;
 
   document.body.appendChild(overlay);
+  planUpdateSubtitle();
   if (pracId || absData) setTimeout(planCheckImpact, 100);
 }
 
@@ -631,37 +628,36 @@ function planCloseModal() {
   _editingAbsenceId = null;
 }
 
-/** Called when dates change — toggle single/multi day period UI */
+/** Called when dates change — show/hide Fin block, validate, sync */
 function planOnDatesChange() {
   const from = document.getElementById('planAbsFrom')?.value;
   const to = document.getElementById('planAbsTo')?.value;
-  const singleEl = document.getElementById('planPeriodSingle');
-  const multiEl = document.getElementById('planPeriodMulti');
+  const endBlock = document.getElementById('planEndBlock');
+  const errEl = document.getElementById('planDateError');
+  const saveBtn = document.getElementById('planAbsSaveBtn');
 
-  if (from && to && from !== to) {
-    // Multi-day
-    if (singleEl) singleEl.style.display = 'none';
-    if (multiEl) multiEl.style.display = 'block';
-    if (!document.querySelector('#planPeriodStart .plan-period-pill.active')) {
-      const first = document.querySelector('#planPeriodStart .plan-period-pill[data-period="full"]');
-      if (first) first.classList.add('active');
-    }
-    if (!document.querySelector('#planPeriodEnd .plan-period-pill.active')) {
-      const first = document.querySelector('#planPeriodEnd .plan-period-pill[data-period="full"]');
-      if (first) first.classList.add('active');
-    }
-  } else {
-    // Single day
-    if (singleEl) singleEl.style.display = 'block';
-    if (multiEl) multiEl.style.display = 'none';
-    if (!document.querySelector('#planPeriodPillsSingle .plan-period-pill.active')) {
-      const first = document.querySelector('#planPeriodPillsSingle .plan-period-pill[data-period="full"]');
-      if (first) first.classList.add('active');
-    }
+  const isMulti = from && to && from !== to;
+
+  // Show/hide Fin block
+  if (endBlock) endBlock.style.display = isMulti ? '' : 'none';
+
+  // If single day, sync To = From
+  if (!isMulti && from) {
+    const toInput = document.getElementById('planAbsTo');
+    if (toInput) toInput.value = from;
   }
 
-  planCheckImpact();
+  // Validate: Fin < Début
+  if (from && to && to < from) {
+    if (errEl) errEl.classList.add('show');
+    if (saveBtn) saveBtn.disabled = true;
+  } else {
+    if (errEl) errEl.classList.remove('show');
+    if (saveBtn) saveBtn.disabled = false;
+  }
+
   planUpdateSubtitle();
+  planCheckImpact();
 }
 
 function planSwitchTab(tab) {
@@ -680,22 +676,61 @@ function planPickType(pill) {
   planUpdateSubtitle();
 }
 
-function planPickPeriodSingle(pill) {
-  document.querySelectorAll('#planPeriodPillsSingle .plan-period-pill').forEach(p => p.classList.remove('active'));
+/** Unified segment picker for start/end */
+function planPickSeg(prefix, pill) {
+  const container = document.getElementById(prefix === 'start' ? 'planSegStart' : 'planSegEnd');
+  if (!container) return;
+  container.querySelectorAll('.plan-seg-pill').forEach(p => p.classList.remove('active'));
   pill.classList.add('active');
+
+  // If single day → sync end segment to match start
+  const from = document.getElementById('planAbsFrom')?.value;
+  const to = document.getElementById('planAbsTo')?.value;
+  if (prefix === 'start' && (!to || from === to)) {
+    const endContainer = document.getElementById('planSegEnd');
+    if (endContainer) {
+      endContainer.querySelectorAll('.plan-seg-pill').forEach(p => p.classList.remove('active'));
+      const match = endContainer.querySelector(`.plan-seg-pill[data-seg="${pill.dataset.seg}"]`);
+      if (match) match.classList.add('active');
+    }
+  }
   planUpdateSubtitle();
+  planCheckImpact();
 }
 
-function planPickPeriodStart(pill) {
-  document.querySelectorAll('#planPeriodStart .plan-period-pill').forEach(p => p.classList.remove('active'));
-  pill.classList.add('active');
-  planUpdateSubtitle();
+/** Shortcut chips: ½ journée, 1 jour, plusieurs jours */
+function planApplyShortcut(type) {
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const fromInput = document.getElementById('planAbsFrom');
+  const toInput = document.getElementById('planAbsTo');
+  if (!fromInput || !toInput) return;
+
+  if (type === 'half') {
+    fromInput.value = today;
+    toInput.value = today;
+    _setSegActive('planSegStart', 'am');
+    _setSegActive('planSegEnd', 'am');
+  } else if (type === 'full') {
+    fromInput.value = today;
+    toInput.value = today;
+    _setSegActive('planSegStart', 'full');
+    _setSegActive('planSegEnd', 'full');
+  } else if (type === 'multi') {
+    fromInput.value = today;
+    toInput.value = tomorrow;
+    _setSegActive('planSegStart', 'full');
+    _setSegActive('planSegEnd', 'full');
+  }
+  planOnDatesChange();
 }
 
-function planPickPeriodEnd(pill) {
-  document.querySelectorAll('#planPeriodEnd .plan-period-pill').forEach(p => p.classList.remove('active'));
-  pill.classList.add('active');
-  planUpdateSubtitle();
+function _setSegActive(containerId, seg) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.querySelectorAll('.plan-seg-pill').forEach(p => p.classList.remove('active'));
+  const pill = c.querySelector(`.plan-seg-pill[data-seg="${seg}"]`);
+  if (pill) pill.classList.add('active');
 }
 
 function planUpdateHeader() {
@@ -711,23 +746,47 @@ function planUpdateHeader() {
   }
 }
 
+/** Rich live subtitle: "Le 4 mars · journée · 1 jour" or "Du 4 mars (après-midi) → 6 mars (matin) · 2,5 jours" */
 function planUpdateSubtitle() {
   const sub = document.getElementById('planModalSubtitle');
   if (!sub) return;
-  const type = planGetSelectedType();
+  const from = document.getElementById('planAbsFrom')?.value;
+  const to = document.getElementById('planAbsTo')?.value;
+  if (!from) { sub.textContent = 'Planifiez une absence'; return; }
   const { period, period_end } = planGetSelectedPeriods();
-  let label = TYPE_NAMES[type];
-  if (period !== 'full' || period_end !== 'full') {
-    const from = document.getElementById('planAbsFrom')?.value;
-    const to = document.getElementById('planAbsTo')?.value;
-    if (from === to) {
-      label += ' · ' + PERIOD_LABELS[period];
-    } else {
-      if (period === 'pm') label += ' · Début PM';
-      if (period_end === 'am') label += ' · Fin AM';
+
+  const fmtDay = (dateStr) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    return `${d.getDate()} ${MONTH_NAMES[d.getMonth()].toLowerCase()}`;
+  };
+
+  const isSameDay = !to || from === to;
+  const segLabel = (s) => s === 'am' ? 'matin' : s === 'pm' ? 'après-midi' : 'journée';
+
+  if (isSameDay) {
+    // "Le 4 mars · journée · 1 jour"
+    const dur = period === 'full' ? '1 jour' : '½ jour';
+    sub.textContent = `Le ${fmtDay(from)} · ${segLabel(period)} · ${dur}`;
+  } else {
+    // Calculate working days between (simple: count calendar days)
+    const d1 = new Date(from + 'T12:00:00');
+    const d2 = new Date(to + 'T12:00:00');
+    let days = 0;
+    const cur = new Date(d1);
+    while (cur <= d2) {
+      const dow = cur.getDay();
+      if (dow !== 0) days++; // skip Sunday
+      cur.setDate(cur.getDate() + 1);
     }
+    // Adjust for half-days
+    if (period === 'am' || period === 'pm') days -= 0.5;
+    if (period_end === 'am' || period_end === 'pm') days -= 0.5;
+    const durStr = days % 1 === 0 ? `${days} jour${days > 1 ? 's' : ''}` : `${days.toFixed(1).replace('.', ',')} jours`;
+
+    const startSeg = period !== 'full' ? ` (${segLabel(period)})` : '';
+    const endSeg = period_end !== 'full' ? ` (${segLabel(period_end)})` : '';
+    sub.textContent = `Du ${fmtDay(from)}${startSeg} → ${fmtDay(to)}${endSeg} · ${durStr}`;
   }
-  sub.textContent = label;
 }
 
 function planGetSelectedType() {
@@ -735,34 +794,36 @@ function planGetSelectedType() {
   return active?.dataset.type || 'conge';
 }
 
-/** Get both period and period_end based on single/multi day mode */
+/** Get both period and period_end from segment pills */
 function planGetSelectedPeriods() {
+  const startPill = document.querySelector('#planSegStart .plan-seg-pill.active');
+  const endPill = document.querySelector('#planSegEnd .plan-seg-pill.active');
+  const p = startPill?.dataset.seg || 'full';
+  const pe = endPill?.dataset.seg || 'full';
+
+  // For single day, both should match
   const from = document.getElementById('planAbsFrom')?.value;
   const to = document.getElementById('planAbsTo')?.value;
-  const isMulti = from && to && from !== to;
-
-  if (isMulti) {
-    const startPill = document.querySelector('#planPeriodStart .plan-period-pill.active');
-    const endPill = document.querySelector('#planPeriodEnd .plan-period-pill.active');
-    return {
-      period: startPill?.dataset.period || 'full',
-      period_end: endPill?.dataset.period || 'full'
-    };
-  } else {
-    const pill = document.querySelector('#planPeriodPillsSingle .plan-period-pill.active');
-    const p = pill?.dataset.period || 'full';
-    return { period: p, period_end: p };
-  }
+  if (!to || from === to) return { period: p, period_end: p };
+  return { period: p, period_end: pe };
 }
 
-// ── Impact preview ──
+// ── Impact preview (enriched with coverage) ──
+let _impactDebounce = null;
 async function planCheckImpact() {
+  clearTimeout(_impactDebounce);
+  _impactDebounce = setTimeout(_doCheckImpact, 250);
+}
+
+async function _doCheckImpact() {
   const zone = document.getElementById('planImpactZone');
   if (!zone) return;
   const pracId = document.getElementById('planAbsPrac')?.value;
   const from = document.getElementById('planAbsFrom')?.value;
-  const to = document.getElementById('planAbsTo')?.value;
-  if (!pracId || !from || !to) return;
+  const to = document.getElementById('planAbsTo')?.value || from;
+  if (!pracId || !from) return;
+
+  zone.innerHTML = `<h4>Impact</h4><div style="text-align:center;padding:12px;color:var(--text-4);font-size:.75rem"><div class="spinner" style="margin:0 auto 8px;width:18px;height:18px"></div>Analyse…</div>`;
 
   try {
     const r = await fetch(`/api/planning/impact?practitioner_id=${pracId}&date_from=${from}&date_to=${to}`, {
@@ -770,13 +831,50 @@ async function planCheckImpact() {
     });
     const data = await r.json();
     const count = data.count || 0;
+    const bookings = data.impacted_bookings || [];
+    const coverage = data.coverage || 'ok';
+    const uncovered = data.uncovered_services || [];
 
+    let h = '<h4>Impact</h4>';
+
+    // RDV count row
     if (count > 0) {
-      zone.innerHTML = `<div class="plan-impact warn">${ICONS.alertTriangle}<div><strong>${count} RDV impacté${count > 1 ? 's' : ''}</strong> sur cette période</div></div>`;
+      h += `<div class="plan-impact-row">
+        <span class="plan-impact-count">${ICONS.alertTriangle} ${count} RDV impacté${count > 1 ? 's' : ''}</span>
+        <button class="plan-impact-btn" onclick="planToggleImpactList()">Voir</button>
+      </div>`;
+      // Collapsible booking list
+      h += '<div class="plan-impact-list" id="planImpactList">';
+      bookings.forEach(b => {
+        const dt = new Date(b.start_at);
+        const day = dt.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+        const time = dt.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+        h += `<div class="plan-impact-item"><strong>${esc(b.client_name || 'Client')}</strong> · ${esc(b.service_name || '')} · ${day} à ${time}</div>`;
+      });
+      h += '</div>';
     } else {
-      zone.innerHTML = `<div class="plan-impact ok">${ICONS.checkCircle}<div>Aucun RDV impacté</div></div>`;
+      h += `<div class="plan-impact-row"><span>${ICONS.checkCircle} Aucun RDV impacté</span></div>`;
     }
-  } catch (e) { zone.innerHTML = ''; }
+
+    // Coverage badge
+    if (coverage === 'ok') {
+      h += `<div style="margin-top:10px"><span class="plan-coverage-badge ok">${ICONS.checkCircle} Couverture OK</span></div>`;
+    } else {
+      h += `<div style="margin-top:10px"><span class="plan-coverage-badge at-risk">${ICONS.alertTriangle} À risque</span></div>`;
+      if (uncovered.length) {
+        h += `<div class="plan-coverage-detail">Plus de couverture pour : ${uncovered.map(s => esc(s)).join(', ')}</div>`;
+      }
+    }
+
+    zone.innerHTML = h;
+  } catch (e) {
+    zone.innerHTML = `<h4>Impact</h4><div style="padding:8px;font-size:.75rem;color:var(--text-4)">Impossible de charger</div>`;
+  }
+}
+
+function planToggleImpactList() {
+  const list = document.getElementById('planImpactList');
+  if (list) list.classList.toggle('open');
 }
 
 // ── Save absence ──
@@ -788,14 +886,21 @@ async function planSaveAbsence() {
 
   const pracId = document.getElementById('planAbsPrac')?.value;
   const from = document.getElementById('planAbsFrom')?.value;
-  const to = document.getElementById('planAbsTo')?.value;
+  const to = document.getElementById('planAbsTo')?.value || from;
   const note = document.getElementById('planAbsNote')?.value;
   const type = planGetSelectedType();
   const { period, period_end } = planGetSelectedPeriods();
 
-  if (!pracId || !from || !to) {
+  if (!pracId || !from) {
     btn.disabled = false;
-    btn.textContent = _editingAbsenceId ? 'Enregistrer' : 'Confirmer';
+    btn.textContent = "Enregistrer l'absence";
+    return;
+  }
+
+  // Client-side validation
+  if (to < from) {
+    btn.disabled = false;
+    btn.textContent = "Enregistrer l'absence";
     return;
   }
 
@@ -814,9 +919,9 @@ async function planSaveAbsence() {
     const data = await r.json();
 
     if (!r.ok) {
-      alert(data.error || 'Erreur');
+      _showToast(data.error || 'Erreur', 'error');
       btn.disabled = false;
-      btn.textContent = _editingAbsenceId ? 'Enregistrer' : 'Confirmer';
+      btn.textContent = "Enregistrer l'absence";
       return;
     }
 
@@ -824,10 +929,22 @@ async function planSaveAbsence() {
     planCloseModal();
     await renderPlanning();
   } catch (e) {
-    alert('Erreur: ' + e.message);
+    _showToast('Erreur: ' + e.message, 'error');
     btn.disabled = false;
-    btn.textContent = _editingAbsenceId ? 'Enregistrer' : 'Confirmer';
+    btn.textContent = "Enregistrer l'absence";
   }
+}
+
+/** Simple toast notification */
+function _showToast(msg, type) {
+  const existing = document.getElementById('planToast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'planToast';
+  toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:.82rem;font-weight:600;z-index:99999;color:#fff;background:${type === 'error' ? '#DC2626' : '#059669'};box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fadeIn .2s`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
 }
 
 // ── Delete absence ──
@@ -903,11 +1020,11 @@ async function planLoadLogs(absId) {
 bridge({
   planPrevMonth, planNextMonth, planGoToday,
   planOpenModal, planCloseModal,
-  planPickType, planPickPeriodSingle, planPickPeriodStart, planPickPeriodEnd,
+  planPickType, planPickSeg, planApplyShortcut,
   planSwitchTab, planOnDatesChange,
   planSaveAbsence, planDeleteAbsence,
   planNotifyPractitioner, planCheckImpact,
-  planUpdateHeader, planLoadLogs,
+  planUpdateHeader, planLoadLogs, planToggleImpactList,
   planExportCSV, planOpenSendModal, planDoSendPlanning
 });
 
