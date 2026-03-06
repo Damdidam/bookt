@@ -10,6 +10,8 @@ let pPendingPhoto = null;
 let teamCurrentTab = 'profile';
 let teamEditSkills = []; // mutable copy for editing
 let teamLeaveYear = new Date().getFullYear();
+let teamEditSchedule = {}; // mutable copy of schedule for editing (weekday -> [{start_time,end_time}])
+let teamEditPracId = null; // practitioner id being edited
 
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function escH(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -316,14 +318,10 @@ function renderPractModal(p) {
       <!-- TAB: HORAIRE -->
       <div class="cal-panel" id="team-panel-schedule">
         <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Jours travaillés</span><span class="m-sec-line"></span></div>
-          ${renderScheduleGrid(p)}
+          <div class="m-sec-head"><span class="m-sec-title">Disponibilités hebdomadaires</span><span class="m-sec-line"></span></div>
+          <div id="tm_schedule_editor">${isEdit ? '<div style="font-size:.78rem;color:var(--text-4)">Chargement...</div>' : renderScheduleEditor()}</div>
         </div>
-        <div style="margin-top:16px;padding:14px;background:var(--surface);border-radius:10px">
-          <div style="font-size:.82rem;color:var(--text-3)">Les horaires détaillés sont gérés dans la section
-            <a href="#" onclick="event.preventDefault();closeTeamModal();setTimeout(()=>{window.loadSection&&window.loadSection('hours')},100)" style="color:var(--primary);font-weight:600">Disponibilités <svg class="gi" style="width:10px;height:10px" ${ICONS.link.slice(4)}></a>
-          </div>
-        </div>
+        ${p?.weekly_hours_target ? `<div style="margin-top:10px;font-size:.78rem;color:var(--text-3)">Heures/semaine cible : <strong>${p.weekly_hours_target}h</strong></div>` : ''}
       </div>
 
       <!-- TAB: CONGÉS -->
@@ -408,9 +406,16 @@ function renderPractModal(p) {
   document.body.insertAdjacentHTML('beforeend', h);
   document.getElementById('p_color_wrap').innerHTML = cswHTML('p_color', p?.color || '#1E3A8A', false);
 
+  // Initialize schedule editor
+  teamEditPracId = p?.id || null;
   if (isEdit) {
     window.loadPracCalSync && window.loadPracCalSync(p.id);
     teamLoadLeave(p.id, teamLeaveYear);
+    teamLoadSchedule(p.id);
+  } else {
+    // New practitioner: empty schedule
+    teamEditSchedule = {};
+    for (let d = 0; d < 7; d++) teamEditSchedule[d] = [];
   }
 }
 
@@ -470,30 +475,94 @@ function teamSetSkillLevel(idx, level) {
 // Schedule grid (read-only)
 // ============================================================
 
-function renderScheduleGrid(p) {
-  const workDays = p?.work_days || [];
-  const regime = computeRegime(workDays);
-  const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+// ============================================================
+// Schedule editor (editable availability)
+// ============================================================
 
-  if (workDays.length === 0) {
-    return `<div style="font-size:.82rem;color:var(--text-4);padding:16px 0;text-align:center">
-      Aucune disponibilité configurée. Configurez les horaires dans la section Disponibilités.
+const DAYS_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+async function teamLoadSchedule(pracId) {
+  try {
+    const r = await fetch(`/api/availabilities?practitioner_id=${pracId}`, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    const data = await r.json();
+    const avails = data.availabilities || {};
+    const pracAvail = avails[pracId];
+
+    teamEditSchedule = {};
+    for (let d = 0; d < 7; d++) {
+      teamEditSchedule[d] = (pracAvail?.schedule?.[d] || []).map(s => ({
+        start_time: s.start_time, end_time: s.end_time
+      }));
+    }
+
+    document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
+  } catch (e) {
+    document.getElementById('tm_schedule_editor').innerHTML =
+      `<div style="color:var(--red);font-size:.82rem">Erreur: ${e.message}</div>`;
+  }
+}
+
+function renderScheduleEditor() {
+  // Compute regime from current schedule
+  const workDays = [];
+  for (let d = 0; d < 7; d++) {
+    if (teamEditSchedule[d] && teamEditSchedule[d].length > 0) workDays.push(d);
+  }
+  const regime = computeRegime(workDays);
+
+  let h = `<div style="font-size:.82rem;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+    Régime : <span style="color:var(--primary)">${regime.label}</span>
+    ${regime.detail ? `<span style="color:var(--text-4);font-weight:400;font-size:.75rem">(${regime.detail})</span>` : ''}
+  </div>`;
+
+  for (let d = 0; d < 7; d++) {
+    const slots = teamEditSchedule[d] || [];
+    h += `<div class="day-row">
+      <span class="day-name">${DAYS_WEEK[d]}</span>
+      <div class="slots">`;
+    if (slots.length === 0) {
+      h += `<span class="day-closed">Fermé</span>`;
+    } else {
+      slots.forEach((s, i) => {
+        h += `<span class="slot-chip">${(s.start_time || '').slice(0, 5)} – ${(s.end_time || '').slice(0, 5)}<button class="remove-slot" onclick="teamRemoveSlot(${d},${i})">${ICONS.close}</button></span>`;
+      });
+    }
+    h += `<button class="add-slot-btn" onclick="teamAddSlot(${d})">+ Ajouter</button>
+      </div>
     </div>`;
   }
 
-  let h = `<div style="font-size:.82rem;font-weight:600;margin-bottom:12px">Régime : ${regime.label}${regime.detail ? ` <span style="color:var(--text-4);font-weight:400">(${regime.detail})</span>` : ''}</div>`;
-  h += `<div style="display:flex;gap:6px;flex-wrap:wrap">`;
-  dayNames.forEach((name, i) => {
-    const works = workDays.includes(i);
-    h += `<div style="text-align:center;padding:8px 12px;border-radius:8px;font-size:.78rem;font-weight:600;min-width:60px;${works ? 'background:var(--green-bg);color:var(--green);border:1.5px solid #B8E6C8' : 'background:var(--surface);color:var(--text-4);border:1.5px solid var(--border-light)'}">${name.slice(0, 3)}</div>`;
-  });
-  h += `</div>`;
-
-  if (p?.weekly_hours_target) {
-    h += `<div style="margin-top:10px;font-size:.78rem;color:var(--text-3)">Heures/semaine cible : <strong>${p.weekly_hours_target}h</strong></div>`;
-  }
-
   return h;
+}
+
+function teamAddSlot(day) {
+  const slots = teamEditSchedule[day] || [];
+  const last = slots[slots.length - 1];
+  const ds = last ? last.end_time : '09:00:00';
+  const hr = parseInt((ds || '09:00').split(':')[0]);
+  const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
+
+  let m = `<div class="modal-overlay" style="z-index:350"><div class="modal" style="max-width:340px"><div class="modal-h"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${ICONS.close}</button></div><div class="modal-body">
+    <div class="field-row"><div class="field"><label>Début</label><input type="time" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div class="field"><label>Fin</label><input type="time" id="tm_slot_end" value="${de}"></div></div>
+  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend', m);
+}
+
+function teamConfirmAddSlot(day) {
+  const st = document.getElementById('tm_slot_start').value + ':00';
+  const en = document.getElementById('tm_slot_end').value + ':00';
+  if (!teamEditSchedule[day]) teamEditSchedule[day] = [];
+  teamEditSchedule[day].push({ start_time: st, end_time: en });
+  teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  document.querySelector('.modal-overlay[style*="z-index:350"]')?.remove();
+  document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
+}
+
+function teamRemoveSlot(day, idx) {
+  teamEditSchedule[day].splice(idx, 1);
+  document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
 }
 
 // ============================================================
@@ -604,6 +673,22 @@ async function savePract(id) {
           body: JSON.stringify({ skills: teamEditSkills.map((s, i) => ({ skill_name: s.skill_name, level: s.level, sort_order: i })) })
         });
       } catch (e) { /* skills table might not exist yet */ }
+    }
+
+    // Save schedule (availabilities)
+    if (pracId && teamEditSchedule) {
+      const schedule = {};
+      for (let d = 0; d < 7; d++) {
+        const sl = teamEditSchedule[d] || [];
+        if (sl.length > 0) schedule[d] = sl.map(s => ({ start_time: (s.start_time || '').slice(0, 5), end_time: (s.end_time || '').slice(0, 5) }));
+      }
+      try {
+        await fetch('/api/availabilities', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ practitioner_id: pracId, schedule })
+        });
+      } catch (e) { /* ignore */ }
     }
 
     // Save leave balances if editing
@@ -900,7 +985,8 @@ bridge({
   openInviteModal, generateTempPwd, sendInvite,
   openRoleModal, saveRole,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
-  teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave
+  teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave,
+  teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot
 });
 
 export {
@@ -908,5 +994,6 @@ export {
   openPracTasks, togglePracTodo,
   openInviteModal, sendInvite, openRoleModal, saveRole,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
-  teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave
+  teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave,
+  teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot
 };
