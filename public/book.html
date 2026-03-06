@@ -227,6 +227,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .cart-info{flex:1;min-width:0}
 .cart-count{font-size:.82rem;font-weight:700;color:var(--text)}
 .cart-meta{font-size:.72rem;color:var(--text-4)}
+.cart-chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:10px}
+.cart-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface,#F3F4F6);border-radius:20px;font-size:.72rem;font-weight:600;color:var(--text);max-width:200px;overflow:hidden}
+.cart-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart-chip-var{font-weight:400;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart-chip-rm{width:14px;height:14px;border:none;background:none;padding:0;cursor:pointer;color:var(--text-4);flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all .12s}
+.cart-chip-rm:hover{background:rgba(0,0,0,.08);color:var(--text)}
+.cart-chip-rm svg{width:12px;height:12px}
+.cart-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cart-clear{width:36px;height:36px;border-radius:var(--radius-sm);border:1.5px solid var(--border-light);background:var(--white,#fff);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-4);transition:all .15s;flex-shrink:0}
+.cart-clear svg{width:16px;height:16px}
+.cart-clear:hover{border-color:var(--red,#EF4444);color:var(--red,#EF4444);background:rgba(239,68,68,.06)}
 .cart-cta{padding:12px 20px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.85rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background .15s}
 .cart-cta:hover{background:var(--primary-hover)}
 
@@ -280,12 +291,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
     <div id="catTabs" class="cat-tabs" style="display:none"></div>
     <div id="svcList"></div>
     <div class="cart-sticky" id="cartSticky">
+      <div class="cart-chips" id="cartChips"></div>
       <div class="cart-sticky-inner">
         <div class="cart-info">
           <div class="cart-count" id="cartCount">0 prestations</div>
           <div class="cart-meta" id="cartMeta">0 min · 0 €</div>
         </div>
-        <button class="cart-cta" id="cartCta">Continuer →</button>
+        <div class="cart-actions">
+          <button class="cart-clear" id="cartClear" title="Vider la sélection">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <button class="cart-cta" id="cartCta">Continuer →</button>
+        </div>
       </div>
     </div>
     <button class="btn-next" id="btnStep1" disabled>Continuer →</button>
@@ -631,6 +648,7 @@ function initPage(){
 
   document.getElementById('btnStep1').addEventListener('click',()=>goNext());
   document.getElementById('cartCta').addEventListener('click',()=>goNext());
+  document.getElementById('cartClear').addEventListener('click',()=>clearCart());
   document.getElementById('btnStep2').addEventListener('click',()=>goNext());
   document.getElementById('btnStep3').addEventListener('click',()=>goNext());
   document.getElementById('btnStep4').addEventListener('click',()=>submitBooking());
@@ -862,7 +880,7 @@ function updateCartBar(){
   if(!bar)return;
   const n=selectedServices.length;
   bar.classList.toggle('show',n>0);
-  if(n===0)return;
+  if(n===0){document.getElementById('cartChips').innerHTML='';return;}
   const totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:(svc.duration_min||0));},0);
   const totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
   const hours=Math.floor(totalMin/60);
@@ -871,6 +889,40 @@ function updateCartBar(){
   const priceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
   document.getElementById('cartCount').textContent=n+' prestation'+(n>1?'s':'');
   document.getElementById('cartMeta').textContent=durStr+' \u00b7 '+priceStr;
+  // Render chips
+  const chipsEl=document.getElementById('cartChips');
+  chipsEl.innerHTML=selectedServices.map(function(svc){
+    const v=selectedVariants[svc.id];
+    const varLabel=v?(' · '+v.name):'';
+    return '<span class="cart-chip">'
+      +'<span class="cart-chip-name">'+svc.name+'</span>'
+      +(varLabel?'<span class="cart-chip-var">'+varLabel+'</span>':'')
+      +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartService(\''+svc.id+'\')" title="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+      +'</span>';
+  }).join('');
+}
+
+function removeCartService(svcId){
+  var idx=selectedServices.findIndex(function(s){return s.id===svcId;});
+  if(idx>=0){
+    selectedServices.splice(idx,1);
+    delete selectedVariants[svcId];
+    _updateSvcCards();updateCartBar();
+    document.getElementById('btnStep1').disabled=selectedServices.length===0;
+    selectedService=selectedServices.length>=1?selectedServices[0]:null;
+    selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
+    computeStepOrder();
+  }
+}
+
+function clearCart(){
+  selectedServices=[];
+  selectedVariants={};
+  selectedService=null;
+  selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
+  _updateSvcCards();updateCartBar();
+  document.getElementById('btnStep1').disabled=true;
+  computeStepOrder();
 }
 
 // ──────── PRACTITIONER ────────
