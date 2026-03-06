@@ -180,6 +180,8 @@ function buildEventsCallback() {
 function buildEventContent() {
   return function (arg) {
     const p = arg.event.extendedProps;
+    // Skip featured slot background events — they are purely visual (gold dashed boxes)
+    if (p._isFeaturedSlot) return { html: '' };
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
     const isMonth = arg.view.type === 'dayGridMonth';
