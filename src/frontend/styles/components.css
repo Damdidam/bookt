@@ -238,6 +238,90 @@
 .modal .csw-inline{gap:3px}
 .modal .csw-inline .csw-dot{width:15px;height:15px;border-radius:4px;border-width:1.5px}
 
+/* ===== PLANNING / STAFF ABSENCES (PRO) ===== */
+
+/* Top bar */
+.plan-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.plan-top-left{display:flex;align-items:center;gap:12px}
+.plan-title{font-size:1.05rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px}
+.plan-pro-badge{font-size:.6rem;font-weight:800;background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:3px 8px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase}
+
+/* Month nav */
+.plan-month-nav{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.plan-month-nav h2{font-size:1.05rem;font-weight:700;color:var(--text);min-width:180px;text-transform:capitalize}
+.plan-month-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:.15s;font-size:1rem;font-family:inherit}
+.plan-month-btn:hover{background:var(--surface)}
+.plan-today-btn{font-size:.75rem;font-weight:600;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;color:var(--primary);transition:.15s;font-family:inherit}
+.plan-today-btn:hover{background:var(--primary-light)}
+
+/* Legend */
+.plan-legend{display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.plan-legend-item{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600;color:var(--text-3)}
+.plan-legend-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0}
+
+/* Grid wrapper */
+.plan-grid-wrap{overflow-x:auto}
+.plan-grid{background:var(--white);border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden;border:1px solid var(--border-light)}
+.plan-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.plan-table th{font-size:.65rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.3px;padding:10px 0;text-align:center;border-bottom:1px solid var(--border-light);background:var(--surface);position:sticky;top:0;z-index:2}
+.plan-table th.plan-prac-col{width:160px;text-align:left;padding-left:16px}
+.plan-table th.plan-today{color:var(--primary);background:var(--primary-light)}
+.plan-table th.plan-weekend{color:#B45309;background:#FFFBEB}
+
+/* Practitioner row */
+.plan-prac-row td{border-bottom:1px solid var(--border-light);padding:0;height:54px;vertical-align:middle}
+.plan-prac-row:last-child td{border-bottom:none}
+.plan-prac-cell{display:flex;align-items:center;gap:10px;padding:8px 16px}
+.plan-prac-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:#fff;flex-shrink:0}
+.plan-prac-details{min-width:0}
+.plan-prac-nm{font-size:.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plan-prac-role{font-size:.65rem;color:var(--text-4);margin-top:1px}
+
+/* Day cell */
+.plan-day-cell{text-align:center;cursor:pointer;position:relative;transition:background .1s}
+.plan-day-cell:hover{background:rgba(13,115,119,.04)}
+.plan-day-cell.plan-weekend{background:rgba(181,139,9,.03)}
+.plan-day-cell.plan-today{background:rgba(13,115,119,.06)}
+
+/* Absence blocks */
+.plan-abs-block{display:inline-block;width:calc(100% - 8px);margin:0 4px;padding:4px 2px;border-radius:6px;font-size:.6rem;font-weight:700;letter-spacing:.2px;line-height:1.3;text-transform:uppercase}
+.plan-abs-block.conge{background:#DBEAFE;color:#1E3A8A}
+.plan-abs-block.maladie{background:#FEE2E2;color:#991B1B}
+.plan-abs-block.formation{background:#EDE9FE;color:#5B21B6}
+.plan-abs-block.autre{background:#F3F4F6;color:#374151}
+
+/* Bookings indicator */
+.plan-booking-dots{display:flex;justify-content:center;gap:2px;margin-top:2px}
+.plan-booking-dot{width:5px;height:5px;border-radius:50%;background:var(--primary);opacity:.3}
+.plan-avail-marker{font-size:.65rem;color:var(--text-4);font-weight:500}
+
+/* Summary row */
+.plan-summary-row td{background:var(--surface);border-top:2px solid var(--border-light);padding:0;height:40px;text-align:center;font-size:.68rem;font-weight:700;color:var(--text-3)}
+.plan-summary-row .count-good{color:var(--green)}
+.plan-summary-row .count-warn{color:var(--orange)}
+.plan-summary-row .count-bad{color:var(--red)}
+
+/* Type pills for modal */
+.plan-type-pills{display:flex;gap:6px;flex-wrap:wrap}
+.plan-type-pill{padding:8px 14px;border-radius:10px;font-size:.78rem;font-weight:600;border:2px solid var(--border-light);background:var(--white);cursor:pointer;transition:all .15s;font-family:inherit}
+.plan-type-pill:hover{border-color:var(--border)}
+.plan-type-pill.active-conge{border-color:#1E3A8A;background:#DBEAFE;color:#1E3A8A}
+.plan-type-pill.active-maladie{border-color:#991B1B;background:#FEE2E2;color:#991B1B}
+.plan-type-pill.active-formation{border-color:#5B21B6;background:#EDE9FE;color:#5B21B6}
+.plan-type-pill.active-autre{border-color:#374151;background:#F3F4F6;color:#374151}
+
+/* Impact alert */
+.plan-impact{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:.78rem;display:flex;align-items:flex-start;gap:8px}
+.plan-impact svg{width:16px;height:16px;flex-shrink:0;margin-top:1px}
+.plan-impact.warn{background:#FEF3C7;color:#92400E}
+.plan-impact.ok{background:#D1FAE5;color:#065F46}
+
+/* Responsive */
+@media(max-width:768px){
+  .plan-top{flex-direction:column;align-items:flex-start}
+  .plan-table th.plan-prac-col{width:120px}
+}
+
 /* ===== HOURS / AVAILABILITY ===== */
 .hours-schedule{margin-top:12px}
 .pract-block{margin-bottom:24px}

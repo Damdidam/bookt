@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo — Planning du personnel (PRO)</title>
+<style>
+  :root{--white:#FFF;--surface:#F8FAFB;--text:#1A2332;--text-2:#3D4F63;--text-3:#6B7A90;--text-4:#9DACBA;--border-light:#E8ECF0;--border:#D5DAE0;--primary:#0D7377;--primary-light:#EDF8F7;--red:#DC2626;--red-bg:#FEF2F2;--orange:#D97706;--orange-bg:#FFFBEB;--green:#059669;--green-bg:#ECFDF5;--violet:#7C3AED;--violet-bg:#F5F3FF;--gray:#374151;--radius:14px}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F2F5;min-height:100vh}
+
+  /* Top bar */
+  .top-bar{background:var(--white);border-bottom:1px solid var(--border-light);padding:16px 28px;display:flex;align-items:center;justify-content:space-between}
+  .top-bar h1{font-size:1.15rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px}
+  .pro-badge{font-size:.6rem;font-weight:800;background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:3px 8px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase}
+  .top-actions{display:flex;gap:8px;align-items:center}
+  .btn{padding:8px 16px;border-radius:10px;font-size:.8rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);font-family:inherit;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{background:var(--surface);border-color:var(--border)}
+  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn-primary:hover{background:#0A5E61}
+
+  .container{padding:24px 28px}
+
+  /* Month nav */
+  .month-nav{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+  .month-nav h2{font-size:1.05rem;font-weight:700;color:var(--text);min-width:180px}
+  .month-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:.15s}
+  .month-btn:hover{background:var(--surface)}
+  .today-btn{font-size:.75rem;font-weight:600;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;color:var(--primary);transition:.15s}
+  .today-btn:hover{background:var(--primary-light)}
+
+  /* Legend */
+  .legend{display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600;color:var(--text-3)}
+  .legend-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0}
+
+  /* Grid */
+  .planning-grid{background:var(--white);border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden;border:1px solid var(--border-light)}
+  .planning-table{width:100%;border-collapse:collapse;table-layout:fixed}
+  .planning-table th{font-size:.65rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.3px;padding:10px 0;text-align:center;border-bottom:1px solid var(--border-light);background:var(--surface);position:sticky;top:0;z-index:2}
+  .planning-table th.prac-col{width:160px;text-align:left;padding-left:16px}
+  .planning-table th.today{color:var(--primary);background:var(--primary-light)}
+  .planning-table th.weekend{color:#B45309;background:#FFFBEB}
+
+  /* Practitioner row */
+  .prac-row td{border-bottom:1px solid var(--border-light);padding:0;height:54px;vertical-align:middle}
+  .prac-row:last-child td{border-bottom:none}
+  .prac-cell{display:flex;align-items:center;gap:10px;padding:8px 16px}
+  .prac-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:#fff;flex-shrink:0}
+  .prac-details{min-width:0}
+  .prac-nm{font-size:.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prac-role{font-size:.65rem;color:var(--text-4);margin-top:1px}
+
+  /* Day cell */
+  .day-cell{text-align:center;cursor:pointer;position:relative;transition:background .1s}
+  .day-cell:hover{background:rgba(13,115,119,.04)}
+  .day-cell.weekend{background:rgba(181,139,9,.03)}
+  .day-cell.today{background:rgba(13,115,119,.06)}
+
+  /* Absence blocks */
+  .absence-block{display:inline-block;width:calc(100% - 8px);margin:0 4px;padding:4px 2px;border-radius:6px;font-size:.6rem;font-weight:700;letter-spacing:.2px;line-height:1.3;text-transform:uppercase}
+  .absence-block.conge{background:#DBEAFE;color:#1E3A8A}
+  .absence-block.maladie{background:#FEE2E2;color:#991B1B}
+  .absence-block.formation{background:#EDE9FE;color:#5B21B6}
+  .absence-block.autre{background:#F3F4F6;color:#374151}
+
+  /* Half day */
+  .half-day{display:flex;flex-direction:column;gap:1px;padding:2px 4px}
+  .half-block{padding:2px;border-radius:4px;font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.2px}
+  .half-block.am{background:#DBEAFE;color:#1E3A8A}
+  .half-block.pm-free{background:#D1FAE5;color:#065F46;opacity:.5}
+
+  /* Bookings indicator */
+  .booking-dots{display:flex;justify-content:center;gap:2px;margin-top:2px}
+  .booking-dot{width:5px;height:5px;border-radius:50%;background:var(--primary);opacity:.3}
+
+  /* Available (working) cell */
+  .day-cell .avail-marker{font-size:.65rem;color:var(--text-4);font-weight:500}
+
+  /* Summary row */
+  .summary-row td{background:var(--surface);border-top:2px solid var(--border-light);padding:0;height:40px;text-align:center;font-size:.68rem;font-weight:700;color:var(--text-3)}
+  .summary-row .count-good{color:var(--green)}
+  .summary-row .count-warn{color:var(--orange)}
+  .summary-row .count-bad{color:var(--red)}
+
+  /* Add absence modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100}
+  .modal{background:var(--white);border-radius:18px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+  .modal-h{padding:18px 22px;border-bottom:1px solid var(--border-light);display:flex;justify-content:space-between;align-items:center}
+  .modal-h h3{font-size:.95rem;font-weight:700;color:var(--text)}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--text-4);font-size:1.2rem}
+  .modal-body{padding:18px 22px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:4px}
+  .field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border-light);border-radius:10px;font-size:.85rem;font-family:inherit;color:var(--text);outline:none;transition:border-color .15s}
+  .field input:focus,.field select:focus{border-color:var(--primary)}
+  .type-pills{display:flex;gap:6px;flex-wrap:wrap}
+  .type-pill{padding:8px 14px;border-radius:10px;font-size:.78rem;font-weight:600;border:2px solid var(--border-light);background:var(--white);cursor:pointer;transition:all .15s}
+  .type-pill:hover{border-color:var(--border)}
+  .type-pill.active-conge{border-color:#1E3A8A;background:#DBEAFE;color:#1E3A8A}
+  .type-pill.active-maladie{border-color:#991B1B;background:#FEE2E2;color:#991B1B}
+  .type-pill.active-formation{border-color:#5B21B6;background:#EDE9FE;color:#5B21B6}
+  .type-pill.active-autre{border-color:#374151;background:#F3F4F6;color:#374151}
+  .modal-foot{padding:14px 22px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px}
+
+  /* Impact alert */
+  .impact-alert{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:.78rem;display:flex;align-items:flex-start;gap:8px}
+  .impact-alert svg{width:16px;height:16px;flex-shrink:0;margin-top:1px}
+  .impact-alert.warn{background:#FEF3C7;color:#92400E}
+  .impact-alert.ok{background:#D1FAE5;color:#065F46}
+
+  /* Responsive */
+  .grid-scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <h1>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+    Planning du personnel
+    <span class="pro-badge">PRO</span>
+  </h1>
+  <div class="top-actions">
+    <button class="btn" onclick="document.getElementById('exportInfo').style.display='block'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter
+    </button>
+    <button class="btn-primary btn" onclick="showAddModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouvelle absence
+    </button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- MONTH NAV -->
+  <div class="month-nav">
+    <button class="month-btn">‹</button>
+    <h2>Mars 2026</h2>
+    <button class="month-btn">›</button>
+    <button class="today-btn">Aujourd'hui</button>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#DBEAFE;border:1px solid #93C5FD"></div> Congé</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FEE2E2;border:1px solid #FECACA"></div> Maladie</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#EDE9FE;border:1px solid #C4B5FD"></div> Formation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#F3F4F6;border:1px solid #D1D5DB"></div> Autre</div>
+    <div class="legend-item" style="margin-left:auto"><div class="legend-dot" style="background:var(--primary);opacity:.15;border:1px solid rgba(13,115,119,.3)"></div> Aujourd'hui</div>
+  </div>
+
+  <!-- PLANNING GRID -->
+  <div class="grid-scroll">
+  <div class="planning-grid">
+    <table class="planning-table" id="planningTable">
+      <thead>
+        <tr>
+          <th class="prac-col">Praticien</th>
+          <!-- Days will be injected by JS -->
+        </tr>
+      </thead>
+      <tbody id="planningBody">
+      </tbody>
+    </table>
+  </div>
+  </div>
+
+</div>
+
+<!-- ADD ABSENCE MODAL (hidden) -->
+<div class="modal-overlay" id="addModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-h">
+      <h3>Nouvelle absence</h3>
+      <button class="modal-close" onclick="document.getElementById('addModal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Praticien</label>
+        <select id="abs_prac">
+          <option>Sophie Arnaud</option>
+          <option>Marie Collet</option>
+          <option>Hakim Abbes</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <div class="type-pills" id="typePills">
+          <div class="type-pill active-conge" data-type="conge" onclick="pickType(this)">🏖 Congé</div>
+          <div class="type-pill" data-type="maladie" onclick="pickType(this)">🤒 Maladie</div>
+          <div class="type-pill" data-type="formation" onclick="pickType(this)">📚 Formation</div>
+          <div class="type-pill" data-type="autre" onclick="pickType(this)">⏸ Autre</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1"><label>Du</label><input type="date" id="abs_from" value="2026-03-16"></div>
+        <div class="field" style="flex:1"><label>Au</label><input type="date" id="abs_to" value="2026-03-20"></div>
+      </div>
+      <div class="field">
+        <label>Note <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label>
+        <input id="abs_note" placeholder="Vacances ski, formation coloration...">
+      </div>
+
+      <!-- Impact preview -->
+      <div class="impact-alert warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><strong>3 RDV impactés</strong> sur cette période<br><span style="font-size:.72rem;opacity:.8">2 réaffectables · 1 à déplacer</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="document.getElementById('addModal').style.display='none'">Annuler</button>
+      <button class="btn-primary btn">Confirmer l'absence</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const practitioners = [
+  { name: 'Sophie Arnaud', initials: 'SA', color: '#DB2777', role: 'Esthéticienne senior' },
+  { name: 'Marie Collet', initials: 'MC', color: '#059669', role: 'Esthéticienne' },
+  { name: 'Hakim Abbes', initials: 'HA', color: '#1E3A8A', role: 'Gérant' },
+];
+
+// Sample absences for March 2026
+const absences = {
+  'SA': { 9: 'conge', 10: 'conge', 11: 'conge', 12: 'conge', 13: 'conge', 27: 'formation' },
+  'MC': { 5: 'maladie', 6: 'maladie', 23: 'conge', 24: 'conge', 25: 'conge', 26: 'conge', 27: 'conge' },
+  'HA': { 20: 'autre' },
+};
+
+// Sample bookings (count per day per practitioner)
+const bookings = {
+  'SA': { 2:3, 3:5, 4:2, 5:4, 6:6, 16:3, 17:4, 18:5, 19:3, 20:6, 23:4, 24:5, 25:3, 26:4, 30:5, 31:4 },
+  'MC': { 2:2, 3:3, 4:4, 5:0, 6:0, 9:3, 10:4, 11:2, 12:3, 13:5, 16:2, 17:3, 18:4, 19:2, 20:5, 30:3, 31:4 },
+  'HA': { 2:1, 3:2, 4:1, 6:1, 9:2, 10:1, 11:1, 13:1, 16:2, 17:1, 19:1, 23:2, 24:1, 25:2, 26:1, 30:1, 31:2 },
+};
+
+const year = 2026, month = 2; // March (0-indexed)
+const daysInMonth = new Date(year, month + 1, 0).getDate();
+const today = 6; // March 6
+const dayNames = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+
+function render() {
+  const thead = document.querySelector('#planningTable thead tr');
+  const tbody = document.getElementById('planningBody');
+
+  // Header: days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isToday = d === today;
+    const cls = isToday ? 'today' : (isWeekend ? 'weekend' : '');
+    const th = document.createElement('th');
+    th.className = cls;
+    th.innerHTML = `${dayNames[dow]}<br>${d}`;
+    thead.appendChild(th);
+  }
+
+  // Practitioner rows
+  practitioners.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.className = 'prac-row';
+
+    // Name cell
+    const tdName = document.createElement('td');
+    tdName.innerHTML = `<div class="prac-cell">
+      <div class="prac-av" style="background:${p.color}">${p.initials}</div>
+      <div class="prac-details"><div class="prac-nm">${p.name}</div><div class="prac-role">${p.role}</div></div>
+    </div>`;
+    tr.appendChild(tdName);
+
+    // Day cells
+    const pAbs = absences[p.initials] || {};
+    const pBook = bookings[p.initials] || {};
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(year, month, d).getDay();
+      const isWeekend = dow === 0 || dow === 6;
+      const isToday = d === today;
+      const td = document.createElement('td');
+      td.className = 'day-cell' + (isWeekend ? ' weekend' : '') + (isToday ? ' today' : '');
+
+      if (pAbs[d]) {
+        const typeLabels = { conge: 'Congé', maladie: 'Maladie', formation: 'Form.', autre: 'Absent' };
+        td.innerHTML = `<div class="absence-block ${pAbs[d]}">${typeLabels[pAbs[d]]}</div>`;
+      } else if (isWeekend && dow === 0) {
+        // Sunday — usually off
+        td.innerHTML = `<span class="avail-marker" style="opacity:.3">—</span>`;
+      } else {
+        const bk = pBook[d] || 0;
+        if (bk > 0) {
+          let dots = '';
+          for (let i = 0; i < Math.min(bk, 6); i++) dots += '<div class="booking-dot"></div>';
+          td.innerHTML = `<span class="avail-marker">${bk}</span><div class="booking-dots">${dots}</div>`;
+        }
+      }
+
+      td.onclick = () => showAddModal(p.name, d);
+      tr.appendChild(td);
+    }
+
+    tbody.appendChild(tr);
+  });
+
+  // Summary row: staff count per day
+  const sumTr = document.createElement('tr');
+  sumTr.className = 'summary-row';
+  const sumLabel = document.createElement('td');
+  sumLabel.style.cssText = 'text-align:left;padding-left:16px;font-size:.72rem';
+  sumLabel.textContent = 'Effectif présent';
+  sumTr.appendChild(sumLabel);
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month, d).getDay();
+    const td = document.createElement('td');
+    let present = 0;
+    practitioners.forEach(p => {
+      const pAbs = absences[p.initials] || {};
+      if (!pAbs[d] && dow !== 0) present++;
+    });
+    const cls = present >= 2 ? 'count-good' : (present === 1 ? 'count-warn' : 'count-bad');
+    td.className = dow === 0 ? '' : cls;
+    td.textContent = dow === 0 ? '—' : present;
+    sumTr.appendChild(td);
+  }
+  tbody.appendChild(sumTr);
+}
+
+function showAddModal(name, day) {
+  const modal = document.getElementById('addModal');
+  if (name) {
+    document.getElementById('abs_prac').value = name;
+    if (day) {
+      const ds = `2026-03-${String(day).padStart(2, '0')}`;
+      document.getElementById('abs_from').value = ds;
+      document.getElementById('abs_to').value = ds;
+    }
+  }
+  modal.style.display = 'flex';
+}
+
+function pickType(pill) {
+  document.querySelectorAll('#typePills .type-pill').forEach(p => {
+    p.className = 'type-pill';
+  });
+  pill.className = 'type-pill active-' + pill.dataset.type;
+}
+
+render();
+</script>
+
+</body>
+</html>

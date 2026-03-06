@@ -12,6 +12,7 @@ const SECTION_TITLES = {
   hours: 'Disponibilités',
   waitlist: "Liste d'attente",
   team: 'Équipe',
+  planning: 'Planning',
   site: 'Mon site',
   calls: 'Appels',
   invoices: 'Facturation',
@@ -75,6 +76,10 @@ async function loadSection(section) {
       case 'team':
         mod = await import('./views/team.js');
         mod.loadTeam();
+        break;
+      case 'planning':
+        mod = await import('./views/planning.js');
+        mod.loadPlanning();
         break;
       case 'site':
         mod = await import('./views/site.js');
