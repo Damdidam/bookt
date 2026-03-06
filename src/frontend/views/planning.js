@@ -364,8 +364,22 @@ function planNextMonth() { currentMonth++; if (currentMonth > 11) { currentMonth
 function planGoToday() { const now = new Date(); currentYear = now.getFullYear(); currentMonth = now.getMonth(); renderPlanning(); }
 
 // ── Export CSV ──
-function planExportCSV() {
-  window.open('/api/planning/export?month=' + monthKey() + '&format=csv', '_blank');
+async function planExportCSV() {
+  try {
+    const r = await fetch('/api/planning/export?month=' + monthKey() + '&format=csv', {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (!r.ok) throw new Error('Erreur export');
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = r.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/)?.[1] || `planning-${monthKey()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) { _showToast('Erreur lors de l\'export', 'error'); }
 }
 
 // ── Send planning modal ──
