@@ -381,8 +381,11 @@
 .plan-coverage-badge.critical{background:#FEE2E2;color:#991B1B}
 .plan-impact-list{max-height:0;overflow:hidden;transition:max-height .25s ease}
 .plan-impact-list.open{max-height:300px;overflow-y:auto}
-.plan-impact-item{padding:6px 0;border-bottom:1px solid var(--border-light);font-size:.72rem;color:var(--text-3)}
+.plan-impact-item{padding:8px 0;border-bottom:1px solid var(--border-light);font-size:.72rem;color:var(--text-3)}
 .plan-impact-item:last-child{border-bottom:none}
+.plan-alt-chip{display:inline-block;font-size:.65rem;font-weight:600;padding:2px 8px;border-radius:10px;border:1.5px solid var(--ac,#6B7280);background:transparent;color:var(--ac,#6B7280);cursor:pointer;margin:2px 2px 0 0;transition:all .15s}
+.plan-alt-chip:hover{background:var(--ac,#6B7280);color:#fff}
+.plan-alt-chip:disabled{opacity:.45;cursor:default;pointer-events:none}
 .plan-coverage-detail{font-size:.72rem;color:var(--text-4);margin-top:6px;padding:6px 8px;background:rgba(245,158,11,.08);border-radius:6px}
 
 /* Date validation error */

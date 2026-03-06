@@ -2,6 +2,8 @@ const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
+const { sendSMS } = require('../../services/sms');
+const { checkPracAvailability, calSyncPush } = require('./bookings-helpers');
 
 router.use(requireAuth);
 
@@ -264,6 +266,134 @@ async function splitOverlappingAbsences(bid, pracId, newFrom, newTo, newPeriod, 
   }
 
   return splitCount;
+}
+
+/**
+ * Compute available alternative practitioners for each impacted booking.
+ * Uses batch queries (5 total) + in-memory checks for efficiency.
+ */
+async function computeAlternatives(bid, absentPracId, dateFrom, dateTo, bookings) {
+  const serviceIds = [...new Set(bookings.map(b => b.service_id).filter(Boolean))];
+  if (serviceIds.length === 0) { bookings.forEach(b => { b.alternatives = []; }); return; }
+
+  const candResult = await queryWithRLS(bid,
+    `SELECT DISTINCT ps.service_id, p.id AS practitioner_id, p.display_name, p.color
+     FROM practitioner_services ps
+     JOIN practitioners p ON p.id = ps.practitioner_id
+     WHERE ps.service_id = ANY($1::uuid[])
+       AND p.business_id = $2 AND p.is_active = true AND p.booking_enabled = true
+       AND p.id != $3`,
+    [serviceIds, bid, absentPracId]
+  );
+
+  const allCandIds = [...new Set(candResult.rows.map(r => r.practitioner_id))];
+  if (allCandIds.length === 0) { bookings.forEach(b => { b.alternatives = []; }); return; }
+
+  // Batch fetch (4 queries)
+  const [absR, availR, excR, bkR] = await Promise.all([
+    queryWithRLS(bid,
+      `SELECT practitioner_id, date_from, date_to, period, period_end FROM staff_absences
+       WHERE business_id = $1 AND practitioner_id = ANY($2::uuid[])
+       AND date_from <= $4::date AND date_to >= $3::date`,
+      [bid, allCandIds, dateFrom, dateTo]),
+    queryWithRLS(bid,
+      `SELECT practitioner_id, weekday, start_time, end_time FROM availabilities
+       WHERE business_id = $1 AND practitioner_id = ANY($2::uuid[]) AND is_active = true`,
+      [bid, allCandIds]),
+    queryWithRLS(bid,
+      `SELECT practitioner_id, date, type FROM availability_exceptions
+       WHERE business_id = $1 AND practitioner_id = ANY($2::uuid[])
+       AND date >= $3::date AND date <= $4::date`,
+      [bid, allCandIds, dateFrom, dateTo]),
+    queryWithRLS(bid,
+      `SELECT practitioner_id, start_at, end_at FROM bookings
+       WHERE business_id = $1 AND practitioner_id = ANY($2::uuid[])
+       AND start_at::date >= $3::date AND start_at::date <= $4::date
+       AND status IN ('confirmed', 'pending')`,
+      [bid, allCandIds, dateFrom, dateTo])
+  ]);
+
+  const candByService = {};
+  candResult.rows.forEach(r => {
+    if (!candByService[r.service_id]) candByService[r.service_id] = [];
+    if (!candByService[r.service_id].find(c => c.practitioner_id === r.practitioner_id)) {
+      candByService[r.service_id].push(r);
+    }
+  });
+
+  function _ttm(t) {
+    if (!t || typeof t !== 'string') return 0;
+    const [h, m] = t.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  function isCandAvail(pracId, startAt, endAt) {
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+    const dateStr = start.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+
+    // 1. Absences
+    for (const abs of absR.rows) {
+      if (abs.practitioner_id !== pracId) continue;
+      const aF = new Date(abs.date_from).toISOString().slice(0, 10);
+      const aT = new Date(abs.date_to).toISOString().slice(0, 10);
+      if (dateStr < aF || dateStr > aT) continue;
+      let p = aF === aT ? (abs.period || 'full') : dateStr === aF ? (abs.period || 'full') : dateStr === aT ? (abs.period_end || 'full') : 'full';
+      if (p === 'full') return false;
+      const bxlH = parseInt(start.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false, hour: '2-digit' })) || 0;
+      if (p === 'am' && bxlH < 13) return false;
+      if (p === 'pm' && bxlH >= 13) return false;
+    }
+
+    // 2. Exceptions (closed)
+    for (const exc of excR.rows) {
+      if (exc.practitioner_id !== pracId) continue;
+      if (new Date(exc.date).toISOString().slice(0, 10) === dateStr && exc.type === 'closed') return false;
+    }
+
+    // 3. Weekly schedule
+    const bxlDate = new Date(dateStr + 'T12:00:00');
+    const jsDay = bxlDate.getDay();
+    const dbDay = jsDay === 0 ? 6 : jsDay - 1;
+    const slots = availR.rows.filter(a => a.practitioner_id === pracId && a.weekday === dbDay);
+    if (slots.length === 0) return false;
+
+    const sp = start.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+    const ep = end.toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false }).split(/[\s,/:]+/);
+    const bkS = (parseInt(sp[3]) || 0) * 60 + (parseInt(sp[4]) || 0);
+    let bkE = (parseInt(ep[3]) || 0) * 60 + (parseInt(ep[4]) || 0);
+    if (bkE <= bkS) bkE += 1440;
+    const fitsSchedule = slots.some(s => {
+      const ss = _ttm(s.start_time);
+      let se = _ttm(s.end_time);
+      if (se <= ss) se += 1440;
+      return bkS >= ss && bkE <= se;
+    });
+    if (!fitsSchedule) return false;
+
+    // 4. Booking overlaps
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    for (const ob of bkR.rows) {
+      if (ob.practitioner_id !== pracId) continue;
+      if (new Date(ob.start_at).getTime() < endMs && new Date(ob.end_at).getTime() > startMs) return false;
+    }
+    return true;
+  }
+
+  for (const bk of bookings) {
+    bk.alternatives = [];
+    const candidates = candByService[bk.service_id] || [];
+    for (const cand of candidates) {
+      if (isCandAvail(cand.practitioner_id, bk.start_at, bk.end_at)) {
+        bk.alternatives.push({
+          practitioner_id: cand.practitioner_id,
+          display_name: cand.display_name,
+          color: cand.color
+        });
+      }
+    }
+  }
 }
 
 /** Parse month range from query param */
@@ -687,7 +817,7 @@ router.get('/impact', async (req, res, next) => {
     }
 
     const bookings = await queryWithRLS(bid,
-      `SELECT b.id, b.start_at, b.end_at, b.status,
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.service_id,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               s.name AS service_name
        FROM bookings b
@@ -744,11 +874,325 @@ router.get('/impact', async (req, res, next) => {
       }
     }
 
+    // Compute alternatives if requested
+    if (req.query.with_alternatives === '1' && filtered.length > 0) {
+      await computeAlternatives(bid, practitioner_id, date_from, date_to, filtered);
+    }
+
     res.json({
       impacted_bookings: filtered,
       count: filtered.length,
       coverage: uncoveredServices.length === 0 ? 'ok' : 'at_risk',
       uncovered_services: uncoveredServices
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/planning/notify-impacted — notify clients affected by absence
+// Sends email + SMS to clients whose bookings overlap the absence period
+// ============================================================
+router.post('/notify-impacted', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { practitioner_id, date_from, date_to, period, period_end } = req.body;
+
+    if (!practitioner_id || !date_from || !date_to) {
+      return res.status(400).json({ error: 'practitioner_id, date_from, date_to requis' });
+    }
+
+    // Fetch impacted bookings (same logic as GET /impact)
+    const bookings = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.public_token,
+              c.full_name AS client_name, c.phone AS client_phone,
+              c.email AS client_email, c.consent_sms,
+              s.name AS service_name, s.duration_min,
+              p.display_name AS practitioner_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       WHERE b.business_id = $1 AND b.practitioner_id = $2
+         AND b.start_at::date >= $3::date AND b.start_at::date <= $4::date
+         AND b.status IN ('confirmed', 'pending')
+       ORDER BY b.start_at`,
+      [bid, practitioner_id, date_from, date_to]
+    );
+
+    // Filter by half-day period
+    const absPeriod = period || 'full';
+    const absPeriodEnd = period_end || absPeriod;
+    let filtered = bookings.rows;
+    if (absPeriod !== 'full' || absPeriodEnd !== 'full') {
+      filtered = bookings.rows.filter(b => {
+        const bxlH = new Date(b.start_at).toLocaleString('en-GB', { timeZone: 'Europe/Brussels', hour12: false, hour: '2-digit' });
+        const hour = parseInt(bxlH) || 0;
+        const dateStr = new Date(b.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        let dayPeriod;
+        if (date_from === date_to) dayPeriod = absPeriod;
+        else if (dateStr === date_from) dayPeriod = absPeriod;
+        else if (dateStr === date_to) dayPeriod = absPeriodEnd;
+        else dayPeriod = 'full';
+        if (dayPeriod === 'full') return true;
+        if (dayPeriod === 'am') return hour < 13;
+        if (dayPeriod === 'pm') return hour >= 13;
+        return true;
+      });
+    }
+
+    if (filtered.length === 0) {
+      return res.json({ sent_email: 0, sent_sms: 0, total: 0, errors: 0 });
+    }
+
+    // Fetch business info
+    const bizResult = await queryWithRLS(bid,
+      `SELECT name, email, phone, plan, theme, settings FROM businesses WHERE id = $1`, [bid]
+    );
+    const business = bizResult.rows[0] || { name: 'Genda' };
+    const hasSms = ['pro', 'premium'].includes(business.plan);
+    const primaryColor = business.theme?.primary_color;
+
+    const pracName = filtered[0]?.practitioner_name || 'votre praticien';
+
+    let sentEmail = 0, sentSms = 0, errors = 0;
+
+    // De-duplicate by client email/phone (a client might have multiple bookings)
+    // But we send one email per booking so they know which specific appointment is impacted
+    for (const bk of filtered) {
+      const startLocal = new Date(bk.start_at).toLocaleString('fr-BE', {
+        timeZone: 'Europe/Brussels',
+        weekday: 'long', day: 'numeric', month: 'long',
+        hour: '2-digit', minute: '2-digit'
+      });
+      const dateShort = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+        timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit'
+      });
+      const timeShort = new Date(bk.start_at).toLocaleTimeString('fr-BE', {
+        timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+      });
+
+      // ── EMAIL ──
+      if (bk.client_email) {
+        try {
+          const manageUrl = bk.public_token
+            ? `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`
+            : null;
+
+          const bodyHTML = `
+            <p>Bonjour <strong>${escHtml(bk.client_name || 'cher client')}</strong>,</p>
+            <p>Nous vous informons que votre rendez-vous pourrait être impacté suite à l'indisponibilité de ${escHtml(pracName)} :</p>
+            <div style="background:#FFF7ED;border-left:4px solid #F59E0B;border-radius:6px;padding:14px 16px;margin:16px 0">
+              <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${escHtml(bk.service_name || 'Rendez-vous')}</div>
+              <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}</div>
+              <div style="font-size:13px;color:#3D3832;margin-top:2px">avec ${escHtml(pracName)}</div>
+            </div>
+            <p>Nous vous recontacterons prochainement pour reprogrammer votre rendez-vous à un créneau qui vous convient.</p>
+            <p style="font-size:13px;color:#9C958E;margin-top:16px">N'hésitez pas à nous contacter pour toute question.</p>`;
+
+          const html = buildEmailHTML({
+            title: 'Changement concernant votre rendez-vous',
+            preheader: `Votre RDV du ${dateShort} chez ${business.name} est impacté`,
+            bodyHTML,
+            businessName: business.name,
+            primaryColor,
+            ...(manageUrl ? { ctaText: 'Gérer mon rendez-vous', ctaUrl: manageUrl } : {}),
+            footerText: `${business.name} — Via Genda.be`
+          });
+
+          const emailResult = await sendEmail({
+            to: bk.client_email,
+            toName: bk.client_name,
+            subject: `Changement de RDV du ${dateShort} à ${timeShort} — ${business.name}`,
+            html,
+            fromName: business.name,
+            replyTo: business.email
+          });
+
+          if (emailResult.success) sentEmail++;
+          else errors++;
+        } catch (e) {
+          console.error('[NOTIFY-IMPACT] Email error:', e.message);
+          errors++;
+        }
+      }
+
+      // ── SMS (Pro/Premium + consent) ──
+      if (hasSms && bk.client_phone && bk.consent_sms) {
+        try {
+          const smsBody = `${business.name}: Votre RDV du ${dateShort} à ${timeShort} (${bk.service_name || 'prestation'}) est impacté par une absence. Nous vous recontacterons pour un nouveau créneau.`;
+
+          const smsResult = await sendSMS({
+            to: bk.client_phone,
+            body: smsBody,
+            businessId: bid
+          });
+
+          if (smsResult.success) sentSms++;
+          else errors++;
+        } catch (e) {
+          console.error('[NOTIFY-IMPACT] SMS error:', e.message);
+          errors++;
+        }
+      }
+    }
+
+    res.json({
+      sent_email: sentEmail,
+      sent_sms: sentSms,
+      total: filtered.length,
+      errors
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/planning/reassign — reassign a booking to another practitioner
+// ============================================================
+router.post('/reassign', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { booking_id, new_practitioner_id } = req.body;
+
+    if (!booking_id || !new_practitioner_id) {
+      return res.status(400).json({ error: 'booking_id et new_practitioner_id requis' });
+    }
+
+    // 1. Fetch the booking
+    const bkResult = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.end_at, b.practitioner_id, b.service_id, b.status,
+              b.public_token, b.client_id,
+              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone, c.consent_sms,
+              s.name AS service_name,
+              p.display_name AS old_practitioner_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [booking_id, bid]
+    );
+    if (bkResult.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const bk = bkResult.rows[0];
+    if (!['confirmed', 'pending'].includes(bk.status)) {
+      return res.status(400).json({ error: 'RDV non modifiable (statut: ' + bk.status + ')' });
+    }
+    if (bk.practitioner_id === new_practitioner_id) {
+      return res.status(400).json({ error: 'Même praticien' });
+    }
+
+    // 2. Validate new practitioner: active, booking_enabled, can do the service
+    const newPracResult = await queryWithRLS(bid,
+      `SELECT p.id, p.display_name, p.color, p.is_active, p.booking_enabled
+       FROM practitioners p
+       WHERE p.id = $1 AND p.business_id = $2`,
+      [new_practitioner_id, bid]
+    );
+    if (newPracResult.rows.length === 0) return res.status(404).json({ error: 'Praticien introuvable' });
+    const newPrac = newPracResult.rows[0];
+    if (!newPrac.is_active || !newPrac.booking_enabled) {
+      return res.status(400).json({ error: 'Praticien inactif ou non disponible en ligne' });
+    }
+
+    // Check service competency
+    if (bk.service_id) {
+      const psCheck = await queryWithRLS(bid,
+        `SELECT 1 FROM practitioner_services WHERE practitioner_id = $1 AND service_id = $2`,
+        [new_practitioner_id, bk.service_id]
+      );
+      if (psCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Ce praticien ne propose pas cette prestation' });
+      }
+    }
+
+    // 3. Check availability
+    const availCheck = await checkPracAvailability(bid, new_practitioner_id, bk.start_at, bk.end_at);
+    if (!availCheck.ok) {
+      return res.status(400).json({ error: 'Praticien non disponible: ' + availCheck.reason });
+    }
+
+    // 4. Check booking overlap for the new practitioner
+    const overlapCheck = await queryWithRLS(bid,
+      `SELECT id FROM bookings
+       WHERE business_id = $1 AND practitioner_id = $2
+         AND status IN ('confirmed','pending')
+         AND start_at < $4::timestamptz AND end_at > $3::timestamptz
+         AND id != $5`,
+      [bid, new_practitioner_id, bk.start_at, bk.end_at, booking_id]
+    );
+    if (overlapCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Créneau occupé pour ce praticien' });
+    }
+
+    // 5. Update the booking
+    await queryWithRLS(bid,
+      `UPDATE bookings SET practitioner_id = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+      [new_practitioner_id, booking_id, bid]
+    );
+
+    // 6. Calendar sync
+    try { await calSyncPush(bid, booking_id); } catch (e) {
+      console.error('[REASSIGN] calSync error:', e.message);
+    }
+
+    // 7. Notify client by email
+    if (bk.client_email) {
+      try {
+        const bizResult = await queryWithRLS(bid,
+          `SELECT name, email, theme FROM businesses WHERE id = $1`, [bid]
+        );
+        const business = bizResult.rows[0] || { name: 'Genda' };
+        const primaryColor = business.theme?.primary_color;
+
+        const startLocal = new Date(bk.start_at).toLocaleString('fr-BE', {
+          timeZone: 'Europe/Brussels',
+          weekday: 'long', day: 'numeric', month: 'long',
+          hour: '2-digit', minute: '2-digit'
+        });
+
+        const bodyHTML = `
+          <p>Bonjour <strong>${escHtml(bk.client_name || 'cher client')}</strong>,</p>
+          <p>Votre rendez-vous a été réassigné à un nouveau praticien :</p>
+          <div style="background:#F0FDF4;border-left:4px solid #22C55E;border-radius:6px;padding:14px 16px;margin:16px 0">
+            <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${escHtml(bk.service_name || 'Rendez-vous')}</div>
+            <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}</div>
+            <div style="font-size:13px;color:#3D3832;margin-top:4px">
+              <span style="text-decoration:line-through;opacity:.6">avec ${escHtml(bk.old_practitioner_name || '—')}</span>
+              → <strong>avec ${escHtml(newPrac.display_name)}</strong>
+            </div>
+          </div>
+          <p>Le créneau et la prestation restent inchangés.</p>`;
+
+        const dateShort = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+          timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit'
+        });
+
+        const html = buildEmailHTML({
+          title: 'Votre rendez-vous a été réassigné',
+          preheader: `RDV du ${dateShort} réassigné chez ${business.name}`,
+          bodyHTML,
+          businessName: business.name,
+          primaryColor,
+          footerText: `${business.name} — Via Genda.be`
+        });
+
+        await sendEmail({
+          to: bk.client_email,
+          toName: bk.client_name,
+          subject: `Votre RDV du ${dateShort} — nouveau praticien — ${business.name}`,
+          html,
+          fromName: business.name,
+          replyTo: business.email
+        });
+      } catch (e) {
+        console.error('[REASSIGN] Email error:', e.message);
+      }
+    }
+
+    res.json({
+      reassigned: true,
+      booking_id,
+      old_practitioner: bk.old_practitioner_name,
+      new_practitioner: newPrac.display_name
     });
   } catch (err) { next(err); }
 });

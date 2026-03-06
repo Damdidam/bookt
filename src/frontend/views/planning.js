@@ -813,6 +813,7 @@ function planGetSelectedPeriods() {
 
 // ── Impact preview (enriched with coverage) ──
 let _impactDebounce = null;
+let _impactToken = 0; // stale-request prevention
 async function planCheckImpact() {
   clearTimeout(_impactDebounce);
   _impactDebounce = setTimeout(_doCheckImpact, 250);
@@ -826,6 +827,7 @@ async function _doCheckImpact() {
   const to = document.getElementById('planAbsTo')?.value || from;
   if (!pracId || !from) return;
 
+  const token = ++_impactToken;
   zone.innerHTML = `<h4>Impact</h4><div style="text-align:center;padding:12px;color:var(--text-4);font-size:.75rem"><div class="spinner" style="margin:0 auto 8px;width:18px;height:18px"></div>Analyse…</div>`;
 
   try {
@@ -833,6 +835,7 @@ async function _doCheckImpact() {
     const r = await fetch(`/api/planning/impact?practitioner_id=${pracId}&date_from=${from}&date_to=${to}&period=${absPeriod}&period_end=${absPeriodEnd}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
+    if (token !== _impactToken) return; // stale
     const data = await r.json();
     const count = data.count || 0;
     const bookings = data.impacted_bookings || [];
@@ -853,9 +856,22 @@ async function _doCheckImpact() {
         const dt = new Date(b.start_at);
         const day = dt.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
         const time = dt.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-        h += `<div class="plan-impact-item"><strong>${esc(b.client_name || 'Client')}</strong> · ${esc(b.service_name || '')} · ${day} à ${time}</div>`;
+        h += `<div class="plan-impact-item" data-bk="${esc(b.id)}">
+          <div><strong>${esc(b.client_name || 'Client')}</strong> · ${esc(b.service_name || '')} · ${day} à ${time}</div>
+          <div class="plan-alt-zone" id="planAlt_${b.id}" style="margin-top:4px"></div>
+        </div>`;
       });
       h += '</div>';
+
+      // Notify clients button
+      const hasContacts = bookings.some(b => b.client_email || b.client_phone);
+      if (hasContacts) {
+        h += `<div style="margin-top:10px">
+          <button class="plan-impact-btn" id="planNotifyClientsBtn" onclick="planNotifyClients()" style="width:100%;justify-content:center;gap:6px;padding:7px 12px">
+            ${ICONS.send} Prévenir les clients
+          </button>
+        </div>`;
+      }
     } else {
       h += `<div class="plan-impact-row"><span>${ICONS.checkCircle} Aucun RDV impacté</span></div>`;
     }
@@ -871,14 +887,123 @@ async function _doCheckImpact() {
     }
 
     zone.innerHTML = h;
+
+    // Fetch alternatives in background (for bookings that have IDs)
+    if (count > 0) _fetchAlternatives(token, pracId, from, to, absPeriod, absPeriodEnd);
   } catch (e) {
+    if (token !== _impactToken) return;
     zone.innerHTML = `<h4>Impact</h4><div style="padding:8px;font-size:.75rem;color:var(--text-4)">Impossible de charger</div>`;
+  }
+}
+
+/** Background fetch: enriches impact list with "Assigner à" chips */
+async function _fetchAlternatives(token, pracId, from, to, period, periodEnd) {
+  try {
+    const r = await fetch(`/api/planning/impact?practitioner_id=${pracId}&date_from=${from}&date_to=${to}&period=${period}&period_end=${periodEnd}&with_alternatives=1`, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (token !== _impactToken) return;
+    const data = await r.json();
+    const bookings = data.impacted_bookings || [];
+
+    for (const bk of bookings) {
+      const altZone = document.getElementById(`planAlt_${bk.id}`);
+      if (!altZone) continue;
+      const alts = bk.alternatives || [];
+      if (alts.length === 0) {
+        altZone.innerHTML = `<span style="font-size:.7rem;color:var(--text-4);font-style:italic">Aucun praticien disponible</span>`;
+      } else {
+        altZone.innerHTML = `<span style="font-size:.7rem;color:var(--text-4)">Assigner à :</span> ` +
+          alts.map(a =>
+            `<button class="plan-alt-chip" style="--ac:${esc(a.color || '#6B7280')}" onclick="planReassign('${esc(bk.id)}','${esc(a.practitioner_id)}')">${esc(a.display_name)}</button>`
+          ).join(' ');
+      }
+    }
+  } catch (e) {
+    console.warn('[PLAN] Alternatives fetch error:', e.message);
+  }
+}
+
+/** Reassign a booking to a different practitioner */
+async function planReassign(bookingId, newPracId) {
+  if (!confirm('Réassigner ce RDV à ce praticien ? Le client sera notifié par email.')) return;
+
+  // Disable the chip that was clicked
+  const altZone = document.getElementById(`planAlt_${bookingId}`);
+  if (altZone) {
+    altZone.querySelectorAll('button').forEach(b => b.disabled = true);
+    altZone.insertAdjacentHTML('beforeend', ' <span class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></span>');
+  }
+
+  try {
+    const r = await fetch('/api/planning/reassign', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + api.getToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booking_id: bookingId, new_practitioner_id: newPracId })
+    });
+    const data = await r.json();
+    if (r.ok && data.reassigned) {
+      _showToast(`RDV réassigné à ${data.new_practitioner}`, 'success');
+      // Refresh impact
+      planCheckImpact();
+    } else {
+      _showToast(data.error || 'Erreur de réassignation', 'error');
+      if (altZone) altZone.querySelectorAll('button').forEach(b => b.disabled = false);
+      const sp = altZone?.querySelector('.spinner');
+      if (sp) sp.remove();
+    }
+  } catch (e) {
+    _showToast('Erreur: ' + e.message, 'error');
+    if (altZone) altZone.querySelectorAll('button').forEach(b => b.disabled = false);
+    const sp = altZone?.querySelector('.spinner');
+    if (sp) sp.remove();
   }
 }
 
 function planToggleImpactList() {
   const list = document.getElementById('planImpactList');
   if (list) list.classList.toggle('open');
+}
+
+// ── Notify impacted clients ──
+async function planNotifyClients() {
+  const btn = document.getElementById('planNotifyClientsBtn');
+  if (!btn) return;
+  if (!confirm('Envoyer un email/SMS aux clients impactés pour les prévenir ?')) return;
+
+  btn.disabled = true;
+  btn.innerHTML = `${ICONS.send} Envoi en cours...`;
+
+  const pracId = document.getElementById('planAbsPrac')?.value;
+  const from = document.getElementById('planAbsFrom')?.value;
+  const to = document.getElementById('planAbsTo')?.value || from;
+  const { period, period_end } = planGetSelectedPeriods();
+
+  try {
+    const r = await fetch('/api/planning/notify-impacted', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + api.getToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ practitioner_id: pracId, date_from: from, date_to: to, period, period_end })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      const parts = [];
+      if (data.sent_email > 0) parts.push(`${data.sent_email} email${data.sent_email > 1 ? 's' : ''}`);
+      if (data.sent_sms > 0) parts.push(`${data.sent_sms} SMS`);
+      const msg = parts.length > 0 ? parts.join(' + ') + ' envoyé' + (data.sent_email + data.sent_sms > 1 ? 's' : '') : 'Aucun contact trouvé';
+      btn.innerHTML = `${ICONS.checkCircle} ${msg}`;
+      _showToast(msg, 'success');
+      setTimeout(() => { btn.innerHTML = `${ICONS.send} Prévenir les clients`; btn.disabled = false; }, 5000);
+    } else {
+      btn.innerHTML = `${ICONS.send} Prévenir les clients`;
+      btn.disabled = false;
+      _showToast(data.error || 'Erreur d\'envoi', 'error');
+    }
+  } catch (e) {
+    btn.innerHTML = `${ICONS.send} Prévenir les clients`;
+    btn.disabled = false;
+    _showToast('Erreur: ' + e.message, 'error');
+  }
 }
 
 // ── Save absence ──
@@ -1027,7 +1152,7 @@ bridge({
   planPickType, planPickSeg, planApplyShortcut,
   planSwitchTab, planOnDatesChange,
   planSaveAbsence, planDeleteAbsence,
-  planNotifyPractitioner, planCheckImpact,
+  planNotifyPractitioner, planNotifyClients, planReassign, planCheckImpact,
   planUpdateHeader, planLoadLogs, planToggleImpactList,
   planExportCSV, planOpenSendModal, planDoSendPlanning
 });
