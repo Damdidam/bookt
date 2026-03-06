@@ -302,19 +302,19 @@ function buildHTML() {
       } else if (dayAbsences.length === 1 && dayAbsences[0].period === 'full') {
         const a = dayAbsences[0];
         const label = TYPE_LABELS[a.type] || 'A';
-        inner = `<div class="plan-abs-block ${a.type}" title="${esc(TYPE_NAMES[a.type])}${a.note ? ': ' + esc(a.note) : ''}" onclick="event.stopPropagation();planOpenModal(null,'${dateStr}','${a.id}')">${label}</div>`;
+        inner = `<div class="plan-abs-block ${a.type}" title="${esc(TYPE_NAMES[a.type])}${a.note ? ': ' + esc(a.note) : ''}" onclick="planAbsClick(event,'${p.id}','${dateStr}','${a.id}')">${label}</div>`;
       } else {
         // Half-day or multiple entries — split cell
         const amAbs = dayAbsences.find(a => a.period === 'am' || a.period === 'full');
         const pmAbs = dayAbsences.find(a => a.period === 'pm' || (a.period === 'full' && a !== amAbs));
         inner = `<div class="plan-split">`;
         if (amAbs) {
-          inner += `<div class="plan-split-am"><div class="plan-abs-block ${amAbs.type}" style="margin:1px 2px;font-size:.55rem" title="Matin: ${esc(TYPE_NAMES[amAbs.type])}" onclick="event.stopPropagation();planOpenModal(null,'${dateStr}','${amAbs.id}')">${TYPE_LABELS[amAbs.type]}</div></div>`;
+          inner += `<div class="plan-split-am"><div class="plan-abs-block ${amAbs.type}" style="margin:1px 2px;font-size:.55rem" title="Matin: ${esc(TYPE_NAMES[amAbs.type])}" onclick="planAbsClick(event,'${p.id}','${dateStr}','${amAbs.id}')">${TYPE_LABELS[amAbs.type]}</div></div>`;
         } else {
           inner += `<div class="plan-split-am"></div>`;
         }
         if (pmAbs) {
-          inner += `<div class="plan-split-pm"><div class="plan-abs-block ${pmAbs.type}" style="margin:1px 2px;font-size:.55rem" title="Après-midi: ${esc(TYPE_NAMES[pmAbs.type])}" onclick="event.stopPropagation();planOpenModal(null,'${dateStr}','${pmAbs.id}')">${TYPE_LABELS[pmAbs.type]}</div></div>`;
+          inner += `<div class="plan-split-pm"><div class="plan-abs-block ${pmAbs.type}" style="margin:1px 2px;font-size:.55rem" title="Après-midi: ${esc(TYPE_NAMES[pmAbs.type])}" onclick="planAbsClick(event,'${p.id}','${dateStr}','${pmAbs.id}')">${TYPE_LABELS[pmAbs.type]}</div></div>`;
         } else {
           inner += `<div class="plan-split-pm"></div>`;
         }
@@ -811,6 +811,56 @@ function planGetSelectedPeriods() {
   return { period: p, period_end: pe };
 }
 
+// ── Context menu for multi-day absence day clicks ──
+function planAbsClick(ev, pracId, dateStr, absId) {
+  ev.stopPropagation();
+  const abs = absences.find(a => String(a.id) === String(absId));
+  if (!abs) { planOpenModal(null, dateStr, absId); return; }
+
+  const fromStr = (typeof abs.date_from === 'string' ? abs.date_from : new Date(abs.date_from).toISOString()).slice(0, 10);
+  const toStr = (typeof abs.date_to === 'string' ? abs.date_to : new Date(abs.date_to).toISOString()).slice(0, 10);
+
+  // Single day → edit directly
+  if (fromStr === toStr) { planOpenModal(null, dateStr, absId); return; }
+
+  // Multi-day → show context menu
+  document.getElementById('planCtxMenu')?.remove();
+  const menu = document.createElement('div');
+  menu.id = 'planCtxMenu';
+  menu.className = 'plan-ctx-menu';
+
+  // Position near click
+  let x = ev.clientX, y = ev.clientY;
+  menu.innerHTML = `
+    <div class="plan-ctx-item" onclick="document.getElementById('planCtxMenu').remove();planOpenModal(null,'${dateStr}','${absId}')">
+      ${ICONS.calendar}<span>Modifier l'absence entière</span>
+    </div>
+    <div class="plan-ctx-item" onclick="document.getElementById('planCtxMenu').remove();planOpenModal('${pracId}','${dateStr}')">
+      ${ICONS.plus}<span>Changer ce jour uniquement</span>
+    </div>
+  `;
+  document.body.appendChild(menu);
+
+  // Adjust if off-screen
+  const rect = menu.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
+  if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
+  if (x < 4) x = 4;
+  if (y < 4) y = 4;
+  menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:99999`;
+
+  // Close on outside click (one-shot)
+  setTimeout(() => {
+    const handler = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('pointerdown', handler, true);
+      }
+    };
+    document.addEventListener('pointerdown', handler, true);
+  }, 0);
+}
+
 // ── Impact preview (enriched with coverage) ──
 let _impactDebounce = null;
 let _impactToken = 0; // stale-request prevention
@@ -1148,7 +1198,7 @@ async function planLoadLogs(absId) {
 // ── Bridge ──
 bridge({
   planPrevMonth, planNextMonth, planGoToday,
-  planOpenModal, planCloseModal,
+  planOpenModal, planCloseModal, planAbsClick,
   planPickType, planPickSeg, planApplyShortcut,
   planSwitchTab, planOnDatesChange,
   planSaveAbsence, planDeleteAbsence,

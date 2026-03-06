@@ -392,6 +392,13 @@
 .plan-date-error{font-size:.7rem;color:#DC2626;margin-top:4px;display:none}
 .plan-date-error.show{display:block}
 
+/* Context menu for multi-day absence clicks */
+.plan-ctx-menu{background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.15),0 0 0 1px rgba(0,0,0,.06);padding:4px;min-width:210px;animation:planCtxIn .12s ease-out}
+@keyframes planCtxIn{from{opacity:0;transform:scale(.96) translateY(-4px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.plan-ctx-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:7px;font-size:.78rem;font-weight:500;color:var(--text);cursor:pointer;transition:background .12s}
+.plan-ctx-item:hover{background:var(--surface,#F3F4F6)}
+.plan-ctx-item svg{width:15px;height:15px;flex-shrink:0;color:var(--text-3)}
+
 /* Log timeline */
 .plan-log-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);position:relative}
 .plan-log-item:last-child{border-bottom:none}
