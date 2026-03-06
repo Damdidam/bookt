@@ -393,25 +393,15 @@ function planOpenSendModal() {
 
   const overlay = document.createElement('div');
   overlay.id = 'planSendOverlay';
-  overlay.className = 'cal-modal-overlay open';
-  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.className = 'm-overlay open';
 
   overlay.innerHTML = `
-    <div class="cal-modal" style="max-width:400px">
-      <div class="m-header">
-        <div class="m-header-bg" style="background:linear-gradient(135deg,#0D7377,#0A5A5E)"></div>
+    <div class="m-dialog m-sm">
+      <div class="m-header-simple">
+        <h3>Envoyer le planning</h3>
         <button class="m-close" onclick="document.getElementById('planSendOverlay').remove()">${ICONS.close}</button>
-        <div class="m-header-content">
-          <div class="m-client-hero">
-            <div class="m-avatar" style="background:#0D7377">${ICONS.send}</div>
-            <div class="m-client-info">
-              <div class="m-client-name">Envoyer le planning</div>
-              <div class="m-client-meta"><span>Par email au praticien</span></div>
-            </div>
-          </div>
-        </div>
       </div>
-      <div class="cal-modal-body" style="padding:20px 24px">
+      <div class="m-body">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Praticien</span><span class="m-sec-line"></span></div>
           <select id="planSendPrac" class="m-input">${pracOptions}</select>
@@ -505,15 +495,14 @@ function planOpenModal(pracId, dateStr, absId) {
 
   const overlay = document.createElement('div');
   overlay.id = 'planAbsOverlay';
-  overlay.className = 'cal-modal-overlay open';
-  overlay.onclick = e => { if (e.target === overlay) planCloseModal(); };
+  overlay.className = 'm-overlay open';
 
   const segPills = (prefix, activeSeg) => ['full', 'am', 'pm'].map(s =>
     `<div class="plan-seg-pill${activeSeg === s ? ' active' : ''}" data-seg="${s}" onclick="planPickSeg('${prefix}',this)">${PERIOD_LABELS[s]}</div>`
   ).join('');
 
   overlay.innerHTML = `
-    <div class="cal-modal" style="max-width:680px;overflow:hidden;display:flex;flex-direction:column;max-height:90vh">
+    <div class="m-dialog m-flex m-lg">
 
       <!-- Header -->
       <div class="m-header">
@@ -537,9 +526,9 @@ function planOpenModal(pracId, dateStr, absId) {
       </div>
 
       <!-- Body -->
-      <div class="cal-modal-body" style="padding:20px 24px;overflow-y:auto;flex:1;min-height:0">
+      <div class="m-body" style="padding:20px 24px;overflow-y:auto;flex:1;min-height:0">
 
-        <div class="cal-panel active" id="planPanelDetails">
+        <div class="m-panel active" id="planPanelDetails">
           <div class="plan-abs-grid">
 
             <!-- LEFT column: Form -->
@@ -614,7 +603,7 @@ function planOpenModal(pracId, dateStr, absId) {
         </div>
 
         <!-- Log panel -->
-        <div class="cal-panel" id="planPanelLog">
+        <div class="m-panel" id="planPanelLog">
           <div id="planLogContent" style="min-height:100px">
             <div class="loading" style="padding:20px"><div class="spinner"></div></div>
           </div>
@@ -677,7 +666,7 @@ function planOnDatesChange() {
 function planSwitchTab(tab) {
   _currentTab = tab;
   document.querySelectorAll('#planAbsOverlay .m-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  document.querySelectorAll('#planAbsOverlay .cal-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#planAbsOverlay .m-panel').forEach(p => p.classList.remove('active'));
   document.getElementById(tab === 'details' ? 'planPanelDetails' : 'planPanelLog')?.classList.add('active');
   if (tab === 'log' && _editingAbsenceId) planLoadLogs(_editingAbsenceId);
 }

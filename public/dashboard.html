@@ -60,8 +60,8 @@
   <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
 </div>
 <!-- CALENDAR DETAIL MODAL -->
-<div class="cal-modal-overlay" id="calDetailModal">
-  <div class="cal-modal">
+<div class="m-overlay" id="calDetailModal">
+  <div class="m-dialog m-flex">
     <div class="m-header">
       <div class="m-header-bg" id="mHeaderBg"></div>
       <button class="m-close" onclick="closeCalModal('calDetailModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -79,8 +79,8 @@
       <div class="m-tab" data-tab="docs" onclick="switchCalTab(this,'docs')">Docs<span class="tab-count" id="mCountDocs" style="display:none"></span></div>
       <div class="m-tab" data-tab="historique" onclick="switchCalTab(this,'historique')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
     </div>
-    <div class="cal-modal-body">
-      <div class="cal-panel active" id="calPanelRdv">
+    <div class="m-body">
+      <div class="m-panel active" id="calPanelRdv">
         <div class="m-svc-card" id="mSvcCard" style="display:none"></div>
         <div class="m-free-card" id="mFreeCard" style="display:none">
           <div style="flex:1;min-width:0">
@@ -156,7 +156,7 @@
           <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
         </div>
       </div>
-      <div class="cal-panel" id="calPanelNotes">
+      <div class="m-panel" id="calPanelNotes">
         <div id="calNoteList"></div>
         <div class="add-note">
           <textarea id="calNewNote" placeholder="Ajouter une note..."></textarea>
@@ -166,7 +166,7 @@
           </div>
         </div>
       </div>
-      <div class="cal-panel" id="calPanelSession">
+      <div class="m-panel" id="calPanelSession">
         <div class="session-editor">
           <div class="se-toolbar">
             <button type="button" class="se-btn" data-cmd="bold" title="Gras"><b>B</b></button>
@@ -188,14 +188,14 @@
           </div>
         </div>
       </div>
-      <div class="cal-panel" id="calPanelTodos">
+      <div class="m-panel" id="calPanelTodos">
         <div id="calTodoList"></div>
         <div class="add-todo">
           <input id="calNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')calAddTodo()">
           <button class="cal-btn primary" onclick="calAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
         </div>
       </div>
-      <div class="cal-panel" id="calPanelReminders">
+      <div class="m-panel" id="calPanelReminders">
         <div id="calReminderList"></div>
         <div class="add-reminder">
           <select id="calReminderOffset">
@@ -213,11 +213,11 @@
           <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
         </div>
       </div>
-      <div class="cal-panel" id="calPanelDocs">
+      <div class="m-panel" id="calPanelDocs">
         <div id="mDocsList"></div>
         <div id="mDocsSend" style="margin-top:12px"></div>
       </div>
-      <div class="cal-panel" id="calPanelHistorique">
+      <div class="m-panel" id="calPanelHistorique">
         <div id="mHistoryTimeline"><div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Chargement...</div></div>
       </div>
     </div>
@@ -231,8 +231,8 @@
 </div>
 
 <!-- QUICK CREATE MODAL — same structure as Detail -->
-<div class="cal-modal-overlay" id="calCreateModal">
-  <div class="cal-modal">
+<div class="m-overlay" id="calCreateModal">
+  <div class="m-dialog m-flex">
     <div class="m-header">
       <div class="m-header-bg" id="qcHeaderBg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary)AA 60%,var(--primary)55 100%)"></div>
       <button class="m-close" onclick="closeCalModal('calCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -251,9 +251,9 @@
       <div class="m-tab" data-tab="qc-todos" onclick="qcSwitchTab(this,'qc-todos')">Tâches<span class="tab-count" id="qcCountTodos" style="display:none"></span></div>
       <div class="m-tab" data-tab="qc-reminders" onclick="qcSwitchTab(this,'qc-reminders')">Rappels<span class="tab-count" id="qcCountReminders" style="display:none"></span></div>
     </div>
-    <div class="cal-modal-body">
+    <div class="m-body">
       <!-- TAB: RDV -->
-      <div class="cal-panel active" id="qcPanelRdv">
+      <div class="m-panel active" id="qcPanelRdv">
         <!-- Client -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-client">Client</span></span><span class="m-sec-line"></span></div>
@@ -324,7 +324,7 @@
         </div>
       </div>
       <!-- TAB: Notes -->
-      <div class="cal-panel" id="qcPanelNotes">
+      <div class="m-panel" id="qcPanelNotes">
         <div id="qcNoteList"></div>
         <div class="add-note">
           <textarea id="qcNewNote" placeholder="Ajouter une note..."></textarea>
@@ -335,7 +335,7 @@
         </div>
       </div>
       <!-- TAB: Tâches -->
-      <div class="cal-panel" id="qcPanelTodos">
+      <div class="m-panel" id="qcPanelTodos">
         <div id="qcTodoList"></div>
         <div class="add-todo">
           <input id="qcNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')qcAddTodo()">
@@ -343,7 +343,7 @@
         </div>
       </div>
       <!-- TAB: Rappels -->
-      <div class="cal-panel" id="qcPanelReminders">
+      <div class="m-panel" id="qcPanelReminders">
         <div id="qcReminderList"></div>
         <div class="add-reminder">
           <select id="qcReminderOffset">

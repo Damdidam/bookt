@@ -325,7 +325,7 @@ function closeCalModal(id) {
 
 function switchCalTab(el, tab) {
   document.querySelectorAll('#calDetailModal .m-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('#calDetailModal .cal-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#calDetailModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', session: 'calPanelSession', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');

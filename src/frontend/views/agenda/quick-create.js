@@ -126,7 +126,7 @@ function qcUpdateGradient(color) {
 // ── Tab switching ──
 function qcSwitchTab(el, tab) {
   document.querySelectorAll('#calCreateModal .m-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('#calCreateModal .cal-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#calCreateModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   const panelMap = { 'qc-rdv': 'qcPanelRdv', 'qc-notes': 'qcPanelNotes', 'qc-todos': 'qcPanelTodos', 'qc-reminders': 'qcPanelReminders' };
   document.getElementById(panelMap[tab])?.classList.add('active');

@@ -1,6 +1,6 @@
 /**
  * Team (Équipe) view module — v2
- * Premium cal-modal, service assignments, leave balances, enriched cards
+ * Unified m-* modals, service assignments, leave balances, enriched cards
  */
 import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
@@ -180,7 +180,7 @@ async function loadTeam() {
 }
 
 // ============================================================
-// Premium cal-modal — Practitioner detail/edit
+// Practitioner detail/edit modal
 // ============================================================
 
 function openPractModal(editId) {
@@ -222,8 +222,8 @@ function renderPractModal(p) {
   const pracLbl = sectorLabels.practitioner.toLowerCase();
   const accentColor = p?.color || '#0D7377';
 
-  let h = `<div id="teamModalOverlay" class="cal-modal-overlay open">
-    <div class="cal-modal" style="overflow:hidden;display:flex;flex-direction:column;height:85vh;max-width:580px">
+  let h = `<div id="teamModalOverlay" class="m-overlay open">
+    <div class="m-dialog m-flex m-lg" style="height:85vh">
 
     <!-- M-HEADER -->
     <div class="m-header">
@@ -260,10 +260,10 @@ function renderPractModal(p) {
     </div>
 
     <!-- BODY -->
-    <div class="cal-modal-body">
+    <div class="m-body">
 
       <!-- TAB: PROFIL -->
-      <div class="cal-panel active" id="team-panel-profile">
+      <div class="m-panel active" id="team-panel-profile">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Identité</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-2">
@@ -314,7 +314,7 @@ function renderPractModal(p) {
       </div>
 
       <!-- TAB: COMPÉTENCES -->
-      <div class="cal-panel" id="team-panel-skills">
+      <div class="m-panel" id="team-panel-skills">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Prestations assignées</span><span class="m-sec-line"></span></div>
           <div id="tm_services_list">${renderServicesList()}</div>
@@ -322,7 +322,7 @@ function renderPractModal(p) {
       </div>
 
       <!-- TAB: HORAIRE -->
-      <div class="cal-panel" id="team-panel-schedule">
+      <div class="m-panel" id="team-panel-schedule">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Disponibilités hebdomadaires</span><span class="m-sec-line"></span></div>
           <div id="tm_schedule_editor">${isEdit ? '<div style="font-size:.78rem;color:var(--text-4)">Chargement...</div>' : renderScheduleEditor()}</div>
@@ -331,7 +331,7 @@ function renderPractModal(p) {
       </div>
 
       <!-- TAB: CONGÉS -->
-      ${isEdit ? `<div class="cal-panel" id="team-panel-leave">
+      ${isEdit ? `<div class="m-panel" id="team-panel-leave">
         <div class="m-sec">
           <div class="m-sec-head">
             <span class="m-sec-title">Solde congés</span><span class="m-sec-line"></span>
@@ -348,7 +348,7 @@ function renderPractModal(p) {
       </div>` : ''}
 
       <!-- TAB: PARAMÈTRES -->
-      <div class="cal-panel" id="team-panel-settings">
+      <div class="m-panel" id="team-panel-settings">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Agenda</span><span class="m-sec-line"></span></div>
           <div class="m-field-label">Capacité simultanée</div>
@@ -407,7 +407,7 @@ function teamSwitchTab(tab) {
   document.querySelectorAll('#teamModalOverlay .m-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === tab);
   });
-  document.querySelectorAll('#teamModalOverlay .cal-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#teamModalOverlay .m-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('team-panel-' + tab)?.classList.add('active');
 }
 
@@ -568,9 +568,9 @@ function teamAddSlot(day) {
   const hr = parseInt((ds || '09:00').split(':')[0]);
   const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
 
-  let m = `<div class="modal-overlay" style="z-index:350"><div class="modal" style="max-width:340px"><div class="modal-h"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${ICONS.close}</button></div><div class="modal-body">
-    <div class="field-row"><div class="field"><label>Début</label><input type="time" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div class="field"><label>Fin</label><input type="time" id="tm_slot_end" value="${de}"></div></div>
-  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
+  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
+    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="time" class="m-input" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="tm_slot_end" value="${de}"></div></div>
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
 }
 
@@ -580,7 +580,7 @@ function teamConfirmAddSlot(day) {
   if (!teamEditSchedule[day]) teamEditSchedule[day] = [];
   teamEditSchedule[day].push({ start_time: st, end_time: en });
   teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
-  document.querySelector('.modal-overlay[style*="z-index:350"]')?.remove();
+  document.getElementById('teamSlotModal')?.remove();
   document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
 }
 
@@ -796,7 +796,7 @@ async function openPracTasks(pracId, pracName) {
     const pendingTodos = todos.filter(t => !t.is_done), doneTodos = todos.filter(t => t.is_done);
     const pendingReminders = reminders.filter(r => !r.is_sent), sentReminders = reminders.filter(r => r.is_sent);
 
-    let h = `<div class="cal-modal-overlay open" id="tasksModalOverlay"><div class="cal-modal" style="max-width:540px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column">
+    let h = `<div class="m-overlay open" id="tasksModalOverlay"><div class="m-dialog m-flex m-md">
       <div class="m-header" style="flex-shrink:0">
         <div class="m-header-bg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 60%,rgba(13,115,119,.3) 100%)"></div>
         <button class="m-close" onclick="document.getElementById('tasksModalOverlay').remove()">×</button>
@@ -810,7 +810,7 @@ async function openPracTasks(pracId, pracName) {
           </div>
         </div>
       </div>
-      <div class="cal-modal-body" style="overflow-y:auto;flex:1">`;
+      <div class="m-body" style="overflow-y:auto;flex:1">`;
 
     h += `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">Tâches en cours (${pendingTodos.length})</span><span class="m-sec-line"></span></div>`;
     if (pendingTodos.length === 0) { h += `<div style="font-size:.8rem;color:var(--text-4)">Aucune tâche en cours</div>`; }
@@ -879,21 +879,12 @@ async function togglePracTodo(todoId, bookingId, done, pracId, pracName) {
 
 function openInviteModal(practId, name) {
   const sl = SECTOR_LABELS[userSector] || SECTOR_LABELS.autre;
-  let m = `<div class="cal-modal-overlay open" id="inviteModalOverlay"><div class="cal-modal" style="max-width:460px">
-    <div class="m-header" style="flex-shrink:0">
-      <div class="m-header-bg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 60%,rgba(13,115,119,.3) 100%)"></div>
-      <button class="m-close" onclick="document.getElementById('inviteModalOverlay').remove()">×</button>
-      <div class="m-header-content">
-        <div class="m-client-hero">
-          <div class="m-avatar" style="background:var(--primary)"><svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.key.slice(4)}></div>
-          <div class="m-client-info">
-            <div class="m-client-name">Créer un accès</div>
-            <div class="m-client-meta">${name}</div>
-          </div>
-        </div>
-      </div>
+  let m = `<div class="m-overlay open" id="inviteModalOverlay"><div class="m-dialog m-sm">
+    <div class="m-header-simple">
+      <h3>Créer un accès — ${name}</h3>
+      <button class="m-close" onclick="document.getElementById('inviteModalOverlay').remove()">${ICONS.close}</button>
     </div>
-    <div class="cal-modal-body">
+    <div class="m-body">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
       <div class="m-sec">
         <div class="m-field-label">Email *</div>
@@ -949,21 +940,12 @@ function openRoleModal(practId, name, currentRole) {
     { value: 'receptionist', label: sl.receptionist, desc: "Voit l'agenda de tous, gère les RDV et clients" },
     { value: 'manager', label: sl.manager, desc: 'Agenda de tous, clients, documents, statistiques' }
   ];
-  let m = `<div class="cal-modal-overlay open" id="roleModalOverlay"><div class="cal-modal" style="max-width:460px">
-    <div class="m-header" style="flex-shrink:0">
-      <div class="m-header-bg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 60%,rgba(13,115,119,.3) 100%)"></div>
-      <button class="m-close" onclick="document.getElementById('roleModalOverlay').remove()">×</button>
-      <div class="m-header-content">
-        <div class="m-client-hero">
-          <div class="m-avatar" style="background:var(--primary)"><svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.shield.slice(4)}></div>
-          <div class="m-client-info">
-            <div class="m-client-name">Modifier le rôle</div>
-            <div class="m-client-meta">${name}</div>
-          </div>
-        </div>
-      </div>
+  let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
+    <div class="m-header-simple">
+      <h3>Modifier le rôle — ${name}</h3>
+      <button class="m-close" onclick="document.getElementById('roleModalOverlay').remove()">${ICONS.close}</button>
     </div>
-    <div class="cal-modal-body">
+    <div class="m-body">
       <div style="display:flex;flex-direction:column;gap:8px">`;
   roles.forEach(r => {
     const checked = r.value === currentRole ? 'checked' : '';
