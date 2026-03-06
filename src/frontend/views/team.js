@@ -351,14 +351,10 @@ function renderPractModal(p) {
       <div class="cal-panel" id="team-panel-settings">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Agenda</span><span class="m-sec-line"></span></div>
-          <div class="m-row m-row-2">
-            <div><div class="m-field-label">Incrément agenda</div><select class="m-input" id="p_slot_inc">
-              ${[5, 10, 15, 20, 30, 45, 60].map(v => `<option value="${v}"${(p?.slot_increment_min || 15) === v ? ' selected' : ''}>${v} min</option>`).join('')}
-            </select></div>
-            <div><div class="m-field-label">Capacité simultanée</div><select class="m-input" id="p_max_concurrent">
-              ${[1, 2, 3, 4, 5, 6, 8, 10].map(v => `<option value="${v}"${(p?.max_concurrent || 1) === v ? ' selected' : ''}>${v}${v === 1 ? ' (pas de chevauchement)' : ' simultanés'}</option>`).join('')}
-            </select></div>
-          </div>
+          <div class="m-field-label">Capacité simultanée</div>
+          <select class="m-input" id="p_max_concurrent">
+            ${[1, 2, 3, 4, 5, 6, 8, 10].map(v => `<option value="${v}"${(p?.max_concurrent || 1) === v ? ' selected' : ''}>${v}${v === 1 ? ' (pas de chevauchement)' : ' simultanés'}</option>`).join('')}
+          </select>
         </div>
 
         <div class="m-sec">
@@ -366,22 +362,6 @@ function renderPractModal(p) {
           <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer">
             <input type="checkbox" id="p_booking" ${p?.booking_enabled !== false ? 'checked' : ''}> Peut recevoir des réservations en ligne
           </label>
-        </div>
-
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Liste d'attente</span><span class="m-sec-line"></span></div>
-          <select class="m-input" id="p_waitlist">
-            <option value="off"${(p?.waitlist_mode || 'off') === 'off' ? ' selected' : ''}>Désactivée</option>
-            <option value="manual"${p?.waitlist_mode === 'manual' ? ' selected' : ''}>Manuelle — je contacte le client moi-même</option>
-            <option value="auto"${p?.waitlist_mode === 'auto' ? ' selected' : ''}>Automatique — offre envoyée au 1er en file</option>
-          </select>
-        </div>
-
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Vacances</span><span class="m-sec-line"></span></div>
-          <div class="m-field-label"><svg class="gi" style="width:12px;height:12px" ${ICONS.sun.slice(4)}> En vacances jusqu'au</div>
-          <input class="m-input" type="date" id="p_vacation" value="${p?.vacation_until ? p.vacation_until.slice(0, 10) : ''}">
-          <div style="font-size:.68rem;color:var(--text-4);margin-top:4px">Si renseigné, ce praticien ne sera plus réservable en ligne.</div>
         </div>
 
         ${isEdit ? `<div class="m-sec" style="margin-top:16px">
@@ -683,10 +663,7 @@ async function savePract(id) {
     emergency_contact_phone: document.getElementById('p_emerg_phone').value || null,
     internal_note: document.getElementById('p_note').value || null,
     booking_enabled: document.getElementById('p_booking').checked,
-    slot_increment_min: parseInt(document.getElementById('p_slot_inc').value) || 15,
-    max_concurrent: parseInt(document.getElementById('p_max_concurrent').value) || 1,
-    waitlist_mode: document.getElementById('p_waitlist').value,
-    vacation_until: document.getElementById('p_vacation').value || null
+    max_concurrent: parseInt(document.getElementById('p_max_concurrent').value) || 1
   };
 
   try {

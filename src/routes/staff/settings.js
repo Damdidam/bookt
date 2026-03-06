@@ -66,6 +66,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text,
       // Multi-service booking
       settings_multi_service_enabled,
+      // Calendar settings (business-level)
+      settings_slot_increment_min, settings_waitlist_mode,
       // Sector
       sector
     } = req.body;
@@ -83,7 +85,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_deposit_message !== undefined || settings_deposit_deduct !== undefined
         || settings_cancel_deadline_hours !== undefined || settings_cancel_grace_minutes !== undefined
         || settings_cancel_policy_text !== undefined
-        || settings_multi_service_enabled !== undefined) {
+        || settings_multi_service_enabled !== undefined
+        || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -112,6 +115,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = settings_cancel_policy_text;
       // Multi-service booking
       if (settings_multi_service_enabled !== undefined) cur.multi_service_enabled = !!settings_multi_service_enabled;
+      // Calendar settings
+      if (settings_slot_increment_min !== undefined) { const _v = parseInt(settings_slot_increment_min); cur.slot_increment_min = [5,10,15,20,30,45,60].includes(_v) ? _v : 15; }
+      if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
       mergedSettings = cur;
     }
 

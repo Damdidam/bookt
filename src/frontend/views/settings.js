@@ -75,6 +75,22 @@ async function loadSettings(){
       </div>
     </div></div>`;
 
+    // 3a. Calendrier — incrément + liste d'attente
+    const slotInc = b.settings?.slot_increment_min || 15;
+    const wlMode = b.settings?.waitlist_mode || 'off';
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Calendrier</h3></div><div class="sc-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="field"><label>Incrément agenda</label><select id="s_slot_inc" class="field-input">
+          ${[5, 10, 15, 20, 30, 45, 60].map(v => `<option value="${v}"${slotInc === v ? ' selected' : ''}>${v} min</option>`).join('')}
+        </select><div class="hint">Granularité des créneaux dans le calendrier</div></div>
+        <div class="field"><label>Liste d'attente</label><select id="s_waitlist" class="field-input">
+          <option value="off"${wlMode === 'off' ? ' selected' : ''}>Désactivée</option>
+          <option value="manual"${wlMode === 'manual' ? ' selected' : ''}>Manuelle</option>
+          <option value="auto"${wlMode === 'auto' ? ' selected' : ''}>Automatique</option>
+        </select><div class="hint">Gestion des clients en attente lors d'annulations</div></div>
+      </div>
+    </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
+
     // 3b. Rappels patients
     const plan=b.plan||'free';
     const re24=b.settings?.reminder_email_24h!==false;
@@ -278,6 +294,18 @@ async function loadSettings(){
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
+async function saveCalendarSettings(){
+  try{
+    const data={
+      settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
+      settings_waitlist_mode:document.getElementById('s_waitlist').value||'off'
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Paramètres calendrier enregistrés','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveMultiServicePolicy(){
   const on=document.getElementById('s_multi_service').checked;
   try{
@@ -462,6 +490,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, saveCalendarSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
-export { loadSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, saveCalendarSettings, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
