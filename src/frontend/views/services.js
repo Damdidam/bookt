@@ -441,24 +441,12 @@ function renderServiceModal(svc,sectorCats,prefill){
   const svcLabel=categoryLabels.service.toLowerCase();
   const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
 
-  let m=`<div class="modal-overlay"><div class="modal svc-modal"><div class="modal-h"><h3>${isEdit?'Modifier le '+svcLabel:'Nouveau '+svcLabel}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
+  const currentCat=svc?.category||pf.category||'';
+  let m=`<div class="modal-overlay"><div class="modal svc-modal"><div class="modal-h"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
-  m+=`<div class="field" style="margin-bottom:12px"><label>Catégorie</label><select id="svc_cat">`;
-  m+=`<option value="">— Choisir —</option>`;
-  const currentCat=svc?.category||pf.category||'';
-  const usedCats=new Set(allServices.map(s=>s.category).filter(Boolean));
-  (sectorCats||[]).forEach(c=>{
-    if(c.source!=='custom'&&!usedCats.has(c.label)&&c.label!==currentCat)return;
-    const sel=c.label===currentCat?' selected':'';
-    const suffix=c.source==='custom'?' (perso.)':'';
-    m+=`<option value="${esc(c.label)}"${sel}>${esc(c.label)}${suffix}</option>`;
-  });
-  const isUnknown=currentCat&&!(sectorCats||[]).some(c=>c.label===currentCat);
-  if(isUnknown)m+=`<option value="${esc(currentCat)}" selected>${esc(currentCat)} (perso.)</option>`;
-  m+=`<option value="__custom__">+ Personnalisée...</option>`;
-  m+=`</select></div>`;
+  m+=`<input type="hidden" id="svc_cat" value="${esc(currentCat)}">`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez cette prestation...">${esc(svc?.description||'')}</textarea></div>`;
   m+=`</div>`;
@@ -535,15 +523,6 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
-  document.getElementById('svc_cat').addEventListener('change',function(){
-    if(this.value==='__custom__'){
-      const v=prompt('Nom de la catégorie personnalisée :');
-      if(v&&v.trim()){
-        const opt=document.createElement('option');opt.value=v.trim();opt.textContent=v.trim()+' (perso.)';opt.selected=true;
-        this.insertBefore(opt,this.querySelector('option[value="__custom__"]'));
-      }else{this.value='';}
-    }
-  });
 }
 
 // ===== SCHEDULE HELPERS =====
