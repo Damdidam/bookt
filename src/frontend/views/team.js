@@ -158,7 +158,7 @@ async function loadTeam() {
             ${p.contract_type && p.contract_type !== 'cdi' ? `<span class="tm-badge" style="background:#F0F9FF;color:#0369A1">${CONTRACT_LABELS[p.contract_type] || p.contract_type}</span>` : ''}
             <span class="tm-badge ${p.booking_enabled ? 'booking' : 'no-booking'}">${p.booking_enabled ? 'Réservable' : 'Non réservable'}</span>
             ${p.waitlist_mode && p.waitlist_mode !== 'off' ? `<span class="tm-badge" style="background:${p.waitlist_mode === 'auto' ? '#DCFCE7;color:#15803D' : '#FEF3C7;color:#92400E'}"><svg class="gi" ${ICONS.hourglass.slice(4)}> ${p.waitlist_mode === 'auto' ? 'WL auto' : 'WL manuelle'}</span>` : ''}
-            ${p.featured_enabled ? `<span class="tm-badge" style="background:#FEF3C7;color:#92400E"><svg class="gi" style="width:10px;height:10px" ${ICONS.star.slice(4)}> Vedette</span>` : ''}
+
             ${p.vacation_until && new Date(p.vacation_until) >= today ? `<span class="tm-badge" style="background:#FEF3C7;color:#92400E"><svg class="gi" ${ICONS.sun.slice(4)}> Vacances → ${new Date(p.vacation_until).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' })}</span>` : ''}
             ${(() => {
               const pc = calConns.filter(c => c.practitioner_id === p.id);
@@ -369,13 +369,6 @@ function renderPractModal(p) {
             <option value="manual"${p?.waitlist_mode === 'manual' ? ' selected' : ''}>Manuelle — je contacte le client moi-même</option>
             <option value="auto"${p?.waitlist_mode === 'auto' ? ' selected' : ''}>Automatique — offre envoyée au 1er en file</option>
           </select>
-        </div>
-
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Mode vedette</span><span class="m-sec-line"></span></div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer">
-            <input type="checkbox" id="p_featured" ${p?.featured_enabled ? 'checked' : ''}> <svg class="gi" style="width:14px;height:14px;color:#D97706" ${ICONS.star.slice(4)}> Activer le mode vedette
-          </label>
         </div>
 
         <div class="m-sec">
@@ -642,8 +635,7 @@ async function savePract(id) {
     slot_increment_min: parseInt(document.getElementById('p_slot_inc').value) || 15,
     max_concurrent: parseInt(document.getElementById('p_max_concurrent').value) || 1,
     waitlist_mode: document.getElementById('p_waitlist').value,
-    vacation_until: document.getElementById('p_vacation').value || null,
-    featured_enabled: document.getElementById('p_featured').checked
+    vacation_until: document.getElementById('p_vacation').value || null
   };
 
   try {

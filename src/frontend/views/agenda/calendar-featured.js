@@ -52,7 +52,7 @@ function minToTime(m) {
 }
 
 // ── Toggle mode on/off ──
-function fsToggleMode() {
+async function fsToggleMode() {
   if (fsActive) {
     if (fsDirty) {
       if (!confirm('Vous avez des modifications non enregistrées. Quitter le mode vedette ?')) return;
@@ -68,13 +68,19 @@ function fsToggleMode() {
       gToast('Sélectionnez un praticien pour le mode vedette', 'info');
       return;
     }
-    // Check if selected practitioner has featured_enabled
+    // Auto-enable featured mode if not yet active
     const selectedPrac = calState.fcCurrentFilter !== 'all'
       ? calState.fcPractitioners.find(p => String(p.id) === String(calState.fcCurrentFilter))
       : calState.fcPractitioners.length === 1 ? calState.fcPractitioners[0] : null;
     if (selectedPrac && !selectedPrac.featured_enabled) {
-      gToast('Le mode vedette n\'est pas activé pour ce praticien. Activez-le dans Équipe > Modifier.', 'info');
-      return;
+      try {
+        await fetch(`/api/practitioners/${selectedPrac.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ featured_enabled: true })
+        });
+        selectedPrac.featured_enabled = true;
+      } catch (e) { /* ignore */ }
     }
     fsActivate();
   }

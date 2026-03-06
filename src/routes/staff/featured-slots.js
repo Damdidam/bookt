@@ -58,13 +58,19 @@ router.put('/', async (req, res, next) => {
       return res.status(403).json({ error: 'Vous ne pouvez modifier que vos propres créneaux vedettes' });
     }
 
-    // Verify practitioner has featured_enabled
+    // Auto-enable featured mode if not yet active
     const pracCheck = await queryWithRLS(bid,
       `SELECT featured_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
       [practitioner_id, bid]
     );
-    if (pracCheck.rows.length === 0 || !pracCheck.rows[0].featured_enabled) {
-      return res.status(400).json({ error: 'Le mode vedette n\'est pas activé pour ce praticien' });
+    if (pracCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable' });
+    }
+    if (!pracCheck.rows[0].featured_enabled) {
+      await queryWithRLS(bid,
+        `UPDATE practitioners SET featured_enabled = true WHERE id = $1 AND business_id = $2`,
+        [practitioner_id, bid]
+      );
     }
 
     // V11-005: Wrap DELETE + INSERT in a transaction for atomicity
@@ -167,13 +173,19 @@ router.put('/lock', async (req, res, next) => {
       return res.status(403).json({ error: 'Vous ne pouvez verrouiller que vos propres semaines' });
     }
 
-    // Verify practitioner has featured_enabled
+    // Auto-enable featured mode if not yet active
     const pracLockCheck = await queryWithRLS(bid,
       `SELECT featured_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
       [practitioner_id, bid]
     );
-    if (pracLockCheck.rows.length === 0 || !pracLockCheck.rows[0].featured_enabled) {
-      return res.status(400).json({ error: 'Le mode vedette n\'est pas activé pour ce praticien' });
+    if (pracLockCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable' });
+    }
+    if (!pracLockCheck.rows[0].featured_enabled) {
+      await queryWithRLS(bid,
+        `UPDATE practitioners SET featured_enabled = true WHERE id = $1 AND business_id = $2`,
+        [practitioner_id, bid]
+      );
     }
 
     await queryWithRLS(bid,
