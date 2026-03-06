@@ -463,6 +463,57 @@ router.put('/:id/skills', requireOwner, async (req, res, next) => {
 });
 
 // ============================================================
+// PUT /api/practitioners/:id/services — replace all service assignments
+// Body: { service_ids: [uuid, ...] }
+// ============================================================
+router.put('/:id/services', requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { service_ids } = req.body;
+
+    if (!Array.isArray(service_ids)) {
+      return res.status(400).json({ error: 'service_ids doit être un tableau' });
+    }
+
+    // Verify practitioner belongs to business
+    const pracCheck = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = $1 AND business_id = $2`, [id, bid]
+    );
+    if (pracCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Praticien introuvable' });
+    }
+
+    await transactionWithRLS(bid, async (client) => {
+      // Remove all existing service links for this practitioner
+      await client.query(
+        `DELETE FROM practitioner_services
+         WHERE practitioner_id = $1
+           AND service_id IN (SELECT id FROM services WHERE business_id = $2)`,
+        [id, bid]
+      );
+
+      if (service_ids.length > 0) {
+        // Validate service IDs belong to this business
+        const validSvcs = await client.query(
+          `SELECT id FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active != false`,
+          [service_ids, bid]
+        );
+        const validIds = validSvcs.rows.map(r => r.id);
+        for (const svcId of validIds) {
+          await client.query(
+            `INSERT INTO practitioner_services (practitioner_id, service_id) VALUES ($1, $2)`,
+            [id, svcId]
+          );
+        }
+      }
+    });
+
+    res.json({ ok: true, count: service_ids.length });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // GET /api/practitioners/:id/leave-balance?year=2026
 // Returns quotas + computed used days
 // ============================================================

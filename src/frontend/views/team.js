@@ -12,6 +12,8 @@ let teamEditSkills = []; // mutable copy for editing
 let teamLeaveYear = new Date().getFullYear();
 let teamEditSchedule = {}; // mutable copy of schedule for editing (weekday -> [{start_time,end_time}])
 let teamEditPracId = null; // practitioner id being edited
+let teamEditServiceIds = new Set(); // service IDs assigned to this practitioner
+let teamAllServices = []; // all active services fetched from API
 
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function escH(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -189,11 +191,21 @@ async function loadTeam() {
 // ============================================================
 
 function openPractModal(editId) {
+  const hdrs = { 'Authorization': 'Bearer ' + api.getToken() };
   if (editId) {
-    fetch('/api/practitioners', { headers: { 'Authorization': 'Bearer ' + api.getToken() } }).then(r => r.json()).then(d => {
+    Promise.all([
+      fetch('/api/practitioners', { headers: hdrs }).then(r => r.json()),
+      fetch('/api/services', { headers: hdrs }).then(r => r.json())
+    ]).then(([d, svcData]) => {
+      teamAllServices = (svcData.services || []).filter(s => s.is_active !== false);
       renderPractModal(d.practitioners.find(p => p.id === editId));
     });
-  } else { renderPractModal(null); }
+  } else {
+    fetch('/api/services', { headers: hdrs }).then(r => r.json()).then(svcData => {
+      teamAllServices = (svcData.services || []).filter(s => s.is_active !== false);
+      renderPractModal(null);
+    });
+  }
 }
 
 function renderPractModal(p) {
@@ -201,6 +213,16 @@ function renderPractModal(p) {
   teamCurrentTab = 'profile';
   teamEditSkills = p?.skills ? JSON.parse(JSON.stringify(p.skills)) : [];
   teamLeaveYear = new Date().getFullYear();
+
+  // Initialize assigned services
+  teamEditServiceIds = new Set();
+  if (p) {
+    teamAllServices.forEach(s => {
+      if (s.practitioner_ids && s.practitioner_ids.includes(p.id)) {
+        teamEditServiceIds.add(s.id);
+      }
+    });
+  }
 
   const isEdit = !!p;
   const photoSrc = p?.photo_url || '';
@@ -309,10 +331,10 @@ function renderPractModal(p) {
             <button class="m-btn m-btn-primary" style="padding:8px 14px;font-size:.75rem" onclick="teamAddSkill()"><svg class="gi" style="width:12px;height:12px" ${ICONS.plus.slice(4)}> Ajouter</button>
           </div>
         </div>
-        ${isEdit ? `<div class="m-sec" style="margin-top:20px">
-          <div class="m-sec-head"><span class="m-sec-title">Services liés (${p.service_count || 0})</span><span class="m-sec-line"></span></div>
-          <div style="font-size:.78rem;color:var(--text-4)">Les services sont gérés dans la section <a href="#" onclick="event.preventDefault();window.loadSection&&window.loadSection('services')" style="color:var(--primary)">Prestations <svg class="gi" style="width:10px;height:10px" ${ICONS.link.slice(4)}></a></div>
-        </div>` : ''}
+        <div class="m-sec" style="margin-top:20px">
+          <div class="m-sec-head"><span class="m-sec-title">Prestations assignées</span><span class="m-sec-line"></span></div>
+          <div id="tm_services_list">${renderServicesList()}</div>
+        </div>
       </div>
 
       <!-- TAB: HORAIRE -->
@@ -462,6 +484,90 @@ function teamRemoveSkill(idx) {
 function teamSetSkillLevel(idx, level) {
   teamEditSkills[idx].level = level;
   document.getElementById('tm_skills_list').innerHTML = renderSkillsList();
+}
+
+// ============================================================
+// Service assignments (prestations assignées)
+// ============================================================
+
+function renderServicesList() {
+  if (teamAllServices.length === 0) {
+    return `<div style="font-size:.78rem;color:var(--text-4);padding:12px 0">Aucune prestation créée. <a href="#" onclick="event.preventDefault();window.loadSection&&window.loadSection('services')" style="color:var(--primary)">Créer des prestations</a></div>`;
+  }
+
+  // Group by category
+  const cats = {};
+  const catOrder = [];
+  teamAllServices.forEach(s => {
+    const cat = s.category || 'Sans catégorie';
+    if (!cats[cat]) { cats[cat] = []; catOrder.push(cat); }
+    cats[cat].push(s);
+  });
+
+  const total = teamAllServices.length;
+  const assigned = teamEditServiceIds.size;
+
+  let h = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <span style="font-size:.75rem;color:var(--text-3)">${assigned}/${total} prestation${total > 1 ? 's' : ''} assignée${assigned > 1 ? 's' : ''}</span>
+    <button class="m-btn m-btn-ghost" style="font-size:.7rem;padding:4px 10px" onclick="teamToggleAllServices()">${assigned === total ? 'Tout désélectionner' : 'Tout sélectionner'}</button>
+  </div>`;
+
+  catOrder.forEach(cat => {
+    const services = cats[cat];
+    const catAssigned = services.filter(s => teamEditServiceIds.has(s.id)).length;
+    const allChecked = catAssigned === services.length;
+    const someChecked = catAssigned > 0 && !allChecked;
+
+    h += `<div class="svc-assign-group">
+      <label class="svc-assign-cat" onclick="event.preventDefault();teamToggleCatServices('${esc(cat)}')">
+        <input type="checkbox" ${allChecked ? 'checked' : ''} tabindex="-1" style="accent-color:var(--primary)">
+        <span class="svc-assign-cat-name">${escH(cat)}</span>
+        <span class="svc-assign-cat-count">${catAssigned}/${services.length}</span>
+      </label>`;
+
+    services.forEach(s => {
+      const checked = teamEditServiceIds.has(s.id);
+      const priceLabel = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.00', '') + '€' : '';
+      h += `<label class="svc-assign-item${checked ? ' checked' : ''}" onclick="event.preventDefault();teamToggleService('${s.id}')">
+        <input type="checkbox" ${checked ? 'checked' : ''} tabindex="-1" style="accent-color:var(--primary)">
+        <span class="svc-assign-name">${esc(s.name)}</span>
+        <span class="svc-assign-meta">${s.duration_min ? s.duration_min + ' min' : ''}${priceLabel ? ' · ' + priceLabel : ''}</span>
+      </label>`;
+    });
+
+    h += `</div>`;
+  });
+
+  return h;
+}
+
+function teamToggleService(serviceId) {
+  if (teamEditServiceIds.has(serviceId)) {
+    teamEditServiceIds.delete(serviceId);
+  } else {
+    teamEditServiceIds.add(serviceId);
+  }
+  document.getElementById('tm_services_list').innerHTML = renderServicesList();
+}
+
+function teamToggleCatServices(cat) {
+  const services = teamAllServices.filter(s => (s.category || 'Sans catégorie') === cat);
+  const allChecked = services.every(s => teamEditServiceIds.has(s.id));
+  services.forEach(s => {
+    if (allChecked) teamEditServiceIds.delete(s.id);
+    else teamEditServiceIds.add(s.id);
+  });
+  document.getElementById('tm_services_list').innerHTML = renderServicesList();
+}
+
+function teamToggleAllServices() {
+  const allChecked = teamEditServiceIds.size === teamAllServices.length;
+  if (allChecked) {
+    teamEditServiceIds.clear();
+  } else {
+    teamAllServices.forEach(s => teamEditServiceIds.add(s.id));
+  }
+  document.getElementById('tm_services_list').innerHTML = renderServicesList();
 }
 
 // ============================================================
@@ -665,6 +771,17 @@ async function savePract(id) {
           body: JSON.stringify({ skills: teamEditSkills.map((s, i) => ({ skill_name: s.skill_name, level: s.level, sort_order: i })) })
         });
       } catch (e) { /* skills table might not exist yet */ }
+    }
+
+    // Save service assignments (prestations)
+    if (pracId) {
+      try {
+        await fetch(`/api/practitioners/${pracId}/services`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ service_ids: [...teamEditServiceIds] })
+        });
+      } catch (e) { /* ignore */ }
     }
 
     // Save schedule (availabilities)
@@ -978,7 +1095,8 @@ bridge({
   openRoleModal, saveRole,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave,
-  teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot
+  teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
+  teamToggleService, teamToggleCatServices, teamToggleAllServices
 });
 
 export {
@@ -987,5 +1105,6 @@ export {
   openInviteModal, sendInvite, openRoleModal, saveRole,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamAddSkill, teamRemoveSkill, teamSetSkillLevel, teamLoadLeave,
-  teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot
+  teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
+  teamToggleService, teamToggleCatServices, teamToggleAllServices
 };
