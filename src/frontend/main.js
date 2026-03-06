@@ -106,6 +106,18 @@ function doLogout() {
   api.logout();
 }
 
+// ── Global modal Escape handler ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const modals = document.querySelectorAll('.m-overlay.open');
+    if (modals.length) {
+      const top = modals[modals.length - 1];
+      top.remove();
+      if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
+    }
+  }
+});
+
 // ── Bridge global functions ──
 bridge({ doLogout, toggleSbSection });
 

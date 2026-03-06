@@ -300,9 +300,10 @@ function addBizSlot(day) {
   const hr = parseInt((ds || '09:00').split(':')[0]);
   const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
 
-  const m = `<div class="modal-overlay"><div class="modal" style="max-width:340px"><div class="modal-h"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${ICON_X}</button></div><div class="modal-body">
-    <div class="field-row"><div class="field"><label>Début</label><input type="time" id="biz_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div class="field"><label>Fin</label><input type="time" id="biz_slot_end" value="${de}"></div></div>
-  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="confirmAddBizSlot(${day})">Ajouter</button></div></div></div>`;
+  const m = `<div class="m-overlay open" id="bizSlotModal"><div class="m-dialog m-sm">
+    <div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('bizSlotModal').remove()">${ICON_X}</button></div><div class="m-body">
+    <div class="m-row m-row-2"><div><label class="m-field-label">Début</label><input type="time" class="m-input" id="biz_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><label class="m-field-label">Fin</label><input type="time" class="m-input" id="biz_slot_end" value="${de}"></div></div>
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('bizSlotModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="confirmAddBizSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
 }
 
@@ -312,7 +313,7 @@ function confirmAddBizSlot(day) {
   if (!scheduleData[day]) scheduleData[day] = [];
   scheduleData[day].push({ start_time: st, end_time: en });
   scheduleData[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
-  document.querySelector('.modal-overlay')?.remove();
+  document.getElementById('bizSlotModal')?.remove();
   // Re-render just the schedule card + summary
   document.getElementById('contentArea').innerHTML = renderPage(new Date().getFullYear());
 }
@@ -361,10 +362,11 @@ async function saveBusinessSchedule() {
 
 function openClosureModal() {
   const today = new Date().toISOString().split('T')[0];
-  const m = `<div class="modal-overlay"><div class="modal" style="max-width:400px"><div class="modal-h"><h3>Nouvelle fermeture</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${ICON_X}</button></div><div class="modal-body">
-    <div class="field-row"><div class="field"><label>Du</label><input type="date" id="cl_from" value="${today}"></div><div class="field"><label>Au</label><input type="date" id="cl_to" value="${today}"></div></div>
-    <div class="field"><label>Motif</label><input id="cl_reason" placeholder="Ex: Congé annuel, travaux, inventaire..."></div>
-  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveClosure()">Enregistrer</button></div></div></div>`;
+  const m = `<div class="m-overlay open" id="closureModal"><div class="m-dialog m-sm">
+    <div class="m-header-simple"><h3>Nouvelle fermeture</h3><button class="m-close" onclick="document.getElementById('closureModal').remove()">${ICON_X}</button></div><div class="m-body">
+    <div class="m-row m-row-2"><div><label class="m-field-label">Du</label><input type="date" class="m-input" id="cl_from" value="${today}"></div><div><label class="m-field-label">Au</label><input type="date" class="m-input" id="cl_to" value="${today}"></div></div>
+    <div><label class="m-field-label">Motif</label><input class="m-input" id="cl_reason" placeholder="Ex: Congé annuel, travaux, inventaire..."></div>
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('closureModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveClosure()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
 }
 
@@ -381,7 +383,7 @@ async function saveClosure() {
       body: JSON.stringify({ date_from, date_to, reason })
     });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('closureModal')?.remove();
     GendaUI.toast('Fermeture ajoutée', 'success');
     loadHours();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -403,10 +405,11 @@ async function deleteClosure(id) {
 // ============================================================
 
 function openHolidayModal() {
-  const m = `<div class="modal-overlay"><div class="modal" style="max-width:400px"><div class="modal-h"><h3>Nouveau jour férié</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${ICON_X}</button></div><div class="modal-body">
-    <div class="field"><label>Date</label><input type="date" id="hol_date" value="${new Date().toISOString().split('T')[0]}"></div>
-    <div class="field"><label>Nom</label><input id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
-  </div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
+  const m = `<div class="m-overlay open" id="holidayModal"><div class="m-dialog m-sm">
+    <div class="m-header-simple"><h3>Nouveau jour férié</h3><button class="m-close" onclick="document.getElementById('holidayModal').remove()">${ICON_X}</button></div><div class="m-body">
+    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div><label class="m-field-label">Nom</label><input class="m-input" id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('holidayModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
 }
 
@@ -421,7 +424,7 @@ async function saveHoliday() {
       body: JSON.stringify({ date, name })
     });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('holidayModal')?.remove();
     GendaUI.toast('Jour férié ajouté', 'success');
     loadHours();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }

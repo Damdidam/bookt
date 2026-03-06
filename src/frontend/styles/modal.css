@@ -1,44 +1,60 @@
-/* ===== MODAL ===== */
-.modal-overlay{position:fixed;inset:0;background:rgba(24,22,19,.5);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s}
-.modal{background:var(--white);border-radius:16px;width:100%;max-width:540px;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .25s cubic-bezier(.4,0,.2,1)}
-@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-.modal-h{padding:18px 22px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
-.modal-h h3{font-size:.95rem;font-weight:700}
-.modal-h .close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-4);padding:4px 6px;border-radius:6px;transition:var(--transition)}
-.modal-h .close:hover{background:var(--surface);color:var(--text)}
-.modal-body{padding:22px}
-.modal-foot{padding:16px 22px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--surface)}
-.field{margin-bottom:14px}
-.field label,.fg label{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
-.field input,.field select,.field textarea,.fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
-.field input:focus,.field select:focus,.field textarea:focus,.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
-.field textarea,.fg textarea{resize:vertical;min-height:72px}
-.fg{margin-bottom:14px}
-.fl{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
-.fi{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
-.fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
-.field-row{display:flex;gap:12px}
-.field-row .field{flex:1}
+/* =============================================
+   MODAL DESIGN SYSTEM — Unified m-* classes
+   =============================================
+   Sizes: .m-sm (400px) | .m-md (540px) | .m-lg (680px) | .m-xl (800px)
+   Headers: .m-header (rich gradient+avatar) | .m-header-simple (title+close)
+   ============================================= */
+
+/* ── Overlay ── */
+.m-overlay{position:fixed;inset:0;background:rgba(24,22,19,.45);backdrop-filter:blur(4px);z-index:300;display:none;align-items:center;justify-content:center;padding:24px;animation:fadeIn .15s}
+.m-overlay.open{display:flex}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+body.has-modal{overflow:hidden}
 
-/* ===== CALENDAR DETAIL MODAL ===== */
-.cal-modal-overlay{position:fixed;inset:0;background:rgba(24,22,19,.45);backdrop-filter:blur(4px);z-index:300;display:none;align-items:center;justify-content:center;padding:24px}
-.cal-modal-overlay.open{display:flex}
-.cal-modal{background:var(--white);border-radius:18px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .35s cubic-bezier(.22,1,.36,1)}
+/* ── Dialog ── */
+.m-dialog{background:var(--white);border-radius:18px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(.22,1,.36,1)}
 @keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-/* Both Detail and Create modals: fixed height, flex column, no size jumps */
-#calDetailModal .cal-modal,#calCreateModal .cal-modal{overflow:hidden;display:flex;flex-direction:column;height:85vh;max-width:540px}
-.cal-modal-body{padding:20px 24px 0;overflow-y:auto;flex:1;min-height:0}
-#calDetailModal .cal-modal-body,#calCreateModal .cal-modal-body{padding-bottom:16px}
-.cal-panel{display:none}.cal-panel.active{display:block}
 
-/* ── Header with color gradient ── */
+/* Size variants */
+.m-dialog.m-sm{max-width:400px}
+.m-dialog.m-md{max-width:540px}
+.m-dialog.m-lg{max-width:680px}
+.m-dialog.m-xl{max-width:800px}
+
+/* Fixed-height flex modals (booking detail/create, practitioner, etc.) */
+.m-dialog.m-flex{overflow:hidden;display:flex;flex-direction:column;max-height:90vh}
+
+/* ── Body ── */
+.m-body{padding:20px 24px;overflow-y:auto;flex:1;min-height:0}
+
+/* ── Panels (tab content) ── */
+.m-panel{display:none}
+.m-panel.active{display:flex;flex-direction:column;min-height:100%}
+
+/* ── Responsive ── */
+@media(max-width:680px){
+  .m-overlay{padding:0}
+  .m-dialog{max-width:100%!important;max-height:100vh;border-radius:0;height:100vh}
+  .m-dialog.m-flex{height:100vh}
+}
+
+/* ── Header — rich (gradient + avatar) ── */
 .m-header{position:relative;overflow:hidden;flex-shrink:0}
 .m-header-bg{height:72px;position:relative}
 .m-header-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 20%,var(--white) 100%)}
 .m-header-content{padding:0 24px;position:relative;margin-top:-36px;z-index:2}
+
+/* ── Header — simple (title + close) ── */
+.m-header-simple{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border-light);flex-shrink:0}
+.m-header-simple h3{font-size:.95rem;font-weight:700;margin:0}
+.m-header-simple .m-close{position:static;width:28px;height:28px;border-radius:8px;background:var(--surface);color:var(--text-4);backdrop-filter:none}
+.m-header-simple .m-close:hover{background:var(--surface-2);color:var(--text)}
+.m-header-simple .m-close svg{width:14px;height:14px}
+
+/* ── Close button (shared) ── */
 .m-close{position:absolute;top:8px;right:8px;z-index:10;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.25);backdrop-filter:blur(8px);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#fff;transition:all .15s;font-weight:700}
 .m-close:hover{background:rgba(0,0,0,.45);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.m-close svg{width:14px;height:14px}
 
 /* ── Client hero ── */
 .m-client-hero{display:flex;align-items:flex-end;gap:14px;margin-bottom:16px}
@@ -157,18 +173,9 @@ textarea.m-input{resize:vertical;min-height:38px}
 .m-btn{padding:10px 20px;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;border:none;transition:all .15s;font-family:var(--sans)}
 .m-btn-primary{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(13,115,119,.25)}
 .m-btn-primary:hover{background:var(--primary-hover);box-shadow:0 4px 16px rgba(13,115,119,.3)}
+.m-btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .m-btn-ghost{background:transparent;color:var(--text-3);padding:10px 14px}.m-btn-ghost:hover{color:var(--text);background:var(--surface)}
 .m-btn-danger{background:transparent;color:var(--red);margin-left:auto;padding:10px 12px;font-size:.72rem}.m-btn-danger:hover{background:var(--red-bg)}
-
-/* ── Legacy compat for sub-tabs + Quick Create ── */
-.cal-modal-head{padding:22px 24px 0;display:flex;align-items:flex-start;justify-content:space-between}
-.cal-modal-head h2{font-family:var(--serif);font-size:1.25rem;font-weight:400}
-.cal-close{width:32px;height:32px;border-radius:8px;background:var(--surface);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--text-3);transition:all .15s}
-.cal-close:hover{background:var(--surface-2);color:var(--text)}
-.cal-btn{padding:8px 16px;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:all .15s}
-.cal-btn:hover{border-color:var(--text-4);background:var(--surface)}
-.cal-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}.cal-btn.primary:hover{background:var(--primary-hover)}
-.cal-btn.cal-green{background:var(--green);color:#fff;border-color:var(--green)}
 
 /* ── Notes / Todos / Reminders — unified styling ── */
 
@@ -209,11 +216,8 @@ textarea.m-input{resize:vertical;min-height:38px}
 .add-reminder select{padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;outline:none;background:var(--white)}
 
 /* Unified empty state */
-.cal-empty{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:var(--text-4);text-align:center}
-.cal-empty .cal-empty-icon{font-size:1.4rem;margin-bottom:6px}
-
-/* Make panels flex so add-section pushes to bottom */
-.cal-panel.active{display:flex;flex-direction:column;min-height:100%}
+.m-empty{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:var(--text-4);text-align:center}
+.m-empty-icon{font-size:1.4rem;margin-bottom:6px}
 
 /* ── Session notes editor ── */
 .session-editor{border:1.5px solid var(--border);border-radius:var(--radius-xs);overflow:hidden}
@@ -259,3 +263,46 @@ textarea.m-input{resize:vertical;min-height:38px}
 .g-toast button:hover{background:var(--primary-hover)}
 .g-toast.info{background:#1E3A5F;border-left:4px solid #60A5FA}
 .g-toast .dismiss{background:transparent;color:rgba(255,255,255,.4);font-size:.75rem;padding:4px 8px}
+
+/* =============================================
+   LEGACY COMPAT — kept during migration
+   Remove once all modals are migrated to m-*
+   ============================================= */
+.modal-overlay{position:fixed;inset:0;background:rgba(24,22,19,.5);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s}
+.modal{background:var(--white);border-radius:16px;width:100%;max-width:540px;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .25s cubic-bezier(.4,0,.2,1)}
+.modal-h{padding:18px 22px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
+.modal-h h3{font-size:.95rem;font-weight:700}
+.modal-h .close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-4);padding:4px 6px;border-radius:6px;transition:var(--transition)}
+.modal-h .close:hover{background:var(--surface);color:var(--text)}
+.modal-body{padding:22px}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--surface)}
+.field{margin-bottom:14px}
+.field label,.fg label{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
+.field input,.field select,.field textarea,.fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
+.field input:focus,.field select:focus,.field textarea:focus,.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
+.field textarea,.fg textarea{resize:vertical;min-height:72px}
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
+.fi{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
+.fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
+.field-row{display:flex;gap:12px}
+.field-row .field{flex:1}
+
+/* Legacy cal-modal aliases → point to new m-* system */
+.cal-modal-overlay{position:fixed;inset:0;background:rgba(24,22,19,.45);backdrop-filter:blur(4px);z-index:300;display:none;align-items:center;justify-content:center;padding:24px}
+.cal-modal-overlay.open{display:flex}
+.cal-modal{background:var(--white);border-radius:18px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(.22,1,.36,1)}
+#calDetailModal .cal-modal,#calCreateModal .cal-modal{overflow:hidden;display:flex;flex-direction:column;height:85vh;max-width:540px}
+.cal-modal-body{padding:20px 24px 0;overflow-y:auto;flex:1;min-height:0}
+#calDetailModal .cal-modal-body,#calCreateModal .cal-modal-body{padding-bottom:16px}
+.cal-panel{display:none}.cal-panel.active{display:flex;flex-direction:column;min-height:100%}
+.cal-modal-head{padding:22px 24px 0;display:flex;align-items:flex-start;justify-content:space-between}
+.cal-modal-head h2{font-family:var(--serif);font-size:1.25rem;font-weight:400}
+.cal-close{width:32px;height:32px;border-radius:8px;background:var(--surface);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--text-3);transition:all .15s}
+.cal-close:hover{background:var(--surface-2);color:var(--text)}
+.cal-btn{padding:8px 16px;border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:all .15s}
+.cal-btn:hover{border-color:var(--text-4);background:var(--surface)}
+.cal-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}.cal-btn.primary:hover{background:var(--primary-hover)}
+.cal-btn.cal-green{background:var(--green);color:#fff;border-color:var(--green)}
+.cal-empty{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:var(--text-4);text-align:center}
+.cal-empty .cal-empty-icon{font-size:1.4rem;margin-bottom:6px}

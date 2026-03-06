@@ -81,15 +81,16 @@ async function openClientDetail(id){
     const r=await fetch(`/api/clients/${id}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
-    let m=`<div class="modal-overlay"><div class="modal"><div class="modal-h"><h3>${cl.full_name}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="modal-body">`;
+    const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${cl.full_name}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="document.getElementById('clientModal').remove()">${X_SVG}</button></div><div class="m-body">`;
     if(cl.is_blocked){
       m+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#dc2626"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:#666">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="unblockClient('${cl.id}')">Débloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){
       m+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#B45309"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${cl.no_show_count} no-show${cl.no_show_count>1?'s':''}</strong>${cl.last_no_show_at?` <span style="color:#888">· dernier le ${new Date(cl.last_no_show_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')">Bloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset</button></div>`;
     }
-    m+=`<div class="field-row"><div class="field"><label>Nom</label><input id="cl_name" value="${cl.full_name||''}"></div><div class="field"><label>Téléphone</label><input id="cl_phone" value="${cl.phone||''}"></div></div>`;
-    m+=`<div class="field-row"><div class="field"><label>Email</label><input id="cl_email" value="${cl.email||''}"></div><div class="field"><label>N° BCE</label><input id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
-    m+=`<div class="field"><label>Notes</label><textarea id="cl_notes">${cl.notes||''}</textarea></div>`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Nom</label><input class="m-input" id="cl_name" value="${cl.full_name||''}"></div><div><label class="m-field-label">Téléphone</label><input class="m-input" id="cl_phone" value="${cl.phone||''}"></div></div>`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Email</label><input class="m-input" id="cl_email" value="${cl.email||''}"></div><div><label class="m-field-label">N° BCE</label><input class="m-input" id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
+    m+=`<div><label class="m-field-label">Notes</label><textarea class="m-input" id="cl_notes">${cl.notes||''}</textarea></div>`;
 
     // ── Notes internes (from bookings) ──
     const intNotes=bks.filter(b=>b.internal_note&&b.internal_note.trim());
@@ -110,7 +111,7 @@ async function openClientDetail(id){
       m+=`</div></div>`;
     }
 
-    // ── Historique section (inside modal-body, scrollable) ──
+    // ── Historique section (inside m-body, scrollable) ──
     const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888',pending_deposit:'#B45309'};
     const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente',pending_deposit:'Acompte requis'};
     m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">Historique${bks.length>0?' ('+bks.length+' RDV)':''}</span><span class="m-sec-line"></span></div>`;
@@ -185,13 +186,13 @@ async function openClientDetail(id){
     }
     m+=`</div>`;
 
-    // ── Danger zone (subtle, bottom of modal-body) ──
+    // ── Danger zone (subtle, bottom of m-body) ──
     if(!cl.is_blocked&&cl.no_show_count===0){
       m+=`<div style="text-align:right;padding-top:4px"><button style="font-size:.68rem;padding:4px 10px;background:transparent;color:var(--text-4);border:1px solid var(--border-light);border-radius:6px;cursor:pointer;transition:all .15s" onmouseover="this.style.color='#dc2626';this.style.borderColor='#fecaca';this.style.background='#fef2f2'" onmouseout="this.style.color='var(--text-4)';this.style.borderColor='var(--border-light)';this.style.background='transparent'" onclick="blockClient('${cl.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloquer</button></div>`;
     }
 
-    // ── Close modal-body → single modal-foot with action buttons ──
-    m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Fermer</button><button class="btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
+    // ── Close m-body → m-bottom with action buttons ──
+    m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('clientModal').remove()">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     // Load whiteboards for this client
     window.loadClientWhiteboards(cl.id).then(wbs=>{
@@ -210,7 +211,7 @@ async function saveClient(id){
   try{
     const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('clientModal')?.remove();
     GendaUI.toast(categoryLabels.client+' mis·e à jour','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -221,7 +222,7 @@ async function blockClient(id){
   try{
     const r=await fetch(`/api/clients/${id}/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({reason:reason||'Bloqué manuellement'})});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('clientModal')?.remove();
     GendaUI.toast(categoryLabels.client+' bloqué·e','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -231,7 +232,7 @@ async function unblockClient(id){
   try{
     const r=await fetch(`/api/clients/${id}/unblock`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('clientModal')?.remove();
     GendaUI.toast(categoryLabels.client+' débloqué·e','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -241,7 +242,7 @@ async function resetNoShow(id){
   try{
     const r=await fetch(`/api/clients/${id}/reset-noshow`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('clientModal')?.remove();
     GendaUI.toast('Compteur remis à zéro','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }

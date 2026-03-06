@@ -236,11 +236,11 @@ function openCategoryModal(catLabel){
   const catId=meta.id||'';
   const color=meta.color||'#1E3A8A';
 
-  let m=`<div class="modal-overlay"><div class="modal"><div class="modal-h"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
+  let m=`<div class="m-overlay open" id="catModalOverlay"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="m-close" onclick="document.getElementById('catModalOverlay').remove()">${X_SVG}</button></div><div class="m-body">`;
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
   m+=`<div class="field-color"><label>Couleur</label><div id="cat_color_wrap"></div></div></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
-  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('catModalOverlay').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   document.getElementById('cat_color_wrap').innerHTML=cswHTML('cat_color',color,true);
   document.getElementById('cat_modal_name').focus();
@@ -271,7 +271,7 @@ async function saveCategory(catId,oldLabel){
       const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
       if(!r.ok)throw new Error((await r.json()).error);
     }
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('catModalOverlay')?.remove();
     GendaUI.toast(catId?'Catégorie modifiée':'Catégorie créée','success');
     loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -449,7 +449,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
 
   const currentCat=svc?.category||pf.category||'';
-  let m=`<div class="modal-overlay"><div class="modal svc-modal"><div class="modal-h"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div><div class="modal-body">`;
+  let m=`<div class="m-overlay open" id="svcModalOverlay"><div class="m-dialog m-md svc-modal"><div class="m-header-simple"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="m-close" onclick="document.getElementById('svcModalOverlay').remove()">${X_SVG}</button></div><div class="m-body">`;
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
@@ -538,7 +538,7 @@ function renderServiceModal(svc,sectorCats,prefill){
     m+=`</div>`;
   }
 
-  m+=`</div><div class="modal-foot"><button class="btn-outline" onclick="this.closest('.modal-overlay').remove()">Annuler</button><button class="btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('svcModalOverlay').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
 }
 
@@ -633,7 +633,7 @@ async function saveService(id){
     const url=id?`/api/services/${id}`:'/api/services';const method=id?'PATCH':'POST';
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.querySelector('.modal-overlay')?.remove();
+    document.getElementById('svcModalOverlay')?.remove();
     GendaUI.toast(id?categoryLabels.service+' modifiée':categoryLabels.service+' créée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -690,17 +690,17 @@ async function openQuickStart(){
 
 function qsRenderStep1(){
   const svcsLabel=categoryLabels.services.toLowerCase();
-  let m=`<div class="modal-overlay qs-overlay"><div class="modal qs-modal">
+  let m=`<div class="m-overlay open qs-overlay" id="qsModalOverlay"><div class="m-dialog m-lg qs-modal">
     <div class="qs-progress"><div class="qs-step active">1</div><div class="qs-line"></div><div class="qs-step">2</div></div>
-    <div class="modal-h"><h3>Choisissez vos catégories</h3><button class="close" onclick="this.closest('.modal-overlay').remove()">${X_SVG}</button></div>
-    <div class="modal-body"><p class="qs-subtitle">Décochez les catégories qui ne vous concernent pas</p><div class="qs-cat-grid">`;
+    <div class="m-header-simple"><h3>Choisissez vos catégories</h3><button class="m-close" onclick="document.getElementById('qsModalOverlay').remove()">${X_SVG}</button></div>
+    <div class="m-body"><p class="qs-subtitle">Décochez les catégories qui ne vous concernent pas</p><div class="qs-cat-grid">`;
   qsGroups.forEach(g=>{
     const sel=qsSelectedCats.has(g.category);
     m+=`<div class="qs-cat-card${sel?' selected':''}" data-cat="${g.category}" onclick="qsToggleCat(this)">
       <div class="qs-cat-check">${checkSvg}</div><div class="qs-cat-icon">${g.icon_svg||defaultIcon}</div>
       <div class="qs-cat-label">${g.category}</div><div class="qs-cat-count">${g.templates.length} ${svcsLabel}</div></div>`;
   });
-  m+=`</div></div><div class="modal-foot"><span class="qs-count" id="qsCatCount"><strong>${qsSelectedCats.size}</strong> catégories sélectionnées</span><button class="btn-primary" onclick="qsGoStep2()" id="qsNextBtn">Continuer →</button></div></div></div>`;
+  m+=`</div></div><div class="m-bottom"><span class="qs-count" id="qsCatCount"><strong>${qsSelectedCats.size}</strong> catégories sélectionnées</span><button class="m-btn m-btn-primary" onclick="qsGoStep2()" id="qsNextBtn">Continuer →</button></div></div></div>`;
   document.querySelector('.qs-overlay')?.remove();
   document.body.insertAdjacentHTML('beforeend',m);
   qsOverlay=document.querySelector('.qs-overlay');
@@ -719,7 +719,7 @@ function qsGoStep2(){
   const svcsLabel=categoryLabels.services.toLowerCase(),svcLabel=categoryLabels.service.toLowerCase();
   const steps=modal.querySelectorAll('.qs-step');const line=modal.querySelector('.qs-line');
   if(steps[0])steps[0].classList.replace('active','done');if(line)line.classList.add('done');if(steps[1])steps[1].classList.add('active');
-  modal.querySelector('.modal-h h3').textContent='Ajustez vos prestations';
+  modal.querySelector('.m-header-simple h3').textContent='Ajustez vos prestations';
   const durations=[15,30,45,60,90,120];
   let body=`<p class="qs-subtitle">Modifiez les noms, durées et prix selon votre carte</p>`;
   const existingNames=new Set(allServices.map(s=>(s.name||'').trim().toLowerCase()));
@@ -741,13 +741,13 @@ function qsGoStep2(){
     const safeCatQs=jsAttr(g.category);
     body+=`<button type="button" class="qs-add-row" onclick="qsAddCustomRow(this,'${safeCatQs}')" title="Ajouter">${PLUS_SVG}</button></div>`;
   });
-  modal.querySelector('.modal-body').innerHTML=body;
+  modal.querySelector('.m-body').innerHTML=body;
   const totalTpl=selectedGroups.reduce((s,g)=>s+g.templates.length,0);
-  modal.querySelector('.modal-foot').innerHTML=`
+  modal.querySelector('.m-bottom').innerHTML=`
     <button class="qs-back" onclick="qsBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Retour</button>
     <span class="qs-count" id="qsTplCount"><strong>${totalTpl}</strong> ${svcsLabel}</span>
-    <button class="btn-primary qs-submit" onclick="qsSubmitAll()" id="qsSubmitBtn">Créer ${totalTpl} ${totalTpl>1?svcsLabel:svcLabel}</button>`;
-  modal.querySelector('.modal-foot').style.alignItems='center';
+    <button class="m-btn m-btn-primary qs-submit" onclick="qsSubmitAll()" id="qsSubmitBtn">Créer ${totalTpl} ${totalTpl>1?svcsLabel:svcLabel}</button>`;
+  modal.querySelector('.m-bottom').style.alignItems='center';
   qsUpdateCount();
 }
 
