@@ -49,6 +49,13 @@ async function processExpiredPendingBookings() {
         );
       }
 
+      // Audit log — confirmation expired
+      await client.query(
+        `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, 'booking', $2, 'confirmation_expired', '{"status":"pending"}', '{"status":"cancelled","reason":"confirmation_timeout"}')`,
+        [bk.business_id, bk.id]
+      );
+
       processed++;
 
       // SSE notification to merchant dashboard

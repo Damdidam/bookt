@@ -344,7 +344,9 @@ const ACTION_LABELS = {
   resize: 'Dur\u00e9e modifi\u00e9e', edit: 'Modifi\u00e9', status_change: 'Statut chang\u00e9',
   group_move: 'Groupe d\u00e9plac\u00e9', deposit_refund: 'Acompte rembours\u00e9',
   ungroup: 'D\u00e9tach\u00e9 du groupe',
-  group_remove: 'Supprim\u00e9 du groupe'
+  group_remove: 'Supprim\u00e9 du groupe',
+  group_reorder: 'Groupe r\u00e9ordonn\u00e9',
+  confirmation_expired: 'Confirmation expir\u00e9e'
 };
 const ACTION_ICONS = {
   create: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
@@ -356,7 +358,9 @@ const ACTION_ICONS = {
   group_move: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
   deposit_refund: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
   ungroup: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg>',
-  group_remove: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
+  group_remove: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  group_reorder: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>',
+  confirmation_expired: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
 };
 const STATUS_MAP = {
   pending: 'En attente', confirmed: 'Confirm\u00e9', completed: 'Termin\u00e9',
@@ -421,6 +425,8 @@ function historyDetail(entry) {
     }
     case 'deposit_refund':
       return nd.amount_cents ? (nd.amount_cents / 100).toFixed(2) + '\u20ac' : '';
+    case 'confirmation_expired':
+      return 'Annul\u00e9 \u2014 non confirm\u00e9 par le client';
     default:
       return '';
   }
