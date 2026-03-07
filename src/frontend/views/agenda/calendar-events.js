@@ -157,8 +157,9 @@ function buildEventsCallback() {
           const props = { ...b, _accent: accent };
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
-            props._poseStartPct = Math.min((ps / totalMin) * 100, 100);
-            props._poseEndPct = Math.min(((ps + pt) / totalMin) * 100, 100);
+            const buf = parseInt(b.buffer_before_min) || 0;
+            props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
+            props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
           }
           events.push({
             id: b.id, title: b.client_name || 'Sans nom',

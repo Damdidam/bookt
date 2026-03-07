@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
              b.group_id, b.group_order, b.custom_label,
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
              b.processing_time, b.processing_start,
-             s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.color AS service_color,
+             s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
