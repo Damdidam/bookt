@@ -673,6 +673,8 @@ function buildEventOverlap() {
     if (sp && mp && sp !== mp) return true;
     const st = stillEvent.extendedProps?.status;
     if (['cancelled', 'completed', 'no_show'].includes(st)) return true;
+    // Allow overlap with events that have a pose window (eventAllow + backend do precise check)
+    if (parseInt(stillEvent.extendedProps?.processing_time) > 0) return true;
     // If practitioner has capacity > 1, allow overlap (eventAllow does the precise count check)
     const pracId = mp || sp;
     const prac = calState.fcPractitioners?.find(p => String(p.id) === String(pracId));
@@ -722,7 +724,18 @@ function buildEventAllow() {
       const st = ev.extendedProps?.status;
       if (st === 'cancelled' || st === 'no_show' || st === 'completed') continue;
       const evEnd = ev.end || ev.start;
-      if (ev.start < newEnd && evEnd > newStart) overlapCount++;
+      if (ev.start < newEnd && evEnd > newStart) {
+        // Skip if dragged event fits entirely within this event's pose window
+        const pt = parseInt(ev.extendedProps?.processing_time) || 0;
+        if (pt > 0) {
+          const ps = parseInt(ev.extendedProps?.processing_start) || 0;
+          const buf = parseInt(ev.extendedProps?.buffer_before_min) || 0;
+          const poseStart = new Date(ev.start.getTime() + (buf + ps) * 60000);
+          const poseEnd = new Date(ev.start.getTime() + (buf + ps + pt) * 60000);
+          if (newStart >= poseStart && newEnd <= poseEnd) continue;
+        }
+        overlapCount++;
+      }
     }
     if (overlapCount >= maxC) return false;
     return true;

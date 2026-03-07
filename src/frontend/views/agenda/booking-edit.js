@@ -55,6 +55,15 @@ function calCheckConflict() {
     const st = ev.extendedProps?.status;
     if (st === 'cancelled' || st === 'no_show') continue;
     if (newStart < ev.end && newEnd > ev.start) {
+      // Skip if new booking fits entirely within this event's pose window
+      const pt = parseInt(ev.extendedProps?.processing_time) || 0;
+      if (pt > 0) {
+        const ps = parseInt(ev.extendedProps?.processing_start) || 0;
+        const buf = parseInt(ev.extendedProps?.buffer_before_min) || 0;
+        const poseStart = new Date(ev.start.getTime() + (buf + ps) * 60000);
+        const poseEnd = new Date(ev.start.getTime() + (buf + ps + pt) * 60000);
+        if (newStart >= poseStart && newEnd <= poseEnd) continue;
+      }
       const name = ev.extendedProps?.client_name || ev.title || 'RDV';
       const time = ev.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + ' \u2013 ' + ev.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
       conflicts.push(`<strong>${esc(name)}</strong> (${time})`);
