@@ -662,6 +662,7 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  svcTogglePose(); // sync variant pose row visibility with toggle state
   guardModal(document.getElementById('svcModalOverlay'));
 }
 
@@ -693,8 +694,10 @@ function svcGetPracOrder(){
 function svcTogglePose(){
   const f=document.getElementById('svc_pose_fields');
   const cb=document.getElementById('svc_pose_toggle');
-  if(f)f.style.display=cb?.checked?'flex':'none';
-  if(!cb?.checked){const pt=document.getElementById('svc_pose_time');const ps=document.getElementById('svc_pose_start');if(pt)pt.value=0;if(ps)ps.value=0;}
+  const on=cb?.checked;
+  if(f)f.style.display=on?'flex':'none';
+  if(!on){const pt=document.getElementById('svc_pose_time');const ps=document.getElementById('svc_pose_start');if(pt)pt.value=0;if(ps)ps.value=0;}
+  document.querySelectorAll('.svc-var-pose-row').forEach(r=>r.style.display=on?'flex':'none');
 }
 function svcToggleSched(){
   const ed=document.getElementById('svc_sched_editor');
@@ -789,15 +792,15 @@ function svcVarRowHTML(v){
       <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€"></div>
       <button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">${X_SVG}</button>
     </div>
-    <div class="svc-var-top-row" style="margin-top:4px">
-      <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)" style="flex:1">
+    <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)" style="margin-top:4px">
+    <div class="svc-var-top-row svc-var-pose-row" style="margin-top:4px;display:none">
       <div class="svc-var-field"><span class="svc-var-label">Pose après</span><input type="number" class="svc-var-pose-start" value="${v?.processing_start||0}" min="0" placeholder="min"></div>
       <div class="svc-var-field"><span class="svc-var-label">Durée pose</span><input type="number" class="svc-var-pose-time" value="${v?.processing_time||0}" min="0" placeholder="min"></div>
     </div>
     <input type="hidden" class="svc-var-id" value="${v?.id||''}">
   </div>`;
 }
-function svcAddVariant(){document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',svcVarRowHTML(null));svcUpdatePricingVis();}
+function svcAddVariant(){document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',svcVarRowHTML(null));svcUpdatePricingVis();svcTogglePose();}
 function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();svcUpdatePricingVis();}
 function svcUpdatePricingVis(){
   const n=document.querySelectorAll('#svc_variants_list .svc-var-row').length;
