@@ -232,12 +232,14 @@ async function fcOpenDetail(bookingId) {
       const canDetach = !isFrozen && userRole !== 'practitioner';
       const addBtn = canDetach ? `<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>` : '';
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span>${addBtn}<span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
-      siblings.forEach(sib => {
+      siblings.forEach((sib, sibIdx) => {
         const isCur = String(sib.id) === String(bookingId);
         const sT = new Date(sib.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
         const sibFrozen = ['cancelled', 'no_show'].includes(sib.status);
+        const upBtn = (sibIdx > 0 && canDetach && !sibFrozen) ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','up')" title="Monter">\u2191</button>` : '';
+        const downBtn = (sibIdx < siblings.length - 1 && canDetach && !sibFrozen) ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','down')" title="Descendre">\u2193</button>` : '';
         const detachBtn = (canDetach && !sibFrozen) ? `<button class="g-detach-btn" onclick="fcShowUngroupPanel('${sib.id}')" title="Détacher du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="m7 11 2 2 4-4"/><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg></button>` : '';
         const safeSibName = (sib.service_name || 'RDV libre').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
@@ -245,7 +247,7 @@ async function fcOpenDetail(bookingId) {
           <span class="g-dot" style="background:${safeSibColor}"></span>
           <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.variant_name ? (sib.service_name||'RDV libre')+' \u2014 '+sib.variant_name : (sib.service_name || 'RDV libre'))}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
-          ${detachBtn}${deleteBtn}
+          ${upBtn}${downBtn}${detachBtn}${deleteBtn}
         </div>`;
       });
       gh += '</div></div>';
@@ -563,7 +565,35 @@ function fcResetBookingColor() {
   document.getElementById('uBookingColor').value = '';
 }
 
+// Reorder a service within a group (up/down)
+async function fcReorderGroup(sibId, direction) {
+  const siblings = calState.fcGroupSiblings;
+  if (!siblings || siblings.length < 2) return;
+  const ids = siblings.map(s => s.id);
+  const idx = ids.indexOf(sibId);
+  if (idx < 0) return;
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= ids.length) return;
+  // Swap
+  [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+  try {
+    const r = await fetch(`/api/bookings/${sibId}/reorder-group`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ ordered_ids: ids })
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    gToast('Ordre mis \u00e0 jour', 'success');
+    // Re-open detail to refresh + update calendar
+    const bookingId = calState.fcEditBookingId;
+    if (bookingId) fcOpenDetail(bookingId);
+    if (calState.fcCal) calState.fcCal.refetchEvents();
+  } catch (e) {
+    gToast(e.message || 'Erreur', 'error');
+  }
+}
+
 // Expose to global scope for onclick handlers
-bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor });
+bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor, fcReorderGroup });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };

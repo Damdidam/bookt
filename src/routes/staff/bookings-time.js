@@ -834,4 +834,96 @@ router.patch('/:id/modify', async (req, res, next) => {
   }
 });
 
+// ============================================================
+// PATCH /api/bookings/:id/reorder-group — Reorder services within a group
+// UI: Booking detail modal → ↑/↓ buttons on group members
+// ============================================================
+router.patch('/:id/reorder-group', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { ordered_ids } = req.body;
+
+    if (!Array.isArray(ordered_ids) || ordered_ids.length < 2) {
+      return res.status(400).json({ error: 'ordered_ids requis (min 2)' });
+    }
+    if (ordered_ids.some(oid => !UUID_RE.test(oid))) {
+      return res.status(400).json({ error: 'ordered_ids invalide(s)' });
+    }
+
+    // Fetch booking to get group_id
+    const bkRes = await queryWithRLS(bid,
+      `SELECT group_id FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
+    if (bkRes.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const { group_id } = bkRes.rows[0];
+    if (!group_id) return res.status(400).json({ error: 'Ce RDV ne fait pas partie d\'un groupe' });
+
+    // Fetch all siblings with service durations
+    const grpRes = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
+              s.duration_min, s.buffer_before_min, s.buffer_after_min
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.group_id = $1 AND b.business_id = $2
+       ORDER BY b.group_order`,
+      [group_id, bid]);
+    const members = grpRes.rows;
+
+    // Validate ordered_ids matches exactly the group members
+    const memberIds = new Set(members.map(m => m.id));
+    if (ordered_ids.length !== members.length || !ordered_ids.every(oid => memberIds.has(oid))) {
+      return res.status(400).json({ error: 'ordered_ids ne correspond pas aux membres du groupe' });
+    }
+
+    // Build reordered list
+    const memberMap = Object.fromEntries(members.map(m => [m.id, m]));
+    const reordered = ordered_ids.map(oid => memberMap[oid]);
+
+    // Recalculate chain: cursor starts at original first booking's start_at
+    const chainStart = new Date(members[0].start_at);
+    let cursor = new Date(chainStart);
+    const updates = reordered.map((m, i) => {
+      const origDur = (new Date(m.end_at).getTime() - new Date(m.start_at).getTime()) / 60000;
+      const totalMin = m.duration_min != null
+        ? ((i === 0) ? (m.buffer_before_min || 0) : 0) + m.duration_min + ((i === reordered.length - 1) ? (m.buffer_after_min || 0) : 0)
+        : origDur;
+      const s = new Date(cursor);
+      const e = new Date(s.getTime() + totalMin * 60000);
+      cursor = e;
+      return { id: m.id, group_order: i, start_at: s.toISOString(), end_at: e.toISOString() };
+    });
+
+    await transactionWithRLS(bid, async (client) => {
+      // Lock group members
+      const lockRes = await client.query(
+        `SELECT id, status FROM bookings WHERE group_id = $1 AND business_id = $2 FOR UPDATE`,
+        [group_id, bid]);
+      const IMMUTABLE = ['cancelled', 'completed', 'no_show'];
+      if (lockRes.rows.some(r => IMMUTABLE.includes(r.status))) {
+        throw Object.assign(new Error('Un membre du groupe ne peut plus être modifié'), { type: 'immutable' });
+      }
+
+      for (const u of updates) {
+        await client.query(
+          `UPDATE bookings SET group_order = $1, start_at = $2, end_at = $3, updated_at = NOW()
+           WHERE id = $4 AND business_id = $5`,
+          [u.group_order, u.start_at, u.end_at, u.id, bid]);
+      }
+
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'booking', $3, 'group_reorder', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ old_order: members.map(m => m.id) }),
+         JSON.stringify({ new_order: ordered_ids })]);
+    });
+
+    broadcast(bid, 'booking_update', { action: 'reordered' });
+    res.json({ updated: true, count: updates.length });
+  } catch (err) {
+    if (err.type === 'immutable') return res.status(400).json({ error: err.message });
+    next(err);
+  }
+});
+
 module.exports = router;
