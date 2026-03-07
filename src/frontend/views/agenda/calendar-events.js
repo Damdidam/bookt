@@ -373,6 +373,23 @@ function buildEventDidMount() {
     if (isTouch) {
       const resizer = info.el.querySelector('.fc-event-resizer-end');
       if (resizer) {
+        // Double-tap on resizer opens detail (dedicated handler — touchend from resizer
+        // may not bubble reliably to info.el after stopPropagation on touchstart)
+        let lastResizerTap = 0;
+        resizer.addEventListener('touchend', function (e) {
+          if (info.el.classList.contains('fc-event-dragging')) return;
+          const now = Date.now();
+          if (now - lastResizerTap < 600) {
+            e.preventDefault();
+            e.stopPropagation();
+            fcHideTooltip();
+            fcOpenDetail(bookingId);
+            lastResizerTap = 0;
+          } else {
+            lastResizerTap = now;
+          }
+        }, { passive: false });
+
         resizer.addEventListener('touchstart', function (e) {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(p.status);
           if (frozen || p._isGroup) return;
@@ -395,7 +412,6 @@ function buildEventDidMount() {
 
           function onMove(ev) {
             ev.preventDefault();
-            // Only mark as dragging once the user actually moves (allows double-tap on short events)
             if (!resizeStarted) {
               resizeStarted = true;
               info.el.classList.add('fc-event-dragging');
@@ -445,7 +461,6 @@ function buildEventDidMount() {
 
           document.addEventListener('touchmove', onMove, { passive: false });
           document.addEventListener('touchend', onEnd);
-          // Safety timeout: clean up listeners if touchend never fires
           cleanupTimer = setTimeout(() => { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); if (resizeStarted) info.el.classList.remove('fc-event-dragging'); }, 10000);
         }, { passive: false });
       }
