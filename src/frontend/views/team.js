@@ -5,6 +5,7 @@
 import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
+import { guardModal } from '../utils/dirty-guard.js';
 
 let pPendingPhoto = null;
 let teamCurrentTab = 'profile';
@@ -383,6 +384,7 @@ function renderPractModal(p) {
   </div></div>`;
 
   document.body.insertAdjacentHTML('beforeend', h);
+  guardModal(document.getElementById('teamModalOverlay'));
   document.getElementById('p_color_wrap').innerHTML = cswHTML('p_color', p?.color || '#1E3A8A', false);
 
   // Initialize schedule editor
@@ -399,7 +401,7 @@ function renderPractModal(p) {
 }
 
 function closeTeamModal() {
-  document.getElementById('teamModalOverlay')?.remove();
+  closeModal('teamModalOverlay');
 }
 
 function teamSwitchTab(tab) {
@@ -752,7 +754,7 @@ async function savePract(id) {
       }
     }
 
-    closeTeamModal();
+    document.getElementById('teamModalOverlay')?._dirtyGuard?.markClean(); closeTeamModal();
     GendaUI.toast(id ? sectorLabels.practitioner + ' modifié' : sectorLabels.practitioner + ' ajouté', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -929,7 +931,7 @@ function openInviteModal(practId, name) {
   let m = `<div class="m-overlay open" id="inviteModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Créer un accès — ${name}</h3>
-      <button class="m-close" onclick="document.getElementById('inviteModalOverlay').remove()">${ICONS.close}</button>
+      <button class="m-close" onclick="closeModal('inviteModalOverlay')">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
@@ -953,11 +955,12 @@ function openInviteModal(practId, name) {
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('inviteModalOverlay').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('inviteModalOverlay')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="sendInvite('${practId}')">Créer le compte</button>
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
+  guardModal(document.getElementById('inviteModalOverlay'));
 }
 
 function generateTempPwd() { const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let pwd = ''; for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)]; return pwd; }
@@ -970,7 +973,7 @@ async function sendInvite(practId) {
   try {
     const r = await fetch(`/api/practitioners/${practId}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ email, password, role }) });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.getElementById('inviteModalOverlay')?.remove();
+    document.getElementById('inviteModalOverlay')?._dirtyGuard?.markClean(); closeModal('inviteModalOverlay');
     GendaUI.toast('Compte créé ! Communiquez les identifiants.', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -990,7 +993,7 @@ function openRoleModal(practId, name, currentRole) {
   let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Modifier le rôle — ${name}</h3>
-      <button class="m-close" onclick="document.getElementById('roleModalOverlay').remove()">${ICONS.close}</button>
+      <button class="m-close" onclick="closeModal('roleModalOverlay')">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <div style="display:flex;flex-direction:column;gap:8px">`;
@@ -1005,11 +1008,12 @@ function openRoleModal(practId, name, currentRole) {
   m += `</div></div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('roleModalOverlay').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('roleModalOverlay')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="saveRole('${practId}')">Enregistrer</button>
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
+  guardModal(document.getElementById('roleModalOverlay'));
 }
 
 async function saveRole(practId) {
@@ -1018,7 +1022,7 @@ async function saveRole(practId) {
   try {
     const r = await fetch(`/api/practitioners/${practId}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ role: picked.value }) });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.getElementById('roleModalOverlay')?.remove();
+    document.getElementById('roleModalOverlay')?._dirtyGuard?.markClean(); closeModal('roleModalOverlay');
     GendaUI.toast('Rôle modifié', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }

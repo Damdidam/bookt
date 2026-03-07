@@ -8,6 +8,7 @@ import { fcIsMobile } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
+import { guardModal } from '../../utils/dirty-guard.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO, toBrusselsISO } from '../../utils/format.js';
 
@@ -109,7 +110,10 @@ function fcOpenQuickCreate(startStr, endStr) {
   // Switch to RDV tab
   qcSwitchTab(document.querySelector('#calCreateModal .m-tab[data-tab="qc-rdv"]'), 'qc-rdv');
 
-  document.getElementById('calCreateModal').classList.add('open');
+  // Dirty guard (warn on close if user started filling)
+  const qcModal = document.getElementById('calCreateModal');
+  guardModal(qcModal);
+  qcModal.classList.add('open');
 }
 
 // ── Gradient header ──
@@ -714,6 +718,7 @@ async function calCreateBooking() {
         ? `${clientName} — ${count} ${categoryLabels.services.toLowerCase()} créées !${extraStr}`
         : `${clientName} — RDV créé !${extraStr}`, 'success');
 
+    document.getElementById('calCreateModal')._dirtyGuard?.markClean();
     closeCalModal('calCreateModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }

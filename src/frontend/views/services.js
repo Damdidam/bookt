@@ -6,6 +6,7 @@ import { api, userSector, categoryLabels, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
+import { guardModal } from '../utils/dirty-guard.js';
 
 let allPractitioners=[];
 let allSectorCats=[];
@@ -236,12 +237,13 @@ function openCategoryModal(catLabel){
   const catId=meta.id||'';
   const color=meta.color||'#1E3A8A';
 
-  let m=`<div class="m-overlay open" id="catModalOverlay"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="m-close" onclick="document.getElementById('catModalOverlay').remove()">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="catModalOverlay"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>${isEdit?'Modifier la catégorie':'Nouvelle catégorie'}</h3><button class="m-close" onclick="closeModal('catModalOverlay')">${X_SVG}</button></div><div class="m-body">`;
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Nom *</label><input id="cat_modal_name" value="${esc(label)}" placeholder="Ex: Épilation, Soins visage..."></div>`;
   m+=`<div class="field-color"><label>Couleur</label><div id="cat_color_wrap"></div></div></div>`;
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
-  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('catModalOverlay').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('catModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  guardModal(document.getElementById('catModalOverlay'));
   document.getElementById('cat_color_wrap').innerHTML=cswHTML('cat_color',color,true);
   document.getElementById('cat_modal_name').focus();
 }
@@ -271,7 +273,7 @@ async function saveCategory(catId,oldLabel){
       const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
       if(!r.ok)throw new Error((await r.json()).error);
     }
-    document.getElementById('catModalOverlay')?.remove();
+    document.getElementById('catModalOverlay')?._dirtyGuard?.markClean(); closeModal('catModalOverlay');
     GendaUI.toast(catId?'Catégorie modifiée':'Catégorie créée','success');
     loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -449,7 +451,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   const sec=(title)=>`<div class="svc-section"><div class="svc-section-head"><span class="svc-section-title">${title}</span><span class="svc-section-line"></span></div>`;
 
   const currentCat=svc?.category||pf.category||'';
-  let m=`<div class="m-overlay open" id="svcModalOverlay"><div class="m-dialog m-md svc-modal"><div class="m-header-simple"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="m-close" onclick="document.getElementById('svcModalOverlay').remove()">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="svcModalOverlay"><div class="m-dialog m-md svc-modal"><div class="m-header-simple"><h3>${isEdit?'Modifier la prestation':'Nouvelle prestation'}</h3><button class="m-close" onclick="closeModal('svcModalOverlay')">${X_SVG}</button></div><div class="m-body">`;
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
@@ -538,8 +540,9 @@ function renderServiceModal(svc,sectorCats,prefill){
     m+=`</div>`;
   }
 
-  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('svcModalOverlay').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  guardModal(document.getElementById('svcModalOverlay'));
 }
 
 // ===== PRACTITIONER PRIORITY =====
@@ -633,7 +636,7 @@ async function saveService(id){
     const url=id?`/api/services/${id}`:'/api/services';const method=id?'PATCH':'POST';
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.getElementById('svcModalOverlay')?.remove();
+    document.getElementById('svcModalOverlay')?._dirtyGuard?.markClean(); closeModal('svcModalOverlay');
     GendaUI.toast(id?categoryLabels.service+' modifiée':categoryLabels.service+' créée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }

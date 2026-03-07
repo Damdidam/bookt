@@ -127,6 +127,7 @@ async function fcConfirmUngroup(siblingId) {
     }
     const data = await r.json();
     gToast('Prestation détachée du groupe', 'success');
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) {
@@ -154,6 +155,7 @@ async function fcRemoveFromGroup(siblingId, serviceName) {
       throw new Error(d.error || 'Erreur');
     }
     gToast('Prestation supprimée du groupe', 'success');
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) {
@@ -253,6 +255,7 @@ async function fcConfirmGroupAdd() {
       throw new Error(d.error || 'Erreur');
     }
     gToast('Prestation ajoutée au groupe', 'success');
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) {

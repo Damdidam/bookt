@@ -4,6 +4,7 @@
 import { api, GendaUI, viewState } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
+import { guardModal } from '../utils/dirty-guard.js';
 
 function formatPhoneDisplay(phone){
   if(!phone)return '';
@@ -457,7 +458,7 @@ function renderCallBlacklist(bl){
 function addBlacklistEntry(){
   const ov=document.createElement('div');ov.className='m-overlay open';ov.id='blModal';
   ov.innerHTML=`<div class="m-dialog m-sm">
-    <div class="m-header-simple"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloquer un num\u00e9ro</h3><button class="m-close" onclick="document.getElementById('blModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="m-header-simple"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloquer un num\u00e9ro</h3><button class="m-close" onclick="closeModal('blModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="m-body">
       <div><label class="m-field-label">Num\u00e9ro *</label><input class="m-input" id="bl_phone" placeholder="+32 470 12 34 56"></div>
       <div><label class="m-field-label">Label</label><input class="m-input" id="bl_label" placeholder="Ex: D\u00e9marcheur, Pub..."></div>
@@ -466,9 +467,10 @@ function addBlacklistEntry(){
         <option value="spam">Spam / Pub</option>
       </select></div>
     </div>
-    <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('blModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveBlacklistEntry()">Bloquer</button></div>
+    <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('blModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveBlacklistEntry()">Bloquer</button></div>
   </div>`;
   document.body.appendChild(ov);
+  guardModal(document.getElementById('blModal'));
   document.getElementById('bl_phone').focus();
 }
 
@@ -479,7 +481,8 @@ async function saveBlacklistEntry(){
   if(!phone){GendaUI.toast('Num\u00e9ro requis','error');return;}
   try{
     await api.post('/api/calls/blacklist',{phone_e164:phone,label:label||null,reason});
-    document.getElementById('blModal')?.remove();
+    document.getElementById('blModal')._dirtyGuard?.markClean();
+    closeModal('blModal');
     GendaUI.toast('Num\u00e9ro bloqu\u00e9','success');
     loadCalls();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -504,19 +507,21 @@ function addWhitelistEntry(){
 
 function editWhitelistEntry(id,phone,label,active){
   const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-  let m=`<div class="m-overlay open" id="wlEditModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier num\u00e9ro VIP</h3><button class="m-close" onclick="document.getElementById('wlEditModal').remove()">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlEditModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier num\u00e9ro VIP</h3><button class="m-close" onclick="closeModal('wlEditModal')">${X_SVG}</button></div><div class="m-body">`;
   m+=`<div><label class="m-field-label">Num\u00e9ro</label><input class="m-input" id="wl_phone" value="${esc(phone)}"></div>`;
   m+=`<div><label class="m-field-label">Label</label><input class="m-input" id="wl_label" value="${esc(label)}"></div>`;
   m+=`<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><input type="checkbox" id="wl_active" ${active?'checked':''}> Actif</label>`;
-  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('wlEditModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="saveWhitelistEntry('${id}')">Enregistrer</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlEditModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveWhitelistEntry('${id}')">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  guardModal(document.getElementById('wlEditModal'));
 }
 
 async function saveWhitelistEntry(id){
   try{
     const body={phone_e164:document.getElementById('wl_phone').value.replace(/\s/g,''),label:document.getElementById('wl_label').value||null,is_active:document.getElementById('wl_active').checked};
     await api.patch(`/api/calls/whitelist/${id}`,body);
-    document.getElementById('wlEditModal')?.remove();
+    document.getElementById('wlEditModal')._dirtyGuard?.markClean();
+    closeModal('wlEditModal');
     GendaUI.toast('Num\u00e9ro VIP modifi\u00e9','success');loadCalls();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }

@@ -12,6 +12,7 @@ import { cswHTML, cswSelect } from './color-swatches.js';
 import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
+import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 
 async function fcOpenDetail(bookingId) {
   calState.fcCurrentEventId = bookingId;
@@ -306,14 +307,23 @@ async function fcOpenDetail(bookingId) {
     // Only owners/managers can permanently delete
     document.getElementById('mBtnPurge').style.display = (isFrozen && userRole !== 'practitioner') ? '' : 'none';
 
+    // -- Dirty guard (warn on close if unsaved changes) --
+    guardModal(modal, { exclude: ['#calIntNote'] });
+
     // -- Show modal --
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'), 'rdv');
     modal.classList.add('open');
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
-function closeCalModal(id) {
+async function closeCalModal(id) {
   const modal = document.getElementById(id);
+  // Check dirty guard before closing
+  if (modal._dirtyGuard?.isDirty()) {
+    const leave = await showDirtyPrompt(modal.querySelector('.m-dialog') || modal);
+    if (!leave) return;
+  }
+  modal._dirtyGuard?.destroy();
   modal.classList.remove('open');
   // Auto-save internal note on close
   if (id === 'calDetailModal' && calState.fcCurrentEventId) {

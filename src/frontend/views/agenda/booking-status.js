@@ -26,6 +26,7 @@ async function fcSetStatus(newStatus) {
     } else {
       gToast('Statut mis \u00e0 jour', 'success');
     }
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
@@ -43,6 +44,7 @@ async function fcPurgeBooking() {
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     gToast('RDV supprim\u00e9 d\u00e9finitivement', 'success');
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
@@ -61,6 +63,7 @@ async function fcMarkDepositPaid() {
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     gToast('Acompte marqu\u00e9 comme pay\u00e9 \u2014 RDV confirm\u00e9', 'success');
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
@@ -79,6 +82,7 @@ async function fcRefundDeposit(amountCents) {
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     gToast('Acompte rembours\u00e9 \u2014 RDV annul\u00e9', 'success');
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }

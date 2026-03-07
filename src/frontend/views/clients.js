@@ -4,6 +4,7 @@
 import { api, categoryLabels, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
+import { guardModal } from '../utils/dirty-guard.js';
 import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhiteboards on window
 
 let clientSearch='';
@@ -87,7 +88,7 @@ async function openClientDetail(id){
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
     const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="document.getElementById('clientModal').remove()">${X_SVG}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="closeModal('clientModal')">${X_SVG}</button></div><div class="m-body">`;
     if(cl.is_blocked){
       m+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#dc2626"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:#666">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="unblockClient('${cl.id}')">Débloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){
@@ -197,8 +198,9 @@ async function openClientDetail(id){
     }
 
     // ── Close m-body → m-bottom with action buttons ──
-    m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('clientModal').remove()">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
+    m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('clientModal')">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
+    guardModal(document.getElementById('clientModal'));
     // Load whiteboards for this client
     window.loadClientWhiteboards(cl.id).then(wbs=>{
       const el=document.getElementById('clientWbList');
@@ -216,7 +218,7 @@ async function saveClient(id){
   try{
     const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.getElementById('clientModal')?.remove();
+    document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' mis·e à jour','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -227,7 +229,7 @@ async function blockClient(id){
   try{
     const r=await fetch(`/api/clients/${id}/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({reason:reason||'Bloqué manuellement'})});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.getElementById('clientModal')?.remove();
+    document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' bloqué·e','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -237,7 +239,7 @@ async function unblockClient(id){
   try{
     const r=await fetch(`/api/clients/${id}/unblock`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.getElementById('clientModal')?.remove();
+    document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' débloqué·e','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
@@ -247,7 +249,7 @@ async function resetNoShow(id){
   try{
     const r=await fetch(`/api/clients/${id}/reset-noshow`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
-    document.getElementById('clientModal')?.remove();
+    document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast('Compteur remis à zéro','success');loadClients();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }

@@ -286,3 +286,12 @@ textarea.m-input{resize:vertical;min-height:38px}
 .fi:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
 .field-row{display:flex;gap:12px}
 .field-row .field{flex:1}
+
+/* ── Dirty-guard unsaved changes prompt ── */
+.dg-overlay{position:absolute;inset:0;background:rgba(24,22,19,.5);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:inherit;animation:fadeIn .15s}
+.dg-card{background:var(--white);border-radius:14px;padding:24px 28px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18);max-width:300px;width:90%}
+.dg-msg{font-size:.88rem;font-weight:600;color:var(--text);margin:0 0 18px}
+.dg-actions{display:flex;gap:10px;justify-content:center}
+.dg-btn{min-height:44px;min-width:100px;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer;border:none;font-family:var(--sans);transition:all .15s}
+.dg-stay{background:var(--surface);color:var(--text-3)}.dg-stay:hover{background:var(--border-light)}
+.dg-leave{background:var(--red);color:#fff;margin-left:10px}.dg-leave:hover{opacity:.85}

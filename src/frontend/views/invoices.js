@@ -3,6 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { guardModal } from '../utils/dirty-guard.js';
 
 let invoiceFilter='all',invoiceType='all';
 
@@ -114,7 +115,7 @@ async function openInvoiceModal(type='invoice'){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>${title}</h3>
-      <button class="m-close" onclick="document.getElementById('invModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('invModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
 
     <div class="m-body" style="display:grid;gap:12px">
@@ -162,11 +163,12 @@ async function openInvoiceModal(type='invoice'){
 
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('invModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('invModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="saveInvoice('${type}')">${isQuote?'Créer le devis':'Créer la facture'}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(document.getElementById('invModal'));
   addInvoiceLine();
   updateInvTotals();
 }
@@ -228,7 +230,8 @@ async function saveInvoice(type){
       notes:document.getElementById('invNotes')?.value?.trim()||undefined
     };
     const r=await api.post('/api/invoices',body);
-    document.getElementById('invModal')?.remove();
+    document.getElementById('invModal')._dirtyGuard?.markClean();
+    closeModal('invModal');
     GendaUI.toast(type==='quote'?'Devis créé !':'Facture créée !','success');
     loadInvoices();
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}

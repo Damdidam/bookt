@@ -112,6 +112,7 @@ async function calSaveAll() {
   // No time change -> just close
   if (hasFieldChanges || clientContactChanged || groupPracReassign) gToast('RDV mis \u00e0 jour', 'success');
   else gToast('Aucun changement');
+  document.getElementById('calDetailModal')._dirtyGuard?.markClean();
   closeCalModal('calDetailModal');
   fcRefresh();
   } finally {
@@ -220,6 +221,7 @@ async function calDoSaveTime(notify, channel) {
       gToast(label, 'success');
     }
     calCloseNotify();
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }

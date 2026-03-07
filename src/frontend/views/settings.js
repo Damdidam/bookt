@@ -3,6 +3,7 @@
  */
 import { api, sectorLabels, calState, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { guardModal } from '../utils/dirty-guard.js';
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -334,6 +335,10 @@ async function loadSettings(){
 
     c.innerHTML=h;
 
+    // Dirty guard — warns before navigating away with unsaved changes
+    window._settingsGuard?.destroy();
+    window._settingsGuard = guardModal(c);
+
     // Draw QR code
     setTimeout(()=>drawQR(lk.qr_data||lk.booking_url||''),50);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
@@ -344,7 +349,7 @@ async function savePractitionerChoiceSetting(){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_practitioner_choice_enabled:on})});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast(on?'Choix du praticien activé':'Choix du praticien désactivé','success');
+    GendaUI.toast(on?'Choix du praticien activé':'Choix du praticien désactivé','success');window._settingsGuard?.markClean();
     const span=document.getElementById('s_practitioner_choice').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
     span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
@@ -359,7 +364,7 @@ async function saveCalendarSettings(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast('Paramètres calendrier enregistrés','success');
+    GendaUI.toast('Paramètres calendrier enregistrés','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -368,7 +373,7 @@ async function saveMultiServicePolicy(){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_multi_service_enabled:on})});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast(on?'Multi-prestations activé':'Multi-prestations désactivé','success');
+    GendaUI.toast(on?'Multi-prestations activé':'Multi-prestations désactivé','success');window._settingsGuard?.markClean();
     const span=document.getElementById('s_multi_service').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
     span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
@@ -381,7 +386,7 @@ async function saveOverlapPolicy(){
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_allow_overlap:on})});
     if(!r.ok)throw new Error((await r.json()).error);
     calState.fcAllowOverlap=on;
-    GendaUI.toast(on?'Chevauchements autorisés':'Chevauchements bloqués','success');
+    GendaUI.toast(on?'Chevauchements autorisés':'Chevauchements bloqués','success');window._settingsGuard?.markClean();
     // Update toggle visual
     const span=document.getElementById('s_overlap').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
@@ -413,7 +418,7 @@ async function saveReminderSettings(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast('Rappels configurés <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>','success');
+    GendaUI.toast('Rappels configurés <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -434,7 +439,7 @@ async function saveDepositSettings(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast('Politique d\'acompte enregistrée','success');
+    GendaUI.toast('Politique d\'acompte enregistrée','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -447,7 +452,7 @@ async function saveBookingConfirmSettings(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast(data.settings_booking_confirmation_required?'Confirmation obligatoire activée':'Confirmation obligatoire désactivée','success');
+    GendaUI.toast(data.settings_booking_confirmation_required?'Confirmation obligatoire activée':'Confirmation obligatoire désactivée','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -481,14 +486,14 @@ async function openStripePortal(){
 async function saveBusiness(){
   const body={name:document.getElementById('s_name').value,slug:document.getElementById('s_slug').value,email:document.getElementById('s_email').value,phone:document.getElementById('s_phone').value,address:document.getElementById('s_address').value,bce_number:document.getElementById('s_bce').value,accreditation:document.getElementById('s_accred').value,tagline:document.getElementById('s_tagline').value,description:document.getElementById('s_desc').value,founded_year:document.getElementById('s_year').value||null,languages_spoken:document.getElementById('s_langs').value,parking_info:document.getElementById('s_parking').value,settings_iban:document.getElementById('s_iban').value,settings_bic:document.getElementById('s_bic').value,settings_invoice_footer:document.getElementById('s_inv_footer').value};
   try{const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Informations enregistrées','success');
+    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Informations enregistrées','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 async function saveSEO(){
   const body={seo_title:document.getElementById('s_seo_title').value,seo_description:document.getElementById('s_seo_desc').value};
   try{const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('SEO enregistré','success');
+    if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('SEO enregistré','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 

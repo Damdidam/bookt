@@ -21,6 +21,7 @@ import { api, user, biz, userRole, sectorLabels, categoryLabels, allowedSections
 import { initRouter, loadSection } from './router.js';
 import { initTouchBlockers } from './utils/touch.js';
 import { bridge } from './utils/window-bridge.js';
+import { closeModal } from './utils/dirty-guard.js';
 
 // ── Auth guard ──
 if (!api.isLoggedIn()) {
@@ -106,14 +107,25 @@ function doLogout() {
   api.logout();
 }
 
-// ── Global modal Escape handler ──
+// ── Global modal Escape handler (guard-aware) ──
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    // Pre-defined calendar modals use closeCalModal (imported lazily)
+    const calDetail = document.getElementById('calDetailModal');
+    if (calDetail?.classList.contains('open')) {
+      if (typeof window.closeCalModal === 'function') window.closeCalModal('calDetailModal');
+      return;
+    }
+    const calCreate = document.getElementById('calCreateModal');
+    if (calCreate?.classList.contains('open')) {
+      if (typeof window.closeCalModal === 'function') window.closeCalModal('calCreateModal');
+      return;
+    }
+    // Dynamic modals — route via guard-aware closeModal
     const modals = document.querySelectorAll('.m-overlay.open');
     if (modals.length) {
       const top = modals[modals.length - 1];
-      top.remove();
-      if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
+      closeModal(top.id);
     }
   }
 });

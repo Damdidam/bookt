@@ -3,6 +3,7 @@
  * Uses dynamic imports for code splitting (each view is a separate chunk).
  */
 import { getContentArea } from './utils/dom.js';
+import { showDirtyPrompt } from './utils/dirty-guard.js';
 
 const SECTION_TITLES = {
   home: 'Dashboard',
@@ -29,6 +30,26 @@ const SECTION_TITLES = {
  * Uses dynamic import() for code splitting — Vite creates separate chunks per view.
  */
 async function loadSection(section) {
+  // Check if any open modal has unsaved changes
+  const openModals = document.querySelectorAll('.m-overlay.open');
+  for (const m of openModals) {
+    if (m._dirtyGuard?.isDirty()) {
+      const leave = await showDirtyPrompt(m.querySelector('.m-dialog') || m);
+      if (!leave) return;
+      m._dirtyGuard.destroy();
+      m.classList.remove('open');
+      if (m.id !== 'calDetailModal' && m.id !== 'calCreateModal') m.remove();
+    }
+  }
+  // Check settings page dirty guard
+  if (window._settingsGuard?.isDirty()) {
+    const c = getContentArea();
+    const leave = await showDirtyPrompt(c);
+    if (!leave) return;
+    window._settingsGuard.destroy();
+    window._settingsGuard = null;
+  }
+
   const c = getContentArea();
 
   // Reset agenda-specific classes
