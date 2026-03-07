@@ -157,22 +157,24 @@ function buildEventsCallback() {
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
 
-          // Split into 3 events if processing_time > 0
+          // Split into up to 3 events if processing_time > 0
           if (pt > 0) {
             const bStart = new Date(b.start_at).getTime();
             const bEnd = new Date(b.end_at).getTime();
             const poseStart = bStart + ps * 60000;
-            const poseEnd = poseStart + pt * 60000;
+            const poseEnd = Math.min(poseStart + pt * 60000, bEnd); // clamp to booking end
+            const hasA1 = ps > 0;
+            const hasA2 = poseEnd < bEnd;
             const baseProps = { ...b, _accent: accent, _splitBookingId: b.id, _originalStart: b.start_at, _originalEnd: b.end_at };
 
-            // active1: before pose (only if processing_start > 0)
-            if (ps > 0) {
+            // active1: before pose
+            if (hasA1) {
               events.push({
                 id: b.id + '_a1', title: b.client_name || 'Sans nom',
                 start: b.start_at, end: new Date(poseStart).toISOString(),
                 backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
                 editable: false, durationEditable: false,
-                classNames: ['ev-split-active1'],
+                classNames: [hasA2 ? 'ev-split-active1' : 'ev-split-active1'],
                 extendedProps: { ...baseProps, _splitPart: 'active1' }
               });
             }
@@ -186,15 +188,26 @@ function buildEventsCallback() {
               extendedProps: { ...baseProps, _splitPart: 'pose', _isPose: true }
             });
 
-            // active2: after pose (only if pose doesn't fill to end)
-            if (poseEnd < bEnd) {
+            // active2: after pose
+            if (hasA2) {
               events.push({
                 id: b.id + '_a2', title: b.client_name || 'Sans nom',
                 start: new Date(poseEnd).toISOString(), end: b.end_at,
                 backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
                 editable: false, durationEditable: false,
-                classNames: ['ev-split-active2'],
+                classNames: [hasA1 ? 'ev-split-active2' : 'ev-split-active2'],
                 extendedProps: { ...baseProps, _splitPart: 'active2' }
+              });
+            }
+
+            // Safety: if no visible event was created (pose covers entire booking), render as normal
+            if (!hasA1 && !hasA2) {
+              events.push({
+                id: b.id, title: b.client_name || 'Sans nom',
+                start: b.start_at, end: b.end_at,
+                backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+                editable: false, durationEditable: false,
+                extendedProps: { ...b, _accent: accent }
               });
             }
           } else {
