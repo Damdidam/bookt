@@ -238,22 +238,20 @@ async function fcOpenDetail(bookingId) {
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
         const sibFrozen = ['cancelled', 'no_show'].includes(sib.status);
-        const canUp = sibIdx > 0 && canDetach && !sibFrozen;
-        const canDown = sibIdx < siblings.length - 1 && canDetach && !sibFrozen;
-        const upBtn = canDetach ? (canUp ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','up')" title="Monter">\u2191</button>` : '<button class="g-move-btn" style="visibility:hidden" disabled>\u2191</button>') : '';
-        const downBtn = canDetach ? (canDown ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','down')" title="Descendre">\u2193</button>` : '<button class="g-move-btn" style="visibility:hidden" disabled>\u2193</button>') : '';
+        const canDrag = canDetach && !sibFrozen;
         const detachBtn = (canDetach && !sibFrozen) ? `<button class="g-detach-btn" onclick="fcShowUngroupPanel('${sib.id}')" title="Détacher du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="m7 11 2 2 4-4"/><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg></button>` : '';
         const safeSibName = (sib.service_name || 'RDV libre').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
-        gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}">
+        gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}"${canDrag ? ' data-draggable="true"' : ''}>
           <span class="g-dot" style="background:${safeSibColor}"></span>
           <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.variant_name ? (sib.service_name||'RDV libre')+' \u2014 '+sib.variant_name : (sib.service_name || 'RDV libre'))}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
-          ${upBtn}${downBtn}${detachBtn}${deleteBtn}
+          ${detachBtn}${deleteBtn}
         </div>`;
       });
       gh += '</div></div>';
       groupEl.innerHTML = gh;
+      initGroupDnD(groupEl);
       groupEl.style.display = 'block';
     } else { groupEl.style.display = 'none'; }
 
@@ -573,35 +571,92 @@ function fcResetBookingColor() {
   document.getElementById('uBookingColor').value = '';
 }
 
-// Reorder a service within a group (up/down)
-async function fcReorderGroup(sibId, direction) {
-  const siblings = calState.fcGroupSiblings;
-  if (!siblings || siblings.length < 2) return;
-  const ids = siblings.map(s => s.id);
-  const idx = ids.indexOf(sibId);
-  if (idx < 0) return;
-  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-  if (swapIdx < 0 || swapIdx >= ids.length) return;
-  // Swap
-  [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
-  try {
-    const r = await fetch(`/api/bookings/${sibId}/reorder-group`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ ordered_ids: ids })
-    });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-    gToast('Ordre mis \u00e0 jour', 'success');
-    // Re-open detail to refresh + update calendar
-    const bookingId = calState.fcCurrentEventId;
-    if (bookingId) fcOpenDetail(bookingId);
-    if (calState.fcCal) calState.fcCal.refetchEvents();
-  } catch (e) {
-    gToast(e.message || 'Erreur', 'error');
-  }
+// Touch-friendly drag & drop reorder for group siblings
+function initGroupDnD(container) {
+  const list = container.querySelector('[style*="flex-direction:column"]');
+  if (!list) return;
+  let dragEl, clone, dropLine, timer, startY, offY, active = false;
+  const getY = e => (e.touches ? e.touches[0] : e).clientY;
+
+  const begin = () => {
+    active = true;
+    const r = dragEl.getBoundingClientRect();
+    offY = startY - r.top;
+    clone = dragEl.cloneNode(true);
+    clone.className = 'g-drag-clone' + (dragEl.classList.contains('current') ? ' current' : '');
+    clone.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;z-index:999;pointer-events:none`;
+    document.body.appendChild(clone);
+    dragEl.classList.add('g-dragging');
+    dropLine = document.createElement('div');
+    dropLine.className = 'g-drop-line';
+    if (navigator.vibrate) navigator.vibrate(30);
+  };
+
+  const move = e => {
+    if (!active) {
+      if (timer && Math.abs(getY(e) - startY) > 8) { clearTimeout(timer); timer = null; }
+      return;
+    }
+    e.preventDefault();
+    const y = getY(e);
+    clone.style.top = (y - offY) + 'px';
+    const items = [...list.querySelectorAll('.m-group-item:not(.g-dragging)')];
+    let ref = null;
+    for (const it of items) {
+      const box = it.getBoundingClientRect();
+      if (y < box.top + box.height / 2) { ref = it; break; }
+    }
+    dropLine.remove();
+    if (ref) ref.before(dropLine); else if (items.length) items[items.length - 1].after(dropLine);
+  };
+
+  const end = async () => {
+    clearTimeout(timer); timer = null;
+    if (!active) return;
+    active = false;
+    if (dropLine.parentNode) dropLine.before(dragEl);
+    clone.remove(); dropLine.remove();
+    dragEl.classList.remove('g-dragging');
+    const newIds = [...list.querySelectorAll('.m-group-item')].map(el => el.dataset.sibId);
+    const oldIds = calState.fcGroupSiblings.map(s => s.id);
+    dragEl = null;
+    if (newIds.join() === oldIds.join()) return;
+    try {
+      const r = await fetch(`/api/bookings/${newIds[0]}/reorder-group`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ ordered_ids: newIds })
+      });
+      if (!r.ok) throw new Error((await r.json()).error || 'Erreur');
+      gToast('Ordre mis \u00e0 jour', 'success');
+      fcOpenDetail(calState.fcCurrentEventId);
+      if (calState.fcCal) calState.fcCal.refetchEvents();
+    } catch (err) { gToast(err.message, 'error'); fcOpenDetail(calState.fcCurrentEventId); }
+  };
+
+  const cancel = () => {
+    clearTimeout(timer);
+    if (active) { clone?.remove(); dropLine?.remove(); dragEl?.classList.remove('g-dragging'); active = false; }
+  };
+
+  list.querySelectorAll('.m-group-item[data-draggable]').forEach(item => {
+    const down = e => {
+      if (e.target.closest('button')) return;
+      dragEl = item; startY = getY(e);
+      timer = setTimeout(begin, 250);
+    };
+    item.addEventListener('touchstart', down, { passive: true });
+    item.addEventListener('mousedown', down);
+  });
+
+  list.addEventListener('touchmove', move, { passive: false });
+  list.addEventListener('mousemove', move);
+  list.addEventListener('touchend', end);
+  list.addEventListener('mouseup', end);
+  list.addEventListener('touchcancel', cancel);
 }
 
 // Expose to global scope for onclick handlers
-bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor, fcReorderGroup });
+bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };
