@@ -49,10 +49,6 @@ function calCheckConflict() {
   const conflicts = [];
   for (const ev of calState.fcCal.getEvents()) {
     if (ev.id === myId) continue;
-    // Skip split parts of the same booking
-    if (ev.extendedProps?._splitBookingId === myId) continue;
-    // Skip pose events (practitioner is free during pose)
-    if (ev.extendedProps?._isPose) continue;
     // Skip group container that contains this booking
     if (myGroup && ev.extendedProps?._groupId === myGroup) continue;
     if (String(ev.extendedProps?.practitioner_id) !== String(pracId)) continue;
