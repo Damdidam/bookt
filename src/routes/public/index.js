@@ -155,7 +155,7 @@ router.get('/:slug', async (req, res, next) => {
     const varByService = {};
     try {
       const variantsResult = await queryWithRLS(bid,
-        `SELECT id, service_id, name, duration_min, price_cents, sort_order
+        `SELECT id, service_id, name, description, duration_min, price_cents, sort_order
          FROM service_variants
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -269,7 +269,7 @@ router.get('/:slug', async (req, res, next) => {
         description: s.description || null,
         bookable_online: s.bookable_online !== false,
         variants: (varByService[s.id] || []).map(v => ({
-          id: v.id, name: v.name, duration_min: v.duration_min,
+          id: v.id, name: v.name, description: v.description || null, duration_min: v.duration_min,
           price_cents: v.price_cents,
           price_label: v.price_cents != null ? `${(v.price_cents / 100).toFixed(2).replace('.', ',')} €` : null
         }))

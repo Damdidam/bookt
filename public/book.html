@@ -434,7 +434,9 @@ function showVariantModal(service,callback){
   service.variants.forEach(function(v,i){
     var price=v.price_cents?(v.price_cents/100).toFixed(0)+' \u20ac':'';
     h+='<div class="var-card" data-idx="'+i+'">'
-      +'<div class="var-info"><div class="var-name">'+escH(v.name)+'</div><div class="var-meta">'+v.duration_min+' min</div></div>'
+      +'<div class="var-info"><div class="var-name">'+escH(v.name)+'</div>'
+      +(v.description?'<div class="var-desc" style="font-size:.78rem;color:var(--text-4);margin:2px 0 4px;line-height:1.4">'+escH(v.description)+'</div>':'')
+      +'<div class="var-meta">'+v.duration_min+' min</div></div>'
       +'<div class="var-price">'+price+'</div>'
       +'<button class="var-sel-btn">S\u00e9lectionner</button></div>';
   });
