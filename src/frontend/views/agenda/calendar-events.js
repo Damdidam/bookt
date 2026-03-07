@@ -160,10 +160,15 @@ function buildEventsCallback() {
             if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
             if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
           }
-          // Category filter (use service_category from API directly)
+          // Category filter — for groups: show if ANY member matches a visible category
           if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
-            const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
-            if (calState.fcHiddenCategories.has(cat)) return false;
+            if (p._isGroup) {
+              const members = p._members || [];
+              const anyVisible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
+              if (!anyVisible) return false;
+            } else {
+              if (calState.fcHiddenCategories.has(p.service_category || '')) return false;
+            }
           }
           return true;
         });
@@ -197,7 +202,15 @@ function buildEventContent() {
     // -- Week/Day: group container --
     if (p._isGroup) {
       const members = p._members || [];
-      const svcs = members.map(m => esc(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'))).join(' \u00b7 ');
+      const hasFilter = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
+      const svcs = members.map(m => {
+        const label = esc(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
+        if (hasFilter) {
+          const catMatch = !calState.fcHiddenCategories.has(m.service_category || '');
+          return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.4">' + label + '</span>';
+        }
+        return label;
+      }).join(' \u00b7 ');
       return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || 'Groupe')} <span style="font-size:.58rem;opacity:.5"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>${members.length}</span></span><span class="ev-service">${svcs}</span></div>` };
     }
 

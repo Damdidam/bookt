@@ -24,13 +24,27 @@ async function fcLoadMobileList() {
   } catch (e) { calState.fcAllBookings = []; }
 
   // Apply status + category visibility filters
+  // For grouped bookings, keep if ANY sibling in the group matches a visible category
+  const groupVisible = {};
+  if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
+    calState.fcAllBookings.forEach(b => {
+      if (!b.group_id) return;
+      const svc = calState.fcServices?.find(s => s.id === b.service_id);
+      const cat = svc?.category || '';
+      if (!calState.fcHiddenCategories.has(cat)) groupVisible[b.group_id] = true;
+    });
+  }
   calState.fcAllBookings = calState.fcAllBookings.filter(b => {
     if (b.status === 'cancelled' && !calState.fcShowCancelled) return false;
     if (b.status === 'no_show' && !calState.fcShowNoShow) return false;
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
-      const svc = calState.fcServices?.find(s => s.id === b.service_id);
-      const cat = svc?.category || '';
-      if (calState.fcHiddenCategories.has(cat)) return false;
+      if (b.group_id) {
+        if (!groupVisible[b.group_id]) return false;
+      } else {
+        const svc = calState.fcServices?.find(s => s.id === b.service_id);
+        const cat = svc?.category || '';
+        if (calState.fcHiddenCategories.has(cat)) return false;
+      }
     }
     return true;
   });

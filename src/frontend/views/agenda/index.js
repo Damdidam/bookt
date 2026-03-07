@@ -101,9 +101,17 @@ function fcFilterCategory(cat, el) {
     calState.fcCal.getEvents().forEach(ev => {
       const p = ev.extendedProps;
       if (p._isFeaturedSlot) return;
-      const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
-      ev.setProp('display', calState.fcHiddenCategories.has(cat) ? 'none' : 'auto');
+      let visible;
+      if (p._isGroup) {
+        const members = p._members || [];
+        visible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
+      } else {
+        visible = !calState.fcHiddenCategories.has(p.service_category || '');
+      }
+      ev.setProp('display', visible ? 'auto' : 'none');
     });
+    // Force re-render so eventContent picks up highlighted members
+    calState.fcCal.render();
   }
   // Refresh mobile list if active
   if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
