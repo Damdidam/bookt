@@ -5,7 +5,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
-const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent } = require('./bookings-helpers');
+const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
 
 // STS-V12-007: UUID validation regex (reused across all endpoints)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -147,16 +147,8 @@ router.patch('/:id/move', async (req, res, next) => {
               const pracStart = pracUpdates.reduce((min, u) => u.start_at < min ? u.start_at : min, pracUpdates[0].start_at);
               const pracEnd = pracUpdates.reduce((max, u) => u.end_at > max ? u.end_at : max, pracUpdates[0].end_at);
               const pracMaxConcurrent = await getMaxConcurrent(bid, pracId);
-              const conflict = await client.query(
-                `SELECT id FROM bookings
-                 WHERE business_id = $1 AND practitioner_id = $2
-                 AND id != ALL($3)
-                 AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-                 AND start_at < $5 AND end_at > $4
-                 FOR UPDATE`,
-                [bid, pracId, groupIds, pracStart, pracEnd]
-              );
-              if (conflict.rows.length >= pracMaxConcurrent) {
+              const conflicts = await checkBookingConflicts(client, { bid, pracId, newStart: pracStart, newEnd: pracEnd, excludeIds: groupIds });
+              if (conflicts.length >= pracMaxConcurrent) {
                 throw Object.assign(new Error('Capacité maximale atteinte — impossible de déplacer le groupe ici'), { type: 'conflict' });
               }
             }
@@ -237,16 +229,8 @@ router.patch('/:id/move', async (req, res, next) => {
         }
 
         if (!globalAllowOverlap) {
-          const conflict = await client.query(
-            `SELECT id FROM bookings
-             WHERE business_id = $1 AND practitioner_id = $2
-             AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-             AND start_at < $5 AND end_at > $4
-             FOR UPDATE`,
-            [bid, effectivePracId, id, newStart.toISOString(), newEnd.toISOString()]
-          );
-          if (conflict.rows.length >= maxConcurrent) {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: effectivePracId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString(), excludeIds: id });
+          if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
@@ -442,16 +426,8 @@ router.patch('/:id/edit', async (req, res, next) => {
           if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
             throw Object.assign(new Error('Ce RDV ne peut plus être modifié (changement de praticien interdit)'), { type: 'immutable' });
           }
-          const conflict = await client.query(
-            `SELECT id FROM bookings
-             WHERE business_id = $1 AND practitioner_id = $2
-             AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-             AND start_at < $5 AND end_at > $4
-             FOR UPDATE`,
-            [bid, practitioner_id, id, calState_editTimes.start_at, calState_editTimes.end_at]
-          );
-          if (conflict.rows.length >= calState_editMaxConcurrent) {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: calState_editTimes.start_at, newEnd: calState_editTimes.end_at, excludeIds: id });
+          if (conflicts.length >= calState_editMaxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
           const r = await client.query(updateSql, params);
@@ -596,16 +572,8 @@ router.patch('/:id/resize', async (req, res, next) => {
         }
 
         if (!globalAllowOverlap) {
-          const conflict = await client.query(
-            `SELECT id FROM bookings
-             WHERE business_id = $1 AND practitioner_id = $2
-             AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-             AND start_at < $5 AND end_at > $4
-             FOR UPDATE`,
-            [bid, current.rows[0].practitioner_id, id, current.rows[0].start_at, end_at]
-          );
-          if (conflict.rows.length >= maxConcurrent) {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: current.rows[0].practitioner_id, newStart: current.rows[0].start_at, newEnd: end_at, excludeIds: id });
+          if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
@@ -737,16 +705,8 @@ router.patch('/:id/modify', async (req, res, next) => {
           : recheckStatus;
 
         if (!globalAllowOverlap) {
-          const conflict = await client.query(
-            `SELECT id FROM bookings
-             WHERE business_id = $1 AND practitioner_id = $2
-             AND id != $3
-             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-             AND start_at < $5 AND end_at > $4
-             FOR UPDATE`,
-            [bid, oldBooking.practitioner_id, id, start_at, end_at]
-          );
-          if (conflict.rows.length >= maxConcurrent) {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: oldBooking.practitioner_id, newStart: start_at, newEnd: end_at, excludeIds: id });
+          if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }

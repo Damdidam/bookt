@@ -6,7 +6,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
-const { calSyncPush, businessAllowsOverlap, getMaxConcurrent, checkPracAvailability } = require('./bookings-helpers');
+const { calSyncPush, businessAllowsOverlap, getMaxConcurrent, checkPracAvailability, checkBookingConflicts } = require('./bookings-helpers');
 
 // ============================================================
 // POST /api/bookings/manual
@@ -109,15 +109,8 @@ router.post('/manual', async (req, res, next) => {
 
       const bookings = await transactionWithRLS(bid, async (client) => {
         if (!globalAllowOverlap) {
-          const conflict = await client.query(
-            `SELECT id FROM bookings
-             WHERE business_id = $1 AND practitioner_id = $2
-             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-             AND start_at < $4 AND end_at > $3
-             FOR UPDATE`,
-            [bid, practitioner_id, realStart.toISOString(), realEnd.toISOString()]
-          );
-          if (conflict.rows.length >= maxConcurrent) {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: realStart.toISOString(), newEnd: realEnd.toISOString() });
+          if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
         }
@@ -319,16 +312,8 @@ router.post('/manual', async (req, res, next) => {
     const bookings = await transactionWithRLS(bid, async (client) => {
       // Check conflicts for the entire time range (skip if business allows overlap)
       if (!globalAllowOverlap) {
-        const conflict = await client.query(
-          `SELECT id FROM bookings
-           WHERE business_id = $1 AND practitioner_id = $2
-           AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-           AND start_at < $4 AND end_at > $3
-           FOR UPDATE`,
-          [bid, practitioner_id, new Date(start_at).toISOString(), totalEnd]
-        );
-
-        if (conflict.rows.length >= maxConcurrent) {
+        const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: new Date(start_at).toISOString(), newEnd: totalEnd });
+        if (conflicts.length >= maxConcurrent) {
           throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
         }
       }

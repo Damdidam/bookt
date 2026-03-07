@@ -5,7 +5,7 @@ const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter'
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
-const { checkPracAvailability } = require('../staff/bookings-helpers');
+const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
@@ -748,15 +748,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
         const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
 
-        // Conflict check for entire chained range
-        const conflict = await client.query(
-          `SELECT id FROM bookings
-           WHERE business_id = $1 AND practitioner_id = $2
-           AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-           AND start_at < $4 AND end_at > $3 FOR UPDATE`,
-          [businessId, practitioner_id, startDate.toISOString(), totalEnd.toISOString()]
-        );
-        if (conflict.rows.length >= multiMaxConcurrent) {
+        // Conflict check for entire chained range (pose-aware)
+        const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: practitioner_id, newStart: startDate.toISOString(), newEnd: totalEnd.toISOString() });
+        if (conflicts.length >= multiMaxConcurrent) {
           throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
         }
 
@@ -1095,15 +1089,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
       const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
 
-      // Conflict check (capacity-aware)
-      const conflict = await client.query(
-        `SELECT id FROM bookings
-         WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-         AND start_at < $4 AND end_at > $3 FOR UPDATE`,
-        [businessId, practitioner_id, startDate.toISOString(), endDate.toISOString()]
-      );
-      if (conflict.rows.length >= maxConcurrent) {
+      // Conflict check (capacity-aware, pose-aware)
+      const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: practitioner_id, newStart: startDate.toISOString(), newEnd: endDate.toISOString() });
+      if (conflicts.length >= maxConcurrent) {
         throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
       }
 
@@ -2224,16 +2212,9 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       );
       const maxConcurrentWl = pracCapWl.rows[0]?.max_concurrent || 1;
 
-      const conflict = await client.query(
-        `SELECT id FROM bookings
-         WHERE business_id = $1 AND practitioner_id = $2
-         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
-         AND start_at < $4 AND end_at > $3
-         FOR UPDATE`,
-        [e.business_id, e.practitioner_id, e.offer_booking_start, e.offer_booking_end]
-      );
+      const conflicts = await checkBookingConflicts(client, { bid: e.business_id, pracId: e.practitioner_id, newStart: e.offer_booking_start, newEnd: e.offer_booking_end });
 
-      if (conflict.rows.length >= maxConcurrentWl) {
+      if (conflicts.length >= maxConcurrentWl) {
         await client.query(
           `UPDATE waitlist_entries SET status = 'expired', updated_at = NOW() WHERE id = $1`,
           [e.id]

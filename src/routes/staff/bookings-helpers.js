@@ -194,4 +194,45 @@ async function getMaxConcurrent(bid, pracId) {
   return r.rows[0]?.max_concurrent ?? 1;
 }
 
-module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent };
+/**
+ * Check booking conflicts for a practitioner time range.
+ * Accounts for processing time (pose) windows: if the new booking fits
+ * entirely within an existing booking's pose window, it's not a conflict.
+ * @param {object} client - Transaction client
+ * @param {object} opts
+ * @returns {Promise<Array>} Conflicting booking rows
+ */
+async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, excludeIds }) {
+  let excludeClause = '';
+  const params = [bid, pracId, newStart, newEnd];
+
+  if (excludeIds != null) {
+    if (Array.isArray(excludeIds)) {
+      params.push(excludeIds);
+      excludeClause = `AND b.id != ALL($${params.length}::int[])`;
+    } else {
+      params.push(excludeIds);
+      excludeClause = `AND b.id != $${params.length}`;
+    }
+  }
+
+  const result = await client.query(
+    `SELECT b.id FROM bookings b
+     LEFT JOIN services s ON s.id = b.service_id
+     WHERE b.business_id = $1 AND b.practitioner_id = $2
+     AND b.status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
+     AND b.start_at < $4 AND b.end_at > $3
+     ${excludeClause}
+     AND NOT (
+       b.processing_time > 0
+       AND $3::timestamptz >= b.start_at + (COALESCE(s.buffer_before_min, 0) + b.processing_start) * interval '1 minute'
+       AND $4::timestamptz <= b.start_at + (COALESCE(s.buffer_before_min, 0) + b.processing_start + b.processing_time) * interval '1 minute'
+     )
+     FOR UPDATE OF b`,
+    params
+  );
+
+  return result.rows;
+}
+
+module.exports = { calSyncPush, calSyncDelete, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts };
