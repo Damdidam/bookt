@@ -204,11 +204,13 @@ function buildEventContent() {
       const members = p._members || [];
       const hasFilter = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
       const isPartial = hasFilter && members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
+      // DEBUG — remove after fixing
+      console.log('[GROUP-FILTER]', { hasFilter, isPartial, hiddenCats: [...(calState.fcHiddenCategories || [])], members: members.map(m => ({ svc: m.service_name, cat: m.service_category })) });
       const svcs = members.map(m => {
         const label = esc(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
         if (hasFilter) {
           const catMatch = !calState.fcHiddenCategories.has(m.service_category || '');
-          return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
+          return catMatch ? '<strong style="background:rgba(0,255,0,.25)">' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
         }
         return label;
       }).join(' \u00b7 ');
