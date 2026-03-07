@@ -255,6 +255,8 @@ async function loadAgenda() {
   toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="timeGridDay" onclick="atView('timeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button>${fsBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
   // Desktop: Row 2 -- filter pills
   toolbar += `<div class="at-row-filters">${pillsHtml}</div>`;
+  // Desktop: Row 2b -- fill rate stats
+  toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-global" id="fillGlobal"><span class="fill-label">Remplissage</span><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div><span class="fill-pct" id="fillPct">\u2014</span></div><div class="fill-chips" id="fillChips"></div></div>`;
   // Desktop: Row 3 -- category filter chips (if multiple categories)
   if (catChipsHtml) toolbar += catChipsHtml;
   // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)

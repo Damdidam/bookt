@@ -251,6 +251,97 @@ function updatePracHours() {
     const m = Math.round(total % 60);
     el.textContent = m > 0 ? ' \u00b7 ' + h + 'h' + String(m).padStart(2, '0') : ' \u00b7 ' + h + 'h';
   });
+  computeFillRate();
+}
+
+// ── Fill rate computation ──
+function computeFillRate() {
+  const cal = calState.fcCal;
+  if (!cal) return;
+  const view = cal.view;
+  if (!view) return;
+  const viewStart = view.currentStart;
+  const viewEnd = view.currentEnd;
+  const pracBH = calState.fcPracBusinessHours || {};
+  const bookedMins = calState.fcPracHours || {};
+
+  const timeToMinutes = t => {
+    if (!t) return 0;
+    const [h, m] = t.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const pracStats = {};
+  let totalAvail = 0, totalBooked = 0;
+
+  // Iterate visible days
+  const d = new Date(viewStart);
+  while (d < viewEnd) {
+    const fcDay = d.getDay(); // 0=Sun..6=Sat (FullCalendar format)
+    for (const [pracId, slots] of Object.entries(pracBH)) {
+      const daySlots = (slots || []).filter(s => s.daysOfWeek && s.daysOfWeek.includes(fcDay));
+      let availMins = 0;
+      daySlots.forEach(s => {
+        const diff = timeToMinutes(s.endTime) - timeToMinutes(s.startTime);
+        if (diff > 0) availMins += diff;
+      });
+      if (availMins > 0) {
+        if (!pracStats[pracId]) pracStats[pracId] = { avail: 0, booked: 0 };
+        pracStats[pracId].avail += availMins;
+        totalAvail += availMins;
+      }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+
+  for (const [pracId, mins] of Object.entries(bookedMins)) {
+    if (!pracStats[pracId]) pracStats[pracId] = { avail: 0, booked: 0 };
+    pracStats[pracId].booked += mins;
+    totalBooked += mins;
+  }
+
+  updateFillRateDOM(totalAvail, totalBooked, pracStats);
+}
+
+function fillColor(pct) {
+  if (pct >= 75) return 'var(--green)';
+  if (pct >= 40) return 'var(--gold)';
+  return 'var(--text-4)';
+}
+
+function updateFillRateDOM(totalAvail, totalBooked, pracStats) {
+  const pctEl = document.getElementById('fillPct');
+  const barEl = document.getElementById('fillBarInner');
+  const chipsEl = document.getElementById('fillChips');
+  if (!pctEl) return;
+
+  if (totalAvail === 0) {
+    pctEl.textContent = '—';
+    pctEl.style.color = 'var(--text-4)';
+    barEl.style.width = '0%';
+    if (chipsEl) chipsEl.innerHTML = '';
+    return;
+  }
+
+  const globalPct = Math.min(Math.round((totalBooked / totalAvail) * 100), 100);
+  pctEl.textContent = globalPct + '%';
+  pctEl.style.color = fillColor(globalPct);
+  barEl.style.width = globalPct + '%';
+  barEl.style.background = fillColor(globalPct);
+
+  if (!chipsEl) return;
+  const pracs = calState.fcPractitioners || [];
+  if (pracs.length <= 1) { chipsEl.innerHTML = ''; return; }
+
+  let html = '';
+  pracs.forEach(p => {
+    const st = pracStats[p.id];
+    if (!st || st.avail === 0) return;
+    const pct = Math.min(Math.round((st.booked / st.avail) * 100), 100);
+    const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    html += `<div class="fill-chip"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini} <span style="color:${fillColor(pct)}">${pct}%</span></div>`;
+  });
+  chipsEl.innerHTML = html;
 }
 
 /**
