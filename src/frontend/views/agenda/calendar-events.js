@@ -291,8 +291,7 @@ function buildEventContent() {
       (p.status === 'modified_pending' ? '<span class="ev-badge ev-badge-mod"></span>' : '')
     ].filter(Boolean).join('');
     const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span>' : '';
-    const poseOverlay = (p._poseStartPct != null) ? `<div class="ev-pose-overlay" style="top:${p._poseStartPct}%;height:${p._poseEndPct - p._poseStartPct}%"></div>` : '';
-    return { html: `<div class="ev-inner ev-inner-rel" style="color:${safeAccent}">${poseOverlay}<span class="ev-client">${esc(p.client_name || arg.event.title)}${freeTag}${depBadge}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
+    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${freeTag}${depBadge}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
   };
 }
 
@@ -330,6 +329,29 @@ function buildEventDidMount() {
 
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
+
+    // Pose overlay (attached to FC element for correct full-height positioning)
+    if (p._poseStartPct != null && info.view.type !== 'dayGridMonth') {
+      info.el.style.position = 'relative';
+      const overlay = document.createElement('div');
+      overlay.className = 'ev-pose-overlay';
+      overlay.style.top = p._poseStartPct + '%';
+      overlay.style.height = (p._poseEndPct - p._poseStartPct) + '%';
+      // Click on pose zone → open quick-create (practitioner is free)
+      overlay.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const rect = info.el.getBoundingClientRect();
+        const clickRatio = (e.clientY - rect.top) / rect.height;
+        const evStart = info.event.start.getTime();
+        const evEnd = (info.event.end || info.event.start).getTime();
+        const clickTime = new Date(evStart + clickRatio * (evEnd - evStart));
+        // Snap to 15min grid
+        clickTime.setMinutes(Math.floor(clickTime.getMinutes() / 15) * 15, 0, 0);
+        const iso = clickTime.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T' + clickTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) + ':00';
+        fcOpenQuickCreate(iso);
+      });
+      info.el.appendChild(overlay);
+    }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
     info.el.style.borderLeftWidth = '3px';
