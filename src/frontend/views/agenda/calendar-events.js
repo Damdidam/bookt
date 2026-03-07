@@ -272,10 +272,20 @@ function buildEventDidMount() {
     info.el.setAttribute('data-eid', info.event.id);
 
     // Category attribute for filter chips (use service_category from API directly)
-    const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
-    info.el.setAttribute('data-category', cat);
-    if (calState.fcHiddenCategories && calState.fcHiddenCategories.has(cat)) {
-      info.el.style.display = 'none';
+    if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
+      if (p._isGroup) {
+        const members = p._members || [];
+        const anyVisible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
+        info.el.setAttribute('data-category', members.map(m => m.service_category || '').join(','));
+        if (!anyVisible) info.el.style.display = 'none';
+      } else {
+        const cat = p.service_category || '';
+        info.el.setAttribute('data-category', cat);
+        if (calState.fcHiddenCategories.has(cat)) info.el.style.display = 'none';
+      }
+    } else {
+      const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
+      info.el.setAttribute('data-category', cat);
     }
 
     // Resolve booking ID (for groups -> first member)
