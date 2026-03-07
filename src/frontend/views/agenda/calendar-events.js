@@ -333,7 +333,6 @@ function buildEventDidMount() {
 
     // Pose overlay (attached to FC element for correct full-height positioning)
     if (p._poseStartPct != null && info.view.type !== 'dayGridMonth') {
-      info.el.style.position = 'relative';
       const overlay = document.createElement('div');
       overlay.className = 'ev-pose-overlay';
       overlay.style.top = p._poseStartPct + '%';
