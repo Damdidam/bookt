@@ -238,8 +238,10 @@ async function fcOpenDetail(bookingId) {
         const eT = new Date(sib.end_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
         const safeSibColor = /^#[0-9a-fA-F]{3,6}$/.test(sib.service_color) ? sib.service_color : '#ccc';
         const sibFrozen = ['cancelled', 'no_show'].includes(sib.status);
-        const upBtn = (sibIdx > 0 && canDetach && !sibFrozen) ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','up')" title="Monter">\u2191</button>` : '';
-        const downBtn = (sibIdx < siblings.length - 1 && canDetach && !sibFrozen) ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','down')" title="Descendre">\u2193</button>` : '';
+        const canUp = sibIdx > 0 && canDetach && !sibFrozen;
+        const canDown = sibIdx < siblings.length - 1 && canDetach && !sibFrozen;
+        const upBtn = canDetach ? (canUp ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','up')" title="Monter">\u2191</button>` : '<span class="g-move-btn" style="visibility:hidden">\u2191</span>') : '';
+        const downBtn = canDetach ? (canDown ? `<button class="g-move-btn" onclick="fcReorderGroup('${sib.id}','down')" title="Descendre">\u2193</button>` : '<span class="g-move-btn" style="visibility:hidden">\u2193</span>') : '';
         const detachBtn = (canDetach && !sibFrozen) ? `<button class="g-detach-btn" onclick="fcShowUngroupPanel('${sib.id}')" title="Détacher du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="m7 11 2 2 4-4"/><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg></button>` : '';
         const safeSibName = (sib.service_name || 'RDV libre').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
