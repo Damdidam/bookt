@@ -1016,6 +1016,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       resolvedVariantId = variant_id;
     }
 
+    let resolvedProcessingTime = 0;
+    let resolvedProcessingStart = 0;
+
     if (effectiveServiceId) {
       const svcResult = await query(
         `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
@@ -1026,8 +1029,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const service = svcResult.rows[0];
 
       // Override duration from variant if provided
-      let resolvedProcessingTime = service.processing_time || 0;
-      let resolvedProcessingStart = service.processing_start || 0;
+      resolvedProcessingTime = service.processing_time || 0;
+      resolvedProcessingStart = service.processing_start || 0;
       if (resolvedVariantId) {
         const vr = await queryWithRLS(businessId,
           `SELECT duration_min, processing_time, processing_start FROM service_variants
