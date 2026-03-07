@@ -14,7 +14,7 @@ const TRANSITIONS = {
   pending_deposit:  ['confirmed', 'cancelled'],
   completed:        ['confirmed'],  // ré-ouvrir si erreur
   no_show:          ['confirmed', 'cancelled'],
-  cancelled:        []  // un RDV annulé ne peut pas être ressuscité
+  cancelled:        ['confirmed']  // rétablir un RDV annulé
 };
 
 // ===== Helper: propagate status to group siblings respecting state machine =====
