@@ -16,7 +16,7 @@ import { fcLoadMobileList } from './calendar-mobile.js';
 import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
 import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
-import { buildEventContent } from './calendar-events.js';
+import { buildEventsCallback } from './calendar-events.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
 import './color-swatches.js';
@@ -97,33 +97,11 @@ function fcFilterCategory(cat, el) {
     const allBtn = document.querySelector('.cat-chip[data-cat="__all__"]');
     if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
   }
-  // Show/hide events
+  // Nuke event source and re-add — forces FC to re-create all events from scratch
+  // (eventContent + eventDidMount guaranteed to run with current filter state)
   if (calState.fcCal) {
-    const hf = calState.fcHiddenCategories.size > 0;
-    calState.fcCal.getEvents().forEach(ev => {
-      const p = ev.extendedProps;
-      if (p._isFeaturedSlot) return;
-      let vis;
-      if (p._isGroup) {
-        vis = (p._members || []).some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
-      } else {
-        vis = !calState.fcHiddenCategories.has(p.service_category || '');
-      }
-      ev.setProp('display', vis ? 'auto' : 'none');
-    });
-    // Force eventContent to re-render all events (new function ref = FC detects change)
-    calState.fcCal.setOption('eventContent', buildEventContent());
-    // Update group borders (eventDidMount doesn't re-run, so patch DOM)
-    document.querySelectorAll('[data-eid^="group_"]').forEach(g => {
-      if (!g.offsetParent) return;
-      const ev = calState.fcCal.getEventById(g.getAttribute('data-eid'));
-      if (!ev || !ev.extendedProps._isGroup) return;
-      const mm = ev.extendedProps._members || [];
-      const ac = ev.extendedProps._accent || '#0D7377';
-      const sa = /^#[0-9a-fA-F]{3,8}$/.test(ac) ? ac : '#0D7377';
-      const partial = hf && mm.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
-      g.style.borderLeftColor = partial ? sa + '66' : sa;
-    });
+    calState.fcCal.getEventSources().forEach(s => s.remove());
+    calState.fcCal.addEventSource(buildEventsCallback());
   }
   // Refresh mobile list if active
   if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
