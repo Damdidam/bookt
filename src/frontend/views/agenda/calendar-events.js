@@ -35,9 +35,12 @@ function fcShowTooltip(event, x, y) {
   const end = event.end;
   if (!start) return;
 
-  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? ' \u2013 ' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
-  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });
-  const dur = end ? Math.round((end - start) / 60000) : p.duration_min || 0;
+  // For split events, show original booking time range
+  const origStart = p._originalStart ? new Date(p._originalStart) : start;
+  const origEnd = p._originalEnd ? new Date(p._originalEnd) : end;
+  const timeStr = origStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (origEnd ? ' \u2013 ' + origEnd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
+  const dateStr = origStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+  const dur = origEnd ? Math.round((origEnd - origStart) / 60000) : p.duration_min || 0;
 
   let html = `<div class="tt-name">${esc(p.client_name || event.title || '\u2014')}</div>`;
   html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>${esc(p.variant_name ? (p.service_name||'RDV libre')+' \u2014 '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'))}</div>`;
@@ -46,6 +49,12 @@ function fcShowTooltip(event, x, y) {
   if (p.practitioner_name) html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>${esc(p.practitioner_name)}</div>`;
   if (p.appointment_mode) html += `<div class="tt-row"><span class="tt-icon">${p.appointment_mode === 'visio' ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' : p.appointment_mode === 'phone' ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' : '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>'}</span>${esc(MODE_FR[p.appointment_mode] || p.appointment_mode)}</div>`;
   if (p.client_phone) html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>${esc(p.client_phone)}</div>`;
+  // Processing time info
+  const ptMin = parseInt(p.processing_time) || 0;
+  if (ptMin > 0) {
+    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon">\u23f3</span>Pose : ${ptMin}min (praticien libre)</div>`;
+  }
+
   const st = p.status || 'confirmed';
   html += `<div class="tt-badge ${esc(st)}">${esc(STATUS_FR[st] || st)}</div>`;
 
@@ -145,13 +154,58 @@ function buildEventsCallback() {
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = b.booking_color || b.service_color || b.practitioner_color || DEFAULT_ACCENT;
-          events.push({
-            id: b.id, title: b.client_name || 'Sans nom',
-            start: b.start_at, end: b.end_at,
-            backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
-            editable: !frozen, durationEditable: !frozen,
-            extendedProps: { ...b, _accent: accent }
-          });
+          const pt = parseInt(b.processing_time) || 0;
+          const ps = parseInt(b.processing_start) || 0;
+
+          // Split into 3 events if processing_time > 0
+          if (pt > 0) {
+            const bStart = new Date(b.start_at).getTime();
+            const bEnd = new Date(b.end_at).getTime();
+            const poseStart = bStart + ps * 60000;
+            const poseEnd = poseStart + pt * 60000;
+            const baseProps = { ...b, _accent: accent, _splitBookingId: b.id, _originalStart: b.start_at, _originalEnd: b.end_at };
+
+            // active1: before pose (only if processing_start > 0)
+            if (ps > 0) {
+              events.push({
+                id: b.id + '_a1', title: b.client_name || 'Sans nom',
+                start: b.start_at, end: new Date(poseStart).toISOString(),
+                backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+                editable: false, durationEditable: false,
+                classNames: ['ev-split-active1'],
+                extendedProps: { ...baseProps, _splitPart: 'active1' }
+              });
+            }
+
+            // pose: background event (clicks pass through to grid)
+            events.push({
+              id: b.id + '_pose', title: '',
+              start: new Date(poseStart).toISOString(), end: new Date(poseEnd).toISOString(),
+              display: 'background',
+              classNames: ['ev-pose-bg'],
+              extendedProps: { ...baseProps, _splitPart: 'pose', _isPose: true }
+            });
+
+            // active2: after pose (only if pose doesn't fill to end)
+            if (poseEnd < bEnd) {
+              events.push({
+                id: b.id + '_a2', title: b.client_name || 'Sans nom',
+                start: new Date(poseEnd).toISOString(), end: b.end_at,
+                backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+                editable: false, durationEditable: false,
+                classNames: ['ev-split-active2'],
+                extendedProps: { ...baseProps, _splitPart: 'active2' }
+              });
+            }
+          } else {
+            events.push({
+              id: b.id, title: b.client_name || 'Sans nom',
+              start: b.start_at, end: b.end_at,
+              backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+              editable: !frozen, durationEditable: !frozen,
+              extendedProps: { ...b, _accent: accent }
+            });
+          }
         });
 
         // Grouped events -> single container per group
@@ -238,6 +292,8 @@ function buildEventContent() {
     const p = arg.event.extendedProps;
     // Skip featured slot background events — they are purely visual (gold dashed boxes)
     if (p._isFeaturedSlot) return { html: '' };
+    // Pose background events — rendered by CSS only
+    if (p._isPose) return { html: '' };
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
     const isMonth = arg.view.type === 'dayGridMonth';
@@ -276,7 +332,8 @@ function buildEventContent() {
       (p.status === 'modified_pending' ? '<span class="ev-badge ev-badge-mod"></span>' : '')
     ].filter(Boolean).join('');
     const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span>' : '';
-    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${freeTag}${depBadge}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
+    const poseLabel = p._splitPart === 'active2' ? '<span class="ev-pose-label">suite</span>' : '';
+    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${freeTag}${poseLabel}${depBadge}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
   };
 }
 
@@ -287,6 +344,8 @@ function buildEventClassNames() {
   return function (arg) {
     const p = arg.event.extendedProps;
     const cls = [];
+    // Pose background events — no status class needed
+    if (p._isPose) return cls;
     if (p._isGroup) {
       const members = p._members || [];
       const hasCancel = members.every(m => m.status === 'cancelled');
@@ -311,6 +370,8 @@ function buildEventDidMount() {
 
     // Skip styling for featured background events
     if (p._isFeaturedSlot) return;
+    // Skip pose background events — no handlers, clicks pass through to grid
+    if (p._isPose) return;
 
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
@@ -348,8 +409,8 @@ function buildEventDidMount() {
       info.el.setAttribute('data-category', cat);
     }
 
-    // Resolve booking ID (for groups -> first member)
-    const bookingId = p._isGroup ? p._members?.[0]?.id : info.event.id;
+    // Resolve booking ID (for groups -> first member, for splits -> original booking)
+    const bookingId = p._isGroup ? p._members?.[0]?.id : (p._splitBookingId || info.event.id);
 
     // -- Tooltip (hover desktop only, tap touch) --
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -627,6 +688,8 @@ function buildEventResize() {
 function buildEventOverlap() {
   return function (stillEvent, movingEvent) {
     if (calState.fcAllowOverlap) return true;
+    // Pose background events always allow overlap (practitioner is free during pose)
+    if (stillEvent.extendedProps?._isPose) return true;
     // Group container vs its own members -> always allow
     const sg = stillEvent.extendedProps?._groupId, mg = movingEvent?.extendedProps?._groupId;
     if (sg && mg && sg === mg) return true;
@@ -683,6 +746,10 @@ function buildEventAllow() {
       if (String(ev.extendedProps?.practitioner_id) !== String(myPrac)) continue;
       const st = ev.extendedProps?.status;
       if (st === 'cancelled' || st === 'no_show' || st === 'completed') continue;
+      // Pose events don't block (practitioner is free)
+      if (ev.extendedProps?._isPose) continue;
+      // Split parts of same booking don't count separately
+      if (ev.extendedProps?._splitBookingId && ev.extendedProps._splitBookingId === draggedEvent.extendedProps?._splitBookingId) continue;
       const evEnd = ev.end || ev.start;
       if (ev.start < newEnd && evEnd > newStart) overlapCount++;
     }

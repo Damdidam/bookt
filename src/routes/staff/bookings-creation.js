@@ -235,7 +235,7 @@ router.post('/manual', async (req, res, next) => {
     // Fetch all service durations
     const svcIds = serviceList.map(s => s.service_id);
     const svcResult = await queryWithRLS(bid,
-      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
        FROM services WHERE business_id = $1 AND id = ANY($2)`,
       [bid, svcIds]
     );
@@ -257,13 +257,15 @@ router.post('/manual', async (req, res, next) => {
       if (!vid) continue;
       if (!UUID_RE.test(vid)) return res.status(400).json({ error: 'variant_id invalide' });
       const vr = await queryWithRLS(bid,
-        `SELECT duration_min, price_cents FROM service_variants
+        `SELECT duration_min, price_cents, processing_time, processing_start FROM service_variants
          WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
         [vid, s.service_id, bid]
       );
       if (vr.rows.length === 0) return res.status(404).json({ error: `Variante ${vid} introuvable` });
       s._variant_duration = vr.rows[0].duration_min;
       s._variant_price = vr.rows[0].price_cents;
+      s._variant_processing_time = vr.rows[0].processing_time || 0;
+      s._variant_processing_start = vr.rows[0].processing_start || 0;
     }
 
     // Validate practitioner is assigned to all selected services
@@ -300,7 +302,9 @@ router.post('/manual', async (req, res, next) => {
         service_variant_id: s.variant_id || null,
         start_at: slotStart.toISOString(),
         end_at: slotEnd.toISOString(),
-        group_order: i
+        group_order: i,
+        processing_time: s._variant_processing_time ?? svc.processing_time ?? 0,
+        processing_start: s._variant_processing_start ?? svc.processing_start ?? 0
       };
     });
 
@@ -337,14 +341,15 @@ router.post('/manual', async (req, res, next) => {
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
-            group_id, group_order)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11)
+            group_id, group_order, processing_time, processing_start)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11, $12, $13)
            RETURNING *`,
           [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
            slot.start_at, slot.end_at,
            comment || null,
-           groupId, slot.group_order]
+           groupId, slot.group_order,
+           slot.processing_time || 0, slot.processing_start || 0]
         );
         results.push(result.rows[0]);
 

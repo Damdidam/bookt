@@ -596,6 +596,10 @@ function renderServiceModal(svc,sectorCats,prefill){
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
   m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  const hasPose=svc?(svc.processing_time>0):false;
+  m+=`<div class="field"><label class="svc-switch"><input type="checkbox" id="svc_pose_toggle" ${hasPose?'checked':''} onchange="svcTogglePose()"><span class="svc-switch-track"></span> Temps de pose</label>`;
+  m+=`<div id="svc_pose_fields" class="svc-form-row" style="margin-top:8px;${hasPose?'':'display:none'}"><div class="field"><label>Pose après (min)</label><input type="number" id="svc_pose_start" value="${svc?.processing_start||0}" min="0" placeholder="0"></div><div class="field"><label>Durée de pose (min)</label><input type="number" id="svc_pose_time" value="${svc?.processing_time||0}" min="0" placeholder="0"></div></div>`;
+  m+=`</div>`;
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
@@ -686,6 +690,12 @@ function svcGetPracOrder(){
 
 // ===== SCHEDULE HELPERS =====
 
+function svcTogglePose(){
+  const f=document.getElementById('svc_pose_fields');
+  const cb=document.getElementById('svc_pose_toggle');
+  if(f)f.style.display=cb?.checked?'flex':'none';
+  if(!cb?.checked){const pt=document.getElementById('svc_pose_time');const ps=document.getElementById('svc_pose_start');if(pt)pt.value=0;if(ps)ps.value=0;}
+}
 function svcToggleSched(){
   const ed=document.getElementById('svc_sched_editor');
   const cb=document.getElementById('svc_sched_toggle');
@@ -737,7 +747,7 @@ async function saveService(id){
   const priceVal=document.getElementById('svc_price').value;
   const selectedCat=document.getElementById('svc_cat').value||null;
   const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
-  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder()};
+  const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder(),processing_time:parseInt(document.getElementById('svc_pose_time')?.value)||0,processing_start:parseInt(document.getElementById('svc_pose_start')?.value)||0};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.available_schedule=buildScheduleFromEditor();
@@ -747,7 +757,7 @@ async function saveService(id){
   const dup=allServices.find(s=>s.name.trim().toLowerCase()===dupName&&(s.category||'').toLowerCase()===dupCat&&s.is_active!==false&&s.id!==id);
   if(dup){GendaUI.toast('Une prestation avec ce nom existe déjà dans cette catégorie','error');return;}
   const varRows=document.querySelectorAll('#svc_variants_list .svc-var-row');
-  body.variants=[...varRows].map(row=>({id:row.querySelector('.svc-var-id').value||undefined,name:row.querySelector('.svc-var-name').value.trim(),duration_min:parseInt(row.querySelector('.svc-var-dur').value)||0,price_cents:row.querySelector('.svc-var-price').value?Math.round(parseFloat(row.querySelector('.svc-var-price').value)*100):null,description:row.querySelector('.svc-var-desc')?.value.trim()||null})).filter(v=>v.name&&v.duration_min>0);
+  body.variants=[...varRows].map(row=>({id:row.querySelector('.svc-var-id').value||undefined,name:row.querySelector('.svc-var-name').value.trim(),duration_min:parseInt(row.querySelector('.svc-var-dur').value)||0,price_cents:row.querySelector('.svc-var-price').value?Math.round(parseFloat(row.querySelector('.svc-var-price').value)*100):null,description:row.querySelector('.svc-var-desc')?.value.trim()||null,processing_time:parseInt(row.querySelector('.svc-var-pose-time')?.value)||0,processing_start:parseInt(row.querySelector('.svc-var-pose-start')?.value)||0})).filter(v=>v.name&&v.duration_min>0);
   try{
     const url=id?`/api/services/${id}`:'/api/services';const method=id?'PATCH':'POST';
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
@@ -779,7 +789,11 @@ function svcVarRowHTML(v){
       <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€"></div>
       <button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">${X_SVG}</button>
     </div>
-    <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)">
+    <div class="svc-var-top-row" style="margin-top:4px">
+      <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)" style="flex:1">
+      <div class="svc-var-field"><span class="svc-var-label">Pose après</span><input type="number" class="svc-var-pose-start" value="${v?.processing_start||0}" min="0" placeholder="min"></div>
+      <div class="svc-var-field"><span class="svc-var-label">Durée pose</span><input type="number" class="svc-var-pose-time" value="${v?.processing_time||0}" min="0" placeholder="min"></div>
+    </div>
     <input type="hidden" class="svc-var-id" value="${v?.id||''}">
   </div>`;
 }
@@ -915,6 +929,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };

@@ -103,7 +103,8 @@ router.get('/:slug', async (req, res, next) => {
       // Services
       query(
         `SELECT id, name, category, duration_min, price_cents, price_label,
-                mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online
+                mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online,
+                processing_time, processing_start
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -155,7 +156,8 @@ router.get('/:slug', async (req, res, next) => {
     const varByService = {};
     try {
       const variantsResult = await queryWithRLS(bid,
-        `SELECT id, service_id, name, description, duration_min, price_cents, sort_order
+        `SELECT id, service_id, name, description, duration_min, price_cents, sort_order,
+                processing_time, processing_start
          FROM service_variants
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -636,7 +638,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (isMultiService) {
       // Fetch all services, preserving order
       const multiSvcResult = await query(
-        `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents
+        `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents, processing_time, processing_start
          FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
          ORDER BY array_position($1, id)`,
         [service_ids, businessId]
@@ -655,13 +657,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const vid = variant_ids[i];
           if (vid && UUID_RE.test(vid)) {
             const vr = await queryWithRLS(businessId,
-              `SELECT duration_min, price_cents FROM service_variants
+              `SELECT duration_min, price_cents, processing_time, processing_start FROM service_variants
                WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
               [vid, multiServices[i].id, businessId]
             );
             if (vr.rows.length === 0) return res.status(404).json({ error: `Variante introuvable: ${vid}` });
             multiServices[i].duration_min = vr.rows[0].duration_min;
             if (vr.rows[0].price_cents != null) multiServices[i].price_cents = vr.rows[0].price_cents;
+            multiServices[i]._processing_time = vr.rows[0].processing_time || 0;
+            multiServices[i]._processing_start = vr.rows[0].processing_start || 0;
             resolvedVariantIds.push(vid);
           } else {
             resolvedVariantIds.push(null);
@@ -721,7 +725,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           service_variant_id: resolvedVariantIds[i] || null,
           start_at: slotStart.toISOString(),
           end_at: slotEnd.toISOString(),
-          group_order: i
+          group_order: i,
+          processing_time: svc._processing_time || svc.processing_time || 0,
+          processing_start: svc._processing_start || svc.processing_start || 0
         };
       });
 
@@ -842,13 +848,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
-              group_id, group_order, confirmation_expires_at)
+              group_id, group_order, confirmation_expires_at, processing_time, processing_start)
              VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,
-              ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
+              ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
+              $13,$14)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
             [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
-             client_comment||null, groupId, slot.group_order]
+             client_comment||null, groupId, slot.group_order,
+             slot.processing_time || 0, slot.processing_start || 0]
           );
           bookings.push(bk.rows[0]);
         }
@@ -1010,7 +1018,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     if (effectiveServiceId) {
       const svcResult = await query(
-        `SELECT duration_min, buffer_before_min, buffer_after_min
+        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
          FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
         [effectiveServiceId, businessId]
       );
@@ -1018,14 +1026,18 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const service = svcResult.rows[0];
 
       // Override duration from variant if provided
+      let resolvedProcessingTime = service.processing_time || 0;
+      let resolvedProcessingStart = service.processing_start || 0;
       if (resolvedVariantId) {
         const vr = await queryWithRLS(businessId,
-          `SELECT duration_min FROM service_variants
+          `SELECT duration_min, processing_time, processing_start FROM service_variants
            WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
           [resolvedVariantId, effectiveServiceId, businessId]
         );
         if (vr.rows.length === 0) return res.status(404).json({ error: 'Variante introuvable' });
         service.duration_min = vr.rows[0].duration_min;
+        resolvedProcessingTime = vr.rows[0].processing_time || 0;
+        resolvedProcessingStart = vr.rows[0].processing_start || 0;
       }
 
       // PUB-V12-005: Buffer times are intentionally included in end_at for calendar blocking purposes
@@ -1184,12 +1196,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Create booking
       const booking = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
-          channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at)
+          channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
+          processing_time, processing_start)
          VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,
-          ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
+          ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
+          $11,$12)
          RETURNING id, public_token, start_at, end_at, status`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
-         appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null]
+         appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
+         resolvedProcessingTime, resolvedProcessingStart]
       );
 
       // Queue notifications

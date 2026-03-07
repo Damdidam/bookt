@@ -112,6 +112,11 @@
 .ev-pending_deposit{border-left-color:#F59E0B!important;background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}
 /* Deposit badge on event */
 .ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
+/* Processing time (pose) — split events */
+.fc .fc-bg-event.ev-pose-bg{background:repeating-linear-gradient(135deg,rgba(0,0,0,.02),rgba(0,0,0,.02) 4px,rgba(0,0,0,.06) 4px,rgba(0,0,0,.06) 8px)!important;border:1px dashed rgba(0,0,0,.12)!important;border-radius:0;opacity:1!important}
+.fc .fc-event.ev-split-active1{border-bottom-left-radius:0!important;border-bottom-right-radius:0!important}
+.fc .fc-event.ev-split-active2{border-top-left-radius:0!important;border-top-right-radius:0!important}
+.ev-pose-label{font-size:.58rem;opacity:.5;margin-left:3px}
 /* Multi-service quick create */
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
