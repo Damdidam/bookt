@@ -323,6 +323,16 @@ function buildEventDidMount() {
       fcHideTooltip();
       fcOpenDetail(bookingId);
     });
+    // Desktop: dblclick on resizer too (for short 15-min events where resizer covers most of the area)
+    const resizerForDbl = info.el.querySelector('.fc-event-resizer-end');
+    if (resizerForDbl) {
+      resizerForDbl.addEventListener('dblclick', function (e) {
+        if (fsIsActive()) return;
+        e.stopPropagation();
+        fcHideTooltip();
+        fcOpenDetail(bookingId);
+      });
+    }
 
     // Touch: single tap -> tooltip (brief), double tap -> detail
     let lastTap = 0;
@@ -332,17 +342,20 @@ function buildEventDidMount() {
         fsHandleDateClick(info.event.startStr);
         return;
       }
-      // Skip if touch was on resize handle or during drag/resize
-      if (e.target.closest('.fc-event-resizer')) return;
+      // Skip during active drag/resize
       if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
+      const onResizer = !!e.target.closest('.fc-event-resizer');
       const now = Date.now();
       if (now - lastTap < 600) {
+        // Double tap — always open detail (even on resizer for short events)
         e.preventDefault();
         fcHideTooltip();
         fcOpenDetail(bookingId);
         lastTap = 0;
       } else {
         lastTap = now;
+        // Single tap on resizer → let the custom resize handler deal with it
+        if (onResizer) return;
         // Single tap -> show tooltip briefly, hide on next touch anywhere
         const touch = e.changedTouches?.[0];
         if (touch) {
