@@ -16,6 +16,7 @@ import { fcLoadMobileList } from './calendar-mobile.js';
 import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
 import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
+import { buildEventContent } from './calendar-events.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
 import './color-swatches.js';
@@ -96,7 +97,7 @@ function fcFilterCategory(cat, el) {
     const allBtn = document.querySelector('.cat-chip[data-cat="__all__"]');
     if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
   }
-  // Show/hide events + update group styling directly (eventContent doesn't re-run on refetch for same data)
+  // Show/hide events
   if (calState.fcCal) {
     const hf = calState.fcHiddenCategories.size > 0;
     calState.fcCal.getEvents().forEach(ev => {
@@ -110,30 +111,18 @@ function fcFilterCategory(cat, el) {
       }
       ev.setProp('display', vis ? 'auto' : 'none');
     });
-    // DOM: update group event inner styling (bold matching / dim non-matching)
-    const _e = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Force eventContent to re-render all events (new function ref = FC detects change)
+    calState.fcCal.setOption('eventContent', buildEventContent());
+    // Update group borders (eventDidMount doesn't re-run, so patch DOM)
     document.querySelectorAll('[data-eid^="group_"]').forEach(g => {
-      if (!g.offsetParent) return; // skip hidden
+      if (!g.offsetParent) return;
       const ev = calState.fcCal.getEventById(g.getAttribute('data-eid'));
       if (!ev || !ev.extendedProps._isGroup) return;
       const mm = ev.extendedProps._members || [];
       const ac = ev.extendedProps._accent || '#0D7377';
       const sa = /^#[0-9a-fA-F]{3,8}$/.test(ac) ? ac : '#0D7377';
       const partial = hf && mm.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
-      // Border
       g.style.borderLeftColor = partial ? sa + '66' : sa;
-      // Client name
-      const cEl = g.querySelector('.ev-client');
-      if (cEl) cEl.style.opacity = partial ? '.4' : '';
-      // Service labels: bold = match, dim = no match
-      const sEl = g.querySelector('.ev-service');
-      if (sEl) {
-        sEl.innerHTML = mm.map(m => {
-          const l = _e(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
-          if (!hf) return l;
-          return !calState.fcHiddenCategories.has(m.service_category || '') ? '<strong>'+l+'</strong>' : '<span style="opacity:.3">'+l+'</span>';
-        }).join(' \u00b7 ');
-      }
     });
   }
   // Refresh mobile list if active
