@@ -585,7 +585,7 @@ async function fcReorderGroup(sibId, direction) {
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     gToast('Ordre mis \u00e0 jour', 'success');
     // Re-open detail to refresh + update calendar
-    const bookingId = calState.fcEditBookingId;
+    const bookingId = calState.fcCurrentEventId;
     if (bookingId) fcOpenDetail(bookingId);
     if (calState.fcCal) calState.fcCal.refetchEvents();
   } catch (e) {
