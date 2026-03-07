@@ -390,14 +390,18 @@ function buildEventDidMount() {
           const origEnd = new Date(info.event.end);
           const origH = info.el.offsetHeight;
           let lastSlots = 0;
-
-          info.el.classList.add('fc-event-dragging');
-          info.el.style.setProperty('bottom', 'auto', 'important');
-          info.el.style.zIndex = '999';
+          let resizeStarted = false;
           let cleanupTimer;
 
           function onMove(ev) {
             ev.preventDefault();
+            // Only mark as dragging once the user actually moves (allows double-tap on short events)
+            if (!resizeStarted) {
+              resizeStarted = true;
+              info.el.classList.add('fc-event-dragging');
+              info.el.style.setProperty('bottom', 'auto', 'important');
+              info.el.style.zIndex = '999';
+            }
             const dy = ev.touches[0].clientY - startY;
             const ds = Math.round(dy / slotH);
             lastSlots = ds;
@@ -409,10 +413,12 @@ function buildEventDidMount() {
             clearTimeout(cleanupTimer);
             document.removeEventListener('touchmove', onMove);
             document.removeEventListener('touchend', onEnd);
-            info.el.classList.remove('fc-event-dragging');
-            info.el.style.removeProperty('bottom');
-            info.el.style.removeProperty('height');
-            info.el.style.removeProperty('z-index');
+            if (resizeStarted) {
+              info.el.classList.remove('fc-event-dragging');
+              info.el.style.removeProperty('bottom');
+              info.el.style.removeProperty('height');
+              info.el.style.removeProperty('z-index');
+            }
             if (lastSlots === 0) return;
 
             const newEnd = new Date(origEnd.getTime() + lastSlots * slotMins * 60000);
@@ -440,7 +446,7 @@ function buildEventDidMount() {
           document.addEventListener('touchmove', onMove, { passive: false });
           document.addEventListener('touchend', onEnd);
           // Safety timeout: clean up listeners if touchend never fires
-          cleanupTimer = setTimeout(() => { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); info.el.classList.remove('fc-event-dragging'); }, 10000);
+          cleanupTimer = setTimeout(() => { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); if (resizeStarted) info.el.classList.remove('fc-event-dragging'); }, 10000);
         }, { passive: false });
       }
     }
