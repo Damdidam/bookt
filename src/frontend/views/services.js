@@ -372,7 +372,7 @@ let _tDrag=null; // touch drag state
 
 function onTouchStart(e){
   const handle=e.currentTarget;
-  const item=handle.closest('.svc-category')||handle.closest('.svc-row');
+  const item=handle.closest('.svc-row')||handle.closest('.svc-category');
   if(!item) return;
   const type=item.classList.contains('svc-category')?'cat':'svc';
   const startY=e.touches[0].clientY;
