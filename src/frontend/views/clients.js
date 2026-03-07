@@ -9,6 +9,7 @@ import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhite
 let clientSearch='';
 let clientFilter='';
 let clientSearchTimer=null;
+let clientSearchSeq=0;
 
 async function loadClients(){
   const c=document.getElementById('contentArea');
@@ -19,6 +20,7 @@ async function loadClients(){
     if(clientFilter)params.set('filter',clientFilter);
     const q=params.toString()?'?'+params.toString():'';
     const r=await fetch(`/api/clients${q}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.error||'Erreur chargement clients'); }
     const d=await r.json();
     const clients=d.clients||[];
     const stats=d.stats||{};
@@ -35,7 +37,7 @@ async function loadClients(){
         const tagColors={'bloqué':'#dc2626','récidiviste':'#B45309','à surveiller':'#ca8a04','fidèle':'#15803d','actif':'#0D7377','nouveau':'#888'};
         const tagColor=tagColors[cl.tag]||'#888';
         const nsDisplay=cl.no_show_count>0?`<span style="color:#B45309;font-weight:600">${cl.no_show_count}</span>`:'0';
-        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${cl.full_name}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</td><td>${cl.phone||'—'}</td><td style="font-size:.78rem">${cl.email||'—'}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${cl.tag}</span></td></tr>`;
+        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</td><td>${esc(cl.phone||'—')}</td><td style="font-size:.78rem">${esc(cl.email||'—')}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${esc(cl.tag)}</span></td></tr>`;
       });
       h+=`</tbody></table></div>`;
     }
@@ -51,12 +53,14 @@ function clientLiveSearch(q) {
   if (!dd) return;
   if (q.length < 3) { dd.style.display = 'none'; return; }
   clientSearchTimer = setTimeout(async () => {
+    const seq = ++clientSearchSeq;
     try {
       const r = await fetch(`/api/clients?search=${encodeURIComponent(q)}&limit=8`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      if (seq !== clientSearchSeq) return; // stale response, ignore
       const d = await r.json();
       const cls = d.clients || [];
       if (cls.length === 0) {
-        dd.innerHTML = `<div style="padding:12px;text-align:center;font-size:.8rem;color:var(--text-4)">Aucun résultat pour "${q}"</div>`;
+        dd.innerHTML = `<div style="padding:12px;text-align:center;font-size:.8rem;color:var(--text-4)">Aucun résultat pour "${esc(q)}"</div>`;
         dd.style.display = 'block'; return;
       }
       dd.innerHTML = cls.map(c => {
@@ -69,7 +73,7 @@ function clientLiveSearch(q) {
         const meta = [c.phone, c.email].filter(Boolean).join(' · ');
         const tagColors = { 'récidiviste': '#B45309', 'à surveiller': '#ca8a04', 'fidèle': '#15803d', 'actif': '#0D7377', 'nouveau': '#888', 'bloqué': '#dc2626' };
         const tc = tagColors[c.tag] || '#888';
-        return `<div class="ac-item" onmousedown="event.preventDefault();openClientDetail('${c.id}');document.getElementById('clientAcDrop').style.display='none'"><div class="ac-name">${c.full_name}${ns}${bl}</div><div class="ac-meta">${meta}${meta ? ' · ' : ''}${c.total_bookings} RDV <span style="color:${tc};font-weight:600">${c.tag}</span></div></div>`;
+        return `<div class="ac-item" onmousedown="event.preventDefault();openClientDetail('${c.id}');document.getElementById('clientAcDrop').style.display='none'"><div class="ac-name">${esc(c.full_name)}${ns}${bl}</div><div class="ac-meta">${esc(meta)}${meta ? ' · ' : ''}${c.total_bookings} RDV <span style="color:${tc};font-weight:600">${esc(c.tag)}</span></div></div>`;
       }).join('');
       dd.style.display = 'block';
     } catch (e) { dd.style.display = 'none'; }
@@ -79,18 +83,19 @@ function clientLiveSearch(q) {
 async function openClientDetail(id){
   try{
     const r=await fetch(`/api/clients/${id}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.error||'Erreur chargement client'); }
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
     const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${cl.full_name}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="document.getElementById('clientModal').remove()">${X_SVG}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="document.getElementById('clientModal').remove()">${X_SVG}</button></div><div class="m-body">`;
     if(cl.is_blocked){
       m+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#dc2626"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:#666">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="unblockClient('${cl.id}')">Débloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){
       m+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#B45309"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${cl.no_show_count} no-show${cl.no_show_count>1?'s':''}</strong>${cl.last_no_show_at?` <span style="color:#888">· dernier le ${new Date(cl.last_no_show_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')">Bloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset</button></div>`;
     }
-    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Nom</label><input class="m-input" id="cl_name" value="${cl.full_name||''}"></div><div><label class="m-field-label">Téléphone</label><input class="m-input" id="cl_phone" value="${cl.phone||''}"></div></div>`;
-    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Email</label><input class="m-input" id="cl_email" value="${cl.email||''}"></div><div><label class="m-field-label">N° BCE</label><input class="m-input" id="cl_bce" value="${cl.bce_number||''}"></div></div>`;
-    m+=`<div><label class="m-field-label">Notes</label><textarea class="m-input" id="cl_notes">${cl.notes||''}</textarea></div>`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Nom</label><input class="m-input" id="cl_name" value="${esc(cl.full_name||'')}"></div><div><label class="m-field-label">Téléphone</label><input class="m-input" id="cl_phone" value="${esc(cl.phone||'')}"></div></div>`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Email</label><input class="m-input" id="cl_email" value="${esc(cl.email||'')}"></div><div><label class="m-field-label">N° BCE</label><input class="m-input" id="cl_bce" value="${esc(cl.bce_number||'')}"></div></div>`;
+    m+=`<div><label class="m-field-label">Notes</label><textarea class="m-input" id="cl_notes">${esc(cl.notes||'')}</textarea></div>`;
 
     // ── Notes internes (from bookings) ──
     const intNotes=bks.filter(b=>b.internal_note&&b.internal_note.trim());

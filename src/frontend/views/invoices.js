@@ -104,7 +104,7 @@ async function loadInvoices(){
 // Invoice creation modal
 async function openInvoiceModal(type='invoice'){
   let clients=[];
-  try{const r=await api.get('/api/clients');clients=r.clients||r||[];}catch(e){}
+  try{const r=await api.get('/api/clients');clients=r.clients||r||[];}catch(e){console.warn('Impossible de charger les clients pour la facture:',e.message);}
 
   const isQuote=type==='quote';
   const title=isQuote?'Nouveau devis':'Nouvelle facture';

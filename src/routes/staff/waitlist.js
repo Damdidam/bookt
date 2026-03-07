@@ -2,6 +2,8 @@ const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.use(requireAuth);
 router.use(resolvePractitionerScope);
 
@@ -13,6 +15,10 @@ router.get('/', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { practitioner_id, service_id, status } = req.query;
+
+    // Validate UUID query params
+    if (practitioner_id && !UUID_RE.test(practitioner_id)) return res.status(400).json({ error: 'practitioner_id invalide' });
+    if (service_id && !UUID_RE.test(service_id)) return res.status(400).json({ error: 'service_id invalide' });
 
     let where = 'w.business_id = $1';
     const params = [bid];
@@ -148,6 +154,7 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { staff_notes, status } = req.body;
 
     const sets = ['updated_at = NOW()'];
@@ -191,6 +198,7 @@ router.patch('/:id', async (req, res, next) => {
 // ============================================================
 router.delete('/:id', async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     // V13-008: Add practitioner scope check
     let sql = `UPDATE waitlist_entries SET status = 'cancelled', updated_at = NOW()
        WHERE id = $1 AND business_id = $2`;
@@ -212,6 +220,7 @@ router.post('/:id/offer', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
     const { start_at, end_at } = req.body;
 
     if (!start_at || !end_at) {
@@ -266,6 +275,7 @@ router.post('/:id/offer', async (req, res, next) => {
 // ============================================================
 router.post('/:id/contact', async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { outcome } = req.body; // 'booked' or 'declined'
     // V13-010: Add practitioner scope check
     let contactSql = `UPDATE waitlist_entries SET

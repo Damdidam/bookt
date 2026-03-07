@@ -407,6 +407,8 @@ let selectedServices=[];
 let selectedVariants={};
 let multiServiceMode=false;
 
+function escH(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
 function svcDisplayPrice(s){
   if(s.variants&&s.variants.length>0){
     var prices=s.variants.filter(function(v){return v.price_cents!=null;}).map(function(v){return v.price_cents;});
@@ -426,13 +428,13 @@ function svcDurationLabel(s){
 function showVariantModal(service,callback){
   var ex=document.getElementById('variantModal');if(ex)ex.remove();
   var h='<div class="var-overlay" id="variantModal" onclick="if(event.target===this)this.remove()">';
-  h+='<div class="var-modal"><div class="var-modal-h"><h3>'+service.name+'</h3><button class="var-modal-close" onclick="document.getElementById(\'variantModal\').remove()">&times;</button></div>';
-  if(service.description)h+='<p class="var-modal-desc">'+service.description+'</p>';
+  h+='<div class="var-modal"><div class="var-modal-h"><h3>'+escH(service.name)+'</h3><button class="var-modal-close" onclick="document.getElementById(\'variantModal\').remove()">&times;</button></div>';
+  if(service.description)h+='<p class="var-modal-desc">'+escH(service.description)+'</p>';
   h+='<div class="var-list">';
   service.variants.forEach(function(v,i){
     var price=v.price_cents?(v.price_cents/100).toFixed(0)+' \u20ac':'';
     h+='<div class="var-card" data-idx="'+i+'">'
-      +'<div class="var-info"><div class="var-name">'+v.name+'</div><div class="var-meta">'+v.duration_min+' min</div></div>'
+      +'<div class="var-info"><div class="var-name">'+escH(v.name)+'</div><div class="var-meta">'+v.duration_min+' min</div></div>'
       +'<div class="var-price">'+price+'</div>'
       +'<button class="var-sel-btn">S\u00e9lectionner</button></div>';
   });
@@ -483,7 +485,7 @@ async function loadSiteData(){
       }
     }
     initPage();
-  }catch(err){document.getElementById('loadingState').innerHTML='<p style="color:var(--red)">'+err.message+'</p>';}
+  }catch(err){document.getElementById('loadingState').innerHTML='<p style="color:var(--red)">'+escH(err.message)+'</p>';}
 }
 function getMonday(dateStr){
   var dt=new Date(dateStr+'T12:00:00');
@@ -497,7 +499,7 @@ function initPage(){
   const b=siteData.business;
   const init=b.name.split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
   const hLogo=document.getElementById('hLogo');
-  if(b.logo_url)hLogo.innerHTML='<img src="'+b.logo_url+'" alt="">';else hLogo.textContent=init;
+  if(b.logo_url){var img=document.createElement('img');img.src=b.logo_url;img.alt='';hLogo.innerHTML='';hLogo.appendChild(img);}else hLogo.textContent=init;
   document.getElementById('hName').textContent=b.name;
   document.getElementById('hTagline').textContent=b.tagline||'';
   document.getElementById('hBack').href='/'+slug;
@@ -548,7 +550,7 @@ function initPage(){
     let h='<div class="sk-svc-row'+(noBook?' no-book':'')+'" data-id="'+s.id+'">';
     h+='<div class="sk-svc-head">';
     h+='<div class="sk-svc-info">';
-    h+='<div class="sk-svc-name">'+s.name+'</div>';
+    h+='<div class="sk-svc-name">'+escH(s.name)+'</div>';
     if(hasVars){
       const prices=s.variants.filter(v=>v.price_cents!=null).map(v=>v.price_cents);
       const durs=s.variants.map(v=>v.duration_min);
@@ -562,14 +564,14 @@ function initPage(){
       h+='<div class="sk-svc-price">'+svcDisplayPrice(s)+'</div>';
       h+='<div class="sk-svc-dur">'+svcDurationLabel(s)+'</div>';
     }
-    if(s.description)h+='<div class="sk-svc-desc">'+s.description+'</div>';
+    if(s.description)h+='<div class="sk-svc-desc">'+escH(s.description)+'</div>';
     h+='</div>';
     if(!noBook) h+='<button class="sk-svc-btn" data-id="'+s.id+'">S\u00e9lectionner</button>';
     h+='</div>';
     if(noBook){
       const phone=siteData.business.phone||'';
       h+='<div class="sk-no-book-msg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
-        +'Non r\u00e9servable en ligne.'+(phone?' Contactez-nous au <a href="tel:'+phone+'">'+phone+'</a>':' Veuillez nous contacter par t\u00e9l\u00e9phone.')+'</div>';
+        +'Non r\u00e9servable en ligne.'+(phone?' Contactez-nous au <a href="tel:'+escH(phone)+'">'+escH(phone)+'</a>':' Veuillez nous contacter par t\u00e9l\u00e9phone.')+'</div>';
     }
     h+='</div>';
     return h;
@@ -893,9 +895,9 @@ function updateCartBar(){
   const chipsEl=document.getElementById('cartChips');
   chipsEl.innerHTML=selectedServices.map(function(svc){
     const v=selectedVariants[svc.id];
-    const varLabel=v?(' · '+v.name):'';
+    const varLabel=v?(' · '+escH(v.name)):'';
     return '<span class="cart-chip">'
-      +'<span class="cart-chip-name">'+svc.name+'</span>'
+      +'<span class="cart-chip-name">'+escH(svc.name)+'</span>'
       +(varLabel?'<span class="cart-chip-var">'+varLabel+'</span>':'')
       +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartService(\''+svc.id+'\')" title="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
       +'</span>';
@@ -964,9 +966,9 @@ function buildPractitioners(){
 
   html+=displayPracs.map(p=>{
     const pi=p.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+p.photo_url+'"></div>'
-      :'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'">'+pi+'</div>';
-    return '<div class="prac-card" data-id="'+p.id+'">'+av+'<div class="prac-info"><h4>'+p.display_name+'</h4><p>'+(p.title||'')+(p.years_experience?' · '+p.years_experience+' ans':'')+'</p></div></div>';
+    const av=p.photo_url?'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'"><img src="'+escH(p.photo_url)+'"></div>'
+      :'<div class="prac-avatar" style="background:'+(p.color||'var(--primary)')+'">'+escH(pi)+'</div>';
+    return '<div class="prac-card" data-id="'+p.id+'">'+av+'<div class="prac-info"><h4>'+escH(p.display_name)+'</h4><p>'+escH(p.title||'')+(p.years_experience?' · '+p.years_experience+' ans':'')+'</p></div></div>';
   }).join('');
 
   list.innerHTML=html;
@@ -1313,7 +1315,9 @@ function buildSummary(){
 }
 
 // ──────── SUBMIT ────────
+var _submitting=false;
 async function submitBooking(){
+  if(_submitting)return;
   hideError();
   const okName=validateNameField();
   const okPhone=validatePhoneField();
@@ -1322,6 +1326,7 @@ async function submitBooking(){
     showError('Veuillez corriger les champs en rouge.');
     return;
   }
+  _submitting=true;
 
   const name=document.getElementById('cName').value.trim();
   const phone=getFullPhone(document.getElementById('cPhone').value);
@@ -1367,7 +1372,7 @@ async function submitBooking(){
     if(multiServiceMode&&selectedServices.length>1){
       selectedServices.forEach(function(svc){
         var cv=selectedVariants[svc.id];
-        var cn=cv?svc.name+' \u2014 '+cv.name:svc.name;
+        var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
         var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
@@ -1375,15 +1380,15 @@ async function submitBooking(){
       });
     }else if(selectedService){
       var cv2=selectedVariants[selectedService.id];
-      var confirmName=cv2?selectedService.name+' \u2014 '+cv2.name:selectedService.name;
+      var confirmName=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
       confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+confirmName+'</span></div>';
     }
     var confPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
-    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+confPracName+'</span></div>'
-      +'<div class="row"><span class="l">Date</span><span class="v">'+dateStr+'</span></div>'
-      +'<div class="row"><span class="l">Heure</span><span class="v">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
-    if(selectedService)confirmHtml+='<div class="row"><span class="l">Mode</span><span class="v">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
-    confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+email+'</span></div>'
+    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+escH(confPracName)+'</span></div>'
+      +'<div class="row"><span class="l">Date</span><span class="v">'+escH(dateStr)+'</span></div>'
+      +'<div class="row"><span class="l">Heure</span><span class="v">'+(selectedSlot?selectedSlot.start_time+' \u2013 '+selectedSlot.end_time:'')+'</span></div>';
+    if(selectedService)confirmHtml+='<div class="row"><span class="l">Mode</span><span class="v">'+escH(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
+    confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+escH(email)+'</span></div>'
       +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
     document.getElementById('confirmDetails').innerHTML=confirmHtml;
 
@@ -1392,6 +1397,7 @@ async function submitBooking(){
   }catch(err){
     showError(err.message);
     btn.disabled=false;btn.textContent='Confirmer le rendez-vous →';
+    _submitting=false;
   }
 }
 
@@ -1405,7 +1411,7 @@ function renderWlCTA(){
 }
 function wlShowForm(){
   const area=document.getElementById('wlArea');
-  area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+(selectedPractitioner?.display_name||'')+'</strong></p>'
+  area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+escH(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+escH(selectedPractitioner?.display_name||'')+'</strong></p>'
     +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>'
     +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>'
     +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><span class="phone-prefix"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg> +32</span><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="12"></div></div>'

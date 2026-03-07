@@ -6,6 +6,8 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // List gallery images
 router.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -44,6 +46,7 @@ router.post('/', requireAuth, requireRole('owner','manager'), async (req, res, n
 // Update gallery image
 router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     const { title, caption, image_url, sort_order, is_active } = req.body;
     const result = await queryWithRLS(req.businessId,
       `UPDATE gallery_images
@@ -63,6 +66,7 @@ router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res,
 // Delete gallery image
 router.delete('/:id', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
     await queryWithRLS(req.businessId,
       `DELETE FROM gallery_images WHERE id = $1 AND business_id = $2`,
       [req.params.id, req.businessId]
@@ -79,8 +83,8 @@ router.post('/reorder', requireAuth, requireRole('owner','manager'), async (req,
 
     // Validate each item has a valid id and numeric sort_order
     for (const item of order) {
-      if (!item.id || typeof item.sort_order !== 'number' || !Number.isInteger(item.sort_order)) {
-        return res.status(400).json({ error: 'Each item must have a valid id and integer sort_order' });
+      if (!item.id || !UUID_RE.test(item.id) || typeof item.sort_order !== 'number' || !Number.isInteger(item.sort_order)) {
+        return res.status(400).json({ error: 'Each item must have a valid UUID id and integer sort_order' });
       }
     }
 
