@@ -591,15 +591,15 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`</div>`;
   m+=`<button type="button" class="svc-var-add" onclick="svcAddVariant()">${PLUS_SVG} Ajouter une variante</button>`;
   m+=`</div>`;
+  const hasPose=svc?((svc.processing_time>0)||existingVars.some(v=>v.processing_time>0)):false;
+  m+=`<div class="field" style="margin-top:14px"><label class="svc-switch"><input type="checkbox" id="svc_pose_toggle" ${hasPose?'checked':''} onchange="svcTogglePose()"><span class="svc-switch-track"></span> Temps de pose</label>`;
+  m+=`<div id="svc_pose_fields" class="svc-form-row" style="margin-top:8px;display:none"><div class="field"><label>Pose après (min)</label><input type="number" id="svc_pose_start" value="${svc?.processing_start||0}" min="0" placeholder="0"></div><div class="field"><label>Durée de pose (min)</label><input type="number" id="svc_pose_time" value="${svc?.processing_time||0}" min="0" placeholder="0"></div></div>`;
+  m+=`</div>`;
   m+=`</div>`;
 
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
   m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
-  const hasPose=svc?(svc.processing_time>0):false;
-  m+=`<div class="field"><label class="svc-switch"><input type="checkbox" id="svc_pose_toggle" ${hasPose?'checked':''} onchange="svcTogglePose()"><span class="svc-switch-track"></span> Temps de pose</label>`;
-  m+=`<div id="svc_pose_fields" class="svc-form-row" style="margin-top:8px;${hasPose?'':'display:none'}"><div class="field"><label>Pose après (min)</label><input type="number" id="svc_pose_start" value="${svc?.processing_start||0}" min="0" placeholder="0"></div><div class="field"><label>Durée de pose (min)</label><input type="number" id="svc_pose_time" value="${svc?.processing_time||0}" min="0" placeholder="0"></div></div>`;
-  m+=`</div>`;
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
@@ -692,12 +692,19 @@ function svcGetPracOrder(){
 // ===== SCHEDULE HELPERS =====
 
 function svcTogglePose(){
-  const f=document.getElementById('svc_pose_fields');
   const cb=document.getElementById('svc_pose_toggle');
   const on=cb?.checked;
-  if(f)f.style.display=on?'flex':'none';
-  if(!on){const pt=document.getElementById('svc_pose_time');const ps=document.getElementById('svc_pose_start');if(pt)pt.value=0;if(ps)ps.value=0;}
-  document.querySelectorAll('.svc-var-pose-row').forEach(r=>r.style.display=on?'flex':'none');
+  const hasVars=document.querySelectorAll('#svc_variants_list .svc-var-row').length>0;
+  const f=document.getElementById('svc_pose_fields');
+  // ON + no variants → show service-level fields; ON + variants → show variant-level fields
+  if(f)f.style.display=(on&&!hasVars)?'flex':'none';
+  document.querySelectorAll('.svc-var-pose-row').forEach(r=>r.style.display=(on&&hasVars)?'flex':'none');
+  // Reset values when turning off
+  if(!on){
+    const pt=document.getElementById('svc_pose_time');const ps=document.getElementById('svc_pose_start');if(pt)pt.value=0;if(ps)ps.value=0;
+    document.querySelectorAll('.svc-var-pose-start').forEach(i=>i.value=0);
+    document.querySelectorAll('.svc-var-pose-time').forEach(i=>i.value=0);
+  }
 }
 function svcToggleSched(){
   const ed=document.getElementById('svc_sched_editor');
@@ -801,7 +808,7 @@ function svcVarRowHTML(v){
   </div>`;
 }
 function svcAddVariant(){document.getElementById('svc_variants_list').insertAdjacentHTML('beforeend',svcVarRowHTML(null));svcUpdatePricingVis();svcTogglePose();}
-function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();svcUpdatePricingVis();}
+function svcRemoveVariant(btn){btn.closest('.svc-var-row').remove();svcUpdatePricingVis();svcTogglePose();}
 function svcUpdatePricingVis(){
   const n=document.querySelectorAll('#svc_variants_list .svc-var-row').length;
   const p=document.getElementById('svc_pricing_main');
