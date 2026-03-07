@@ -594,7 +594,7 @@ function initGroupDnD(container) {
 
   const move = e => {
     if (!active) {
-      if (timer && Math.abs(getY(e) - startY) > 8) { clearTimeout(timer); timer = null; }
+      if (timer && Math.abs(getY(e) - startY) > 15) { clearTimeout(timer); timer = null; }
       return;
     }
     e.preventDefault();
