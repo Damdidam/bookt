@@ -14,7 +14,10 @@ import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 
+let _openingDetail = false;
 async function fcOpenDetail(bookingId) {
+  if (_openingDetail) return; // Prevent concurrent opens (e.g. double-click firing twice)
+  _openingDetail = true;
   calState.fcCurrentEventId = bookingId;
   const modal = document.getElementById('calDetailModal');
 
@@ -314,6 +317,7 @@ async function fcOpenDetail(bookingId) {
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'), 'rdv');
     modal.classList.add('open');
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { _openingDetail = false; }
 }
 
 async function closeCalModal(id) {
