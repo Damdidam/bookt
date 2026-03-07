@@ -203,6 +203,8 @@
 .svc-var-add{display:flex;align-items:center;gap:5px;background:none;border:1.5px dashed var(--border);border-radius:10px;padding:8px 14px;color:var(--primary);font-size:.78rem;font-weight:600;cursor:pointer;transition:.15s;width:100%;justify-content:center;margin-top:4px}
 .svc-var-add:hover{border-color:var(--primary);background:rgba(13,115,119,.03)}
 .svc-var-add svg{width:14px;height:14px}
+/* Pose hint (decomposition label) */
+.svc-pose-hint{font-size:.72rem;color:var(--text-4);margin-top:4px;padding:4px 8px;background:var(--bg-2,#f8f9fa);border-radius:6px;min-height:0}
 /* Inline form row in service modal */
 .svc-form-row{display:flex;gap:12px;align-items:flex-end}
 .svc-form-row .field{flex:1;margin-bottom:0}

@@ -583,7 +583,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
   m+=`<div id="svc_pricing_main"${hasVars?' style="display:none"':''}>`;
-  m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5" oninput="svcPoseSync()"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
   m+=`</div>`;
   m+=`<div style="margin-top:${hasVars?'0':'14'}px"><label style="display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:8px">Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label>`;
   m+=`<div id="svc_variants_list">`;
@@ -593,7 +593,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`</div>`;
   const hasPose=svc?((svc.processing_time>0)||existingVars.some(v=>v.processing_time>0)):false;
   m+=`<div class="field" style="margin-top:14px"><label class="svc-switch"><input type="checkbox" id="svc_pose_toggle" ${hasPose?'checked':''} onchange="svcTogglePose()"><span class="svc-switch-track"></span> Temps de pose</label>`;
-  m+=`<div id="svc_pose_fields" class="svc-form-row" style="margin-top:8px;display:none"><div class="field"><label>Pose après (min)</label><input type="number" id="svc_pose_start" value="${svc?.processing_start||0}" min="0" placeholder="0"></div><div class="field"><label>Durée de pose (min)</label><input type="number" id="svc_pose_time" value="${svc?.processing_time||0}" min="0" placeholder="0"></div></div>`;
+  m+=`<div id="svc_pose_fields" style="margin-top:8px;display:none"><div class="svc-form-row"><div class="field"><label>Pose après (min)</label><input type="number" id="svc_pose_start" value="${svc?.processing_start||0}" min="0" placeholder="0" oninput="svcPoseSync()"></div><div class="field"><label>Durée de pose (min)</label><input type="number" id="svc_pose_time" value="${svc?.processing_time||0}" min="0" placeholder="0" oninput="svcPoseSync()"></div></div><div id="svc_pose_hint" class="svc-pose-hint"></div></div>`;
   m+=`</div>`;
   m+=`</div>`;
 
@@ -691,6 +691,44 @@ function svcGetPracOrder(){
 
 // ===== SCHEDULE HELPERS =====
 
+function svcPoseSync(el){
+  // If called from a variant row input, sync that variant; otherwise sync service-level
+  const row=el?.closest?.('.svc-var-row');
+  if(row){
+    const dur=parseInt(row.querySelector('.svc-var-dur')?.value)||0;
+    const ps=parseInt(row.querySelector('.svc-var-pose-start')?.value)||0;
+    const pt=parseInt(row.querySelector('.svc-var-pose-time')?.value)||0;
+    const hint=row.querySelector('.svc-var-pose-hint');
+    if(ps+pt>dur&&dur>0){
+      const newDur=ps+pt;
+      row.querySelector('.svc-var-dur').value=newDur;
+      svcPoseHint(hint,ps,pt,newDur);
+    } else if(pt>0&&dur>0){
+      svcPoseHint(hint,ps,pt,dur);
+    } else if(hint){hint.textContent='';}
+  } else {
+    const dur=parseInt(document.getElementById('svc_dur')?.value)||0;
+    const ps=parseInt(document.getElementById('svc_pose_start')?.value)||0;
+    const pt=parseInt(document.getElementById('svc_pose_time')?.value)||0;
+    const hint=document.getElementById('svc_pose_hint');
+    if(ps+pt>dur&&dur>0){
+      const newDur=ps+pt;
+      document.getElementById('svc_dur').value=newDur;
+      svcPoseHint(hint,ps,pt,newDur);
+    } else if(pt>0&&dur>0){
+      svcPoseHint(hint,ps,pt,dur);
+    } else if(hint){hint.textContent='';}
+  }
+}
+function svcPoseHint(el,ps,pt,dur){
+  if(!el)return;
+  const a1=ps;const a2=dur-ps-pt;
+  let parts=[];
+  if(a1>0)parts.push(a1+'min actif');
+  parts.push(pt+'min pose');
+  if(a2>0)parts.push(a2+'min actif');
+  el.innerHTML=parts.join(' → ')+' = '+dur+'min total';
+}
 function svcTogglePose(){
   const cb=document.getElementById('svc_pose_toggle');
   const on=cb?.checked;
@@ -699,11 +737,17 @@ function svcTogglePose(){
   // ON + no variants → show service-level fields; ON + variants → show variant-level fields
   if(f)f.style.display=(on&&!hasVars)?'flex':'none';
   document.querySelectorAll('.svc-var-pose-row').forEach(r=>r.style.display=(on&&hasVars)?'flex':'none');
-  // Reset values when turning off
+  // Reset values & hints when turning off
   if(!on){
     const pt=document.getElementById('svc_pose_time');const ps=document.getElementById('svc_pose_start');if(pt)pt.value=0;if(ps)ps.value=0;
     document.querySelectorAll('.svc-var-pose-start').forEach(i=>i.value=0);
     document.querySelectorAll('.svc-var-pose-time').forEach(i=>i.value=0);
+    const h=document.getElementById('svc_pose_hint');if(h)h.textContent='';
+    document.querySelectorAll('.svc-var-pose-hint').forEach(h=>h.textContent='');
+  } else {
+    // Refresh hints on toggle on
+    svcPoseSync();
+    document.querySelectorAll('#svc_variants_list .svc-var-row').forEach(r=>svcPoseSync(r.querySelector('.svc-var-dur')));
   }
 }
 function svcToggleSched(){
@@ -795,14 +839,17 @@ function svcVarRowHTML(v){
   return `<div class="svc-var-row">
     <div class="svc-var-top-row">
       <input class="svc-var-name" value="${v?esc(v.name):''}" placeholder="Nom de la variante">
-      <div class="svc-var-field"><span class="svc-var-label">Durée</span><input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="min"></div>
+      <div class="svc-var-field"><span class="svc-var-label">Durée</span><input type="number" class="svc-var-dur" value="${v?v.duration_min:''}" min="5" step="5" placeholder="min" oninput="svcPoseSync(this)"></div>
       <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€"></div>
       <button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">${X_SVG}</button>
     </div>
     <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)" style="margin-top:4px">
-    <div class="svc-var-top-row svc-var-pose-row" style="margin-top:4px;display:none">
-      <div class="svc-var-field"><span class="svc-var-label">Pose après</span><input type="number" class="svc-var-pose-start" value="${v?.processing_start||0}" min="0" placeholder="min"></div>
-      <div class="svc-var-field"><span class="svc-var-label">Durée pose</span><input type="number" class="svc-var-pose-time" value="${v?.processing_time||0}" min="0" placeholder="min"></div>
+    <div class="svc-var-pose-row" style="margin-top:4px;display:none">
+      <div class="svc-var-top-row">
+        <div class="svc-var-field"><span class="svc-var-label">Pose après</span><input type="number" class="svc-var-pose-start" value="${v?.processing_start||0}" min="0" placeholder="min" oninput="svcPoseSync(this)"></div>
+        <div class="svc-var-field"><span class="svc-var-label">Durée pose</span><input type="number" class="svc-var-pose-time" value="${v?.processing_time||0}" min="0" placeholder="min" oninput="svcPoseSync(this)"></div>
+      </div>
+      <div class="svc-pose-hint svc-var-pose-hint"></div>
     </div>
     <input type="hidden" class="svc-var-id" value="${v?.id||''}">
   </div>`;
@@ -939,6 +986,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };
