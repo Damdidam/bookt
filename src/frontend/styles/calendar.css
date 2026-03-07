@@ -36,6 +36,7 @@
 .prac-pill.st-toggle{opacity:.55;border-style:dashed}
 .prac-pill.st-toggle.active{opacity:1;border-style:solid;border-color:var(--border);background:var(--surface);color:var(--text-2)}
 .prac-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.prac-hours{font-weight:400;font-size:.68rem;opacity:.7}
 .fc{font-family:var(--sans)}.fc .fc-toolbar-title{font-family:var(--serif);font-size:1.25rem!important;font-weight:400;color:var(--text);letter-spacing:.2px}
 .fc .fc-button{font-family:var(--sans);font-weight:600;font-size:.78rem;text-transform:none;padding:6px 16px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);box-shadow:none;transition:all .15s}
 .fc .fc-button:hover{background:var(--surface);border-color:var(--text-4);color:var(--text-2)}

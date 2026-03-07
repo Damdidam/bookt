@@ -97,9 +97,40 @@ function buildEventsCallback() {
   return function (info, successCb, failCb) {
     const params = new URLSearchParams({ from: info.startStr, to: info.endStr });
     if (calState.fcCurrentFilter !== 'all') params.set('practitioner_id', calState.fcCurrentFilter);
+
+    // Side-fetch all practitioners' hours (only when filtered to a single prac)
+    if (calState.fcCurrentFilter !== 'all') {
+      const allParams = new URLSearchParams({ from: info.startStr, to: info.endStr });
+      fetch('/api/bookings?' + allParams.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
+        .then(r => r.ok ? r.json() : null).then(d => {
+          if (!d) return;
+          const pracMins = {};
+          (d.bookings || []).forEach(b => {
+            if (['cancelled', 'no_show'].includes(b.status)) return;
+            const mins = (new Date(b.end_at) - new Date(b.start_at)) / 60000;
+            if (mins > 0) pracMins[b.practitioner_id] = (pracMins[b.practitioner_id] || 0) + mins;
+          });
+          calState.fcPracHours = pracMins;
+          updatePracHours();
+        }).catch(() => {});
+    }
+
     fetch('/api/bookings?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
       .then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).then(d => {
         const bookings = d.bookings || [];
+
+        // Compute hours per practitioner (when "all" filter — no side-fetch needed)
+        if (calState.fcCurrentFilter === 'all') {
+          const pracMins = {};
+          bookings.forEach(b => {
+            if (['cancelled', 'no_show'].includes(b.status)) return;
+            const mins = (new Date(b.end_at) - new Date(b.start_at)) / 60000;
+            if (mins > 0) pracMins[b.practitioner_id] = (pracMins[b.practitioner_id] || 0) + mins;
+          });
+          calState.fcPracHours = pracMins;
+          updatePracHours();
+        }
+
         const grouped = {}, singles = [];
         bookings.forEach(b => {
           if (b.group_id) {
@@ -177,6 +208,26 @@ function buildEventsCallback() {
         successCb(filtered.concat(fsEvents));
       }).catch(e => failCb(e));
   };
+}
+
+function updatePracHours() {
+  const hrs = calState.fcPracHours || {};
+  document.querySelectorAll('.prac-hours[data-prac-id]').forEach(el => {
+    const id = el.dataset.pracId;
+    if (id === 'all') return; // handled below
+    const mins = hrs[id] || 0;
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    el.textContent = m > 0 ? ' \u00b7 ' + h + 'h' + String(m).padStart(2, '0') : ' \u00b7 ' + h + 'h';
+    el.style.opacity = mins === 0 ? '.4' : '1';
+  });
+  // "Tous" pill: sum all practitioners
+  const total = Object.values(hrs).reduce((s, v) => s + v, 0);
+  document.querySelectorAll('.prac-hours[data-prac-id="all"]').forEach(el => {
+    const h = Math.floor(total / 60);
+    const m = Math.round(total % 60);
+    el.textContent = m > 0 ? ' \u00b7 ' + h + 'h' + String(m).padStart(2, '0') : ' \u00b7 ' + h + 'h';
+  });
 }
 
 /**
