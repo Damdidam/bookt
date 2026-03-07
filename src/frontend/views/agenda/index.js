@@ -127,6 +127,7 @@ async function loadAgenda() {
     calState.fcPractitioners = prD.practitioners || [];
     calState.fcServices = svD.services || [];
     calState.fcAllowOverlap = !!(bizD.business?.settings?.allow_overlap);
+    calState.fcColorMode = bizD.business?.settings?.calendar_color_mode || 'category';
 
     // Compute calendar bounds — prefer business_schedule (salon hours), fallback to practitioner avails
     const avails = avD.availabilities || {};

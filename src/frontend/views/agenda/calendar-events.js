@@ -16,6 +16,13 @@ import { storeUndoAction } from './booking-undo.js';
 // Default color fallback for practitioner/service/booking accents
 const DEFAULT_ACCENT = '#0D7377';
 
+function accentFor(b) {
+  if (b.booking_color) return b.booking_color;
+  return calState.fcColorMode === 'practitioner'
+    ? (b.practitioner_color || b.service_color || DEFAULT_ACCENT)
+    : (b.service_color || b.practitioner_color || DEFAULT_ACCENT);
+}
+
 /** Convert a JS Date to Brussels-timezone ISO string for API calls */
 function dateToBrusselsISO(d) {
   const ds = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
@@ -150,7 +157,7 @@ function buildEventsCallback() {
         // Single events
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
-          const accent = b.booking_color || b.service_color || b.practitioner_color || DEFAULT_ACCENT;
+          const accent = accentFor(b);
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
           // Compute pose percentages for CSS overlay (if processing_time > 0)
@@ -174,7 +181,7 @@ function buildEventsCallback() {
         Object.keys(grouped).forEach(gid => {
           const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
           const first = members[0], last = members[members.length - 1];
-          const accent = first.booking_color || first.service_color || first.practitioner_color || DEFAULT_ACCENT;
+          const accent = accentFor(first);
           const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
           const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
           const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
@@ -186,7 +193,7 @@ function buildEventsCallback() {
             editable: !anyFrozen, durationEditable: false,
             extendedProps: {
               _isGroup: true, _groupId: gid, _accent: accent,
-              _members: members.map(m => ({ ...m, _accent: m.booking_color || m.service_color || m.practitioner_color || accent })),
+              _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
               client_name: first.client_name,
               practitioner_id: first.practitioner_id,
               status: first.status

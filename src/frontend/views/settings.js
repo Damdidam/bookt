@@ -92,11 +92,12 @@ async function loadSettings(){
       </div>
     </div></div>`;
 
-    // 3a. Calendrier — incrément + liste d'attente
+    // 3a. Calendrier — incrément + liste d'attente + couleur
     const slotInc = b.settings?.slot_increment_min || 15;
     const wlMode = b.settings?.waitlist_mode || 'off';
+    const colorMode = b.settings?.calendar_color_mode || 'category';
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Calendrier</h3></div><div class="sc-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
         <div class="field"><label>Incrément agenda</label><select id="s_slot_inc" class="field-input">
           ${[5, 10, 15, 20, 30, 45, 60].map(v => `<option value="${v}"${slotInc === v ? ' selected' : ''}>${v} min</option>`).join('')}
         </select><div class="hint">Granularité des créneaux dans le calendrier</div></div>
@@ -105,6 +106,10 @@ async function loadSettings(){
           <option value="manual"${wlMode === 'manual' ? ' selected' : ''}>Manuelle</option>
           <option value="auto"${wlMode === 'auto' ? ' selected' : ''}>Automatique</option>
         </select><div class="hint">Gestion des clients en attente lors d'annulations</div></div>
+        <div class="field"><label>Couleurs agenda</label><select id="s_color_mode" class="field-input">
+          <option value="category"${colorMode === 'category' ? ' selected' : ''}>Par catégorie</option>
+          <option value="practitioner"${colorMode === 'practitioner' ? ' selected' : ''}>Par praticien</option>
+        </select><div class="hint">Couleur des RDV sur l'agenda</div></div>
       </div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
 
@@ -358,12 +363,16 @@ async function savePractitionerChoiceSetting(){
 
 async function saveCalendarSettings(){
   try{
+    const cm=document.getElementById('s_color_mode').value||'category';
     const data={
       settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
-      settings_waitlist_mode:document.getElementById('s_waitlist').value||'off'
+      settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
+      settings_calendar_color_mode:cm
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
+    calState.fcColorMode=cm;
+    if(window.fcRefresh)window.fcRefresh();
     GendaUI.toast('Paramètres calendrier enregistrés','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
