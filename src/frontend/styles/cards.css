@@ -55,6 +55,33 @@
 .dash-todo-open{background:none;border:1px solid var(--border-light);border-radius:6px;padding:4px 6px;cursor:pointer;color:var(--text-4);transition:var(--transition);flex-shrink:0}
 .dash-todo-open:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
 
+/* ===== DASHBOARD PRAC HOURS ===== */
+.dph-row{display:flex;align-items:center;gap:8px;padding:8px 20px;font-size:.82rem}
+.dph-row .dot{font-size:.6rem}
+.dph-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dph-val{font-weight:700;font-size:.85rem;color:var(--primary);min-width:40px;text-align:right}
+
+/* ===== DASHBOARD ACTIVITY ===== */
+.da-row{display:flex;align-items:center;gap:8px;padding:10px 20px;font-size:.78rem;border-bottom:1px solid #EDF0F3;cursor:pointer;transition:all .12s}
+.da-row:last-child{border-bottom:none}
+.da-row:hover{background:#F8FAFA}
+.da-channel{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;min-width:38px;text-align:center;flex-shrink:0;letter-spacing:.3px}
+.da-channel.web{background:#d1fae5;color:#065f46}
+.da-channel.manual{background:#ffedd5;color:#9a3412}
+.da-channel.phone{background:#dbeafe;color:#1e40af}
+.da-client{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:.8rem}
+.da-service{flex:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-4)}
+.da-prac{font-weight:600;font-size:.7rem;color:var(--text-3);flex-shrink:0}
+.da-date{font-size:.68rem;color:var(--text-4);white-space:nowrap;flex-shrink:0}
+
+/* ===== DASHBOARD ALERTS ===== */
+.da-alert{padding:10px 16px;font-size:.8rem;border-radius:8px;margin:4px 12px}
+.da-alert:first-child{margin-top:8px}
+.da-alert:last-child{margin-bottom:8px}
+.da-alert.warn{background:#fffbeb;color:#92400e}
+.da-alert.error{background:#fef2f2;color:#991b1b}
+.da-alert.info{background:#eff6ff;color:#1e40af}
+
 .empty{padding:44px 20px;text-align:center;color:var(--text-4);font-size:.88rem;line-height:1.6}
 .loading{text-align:center;padding:48px;color:var(--text-4)}
 .spinner{display:inline-block;width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}

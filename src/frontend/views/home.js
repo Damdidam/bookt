@@ -5,6 +5,17 @@ import { api, biz, userRole, calState, GendaUI, categoryLabels } from '../state.
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 
+function _timeAgo(dateStr){
+  const diff=Date.now()-new Date(dateStr).getTime();
+  const mins=Math.floor(diff/60000);
+  if(mins<1) return 'à l\'instant';
+  if(mins<60) return `il y a ${mins}min`;
+  const hrs=Math.floor(mins/60);
+  if(hrs<24) return `il y a ${hrs}h`;
+  const days=Math.floor(hrs/24);
+  return `il y a ${days}j`;
+}
+
 async function loadDashboard(){
   const c=document.getElementById('contentArea');
   const isPrac=userRole==='practitioner';
@@ -43,6 +54,19 @@ async function loadDashboard(){
         h+=`</div></div>`;
       }
 
+      // ── Heures par praticien ──
+      const pracHrs=sum.prac_hours||[];
+      if(pracHrs.length>0){
+        const totalMins=pracHrs.reduce((s,p)=>s+p.minutes,0);
+        const totalH=Math.floor(totalMins/60),totalM=Math.round(totalMins%60);
+        const totalFmt=totalM>0?`${totalH}h${String(totalM).padStart(2,'0')}`:`${totalH}h`;
+        h+=`<div class="card"><div class="card-h"><h3>Heures du jour</h3><span class="badge badge-teal">${totalFmt}</span></div>`;
+        pracHrs.forEach(p=>{
+          h+=`<div class="dph-row"><span class="dot" style="color:${p.color||'var(--primary)'}">●</span><span class="dph-name">${esc(p.name)}</span><span class="dph-val">${p.formatted}</span></div>`;
+        });
+        h+=`</div>`;
+      }
+
       // ── RDV du jour ──
       h+=`<div class="card"><div class="card-h"><h3>${isPrac?'Mes RDV du jour':'RDV du jour'}</h3><span class="badge badge-teal">${sum.today?.count||0}</span></div>`;
       if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{
@@ -61,6 +85,46 @@ async function loadDashboard(){
       });}
       else h+=`<div class="empty">Aucun RDV aujourd'hui</div>`;
       h+=`</div>`;
+
+      // ── Activité récente (3 jours) ──
+      const activity=sum.recent_activity||[];
+      if(activity.length>0){
+        h+=`<div class="card"><div class="card-h"><h3>Activité récente</h3><span class="badge badge-teal">${activity.length}</span></div>`;
+        activity.forEach(a=>{
+          const chLabel=a.channel==='web'?'Web':a.channel==='phone'?'Tél':'Staff';
+          const chCls=a.channel==='web'?'web':a.channel==='phone'?'phone':'manual';
+          const ago=_timeAgo(a.created_at);
+          const ini=a.practitioner_name?a.practitioner_name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase():'';
+          h+=`<div class="da-row" onclick="openBookingDetail('${a.id}')">`;
+          h+=`<span class="da-channel ${chCls}">${chLabel}</span>`;
+          h+=`<span class="da-client">${esc(a.client_name||'—')}</span>`;
+          h+=`<span class="da-service">${esc(a.service_name||'RDV libre')}</span>`;
+          if(!isPrac) h+=`<span class="da-prac">${ini}</span>`;
+          h+=`<span class="da-date">${ago}</span>`;
+          h+=`</div>`;
+        });
+        h+=`</div>`;
+      }
+
+      // ── Alertes & attention ──
+      const al=sum.alerts||{};
+      const hasAlerts=(al.pending_confirmations||0)+(al.unpaid_deposits||0)+(al.recent_no_shows||0)+(al.upcoming_absences?.length||0)>0;
+      if(hasAlerts){
+        h+=`<div class="card"><div class="card-h"><h3>Alertes</h3></div>`;
+        if(al.pending_confirmations>0) h+=`<div class="da-alert warn">⏳ ${al.pending_confirmations} RDV en attente de confirmation (7 prochains jours)</div>`;
+        if(al.unpaid_deposits>0) h+=`<div class="da-alert warn">💳 ${al.unpaid_deposits} acompte${al.unpaid_deposits>1?'s':''} en attente de paiement</div>`;
+        if(al.recent_no_shows>0) h+=`<div class="da-alert error">🚫 ${al.recent_no_shows} no-show${al.recent_no_shows>1?'s':''} ces 7 derniers jours</div>`;
+        if(al.upcoming_absences?.length>0){
+          al.upcoming_absences.forEach(a=>{
+            const typeLabel=a.type==='maladie'?'maladie':a.type==='conge'?'congé':a.type==='formation'?'formation':'absence';
+            const from=new Date(a.date_from).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
+            const to=new Date(a.date_to).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
+            const range=a.date_from===a.date_to?from:`${from} → ${to}`;
+            h+=`<div class="da-alert info">🏖 ${esc(a.practitioner_name)} — ${typeLabel} ${range}</div>`;
+          });
+        }
+        h+=`</div>`;
+      }
 
       // ── Tâches à faire ──
       h+=`<div class="card"><div class="card-h"><h3>Tâches à faire</h3><span class="badge badge-teal">${todos.length}</span></div>`;
