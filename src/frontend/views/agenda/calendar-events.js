@@ -167,13 +167,13 @@ function buildEventsCallback() {
             const hasA2 = poseEnd < bEnd;
             const baseProps = { ...b, _accent: accent, _splitBookingId: b.id, _originalStart: b.start_at, _originalEnd: b.end_at };
 
-            // active1: before pose
+            // active1: before pose — draggable so the whole booking can be moved
             if (hasA1) {
               events.push({
                 id: b.id + '_a1', title: b.client_name || 'Sans nom',
                 start: b.start_at, end: new Date(poseStart).toISOString(),
                 backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
-                editable: false, durationEditable: false,
+                editable: !frozen, durationEditable: false,
                 classNames: [hasA2 ? 'ev-split-active1' : 'ev-split-active1'],
                 extendedProps: { ...baseProps, _splitPart: 'active1' }
               });
@@ -627,21 +627,32 @@ function buildEventDrop() {
     const oldEnd = info.oldEvent.end;
     const oldPracId = p._isGroup ? p._members?.[0]?.practitioner_id : p.practitioner_id;
     try {
-      // For group containers, move the first member -- backend moves siblings
-      const bookingId = p._isGroup ? p._members?.[0]?.id : ev.id;
+      // For split events, compute the full booking time range from the drag delta
+      let moveStart, moveEnd;
+      const bookingId = p._splitBookingId || (p._isGroup ? p._members?.[0]?.id : ev.id);
+      if (p._splitBookingId && p._originalStart && p._originalEnd) {
+        const delta = ev.start.getTime() - info.oldEvent.start.getTime();
+        moveStart = new Date(new Date(p._originalStart).getTime() + delta);
+        moveEnd = new Date(new Date(p._originalEnd).getTime() + delta);
+      } else {
+        moveStart = ev.start;
+        moveEnd = ev.end || ev.start;
+      }
       const pracId = oldPracId;
       const r = await fetch(`/api/bookings/${bookingId}/move`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start), practitioner_id: pracId })
+        body: JSON.stringify({ start_at: dateToBrusselsISO(moveStart), end_at: dateToBrusselsISO(moveEnd), practitioner_id: pracId })
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
       const result = await r.json();
       // Store undo state (only for non-group moves — group undo is complex)
       if (!result.group_moved) {
+        const undoStart = p._originalStart ? new Date(p._originalStart) : oldStart;
+        const undoEnd = p._originalEnd ? new Date(p._originalEnd) : (oldEnd || oldStart);
         storeUndoAction(bookingId, 'move', {
-          start_at: dateToBrusselsISO(oldStart),
-          end_at: dateToBrusselsISO(oldEnd || oldStart),
+          start_at: dateToBrusselsISO(undoStart),
+          end_at: dateToBrusselsISO(undoEnd),
           practitioner_id: oldPracId
         });
       }
