@@ -267,10 +267,10 @@ function buildEventDidMount() {
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
 
-    // Ensure left border shows
+    // Ensure left border shows (respect event's borderColor for partial-match groups)
     info.el.style.borderLeftWidth = '3px';
     info.el.style.borderLeftStyle = 'solid';
-    info.el.style.borderLeftColor = safeAccent;
+    info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     info.el.style.borderTopWidth = '0';
     info.el.style.borderRightWidth = '0';
     info.el.style.borderBottomWidth = '0';
