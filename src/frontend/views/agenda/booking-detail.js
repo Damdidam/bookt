@@ -159,6 +159,10 @@ async function fcOpenDetail(bookingId) {
     const freeCard = document.getElementById('mFreeCard');
     const svcCard = document.getElementById('mSvcCard');
     const bufSec = document.getElementById('mBufferSec');
+    const canConvert = !isGroup && !['cancelled', 'no_show', 'completed'].includes(b.status) && userRole !== 'practitioner';
+    document.getElementById('mConvertSvc').style.display = 'none';
+    calState._convertAction = null;
+
     if (isFreestyle) {
       freeCard.style.display = 'block';
       svcCard.style.display = 'none';
@@ -166,6 +170,9 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('uFreeLabel').value = b.custom_label || '';
       document.getElementById('uBufBefore').value = 0;
       document.getElementById('uBufAfter').value = 0;
+      // "Assign service" link
+      const wrap = document.getElementById('mConvertToSvcWrap');
+      if (wrap) wrap.innerHTML = canConvert ? '<button class="m-link-btn" onclick="fcStartConvert(\'to-service\')" style="font-size:.72rem;color:var(--primary)">Assigner une prestation</button>' : '';
     } else if (isGroup) {
       // Group booking: show all services summary
       freeCard.style.display = 'none';
@@ -192,12 +199,14 @@ async function fcOpenDetail(bookingId) {
       const displayPrice = b.variant_price_cents ?? b.price_cents;
       const svcDisplayName = b.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : b.service_name;
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
+      const convertFreeBtn = canConvert ? '<button class="m-convert-free-btn" onclick="fcStartConvert(\'to-free\')" title="Convertir en RDV libre">&times;</button>' : '';
       svcCard.innerHTML = `
         <div style="flex:1;min-width:0">
           <div class="m-svc-name">${esc(svcDisplayName)}</div>
           <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}</div>
         </div>
         ${displayPrice ? '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        ${convertFreeBtn}
         ${canAddSvc ? '<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }
 
@@ -670,7 +679,115 @@ function initGroupDnD(container) {
   list.addEventListener('touchcancel', cancel);
 }
 
+// ── Conversion freestyle ↔ service ──
+
+function fcStartConvert(action) {
+  calState._convertAction = action;
+  const freeCard = document.getElementById('mFreeCard');
+  const svcCard = document.getElementById('mSvcCard');
+  const bufSec = document.getElementById('mBufferSec');
+  const convertPanel = document.getElementById('mConvertSvc');
+
+  if (action === 'to-service') {
+    freeCard.style.display = 'none';
+    bufSec.style.display = 'none';
+    convertPanel.style.display = '';
+    // Populate service dropdown filtered by current practitioner
+    const pracId = document.getElementById('uPracSelect')?.value;
+    const services = calState.fcServices.filter(s => {
+      if (s.is_active === false) return false;
+      if (pracId && s.practitioner_ids?.length > 0) return s.practitioner_ids.some(pid => String(pid) === String(pracId));
+      return true;
+    });
+    const sel = document.getElementById('mConvertSvcSel');
+    sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
+      `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    ).join('');
+    document.getElementById('mConvertVarSel').style.display = 'none';
+    // Store original end time for cancel
+    calState._convertOrigEnd = document.getElementById('calEditEnd').value;
+  } else {
+    // to-free: swap service card for freestyle card
+    svcCard.style.display = 'none';
+    freeCard.style.display = 'block';
+    bufSec.style.display = '';
+    // Pre-fill label with service name
+    const b = calState.fcCurrentBooking;
+    const svcName = b?.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : (b?.service_name || '');
+    document.getElementById('uFreeLabel').value = svcName;
+    document.getElementById('uBufBefore').value = 0;
+    document.getElementById('uBufAfter').value = 0;
+    // Hide the assign button in freeCard
+    const wrap = document.getElementById('mConvertToSvcWrap');
+    if (wrap) wrap.innerHTML = '';
+  }
+}
+
+function fcConvertSvcChanged() {
+  const sel = document.getElementById('mConvertSvcSel');
+  const varSel = document.getElementById('mConvertVarSel');
+  const svcId = sel.value;
+  if (!svcId) { varSel.style.display = 'none'; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const variants = svc?.variants || [];
+  if (variants.length > 0) {
+    varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
+      `<option value="${v.id}" data-dur="${v.duration_min}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    ).join('');
+    varSel.style.display = '';
+  } else {
+    varSel.innerHTML = '';
+    varSel.style.display = 'none';
+  }
+  // Recalculate end time from service duration
+  fcConvertRecalcEnd();
+}
+
+function fcConvertVarChanged() {
+  fcConvertRecalcEnd();
+}
+
+function fcConvertRecalcEnd() {
+  const sel = document.getElementById('mConvertSvcSel');
+  const varSel = document.getElementById('mConvertVarSel');
+  const opt = sel.selectedOptions[0];
+  if (!opt || !opt.value) return;
+  const svc = calState.fcServices.find(s => String(s.id) === String(opt.value));
+  let dur = parseInt(opt.dataset.dur) || 0;
+  const bufBefore = parseInt(opt.dataset.bufBefore) || 0;
+  const bufAfter = parseInt(opt.dataset.bufAfter) || 0;
+  // Override with variant duration if selected
+  if (varSel.value && varSel.selectedOptions[0]) {
+    dur = parseInt(varSel.selectedOptions[0].dataset.dur) || dur;
+  }
+  const total = bufBefore + dur + bufAfter;
+  const sv = document.getElementById('calEditStart').value;
+  if (!sv || !total) return;
+  const [h, m] = sv.split(':').map(Number);
+  const endMin = h * 60 + m + total;
+  document.getElementById('calEditEnd').value = String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0');
+}
+
+function fcCancelConvert() {
+  calState._convertAction = null;
+  document.getElementById('mConvertSvc').style.display = 'none';
+  const b = calState.fcCurrentBooking;
+  const isFreestyle = !b?.service_name;
+  if (isFreestyle) {
+    document.getElementById('mFreeCard').style.display = 'block';
+    document.getElementById('mBufferSec').style.display = '';
+  } else {
+    document.getElementById('mSvcCard').style.display = 'flex';
+  }
+  // Restore original end time
+  if (calState._convertOrigEnd) {
+    document.getElementById('calEditEnd').value = calState._convertOrigEnd;
+    calState._convertOrigEnd = null;
+  }
+}
+
 // Expose to global scope for onclick handlers
-bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor });
+bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor,
+         fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };

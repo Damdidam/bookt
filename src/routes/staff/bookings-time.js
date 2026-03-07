@@ -300,7 +300,7 @@ router.patch('/:id/edit', async (req, res, next) => {
     const { id } = req.params;
     // STS-V12-007: UUID validation
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
-    const { practitioner_id, comment, internal_note, custom_label, color } = req.body;
+    const { practitioner_id, comment, internal_note, custom_label, color, service_id, service_variant_id } = req.body;
 
     // CRT-13: Validate comment/note length
     if (comment && comment.length > 5000) {
@@ -344,6 +344,54 @@ router.patch('/:id/edit', async (req, res, next) => {
       const hasDisallowedField = requestedFields.some(k => !allowedFields.includes(k));
       if (hasDisallowedField) {
         return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié (seuls commentaire, note interne, libellé et couleur sont autorisés)' });
+      }
+    }
+
+    // Service conversion (freestyle ↔ service)
+    let serviceConversion = null;
+    if (service_id !== undefined) {
+      // Block on grouped bookings
+      const groupCheck2 = await queryWithRLS(bid,
+        `SELECT group_id FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
+      if (groupCheck2.rows[0]?.group_id) {
+        return res.status(400).json({ error: 'Impossible de changer la prestation d\'un RDV groupé.' });
+      }
+
+      if (service_id === null) {
+        serviceConversion = { toFree: true };
+      } else {
+        if (!UUID_RE.test(service_id)) return res.status(400).json({ error: 'service_id invalide' });
+        const svcCheck = await queryWithRLS(bid,
+          `SELECT id, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
+           FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
+          [service_id, bid]);
+        if (svcCheck.rows.length === 0) return res.status(400).json({ error: 'Service introuvable ou inactif' });
+        const svc = svcCheck.rows[0];
+        let dur = svc.duration_min, pt = svc.processing_time || 0, ps = svc.processing_start || 0;
+
+        if (service_variant_id) {
+          if (!UUID_RE.test(service_variant_id)) return res.status(400).json({ error: 'variant_id invalide' });
+          const varCheck = await queryWithRLS(bid,
+            `SELECT duration_min, processing_time, processing_start
+             FROM service_variants WHERE id = $1 AND service_id = $2`,
+            [service_variant_id, service_id]);
+          if (varCheck.rows.length > 0) {
+            dur = varCheck.rows[0].duration_min || dur;
+            pt = varCheck.rows[0].processing_time ?? pt;
+            ps = varCheck.rows[0].processing_start ?? ps;
+          }
+        }
+
+        const bkForEnd = await queryWithRLS(bid,
+          `SELECT start_at FROM bookings WHERE id = $1 AND business_id = $2`, [id, bid]);
+        const startAt = new Date(bkForEnd.rows[0].start_at);
+        const totalMin = (svc.buffer_before_min || 0) + dur + (svc.buffer_after_min || 0);
+        const newEnd = new Date(startAt.getTime() + totalMin * 60000);
+
+        serviceConversion = {
+          toService: true, service_id, service_variant_id: service_variant_id || null,
+          processing_time: pt, processing_start: ps, end_at: newEnd.toISOString()
+        };
       }
     }
 
@@ -402,6 +450,20 @@ router.patch('/:id/edit', async (req, res, next) => {
     if (internal_note !== undefined) { sets.push(`internal_note = $${idx++}`); params.push(internal_note || null); }
     if (custom_label !== undefined) { sets.push(`custom_label = $${idx++}`); params.push(custom_label || null); }
     if (color !== undefined) { sets.push(`color = $${idx++}`); params.push(color || null); }
+
+    // Service conversion SET clauses
+    if (serviceConversion) {
+      if (serviceConversion.toFree) {
+        sets.push(`service_id = NULL`, `service_variant_id = NULL`, `processing_time = 0`, `processing_start = 0`);
+      } else {
+        sets.push(`service_id = $${idx++}`); params.push(serviceConversion.service_id);
+        sets.push(`service_variant_id = $${idx++}`); params.push(serviceConversion.service_variant_id);
+        sets.push(`processing_time = $${idx++}`); params.push(serviceConversion.processing_time);
+        sets.push(`processing_start = $${idx++}`); params.push(serviceConversion.processing_start);
+        sets.push(`end_at = $${idx++}`); params.push(serviceConversion.end_at);
+        sets.push(`custom_label = NULL`);
+      }
+    }
 
     if (sets.length === 0) return res.json({ updated: false });
 

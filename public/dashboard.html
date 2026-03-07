@@ -88,7 +88,14 @@
               <span class="m-free-badge"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> LIBRE</span>
               <input class="m-free-title" id="uFreeLabel" placeholder="Intitulé du RDV...">
             </div>
+            <div id="mConvertToSvcWrap"></div>
           </div>
+        </div>
+        <div id="mConvertSvc" class="m-convert-panel" style="display:none">
+          <div class="m-field-label">Assigner une prestation</div>
+          <select class="m-input" id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select>
+          <select class="m-input" id="mConvertVarSel" style="display:none" onchange="fcConvertVarChanged()"></select>
+          <div style="display:flex;justify-content:flex-end;margin-top:6px"><button type="button" class="m-link-btn" onclick="fcCancelConvert()" style="font-size:.75rem">Annuler</button></div>
         </div>
         <div id="mGroupSiblings" style="display:none"></div>
         <div class="m-sec">

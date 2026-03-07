@@ -44,6 +44,19 @@ async function calSaveAll() {
   // Color for all booking types (empty = reset to default)
   if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
+  // Service conversion (freestyle ↔ service)
+  if (calState._convertAction === 'to-service') {
+    const svcId = document.getElementById('mConvertSvcSel')?.value;
+    if (svcId) {
+      editPayload.service_id = svcId;
+      editPayload.service_variant_id = document.getElementById('mConvertVarSel')?.value || null;
+    }
+  } else if (calState._convertAction === 'to-free') {
+    editPayload.service_id = null;
+    editPayload.service_variant_id = null;
+    editPayload.custom_label = document.getElementById('uFreeLabel')?.value.trim() || null;
+  }
+
   // Group practitioner reassignment must go through /move, not /edit
   // (the /edit endpoint blocks practitioner changes on grouped bookings)
   let groupPracReassign = null;
@@ -108,6 +121,9 @@ async function calSaveAll() {
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     } catch (e) { gToast('Erreur: ' + e.message, 'error'); return; }
   }
+
+  // Reset convert action
+  calState._convertAction = null;
 
   // No time change -> just close
   if (hasFieldChanges || clientContactChanged || groupPracReassign) gToast('RDV mis \u00e0 jour', 'success');

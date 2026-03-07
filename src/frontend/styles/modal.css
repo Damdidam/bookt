@@ -99,6 +99,13 @@ body.has-modal{overflow:hidden}
 .m-free-title{flex:1;font-size:.88rem;font-weight:700;color:var(--text);border:none;background:transparent;outline:none;font-family:var(--sans)}
 .m-free-color{width:24px;height:24px;border-radius:8px;border:2px solid rgba(0,0,0,.08);cursor:pointer;flex-shrink:0;padding:0}
 
+/* ── Convert panel ── */
+.m-convert-panel{padding:12px 16px;background:var(--surface);border:1.5px solid var(--primary);border-radius:10px;margin-bottom:16px}
+.m-convert-panel select{margin-bottom:8px}
+.m-convert-panel .m-field-label{margin-bottom:8px}
+.m-convert-free-btn{background:none;border:none;color:var(--text-4);cursor:pointer;font-size:1.1rem;padding:2px 6px;border-radius:4px;line-height:1;transition:all .15s;margin-left:6px}
+.m-convert-free-btn:hover{background:#FEE;color:#C62828}
+
 /* ── Sections ── */
 .m-sec{margin-bottom:16px}
 .m-sec-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:4px}
