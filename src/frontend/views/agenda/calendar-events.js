@@ -124,6 +124,7 @@ function buildEventsCallback() {
         });
 
         // Grouped events -> single container per group
+        const _hf = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
         Object.keys(grouped).forEach(gid => {
           const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
           const first = members[0], last = members[members.length - 1];
@@ -131,11 +132,13 @@ function buildEventsCallback() {
           const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
           const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
           const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
+          // Partial match: dim the event block background + border
+          const _partial = _hf && members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
           events.push({
             id: 'group_' + gid,
             title: first.client_name || 'Sans nom',
             start: minStart, end: maxEnd,
-            backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+            backgroundColor: fcHexAlpha(accent, _partial ? 0.03 : 0.1), borderColor: _partial ? accent + '44' : accent, textColor: accent,
             editable: !anyFrozen, durationEditable: false,
             extendedProps: {
               _isGroup: true, _groupId: gid, _accent: accent,
@@ -204,13 +207,11 @@ function buildEventContent() {
       const members = p._members || [];
       const hasFilter = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
       const isPartial = hasFilter && members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
-      // DEBUG — remove after fixing
-      console.log('[GROUP-FILTER]', { hasFilter, isPartial, hiddenCats: [...(calState.fcHiddenCategories || [])], members: members.map(m => ({ svc: m.service_name, cat: m.service_category })) });
       const svcs = members.map(m => {
         const label = esc(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
         if (hasFilter) {
           const catMatch = !calState.fcHiddenCategories.has(m.service_category || '');
-          return catMatch ? '<strong style="background:rgba(0,255,0,.25)">' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
+          return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
         }
         return label;
       }).join(' \u00b7 ');
@@ -283,14 +284,6 @@ function buildEventDidMount() {
         const anyVisible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
         info.el.setAttribute('data-category', members.map(m => m.service_category || '').join(','));
         if (!anyVisible) { info.el.style.display = 'none'; }
-        else {
-          // Partially-matching group: soften the border, eventContent handles inner dimming
-          const allMatch = members.every(m => !calState.fcHiddenCategories.has(m.service_category || ''));
-          if (!allMatch) {
-            info.el.style.borderLeftColor = safeAccent + '66';
-            info.el.style.backgroundColor = 'rgba(0,0,0,.02)';
-          }
-        }
       } else {
         const cat = p.service_category || '';
         info.el.setAttribute('data-category', cat);

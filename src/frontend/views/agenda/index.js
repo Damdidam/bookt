@@ -98,7 +98,7 @@ function fcFilterCategory(cat, el) {
     if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
   }
   // Nuke event source and re-add — forces FC to re-create all events from scratch
-  // (eventContent + eventDidMount guaranteed to run with current filter state)
+  // (buildEventsCallback sets bg/border, eventContent sets bold/dim labels)
   if (calState.fcCal) {
     calState.fcCal.getEventSources().forEach(s => s.remove());
     calState.fcCal.addEventSource(buildEventsCallback());
