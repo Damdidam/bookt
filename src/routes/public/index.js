@@ -636,7 +636,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (isMultiService) {
       // Fetch all services, preserving order
       const multiSvcResult = await query(
-        `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents
+        `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents
          FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
          ORDER BY array_position($1, id)`,
         [service_ids, businessId]
@@ -646,7 +646,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const missing = service_ids.filter(id => !foundIds.has(id));
         return res.status(404).json({ error: `Prestation(s) introuvable(s): ${missing.join(', ')}` });
       }
-      const multiServices = multiSvcResult.rows;
+      let multiServices = multiSvcResult.rows;
 
       // Resolve variant overrides for duration/price (multi-service)
       const resolvedVariantIds = [];
@@ -668,6 +668,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
         }
       }
+
+      // Sort by category — same-category services are chained together
+      const _sorted = multiServices.map((svc, i) => ({ svc, vid: resolvedVariantIds[i] || null }));
+      _sorted.sort((a, b) => (a.svc.category || '').localeCompare(b.svc.category || ''));
+      multiServices = _sorted.map(p => p.svc);
+      resolvedVariantIds.splice(0);
+      _sorted.forEach(p => resolvedVariantIds.push(p.vid));
 
       // Mode validation
       if (appointment_mode) {
