@@ -63,10 +63,13 @@ export function guardModal(overlayEl, opts = {}) {
   overlayEl.addEventListener('input', handler, true);
   overlayEl.addEventListener('change', handler, true);
 
-  // Backdrop click → close via guard
-  overlayEl.addEventListener('click', function _backdrop(e) {
-    if (e.target === overlayEl) closeModal(overlayEl.id);
-  });
+  // Backdrop click → close via guard (only for dynamic modals that use .remove())
+  // Static modals (calDetailModal, calCreateModal) must NOT use this — they toggle .open class
+  let _backdrop = null;
+  if (!opts.noBackdropClose) {
+    _backdrop = function (e) { if (e.target === overlayEl) closeModal(overlayEl.id); };
+    overlayEl.addEventListener('click', _backdrop);
+  }
 
   const guard = {
     markClean: () => { _dirty = false; },
@@ -74,6 +77,7 @@ export function guardModal(overlayEl, opts = {}) {
     destroy: () => {
       overlayEl.removeEventListener('input', handler, true);
       overlayEl.removeEventListener('change', handler, true);
+      if (_backdrop) overlayEl.removeEventListener('click', _backdrop);
       activeGuards.delete(guard);
       overlayEl._dirtyGuard = null;
     }

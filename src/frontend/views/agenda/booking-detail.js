@@ -311,7 +311,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('mBtnPurge').style.display = (isFrozen && userRole !== 'practitioner') ? '' : 'none';
 
     // -- Dirty guard (warn on close if unsaved changes) --
-    guardModal(modal, { exclude: ['#calIntNote'] });
+    guardModal(modal, { exclude: ['#calIntNote'], noBackdropClose: true });
 
     // -- Show modal --
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'), 'rdv');

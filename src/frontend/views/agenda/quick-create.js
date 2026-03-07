@@ -112,7 +112,7 @@ function fcOpenQuickCreate(startStr, endStr) {
 
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
-  guardModal(qcModal);
+  guardModal(qcModal, { noBackdropClose: true });
   qcModal.classList.add('open');
 }
 

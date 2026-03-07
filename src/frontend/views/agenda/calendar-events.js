@@ -373,26 +373,23 @@ function buildEventDidMount() {
     if (isTouch) {
       const resizer = info.el.querySelector('.fc-event-resizer-end');
       if (resizer) {
-        // Double-tap on resizer opens detail (dedicated handler — touchend from resizer
-        // may not bubble reliably to info.el after stopPropagation on touchstart)
-        let lastResizerTap = 0;
-        resizer.addEventListener('touchend', function (e) {
-          if (info.el.classList.contains('fc-event-dragging')) return;
-          const now = Date.now();
-          if (now - lastResizerTap < 600) {
-            e.preventDefault();
-            e.stopPropagation();
-            fcHideTooltip();
-            fcOpenDetail(bookingId);
-            lastResizerTap = 0;
-          } else {
-            lastResizerTap = now;
-          }
-        }, { passive: false });
-
+        let lastResizerTouch = 0;
         resizer.addEventListener('touchstart', function (e) {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(p.status);
           if (frozen || p._isGroup) return;
+
+          // Double-tap detection via touchstart (most reliable on tablet)
+          const now = Date.now();
+          if (now - lastResizerTouch < 600) {
+            e.preventDefault();
+            e.stopPropagation();
+            lastResizerTouch = 0;
+            fcHideTooltip();
+            fcOpenDetail(bookingId);
+            return; // Skip resize entirely
+          }
+          lastResizerTouch = now;
+
           e.preventDefault();
           e.stopPropagation();
 
