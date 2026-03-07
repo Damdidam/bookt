@@ -155,6 +155,7 @@ async function loadServices(){
     }
     c.innerHTML=h;
     restoreCollapsedState();
+    initSvcTouchDnD();
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
 }
 
@@ -355,6 +356,121 @@ function cleanupDrag(){
   dragEl=null;dragType=null;dragFromHandle=false;
 }
 document.addEventListener('dragend',cleanupDrag);
+
+// ===== TOUCH DRAG & DROP (tablet) =====
+
+function initSvcTouchDnD(){
+  const catList=document.getElementById('svcCatList');
+  if(!catList) return;
+  const handles=catList.querySelectorAll('.drag-handle');
+  handles.forEach(handle=>{
+    handle.addEventListener('touchstart',onTouchStart,{passive:true});
+  });
+}
+
+let _tDrag=null; // touch drag state
+
+function onTouchStart(e){
+  const handle=e.currentTarget;
+  const item=handle.closest('.svc-category')||handle.closest('.svc-row');
+  if(!item) return;
+  const type=item.classList.contains('svc-category')?'cat':'svc';
+  const startY=e.touches[0].clientY;
+  const startX=e.touches[0].clientX;
+
+  // Long-press timer (200ms)
+  const timer=setTimeout(()=>{
+    beginTouchDrag(item,type,startY,startX);
+  },200);
+
+  // Cancel if finger moves too much before long-press
+  function earlyMove(ev){
+    const dy=Math.abs(ev.touches[0].clientY-startY);
+    const dx=Math.abs(ev.touches[0].clientX-startX);
+    if(dy>12||dx>12){clearTimeout(timer);cleanup();}
+  }
+  function earlyEnd(){clearTimeout(timer);cleanup();}
+  function cleanup(){
+    document.removeEventListener('touchmove',earlyMove);
+    document.removeEventListener('touchend',earlyEnd);
+    document.removeEventListener('touchcancel',earlyEnd);
+  }
+  document.addEventListener('touchmove',earlyMove,{passive:true});
+  document.addEventListener('touchend',earlyEnd);
+  document.addEventListener('touchcancel',earlyEnd);
+
+  function beginTouchDrag(el,tp,sy,sx){
+    cleanup();
+    if(navigator.vibrate) navigator.vibrate(30);
+    const rect=el.getBoundingClientRect();
+    const offY=sy-rect.top;
+
+    // Clone
+    const clone=el.cloneNode(true);
+    clone.className='svc-drag-clone';
+    clone.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:9999;pointer-events:none`;
+    document.body.appendChild(clone);
+    el.classList.add('dragging');
+
+    // Drop indicator
+    const dropLine=document.createElement('div');
+    dropLine.className='svc-drop-line';
+
+    _tDrag={el,type:tp,clone,dropLine,offY,container:el.parentNode};
+
+    document.addEventListener('touchmove',onTouchMove,{passive:false});
+    document.addEventListener('touchend',onTouchEnd);
+    document.addEventListener('touchcancel',onTouchEnd);
+  }
+}
+
+function onTouchMove(e){
+  if(!_tDrag) return;
+  e.preventDefault();
+  const y=e.touches[0].clientY;
+  _tDrag.clone.style.top=(y-_tDrag.offY)+'px';
+
+  // Find drop target
+  const selector=_tDrag.type==='cat'?'.svc-category':'.svc-row';
+  const siblings=[..._tDrag.container.querySelectorAll(selector+':not(.dragging)')];
+  _tDrag.dropLine.remove();
+  let ref=null;
+  for(const sib of siblings){
+    const box=sib.getBoundingClientRect();
+    if(y<box.top+box.height/2){ref=sib;break;}
+  }
+  if(ref) ref.before(_tDrag.dropLine);
+  else if(siblings.length) siblings[siblings.length-1].after(_tDrag.dropLine);
+}
+
+function onTouchEnd(){
+  if(!_tDrag) return;
+  const {el,type,clone,dropLine,container}=_tDrag;
+  _tDrag=null;
+  document.removeEventListener('touchmove',onTouchMove);
+  document.removeEventListener('touchend',onTouchEnd);
+  document.removeEventListener('touchcancel',onTouchEnd);
+
+  clone.remove();
+  el.classList.remove('dragging');
+
+  // Find where dropLine ended up
+  if(dropLine.parentNode){
+    const nextSib=dropLine.nextElementSibling;
+    dropLine.remove();
+    if(nextSib&&nextSib!==el) nextSib.before(el);
+    else{
+      // Drop at end
+      const selector=type==='cat'?'.svc-category':'.svc-row';
+      const all=[...container.querySelectorAll(selector)];
+      if(all.length) all[all.length-1].after(el);
+    }
+    // Persist
+    if(type==='cat') persistCatOrder(); else persistSvcOrder(container);
+  } else {
+    dropLine.remove();
+  }
+}
 
 async function persistCatOrder(){
   const cats=[...document.querySelectorAll('#svcCatList .svc-category')];

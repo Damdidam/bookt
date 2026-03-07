@@ -132,12 +132,15 @@
 .svc-add-cat{border-color:var(--primary);color:var(--primary);background:rgba(13,115,119,.03);font-weight:700}
 
 /* Drag & Drop */
-.drag-handle{color:var(--text-4);cursor:grab;display:flex;align-items:center;flex-shrink:0;opacity:.5;transition:opacity .15s}
+.drag-handle{color:var(--text-4);cursor:grab;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.5;transition:opacity .15s;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;min-width:28px;min-height:28px;padding:4px}
 .drag-handle:hover{opacity:1}
 .drag-handle svg{width:16px;height:16px}
+@media(pointer:coarse){.drag-handle{min-width:44px;min-height:44px;opacity:.7}}
 .svc-category.dragging,.svc-row.dragging{opacity:.35}
 .svc-category.drag-over{box-shadow:0 0 0 2px var(--primary)}
 .svc-row.drag-over{border-top:2px solid var(--primary)}
+.svc-drag-clone{position:fixed;z-index:9999;pointer-events:none;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);opacity:.92;background:var(--white);overflow:hidden;border:1.5px solid var(--primary)}
+.svc-drop-line{height:2px;background:var(--primary);border-radius:1px;margin:1px 0}
 
 /* Practitioner priority pills */
 .prac-priority{display:flex;flex-wrap:wrap;gap:8px}
