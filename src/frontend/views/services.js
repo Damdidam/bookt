@@ -843,9 +843,9 @@ function svcVarRowHTML(v){
       <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" class="svc-var-price" value="${v&&v.price_cents?(v.price_cents/100):''}" step="0.01" placeholder="€"></div>
       <button type="button" onclick="svcRemoveVariant(this)" class="svc-var-x">${X_SVG}</button>
     </div>
-    <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)" style="margin-top:4px">
-    <div class="svc-var-pose-row" style="margin-top:4px;display:none">
-      <div class="svc-var-top-row">
+    <input class="svc-var-desc" value="${v?esc(v.description||''):''}" placeholder="Description (optionnel)">
+    <div class="svc-var-pose-row" style="display:none">
+      <div class="svc-var-pose-fields">
         <div class="svc-var-field"><span class="svc-var-label">Pose après</span><input type="number" class="svc-var-pose-start" value="${v?.processing_start||0}" min="0" placeholder="min" oninput="svcPoseSync(this)"></div>
         <div class="svc-var-field"><span class="svc-var-label">Durée pose</span><input type="number" class="svc-var-pose-time" value="${v?.processing_time||0}" min="0" placeholder="min" oninput="svcPoseSync(this)"></div>
       </div>
