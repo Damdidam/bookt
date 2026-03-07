@@ -124,7 +124,6 @@ function buildEventsCallback() {
         });
 
         // Grouped events -> single container per group
-        const _hf = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
         Object.keys(grouped).forEach(gid => {
           const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
           const first = members[0], last = members[members.length - 1];
@@ -132,13 +131,11 @@ function buildEventsCallback() {
           const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
           const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
           const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
-          // Partial match: dim the event block background + border
-          const _partial = _hf && members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
           events.push({
             id: 'group_' + gid,
             title: first.client_name || 'Sans nom',
             start: minStart, end: maxEnd,
-            backgroundColor: fcHexAlpha(accent, _partial ? 0.03 : 0.1), borderColor: _partial ? accent + '44' : accent, textColor: accent,
+            backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
             editable: !anyFrozen, durationEditable: false,
             extendedProps: {
               _isGroup: true, _groupId: gid, _accent: accent,
@@ -282,8 +279,14 @@ function buildEventDidMount() {
       if (p._isGroup) {
         const members = p._members || [];
         const anyVisible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
+        const anyHidden = members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
         info.el.setAttribute('data-category', members.map(m => m.service_category || '').join(','));
         if (!anyVisible) { info.el.style.display = 'none'; }
+        else if (anyHidden) {
+          // Partial match: CSS class overrides FC inline background with !important
+          info.el.classList.add('ev-partial-match');
+          info.el.style.setProperty('border-left-color', safeAccent + '55', 'important');
+        }
       } else {
         const cat = p.service_category || '';
         info.el.setAttribute('data-category', cat);
