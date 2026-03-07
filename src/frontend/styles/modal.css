@@ -132,7 +132,7 @@ textarea.m-input{resize:vertical;min-height:38px}
 .m-group-item .g-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .m-group-item .g-time{font-size:.72rem;opacity:.7;white-space:nowrap}
 /* Drag-and-drop reorder */
-.m-group-item[data-draggable]{cursor:grab;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.m-group-item[data-draggable]{cursor:grab;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .g-dragging{opacity:.3!important}
 .g-drag-clone{border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:.92;background:var(--white);font-size:.78rem;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1.5px solid var(--primary)}
 .g-drag-clone.current{background:var(--primary);color:#fff}
