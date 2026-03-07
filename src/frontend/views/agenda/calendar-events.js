@@ -203,15 +203,18 @@ function buildEventContent() {
     if (p._isGroup) {
       const members = p._members || [];
       const hasFilter = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
+      const isPartial = hasFilter && members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
       const svcs = members.map(m => {
         const label = esc(m.variant_name ? (m.service_name||'RDV libre')+' \u2014 '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
         if (hasFilter) {
           const catMatch = !calState.fcHiddenCategories.has(m.service_category || '');
-          return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.4">' + label + '</span>';
+          return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
         }
         return label;
       }).join(' \u00b7 ');
-      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || 'Groupe')} <span style="font-size:.58rem;opacity:.5"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>${members.length}</span></span><span class="ev-service">${svcs}</span></div>` };
+      const clientDim = isPartial ? ' style="opacity:.4"' : '';
+      const iconDim = isPartial ? 'opacity:.3' : 'opacity:.5';
+      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')} <span style="font-size:.58rem;${iconDim}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>${members.length}</span></span><span class="ev-service">${svcs}</span></div>` };
     }
 
     // -- Week/Day: single event --
@@ -279,9 +282,12 @@ function buildEventDidMount() {
         info.el.setAttribute('data-category', members.map(m => m.service_category || '').join(','));
         if (!anyVisible) { info.el.style.display = 'none'; }
         else {
-          // Partially-matching group: dim the whole event block
+          // Partially-matching group: soften the border, eventContent handles inner dimming
           const allMatch = members.every(m => !calState.fcHiddenCategories.has(m.service_category || ''));
-          if (!allMatch) info.el.style.opacity = '0.55';
+          if (!allMatch) {
+            info.el.style.borderLeftColor = safeAccent + '66';
+            info.el.style.backgroundColor = 'rgba(0,0,0,.02)';
+          }
         }
       } else {
         const cat = p.service_category || '';
