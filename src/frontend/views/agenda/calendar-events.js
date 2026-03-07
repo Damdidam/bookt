@@ -277,7 +277,12 @@ function buildEventDidMount() {
         const members = p._members || [];
         const anyVisible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
         info.el.setAttribute('data-category', members.map(m => m.service_category || '').join(','));
-        if (!anyVisible) info.el.style.display = 'none';
+        if (!anyVisible) { info.el.style.display = 'none'; }
+        else {
+          // Partially-matching group: dim the whole event block
+          const allMatch = members.every(m => !calState.fcHiddenCategories.has(m.service_category || ''));
+          if (!allMatch) info.el.style.opacity = '0.55';
+        }
       } else {
         const cat = p.service_category || '';
         info.el.setAttribute('data-category', cat);

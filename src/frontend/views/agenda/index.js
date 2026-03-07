@@ -96,23 +96,8 @@ function fcFilterCategory(cat, el) {
     const allBtn = document.querySelector('.cat-chip[data-cat="__all__"]');
     if (allBtn) allBtn.classList.toggle('active', calState.fcHiddenCategories.size === 0);
   }
-  // Use FullCalendar's native API to show/hide events instantly
-  if (calState.fcCal) {
-    calState.fcCal.getEvents().forEach(ev => {
-      const p = ev.extendedProps;
-      if (p._isFeaturedSlot) return;
-      let visible;
-      if (p._isGroup) {
-        const members = p._members || [];
-        visible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
-      } else {
-        visible = !calState.fcHiddenCategories.has(p.service_category || '');
-      }
-      ev.setProp('display', visible ? 'auto' : 'none');
-    });
-    // Force re-render so eventContent picks up highlighted members
-    calState.fcCal.render();
-  }
+  // Refetch events so buildEventsCallback filters + eventContent highlights + eventDidMount dims
+  if (calState.fcCal) calState.fcCal.refetchEvents();
   // Refresh mobile list if active
   if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
 }
