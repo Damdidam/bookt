@@ -212,13 +212,21 @@ function fcShowGroupAddPanel() {
       </button>
     </div>`;
 
-  // Insert at the end of the group list
+  // Insert at the end of the group list, or after the service card for single bookings
   const groupEl = document.getElementById('mGroupSiblings');
   const listContainer = groupEl?.querySelector('div[style*="flex-direction:column"]');
   if (listContainer) {
     listContainer.appendChild(panel);
+  } else if (groupEl && groupEl.style.display !== 'none') {
+    groupEl.appendChild(panel);
   } else {
-    groupEl?.appendChild(panel);
+    // Single booking — show panel after the service card
+    const svcCard = document.getElementById('mSvcCard');
+    if (svcCard) {
+      svcCard.insertAdjacentElement('afterend', panel);
+    } else {
+      groupEl?.appendChild(panel);
+    }
   }
 
   // Select first available service

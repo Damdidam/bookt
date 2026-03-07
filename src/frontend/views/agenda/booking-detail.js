@@ -187,12 +187,14 @@ async function fcOpenDetail(bookingId) {
       const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
       const displayPrice = b.variant_price_cents ?? b.price_cents;
       const svcDisplayName = b.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : b.service_name;
+      const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
       svcCard.innerHTML = `
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="m-svc-name">${esc(svcDisplayName)}</div>
           <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}</div>
         </div>
-        ${displayPrice ? '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>' : ''}`;
+        ${displayPrice ? '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        ${canAddSvc ? '<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }
 
     // -- Save button color (custom or freestyle = accent color) --

@@ -399,13 +399,21 @@ router.post('/:id/group-add', async (req, res, next) => {
     if (bkRes.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
     const booking = bkRes.rows[0];
 
-    if (!booking.group_id) {
-      return res.status(400).json({ error: 'Ce RDV ne fait pas partie d\'un groupe' });
-    }
-
     const FROZEN = ['cancelled', 'no_show'];
     if (FROZEN.includes(booking.status)) {
       return res.status(400).json({ error: 'Impossible d\'ajouter à un groupe annulé ou no-show' });
+    }
+
+    // If single booking (no group_id), convert to group first
+    let groupId = booking.group_id;
+    if (!groupId) {
+      groupId = require('crypto').randomUUID();
+      await queryWithRLS(bid,
+        `UPDATE bookings SET group_id = $1, group_order = 0, updated_at = NOW()
+         WHERE id = $2 AND business_id = $3`,
+        [groupId, id, bid]
+      );
+      booking.group_id = groupId;
     }
 
     // 2. Fetch service info + duration
