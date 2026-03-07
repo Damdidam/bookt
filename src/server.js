@@ -276,6 +276,25 @@ app.listen(PORT, () => {
       reminderRunning = false;
     }
   }, reminderInterval);
+
+  // ===== BOOKING CONFIRMATION CRON — auto-cancel unconfirmed bookings every 2 min =====
+  const confirmInterval = parseInt(process.env.BOOKING_CONFIRM_CRON_INTERVAL_MS, 10) || 2 * 60 * 1000;
+  let confirmRunning = false;
+  setInterval(async () => {
+    if (confirmRunning) return;
+    confirmRunning = true;
+    try {
+      const { processExpiredPendingBookings } = require('./services/booking-confirmation');
+      const result = await processExpiredPendingBookings();
+      if (result.processed > 0) {
+        console.log(`[CONFIRM CRON] ${result.processed} unconfirmed booking(s) auto-cancelled`);
+      }
+    } catch (e) {
+      console.error('[CONFIRM CRON] Error:', e.message);
+    } finally {
+      confirmRunning = false;
+    }
+  }, confirmInterval);
 });
 
 module.exports = app;

@@ -235,6 +235,7 @@ router.get('/:slug', async (req, res, next) => {
         cancel_policy_text: biz.settings?.cancel_policy_text || null,
         multi_service_enabled: !!biz.settings?.multi_service_enabled,
         practitioner_choice_enabled: !!biz.settings?.practitioner_choice_enabled,
+        booking_confirmation_required: !!biz.settings?.booking_confirmation_required,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),
@@ -726,6 +727,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
 
       const multiResult = await transactionWithRLS(businessId, async (client) => {
+        // Booking confirmation setting
+        const _bizConf = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
+        const _bizSettings = _bizConf.rows[0]?.settings || {};
+        const needsConfirmation = !!_bizSettings.booking_confirmation_required;
+        const bookingStatus = needsConfirmation ? 'pending' : 'confirmed';
+        const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
+        const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
+
         // Conflict check for entire chained range
         const conflict = await client.query(
           `SELECT id FROM bookings
@@ -826,11 +835,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
-              group_id, group_order)
-             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,'confirmed',$9,$10,$11)
+              group_id, group_order, confirmation_expires_at)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,
+              ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
             [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
-             appointment_mode||'cabinet', slot.start_at, slot.end_at,
+             appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order]
           );
           bookings.push(bk.rows[0]);
@@ -920,45 +930,63 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           console.error('Notification insert failed:', notifErr.message);
         }
 
-        return bookings;
+        return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel };
       });
+
+      const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel } = multiResult;
 
       broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
 
-      // Send multi-service confirmation email (non-blocking)
+      // Send email (non-blocking): confirmation request OR direct confirmation
       (async () => {
         try {
           const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
           const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
           if (bizRow.rows[0]) {
-            const lastBooking = multiResult[multiResult.length - 1];
-            await sendBookingConfirmation({
-              booking: {
-                ...multiResult[0],
-                end_at: lastBooking.end_at,
-                client_name, client_email,
-                practitioner_name: pracRow.rows[0]?.display_name || '',
-                comment: client_comment
-              },
-              business: bizRow.rows[0],
-              groupServices: multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }))
-            });
+            const lastBooking = multiBookings[multiBookings.length - 1];
+            const emailBooking = {
+              ...multiBookings[0],
+              end_at: lastBooking.end_at,
+              client_name, client_email,
+              practitioner_name: pracRow.rows[0]?.display_name || '',
+              comment: client_comment
+            };
+            const groupSvcs = multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
+
+            if (multiNeedsConfirm) {
+              // Send confirmation REQUEST (client must click to confirm)
+              const { sendBookingConfirmationRequest } = require('../../services/email');
+              if (multiConfChannel === 'email' || multiConfChannel === 'both') {
+                await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: multiConfTimeout, groupServices: groupSvcs });
+              }
+              if (multiConfChannel === 'sms' || multiConfChannel === 'both') {
+                try {
+                  const { sendSMS } = require('../../services/sms');
+                  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+                  const link = `${baseUrl}/api/public/booking/${multiBookings[0].public_token}/confirm-booking`;
+                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
+                } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
+              }
+            } else {
+              await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0], groupServices: groupSvcs });
+            }
           }
         } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
       })();
 
       return res.status(201).json({
         booking: {
-          id: multiResult[0].id, token: multiResult[0].public_token,
-          start_at: multiResult[0].start_at, end_at: multiResult[0].end_at, status: multiResult[0].status,
-          cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${multiResult[0].public_token}`
+          id: multiBookings[0].id, token: multiBookings[0].public_token,
+          start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
+          cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${multiBookings[0].public_token}`
         },
-        bookings: multiResult.map(b => ({
+        bookings: multiBookings.map(b => ({
           id: b.id, token: b.public_token,
           start_at: b.start_at, end_at: b.end_at, status: b.status,
           group_order: b.group_order
         })),
-        group_id: groupId
+        group_id: groupId,
+        needs_confirmation: multiNeedsConfirm
       });
     }
 
@@ -1037,6 +1065,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     }
 
     const result = await transactionWithRLS(businessId, async (client) => {
+      // Booking confirmation setting
+      const _bizConf = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
+      const _bizSettings = _bizConf.rows[0]?.settings || {};
+      const needsConfirmation = !!_bizSettings.booking_confirmation_required;
+      const bookingStatus = needsConfirmation ? 'pending' : 'confirmed';
+      const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
+      const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
+
       // Conflict check (capacity-aware)
       const conflict = await client.query(
         `SELECT id FROM bookings
@@ -1141,11 +1177,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Create booking
       const booking = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
-          channel, appointment_mode, start_at, end_at, status, comment_client)
-         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,'confirmed',$9)
+          channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at)
+         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,
+          ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
          RETURNING id, public_token, start_at, end_at, status`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
-         appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), client_comment||null]
+         appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null]
       );
 
       // Queue notifications
@@ -1173,16 +1210,59 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         console.error('Notification insert failed:', notifErr.message);
       }
 
-      return booking.rows[0];
+      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel };
     });
 
+    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel } = result;
+
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+
+    // Send email (non-blocking): confirmation request OR direct confirmation
+    (async () => {
+      try {
+        const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
+        const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+        if (bizRow.rows[0]) {
+          // Fetch service name for email
+          let svcName = 'Rendez-vous';
+          if (effectiveServiceId) {
+            const svcRow = await query(`SELECT name FROM services WHERE id = $1`, [effectiveServiceId]);
+            if (svcRow.rows[0]) svcName = svcRow.rows[0].name;
+          }
+          const emailBooking = {
+            ...createdBooking,
+            client_name, client_email,
+            service_name: svcName,
+            practitioner_name: pracRow.rows[0]?.display_name || '',
+            comment: client_comment
+          };
+          if (singleNeedsConfirm) {
+            const { sendBookingConfirmationRequest } = require('../../services/email');
+            if (singleConfChannel === 'email' || singleConfChannel === 'both') {
+              await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: singleConfTimeout });
+            }
+            if (singleConfChannel === 'sms' || singleConfChannel === 'both') {
+              try {
+                const { sendSMS } = require('../../services/sms');
+                const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+                const link = `${baseUrl}/api/public/booking/${createdBooking.public_token}/confirm-booking`;
+                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
+              } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
+            }
+          } else {
+            await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0] });
+          }
+        }
+      } catch (e) { console.warn('[EMAIL] Single booking email error:', e.message); }
+    })();
+
     res.status(201).json({
       booking: {
-        id: result.id, token: result.public_token,
-        start_at: result.start_at, end_at: result.end_at, status: result.status,
-        cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${result.public_token}`
-      }
+        id: createdBooking.id, token: createdBooking.public_token,
+        start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
+        cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${createdBooking.public_token}`
+      },
+      needs_confirmation: singleNeedsConfirm
     });
   } catch (err) {
     if (err.type === 'conflict') return res.status(409).json({ error: err.message });
@@ -1618,6 +1698,162 @@ function actionPage(title, message, color, businessName, token, action, btnLabel
   ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${escHtml(businessName)} · Via Genda</p>` : ''}
 </div></body></html>`;
 }
+
+// ============================================================
+// BOOKING CONFIRMATION (pending → confirmed) — for booking_confirmation_required setting
+// ============================================================
+
+// GET /api/public/booking/:token/confirm-booking — landing page (READ-ONLY)
+router.get('/booking/:token/confirm-booking', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.status, b.start_at, b.end_at, b.confirmation_expires_at,
+              s.name AS service_name,
+              biz.name AS business_name, biz.theme
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`, [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+
+    const bk = result.rows[0];
+    const color = bk.theme?.primary_color || '#0D7377';
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+
+    if (bk.status === 'confirmed' || bk.status === 'completed') {
+      return res.send(confirmationPage('D\u00e9j\u00e0 confirm\u00e9 \u2705', `Votre rendez-vous du <strong>${dt} \u00e0 ${tm}</strong> est confirm\u00e9.`, color, bk.business_name));
+    }
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('Rendez-vous annul\u00e9', 'Ce rendez-vous a \u00e9t\u00e9 annul\u00e9 car le d\u00e9lai de confirmation a expir\u00e9.', '#C62828', bk.business_name));
+    }
+    if (bk.status !== 'pending') {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre confirm\u00e9.', '#A68B3C', bk.business_name));
+    }
+    if (bk.confirmation_expires_at && new Date() > new Date(bk.confirmation_expires_at)) {
+      return res.send(confirmationPage('Lien expir\u00e9 \u23f3', 'Le d\u00e9lai de confirmation est d\u00e9pass\u00e9. Le cr\u00e9neau a \u00e9t\u00e9 lib\u00e9r\u00e9.', '#C62828', bk.business_name));
+    }
+
+    // Show confirmation landing page with POST button
+    res.send(actionPage(
+      'Confirmer votre rendez-vous',
+      `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} \u00e0 ${tm}</strong>`,
+      color, bk.business_name, token, 'confirm-booking', 'Confirmer \u2705'
+    ));
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/booking/:token/confirm-booking — mutation (pending → confirmed)
+router.post('/booking/:token/confirm-booking', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const isForm = req.is('application/x-www-form-urlencoded');
+
+    // Fetch display data for HTML response
+    let displayData = null;
+    if (isForm) {
+      const info = await query(
+        `SELECT b.status, b.start_at, b.confirmation_expires_at,
+                s.name AS service_name, biz.name AS business_name, biz.theme
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         JOIN businesses biz ON biz.id = b.business_id
+         WHERE b.public_token = $1`, [token]
+      );
+      if (info.rows.length > 0) {
+        const bk = info.rows[0];
+        displayData = {
+          service_name: bk.service_name,
+          business_name: bk.business_name,
+          _dt: new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' }),
+          _tm: new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }),
+          _color: bk.theme?.primary_color || '#0D7377'
+        };
+      }
+    }
+
+    // Confirm the booking (pending → confirmed, only if not expired)
+    const result = await query(
+      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
+       WHERE public_token = $1 AND status = 'pending'
+         AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
+       RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      // Check why it failed
+      const check = await query(`SELECT status, confirmation_expires_at FROM bookings WHERE public_token = $1`, [token]);
+      if (check.rows.length === 0) {
+        if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+        return res.status(404).json({ error: 'Rendez-vous introuvable' });
+      }
+      if (check.rows[0].status === 'confirmed') {
+        if (isForm) return res.send(confirmationPage('D\u00e9j\u00e0 confirm\u00e9 \u2705', 'Votre rendez-vous est d\u00e9j\u00e0 confirm\u00e9.', displayData?._color || '#0D7377', displayData?.business_name));
+        return res.json({ confirmed: true, already: true });
+      }
+      if (check.rows[0].status === 'cancelled') {
+        if (isForm) return res.send(confirmationPage('D\u00e9lai expir\u00e9', 'Ce rendez-vous a \u00e9t\u00e9 annul\u00e9 car le d\u00e9lai de confirmation a expir\u00e9.', '#C62828', displayData?.business_name));
+        return res.status(410).json({ error: 'Booking expired and cancelled' });
+      }
+      if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre confirm\u00e9.', '#A68B3C', displayData?.business_name));
+      return res.status(400).json({ error: 'Booking not in pending status' });
+    }
+
+    const bk = result.rows[0];
+
+    // Also confirm group siblings if any
+    await query(
+      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
+       WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+         AND id != $1 AND status = 'pending'`,
+      [bk.id]
+    );
+
+    // SSE notification
+    broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+
+    // Send the actual confirmation email (non-blocking)
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, s.name AS service_name, p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address, biz.theme AS biz_theme
+           FROM bookings b
+           LEFT JOIN services s ON s.id = b.service_id
+           JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [bk.id]
+        );
+        if (fullBk.rows[0] && fullBk.rows[0].client_email) {
+          const row = fullBk.rows[0];
+          await sendBookingConfirmation({
+            booking: {
+              public_token: row.public_token, start_at: row.start_at, end_at: row.end_at,
+              client_name: row.client_name, client_email: row.client_email,
+              service_name: row.service_name, practitioner_name: row.practitioner_name,
+              comment: row.comment_client
+            },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme }
+          });
+        }
+      } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
+    })();
+
+    if (isForm && displayData) {
+      return res.send(confirmationPage(
+        'Rendez-vous confirm\u00e9 \u2705',
+        `${escHtml(displayData.service_name) || 'Votre rendez-vous'} le <strong>${escHtml(displayData._dt)} \u00e0 ${escHtml(displayData._tm)}</strong> est confirm\u00e9. Merci !`,
+        displayData._color, displayData.business_name
+      ));
+    }
+    const { business_id: _bid, ...publicBooking } = bk;
+    res.json({ confirmed: true, booking: publicBooking });
+  } catch (err) { next(err); }
+});
 
 // ============================================================
 // PRE-RDV DOCUMENTS — PUBLIC ACCESS

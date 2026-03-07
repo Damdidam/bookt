@@ -368,6 +368,83 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   });
 }
 
+/**
+ * Send booking confirmation REQUEST email (client must click to confirm)
+ * Used when business has booking_confirmation_required enabled.
+ * @param {Object} params
+ * @param {Object} params.booking - Booking row with public_token, start_at, end_at, client_name, client_email, service_name, practitioner_name
+ * @param {Object} params.business - Business row with name, email, address, theme
+ * @param {number} params.timeoutMin - Minutes before auto-cancel
+ * @param {Array}  [params.groupServices] - Optional for multi-service groups
+ */
+async function sendBookingConfirmationRequest({ booking, business, timeoutMin, groupServices }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const color = safeColor(business.theme?.primary_color);
+  const practitionerName = escHtml(booking.practitioner_name || '');
+  const safeClientName = escHtml(booking.client_name);
+
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const serviceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
+
+  let detailLines = `<div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">\u{1F4C5} ${dateStr}</div>`;
+  detailLines += `<div style="font-size:14px;color:#92700C">\u{1F550} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
+
+  if (isMulti) {
+    detailLines += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
+    groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+      detailLines += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+    });
+  } else {
+    detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">\u{1F486} ${serviceName}</div>`;
+  }
+  if (practitionerName) detailLines += `<div style="font-size:14px;color:#92700C">\u{1F464} ${practitionerName}</div>`;
+
+  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+  const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm-booking`;
+
+  const delayLabel = timeoutMin >= 60
+    ? Math.floor(timeoutMin / 60) + 'h' + (timeoutMin % 60 > 0 ? String(timeoutMin % 60).padStart(2, '0') : '')
+    : timeoutMin + ' minutes';
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p>Votre rendez-vous a bien \u00e9t\u00e9 enregistr\u00e9. Merci de le <strong>confirmer</strong> en cliquant ci-dessous :</p>
+    <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
+      ${detailLines}
+    </div>
+    <p style="font-size:13px;color:#92700C;margin-top:8px">\u23f3 Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Confirmez votre rendez-vous',
+    preheader: `Confirmez votre RDV du ${dateStr} \u00e0 ${timeStr}`,
+    bodyHTML,
+    ctaText: 'Confirmer mon RDV \u2705',
+    ctaUrl: confirmUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Confirmez votre RDV \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
 // ── Category-based terminology (server-side) ──
 const CATEGORY_LABELS = {
   sante:            { client:'Patient·e',  clients:'Patients',    service:'Consultation', services:'Consultations' },
@@ -449,4 +526,4 @@ async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendPasswordResetEmail, sendSessionNotesEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

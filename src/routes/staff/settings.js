@@ -70,6 +70,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_slot_increment_min, settings_waitlist_mode,
       // Booking page settings
       settings_practitioner_choice_enabled,
+      // Booking confirmation
+      settings_booking_confirmation_required, settings_booking_confirmation_timeout, settings_booking_confirmation_channel,
       // Sector
       sector
     } = req.body;
@@ -89,7 +91,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_cancel_policy_text !== undefined
         || settings_multi_service_enabled !== undefined
         || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined
-        || settings_practitioner_choice_enabled !== undefined) {
+        || settings_practitioner_choice_enabled !== undefined
+        || settings_booking_confirmation_required !== undefined || settings_booking_confirmation_timeout !== undefined
+        || settings_booking_confirmation_channel !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -123,6 +127,10 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
       // Booking page
       if (settings_practitioner_choice_enabled !== undefined) cur.practitioner_choice_enabled = !!settings_practitioner_choice_enabled;
+      // Booking confirmation
+      if (settings_booking_confirmation_required !== undefined) cur.booking_confirmation_required = !!settings_booking_confirmation_required;
+      if (settings_booking_confirmation_timeout !== undefined) { const _v = parseInt(settings_booking_confirmation_timeout); cur.booking_confirmation_timeout_min = (_v >= 5 && _v <= 1440) ? _v : 30; }
+      if (settings_booking_confirmation_channel !== undefined) { cur.booking_confirmation_channel = ['email','sms','both'].includes(settings_booking_confirmation_channel) ? settings_booking_confirmation_channel : 'email'; }
       mergedSettings = cur;
     }
 

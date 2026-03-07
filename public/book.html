@@ -1392,7 +1392,20 @@ async function submitBooking(){
       +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
     document.getElementById('confirmDetails').innerHTML=confirmHtml;
 
-    buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
+    // Update step 5 heading based on confirmation requirement
+    if(data.needs_confirmation){
+      document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';
+      document.querySelector('#step5 .confirm-box h3').textContent='V\u00e9rifiez vos emails !';
+      document.querySelector('#step5 .confirm-box p').textContent='Votre cr\u00e9neau est r\u00e9serv\u00e9. Confirmez votre RDV en cliquant sur le lien envoy\u00e9 par email/SMS.';
+      document.getElementById('calButtons').style.display='none';
+    }else{
+      document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      document.querySelector('#step5 .confirm-box h3').textContent='Rendez-vous confirm\u00e9 !';
+      document.querySelector('#step5 .confirm-box p').textContent='Vous recevrez une confirmation par email et SMS.';
+      document.getElementById('calButtons').style.display='';
+    }
+
+    if(!data.needs_confirmation) buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
     goToStep(5);
   }catch(err){
     showError(err.message);
