@@ -8,11 +8,11 @@ import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import { calState } from '../../state.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
-import {
-  buildEventsCallback, buildEventContent, buildEventClassNames,
-  buildEventDidMount, buildEventWillUnmount, buildDateClick, buildEventDrop, buildEventResize,
-  buildEventOverlap, buildEventAllow, fcHideTooltip
-} from './calendar-events.js';
+import { buildEventsCallback } from './calendar-data.js';
+import { buildEventContent, buildEventClassNames } from './calendar-render.js';
+import { buildEventDidMount, buildEventWillUnmount } from './calendar-hooks.js';
+import { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow } from './calendar-interactions.js';
+import { fcHideTooltip } from './tooltip-renderer.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { atUpdateTitle } from './calendar-toolbar.js';
 import { fcLoadMobileList } from './calendar-mobile.js';
@@ -111,7 +111,7 @@ function initCalendar(initView, initSlotDur) {
     },
     longPressDelay: 300,
 
-    // Callbacks from calendar-events.js
+    // Callbacks from calendar-data / render / hooks / interactions
     eventOverlap: buildEventOverlap(),
     eventAllow: buildEventAllow(),
     events: buildEventsCallback(),

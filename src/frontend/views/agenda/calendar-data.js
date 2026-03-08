@@ -1,0 +1,313 @@
+/**
+ * Calendar Data — fetches bookings from API, normalizes them into FC events.
+ * Pure pipeline: fetch → separate → detect pose → build events → filter → inject featured.
+ *
+ * Extracted from calendar-events.js for separation of concerns.
+ */
+import { api, calState } from '../../state.js';
+import { fcHexAlpha } from './calendar-init.js';
+import { fsBuildBackgroundEvents } from './calendar-featured.js';
+
+const DEFAULT_ACCENT = '#0D7377';
+
+// ── Pure helpers ──
+
+function accentFor(b) {
+  if (b.booking_color) return b.booking_color;
+  return calState.fcColorMode === 'practitioner'
+    ? (b.practitioner_color || b.service_color || DEFAULT_ACCENT)
+    : (b.service_color || b.practitioner_color || DEFAULT_ACCENT);
+}
+
+/** Separate bookings into grouped dict and singles array. */
+export function separateGroupedAndSingles(bookings) {
+  const grouped = {}, singles = [];
+  bookings.forEach(b => {
+    if (b.group_id) {
+      if (!grouped[b.group_id]) grouped[b.group_id] = [];
+      grouped[b.group_id].push(b);
+    } else { singles.push(b); }
+  });
+  return { grouped, singles };
+}
+
+/** Detect bookings that fall entirely within another booking's processing (pose) window. */
+export function detectPoseChildren(singles) {
+  const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
+  const poseChildMap = {}; // parent booking id -> [child bookings]
+  const poseChildIds = new Set();
+  singles.forEach(b => {
+    if (parseInt(b.processing_time) > 0) return;
+    if (['cancelled','no_show'].includes(b.status)) return;
+    const bStart = new Date(b.start_at).getTime();
+    const bEnd = new Date(b.end_at).getTime();
+    for (var pi = 0; pi < poseParentBookings.length; pi++) {
+      var par = poseParentBookings[pi];
+      if (String(par.practitioner_id) !== String(b.practitioner_id)) continue;
+      var parStart = new Date(par.start_at).getTime();
+      var parPs = parseInt(par.processing_start) || 0;
+      var parBuf = parseInt(par.buffer_before_min) || 0;
+      var parPt = parseInt(par.processing_time) || 0;
+      var poseStart = parStart + (parBuf + parPs) * 60000;
+      var poseEnd = poseStart + parPt * 60000;
+      if (bStart >= poseStart && bEnd <= poseEnd) {
+        if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
+        poseChildMap[par.id].push(b);
+        poseChildIds.add(b.id);
+        break;
+      }
+    }
+  });
+  return { poseChildMap, poseChildIds };
+}
+
+/** Build FC events from single (non-grouped) bookings. */
+export function buildSingleEvents(singles, poseChildIds) {
+  return singles.map(b => {
+    const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
+    const accent = accentFor(b);
+    const pt = parseInt(b.processing_time) || 0;
+    const ps = parseInt(b.processing_start) || 0;
+    const isPoseChild = poseChildIds.has(b.id);
+    const props = { ...b, _accent: accent, _isPoseChild: isPoseChild };
+    if (pt > 0) {
+      const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
+      const buf = parseInt(b.buffer_before_min) || 0;
+      props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
+      props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
+    }
+    return {
+      id: b.id, resourceId: String(b.practitioner_id),
+      title: b.client_name || 'Sans nom',
+      start: b.start_at, end: b.end_at,
+      backgroundColor: isPoseChild ? 'rgba(255,255,255,.97)' : fcHexAlpha(accent, 0.1),
+      borderColor: accent, textColor: accent,
+      editable: !frozen, durationEditable: !frozen,
+      extendedProps: props
+    };
+  });
+}
+
+/** Build FC events from grouped bookings (single container per group). */
+export function buildGroupEvents(grouped) {
+  return Object.keys(grouped).map(gid => {
+    const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
+    const first = members[0];
+    const accent = accentFor(first);
+    const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
+    const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
+    const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
+    return {
+      id: 'group_' + gid, resourceId: String(first.practitioner_id),
+      title: first.client_name || 'Sans nom',
+      start: minStart, end: maxEnd,
+      backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+      editable: !anyFrozen, durationEditable: false,
+      extendedProps: {
+        _isGroup: true, _groupId: gid, _accent: accent,
+        _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
+        client_name: first.client_name,
+        practitioner_id: first.practitioner_id,
+        status: first.status
+      }
+    };
+  });
+}
+
+/** Filter events by status visibility and category visibility. */
+export function applyVisibilityFilters(events) {
+  return events.filter(ev => {
+    const p = ev.extendedProps;
+    if (p._isGroup) {
+      const members = p._members || [];
+      const allCancelled = members.every(m => m.status === 'cancelled');
+      const allNoShow = members.every(m => m.status === 'no_show');
+      if (allCancelled && !calState.fcShowCancelled) return false;
+      if (allNoShow && !calState.fcShowNoShow) return false;
+    } else {
+      if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
+      if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
+    }
+    // Category filter — for groups: show if ANY member matches a visible category
+    if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
+      if (p._isGroup) {
+        const members = p._members || [];
+        const anyVisible = members.some(m => !calState.fcHiddenCategories.has(m.service_category || ''));
+        if (!anyVisible) return false;
+      } else {
+        if (calState.fcHiddenCategories.has(p.service_category || '')) return false;
+      }
+    }
+    return true;
+  });
+}
+
+/** Compute minutes booked per practitioner (excluding cancelled/no_show). */
+function computePracHours(bookings) {
+  const pracMins = {};
+  bookings.forEach(b => {
+    if (['cancelled', 'no_show'].includes(b.status)) return;
+    const mins = (new Date(b.end_at) - new Date(b.start_at)) / 60000;
+    if (mins > 0) pracMins[b.practitioner_id] = (pracMins[b.practitioner_id] || 0) + mins;
+  });
+  return pracMins;
+}
+
+// ── Fill rate ──
+
+function updatePracHours() {
+  const hrs = calState.fcPracHours || {};
+  document.querySelectorAll('.prac-hours[data-prac-id]').forEach(el => {
+    const id = el.dataset.pracId;
+    if (id === 'all') return;
+    const mins = hrs[id] || 0;
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    el.textContent = m > 0 ? ' · ' + h + 'h' + String(m).padStart(2, '0') : ' · ' + h + 'h';
+    el.style.opacity = mins === 0 ? '.4' : '1';
+  });
+  const total = Object.values(hrs).reduce((s, v) => s + v, 0);
+  document.querySelectorAll('.prac-hours[data-prac-id="all"]').forEach(el => {
+    const h = Math.floor(total / 60);
+    const m = Math.round(total % 60);
+    el.textContent = m > 0 ? ' · ' + h + 'h' + String(m).padStart(2, '0') : ' · ' + h + 'h';
+  });
+  computeFillRate();
+}
+
+function computeFillRate() {
+  const cal = calState.fcCal;
+  if (!cal) return;
+  const view = cal.view;
+  if (!view) return;
+  const viewStart = view.currentStart;
+  const viewEnd = view.currentEnd;
+  const pracBH = calState.fcPracBusinessHours || {};
+  const bookedMins = calState.fcPracHours || {};
+
+  const timeToMinutes = t => {
+    if (!t) return 0;
+    const [h, m] = t.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const pracStats = {};
+  let totalAvail = 0, totalBooked = 0;
+
+  const d = new Date(viewStart);
+  while (d < viewEnd) {
+    const fcDay = d.getDay();
+    for (const [pracId, slots] of Object.entries(pracBH)) {
+      const daySlots = (slots || []).filter(s => s.daysOfWeek && s.daysOfWeek.includes(fcDay));
+      let availMins = 0;
+      daySlots.forEach(s => {
+        const diff = timeToMinutes(s.endTime) - timeToMinutes(s.startTime);
+        if (diff > 0) availMins += diff;
+      });
+      if (availMins > 0) {
+        if (!pracStats[pracId]) pracStats[pracId] = { avail: 0, booked: 0 };
+        pracStats[pracId].avail += availMins;
+        totalAvail += availMins;
+      }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+
+  for (const [pracId, mins] of Object.entries(bookedMins)) {
+    if (!pracStats[pracId]) pracStats[pracId] = { avail: 0, booked: 0 };
+    pracStats[pracId].booked += mins;
+    totalBooked += mins;
+  }
+
+  updateFillRateDOM(totalAvail, totalBooked, pracStats);
+}
+
+function fillColor(pct) {
+  if (pct >= 75) return 'var(--green)';
+  if (pct >= 40) return 'var(--gold)';
+  return 'var(--text-4)';
+}
+
+function updateFillRateDOM(totalAvail, totalBooked, pracStats) {
+  const pctEl = document.getElementById('fillPct');
+  const barEl = document.getElementById('fillBarInner');
+  const chipsEl = document.getElementById('fillChips');
+  if (!pctEl) return;
+
+  if (totalAvail === 0) {
+    pctEl.textContent = '—';
+    pctEl.style.color = 'var(--text-4)';
+    barEl.style.width = '0%';
+    if (chipsEl) chipsEl.innerHTML = '';
+    return;
+  }
+
+  const globalPct = Math.min(Math.round((totalBooked / totalAvail) * 100), 100);
+  pctEl.textContent = globalPct + '%';
+  pctEl.style.color = fillColor(globalPct);
+  barEl.style.width = globalPct + '%';
+  barEl.style.background = fillColor(globalPct);
+
+  if (!chipsEl) return;
+  const pracs = calState.fcPractitioners || [];
+  if (pracs.length <= 1) { chipsEl.innerHTML = ''; return; }
+
+  let html = '';
+  pracs.forEach(p => {
+    const st = pracStats[p.id];
+    if (!st || st.avail === 0) return;
+    const pct = Math.min(Math.round((st.booked / st.avail) * 100), 100);
+    const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    html += `<div class="fill-chip"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini} <span style="color:${fillColor(pct)}">${pct}%</span></div>`;
+  });
+  chipsEl.innerHTML = html;
+}
+
+// ── Main callback ──
+
+/**
+ * Returns the `events` callback for FullCalendar (fetches bookings from API).
+ * Pipeline: fetch → separate → detect pose → build events → filter → inject featured.
+ */
+function buildEventsCallback() {
+  return function (info, successCb, failCb) {
+    const params = new URLSearchParams({ from: info.startStr, to: info.endStr });
+    if (calState.fcCurrentFilter !== 'all') params.set('practitioner_id', calState.fcCurrentFilter);
+
+    // Side-fetch all practitioners' hours (only when filtered to a single prac)
+    if (calState.fcCurrentFilter !== 'all') {
+      const allParams = new URLSearchParams({ from: info.startStr, to: info.endStr });
+      fetch('/api/bookings?' + allParams.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
+        .then(r => r.ok ? r.json() : null).then(d => {
+          if (!d) return;
+          calState.fcPracHours = computePracHours(d.bookings || []);
+          updatePracHours();
+        }).catch(() => {});
+    }
+
+    fetch('/api/bookings?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
+      .then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).then(d => {
+        const bookings = d.bookings || [];
+
+        // Compute hours per practitioner (when "all" filter — no side-fetch needed)
+        if (calState.fcCurrentFilter === 'all') {
+          calState.fcPracHours = computePracHours(bookings);
+          updatePracHours();
+        }
+
+        // Pipeline
+        const { grouped, singles } = separateGroupedAndSingles(bookings);
+        const { poseChildIds } = detectPoseChildren(singles);
+        const singleEvents = buildSingleEvents(singles, poseChildIds);
+        const groupEvents = buildGroupEvents(grouped);
+        const allEvents = singleEvents.concat(groupEvents);
+        const filtered = applyVisibilityFilters(allEvents);
+
+        // Inject featured slots background events if mode is active
+        const fsEvents = fsBuildBackgroundEvents();
+        successCb(filtered.concat(fsEvents));
+      }).catch(e => failCb(e));
+  };
+}
+
+export { accentFor, buildEventsCallback };

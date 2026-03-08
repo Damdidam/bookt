@@ -16,7 +16,7 @@ import { fcLoadMobileList } from './calendar-mobile.js';
 import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
 import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
-import { buildEventsCallback } from './calendar-events.js';
+import { buildEventsCallback } from './calendar-data.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
 import './color-swatches.js';
