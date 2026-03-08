@@ -190,7 +190,7 @@ function buildEventsCallback() {
           }
         });
 
-        // Single events (pose-children stay as FC events for drag/drop, but marked)
+        // Single events — pose-children rendered as background events to avoid sub-column inflation
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = accentFor(b);
@@ -205,15 +205,29 @@ function buildEventsCallback() {
             props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
             props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
           }
-          events.push({
-            id: b.id, resourceId: String(b.practitioner_id),
-            title: b.client_name || 'Sans nom',
-            start: b.start_at, end: b.end_at,
-            backgroundColor: isPoseChild ? 'rgba(255,255,255,.97)' : fcHexAlpha(accent, 0.1),
-            borderColor: accent, textColor: accent,
-            editable: !frozen, durationEditable: !frozen,
-            extendedProps: props
-          });
+          if (isPoseChild) {
+            // Background event: excluded from FC sub-column layout, styled in eventDidMount
+            events.push({
+              id: b.id, resourceId: String(b.practitioner_id),
+              title: b.client_name || 'Sans nom',
+              start: b.start_at, end: b.end_at,
+              display: 'background',
+              backgroundColor: 'transparent',
+              borderColor: accent, textColor: accent,
+              editable: false,
+              extendedProps: props
+            });
+          } else {
+            events.push({
+              id: b.id, resourceId: String(b.practitioner_id),
+              title: b.client_name || 'Sans nom',
+              start: b.start_at, end: b.end_at,
+              backgroundColor: fcHexAlpha(accent, 0.1),
+              borderColor: accent, textColor: accent,
+              editable: !frozen, durationEditable: !frozen,
+              extendedProps: props
+            });
+          }
         });
 
         // Grouped events -> single container per group
@@ -490,31 +504,33 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose parent with children: just mark for CSS
-    if (p._hasPoseChildren && info.view.type !== 'dayGridMonth') {
-      info.el.classList.add('ev-pose-parent');
-    }
-
-    // Pose-child: reposition harness to overlap the parent's sub-column
+    // Pose-child (background event): style as elevated card within parent's sub-column
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
-      info.el.classList.add('ev-pose-child');
-      var childHarness = info.el.closest('.fc-timegrid-event-harness');
-      if (childHarness && p._poseParentId) {
-        // Defer to ensure parent's data-eid is set and FC layout is complete
+      info.el.classList.add('ev-pose-child-bg');
+      info.el.style.borderLeftColor = safeAccent;
+      // Add visible content (background events have no eventContent)
+      var svcLabel = esc(p.variant_name ? (p.service_name || 'RDV') + ' \u2014 ' + p.variant_name : (p.service_name || p.custom_label || 'RDV'));
+      info.el.innerHTML = '<div class="ev-inner" style="color:' + safeAccent + '"><span class="ev-client">' + esc(p.client_name || 'Sans nom') + '</span><span class="ev-service">' + svcLabel + '</span></div>';
+      // Constrain width to parent's sub-column
+      if (p._poseParentId) {
         requestAnimationFrame(function () {
           var parentEl = document.querySelector('[data-eid="' + p._poseParentId + '"]');
           if (!parentEl) return;
           var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
           if (!parentHarness) return;
-          // Read parent's actual horizontal position (pixels)
-          var pcs = getComputedStyle(parentHarness);
-          var ccs = getComputedStyle(childHarness);
-          // Rebuild child's inset: keep child's own top/bottom, use parent's left/right + indent
-          var newInset = ccs.top + ' calc(' + pcs.right + ' + 4px) ' + ccs.bottom + ' calc(' + pcs.left + ' + 6px)';
-          childHarness.style.setProperty('inset', newInset, 'important');
-          childHarness.style.setProperty('z-index', '4', 'important');
+          var bgContainer = info.el.parentElement;
+          if (!bgContainer) return;
+          var pRect = parentHarness.getBoundingClientRect();
+          var cRect = bgContainer.getBoundingClientRect();
+          if (cRect.width > 0) {
+            var leftPct = ((pRect.left - cRect.left) / cRect.width) * 100;
+            var rightPct = ((cRect.right - pRect.right) / cRect.width) * 100;
+            info.el.style.left = Math.max(leftPct + 1.5, 0) + '%';
+            info.el.style.right = Math.max(rightPct + 1.5, 0) + '%';
+          }
         });
       }
+      return; // skip normal event styling for background pose-children
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
