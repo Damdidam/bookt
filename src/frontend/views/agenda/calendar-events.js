@@ -188,29 +188,25 @@ function buildEventsCallback() {
           }
         });
 
-        // Single events (skip pose-children — they render as compact cards inside parent)
+        // Single events (pose-children stay as FC events for drag/drop, but marked)
         singles.forEach(b => {
-          if (poseChildIds.has(b.id)) return;
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = accentFor(b);
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
-          // Compute pose percentages for CSS overlay (if processing_time > 0)
-          const props = { ...b, _accent: accent };
+          const isPoseChild = poseChildIds.has(b.id);
+          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild };
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
             const buf = parseInt(b.buffer_before_min) || 0;
             props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
             props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
           }
-          // Attach pose-children data to parent
-          if (poseChildMap[b.id]) {
-            props._poseChildren = poseChildMap[b.id].map(c => ({ ...c, _accent: accentFor(c) }));
-          }
           events.push({
             id: b.id, title: b.client_name || 'Sans nom',
             start: b.start_at, end: b.end_at,
-            backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
+            backgroundColor: isPoseChild ? 'rgba(255,255,255,.97)' : fcHexAlpha(accent, 0.1),
+            borderColor: accent, textColor: accent,
             editable: !frozen, durationEditable: !frozen,
             extendedProps: props
           });
@@ -490,37 +486,14 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose-children: render compact cards inside parent event's pose zone
-    if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
-      const parentStart = info.event.start.getTime();
-      const parentEnd = (info.event.end || info.event.start).getTime();
-      const parentDur = parentEnd - parentStart;
-      const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      p._poseChildren.forEach(function(child) {
-        var cStart = new Date(child.start_at).getTime();
-        var cEnd = new Date(child.end_at).getTime();
-        var topPct = ((cStart - parentStart) / parentDur) * 100;
-        var heightPct = ((cEnd - cStart) / parentDur) * 100;
-        var cAccent = child._accent || DEFAULT_ACCENT;
-        var card = document.createElement('div');
-        card.className = 'ev-pose-card';
-        card.style.top = topPct + '%';
-        card.style.height = Math.max(heightPct, 10) + '%';
-        card.style.borderLeftColor = cAccent;
-        card.style.color = cAccent;
-        var timeFmt = new Date(child.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
-        card.innerHTML = '<span class="epc-time">' + timeFmt + '</span><span class="epc-name">' + esc(child.client_name || 'Sans nom') + '</span><span class="epc-svc">' + esc(child.service_name || 'RDV') + '</span>';
-        card.addEventListener('dblclick', function(e) { e.stopPropagation(); fcHideTooltip(); fcOpenDetail(child.id); });
-        card.addEventListener('click', function(e) { e.stopPropagation(); });
-        if (!isTouch) {
-          card.addEventListener('mouseenter', function(e) {
-            fcShowTooltip({ start: new Date(child.start_at), end: new Date(child.end_at), title: child.client_name || 'Sans nom', extendedProps: child }, e.clientX, e.clientY);
-          });
-          card.addEventListener('mousemove', function(e) { fcMoveTooltip(e.clientX, e.clientY); });
-          card.addEventListener('mouseleave', function() { fcHideTooltip(); });
-        }
-        info.el.appendChild(card);
-      });
+    // Pose-child: white card shifted into parent's pose zone, fully draggable
+    if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
+      info.el.classList.add('ev-pose-child');
+      var harness = info.el.closest('.fc-timegrid-event-harness');
+      if (harness) {
+        harness.style.transform = 'translateX(-60%)';
+        harness.style.zIndex = '4';
+      }
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
