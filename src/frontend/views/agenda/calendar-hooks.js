@@ -87,17 +87,39 @@ function redistributePoseColumns() {
     var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
 
     // ── Redistribute real harnesses by practitioner column ──
-    // Skip if resource view is active (FC Scheduler handles columns natively)
+    // Only split into columns when events from different practitioners overlap in time.
+    // If only one practitioner has events at a given time → full width.
+    // Skip if resource view is active (FC Scheduler handles columns natively).
     if (pracIds.length >= 2 && !isResourceView) {
-      realHarnesses.forEach(function (h) {
-        var pid = getPracId(h);
-        if (!pid) return;
-        var idx = pracIds.indexOf(pid);
-        if (idx === -1) return;
-        var total = pracIds.length;
-        var w = 100 / total;
-        setHoriz(h, (idx * w) + '%', (100 - (idx + 1) * w) + '%');
-        h.style.zIndex = String(idx + 1);
+      // Annotate each harness with its practitioner and bounding rect
+      var annotated = realHarnesses.map(function (h) {
+        return { h: h, pid: getPracId(h), rect: h.getBoundingClientRect() };
+      }).filter(function (a) { return a.pid && pracIds.indexOf(a.pid) !== -1; });
+
+      // For each harness, find all overlapping harnesses (by vertical bounds)
+      annotated.forEach(function (a) {
+        var overlappingPracs = new Set();
+        overlappingPracs.add(a.pid);
+        annotated.forEach(function (b) {
+          if (b === a) return;
+          // Check vertical overlap
+          if (a.rect.top < b.rect.bottom - 1 && b.rect.top < a.rect.bottom - 1) {
+            overlappingPracs.add(b.pid);
+          }
+        });
+
+        if (overlappingPracs.size >= 2) {
+          // Multiple practitioners overlap at this time → split into columns
+          var idx = pracIds.indexOf(a.pid);
+          var total = pracIds.length;
+          var w = 100 / total;
+          setHoriz(a.h, (idx * w) + '%', (100 - (idx + 1) * w) + '%');
+          a.h.style.zIndex = String(idx + 1);
+        } else {
+          // Only one practitioner at this time → full width
+          setHoriz(a.h, '0%', '0%');
+          a.h.style.zIndex = '1';
+        }
       });
     }
 
