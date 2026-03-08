@@ -165,6 +165,7 @@ function buildEventsCallback() {
         const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
         const poseChildMap = {}; // parent booking id -> [child bookings]
         const poseChildIds = new Set();
+        const poseParentOf = {}; // child booking id -> parent booking id
         singles.forEach(b => {
           if (parseInt(b.processing_time) > 0) return;
           if (['cancelled','no_show'].includes(b.status)) return;
@@ -183,6 +184,7 @@ function buildEventsCallback() {
               if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
               poseChildMap[par.id].push(b);
               poseChildIds.add(b.id);
+              poseParentOf[b.id] = par.id;
               break;
             }
           }
@@ -196,7 +198,7 @@ function buildEventsCallback() {
           const ps = parseInt(b.processing_start) || 0;
           const isPoseChild = poseChildIds.has(b.id);
           const hasPoseChildren = pt > 0 && !!poseChildMap[b.id];
-          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild, _hasPoseChildren: hasPoseChildren };
+          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild, _poseParentId: poseParentOf[b.id], _hasPoseChildren: hasPoseChildren };
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
             const buf = parseInt(b.buffer_before_min) || 0;
@@ -488,18 +490,31 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose parent with children: add CSS class to harness for full-width override
+    // Pose parent with children: just mark for CSS
     if (p._hasPoseChildren && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-parent');
-      var harness = info.el.closest('.fc-timegrid-event-harness');
-      if (harness) harness.classList.add('fc-pose-parent-harness');
     }
 
-    // Pose-child: add CSS class to harness for overlay positioning
+    // Pose-child: reposition harness to overlap the parent's sub-column
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
-      var harness = info.el.closest('.fc-timegrid-event-harness');
-      if (harness) harness.classList.add('fc-pose-child-harness');
+      var childHarness = info.el.closest('.fc-timegrid-event-harness');
+      if (childHarness && p._poseParentId) {
+        // Defer to ensure parent's data-eid is set and FC layout is complete
+        requestAnimationFrame(function () {
+          var parentEl = document.querySelector('[data-eid="' + p._poseParentId + '"]');
+          if (!parentEl) return;
+          var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
+          if (!parentHarness) return;
+          // Read parent's actual horizontal position (pixels)
+          var pcs = getComputedStyle(parentHarness);
+          var ccs = getComputedStyle(childHarness);
+          // Rebuild child's inset: keep child's own top/bottom, use parent's left/right + indent
+          var newInset = ccs.top + ' calc(' + pcs.right + ' + 4px) ' + ccs.bottom + ' calc(' + pcs.left + ' + 6px)';
+          childHarness.style.setProperty('inset', newInset, 'important');
+          childHarness.style.setProperty('z-index', '4', 'important');
+        });
+      }
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
