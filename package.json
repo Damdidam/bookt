@@ -13,10 +13,13 @@
     "stripe:setup": "node scripts/stripe-setup.js"
   },
   "dependencies": {
-    "@fullcalendar/core": "^6.1.15",
-    "@fullcalendar/daygrid": "^6.1.15",
-    "@fullcalendar/interaction": "^6.1.15",
-    "@fullcalendar/timegrid": "^6.1.15",
+    "@fullcalendar/core": "~6.1.20",
+    "@fullcalendar/daygrid": "~6.1.20",
+    "@fullcalendar/interaction": "~6.1.20",
+    "@fullcalendar/resource": "~6.1.20",
+    "@fullcalendar/resource-timegrid": "~6.1.20",
+    "@fullcalendar/timegrid": "~6.1.20",
+    "@sentry/node": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -26,7 +29,6 @@
     "jsonwebtoken": "^9.0.2",
     "pdfkit": "^0.14.0",
     "pg": "^8.12.0",
-    "@sentry/node": "^8.0.0",
     "stripe": "^14.0.0",
     "twilio": "^4.23.0",
     "uuid": "^9.0.0"
