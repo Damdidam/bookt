@@ -78,7 +78,14 @@ function initCalendar(initView, initSlotDur) {
     editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
     slotEventOverlap: false,
-    eventOrder: 'duration,-start',
+    eventOrder: function (a, b) {
+      // Events with pose (processing_time) always first (left column)
+      var ptA = parseInt(a.extendedProps && a.extendedProps.processing_time) || 0;
+      var ptB = parseInt(b.extendedProps && b.extendedProps.processing_time) || 0;
+      if (ptA > 0 && ptB === 0) return -1;
+      if (ptB > 0 && ptA === 0) return 1;
+      return 0;
+    },
     longPressDelay: 300,
 
     // Callbacks from calendar-events.js
