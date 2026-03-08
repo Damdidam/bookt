@@ -478,26 +478,26 @@ function buildEventDidMount() {
           const poseStart = ev.start.getTime() + (buf + ps) * 60000;
           const poseEnd = ev.start.getTime() + (buf + ps + pt) * 60000;
           if (myStart >= poseStart && myEnd <= poseEnd) {
-            // Widen the pose-child to overlap ~50% onto the parent event
+            // Widen the pose-child harness to overlap ~50% onto the parent event
             requestAnimationFrame(() => {
-              const s = info.el.style;
-              const inset = s.inset;
-              if (inset) {
-                // inset: "top right bottom left" e.g. "120px 50% -200px 0%"
-                const parts = inset.split(/\s+/);
-                const right = parseFloat(parts[1]) || 0;
-                const left = parseFloat(parts[3]) || 0;
-                if (left === 0 && right > 0) {
-                  // Pose child is LEFT → extend right to overlap parent on right
-                  parts[1] = (right / 2) + '%';
-                } else if (left > 0) {
-                  // Pose child is RIGHT → extend left to overlap parent on left
-                  parts[3] = (left / 2) + '%';
+              const harness = info.el.closest('.fc-timegrid-event-harness') || info.el.parentElement;
+              const hs = harness?.style;
+              if (hs) {
+                const inset = hs.inset;
+                if (inset) {
+                  const parts = inset.split(/\s+/);
+                  const right = parseFloat(parts[1]) || 0;
+                  const left = parseFloat(parts[3]) || 0;
+                  if (left === 0 && right > 0) {
+                    parts[1] = (right / 2) + '%';
+                  } else if (left > 0) {
+                    parts[3] = (left / 2) + '%';
+                  }
+                  hs.inset = parts.join(' ');
                 }
-                s.inset = parts.join(' ');
+                hs.zIndex = '6';
               }
-              s.zIndex = '6';
-              s.boxShadow = '0 1px 6px rgba(0,0,0,.15)';
+              info.el.style.boxShadow = '0 1px 6px rgba(0,0,0,.15)';
             });
             break;
           }
