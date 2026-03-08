@@ -195,7 +195,8 @@ function buildEventsCallback() {
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
           const isPoseChild = poseChildIds.has(b.id);
-          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild };
+          const hasPoseChildren = pt > 0 && !!poseChildMap[b.id];
+          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild, _hasPoseChildren: hasPoseChildren };
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
             const buf = parseInt(b.buffer_before_min) || 0;
@@ -487,16 +488,26 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
+    // Pose parent with children: force harness to full column width so child overlaps correctly
+    if (p._hasPoseChildren && info.view.type !== 'dayGridMonth') {
+      var harness = info.el.closest('.fc-timegrid-event-harness');
+      if (harness) {
+        var parts = (harness.style.inset || '').split(/\s+/);
+        if (parts.length >= 4) {
+          harness.style.inset = parts[0] + ' 0% ' + parts[2] + ' 0%';
+        }
+      }
+    }
+
     // Pose-child: override harness inset to overlap parent's pose zone
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       var harness = info.el.closest('.fc-timegrid-event-harness');
       if (harness) {
-        // Parse FC's inset (format: "top right bottom left")
         var parts = (harness.style.inset || '').split(/\s+/);
         if (parts.length >= 4) {
-          // Keep vertical positioning (top/bottom), force horizontal to overlap parent
-          harness.style.inset = parts[0] + ' 3% ' + parts[2] + ' 8%';
+          // Keep vertical positioning (top/bottom), force horizontal to overlap parent with slight indent
+          harness.style.inset = parts[0] + ' 5% ' + parts[2] + ' 10%';
         }
         harness.style.zIndex = '4';
       }
