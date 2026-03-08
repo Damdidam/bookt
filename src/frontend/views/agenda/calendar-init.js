@@ -78,17 +78,7 @@ function initCalendar(initView, initSlotDur) {
     editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
     slotEventOverlap: false,
-    eventOrder: function (a, b) {
-      const pA = a.extendedProps?.practitioner_id || '';
-      const pB = b.extendedProps?.practitioner_id || '';
-      if (pA < pB) return -1;
-      if (pA > pB) return 1;
-      // Same practitioner: longer events first (left column)
-      const durA = (a.end && a.start) ? (a.end.getTime() - a.start.getTime()) : 0;
-      const durB = (b.end && b.start) ? (b.end.getTime() - b.start.getTime()) : 0;
-      if (durA !== durB) return durB - durA;
-      return 0;
-    },
+    eventOrder: 'duration,-start',
     longPressDelay: 300,
 
     // Callbacks from calendar-events.js
