@@ -488,29 +488,18 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose parent with children: force harness to full column width so child overlaps correctly
+    // Pose parent with children: add CSS class to harness for full-width override
     if (p._hasPoseChildren && info.view.type !== 'dayGridMonth') {
+      info.el.classList.add('ev-pose-parent');
       var harness = info.el.closest('.fc-timegrid-event-harness');
-      if (harness) {
-        var parts = (harness.style.inset || '').split(/\s+/);
-        if (parts.length >= 4) {
-          harness.style.inset = parts[0] + ' 0% ' + parts[2] + ' 0%';
-        }
-      }
+      if (harness) harness.classList.add('fc-pose-parent-harness');
     }
 
-    // Pose-child: override harness inset to overlap parent's pose zone
+    // Pose-child: add CSS class to harness for overlay positioning
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       var harness = info.el.closest('.fc-timegrid-event-harness');
-      if (harness) {
-        var parts = (harness.style.inset || '').split(/\s+/);
-        if (parts.length >= 4) {
-          // Keep vertical positioning (top/bottom), force horizontal to overlap parent with slight indent
-          harness.style.inset = parts[0] + ' 5% ' + parts[2] + ' 10%';
-        }
-        harness.style.zIndex = '4';
-      }
+      if (harness) harness.classList.add('fc-pose-child-harness');
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
