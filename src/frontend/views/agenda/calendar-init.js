@@ -125,7 +125,7 @@ function initCalendar(initView, initSlotDur) {
       }
     },
     navLinkDayClick: function (date) {
-      calState.fcCal.changeView(fcIsMobile() ? 'timeGridDay' : 'resourceTimeGridDay', date);
+      calState.fcCal.changeView('resourceTimeGridDay', date);
     },
     eventDidMount: buildEventDidMount(),
     eventWillUnmount: buildEventWillUnmount(),
