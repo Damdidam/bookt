@@ -54,7 +54,7 @@ function atUpdateTitle() {
     const d = view.currentStart;
     title = DFULL[d.getDay()] + ' ' + d.getDate() + ' ' + MFULL[d.getMonth()];
     if (d.getFullYear() !== new Date().getFullYear()) title += ' ' + d.getFullYear();
-  } else if (view.type === 'timeGridWeek' || view.type === 'resourceTimeGridWeek') {
+  } else if (view.type === 'timeGridWeek') {
     const s = view.currentStart, e = new Date(view.currentEnd.getTime() - 86400000);
     if (s.getMonth() === e.getMonth()) {
       title = s.getDate() + ' \u2013 ' + e.getDate() + ' ' + MNAMES[s.getMonth()] + ' ' + s.getFullYear();
