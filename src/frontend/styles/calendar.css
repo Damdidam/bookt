@@ -128,11 +128,9 @@
 .ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
 /* Processing time (pose) — overlay on FC event element */
 .ev-pose-overlay{position:absolute;left:0;right:0;z-index:2;cursor:pointer;background:repeating-linear-gradient(135deg,rgba(0,0,0,.04),rgba(0,0,0,.04) 4px,rgba(0,0,0,.10) 4px,rgba(0,0,0,.10) 8px);border-top:1.5px dashed rgba(0,0,0,.18);border-bottom:1.5px dashed rgba(0,0,0,.18)}
-/* Pose-child overlay card rendered inside parent event element */
-.ev-pose-child-card{position:absolute;left:4%;right:4%;background:rgba(255,255,255,.95);border:1px solid rgba(0,0,0,.12);border-left:3px solid;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.18);padding:2px 6px;overflow:hidden;cursor:pointer;z-index:5;display:flex;flex-direction:column;justify-content:center;pointer-events:auto;transition:box-shadow .15s}
-.ev-pose-child-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.25)}
-.epc-name{font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
-.epc-svc{font-size:.62rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+/* Pose-child: real FC event visually overlaying the parent's pose zone */
+.ev-pose-child{box-shadow:0 2px 8px rgba(0,0,0,.18)!important;border-radius:6px;transition:box-shadow .15s}
+.ev-pose-child:hover{box-shadow:0 3px 12px rgba(0,0,0,.25)!important}
 /* Multi-service quick create */
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}

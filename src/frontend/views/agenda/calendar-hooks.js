@@ -6,7 +6,7 @@
  * Extracted from calendar-events.js for separation of concerns.
  */
 import { api, calState } from '../../state.js';
-import { gToast, esc } from '../../utils/dom.js';
+import { gToast } from '../../utils/dom.js';
 import { toBrusselsISO } from '../../utils/format.js';
 import { fcRefresh } from './calendar-init.js';
 import { fcOpenDetail } from './booking-detail.js';
@@ -59,78 +59,18 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose children: render as overlay cards inside the parent .fc-event ──
-    // FC pointer events are blocked by the capture-phase interceptor in calendar-init.js.
-    // Cards are appended to info.el for correct positioning relative to the parent event.
-    if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
-      info.el.style.overflow = 'visible';
-      const evStart = info.event.start.getTime();
-      const evEnd = (info.event.end || info.event.start).getTime();
-      const evDur = evEnd - evStart;
-      if (evDur > 0) {
-        const isTouch2 = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        p._poseChildren.forEach(function (child) {
-          var cStart = new Date(child.start_at).getTime();
-          var cEnd = new Date(child.end_at).getTime();
-          var topPct = ((cStart - evStart) / evDur) * 100;
-          var heightPct = ((cEnd - cStart) / evDur) * 100;
-          var childAccent = child._accent || DEFAULT_ACCENT;
-          var safeChildAccent = /^#[0-9a-fA-F]{3,8}$/.test(childAccent) ? childAccent : DEFAULT_ACCENT;
-
-          var card = document.createElement('div');
-          card.className = 'ev-pose-child-card';
-          card.style.top = topPct + '%';
-          card.style.height = heightPct + '%';
-          card.style.borderLeftColor = safeChildAccent;
-          card.style.color = safeChildAccent;
-          card.setAttribute('data-booking-id', child.id);
-
-          var svcLabel = child.variant_name
-            ? (child.service_name || 'RDV') + ' — ' + child.variant_name
-            : (child.service_name || child.custom_label || 'RDV libre');
-          card.innerHTML = '<div class="epc-name">' + esc(child.client_name || 'Sans nom') + '</div>'
-            + '<div class="epc-svc">' + esc(svcLabel) + '</div>';
-
-          // Double-click → open booking detail
-          card.addEventListener('dblclick', function (e) {
-            e.stopPropagation();
-            fcHideTooltip();
-            fcOpenDetail(child.id);
-          });
-
-          // Tooltip on hover (desktop)
-          if (!isTouch2) {
-            card.addEventListener('mouseenter', function (e) {
-              if (fsIsActive()) return;
-              fcShowTooltip({ start: new Date(child.start_at), end: new Date(child.end_at), title: child.client_name || 'Sans nom', extendedProps: child }, e.clientX, e.clientY);
-            });
-            card.addEventListener('mousemove', function (e) { fcMoveTooltip(e.clientX, e.clientY); });
-            card.addEventListener('mouseleave', function () { fcHideTooltip(); });
-          }
-
-          // Touch: single tap → tooltip, double tap → detail
-          var lastChildTap = 0;
-          card.addEventListener('touchend', function (e) {
-            e.stopPropagation();
-            var now = Date.now();
-            if (now - lastChildTap < 600) {
-              e.preventDefault();
-              fcHideTooltip();
-              fcOpenDetail(child.id);
-              lastChildTap = 0;
-            } else {
-              lastChildTap = now;
-              var touch = e.changedTouches && e.changedTouches[0];
-              if (touch) {
-                fcShowTooltip({ start: new Date(child.start_at), end: new Date(child.end_at), title: child.client_name || 'Sans nom', extendedProps: child }, touch.clientX, touch.clientY);
-                clearTimeout(window._ttAutoHide);
-                window._ttAutoHide = setTimeout(fcHideTooltip, 2500);
-              }
-            }
-          }, { passive: false });
-
-          info.el.appendChild(card);
-        });
+    // ── Pose parent/child: force full-width harness so children overlay the parent ──
+    // FC creates sub-columns (50/50) when events overlap. We override the harness
+    // positioning so both parent and child span 100% width — child sits on top via z-index.
+    if ((p._hasPoseChildren || p._isPoseChild) && info.view.type !== 'dayGridMonth') {
+      const harness = info.el.closest('.fc-timegrid-event-harness');
+      if (harness) {
+        harness.style.setProperty('left', '0', 'important');
+        harness.style.setProperty('right', '0', 'important');
+        if (p._isPoseChild) {
+          harness.style.zIndex = '10';
+          info.el.classList.add('ev-pose-child');
+        }
       }
     }
 

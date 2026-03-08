@@ -62,37 +62,44 @@ export function detectPoseChildren(singles) {
 }
 
 /** Build FC events from single (non-grouped) bookings.
- *  Pose-children are excluded from FC events and attached as _poseChildren on their parent.
- *  This prevents FullCalendar from creating sub-columns for them. */
+ *  ALL singles become FC events (including pose-children). */
 export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
-  return singles
-    .filter(b => !poseChildIds.has(b.id))
-    .map(b => {
-      const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
-      const accent = accentFor(b);
-      const pt = parseInt(b.processing_time) || 0;
-      const ps = parseInt(b.processing_start) || 0;
-      const props = { ...b, _accent: accent };
-      // Attach pose children data to parent so eventDidMount can render overlays
-      if (poseChildMap && poseChildMap[b.id]) {
-        props._poseChildren = poseChildMap[b.id].map(c => ({ ...c, _accent: accentFor(c) }));
+  return singles.map(b => {
+    const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
+    const accent = accentFor(b);
+    const pt = parseInt(b.processing_time) || 0;
+    const ps = parseInt(b.processing_start) || 0;
+    const props = { ...b, _accent: accent };
+    // Mark pose-children so eventDidMount can reposition them visually
+    if (poseChildIds && poseChildIds.has(b.id)) {
+      for (const parentId of Object.keys(poseChildMap)) {
+        if (poseChildMap[parentId].some(c => c.id === b.id)) {
+          props._isPoseChild = true;
+          props._poseParentId = parentId;
+          break;
+        }
       }
-      if (pt > 0) {
-        const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
-        const buf = parseInt(b.buffer_before_min) || 0;
-        props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
-        props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
-      }
-      return {
-        id: b.id, resourceId: String(b.practitioner_id),
-        title: b.client_name || 'Sans nom',
-        start: b.start_at, end: b.end_at,
-        backgroundColor: fcHexAlpha(accent, 0.1),
-        borderColor: accent, textColor: accent,
-        editable: !frozen, durationEditable: !frozen,
-        extendedProps: props
-      };
-    });
+    }
+    // Mark pose-parents that have children (so eventDidMount can force full width)
+    if (poseChildMap && poseChildMap[b.id]) {
+      props._hasPoseChildren = true;
+    }
+    if (pt > 0) {
+      const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
+      const buf = parseInt(b.buffer_before_min) || 0;
+      props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
+      props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
+    }
+    return {
+      id: b.id, resourceId: String(b.practitioner_id),
+      title: b.client_name || 'Sans nom',
+      start: b.start_at, end: b.end_at,
+      backgroundColor: fcHexAlpha(accent, 0.1),
+      borderColor: accent, textColor: accent,
+      editable: !frozen, durationEditable: !frozen,
+      extendedProps: props
+    };
+  });
 }
 
 /** Build FC events from grouped bookings (single container per group). */
