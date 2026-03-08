@@ -161,8 +161,36 @@ function buildEventsCallback() {
 
         const events = [];
 
-        // Single events
+        // Detect pose-children: bookings that fall entirely within another booking's pose window
+        const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
+        const poseChildMap = {}; // parent booking id -> [child bookings]
+        const poseChildIds = new Set();
         singles.forEach(b => {
+          if (parseInt(b.processing_time) > 0) return;
+          if (['cancelled','no_show'].includes(b.status)) return;
+          const bStart = new Date(b.start_at).getTime();
+          const bEnd = new Date(b.end_at).getTime();
+          for (var pi = 0; pi < poseParentBookings.length; pi++) {
+            var par = poseParentBookings[pi];
+            if (String(par.practitioner_id) !== String(b.practitioner_id)) continue;
+            var parStart = new Date(par.start_at).getTime();
+            var parPs = parseInt(par.processing_start) || 0;
+            var parBuf = parseInt(par.buffer_before_min) || 0;
+            var parPt = parseInt(par.processing_time) || 0;
+            var poseStart = parStart + (parBuf + parPs) * 60000;
+            var poseEnd = poseStart + parPt * 60000;
+            if (bStart >= poseStart && bEnd <= poseEnd) {
+              if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
+              poseChildMap[par.id].push(b);
+              poseChildIds.add(b.id);
+              break;
+            }
+          }
+        });
+
+        // Single events (skip pose-children — they render as compact cards inside parent)
+        singles.forEach(b => {
+          if (poseChildIds.has(b.id)) return;
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = accentFor(b);
           const pt = parseInt(b.processing_time) || 0;
@@ -174,6 +202,10 @@ function buildEventsCallback() {
             const buf = parseInt(b.buffer_before_min) || 0;
             props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
             props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
+          }
+          // Attach pose-children data to parent
+          if (poseChildMap[b.id]) {
+            props._poseChildren = poseChildMap[b.id].map(c => ({ ...c, _accent: accentFor(c) }));
           }
           events.push({
             id: b.id, title: b.client_name || 'Sans nom',
@@ -458,38 +490,37 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose-child overlap: shift non-pose events that fall within a pose window
-    if (info.view.type !== 'dayGridMonth' && !p._isGroup) {
-      const myPt = parseInt(p.processing_time) || 0;
-      if (myPt === 0) {
-        const allEvents = calState.fcCal?.getEvents() || [];
-        const myStart = info.event.start?.getTime();
-        const myEnd = (info.event.end || info.event.start)?.getTime();
-        const myPrac = String(p.practitioner_id || '');
-        for (var ei = 0; ei < allEvents.length; ei++) {
-          var ev = allEvents[ei];
-          if (ev.id === info.event.id) continue;
-          var ep = ev.extendedProps || {};
-          if (String(ep.practitioner_id || '') !== myPrac) continue;
-          var evPt = parseInt(ep.processing_time) || 0;
-          if (evPt <= 0) continue;
-          var evStart = ev.start?.getTime();
-          if (!evStart) continue;
-          var ps = parseInt(ep.processing_start) || 0;
-          var buf = parseInt(ep.buffer_before_min) || 0;
-          var poseStart = evStart + (buf + ps) * 60000;
-          var poseEnd = poseStart + evPt * 60000;
-          if (myStart >= poseStart && myEnd <= poseEnd) {
-            var harness = info.el.closest('.fc-timegrid-event-harness');
-            if (harness) {
-              harness.style.transform = 'translateX(-65%)';
-              harness.style.zIndex = '4';
-              info.el.classList.add('ev-pose-child');
-            }
-            break;
-          }
+    // Pose-children: render compact cards inside parent event's pose zone
+    if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
+      const parentStart = info.event.start.getTime();
+      const parentEnd = (info.event.end || info.event.start).getTime();
+      const parentDur = parentEnd - parentStart;
+      const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      p._poseChildren.forEach(function(child) {
+        var cStart = new Date(child.start_at).getTime();
+        var cEnd = new Date(child.end_at).getTime();
+        var topPct = ((cStart - parentStart) / parentDur) * 100;
+        var heightPct = ((cEnd - cStart) / parentDur) * 100;
+        var cAccent = child._accent || DEFAULT_ACCENT;
+        var card = document.createElement('div');
+        card.className = 'ev-pose-card';
+        card.style.top = topPct + '%';
+        card.style.height = Math.max(heightPct, 10) + '%';
+        card.style.borderLeftColor = cAccent;
+        card.style.color = cAccent;
+        var timeFmt = new Date(child.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
+        card.innerHTML = '<span class="epc-time">' + timeFmt + '</span><span class="epc-name">' + esc(child.client_name || 'Sans nom') + '</span><span class="epc-svc">' + esc(child.service_name || 'RDV') + '</span>';
+        card.addEventListener('dblclick', function(e) { e.stopPropagation(); fcHideTooltip(); fcOpenDetail(child.id); });
+        card.addEventListener('click', function(e) { e.stopPropagation(); });
+        if (!isTouch) {
+          card.addEventListener('mouseenter', function(e) {
+            fcShowTooltip({ start: new Date(child.start_at), end: new Date(child.end_at), title: child.client_name || 'Sans nom', extendedProps: child }, e.clientX, e.clientY);
+          });
+          card.addEventListener('mousemove', function(e) { fcMoveTooltip(e.clientX, e.clientY); });
+          card.addEventListener('mouseleave', function() { fcHideTooltip(); });
         }
-      }
+        info.el.appendChild(card);
+      });
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
