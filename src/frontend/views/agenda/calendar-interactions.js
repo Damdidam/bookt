@@ -145,6 +145,8 @@ function buildEventOverlap() {
     if (['cancelled', 'completed', 'no_show'].includes(st)) return true;
     // Allow overlap with events that have a pose window (eventAllow + backend do precise check)
     if (parseInt(stillEvent.extendedProps?.processing_time) > 0) return true;
+    // Reverse: moving event has pose window → allow overlap (eventAllow + backend do precise check)
+    if (parseInt(movingEvent?.extendedProps?.processing_time) > 0) return true;
     // If practitioner has capacity > 1, allow overlap (eventAllow does the precise count check)
     const pracId = mp || sp;
     const prac = calState.fcPractitioners?.find(p => String(p.id) === String(pracId));
@@ -203,6 +205,15 @@ function buildEventAllow() {
           const poseStart = new Date(ev.start.getTime() + (buf + ps) * 60000);
           const poseEnd = new Date(ev.start.getTime() + (buf + ps + pt) * 60000);
           if (newStart >= poseStart && newEnd <= poseEnd) continue;
+        }
+        // Reverse: skip if existing event fits entirely within moving event's pose window
+        const mpt = parseInt(draggedEvent.extendedProps?.processing_time) || 0;
+        if (mpt > 0) {
+          const mps = parseInt(draggedEvent.extendedProps?.processing_start) || 0;
+          const mbuf = parseInt(draggedEvent.extendedProps?.buffer_before_min) || 0;
+          const movePoseStart = new Date(newStart.getTime() + (mbuf + mps) * 60000);
+          const movePoseEnd = new Date(newStart.getTime() + (mbuf + mps + mpt) * 60000);
+          if (ev.start >= movePoseStart && evEnd <= movePoseEnd) continue;
         }
         overlapCount++;
       }
