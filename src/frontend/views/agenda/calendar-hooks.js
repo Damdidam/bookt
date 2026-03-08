@@ -59,18 +59,18 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose parent/child: force full-width harness so children overlay the parent ──
-    // FC creates sub-columns (50/50) when events overlap. We override the harness
-    // positioning so both parent and child span 100% width — child sits on top via z-index.
-    if ((p._hasPoseChildren || p._isPoseChild) && info.view.type !== 'dayGridMonth') {
-      const harness = info.el.closest('.fc-timegrid-event-harness');
-      if (harness) {
-        harness.style.setProperty('left', '0', 'important');
-        harness.style.setProperty('right', '0', 'important');
-        if (p._isPoseChild) {
-          harness.style.zIndex = '10';
-          info.el.classList.add('ev-pose-child');
-        }
+    // ── Pose child: match parent's harness position so child overlays the parent ──
+    // Parent keeps its FC-native positioning (50% if sharing column, 100% if alone).
+    // Child copies the parent's left/right and sits on top via z-index.
+    if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
+      const childHarness = info.el.closest('.fc-timegrid-event-harness');
+      const parentEl = document.querySelector('[data-eid="' + p._poseParentId + '"]');
+      const parentHarness = parentEl && parentEl.closest('.fc-timegrid-event-harness');
+      if (childHarness && parentHarness) {
+        childHarness.style.setProperty('left', parentHarness.style.left || '0', 'important');
+        childHarness.style.setProperty('right', parentHarness.style.right || '0', 'important');
+        childHarness.style.zIndex = '10';
+        info.el.classList.add('ev-pose-child');
       }
     }
 
