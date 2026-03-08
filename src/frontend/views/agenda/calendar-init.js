@@ -83,7 +83,12 @@ function initCalendar(initView, initSlotDur) {
       const pB = b.extendedProps?.practitioner_id || '';
       if (pA < pB) return -1;
       if (pA > pB) return 1;
-      return 0; // same practitioner — default sort (start time) takes over
+      // Same practitioner: events with processing_time (pose parents) come first (left column)
+      const ptA = parseInt(a.extendedProps?.processing_time) || 0;
+      const ptB = parseInt(b.extendedProps?.processing_time) || 0;
+      if (ptA > 0 && ptB === 0) return -1;
+      if (ptB > 0 && ptA === 0) return 1;
+      return 0;
     },
     longPressDelay: 300,
 
