@@ -322,8 +322,19 @@ function buildEventDidMount() {
           }
           lastResizerTouch = now;
 
-          e.preventDefault();
-          e.stopPropagation();
+          // Only activate resize if touch is in the center third of the event width
+          const evRect = info.el.getBoundingClientRect();
+          const touchX = e.touches[0].clientX;
+          const third = evRect.width / 3;
+          if (touchX < evRect.left + third || touchX > evRect.right - third) return;
+
+          // Don't block immediately — wait for significant downward movement
+          // before committing to resize. This lets taps and horizontal drags
+          // (move) pass through to the normal event handlers.
+          const DRAG_THRESHOLD = 8; // px before resize activates
+          const startY = e.touches[0].clientY;
+          const startX = e.touches[0].clientX;
+          let committed = false;
 
           const slot = document.querySelector('.fc-timegrid-slot');
           if (!slot || !info.event.end) return;
@@ -332,7 +343,6 @@ function buildEventDidMount() {
           const durParts = durStr.split(':');
           const slotMins = parseInt(durParts[0]) * 60 + parseInt(durParts[1]);
 
-          const startY = e.touches[0].clientY;
           const origEnd = new Date(info.event.end);
           const origH = info.el.offsetHeight;
           let lastSlots = 0;
@@ -340,14 +350,30 @@ function buildEventDidMount() {
           let cleanupTimer;
 
           function onMove(ev) {
+            const dy = ev.touches[0].clientY - startY;
+            const dx = ev.touches[0].clientX - startX;
+
+            if (!committed) {
+              // Not yet committed to resize — check if movement is clearly vertical and past threshold
+              if (Math.abs(dy) < DRAG_THRESHOLD) return; // not enough movement yet
+              if (Math.abs(dx) > Math.abs(dy)) {
+                // Horizontal movement dominates → not a resize, let FC handle as drag/move
+                cleanup();
+                return;
+              }
+              // Commit to resize
+              committed = true;
+              e.preventDefault();
+            }
+
             ev.preventDefault();
+            ev.stopPropagation();
             if (!resizeStarted) {
               resizeStarted = true;
               info.el.classList.add('fc-event-dragging');
               info.el.style.setProperty('bottom', 'auto', 'important');
               info.el.style.zIndex = '999';
             }
-            const dy = ev.touches[0].clientY - startY;
             const ds = Math.round(dy / slotH);
             lastSlots = ds;
             const newH = origH + ds * slotH;
@@ -355,9 +381,8 @@ function buildEventDidMount() {
           }
 
           function onEnd() {
-            clearTimeout(cleanupTimer);
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onEnd);
+            cleanup();
+            if (!committed) return; // Was a tap — let normal handlers deal with it
             if (resizeStarted) {
               info.el.classList.remove('fc-event-dragging');
               info.el.style.removeProperty('bottom');
@@ -390,9 +415,15 @@ function buildEventDidMount() {
             });
           }
 
+          function cleanup() {
+            clearTimeout(cleanupTimer);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onEnd);
+          }
+
           document.addEventListener('touchmove', onMove, { passive: false });
           document.addEventListener('touchend', onEnd);
-          cleanupTimer = setTimeout(() => { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); if (resizeStarted) info.el.classList.remove('fc-event-dragging'); }, 10000);
+          cleanupTimer = setTimeout(() => { cleanup(); if (resizeStarted) info.el.classList.remove('fc-event-dragging'); }, 10000);
         }, { passive: false });
       }
     }
