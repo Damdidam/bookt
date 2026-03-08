@@ -478,14 +478,26 @@ function buildEventDidMount() {
           const poseStart = ev.start.getTime() + (buf + ps) * 60000;
           const poseEnd = ev.start.getTime() + (buf + ps + pt) * 60000;
           if (myStart >= poseStart && myEnd <= poseEnd) {
-            // Shift left by half to overlap onto the parent's pose zone
+            // Widen the pose-child to overlap ~50% onto the parent event
             requestAnimationFrame(() => {
-              const curLeft = parseFloat(info.el.style.left) || 0;
-              if (curLeft > 0) {
-                info.el.style.left = (curLeft / 2) + '%';
+              const s = info.el.style;
+              const inset = s.inset;
+              if (inset) {
+                // inset: "top right bottom left" e.g. "120px 50% -200px 0%"
+                const parts = inset.split(/\s+/);
+                const right = parseFloat(parts[1]) || 0;
+                const left = parseFloat(parts[3]) || 0;
+                if (left === 0 && right > 0) {
+                  // Pose child is LEFT → extend right to overlap parent on right
+                  parts[1] = (right / 2) + '%';
+                } else if (left > 0) {
+                  // Pose child is RIGHT → extend left to overlap parent on left
+                  parts[3] = (left / 2) + '%';
+                }
+                s.inset = parts.join(' ');
               }
-              info.el.style.zIndex = '6';
-              info.el.style.boxShadow = '0 1px 6px rgba(0,0,0,.15)';
+              s.zIndex = '6';
+              s.boxShadow = '0 1px 6px rgba(0,0,0,.15)';
             });
             break;
           }
