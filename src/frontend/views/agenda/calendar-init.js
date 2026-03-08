@@ -78,6 +78,13 @@ function initCalendar(initView, initSlotDur) {
     editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
     slotEventOverlap: false,
+    eventOrder: function (a, b) {
+      const pA = a.extendedProps?.practitioner_id || '';
+      const pB = b.extendedProps?.practitioner_id || '';
+      if (pA < pB) return -1;
+      if (pA > pB) return 1;
+      return 0; // same practitioner — default sort (start time) takes over
+    },
     longPressDelay: 300,
 
     // Callbacks from calendar-events.js
