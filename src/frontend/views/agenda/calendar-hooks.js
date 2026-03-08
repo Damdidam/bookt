@@ -85,6 +85,10 @@ function buildEventDidMount() {
           card.style.color = safeChildAccent;
           card.setAttribute('data-booking-id', child.id);
 
+          // Prevent parent FC event from dragging when interacting with child card
+          card.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+          card.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: false });
+
           var svcLabel = child.variant_name
             ? (child.service_name || 'RDV') + ' — ' + child.variant_name
             : (child.service_name || child.custom_label || 'RDV libre');
