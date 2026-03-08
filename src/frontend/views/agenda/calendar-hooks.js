@@ -55,19 +55,6 @@ function redistributePoseColumns() {
     }
   }
 
-  // ── Overlap rect: for pose parents, use only the ACTIVE part (before pose zone) ──
-  // This way events in the pose zone don't inflate the column count.
-  function overlapRect(h) {
-    var rect = h.getBoundingClientRect();
-    var overlay = h.querySelector('.ev-pose-overlay');
-    if (overlay) {
-      var overlayTop = overlay.getBoundingClientRect().top;
-      // Active part = top of event to top of pose overlay
-      return { top: rect.top, bottom: Math.max(rect.top + 1, overlayTop) };
-    }
-    return { top: rect.top, bottom: rect.bottom };
-  }
-
   var processed = new Set();
   document.querySelectorAll('.ev-pose-child').forEach(function (childEl) {
     var colEvents = childEl.closest('.fc-timegrid-col-events');
@@ -86,14 +73,20 @@ function redistributePoseColumns() {
     var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
     if (childHarnesses.length === 0) return;
 
-    // Group real harnesses by ACTIVE-part vertical overlap
+    // Debug: log what the redistribution sees
+    console.log('[POSE-REDIST] harnesses:', harnesses.length,
+      'real:', realHarnesses.map(function(h) { var e = h.querySelector('[data-eid]'); return e ? e.dataset.eid.slice(0,8) : '?'; }),
+      'children:', childHarnesses.map(function(h) { var e = h.querySelector('[data-eid]'); return e ? e.dataset.eid.slice(0,8) : '?'; }),
+      'inset sample:', harnesses[0]?.style.cssText.slice(0, 60));
+
+    // Group real harnesses by vertical overlap (full bounding rect)
     var groups = [];
     realHarnesses.forEach(function (h) {
-      var hRect = overlapRect(h);
+      var hRect = h.getBoundingClientRect();
       var placed = false;
       for (var g = 0; g < groups.length; g++) {
         var overlaps = groups[g].some(function (m) {
-          var mRect = overlapRect(m);
+          var mRect = m.getBoundingClientRect();
           return hRect.top < mRect.bottom - 1 && mRect.top < hRect.bottom - 1;
         });
         if (overlaps) { groups[g].push(h); placed = true; break; }
