@@ -478,7 +478,7 @@ function buildEventDidMount() {
           const poseStart = ev.start.getTime() + (buf + ps) * 60000;
           const poseEnd = ev.start.getTime() + (buf + ps + pt) * 60000;
           if (myStart >= poseStart && myEnd <= poseEnd) {
-            // Widen the pose-child harness to overlap ~50% onto the parent event
+            // Nudge the pose-child harness ~20% onto the parent's pose zone
             requestAnimationFrame(() => {
               const harness = info.el.closest('.fc-timegrid-event-harness') || info.el.parentElement;
               const hs = harness?.style;
@@ -489,15 +489,16 @@ function buildEventDidMount() {
                   const right = parseFloat(parts[1]) || 0;
                   const left = parseFloat(parts[3]) || 0;
                   if (left === 0 && right > 0) {
-                    parts[1] = (right / 2) + '%';
+                    parts[1] = (right * 0.8) + '%';
                   } else if (left > 0) {
-                    parts[3] = (left / 2) + '%';
+                    parts[3] = (left * 0.8) + '%';
                   }
                   hs.inset = parts.join(' ');
                 }
                 hs.zIndex = '6';
               }
-              info.el.style.boxShadow = '0 1px 6px rgba(0,0,0,.15)';
+              info.el.style.boxShadow = '-2px 0 8px rgba(0,0,0,.12)';
+              info.el.style.borderLeft = '2.5px solid ' + (info.event.borderColor || safeAccent);
             });
             break;
           }
