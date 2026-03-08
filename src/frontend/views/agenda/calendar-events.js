@@ -482,7 +482,7 @@ function buildEventDidMount() {
           if (myStart >= poseStart && myEnd <= poseEnd) {
             var harness = info.el.closest('.fc-timegrid-event-harness');
             if (harness) {
-              harness.style.transform = 'translateX(-30%)';
+              harness.style.transform = 'translateX(-65%)';
               harness.style.zIndex = '4';
               info.el.classList.add('ev-pose-child');
             }
