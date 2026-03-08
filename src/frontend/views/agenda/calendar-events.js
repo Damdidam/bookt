@@ -190,45 +190,42 @@ function buildEventsCallback() {
           }
         });
 
-        // Single events — pose-children rendered as background events to avoid sub-column inflation
+        // Single events — pose-children rendered as DOM cards inside their parent (not FC events)
+        var poseChildBookings = [];
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = accentFor(b);
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
           const isPoseChild = poseChildIds.has(b.id);
+          if (isPoseChild) {
+            // Not a FC event — will be rendered inside parent's eventDidMount
+            poseChildBookings.push(b);
+            return;
+          }
           const hasPoseChildren = pt > 0 && !!poseChildMap[b.id];
-          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild, _poseParentId: poseParentOf[b.id], _hasPoseChildren: hasPoseChildren };
+          const props = { ...b, _accent: accent, _hasPoseChildren: hasPoseChildren };
+          if (hasPoseChildren) {
+            props._poseChildren = poseChildMap[b.id].map(c => ({ ...c, _accent: accentFor(c) }));
+          }
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
             const buf = parseInt(b.buffer_before_min) || 0;
             props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
             props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
           }
-          if (isPoseChild) {
-            // Background event: excluded from FC sub-column layout, styled in eventDidMount
-            events.push({
-              id: b.id, resourceId: String(b.practitioner_id),
-              title: b.client_name || 'Sans nom',
-              start: b.start_at, end: b.end_at,
-              display: 'background',
-              backgroundColor: 'transparent',
-              borderColor: accent, textColor: accent,
-              editable: false,
-              extendedProps: props
-            });
-          } else {
-            events.push({
-              id: b.id, resourceId: String(b.practitioner_id),
-              title: b.client_name || 'Sans nom',
-              start: b.start_at, end: b.end_at,
-              backgroundColor: fcHexAlpha(accent, 0.1),
-              borderColor: accent, textColor: accent,
-              editable: !frozen, durationEditable: !frozen,
-              extendedProps: props
-            });
-          }
+          events.push({
+            id: b.id, resourceId: String(b.practitioner_id),
+            title: b.client_name || 'Sans nom',
+            start: b.start_at, end: b.end_at,
+            backgroundColor: fcHexAlpha(accent, 0.1),
+            borderColor: accent, textColor: accent,
+            editable: !frozen, durationEditable: !frozen,
+            extendedProps: props
+          });
         });
+        // Store for overlap checking in eventAllow (these are not FC events)
+        calState._poseChildBookings = poseChildBookings;
 
         // Grouped events -> single container per group
         Object.keys(grouped).forEach(gid => {
@@ -504,33 +501,35 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose-child (background event): style as elevated card within parent's sub-column
-    if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
-      info.el.classList.add('ev-pose-child-bg');
-      info.el.style.borderLeftColor = safeAccent;
-      // Add visible content (background events have no eventContent)
-      var svcLabel = esc(p.variant_name ? (p.service_name || 'RDV') + ' \u2014 ' + p.variant_name : (p.service_name || p.custom_label || 'RDV'));
-      info.el.innerHTML = '<div class="ev-inner" style="color:' + safeAccent + '"><span class="ev-client">' + esc(p.client_name || 'Sans nom') + '</span><span class="ev-service">' + svcLabel + '</span></div>';
-      // Constrain width to parent's sub-column
-      if (p._poseParentId) {
-        requestAnimationFrame(function () {
-          var parentEl = document.querySelector('[data-eid="' + p._poseParentId + '"]');
-          if (!parentEl) return;
-          var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
-          if (!parentHarness) return;
-          var bgContainer = info.el.parentElement;
-          if (!bgContainer) return;
-          var pRect = parentHarness.getBoundingClientRect();
-          var cRect = bgContainer.getBoundingClientRect();
-          if (cRect.width > 0) {
-            var leftPct = ((pRect.left - cRect.left) / cRect.width) * 100;
-            var rightPct = ((cRect.right - pRect.right) / cRect.width) * 100;
-            info.el.style.left = Math.max(leftPct + 1.5, 0) + '%';
-            info.el.style.right = Math.max(rightPct + 1.5, 0) + '%';
-          }
+    // Render pose-children as DOM cards inside this parent's event element
+    if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
+      var evStart = info.event.start.getTime();
+      var evEnd = (info.event.end || info.event.start).getTime();
+      var evDuration = evEnd - evStart;
+      p._poseChildren.forEach(function (child) {
+        var childStart = new Date(child.start_at).getTime();
+        var childEnd = new Date(child.end_at).getTime();
+        var topPct = Math.max(((childStart - evStart) / evDuration) * 100, 0);
+        var heightPct = Math.min(((childEnd - childStart) / evDuration) * 100, 100 - topPct);
+        var childAccent = child._accent || DEFAULT_ACCENT;
+        var card = document.createElement('div');
+        card.className = 'ev-pose-child-card';
+        card.style.top = topPct + '%';
+        card.style.height = heightPct + '%';
+        card.style.borderLeftColor = childAccent;
+        var svcLabel = esc(child.variant_name ? (child.service_name || 'RDV') + ' \u2014 ' + child.variant_name : (child.service_name || child.custom_label || 'RDV'));
+        card.innerHTML = '<div class="ev-inner" style="color:' + childAccent + '"><span class="ev-client">' + esc(child.client_name || 'Sans nom') + '</span><span class="ev-service">' + svcLabel + '</span></div>';
+        // Double-click → open booking detail
+        card.addEventListener('dblclick', function (e) {
+          e.stopPropagation();
+          fcHideTooltip();
+          fcOpenDetail(child.id);
         });
-      }
-      return; // skip normal event styling for background pose-children
+        // Single click → stop propagation (don't open parent tooltip)
+        card.addEventListener('click', function (e) { e.stopPropagation(); });
+        card.addEventListener('mouseenter', function (e) { e.stopPropagation(); });
+        info.el.appendChild(card);
+      });
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
@@ -920,6 +919,16 @@ function buildEventAllow() {
           if (newStart >= poseStart && newEnd <= poseEnd) continue;
         }
         overlapCount++;
+      }
+    }
+    // Also count pose-child bookings (not FC events, stored in calState)
+    if (calState._poseChildBookings) {
+      for (var ci = 0; ci < calState._poseChildBookings.length; ci++) {
+        var cb = calState._poseChildBookings[ci];
+        if (String(cb.practitioner_id) !== String(myPrac)) continue;
+        if (['cancelled', 'no_show', 'completed'].includes(cb.status)) continue;
+        var cbS = new Date(cb.start_at), cbE = new Date(cb.end_at);
+        if (cbS < newEnd && cbE > newStart) overlapCount++;
       }
     }
     if (overlapCount >= maxC) return false;
