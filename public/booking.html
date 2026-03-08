@@ -336,9 +336,14 @@ function renderBooking(data) {
   document.getElementById('valPractitioner').textContent = booking.practitioner.name;
   document.getElementById('valPracTitle').textContent = booking.practitioner.title || '';
 
-  // Mode / address
-  const modes = { cabinet: 'Au cabinet', domicile: 'À domicile', video: 'En visio', phone: 'Par téléphone' };
-  document.getElementById('valMode').textContent = modes[booking.appointment_mode] || 'Au cabinet';
+  // Mode / address — hide "Au cabinet" (default for salons)
+  const modes = { visio: 'En visio', phone: 'Par téléphone', domicile: 'À domicile' };
+  const modeEl = document.getElementById('valMode');
+  if (booking.appointment_mode && booking.appointment_mode !== 'cabinet' && modes[booking.appointment_mode]) {
+    modeEl.textContent = modes[booking.appointment_mode];
+  } else {
+    modeEl.style.display = 'none';
+  }
   document.getElementById('valAddress').textContent = business.address || '';
 
   // Action buttons

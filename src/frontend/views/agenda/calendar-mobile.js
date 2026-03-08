@@ -73,7 +73,7 @@ async function fcLoadMobileList() {
       h += `<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${safeId(b.id)}')">
         ${badges.length ? '<div class="mob-bk-badges">' + badges.map(x => '<span>' + x + '</span>').join('') + '</div>' : ''}
         <div class="mob-bk-time"><div class="t">${t1}</div><div class="dur">${dur}min</div></div>
-        <div class="mob-bk-info"><div class="name">${esc(b.client_name)}</div><div class="svc">${esc(b.service_name || b.custom_label || 'RDV libre')} \u00b7 ${MODE_ICO[b.appointment_mode] || ''}</div><div class="prac"><span class="pdot" style="background:${/^#[0-9a-fA-F]{3,8}$/.test(prac?.color) ? prac.color : 'var(--primary)'}"></span>${esc(prac?.display_name || b.practitioner_name || '')}</div></div>
+        <div class="mob-bk-info"><div class="name">${esc(b.client_name)}</div><div class="svc">${esc(b.service_name || b.custom_label || 'RDV libre')}${b.appointment_mode && b.appointment_mode !== 'cabinet' ? ' \u00b7 ' + (MODE_ICO[b.appointment_mode] || '') : ''}</div><div class="prac"><span class="pdot" style="background:${/^#[0-9a-fA-F]{3,8}$/.test(prac?.color) ? prac.color : 'var(--primary)'}"></span>${esc(prac?.display_name || b.practitioner_name || '')}</div></div>
         <div class="mob-bk-status status-badge ${stClass}">${stLabel}</div>
       </div>`;
     });
