@@ -59,11 +59,14 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose children: render as overlay cards inside parent event element ──
-    // Children are NOT FC events (excluded from event list), so they don't create sub-columns.
-    // Instead they're DOM overlays positioned within the parent's full height.
+    // ── Pose children: render as overlay cards on the HARNESS (not inside .fc-event) ──
+    // Cards are appended to the harness so they sit OUTSIDE the .fc-event element.
+    // This prevents FC's capture-phase pointerdown listener from associating
+    // clicks on the card with the parent event (FC uses event.target.closest('.fc-event')).
     if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
-      info.el.style.overflow = 'visible';
+      var harness = info.el.closest('.fc-timegrid-event-harness');
+      var cardContainer = harness || info.el;
+      cardContainer.style.overflow = 'visible';
       const evStart = info.event.start.getTime();
       const evEnd = (info.event.end || info.event.start).getTime();
       const evDur = evEnd - evStart;
@@ -85,9 +88,8 @@ function buildEventDidMount() {
           card.style.color = safeChildAccent;
           card.setAttribute('data-booking-id', child.id);
 
-          // Prevent parent FC event from dragging/selecting when interacting with child card
-          // FC interaction plugin uses pointerdown; also block mousedown, touchstart, click
-          ['pointerdown', 'mousedown', 'click'].forEach(function (evt) {
+          // Stop all pointer events from reaching FC's capture-phase listeners
+          ['pointerdown', 'mousedown', 'click', 'dblclick'].forEach(function (evt) {
             card.addEventListener(evt, function (e) { e.stopPropagation(); });
           });
           card.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: false });
@@ -136,7 +138,7 @@ function buildEventDidMount() {
             }
           }, { passive: false });
 
-          info.el.appendChild(card);
+          cardContainer.appendChild(card);
         });
       }
     }
