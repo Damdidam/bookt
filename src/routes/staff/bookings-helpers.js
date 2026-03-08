@@ -212,7 +212,7 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
       excludeClause = `AND b.id != ALL($${params.length}::uuid[])`;
     } else {
       params.push(excludeIds);
-      excludeClause = `AND b.id != $${params.length}`;
+      excludeClause = `AND b.id != $${params.length}::uuid`;
     }
   }
 
