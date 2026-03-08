@@ -83,11 +83,10 @@ function initCalendar(initView, initSlotDur) {
       const pB = b.extendedProps?.practitioner_id || '';
       if (pA < pB) return -1;
       if (pA > pB) return 1;
-      // Same practitioner: events with processing_time (pose parents) come first (left column)
-      const ptA = parseInt(a.extendedProps?.processing_time) || 0;
-      const ptB = parseInt(b.extendedProps?.processing_time) || 0;
-      if (ptA > 0 && ptB === 0) return -1;
-      if (ptB > 0 && ptA === 0) return 1;
+      // Same practitioner: longer events first (left column)
+      const durA = (a.end && a.start) ? (a.end.getTime() - a.start.getTime()) : 0;
+      const durB = (b.end && b.start) ? (b.end.getTime() - b.start.getTime()) : 0;
+      if (durA !== durB) return durB - durA;
       return 0;
     },
     longPressDelay: 300,
