@@ -59,16 +59,27 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose child: match parent's harness position so child overlays the parent ──
-    // Parent keeps its FC-native positioning (50% if sharing column, 100% if alone).
-    // Child copies the parent's left/right and sits on top via z-index.
+    // ── Pose child: merge parent+child harness space, then overlay ──
+    // FC sees parent+child as separate events → creates sub-columns (each gets ~33%).
+    // We merge: parent expands to cover child's space, child overlays parent.
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       const childHarness = info.el.closest('.fc-timegrid-event-harness');
       const parentEl = document.querySelector('[data-eid="' + p._poseParentId + '"]');
       const parentHarness = parentEl && parentEl.closest('.fc-timegrid-event-harness');
       if (childHarness && parentHarness) {
-        childHarness.style.setProperty('left', parentHarness.style.left || '0', 'important');
-        childHarness.style.setProperty('right', parentHarness.style.right || '0', 'important');
+        // Merge bounds: take leftmost left, rightmost edge (smallest right %)
+        const pL = parseFloat(parentHarness.style.left) || 0;
+        const pR = parseFloat(parentHarness.style.right) || 0;
+        const cL = parseFloat(childHarness.style.left) || 0;
+        const cR = parseFloat(childHarness.style.right) || 0;
+        const mergedLeft = Math.min(pL, cL) + '%';
+        const mergedRight = Math.min(pR, cR) + '%';
+        // Expand parent to merged bounds
+        parentHarness.style.setProperty('left', mergedLeft, 'important');
+        parentHarness.style.setProperty('right', mergedRight, 'important');
+        // Child overlays parent at same bounds
+        childHarness.style.setProperty('left', mergedLeft, 'important');
+        childHarness.style.setProperty('right', mergedRight, 'important');
         childHarness.style.zIndex = '10';
         info.el.classList.add('ev-pose-child');
       }
