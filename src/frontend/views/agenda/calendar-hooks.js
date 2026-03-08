@@ -31,6 +31,33 @@ function dateToBrusselsISO(d) {
  * recalculates: M real events → M equal columns, children match their parent.
  */
 function redistributePoseColumns() {
+  // FC Scheduler Premium v6 uses the CSS `inset` shorthand (top right bottom left)
+  // on harnesses instead of individual left/right properties.
+  function parseInset(h) {
+    var inset = h.style.inset;
+    if (inset) {
+      var parts = inset.trim().split(/\s+/);
+      if (parts.length >= 4) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
+      if (parts.length === 3) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[1] };
+      if (parts.length === 2) return { top: parts[0], right: parts[1], bottom: parts[0], left: parts[1] };
+      return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
+    }
+    return null;
+  }
+  function getLeft(h) {
+    var p = parseInset(h);
+    return p ? (parseFloat(p.left) || 0) : (parseFloat(h.style.left) || 0);
+  }
+  function setHoriz(h, newLeft, newRight) {
+    var p = parseInset(h);
+    if (p) {
+      h.style.setProperty('inset', p.top + ' ' + newRight + ' ' + p.bottom + ' ' + newLeft, 'important');
+    } else {
+      h.style.setProperty('left', newLeft, 'important');
+      h.style.setProperty('right', newRight, 'important');
+    }
+  }
+
   var processed = new Set();
   document.querySelectorAll('.ev-pose-child').forEach(function (childEl) {
     var colEvents = childEl.closest('.fc-timegrid-col-events');
@@ -70,11 +97,10 @@ function redistributePoseColumns() {
 
     // Redistribute each group evenly
     groups.forEach(function (group) {
-      group.sort(function (a, b) { return (parseFloat(a.style.left) || 0) - (parseFloat(b.style.left) || 0); });
+      group.sort(function (a, b) { return getLeft(a) - getLeft(b); });
       var w = 100 / group.length;
       group.forEach(function (h, i) {
-        h.style.setProperty('left', (i * w) + '%', 'important');
-        h.style.setProperty('right', (100 - (i + 1) * w) + '%', 'important');
+        setHoriz(h, (i * w) + '%', (100 - (i + 1) * w) + '%');
       });
     });
 
@@ -88,8 +114,12 @@ function redistributePoseColumns() {
       if (!parentEl) return;
       var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
       if (!parentHarness) return;
-      ch.style.setProperty('left', parentHarness.style.left, 'important');
-      ch.style.setProperty('right', parentHarness.style.right, 'important');
+      var pp = parseInset(parentHarness);
+      if (pp) {
+        setHoriz(ch, pp.left, pp.right);
+      } else {
+        setHoriz(ch, parentHarness.style.left || '0%', parentHarness.style.right || '0%');
+      }
       ch.style.zIndex = '10';
     });
   });
