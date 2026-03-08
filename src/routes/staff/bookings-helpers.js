@@ -202,7 +202,7 @@ async function getMaxConcurrent(bid, pracId) {
  * @param {object} opts
  * @returns {Promise<Array>} Conflicting booking rows
  */
-async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, excludeIds }) {
+async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, excludeIds, movingProcTime, movingProcStart, movingBufferBefore }) {
   let excludeClause = '';
   const params = [bid, pracId, newStart, newEnd];
 
@@ -214,6 +214,22 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
       params.push(excludeIds);
       excludeClause = `AND b.id != $${params.length}`;
     }
+  }
+
+  // Reverse pose: if the MOVING booking has processing_time, existing bookings
+  // that fit entirely within the moving booking's pose window are not conflicts
+  let reversePoseClause = '';
+  if (movingProcTime && movingProcTime > 0) {
+    params.push(movingBufferBefore || 0);  // $N
+    params.push(movingProcStart || 0);     // $N+1
+    params.push(movingProcTime);           // $N+2
+    const bufIdx = params.length - 2;
+    const psIdx = params.length - 1;
+    const ptIdx = params.length;
+    reversePoseClause = `AND NOT (
+       b.start_at >= $3::timestamptz + ($${bufIdx} + $${psIdx}) * interval '1 minute'
+       AND b.end_at <= $3::timestamptz + ($${bufIdx} + $${psIdx} + $${ptIdx}) * interval '1 minute'
+     )`;
   }
 
   const result = await client.query(
@@ -228,6 +244,7 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
        AND $3::timestamptz >= b.start_at + (COALESCE(s.buffer_before_min, 0) + b.processing_start) * interval '1 minute'
        AND $4::timestamptz <= b.start_at + (COALESCE(s.buffer_before_min, 0) + b.processing_start + b.processing_time) * interval '1 minute'
      )
+     ${reversePoseClause}
      FOR UPDATE OF b`,
     params
   );

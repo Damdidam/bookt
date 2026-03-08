@@ -42,6 +42,7 @@ router.patch('/:id/move', async (req, res, next) => {
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
               b.group_id, b.group_order, b.status,
+              b.processing_time, b.processing_start,
               s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -229,7 +230,7 @@ router.patch('/:id/move', async (req, res, next) => {
         }
 
         if (!globalAllowOverlap) {
-          const conflicts = await checkBookingConflicts(client, { bid, pracId: effectivePracId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString(), excludeIds: id });
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: effectivePracId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString(), excludeIds: id, movingProcTime: parseInt(draggedBooking.processing_time) || 0, movingProcStart: parseInt(draggedBooking.processing_start) || 0, movingBufferBefore: parseInt(draggedBooking.buffer_before_min) || 0 });
           if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
@@ -422,7 +423,8 @@ router.patch('/:id/edit', async (req, res, next) => {
 
       // Check target practitioner working hours
       const bkTimes = await queryWithRLS(bid,
-        `SELECT start_at, end_at FROM bookings WHERE id = $1 AND business_id = $2`,
+        `SELECT b.start_at, b.end_at, b.processing_time, b.processing_start, COALESCE(s.buffer_before_min, 0) AS buffer_before_min
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.id = $1 AND b.business_id = $2`,
         [id, bid]
       );
       // Check target practitioner availability (absences, exceptions, hours)
@@ -488,7 +490,7 @@ router.patch('/:id/edit', async (req, res, next) => {
           if (snap.rows.length > 0 && ['cancelled', 'completed', 'no_show'].includes(snap.rows[0].status) && practitioner_id !== undefined) {
             throw Object.assign(new Error('Ce RDV ne peut plus être modifié (changement de praticien interdit)'), { type: 'immutable' });
           }
-          const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: calState_editTimes.start_at, newEnd: calState_editTimes.end_at, excludeIds: id });
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: calState_editTimes.start_at, newEnd: calState_editTimes.end_at, excludeIds: id, movingProcTime: parseInt(calState_editTimes.processing_time) || 0, movingProcStart: parseInt(calState_editTimes.processing_start) || 0, movingBufferBefore: parseInt(calState_editTimes.buffer_before_min) || 0 });
           if (conflicts.length >= calState_editMaxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
@@ -584,8 +586,10 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     // Get current booking to know start_at, end_at, practitioner, group, status
     const current = await queryWithRLS(bid,
-      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id, b.status
+      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id, b.status,
+              b.processing_time, b.processing_start, COALESCE(s.buffer_before_min, 0) AS buffer_before_min
        FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
     );
@@ -634,7 +638,7 @@ router.patch('/:id/resize', async (req, res, next) => {
         }
 
         if (!globalAllowOverlap) {
-          const conflicts = await checkBookingConflicts(client, { bid, pracId: current.rows[0].practitioner_id, newStart: current.rows[0].start_at, newEnd: end_at, excludeIds: id });
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: current.rows[0].practitioner_id, newStart: current.rows[0].start_at, newEnd: end_at, excludeIds: id, movingProcTime: parseInt(current.rows[0].processing_time) || 0, movingProcStart: parseInt(current.rows[0].processing_start) || 0, movingBufferBefore: parseInt(current.rows[0].buffer_before_min) || 0 });
           if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
@@ -707,7 +711,8 @@ router.patch('/:id/modify', async (req, res, next) => {
     // Fetch old booking for audit + notification context
     const old = await queryWithRLS(bid,
       `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
-              s.name AS service_name, p.display_name AS practitioner_name,
+              s.name AS service_name, COALESCE(s.buffer_before_min, 0) AS svc_buffer_before,
+              p.display_name AS practitioner_name,
               biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
@@ -767,7 +772,7 @@ router.patch('/:id/modify', async (req, res, next) => {
           : recheckStatus;
 
         if (!globalAllowOverlap) {
-          const conflicts = await checkBookingConflicts(client, { bid, pracId: oldBooking.practitioner_id, newStart: start_at, newEnd: end_at, excludeIds: id });
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: oldBooking.practitioner_id, newStart: start_at, newEnd: end_at, excludeIds: id, movingProcTime: parseInt(oldBooking.processing_time) || 0, movingProcStart: parseInt(oldBooking.processing_start) || 0, movingBufferBefore: parseInt(oldBooking.svc_buffer_before) || 0 });
           if (conflicts.length >= maxConcurrent) {
             throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
           }
