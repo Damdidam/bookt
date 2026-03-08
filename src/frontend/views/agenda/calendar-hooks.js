@@ -32,14 +32,6 @@ function dateToBrusselsISO(d) {
  */
 function redistributePoseColumns() {
   // ── CSS helpers: FC Scheduler v6 may use `inset` shorthand or left/right ──
-  function getLeft(h) {
-    var m = h.style.cssText.match(/inset:\s*([^;!]+)/i);
-    if (m) {
-      var parts = m[1].trim().split(/\s+/);
-      return parseFloat(parts.length >= 4 ? parts[3] : parts.length >= 2 ? parts[1] : parts[0]) || 0;
-    }
-    return parseFloat(h.style.left) || 0;
-  }
   function setHoriz(h, newLeft, newRight) {
     var css = h.style.cssText;
     var m = css.match(/inset:\s*([^;!]+)/i);
@@ -55,10 +47,32 @@ function redistributePoseColumns() {
     }
   }
 
+  // If resource view is active, FC already handles practitioner columns — skip redistribution
+  var viewType = calState.fcCal?.view?.type || '';
+  var isResourceView = viewType.indexOf('resource') === 0;
+
+  // Build stable practitioner order
+  var pracIds = (calState.fcCurrentFilter !== 'all')
+    ? [calState.fcCurrentFilter]
+    : (calState.fcPractitioners || []).map(function (p) { return String(p.id); });
+
+  // Helper: get practitioner_id from a harness element
+  function getPracId(h) {
+    var evEl = h.querySelector('[data-eid]');
+    if (!evEl) return null;
+    var eid = evEl.dataset.eid;
+    var cal = calState.fcCal;
+    if (!cal) return null;
+    var ev = cal.getEventById(eid);
+    if (!ev) return null;
+    var ep = ev.extendedProps;
+    return String(ep?.practitioner_id || (ep?._isGroup ? ep._members?.[0]?.practitioner_id : '') || '');
+  }
+
   var processed = new Set();
-  document.querySelectorAll('.ev-pose-child').forEach(function (childEl) {
-    var colEvents = childEl.closest('.fc-timegrid-col-events');
-    if (!colEvents || processed.has(colEvents)) return;
+  // Process ALL day columns (not just those with pose-children)
+  document.querySelectorAll('.fc-timegrid-col-events').forEach(function (colEvents) {
+    if (processed.has(colEvents)) return;
     processed.add(colEvents);
 
     var harnesses = [];
@@ -71,39 +85,23 @@ function redistributePoseColumns() {
     var isChild = function (h) { return !!h.querySelector('.ev-pose-child'); };
     var realHarnesses = harnesses.filter(function (h) { return !isChild(h); });
     var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
-    if (childHarnesses.length === 0) return;
 
-    // Debug: log what the redistribution sees
-    console.log('[POSE-REDIST] harnesses:', harnesses.length,
-      'real:', realHarnesses.map(function(h) { var e = h.querySelector('[data-eid]'); return e ? e.dataset.eid.slice(0,8) : '?'; }),
-      'children:', childHarnesses.map(function(h) { var e = h.querySelector('[data-eid]'); return e ? e.dataset.eid.slice(0,8) : '?'; }),
-      'inset sample:', harnesses[0]?.style.cssText.slice(0, 60));
-
-    // Group real harnesses by vertical overlap (full bounding rect)
-    var groups = [];
-    realHarnesses.forEach(function (h) {
-      var hRect = h.getBoundingClientRect();
-      var placed = false;
-      for (var g = 0; g < groups.length; g++) {
-        var overlaps = groups[g].some(function (m) {
-          var mRect = m.getBoundingClientRect();
-          return hRect.top < mRect.bottom - 1 && mRect.top < hRect.bottom - 1;
-        });
-        if (overlaps) { groups[g].push(h); placed = true; break; }
-      }
-      if (!placed) groups.push([h]);
-    });
-
-    // Redistribute each group evenly
-    groups.forEach(function (group) {
-      group.sort(function (a, b) { return getLeft(a) - getLeft(b); });
-      var w = 100 / group.length;
-      group.forEach(function (h, i) {
-        setHoriz(h, (i * w) + '%', (100 - (i + 1) * w) + '%');
+    // ── Redistribute real harnesses by practitioner column ──
+    // Skip if resource view is active (FC Scheduler handles columns natively)
+    if (pracIds.length >= 2 && !isResourceView) {
+      realHarnesses.forEach(function (h) {
+        var pid = getPracId(h);
+        if (!pid) return;
+        var idx = pracIds.indexOf(pid);
+        if (idx === -1) return;
+        var total = pracIds.length;
+        var w = 100 / total;
+        setHoriz(h, (idx * w) + '%', (100 - (idx + 1) * w) + '%');
+        h.style.zIndex = String(idx + 1);
       });
-    });
+    }
 
-    // Position each child harness on its parent harness
+    // ── Position each pose-child on its parent ──
     childHarnesses.forEach(function (ch) {
       var evEl = ch.querySelector('.ev-pose-child');
       if (!evEl) return;
@@ -167,7 +165,10 @@ function buildEventDidMount() {
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       info.el.setAttribute('data-pose-parent', p._poseParentId);
-      // Schedule redistribution (debounced, run twice to survive FC re-layouts)
+    }
+    // Schedule redistribution for practitioner columns + pose-child positioning
+    // (debounced, run twice to survive FC re-layouts)
+    if (info.view.type !== 'dayGridMonth') {
       clearTimeout(window._poseRedistTimer);
       clearTimeout(window._poseRedistTimer2);
       window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
