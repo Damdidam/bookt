@@ -128,8 +128,10 @@
 .ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
 /* Processing time (pose) — overlay on FC event element */
 .ev-pose-overlay{position:absolute;left:0;right:0;z-index:2;cursor:pointer;background:repeating-linear-gradient(135deg,rgba(0,0,0,.04),rgba(0,0,0,.04) 4px,rgba(0,0,0,.10) 4px,rgba(0,0,0,.10) 8px);border-top:1.5px dashed rgba(0,0,0,.18);border-bottom:1.5px dashed rgba(0,0,0,.18)}
-/* Pose-child: white opaque card shifted over parent's pose zone, draggable */
-.fc .fc-event.ev-pose-child{background:rgba(255,255,255,.97)!important;border:1px solid rgba(0,0,0,.1)!important;border-left:3px solid!important;border-radius:10px!important;box-shadow:0 3px 12px rgba(0,0,0,.14)}
+/* Pose parent: full width in its column so children can overlay */
+.fc .fc-event.ev-has-pose{z-index:1!important}
+/* Pose-child: white opaque card overlaying parent's pose zone, draggable */
+.fc .fc-event.ev-pose-child{background:rgba(255,255,255,.97)!important;border:1px solid rgba(0,0,0,.12)!important;border-left:3px solid!important;border-radius:8px!important;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:4!important;pointer-events:auto}
 /* Multi-service quick create */
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
