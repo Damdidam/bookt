@@ -100,16 +100,11 @@ function initCalendar(initView, initSlotDur) {
     dayMaxEvents: 3,
     editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
-    slotEventOverlap: true,
+    slotEventOverlap: false,
     eventOrder: function (a, b) {
-      // Pose parents first (rendered behind), pose children last (rendered on top)
+      // Events with pose (processing_time) render first (behind others)
       var ptA = parseInt(a.extendedProps && a.extendedProps.processing_time) || 0;
       var ptB = parseInt(b.extendedProps && b.extendedProps.processing_time) || 0;
-      var childA = a.extendedProps && a.extendedProps._isPoseChild ? 1 : 0;
-      var childB = b.extendedProps && b.extendedProps._isPoseChild ? 1 : 0;
-      // Pose children always last (highest z)
-      if (childA !== childB) return childA - childB;
-      // Pose parents before regular events
       if (ptA > 0 && ptB === 0) return -1;
       if (ptB > 0 && ptA === 0) return 1;
       return 0;

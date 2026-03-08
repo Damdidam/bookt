@@ -6,7 +6,7 @@
  * Extracted from calendar-events.js for separation of concerns.
  */
 import { api, calState } from '../../state.js';
-import { gToast } from '../../utils/dom.js';
+import { gToast, esc } from '../../utils/dom.js';
 import { toBrusselsISO } from '../../utils/format.js';
 import { fcRefresh } from './calendar-init.js';
 import { fcOpenDetail } from './booking-detail.js';
@@ -59,24 +59,78 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose parent: ensure full width so child can overlay properly ──
-    if (p._poseStartPct != null && info.view.type !== 'dayGridMonth') {
-      info.el.classList.add('ev-has-pose');
-      var parentHarness = info.el.closest('.fc-timegrid-event-harness');
-      if (parentHarness) {
-        parentHarness.style.inset = parentHarness.style.inset.replace(/\d+%\s+\d+%$/, '0% 0%');
-        parentHarness.style.zIndex = '1';
-      }
-    }
+    // ── Pose children: render as overlay cards inside parent event element ──
+    // Children are NOT FC events (excluded from event list), so they don't create sub-columns.
+    // Instead they're DOM overlays positioned within the parent's full height.
+    if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
+      info.el.style.overflow = 'visible';
+      const evStart = info.event.start.getTime();
+      const evEnd = (info.event.end || info.event.start).getTime();
+      const evDur = evEnd - evStart;
+      if (evDur > 0) {
+        const isTouch2 = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        p._poseChildren.forEach(function (child) {
+          var cStart = new Date(child.start_at).getTime();
+          var cEnd = new Date(child.end_at).getTime();
+          var topPct = ((cStart - evStart) / evDur) * 100;
+          var heightPct = ((cEnd - cStart) / evDur) * 100;
+          var childAccent = child._accent || DEFAULT_ACCENT;
+          var safeChildAccent = /^#[0-9a-fA-F]{3,8}$/.test(childAccent) ? childAccent : DEFAULT_ACCENT;
 
-    // ── Pose-child: overlay on parent's pose zone ──
-    if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
-      info.el.classList.add('ev-pose-child');
-      var harness = info.el.closest('.fc-timegrid-event-harness');
-      if (harness) {
-        // Force child to take ~85% width, indented slightly from left
-        harness.style.inset = harness.style.inset.replace(/\d+%\s+\d+%$/, '5% 5%');
-        harness.style.zIndex = '4';
+          var card = document.createElement('div');
+          card.className = 'ev-pose-child-card';
+          card.style.top = topPct + '%';
+          card.style.height = heightPct + '%';
+          card.style.borderLeftColor = safeChildAccent;
+          card.style.color = safeChildAccent;
+          card.setAttribute('data-booking-id', child.id);
+
+          var svcLabel = child.variant_name
+            ? (child.service_name || 'RDV') + ' — ' + child.variant_name
+            : (child.service_name || child.custom_label || 'RDV libre');
+          card.innerHTML = '<div class="epc-name">' + esc(child.client_name || 'Sans nom') + '</div>'
+            + '<div class="epc-svc">' + esc(svcLabel) + '</div>';
+
+          // Double-click → open booking detail
+          card.addEventListener('dblclick', function (e) {
+            e.stopPropagation();
+            fcHideTooltip();
+            fcOpenDetail(child.id);
+          });
+
+          // Tooltip on hover (desktop)
+          if (!isTouch2) {
+            card.addEventListener('mouseenter', function (e) {
+              if (fsIsActive()) return;
+              fcShowTooltip({ start: new Date(child.start_at), end: new Date(child.end_at), title: child.client_name || 'Sans nom', extendedProps: child }, e.clientX, e.clientY);
+            });
+            card.addEventListener('mousemove', function (e) { fcMoveTooltip(e.clientX, e.clientY); });
+            card.addEventListener('mouseleave', function () { fcHideTooltip(); });
+          }
+
+          // Touch: single tap → tooltip, double tap → detail
+          var lastChildTap = 0;
+          card.addEventListener('touchend', function (e) {
+            e.stopPropagation();
+            var now = Date.now();
+            if (now - lastChildTap < 600) {
+              e.preventDefault();
+              fcHideTooltip();
+              fcOpenDetail(child.id);
+              lastChildTap = 0;
+            } else {
+              lastChildTap = now;
+              var touch = e.changedTouches && e.changedTouches[0];
+              if (touch) {
+                fcShowTooltip({ start: new Date(child.start_at), end: new Date(child.end_at), title: child.client_name || 'Sans nom', extendedProps: child }, touch.clientX, touch.clientY);
+                clearTimeout(window._ttAutoHide);
+                window._ttAutoHide = setTimeout(fcHideTooltip, 2500);
+              }
+            }
+          }, { passive: false });
+
+          info.el.appendChild(card);
+        });
       }
     }
 

@@ -61,31 +61,38 @@ export function detectPoseChildren(singles) {
   return { poseChildMap, poseChildIds };
 }
 
-/** Build FC events from single (non-grouped) bookings. */
-export function buildSingleEvents(singles, poseChildIds) {
-  return singles.map(b => {
-    const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
-    const accent = accentFor(b);
-    const pt = parseInt(b.processing_time) || 0;
-    const ps = parseInt(b.processing_start) || 0;
-    const isPoseChild = poseChildIds.has(b.id);
-    const props = { ...b, _accent: accent, _isPoseChild: isPoseChild };
-    if (pt > 0) {
-      const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
-      const buf = parseInt(b.buffer_before_min) || 0;
-      props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
-      props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
-    }
-    return {
-      id: b.id, resourceId: String(b.practitioner_id),
-      title: b.client_name || 'Sans nom',
-      start: b.start_at, end: b.end_at,
-      backgroundColor: isPoseChild ? 'rgba(255,255,255,.97)' : fcHexAlpha(accent, 0.1),
-      borderColor: accent, textColor: accent,
-      editable: !frozen, durationEditable: !frozen,
-      extendedProps: props
-    };
-  });
+/** Build FC events from single (non-grouped) bookings.
+ *  Pose-children are excluded from FC events and attached as _poseChildren on their parent.
+ *  This prevents FullCalendar from creating sub-columns for them. */
+export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
+  return singles
+    .filter(b => !poseChildIds.has(b.id))
+    .map(b => {
+      const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
+      const accent = accentFor(b);
+      const pt = parseInt(b.processing_time) || 0;
+      const ps = parseInt(b.processing_start) || 0;
+      const props = { ...b, _accent: accent };
+      // Attach pose children data to parent so eventDidMount can render overlays
+      if (poseChildMap && poseChildMap[b.id]) {
+        props._poseChildren = poseChildMap[b.id].map(c => ({ ...c, _accent: accentFor(c) }));
+      }
+      if (pt > 0) {
+        const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
+        const buf = parseInt(b.buffer_before_min) || 0;
+        props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
+        props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
+      }
+      return {
+        id: b.id, resourceId: String(b.practitioner_id),
+        title: b.client_name || 'Sans nom',
+        start: b.start_at, end: b.end_at,
+        backgroundColor: fcHexAlpha(accent, 0.1),
+        borderColor: accent, textColor: accent,
+        editable: !frozen, durationEditable: !frozen,
+        extendedProps: props
+      };
+    });
 }
 
 /** Build FC events from grouped bookings (single container per group). */
@@ -297,8 +304,8 @@ function buildEventsCallback() {
 
         // Pipeline
         const { grouped, singles } = separateGroupedAndSingles(bookings);
-        const { poseChildIds } = detectPoseChildren(singles);
-        const singleEvents = buildSingleEvents(singles, poseChildIds);
+        const { poseChildMap, poseChildIds } = detectPoseChildren(singles);
+        const singleEvents = buildSingleEvents(singles, poseChildIds, poseChildMap);
         const groupEvents = buildGroupEvents(grouped);
         const allEvents = singleEvents.concat(groupEvents);
         const filtered = applyVisibilityFilters(allEvents);
