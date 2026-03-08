@@ -486,12 +486,17 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose-child: white card shifted into parent's pose zone, fully draggable
+    // Pose-child: override harness inset to overlap parent's pose zone
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       var harness = info.el.closest('.fc-timegrid-event-harness');
       if (harness) {
-        harness.style.transform = 'translateX(-60%)';
+        // Parse FC's inset (format: "top right bottom left")
+        var parts = (harness.style.inset || '').split(/\s+/);
+        if (parts.length >= 4) {
+          // Keep vertical positioning (top/bottom), force horizontal to overlap parent
+          harness.style.inset = parts[0] + ' 3% ' + parts[2] + ' 8%';
+        }
         harness.style.zIndex = '4';
       }
     }
