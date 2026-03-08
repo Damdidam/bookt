@@ -165,7 +165,6 @@ function buildEventsCallback() {
         const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
         const poseChildMap = {}; // parent booking id -> [child bookings]
         const poseChildIds = new Set();
-        const poseParentOf = {}; // child booking id -> parent booking id
         singles.forEach(b => {
           if (parseInt(b.processing_time) > 0) return;
           if (['cancelled','no_show'].includes(b.status)) return;
@@ -184,21 +183,19 @@ function buildEventsCallback() {
               if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
               poseChildMap[par.id].push(b);
               poseChildIds.add(b.id);
-              poseParentOf[b.id] = par.id;
               break;
             }
           }
         });
 
-        // Single events — all are real FC events (slotEventOverlap:true handles stacking)
+        // Single events (pose-children stay as FC events for drag/drop, but marked)
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = accentFor(b);
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
           const isPoseChild = poseChildIds.has(b.id);
-          const hasPoseChildren = pt > 0 && !!poseChildMap[b.id];
-          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild, _hasPoseChildren: hasPoseChildren };
+          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild };
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
             const buf = parseInt(b.buffer_before_min) || 0;
@@ -209,7 +206,7 @@ function buildEventsCallback() {
             id: b.id, resourceId: String(b.practitioner_id),
             title: b.client_name || 'Sans nom',
             start: b.start_at, end: b.end_at,
-            backgroundColor: isPoseChild ? '#ffffff' : fcHexAlpha(accent, 0.1),
+            backgroundColor: isPoseChild ? 'rgba(255,255,255,.97)' : fcHexAlpha(accent, 0.1),
             borderColor: accent, textColor: accent,
             editable: !frozen, durationEditable: !frozen,
             extendedProps: props
@@ -490,9 +487,19 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Pose-child: style as elevated white card (FC event, so draggable)
+    // Pose-child: override harness inset to overlap parent's pose zone
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
+      var harness = info.el.closest('.fc-timegrid-event-harness');
+      if (harness) {
+        // Parse FC's inset (format: "top right bottom left")
+        var parts = (harness.style.inset || '').split(/\s+/);
+        if (parts.length >= 4) {
+          // Keep vertical positioning (top/bottom), force horizontal to overlap parent
+          harness.style.inset = parts[0] + ' 3% ' + parts[2] + ' 8%';
+        }
+        harness.style.zIndex = '4';
+      }
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
