@@ -5,6 +5,7 @@ import { Calendar } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import { calState } from '../../state.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import {
@@ -39,7 +40,10 @@ function fcSlotDuration(min) {
  * Refresh calendar events and mobile list.
  */
 function fcRefresh() {
-  if (calState.fcCal) calState.fcCal.refetchEvents();
+  if (calState.fcCal) {
+    calState.fcCal.refetchEvents();
+    if (typeof calState.fcCal.refetchResources === 'function') calState.fcCal.refetchResources();
+  }
   if (fcIsMobile() && calState.fcMobileView === 'list') fcLoadMobileList();
 }
 
@@ -74,6 +78,25 @@ function initCalendar(initView, initSlotDur) {
     slotDuration: initSlotDur, slotLabelInterval: '01:00:00',
     allDaySlot: false, nowIndicator: true, navLinks: true,
     height: 'auto', stickyHeaderDates: true, firstDay: 1,
+    // ── FullCalendar Scheduler (Premium) ──
+    schedulerLicenseKey: '0417328187-fcs-1772975945',
+    resources: function (fetchInfo, successCb) {
+      var pracs = calState.fcPractitioners || [];
+      var filter = calState.fcCurrentFilter;
+      var list = filter === 'all' ? pracs : pracs.filter(function (p) { return String(p.id) === String(filter); });
+      successCb(list.map(function (p) {
+        return {
+          id: String(p.id),
+          title: p.display_name,
+          businessHours: (calState.fcPracBusinessHours[p.id] || []).length > 0 ? calState.fcPracBusinessHours[p.id] : [{ daysOfWeek: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '17:00' }],
+          extendedProps: { color: p.color || '#0D7377' }
+        };
+      }));
+    },
+    resourceLabelContent: function (arg) {
+      var color = arg.resource.extendedProps?.color || '#0D7377';
+      return { html: '<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>' + arg.resource.title + '</span>' };
+    },
     dayMaxEvents: 3,
     editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
     selectable: false,
@@ -102,7 +125,7 @@ function initCalendar(initView, initSlotDur) {
       }
     },
     navLinkDayClick: function (date) {
-      calState.fcCal.changeView('timeGridDay', date);
+      calState.fcCal.changeView(fcIsMobile() ? 'timeGridDay' : 'resourceTimeGridDay', date);
     },
     eventDidMount: buildEventDidMount(),
     eventWillUnmount: buildEventWillUnmount(),
@@ -111,7 +134,7 @@ function initCalendar(initView, initSlotDur) {
     eventResize: buildEventResize()
   };
 
-  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin];
   calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
   calState.fcCal.render();
 
@@ -127,6 +150,9 @@ function initCalendar(initView, initSlotDur) {
   calState.fcCal.off('datesSet');
   calState.fcCal.on('datesSet', function () {
     atUpdateTitle();
+    // Sync view buttons (for navLinkDayClick, etc.)
+    var vt = calState.fcCal.view.type;
+    document.querySelectorAll('.at-view-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === vt); });
   });
   atUpdateTitle(); // initial
 }

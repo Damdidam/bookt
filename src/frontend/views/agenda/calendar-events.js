@@ -203,7 +203,8 @@ function buildEventsCallback() {
             props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
           }
           events.push({
-            id: b.id, title: b.client_name || 'Sans nom',
+            id: b.id, resourceId: String(b.practitioner_id),
+            title: b.client_name || 'Sans nom',
             start: b.start_at, end: b.end_at,
             backgroundColor: isPoseChild ? 'rgba(255,255,255,.97)' : fcHexAlpha(accent, 0.1),
             borderColor: accent, textColor: accent,
@@ -221,7 +222,7 @@ function buildEventsCallback() {
           const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
           const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
           events.push({
-            id: 'group_' + gid,
+            id: 'group_' + gid, resourceId: String(first.practitioner_id),
             title: first.client_name || 'Sans nom',
             start: minStart, end: maxEnd,
             backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
@@ -741,7 +742,9 @@ function buildEventDrop() {
     try {
       // For group containers, move the first member -- backend moves siblings
       const bookingId = p._isGroup ? p._members?.[0]?.id : ev.id;
-      const pracId = oldPracId;
+      // Resource drag: if dropped on a different resource column, reassign practitioner
+      const pracId = info.newResource ? info.newResource.id : oldPracId;
+      const pracChanged = String(pracId) !== String(oldPracId);
       const r = await fetch(`/api/bookings/${bookingId}/move`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
@@ -757,7 +760,10 @@ function buildEventDrop() {
           practitioner_id: oldPracId
         });
       }
-      const msg = result.group_moved ? `${p.client_name || 'Client'} \u2014 ${result.count} prestations d\u00e9plac\u00e9es` : (p.client_name || 'RDV') + ' d\u00e9plac\u00e9';
+      const pracName = pracChanged ? (calState.fcPractitioners.find(pr => String(pr.id) === String(pracId))?.display_name || '') : '';
+      const msg = result.group_moved
+        ? `${p.client_name || 'Client'} \u2014 ${result.count} prestations d\u00e9plac\u00e9es`
+        : (p.client_name || 'RDV') + ' d\u00e9plac\u00e9' + (pracChanged ? ' \u2192 ' + pracName : '');
       gToast(msg, 'success', !result.group_moved ? { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() } : undefined, 8000);
       calState.fcCal.refetchEvents();
     } catch (e) {
@@ -768,7 +774,7 @@ function buildEventDrop() {
       // In month view + collision -> offer to switch to day view for precise placement
       if (isCollision && calState.fcCal?.view?.type === 'dayGridMonth') {
         window._atPendingDaySwitch = targetDate;
-        gToast('\u2718 Cr\u00e9neau occup\u00e9 \u2014 voir le jour pour replacer ?', 'error', { label: 'Voir le jour \u2192', fn: () => { atView('timeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToast').style.display = 'none'; } });
+        gToast('\u2718 Cr\u00e9neau occup\u00e9 \u2014 voir le jour pour replacer ?', 'error', { label: 'Voir le jour \u2192', fn: () => { atView('resourceTimeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToast').style.display = 'none'; } });
       } else {
         gToast(isCollision ? '\u2718 Cr\u00e9neau occup\u00e9 \u2014 impossible de d\u00e9placer ici' : e.message, 'error');
       }

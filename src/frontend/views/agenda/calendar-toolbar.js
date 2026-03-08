@@ -50,7 +50,7 @@ function atUpdateTitle() {
   const DNAMES = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
   const DFULL = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   let title = '';
-  if (view.type === 'timeGridDay') {
+  if (view.type === 'timeGridDay' || view.type === 'resourceTimeGridDay') {
     const d = view.currentStart;
     title = DFULL[d.getDay()] + ' ' + d.getDate() + ' ' + MFULL[d.getMonth()];
     if (d.getFullYear() !== new Date().getFullYear()) title += ' ' + d.getFullYear();

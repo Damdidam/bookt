@@ -40,6 +40,9 @@
 .content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:82px;z-index:28}
 .content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:82px!important;z-index:28;background:var(--white)}
 .content.agenda-active .fc .fc-col-header{background:var(--white)}
+/* Resource column headers */
+.fc .fc-resource-header{font-size:.76rem;font-weight:600;padding:8px 4px}
+.fc .fc-resource-header .fc-col-header-cell-cushion{text-decoration:none;color:var(--text-2)}
 .fc .fc-scrollgrid-section-header .fc-non-business{display:none!important}
 .prac-pill{padding:6px 16px;border-radius:100px;font-size:.74rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .prac-pill:hover{border-color:var(--text-4);background:var(--surface)}
