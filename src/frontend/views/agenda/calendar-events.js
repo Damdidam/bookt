@@ -451,6 +451,33 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
+    // Pose-child visual overlap: if this event fits entirely within another event's pose window
+    // on the same practitioner, widen it to overlap visually (~50%)
+    if (info.view.type !== 'dayGridMonth' && !p._isGroup && info.event.start && info.event.end) {
+      const cal = calState.fcCal;
+      if (cal) {
+        const myStart = info.event.start.getTime();
+        const myEnd = info.event.end.getTime();
+        const myPrac = p.practitioner_id;
+        const allEvents = cal.getEvents();
+        for (const ev of allEvents) {
+          if (ev.id === info.event.id) continue;
+          const ep = ev.extendedProps;
+          if (ep._isFeaturedSlot || ep.practitioner_id !== myPrac) continue;
+          const pt = parseInt(ep.processing_time) || 0;
+          if (pt <= 0 || !ev.start) continue;
+          const ps = parseInt(ep.processing_start) || 0;
+          const buf = parseInt(ep.buffer_before_min) || 0;
+          const poseStart = ev.start.getTime() + (buf + ps) * 60000;
+          const poseEnd = ev.start.getTime() + (buf + ps + pt) * 60000;
+          if (myStart >= poseStart && myEnd <= poseEnd) {
+            info.el.classList.add('ev-pose-child');
+            break;
+          }
+        }
+      }
+    }
+
     // Ensure left border shows (respect event's borderColor for partial-match groups)
     info.el.style.borderLeftWidth = '3px';
     info.el.style.borderLeftStyle = 'solid';
