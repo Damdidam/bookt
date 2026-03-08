@@ -31,31 +31,41 @@ function dateToBrusselsISO(d) {
  * recalculates: M real events → M equal columns, children match their parent.
  */
 function redistributePoseColumns() {
-  // FC Scheduler Premium v6 uses the CSS `inset` shorthand (top right bottom left)
-  // on harnesses instead of individual left/right properties.
-  function parseInset(h) {
-    var inset = h.style.inset;
-    if (inset) {
-      var parts = inset.trim().split(/\s+/);
-      if (parts.length >= 4) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
-      if (parts.length === 3) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[1] };
-      if (parts.length === 2) return { top: parts[0], right: parts[1], bottom: parts[0], left: parts[1] };
-      return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
-    }
-    return null;
-  }
+  // ── CSS helpers: FC Scheduler v6 may use `inset` shorthand or left/right ──
   function getLeft(h) {
-    var p = parseInset(h);
-    return p ? (parseFloat(p.left) || 0) : (parseFloat(h.style.left) || 0);
+    var m = h.style.cssText.match(/inset:\s*([^;!]+)/i);
+    if (m) {
+      var parts = m[1].trim().split(/\s+/);
+      return parseFloat(parts.length >= 4 ? parts[3] : parts.length >= 2 ? parts[1] : parts[0]) || 0;
+    }
+    return parseFloat(h.style.left) || 0;
   }
   function setHoriz(h, newLeft, newRight) {
-    var p = parseInset(h);
-    if (p) {
-      h.style.setProperty('inset', p.top + ' ' + newRight + ' ' + p.bottom + ' ' + newLeft, 'important');
+    var css = h.style.cssText;
+    var m = css.match(/inset:\s*([^;!]+)/i);
+    if (m) {
+      var parts = m[1].trim().split(/\s+/);
+      var top = parts[0] || '0%';
+      var bottom = parts.length >= 3 ? parts[2] : top;
+      var newInset = top + ' ' + newRight + ' ' + bottom + ' ' + newLeft;
+      h.style.cssText = css.replace(/inset:\s*[^;]+;?/i, 'inset: ' + newInset + ' !important; ');
     } else {
       h.style.setProperty('left', newLeft, 'important');
       h.style.setProperty('right', newRight, 'important');
     }
+  }
+
+  // ── Overlap rect: for pose parents, use only the ACTIVE part (before pose zone) ──
+  // This way events in the pose zone don't inflate the column count.
+  function overlapRect(h) {
+    var rect = h.getBoundingClientRect();
+    var overlay = h.querySelector('.ev-pose-overlay');
+    if (overlay) {
+      var overlayTop = overlay.getBoundingClientRect().top;
+      // Active part = top of event to top of pose overlay
+      return { top: rect.top, bottom: Math.max(rect.top + 1, overlayTop) };
+    }
+    return { top: rect.top, bottom: rect.bottom };
   }
 
   var processed = new Set();
@@ -64,7 +74,6 @@ function redistributePoseColumns() {
     if (!colEvents || processed.has(colEvents)) return;
     processed.add(colEvents);
 
-    // All harnesses in this column
     var harnesses = [];
     for (var i = 0; i < colEvents.children.length; i++) {
       var h = colEvents.children[i];
@@ -72,22 +81,19 @@ function redistributePoseColumns() {
     }
     if (harnesses.length < 2) return;
 
-    // Classify: real events vs pose-children
     var isChild = function (h) { return !!h.querySelector('.ev-pose-child'); };
-
-    // Build overlap groups using bounding rects (only among real events)
     var realHarnesses = harnesses.filter(function (h) { return !isChild(h); });
     var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
     if (childHarnesses.length === 0) return;
 
-    // Group real harnesses by vertical overlap
+    // Group real harnesses by ACTIVE-part vertical overlap
     var groups = [];
     realHarnesses.forEach(function (h) {
-      var hRect = h.getBoundingClientRect();
+      var hRect = overlapRect(h);
       var placed = false;
       for (var g = 0; g < groups.length; g++) {
         var overlaps = groups[g].some(function (m) {
-          var mRect = m.getBoundingClientRect();
+          var mRect = overlapRect(m);
           return hRect.top < mRect.bottom - 1 && mRect.top < hRect.bottom - 1;
         });
         if (overlaps) { groups[g].push(h); placed = true; break; }
@@ -104,7 +110,7 @@ function redistributePoseColumns() {
       });
     });
 
-    // Position each child on its parent
+    // Position each child harness on its parent harness
     childHarnesses.forEach(function (ch) {
       var evEl = ch.querySelector('.ev-pose-child');
       if (!evEl) return;
@@ -114,9 +120,10 @@ function redistributePoseColumns() {
       if (!parentEl) return;
       var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
       if (!parentHarness) return;
-      var pp = parseInset(parentHarness);
-      if (pp) {
-        setHoriz(ch, pp.left, pp.right);
+      var pm = parentHarness.style.cssText.match(/inset:\s*([^;!]+)/i);
+      if (pm) {
+        var pp = pm[1].trim().split(/\s+/);
+        setHoriz(ch, pp.length >= 4 ? pp[3] : '0%', pp.length >= 2 ? pp[1] : '0%');
       } else {
         setHoriz(ch, parentHarness.style.left || '0%', parentHarness.style.right || '0%');
       }
@@ -167,9 +174,11 @@ function buildEventDidMount() {
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       info.el.setAttribute('data-pose-parent', p._poseParentId);
-      // Schedule redistribution once (debounced)
+      // Schedule redistribution (debounced, run twice to survive FC re-layouts)
       clearTimeout(window._poseRedistTimer);
+      clearTimeout(window._poseRedistTimer2);
       window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
+      window._poseRedistTimer2 = setTimeout(redistributePoseColumns, 120);
     }
 
     // ── Border styling ──
