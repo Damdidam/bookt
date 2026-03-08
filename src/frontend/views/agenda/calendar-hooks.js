@@ -85,8 +85,11 @@ function buildEventDidMount() {
           card.style.color = safeChildAccent;
           card.setAttribute('data-booking-id', child.id);
 
-          // Prevent parent FC event from dragging when interacting with child card
-          card.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+          // Prevent parent FC event from dragging/selecting when interacting with child card
+          // FC interaction plugin uses pointerdown; also block mousedown, touchstart, click
+          ['pointerdown', 'mousedown', 'click'].forEach(function (evt) {
+            card.addEventListener(evt, function (e) { e.stopPropagation(); });
+          });
           card.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: false });
 
           var svcLabel = child.variant_name
