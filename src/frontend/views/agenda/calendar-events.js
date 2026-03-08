@@ -190,24 +190,15 @@ function buildEventsCallback() {
           }
         });
 
-        // Single events — pose-children rendered as DOM cards inside their parent (not FC events)
-        var poseChildBookings = [];
+        // Single events — all are real FC events (slotEventOverlap:true handles stacking)
         singles.forEach(b => {
           const frozen = ['completed', 'cancelled', 'no_show'].includes(b.status);
           const accent = accentFor(b);
           const pt = parseInt(b.processing_time) || 0;
           const ps = parseInt(b.processing_start) || 0;
           const isPoseChild = poseChildIds.has(b.id);
-          if (isPoseChild) {
-            // Not a FC event — will be rendered inside parent's eventDidMount
-            poseChildBookings.push(b);
-            return;
-          }
           const hasPoseChildren = pt > 0 && !!poseChildMap[b.id];
-          const props = { ...b, _accent: accent, _hasPoseChildren: hasPoseChildren };
-          if (hasPoseChildren) {
-            props._poseChildren = poseChildMap[b.id].map(c => ({ ...c, _accent: accentFor(c) }));
-          }
+          const props = { ...b, _accent: accent, _isPoseChild: isPoseChild, _hasPoseChildren: hasPoseChildren };
           if (pt > 0) {
             const totalMin = Math.round((new Date(b.end_at) - new Date(b.start_at)) / 60000) || 1;
             const buf = parseInt(b.buffer_before_min) || 0;
@@ -218,14 +209,12 @@ function buildEventsCallback() {
             id: b.id, resourceId: String(b.practitioner_id),
             title: b.client_name || 'Sans nom',
             start: b.start_at, end: b.end_at,
-            backgroundColor: fcHexAlpha(accent, 0.1),
+            backgroundColor: isPoseChild ? '#ffffff' : fcHexAlpha(accent, 0.1),
             borderColor: accent, textColor: accent,
             editable: !frozen, durationEditable: !frozen,
             extendedProps: props
           });
         });
-        // Store for overlap checking in eventAllow (these are not FC events)
-        calState._poseChildBookings = poseChildBookings;
 
         // Grouped events -> single container per group
         Object.keys(grouped).forEach(gid => {
@@ -501,35 +490,9 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // Render pose-children as DOM cards inside this parent's event element
-    if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
-      var evStart = info.event.start.getTime();
-      var evEnd = (info.event.end || info.event.start).getTime();
-      var evDuration = evEnd - evStart;
-      p._poseChildren.forEach(function (child) {
-        var childStart = new Date(child.start_at).getTime();
-        var childEnd = new Date(child.end_at).getTime();
-        var topPct = Math.max(((childStart - evStart) / evDuration) * 100, 0);
-        var heightPct = Math.min(((childEnd - childStart) / evDuration) * 100, 100 - topPct);
-        var childAccent = child._accent || DEFAULT_ACCENT;
-        var card = document.createElement('div');
-        card.className = 'ev-pose-child-card';
-        card.style.top = topPct + '%';
-        card.style.height = heightPct + '%';
-        card.style.borderLeftColor = childAccent;
-        var svcLabel = esc(child.variant_name ? (child.service_name || 'RDV') + ' \u2014 ' + child.variant_name : (child.service_name || child.custom_label || 'RDV'));
-        card.innerHTML = '<div class="ev-inner" style="color:' + childAccent + '"><span class="ev-client">' + esc(child.client_name || 'Sans nom') + '</span><span class="ev-service">' + svcLabel + '</span></div>';
-        // Double-click → open booking detail
-        card.addEventListener('dblclick', function (e) {
-          e.stopPropagation();
-          fcHideTooltip();
-          fcOpenDetail(child.id);
-        });
-        // Single click → stop propagation (don't open parent tooltip)
-        card.addEventListener('click', function (e) { e.stopPropagation(); });
-        card.addEventListener('mouseenter', function (e) { e.stopPropagation(); });
-        info.el.appendChild(card);
-      });
+    // Pose-child: style as elevated white card (FC event, so draggable)
+    if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
+      info.el.classList.add('ev-pose-child');
     }
 
     // Ensure left border shows (respect event's borderColor for partial-match groups)
@@ -919,16 +882,6 @@ function buildEventAllow() {
           if (newStart >= poseStart && newEnd <= poseEnd) continue;
         }
         overlapCount++;
-      }
-    }
-    // Also count pose-child bookings (not FC events, stored in calState)
-    if (calState._poseChildBookings) {
-      for (var ci = 0; ci < calState._poseChildBookings.length; ci++) {
-        var cb = calState._poseChildBookings[ci];
-        if (String(cb.practitioner_id) !== String(myPrac)) continue;
-        if (['cancelled', 'no_show', 'completed'].includes(cb.status)) continue;
-        var cbS = new Date(cb.start_at), cbE = new Date(cb.end_at);
-        if (cbS < newEnd && cbE > newStart) overlapCount++;
       }
     }
     if (overlapCount >= maxC) return false;
