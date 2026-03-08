@@ -287,6 +287,7 @@ router.patch('/:id/move', async (req, res, next) => {
     calSyncPush(bid, id).catch(() => {});
     res.json({ updated: true, booking: moveResult.rows[0] });
   } catch (err) {
+    console.error('[MOVE] Crash for booking', req.params.id, ':', err.message, err.stack?.split('\n')[1]);
     next(err);
   }
 });

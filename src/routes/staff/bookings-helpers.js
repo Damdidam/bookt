@@ -209,7 +209,7 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
   if (excludeIds != null) {
     if (Array.isArray(excludeIds)) {
       params.push(excludeIds);
-      excludeClause = `AND b.id != ALL($${params.length}::int[])`;
+      excludeClause = `AND b.id != ALL($${params.length}::uuid[])`;
     } else {
       params.push(excludeIds);
       excludeClause = `AND b.id != $${params.length}`;
@@ -227,8 +227,8 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
     const psIdx = params.length - 1;
     const ptIdx = params.length;
     reversePoseClause = `AND NOT (
-       b.start_at >= $3::timestamptz + ($${bufIdx} + $${psIdx}) * interval '1 minute'
-       AND b.end_at <= $3::timestamptz + ($${bufIdx} + $${psIdx} + $${ptIdx}) * interval '1 minute'
+       b.start_at >= $3::timestamptz + ($${bufIdx}::integer + $${psIdx}::integer) * interval '1 minute'
+       AND b.end_at <= $3::timestamptz + ($${bufIdx}::integer + $${psIdx}::integer + $${ptIdx}::integer) * interval '1 minute'
      )`;
   }
 
