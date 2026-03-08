@@ -478,7 +478,15 @@ function buildEventDidMount() {
           const poseStart = ev.start.getTime() + (buf + ps) * 60000;
           const poseEnd = ev.start.getTime() + (buf + ps + pt) * 60000;
           if (myStart >= poseStart && myEnd <= poseEnd) {
-            info.el.classList.add('ev-pose-child');
+            // Shift left by half to overlap onto the parent's pose zone
+            requestAnimationFrame(() => {
+              const curLeft = parseFloat(info.el.style.left) || 0;
+              if (curLeft > 0) {
+                info.el.style.left = (curLeft / 2) + '%';
+              }
+              info.el.style.zIndex = '6';
+              info.el.style.boxShadow = '0 1px 6px rgba(0,0,0,.15)';
+            });
             break;
           }
         }
