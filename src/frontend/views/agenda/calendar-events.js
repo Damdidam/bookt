@@ -55,8 +55,14 @@ function fcShowTooltip(event, x, y) {
   if (p.client_phone) html += `<div class="tt-row"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>${esc(p.client_phone)}</div>`;
   // Processing time info
   const ptMin = parseInt(p.processing_time) || 0;
-  if (ptMin > 0) {
-    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon">\u23f3</span>Pose : ${ptMin}min (praticien libre)</div>`;
+  if (ptMin > 0 && start) {
+    const ps = parseInt(p.processing_start) || 0;
+    const buf = parseInt(p.buffer_before_min) || 0;
+    const poseStartMs = start.getTime() + (buf + ps) * 60000;
+    const poseEndMs = poseStartMs + ptMin * 60000;
+    const psFmt = new Date(poseStartMs).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const peFmt = new Date(poseEndMs).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon">\u23f3</span>Pose : ${psFmt} \u2013 ${peFmt} (${ptMin}min, praticien libre)</div>`;
   }
 
   const st = p.status || 'confirmed';
