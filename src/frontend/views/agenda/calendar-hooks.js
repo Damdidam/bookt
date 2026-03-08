@@ -59,15 +59,23 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose-child: override harness inset to overlap parent's pose zone ──
+    // ── Pose parent: ensure full width so child can overlay properly ──
+    if (p._poseStartPct != null && info.view.type !== 'dayGridMonth') {
+      info.el.classList.add('ev-has-pose');
+      var parentHarness = info.el.closest('.fc-timegrid-event-harness');
+      if (parentHarness) {
+        parentHarness.style.inset = parentHarness.style.inset.replace(/\d+%\s+\d+%$/, '0% 0%');
+        parentHarness.style.zIndex = '1';
+      }
+    }
+
+    // ── Pose-child: overlay on parent's pose zone ──
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       var harness = info.el.closest('.fc-timegrid-event-harness');
       if (harness) {
-        var parts = (harness.style.inset || '').split(/\s+/);
-        if (parts.length >= 4) {
-          harness.style.inset = parts[0] + ' 3% ' + parts[2] + ' 8%';
-        }
+        // Force child to take ~85% width, indented slightly from left
+        harness.style.inset = harness.style.inset.replace(/\d+%\s+\d+%$/, '5% 5%');
         harness.style.zIndex = '4';
       }
     }
