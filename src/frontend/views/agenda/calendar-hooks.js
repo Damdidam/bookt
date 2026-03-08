@@ -59,14 +59,11 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose children: render as overlay cards on the HARNESS (not inside .fc-event) ──
-    // Cards are appended to the harness so they sit OUTSIDE the .fc-event element.
-    // This prevents FC's capture-phase pointerdown listener from associating
-    // clicks on the card with the parent event (FC uses event.target.closest('.fc-event')).
+    // ── Pose children: render as overlay cards inside the parent .fc-event ──
+    // FC pointer events are blocked by the capture-phase interceptor in calendar-init.js.
+    // Cards are appended to info.el for correct positioning relative to the parent event.
     if (p._poseChildren && p._poseChildren.length > 0 && info.view.type !== 'dayGridMonth') {
-      var harness = info.el.closest('.fc-timegrid-event-harness');
-      var cardContainer = harness || info.el;
-      cardContainer.style.overflow = 'visible';
+      info.el.style.overflow = 'visible';
       const evStart = info.event.start.getTime();
       const evEnd = (info.event.end || info.event.start).getTime();
       const evDur = evEnd - evStart;
@@ -87,12 +84,6 @@ function buildEventDidMount() {
           card.style.borderLeftColor = safeChildAccent;
           card.style.color = safeChildAccent;
           card.setAttribute('data-booking-id', child.id);
-
-          // Stop all pointer events from reaching FC's capture-phase listeners
-          ['pointerdown', 'mousedown', 'click', 'dblclick'].forEach(function (evt) {
-            card.addEventListener(evt, function (e) { e.stopPropagation(); });
-          });
-          card.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: false });
 
           var svcLabel = child.variant_name
             ? (child.service_name || 'RDV') + ' — ' + child.variant_name
@@ -138,7 +129,7 @@ function buildEventDidMount() {
             }
           }, { passive: false });
 
-          cardContainer.appendChild(card);
+          info.el.appendChild(card);
         });
       }
     }

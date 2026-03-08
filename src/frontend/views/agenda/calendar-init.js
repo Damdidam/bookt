@@ -135,11 +135,25 @@ function initCalendar(initView, initSlotDur) {
   };
 
   calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin];
-  calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
+
+  // ── Pose-child interceptor: block FC from seeing pointer events on overlay cards ──
+  // Must be registered BEFORE new Calendar() so our capture listener fires first.
+  const calEl = document.getElementById('fcCalendar');
+  if (calEl && !calEl._poseChildInterceptor) {
+    calEl._poseChildInterceptor = true;
+    ['pointerdown', 'mousedown', 'touchstart'].forEach(function (evtType) {
+      calEl.addEventListener(evtType, function (e) {
+        if (e.target.closest('.ev-pose-child-card')) {
+          e.stopImmediatePropagation();
+        }
+      }, true); // capture phase
+    });
+  }
+
+  calState.fcCal = new Calendar(calEl, calState.fcCalOptions);
   calState.fcCal.render();
 
   // Bug B6 fix: remove before re-adding to prevent listener leak on re-init
-  const calEl = document.getElementById('fcCalendar');
   if (calEl) {
     calEl.removeEventListener('scroll', fcHideTooltip, true);
     calEl.addEventListener('scroll', fcHideTooltip, true);
