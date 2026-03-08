@@ -301,133 +301,113 @@ function buildEventDidMount() {
 
     // ── Custom touch resize — bypasses FullCalendar's interaction plugin for reliable tablet resize ──
     if (isTouch) {
-      const resizer = info.el.querySelector('.fc-event-resizer-end');
-      if (resizer) {
-        let lastResizerTouch = 0;
-        resizer.addEventListener('touchstart', function (e) {
-          const frozen = ['completed', 'cancelled', 'no_show'].includes(p.status);
-          if (frozen || p._isGroup) return;
+      const frozen = ['completed', 'cancelled', 'no_show'].includes(p.status);
+      if (!frozen && !p._isGroup && info.event.end) {
+        const evDurMin = Math.round((info.event.end - info.event.start) / 60000);
+        const isShortEvent = evDurMin <= 15;
 
-          // Double-tap detection via touchstart (most reliable on tablet)
-          const now = Date.now();
-          if (now - lastResizerTouch < 600) {
+        // For short events: hide the FC resizer so it doesn't steal touches.
+        // Resize via bottom-right corner of the event itself instead.
+        if (isShortEvent) {
+          const resizerEl = info.el.querySelector('.fc-event-resizer-end');
+          if (resizerEl) resizerEl.style.display = 'none';
+        }
+
+        const touchTarget = isShortEvent ? info.el : info.el.querySelector('.fc-event-resizer-end');
+        if (touchTarget) {
+          let lastResizerTouch = 0;
+          touchTarget.addEventListener('touchstart', function (e) {
+            // Double-tap → open detail
+            const now = Date.now();
+            if (now - lastResizerTouch < 600) {
+              e.preventDefault();
+              e.stopPropagation();
+              lastResizerTouch = 0;
+              fcHideTooltip();
+              fcOpenDetail(bookingId);
+              return;
+            }
+            lastResizerTouch = now;
+
+            // Short events: only resize from bottom-right corner (20×12px)
+            if (isShortEvent) {
+              const evRect = info.el.getBoundingClientRect();
+              if (e.touches[0].clientX < evRect.right - 20 || e.touches[0].clientY < evRect.bottom - 12) return;
+            }
+
             e.preventDefault();
             e.stopPropagation();
-            lastResizerTouch = 0;
-            fcHideTooltip();
-            fcOpenDetail(bookingId);
-            return; // Skip resize entirely
-          }
-          lastResizerTouch = now;
 
-          // Only activate resize if touch is in a small zone at the bottom-center of the event
-          // For short events (15min), use a tighter zone so tap/drag remain usable
-          const evRect = info.el.getBoundingClientRect();
-          const touchX = e.touches[0].clientX;
-          const touchY = e.touches[0].clientY;
-          const isShort = evRect.height < 35;
-          const zoneW = isShort ? evRect.width / 5 : evRect.width / 3;
-          const centerX = evRect.left + evRect.width / 2;
-          if (touchX < centerX - zoneW / 2 || touchX > centerX + zoneW / 2) return;
-          if (touchY < evRect.bottom - (isShort ? 8 : 15)) return;
+            const slot = document.querySelector('.fc-timegrid-slot');
+            if (!slot) return;
+            const slotH = slot.getBoundingClientRect().height;
+            const durStr = calState.fcCalOptions?.slotDuration || '00:15:00';
+            const durParts = durStr.split(':');
+            const slotMins = parseInt(durParts[0]) * 60 + parseInt(durParts[1]);
 
-          // Don't block immediately — wait for significant downward movement
-          // before committing to resize. This lets taps and horizontal drags
-          // (move) pass through to the normal event handlers.
-          const DRAG_THRESHOLD = 8; // px before resize activates
-          const startY = e.touches[0].clientY;
-          const startX = e.touches[0].clientX;
-          let committed = false;
+            const startY = e.touches[0].clientY;
+            const origEnd = new Date(info.event.end);
+            const origH = info.el.offsetHeight;
+            let lastSlots = 0;
+            let resizeStarted = false;
+            let cleanupTimer;
 
-          const slot = document.querySelector('.fc-timegrid-slot');
-          if (!slot || !info.event.end) return;
-          const slotH = slot.getBoundingClientRect().height;
-          const durStr = calState.fcCalOptions?.slotDuration || '00:15:00';
-          const durParts = durStr.split(':');
-          const slotMins = parseInt(durParts[0]) * 60 + parseInt(durParts[1]);
-
-          const origEnd = new Date(info.event.end);
-          const origH = info.el.offsetHeight;
-          let lastSlots = 0;
-          let resizeStarted = false;
-          let cleanupTimer;
-
-          function onMove(ev) {
-            const dy = ev.touches[0].clientY - startY;
-            const dx = ev.touches[0].clientX - startX;
-
-            if (!committed) {
-              // Not yet committed to resize — check if movement is clearly vertical and past threshold
-              if (Math.abs(dy) < DRAG_THRESHOLD) return; // not enough movement yet
-              if (Math.abs(dx) > Math.abs(dy)) {
-                // Horizontal movement dominates → not a resize, let FC handle as drag/move
-                cleanup();
-                return;
+            function onMove(ev) {
+              ev.preventDefault();
+              if (!resizeStarted) {
+                resizeStarted = true;
+                info.el.classList.add('fc-event-dragging');
+                info.el.style.setProperty('bottom', 'auto', 'important');
+                info.el.style.zIndex = '999';
               }
-              // Commit to resize
-              committed = true;
-              e.preventDefault();
+              const dy = ev.touches[0].clientY - startY;
+              const ds = Math.round(dy / slotH);
+              lastSlots = ds;
+              const newH = origH + ds * slotH;
+              if (newH >= slotH) info.el.style.height = newH + 'px';
             }
 
-            ev.preventDefault();
-            ev.stopPropagation();
-            if (!resizeStarted) {
-              resizeStarted = true;
-              info.el.classList.add('fc-event-dragging');
-              info.el.style.setProperty('bottom', 'auto', 'important');
-              info.el.style.zIndex = '999';
+            function onEnd() {
+              clearTimeout(cleanupTimer);
+              document.removeEventListener('touchmove', onMove);
+              document.removeEventListener('touchend', onEnd);
+              if (resizeStarted) {
+                info.el.classList.remove('fc-event-dragging');
+                info.el.style.removeProperty('bottom');
+                info.el.style.removeProperty('height');
+                info.el.style.removeProperty('z-index');
+              }
+              if (lastSlots === 0) return;
+
+              const newEnd = new Date(origEnd.getTime() + lastSlots * slotMins * 60000);
+              if (newEnd <= info.event.start) return;
+              // Enforce minimum 15-minute duration
+              if ((newEnd - info.event.start) / 60000 < 15) return;
+              info.event.setEnd(newEnd);
+
+              fetch('/api/bookings/' + info.event.id + '/resize', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+                body: JSON.stringify({ end_at: dateToBrusselsISO(newEnd) })
+              }).then(function (r) {
+                if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
+                var dur = Math.round((newEnd - info.event.start) / 60000);
+                storeUndoAction(info.event.id, 'resize', { end_at: dateToBrusselsISO(origEnd) });
+                gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
+              }).catch(function (err) {
+                info.event.setEnd(origEnd);
+                calState.fcCal.refetchEvents();
+                var msg = (err.message || '').includes('hevauche') || (err.message || '').includes('créneau')
+                  ? 'Chevauchement — durée non modifiée' : (err.message || 'Erreur');
+                gToast(msg, 'error');
+              });
             }
-            const ds = Math.round(dy / slotH);
-            lastSlots = ds;
-            const newH = origH + ds * slotH;
-            if (newH >= slotH) info.el.style.height = newH + 'px';
-          }
 
-          function onEnd() {
-            cleanup();
-            if (!committed) return; // Was a tap — let normal handlers deal with it
-            if (resizeStarted) {
-              info.el.classList.remove('fc-event-dragging');
-              info.el.style.removeProperty('bottom');
-              info.el.style.removeProperty('height');
-              info.el.style.removeProperty('z-index');
-            }
-            if (lastSlots === 0) return;
-
-            const newEnd = new Date(origEnd.getTime() + lastSlots * slotMins * 60000);
-            if (newEnd <= info.event.start) return;
-            // Enforce minimum 15-minute duration
-            if ((newEnd - info.event.start) / 60000 < 15) return;
-            info.event.setEnd(newEnd);
-
-            fetch('/api/bookings/' + info.event.id + '/resize', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-              body: JSON.stringify({ end_at: dateToBrusselsISO(newEnd) })
-            }).then(function (r) {
-              if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
-              var dur = Math.round((newEnd - info.event.start) / 60000);
-              storeUndoAction(info.event.id, 'resize', { end_at: dateToBrusselsISO(origEnd) });
-              gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
-            }).catch(function (err) {
-              info.event.setEnd(origEnd);
-              calState.fcCal.refetchEvents();
-              var msg = (err.message || '').includes('hevauche') || (err.message || '').includes('créneau')
-                ? 'Chevauchement — durée non modifiée' : (err.message || 'Erreur');
-              gToast(msg, 'error');
-            });
-          }
-
-          function cleanup() {
-            clearTimeout(cleanupTimer);
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onEnd);
-          }
-
-          document.addEventListener('touchmove', onMove, { passive: false });
-          document.addEventListener('touchend', onEnd);
-          cleanupTimer = setTimeout(() => { cleanup(); if (resizeStarted) info.el.classList.remove('fc-event-dragging'); }, 10000);
-        }, { passive: false });
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onEnd);
+            cleanupTimer = setTimeout(() => { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); if (resizeStarted) info.el.classList.remove('fc-event-dragging'); }, 10000);
+          }, { passive: false });
+        }
       }
     }
   };
