@@ -286,8 +286,6 @@ function buildEventDidMount() {
         lastTap = 0;
       } else {
         lastTap = now;
-        // Single tap on resizer → let the custom resize handler deal with it
-        if (onResizer) return;
         // Single tap -> show tooltip briefly, hide on next touch anywhere
         const touch = e.changedTouches?.[0];
         if (touch) {
@@ -322,11 +320,13 @@ function buildEventDidMount() {
           }
           lastResizerTouch = now;
 
-          // Only activate resize if touch is in the center third of the event width
+          // Only activate resize if touch is in the center third AND bottom 15px of the event
           const evRect = info.el.getBoundingClientRect();
           const touchX = e.touches[0].clientX;
+          const touchY = e.touches[0].clientY;
           const third = evRect.width / 3;
           if (touchX < evRect.left + third || touchX > evRect.right - third) return;
+          if (touchY < evRect.bottom - 15) return;
 
           // Don't block immediately — wait for significant downward movement
           // before committing to resize. This lets taps and horizontal drags
