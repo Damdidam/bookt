@@ -98,7 +98,7 @@ async function fsActivate() {
   if (calState.fcCal) {
     fsOriginalSlotDuration = calState.fcCal.getOption('slotDuration');
     calState.fcCal.setOption('slotDuration', '00:15:00');
-    calState.fcCal.setOption('snapDuration', '00:15:00');
+    calState.fcCal.setOption('snapDuration', '00:05:00');
   }
 
   document.getElementById('fcCalendar')?.classList.add('fs-mode-active');
@@ -120,7 +120,7 @@ function fsDeactivate() {
   // Restore original slot duration
   if (calState.fcCal && fsOriginalSlotDuration) {
     calState.fcCal.setOption('slotDuration', fsOriginalSlotDuration);
-    calState.fcCal.setOption('snapDuration', fsOriginalSlotDuration);
+    calState.fcCal.setOption('snapDuration', '00:05:00');
     fsOriginalSlotDuration = null;
   }
 

@@ -98,7 +98,7 @@ function initCalendar(initView, initSlotDur) {
       return { html: '<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>' + arg.resource.title + '</span>' };
     },
     dayMaxEvents: 3,
-    editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: initSlotDur,
+    editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: '00:05:00',
     selectable: false,
     slotEventOverlap: false,
     eventOrder: function (a, b) {

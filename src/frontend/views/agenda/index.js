@@ -52,7 +52,7 @@ function fcFilterPractitioner(id, el) {
   }
   const dur = fcSlotDuration(inc);
   calState.fcCal.setOption('slotDuration', dur);
-  calState.fcCal.setOption('snapDuration', dur);
+  calState.fcCal.setOption('snapDuration', '00:05:00');
 
   // Star button always visible for owner/manager (auto-enable on use)
 
