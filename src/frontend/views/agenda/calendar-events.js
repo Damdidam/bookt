@@ -62,7 +62,8 @@ function fcShowTooltip(event, x, y) {
     const poseEndMs = poseStartMs + ptMin * 60000;
     const psFmt = new Date(poseStartMs).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
     const peFmt = new Date(poseEndMs).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span>Pose : ${psFmt} \u2013 ${peFmt}<br><span style="font-size:.75rem;opacity:.7;margin-left:20px">${ptMin}min \u2014 praticien libre</span></div>`;
+    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span>Pose : ${psFmt} \u2013 ${peFmt}</div>`;
+    html += `<div class="tt-row" style="font-size:.75rem;opacity:.7;padding-left:20px">${ptMin}min \u2014 praticien libre</div>`;
   }
 
   const st = p.status || 'confirmed';
