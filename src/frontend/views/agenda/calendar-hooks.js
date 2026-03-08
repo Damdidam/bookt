@@ -368,6 +368,8 @@ function buildEventDidMount() {
 
             const newEnd = new Date(origEnd.getTime() + lastSlots * slotMins * 60000);
             if (newEnd <= info.event.start) return;
+            // Enforce minimum 15-minute duration
+            if ((newEnd - info.event.start) / 60000 < 15) return;
             info.event.setEnd(newEnd);
 
             fetch('/api/bookings/' + info.event.id + '/resize', {

@@ -109,6 +109,9 @@ function buildEventResize() {
     _busy = true;
     const ev = info.event;
     const oldEnd = info.oldEvent.end;
+    // Enforce minimum 15-minute duration
+    const dur = Math.round(((ev.end || ev.start) - ev.start) / 60000);
+    if (dur < 15) { info.revert(); gToast('Durée minimum : 15 min', 'error'); _busy = false; return; }
     try {
       const r = await fetch(`/api/bookings/${ev.id}/resize`, {
         method: 'PATCH',
