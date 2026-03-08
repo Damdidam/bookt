@@ -25,6 +25,77 @@ function dateToBrusselsISO(d) {
 }
 
 /**
+ * Redistribute harness positions in columns that contain pose-children.
+ * FC creates N sub-columns for N overlapping events, but pose-children should
+ * overlay their parent — not occupy their own sub-column. This function
+ * recalculates: M real events → M equal columns, children match their parent.
+ */
+function redistributePoseColumns() {
+  var processed = new Set();
+  document.querySelectorAll('.ev-pose-child').forEach(function (childEl) {
+    var colEvents = childEl.closest('.fc-timegrid-col-events');
+    if (!colEvents || processed.has(colEvents)) return;
+    processed.add(colEvents);
+
+    // All harnesses in this column
+    var harnesses = [];
+    for (var i = 0; i < colEvents.children.length; i++) {
+      var h = colEvents.children[i];
+      if (h.classList.contains('fc-timegrid-event-harness')) harnesses.push(h);
+    }
+    if (harnesses.length < 2) return;
+
+    // Classify: real events vs pose-children
+    var isChild = function (h) { return !!h.querySelector('.ev-pose-child'); };
+
+    // Build overlap groups using bounding rects (only among real events)
+    var realHarnesses = harnesses.filter(function (h) { return !isChild(h); });
+    var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
+    if (childHarnesses.length === 0) return;
+
+    // Group real harnesses by vertical overlap
+    var groups = [];
+    realHarnesses.forEach(function (h) {
+      var hRect = h.getBoundingClientRect();
+      var placed = false;
+      for (var g = 0; g < groups.length; g++) {
+        var overlaps = groups[g].some(function (m) {
+          var mRect = m.getBoundingClientRect();
+          return hRect.top < mRect.bottom - 1 && mRect.top < hRect.bottom - 1;
+        });
+        if (overlaps) { groups[g].push(h); placed = true; break; }
+      }
+      if (!placed) groups.push([h]);
+    });
+
+    // Redistribute each group evenly
+    groups.forEach(function (group) {
+      group.sort(function (a, b) { return (parseFloat(a.style.left) || 0) - (parseFloat(b.style.left) || 0); });
+      var w = 100 / group.length;
+      group.forEach(function (h, i) {
+        h.style.setProperty('left', (i * w) + '%', 'important');
+        h.style.setProperty('right', (100 - (i + 1) * w) + '%', 'important');
+      });
+    });
+
+    // Position each child on its parent
+    childHarnesses.forEach(function (ch) {
+      var evEl = ch.querySelector('.ev-pose-child');
+      if (!evEl) return;
+      var parentId = evEl.dataset.poseParent;
+      if (!parentId) return;
+      var parentEl = document.querySelector('[data-eid="' + parentId + '"]');
+      if (!parentEl) return;
+      var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
+      if (!parentHarness) return;
+      ch.style.setProperty('left', parentHarness.style.left, 'important');
+      ch.style.setProperty('right', parentHarness.style.right, 'important');
+      ch.style.zIndex = '10';
+    });
+  });
+}
+
+/**
  * Returns the `eventDidMount` callback.
  */
 function buildEventDidMount() {
@@ -59,30 +130,16 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
-    // ── Pose child: merge parent+child harness space, then overlay ──
-    // FC sees parent+child as separate events → creates sub-columns (each gets ~33%).
-    // We merge: parent expands to cover child's space, child overlays parent.
+    // ── Pose child: mark for deferred redistribution ──
+    // FC creates too many sub-columns because it counts children as separate events.
+    // We mark children here, then redistributePoseColumns() fixes ALL harness positions
+    // after all events have rendered (scheduled once via setTimeout).
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
-      const childHarness = info.el.closest('.fc-timegrid-event-harness');
-      const parentEl = document.querySelector('[data-eid="' + p._poseParentId + '"]');
-      const parentHarness = parentEl && parentEl.closest('.fc-timegrid-event-harness');
-      if (childHarness && parentHarness) {
-        // Merge bounds: take leftmost left, rightmost edge (smallest right %)
-        const pL = parseFloat(parentHarness.style.left) || 0;
-        const pR = parseFloat(parentHarness.style.right) || 0;
-        const cL = parseFloat(childHarness.style.left) || 0;
-        const cR = parseFloat(childHarness.style.right) || 0;
-        const mergedLeft = Math.min(pL, cL) + '%';
-        const mergedRight = Math.min(pR, cR) + '%';
-        // Expand parent to merged bounds
-        parentHarness.style.setProperty('left', mergedLeft, 'important');
-        parentHarness.style.setProperty('right', mergedRight, 'important');
-        // Child overlays parent at same bounds
-        childHarness.style.setProperty('left', mergedLeft, 'important');
-        childHarness.style.setProperty('right', mergedRight, 'important');
-        childHarness.style.zIndex = '10';
-        info.el.classList.add('ev-pose-child');
-      }
+      info.el.classList.add('ev-pose-child');
+      info.el.setAttribute('data-pose-parent', p._poseParentId);
+      // Schedule redistribution once (debounced)
+      clearTimeout(window._poseRedistTimer);
+      window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
     }
 
     // ── Border styling ──
