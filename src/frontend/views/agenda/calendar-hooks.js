@@ -320,13 +320,16 @@ function buildEventDidMount() {
           }
           lastResizerTouch = now;
 
-          // Only activate resize if touch is in the center third AND bottom 15px of the event
+          // Only activate resize if touch is in a small zone at the bottom-center of the event
+          // For short events (15min), use a tighter zone so tap/drag remain usable
           const evRect = info.el.getBoundingClientRect();
           const touchX = e.touches[0].clientX;
           const touchY = e.touches[0].clientY;
-          const third = evRect.width / 3;
-          if (touchX < evRect.left + third || touchX > evRect.right - third) return;
-          if (touchY < evRect.bottom - 15) return;
+          const isShort = evRect.height < 35;
+          const zoneW = isShort ? evRect.width / 5 : evRect.width / 3;
+          const centerX = evRect.left + evRect.width / 2;
+          if (touchX < centerX - zoneW / 2 || touchX > centerX + zoneW / 2) return;
+          if (touchY < evRect.bottom - (isShort ? 8 : 15)) return;
 
           // Don't block immediately — wait for significant downward movement
           // before committing to resize. This lets taps and horizontal drags
