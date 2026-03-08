@@ -458,6 +458,40 @@ function buildEventDidMount() {
       info.el.appendChild(overlay);
     }
 
+    // Pose-child overlap: shift non-pose events that fall within a pose window
+    if (info.view.type !== 'dayGridMonth' && !p._isGroup) {
+      const myPt = parseInt(p.processing_time) || 0;
+      if (myPt === 0) {
+        const allEvents = calState.fcCal?.getEvents() || [];
+        const myStart = info.event.start?.getTime();
+        const myEnd = (info.event.end || info.event.start)?.getTime();
+        const myPrac = String(p.practitioner_id || '');
+        for (var ei = 0; ei < allEvents.length; ei++) {
+          var ev = allEvents[ei];
+          if (ev.id === info.event.id) continue;
+          var ep = ev.extendedProps || {};
+          if (String(ep.practitioner_id || '') !== myPrac) continue;
+          var evPt = parseInt(ep.processing_time) || 0;
+          if (evPt <= 0) continue;
+          var evStart = ev.start?.getTime();
+          if (!evStart) continue;
+          var ps = parseInt(ep.processing_start) || 0;
+          var buf = parseInt(ep.buffer_before_min) || 0;
+          var poseStart = evStart + (buf + ps) * 60000;
+          var poseEnd = poseStart + evPt * 60000;
+          if (myStart >= poseStart && myEnd <= poseEnd) {
+            var harness = info.el.closest('.fc-timegrid-event-harness');
+            if (harness) {
+              harness.style.transform = 'translateX(-30%)';
+              harness.style.zIndex = '4';
+              info.el.classList.add('ev-pose-child');
+            }
+            break;
+          }
+        }
+      }
+    }
+
     // Ensure left border shows (respect event's borderColor for partial-match groups)
     info.el.style.borderLeftWidth = '3px';
     info.el.style.borderLeftStyle = 'solid';
