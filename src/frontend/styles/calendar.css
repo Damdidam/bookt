@@ -76,18 +76,32 @@
 .fc .fc-timegrid-now-indicator-line::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .fc .fc-event{border-top:none;border-right:none;border-bottom:none;border-left:3px solid transparent;border-radius:6px;padding:0;font-size:.74rem;cursor:pointer;transition:transform .15s,box-shadow .15s;overflow:hidden}
 .fc .fc-event:hover{transform:scale(1.02);box-shadow:0 3px 12px rgba(0,0,0,.08);z-index:10!important}
-.fc-tooltip{position:fixed;z-index:9999;background:var(--sidebar-bg);color:#fff;padding:12px 16px;border-radius:10px;font-size:.78rem;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.25);pointer-events:none;max-width:280px;animation:ttIn .15s ease}
+/* ── Tooltip ── */
+.fc-tooltip{position:fixed;z-index:9999;background:#1E293B;color:#E2E8F0;padding:10px 14px;border-radius:10px;font-size:.72rem;line-height:1.45;box-shadow:0 8px 30px rgba(0,0,0,.3);pointer-events:none;max-width:260px;min-width:180px;animation:ttIn .15s ease}
 @keyframes ttIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.fc-tooltip .tt-name{font-size:.88rem;font-weight:700;margin-bottom:4px}
-.fc-tooltip .tt-row{display:flex;align-items:center;gap:6px;opacity:.85}
-.fc-tooltip .tt-row .tt-icon{width:14px;text-align:center;flex-shrink:0}
-.fc-tooltip .tt-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700;margin-top:6px}
-.fc-tooltip .tt-badge.confirmed{background:#15803D;color:#fff}
-.fc-tooltip .tt-badge.pending{background:#D97706;color:#fff}
-.fc-tooltip .tt-badge.completed{background:#6B7280;color:#fff}
-.fc-tooltip .tt-badge.cancelled{background:#DC2626;color:#fff}
-.fc-tooltip .tt-badge.no_show{background:#7C3AED;color:#fff}
-.fc-tooltip .tt-badge.modified_pending{background:#EA580C;color:#fff}
+.fc-tooltip .tt-head{font-size:.8rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:4px}
+.fc-tooltip .tt-vip{display:inline-flex;opacity:.7}.fc-tooltip .tt-vip svg{width:12px;height:12px;stroke:#FBBF24}
+.fc-tooltip .tt-time{font-size:.68rem;color:#94A3B8;margin:2px 0 6px}
+.fc-tooltip .tt-section{padding:5px 0;border-top:1px solid rgba(255,255,255,.08)}
+.fc-tooltip .tt-svc{font-size:.7rem;color:#CBD5E1;padding:1px 0;display:flex;align-items:center;gap:4px}
+.fc-tooltip .tt-st-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.fc-tooltip .tt-st-cancelled{background:#EF4444}.fc-tooltip .tt-st-no_show{background:#8B5CF6}.fc-tooltip .tt-st-completed{background:#6B7280}.fc-tooltip .tt-st-pending{background:#F59E0B}
+.fc-tooltip .tt-infos{padding:5px 0;border-top:1px solid rgba(255,255,255,.08)}
+.fc-tooltip .tt-row{display:flex;align-items:center;gap:5px;color:#94A3B8;padding:1.5px 0;font-size:.68rem}
+.fc-tooltip .tt-ico{width:13px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.6}
+.fc-tooltip .tt-ico svg{width:11px;height:11px}
+.fc-tooltip .tt-dim{opacity:.6;font-size:.62rem}
+.fc-tooltip .tt-dep-ok{color:#4ADE80}
+.fc-tooltip em{font-style:italic;color:#CBD5E1}
+.fc-tooltip .tt-foot{margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.08)}
+.fc-tooltip .tt-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.6rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.fc-tooltip .tt-badge.confirmed{background:rgba(21,128,61,.2);color:#4ADE80}
+.fc-tooltip .tt-badge.pending{background:rgba(217,119,6,.2);color:#FBBF24}
+.fc-tooltip .tt-badge.completed{background:rgba(107,114,128,.2);color:#9CA3AF}
+.fc-tooltip .tt-badge.cancelled{background:rgba(220,38,38,.2);color:#FCA5A5}
+.fc-tooltip .tt-badge.no_show{background:rgba(139,92,246,.2);color:#C4B5FD}
+.fc-tooltip .tt-badge.modified_pending{background:rgba(234,88,12,.2);color:#FB923C}
+.fc-tooltip .tt-badge.pending_deposit{background:rgba(217,119,6,.2);color:#FBBF24}
 /* Event resize handle — bottom pill only */
 .fc .fc-timegrid-event .fc-event-resizer-end{display:flex;align-items:center;justify-content:center;height:10px;bottom:-1px;left:0;right:0;cursor:s-resize}
 .fc .fc-timegrid-event .fc-event-resizer-end::after{content:'';width:24px;height:3px;border-radius:2px;background:rgba(255,255,255,.3);transition:all .15s}
