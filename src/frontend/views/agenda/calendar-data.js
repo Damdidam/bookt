@@ -244,38 +244,41 @@ function fillColor(pct) {
 }
 
 function updateFillRateDOM(totalAvail, totalBooked, pracStats) {
-  const pctEl = document.getElementById('fillPct');
   const barEl = document.getElementById('fillBarInner');
-  const chipsEl = document.getElementById('fillChips');
-  if (!pctEl) return;
 
-  if (totalAvail === 0) {
-    pctEl.textContent = '—';
-    pctEl.style.color = 'var(--text-4)';
-    barEl.style.width = '0%';
-    if (chipsEl) chipsEl.innerHTML = '';
-    return;
+  // Update full-width bar
+  if (barEl) {
+    if (totalAvail === 0) {
+      barEl.style.width = '0%';
+    } else {
+      const globalPct = Math.min(Math.round((totalBooked / totalAvail) * 100), 100);
+      barEl.style.width = globalPct + '%';
+      barEl.style.background = fillColor(globalPct);
+    }
   }
 
-  const globalPct = Math.min(Math.round((totalBooked / totalAvail) * 100), 100);
-  pctEl.textContent = globalPct + '%';
-  pctEl.style.color = fillColor(globalPct);
-  barEl.style.width = globalPct + '%';
-  barEl.style.background = fillColor(globalPct);
+  // Update global fill % in "Tous" pill
+  const allFill = document.querySelector('.prac-fill[data-fill-id="all"]');
+  if (allFill) {
+    if (totalAvail === 0) { allFill.textContent = ''; }
+    else {
+      const globalPct = Math.min(Math.round((totalBooked / totalAvail) * 100), 100);
+      allFill.textContent = ' · ' + globalPct + '%';
+      allFill.style.color = fillColor(globalPct);
+    }
+  }
 
-  if (!chipsEl) return;
+  // Update per-practitioner fill % in pills
   const pracs = calState.fcPractitioners || [];
-  if (pracs.length <= 1) { chipsEl.innerHTML = ''; return; }
-
-  let html = '';
   pracs.forEach(p => {
+    const el = document.querySelector(`.prac-fill[data-fill-id="${p.id}"]`);
+    if (!el) return;
     const st = pracStats[p.id];
-    if (!st || st.avail === 0) return;
+    if (!st || st.avail === 0) { el.textContent = ''; return; }
     const pct = Math.min(Math.round((st.booked / st.avail) * 100), 100);
-    const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    html += `<div class="fill-chip"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini} <span style="color:${fillColor(pct)}">${pct}%</span></div>`;
+    el.textContent = ' · ' + pct + '%';
+    el.style.color = fillColor(pct);
   });
-  chipsEl.innerHTML = html;
 }
 
 // ── Main callback ──

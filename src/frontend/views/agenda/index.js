@@ -217,10 +217,10 @@ async function loadAgenda() {
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   } else {
-    pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-hours" data-prac-id="all"></span></div>`;
+    pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-hours" data-prac-id="all"></span><span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-hours" data-prac-id="${p.id}"></span></div>`;
+      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-hours" data-prac-id="${p.id}"></span><span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
     });
     pillsHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
@@ -255,8 +255,8 @@ async function loadAgenda() {
   toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button><button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')">Timeline</button>${fsBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
   // Desktop: Row 2 -- filter pills
   toolbar += `<div class="at-row-filters">${pillsHtml}</div>`;
-  // Desktop: Row 2b -- fill rate stats
-  toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-global" id="fillGlobal"><span class="fill-label">Remplissage</span><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div><span class="fill-pct" id="fillPct">\u2014</span></div><div class="fill-chips" id="fillChips"></div></div>`;
+  // Desktop: Row 2b -- thin full-width fill bar (no text)
+  toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
   // Desktop: Row 3 -- category filter chips (if multiple categories)
   if (catChipsHtml) toolbar += catChipsHtml;
   // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)

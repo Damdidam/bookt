@@ -17,18 +17,14 @@
 .agenda-toolbar .at-view-btn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
 .agenda-toolbar .at-date{font-size:.76rem;color:var(--text-4);white-space:nowrap;flex-shrink:0;margin-left:4px}
 .at-row-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-/* Fill rate stats row */
-.at-row-stats{display:flex;align-items:center;gap:10px;padding:4px 0 2px;flex-wrap:wrap;font-size:.72rem}
-.fill-global{display:flex;align-items:center;gap:6px}
-.fill-label{color:var(--text-4);font-weight:500}
-.fill-bar{width:60px;height:4px;background:var(--border-light);border-radius:2px;overflow:hidden}
-.fill-bar-inner{height:100%;border-radius:2px;background:var(--primary);transition:width .3s;width:0%}
-.fill-pct{font-weight:700;min-width:28px}
-.fill-chips{display:flex;gap:6px;flex-wrap:wrap}
-.fill-chip{display:flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;background:var(--surface);font-size:.68rem;font-weight:600}
-.fill-chip .dot{width:6px;height:6px;border-radius:50%}
+/* Fill rate bar — full-width thin bar */
+.at-row-stats{padding:6px 0 0}
+.at-row-stats .fill-bar{width:100%;height:3px;background:var(--border-light);border-radius:2px;overflow:hidden}
+.at-row-stats .fill-bar-inner{height:100%;border-radius:2px;background:var(--primary);transition:width .3s;width:0%}
+.prac-fill{font-weight:400;font-size:.62rem;opacity:.8}
 @media(max-width:767px){.at-row-stats{display:none}}
 .at-row-cats{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px;padding-top:4px;border-top:1px solid var(--border-light)}
+@media(max-width:1000px){.at-row-cats{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}.at-row-cats::-webkit-scrollbar{display:none}}
 .cat-chip{padding:4px 12px;border-radius:100px;font-size:.68rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-4);transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;user-select:none}
 .cat-chip:hover{border-color:var(--text-4);background:var(--surface)}
 .cat-chip.active{border-color:var(--primary-soft);background:var(--primary-light);color:var(--primary)}
