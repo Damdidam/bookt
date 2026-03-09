@@ -39,6 +39,10 @@ function fcShowTooltip(event, x, y) {
     html += `<div class="tt-row" style="font-size:.75rem;opacity:.7;padding-left:20px">${ptMin}min — praticien libre</div>`;
   }
 
+  if (p.locked) {
+    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Verrouillé</div>`;
+  }
+
   const st = p.status || 'confirmed';
   html += `<div class="tt-badge ${esc(st)}">${esc(STATUS_FR[st] || st)}</div>`;
 
