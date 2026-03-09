@@ -372,6 +372,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
     <label class="checkbox"><input type="checkbox" id="cConsent" checked> J'accepte les confirmations et rappels par email et SMS.</label>
 
+    <div id="bkFlexBox" style="display:none;margin:12px 0;padding:12px 14px;border-radius:8px;background:rgba(13,115,119,.06);border:1px solid rgba(13,115,119,.2)">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:.88rem">
+        <input type="checkbox" id="bkFlexible" style="margin-top:3px">
+        <span>
+          <strong>J'accepte un RDV flexible</strong><span id="bkFlexDiscount" style="color:var(--primary);font-weight:600"></span><br>
+          <span style="font-size:.78rem;opacity:.7">Le praticien pourra éventuellement déplacer votre créneau dans la semaine si nécessaire.</span>
+        </span>
+      </label>
+    </div>
+
     <button class="btn-next" id="btnStep4">Confirmer le rendez-vous →</button>
     <button class="btn-outline" id="backStep4">← Retour</button>
   </div>
@@ -1041,7 +1051,26 @@ function goToStep(n){
     }
     buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
   }
-  if(n===4)buildSummary();
+  if(n===4){
+    buildSummary();
+    // Flexibility checkbox visibility
+    var flexBox=document.getElementById('bkFlexBox');
+    var anyFlex=false,flexPct=0;
+    if(multiServiceMode&&selectedServices.length>1){
+      anyFlex=selectedServices.some(function(s){return s.flexibility_enabled;});
+      flexPct=Math.max.apply(null,selectedServices.filter(function(s){return s.flexibility_enabled;}).map(function(s){return s.flexibility_discount_pct||0;}));
+    }else if(selectedService){
+      anyFlex=!!selectedService.flexibility_enabled;
+      flexPct=selectedService.flexibility_discount_pct||0;
+    }
+    if(anyFlex){
+      flexBox.style.display='';
+      document.getElementById('bkFlexDiscount').textContent=flexPct>0?' (-'+flexPct+'%)':'';
+      document.getElementById('bkFlexible').checked=false;
+    }else{
+      flexBox.style.display='none';
+    }
+  }
 
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   const el=document.querySelector('.step[data-step="'+n+'"]');
@@ -1348,7 +1377,8 @@ async function submitBooking(){
       appointment_mode:selectedMode||'cabinet',
       client_name:name,client_phone:phone,client_email:email,
       client_bce:bce||undefined,client_comment:comment||undefined,
-      consent_sms:consent,consent_email:consent
+      consent_sms:consent,consent_email:consent,
+      flexible:!!document.getElementById('bkFlexible').checked
     };
     if(multiServiceMode&&selectedServices.length>1){
       bookingBody.service_ids=selectedServices.map(s=>s.id);

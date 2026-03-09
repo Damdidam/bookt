@@ -635,6 +635,11 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`</div></div>`;
   const isBookable=svc?svc.bookable_online!==false:true;
   m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_bookable_online" ${isBookable?'checked':''}><span class="svc-switch-track"></span> Réservable en ligne</label></div>`;
+  const isFlexEnabled=svc?!!svc.flexibility_enabled:false;
+  const flexDiscount=svc?parseInt(svc.flexibility_discount_pct)||0:0;
+  m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_flexibility" onchange="svcToggleFlexibility()" ${isFlexEnabled?'checked':''}><span class="svc-switch-track"></span> Proposer la flexibilité au client</label>`;
+  m+=`<div id="svc_flexibility_fields" style="display:${isFlexEnabled?'flex':'none'};align-items:center;gap:8px;margin:8px 0 0 48px"><label style="font-size:.8rem;white-space:nowrap">Réduction offerte</label><input type="number" class="svc-input" id="svc_flex_discount" min="0" max="100" value="${flexDiscount}" style="width:70px"><span style="font-size:.82rem">%</span></div>`;
+  m+=`</div>`;
   m+=`</div>`;
 
   // ── SECTION 4: Affectation ──
@@ -755,6 +760,11 @@ function svcToggleSched(){
   const cb=document.getElementById('svc_sched_toggle');
   if(ed)ed.style.display=cb?.checked?'block':'none';
 }
+function svcToggleFlexibility(){
+  const f=document.getElementById('svc_flexibility_fields');
+  const cb=document.getElementById('svc_flexibility');
+  if(f)f.style.display=cb?.checked?'flex':'none';
+}
 function svcSchedDayToggle(cb){
   const day=cb.closest('.svc-sched-day');const wins=day.querySelectorAll('.svc-sched-win');
   if(cb.checked){if(wins.length===0||[...wins].every(w=>w.style.display==='none')){const hidden=[...wins].find(w=>w.style.display==='none');if(hidden)hidden.style.display='flex';else svcSchedAddWin(day.querySelector('button:last-child'));}wins.forEach(w=>{if(w.style.display==='none')w.style.display='flex';});}
@@ -804,6 +814,8 @@ async function saveService(id){
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder(),processing_time:parseInt(document.getElementById('svc_pose_time')?.value)||0,processing_start:parseInt(document.getElementById('svc_pose_start')?.value)||0};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
+  body.flexibility_enabled=document.getElementById('svc_flexibility').checked;
+  body.flexibility_discount_pct=parseInt(document.getElementById('svc_flex_discount')?.value)||0;
   body.available_schedule=buildScheduleFromEditor();
   // Duplicate check: same name + same category (exclude current service if editing)
   const dupName=body.name.trim().toLowerCase();
@@ -986,6 +998,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };

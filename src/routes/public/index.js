@@ -104,7 +104,8 @@ router.get('/:slug', async (req, res, next) => {
       query(
         `SELECT id, name, category, duration_min, price_cents, price_label,
                 mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online,
-                processing_time, processing_start
+                processing_time, processing_start,
+                flexibility_enabled, flexibility_discount_pct
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -519,7 +520,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       service_id, service_ids, practitioner_id, start_at, end_at, appointment_mode,
       variant_id, variant_ids,
       client_name, client_phone, client_email, client_bce,
-      client_comment, client_language, consent_sms, consent_email, consent_marketing
+      client_comment, client_language, consent_sms, consent_email, consent_marketing,
+      flexible
     } = req.body;
 
     if (!practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
@@ -638,7 +640,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (isMultiService) {
       // Fetch all services, preserving order
       const multiSvcResult = await query(
-        `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents, processing_time, processing_start
+        `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents, processing_time, processing_start, flexibility_enabled
          FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
          ORDER BY array_position($1, id)`,
         [service_ids, businessId]
@@ -836,21 +838,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           clientId = nc.rows[0].id;
         }
 
+        // Determine locked status based on flexibility
+        const anyFlexEnabled = multiServices.some(s => s.flexibility_enabled);
+        const multiLocked = anyFlexEnabled ? (flexible !== true) : false;
+
         // Insert each booking with group_id and group_order
         const bookings = [];
         for (const slot of chainedSlots) {
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
-              group_id, group_order, confirmation_expires_at, processing_time, processing_start)
+              group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked)
              VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,
               ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-              $13,$14)
+              $13,$14,$15)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
             [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
-             slot.processing_time || 0, slot.processing_start || 0]
+             slot.processing_time || 0, slot.processing_start || 0, multiLocked]
           );
           bookings.push(bk.rows[0]);
         }
@@ -1012,10 +1018,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     let resolvedProcessingTime = 0;
     let resolvedProcessingStart = 0;
+    let resolvedFlexEnabled = false;
 
     if (effectiveServiceId) {
       const svcResult = await query(
-        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
+        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, flexibility_enabled
          FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
         [effectiveServiceId, businessId]
       );
@@ -1025,6 +1032,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Override duration from variant if provided
       resolvedProcessingTime = service.processing_time || 0;
       resolvedProcessingStart = service.processing_start || 0;
+      resolvedFlexEnabled = !!service.flexibility_enabled;
       if (resolvedVariantId) {
         const vr = await queryWithRLS(businessId,
           `SELECT duration_min, processing_time, processing_start FROM service_variants
@@ -1184,18 +1192,21 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         clientId = nc.rows[0].id;
       }
 
+      // Determine locked status based on service flexibility setting
+      const singleLocked = resolvedFlexEnabled ? (flexible !== true) : false;
+
       // Create booking
       const booking = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
-          processing_time, processing_start)
+          processing_time, processing_start, locked)
          VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,
           ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-          $11,$12)
+          $11,$12,$13)
          RETURNING id, public_token, start_at, end_at, status`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
-         resolvedProcessingTime, resolvedProcessingStart]
+         resolvedProcessingTime, resolvedProcessingStart, singleLocked]
       );
 
       // Queue notifications
