@@ -49,8 +49,8 @@ function fcShowTooltip(event, x, y) {
   // Deposit info in tooltip
   if (p.deposit_required && p.deposit_status) {
     const depAmt = ((p.deposit_amount_cents || 0) / 100).toFixed(2);
-    const depLabel = p.deposit_status === 'paid' ? 'Payé' : p.deposit_status === 'refunded' ? 'Remboursé' : p.deposit_status === 'cancelled' ? 'Conservé' : 'En attente';
-    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>Acompte : ${depAmt}€ — ${depLabel}</div>`;
+    const depLabel = p.deposit_status === 'paid' ? 'Payé ✅' : p.deposit_status === 'refunded' ? 'Remboursé' : p.deposit_status === 'cancelled' ? 'Conservé' : 'En attente';
+    html += `<div class="tt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.15)"><span class="tt-icon">💰</span>Acompte : ${depAmt}€ — ${depLabel}</div>`;
   }
 
   // Group: list members
