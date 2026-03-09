@@ -112,18 +112,19 @@
 .ev-inner .ev-service{font-size:.64rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:3px}
 .ev-inner .ev-badge{width:6px;height:6px;border-radius:50%;opacity:.7}
-.ev-inner .ev-badge-note{background:currentColor}.ev-inner .ev-badge-todo{background:#FBBF24}.ev-inner .ev-badge-mod{background:#D97706}
+.ev-inner .ev-badge-note{background:currentColor}.ev-inner .ev-badge-todo{background:#FBBF24}
+.ev-inner .ev-badge-st{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
-/* Event status borders — override inline accent border */
-.ev-pending{border-left-color:var(--gold)!important}
-.ev-confirmed{} /* keep accent color from inline */
-.ev-modified_pending{border-left-color:#D97706!important;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.06) 4px,rgba(217,119,6,.06) 8px)!important}
-.ev-completed{opacity:.5;filter:grayscale(.3);border-left-color:var(--text-4)!important}
-.ev-no_show{border-left-color:var(--red)!important;opacity:.45;filter:grayscale(.2)}
-.ev-cancelled{border-left-color:var(--red)!important;opacity:.25;text-decoration:line-through}
+/* Event status — accent border preserved, status shown via dot */
+.ev-pending{}
+.ev-confirmed{}
+.ev-modified_pending{background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.06) 4px,rgba(217,119,6,.06) 8px)!important}
+.ev-completed{opacity:.5;filter:grayscale(.3)}
+.ev-no_show{opacity:.45;filter:grayscale(.2)}
+.ev-cancelled{opacity:.25;text-decoration:line-through}
 /* Partial category match — group contains services from hidden categories */
 .fc .fc-event.ev-partial-match{background-color:transparent!important;border-left-style:dashed!important;border-left-width:2px!important}
-.ev-pending_deposit{border-left-color:#F59E0B!important;background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}
+.ev-pending_deposit{background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}
 /* Deposit badge on event */
 .ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
 /* Lock badge on event */
