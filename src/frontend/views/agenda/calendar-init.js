@@ -98,7 +98,7 @@ function initCalendar(initView, initSlotDur) {
       return { html: '<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>' + arg.resource.title + '</span>' };
     },
     dayMaxEvents: 3,
-    editable: true, eventDurationEditable: true, eventStartEditable: true, snapDuration: '00:05:00',
+    editable: true, eventDurationEditable: !fcIsTouch, eventStartEditable: true, snapDuration: '00:05:00',
     selectable: false,
     slotEventOverlap: false,
     eventOrder: function (a, b) {
@@ -109,7 +109,7 @@ function initCalendar(initView, initSlotDur) {
       if (ptB > 0 && ptA === 0) return 1;
       return 0;
     },
-    longPressDelay: 300,
+    longPressDelay: fcIsTouch ? 800 : 300,
 
     // Callbacks from calendar-data / render / hooks / interactions
     eventOverlap: buildEventOverlap(),
