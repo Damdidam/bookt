@@ -34,7 +34,7 @@
 
 /* ===== MOBILE CALENDAR OPTIMIZATIONS ===== */
 @media(max-width:768px){
-  .fc .fc-timegrid-slot{height:18px}
+  .fc .fc-timegrid-slot{height:24px}
   .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
   .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
 

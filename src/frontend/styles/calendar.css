@@ -62,7 +62,7 @@
 .fc .fc-col-header-cell{font-size:.72rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.6px;padding:10px 0}
 .fc .fc-col-header-cell.fc-day-today{color:var(--primary)}
 .fc .fc-day-today{background:#F6FCFC!important}
-.fc .fc-timegrid-slot{height:20px}
+.fc .fc-timegrid-slot{height:26px}
 .fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:#A8B3BF;font-weight:500}
 .fc .fc-timegrid-now-indicator-line{border:none;height:2px;background:var(--red);z-index:5}
 .fc .fc-timegrid-now-indicator-arrow{display:none}
@@ -87,12 +87,12 @@
 .fc .fc-timegrid-event:hover .fc-event-resizer-end::after{background:rgba(255,255,255,.7);width:32px}
 @media(pointer:coarse){.fc .fc-timegrid-event .fc-event-resizer-end{height:28px;touch-action:none}.fc .fc-timegrid-event .fc-event-resizer-end::after{width:32px;height:4px;background:rgba(255,255,255,.45)}}
 .fc .fc-event-dragging{box-shadow:var(--shadow-md);opacity:.9;transform:scale(1.03)}
-.fc .fc-timegrid-event .fc-event-main{padding:4px 8px}
+.fc .fc-timegrid-event .fc-event-main{padding:5px 8px}
 .fc .fc-daygrid-event{margin:1px 3px}
 .fc .fc-non-business{background:transparent!important}
 .fc .fc-timegrid-col .fc-non-business{background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,.025) 4px,rgba(0,0,0,.025) 8px)!important}
 /* Month view compact pills */
-.ev-month-pill{font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;padding:1px 4px;line-height:1.4}
+.ev-month-pill{font-size:.74rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;padding:1px 4px;line-height:1.4}
 .ev-month-pill strong{font-weight:700}
 .fc .fc-daygrid-day-frame{min-height:80px}
 .fc .fc-daygrid-day-top{display:flex;justify-content:flex-end}
@@ -107,9 +107,9 @@
 .fc .fc-popover-body{padding:4px 8px}
 
 /* Event inner */
-.ev-inner{display:flex;flex-direction:column;gap:1px;overflow:hidden;position:relative}
-.ev-inner .ev-client{font-weight:700;font-size:.73rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ev-inner .ev-service{font-size:.64rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-inner{display:flex;flex-direction:column;gap:2px;overflow:hidden;position:relative}
+.ev-inner .ev-client{font-weight:700;font-size:.8rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-inner .ev-service{font-size:.7rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:3px}
 .ev-inner .ev-badge{width:6px;height:6px;border-radius:50%;opacity:.7}
 .ev-inner .ev-badge-note{background:currentColor}.ev-inner .ev-badge-todo{background:#FBBF24}
