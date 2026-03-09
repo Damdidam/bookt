@@ -38,7 +38,6 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcClient').value = '';
   document.getElementById('qcClientId').value = '';
   document.getElementById('qcComment').value = '';
-  document.getElementById('qcIntNote').value = '';
   document.getElementById('qcLocked').checked = false;
   document.getElementById('qcAcResults').style.display = 'none';
 
@@ -104,13 +103,9 @@ function fcOpenQuickCreate(startStr, endStr) {
   qcReminders = [];
   qcRenderTodos();
   qcRenderReminders();
-  qcUpdateTabCounts();
 
   // Reset mode toggle to RDV
   _qcSetMode('rdv');
-
-  // Switch to RDV tab
-  qcSwitchTab(document.querySelector('#calCreateModal .m-tab[data-tab="qc-rdv"]'), 'qc-rdv');
 
   // Reset task fields
   const ttl = document.getElementById('qcTaskTitle'); if (ttl) ttl.value = '';
@@ -131,21 +126,6 @@ function qcUpdateGradient(color) {
   if (hdr) hdr.style.background = `linear-gradient(135deg,${safe} 0%,${safe}AA 60%,${safe}55 100%)`;
   if (avatar) avatar.style.background = `linear-gradient(135deg,${safe},${safe}CC)`;
   if (btn) { btn.style.background = safe; btn.style.boxShadow = `0 2px 8px ${safe}40`; }
-}
-
-// ── Tab switching ──
-function qcSwitchTab(el, tab) {
-  document.querySelectorAll('#calCreateModal .m-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('#calCreateModal .m-panel').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  const panelMap = { 'qc-rdv': 'qcPanelRdv', 'qc-suivi': 'qcPanelSuivi' };
-  document.getElementById(panelMap[tab])?.classList.add('active');
-}
-
-function qcUpdateTabCounts() {
-  const cs = document.getElementById('qcCountSuivi');
-  const total = qcTodos.length + qcReminders.length;
-  if (cs) { if (total > 0) { cs.textContent = total; cs.style.display = 'flex'; } else { cs.style.display = 'none'; } }
 }
 
 // ── Freestyle toggle ──
@@ -468,13 +448,11 @@ function qcAddTodo() {
   qcTodos.push({ content });
   inp.value = '';
   qcRenderTodos();
-  qcUpdateTabCounts();
 }
 
 function qcDeleteTodo(idx) {
   qcTodos.splice(idx, 1);
   qcRenderTodos();
-  qcUpdateTabCounts();
 }
 
 function qcRenderTodos() {
@@ -499,13 +477,11 @@ function qcAddReminder() {
   const channelLabels = { browser: IC.bell + ' Notif', email: IC.mail + ' Email', both: IC.bell + '+' + IC.mail };
   qcReminders.push({ offset_minutes: parseInt(offset), channel, offsetLabel: offsetLabels[offset] || offset + ' min', channelLabel: channelLabels[channel] || channel });
   qcRenderReminders();
-  qcUpdateTabCounts();
 }
 
 function qcDeleteReminder(idx) {
   qcReminders.splice(idx, 1);
   qcRenderReminders();
-  qcUpdateTabCounts();
 }
 
 function qcRenderReminders() {
@@ -537,7 +513,6 @@ async function calCreateBooking() {
     const time = document.getElementById('qcTime').value;
     const mode = document.getElementById('qcMode').value;
     const comment = document.getElementById('qcComment').value.trim();
-    const intNote = document.getElementById('qcIntNote').value.trim();
     const isFreestyle = document.getElementById('qcFreestyle').checked;
 
     if (!clientName) { gToast('Nom requis', 'error'); return; }
@@ -646,15 +621,6 @@ async function calCreateBooking() {
     const result = await r.json();
     const bookingId = result.booking?.id || result.bookings?.[0]?.id;
 
-    // Save internal note if provided
-    if (intNote && bookingId) {
-      await fetch(`/api/bookings/${bookingId}/note`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ internal_note: intNote })
-      }).catch(() => {});
-    }
-
     // Save todos, reminders in parallel
     if (bookingId) {
       const promises = [];
@@ -722,18 +688,12 @@ function _qcSetMode(mode) {
   // Toggle buttons
   modal.querySelectorAll('.qc-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 
-  const tabs = document.getElementById('qcTabs');
   const panelRdv = document.getElementById('qcPanelRdv');
   const panelTask = document.getElementById('qcPanelTask');
   const headerTitle = modal.querySelector('.m-client-name');
   const btn = document.getElementById('qcBtnCreate');
 
-  // Hide suivi panel
-  const suiviPanel = document.getElementById('qcPanelSuivi');
-  if (suiviPanel) { suiviPanel.style.display = 'none'; suiviPanel.classList.remove('active'); }
-
   if (mode === 'task') {
-    if (tabs) tabs.style.display = 'none';
     if (panelRdv) { panelRdv.style.display = 'none'; panelRdv.classList.remove('active'); }
     if (panelTask) { panelTask.style.display = ''; panelTask.classList.add('active'); }
     if (headerTitle) headerTitle.textContent = 'Nouvelle tâche';
@@ -769,7 +729,6 @@ function _qcSetMode(mode) {
     // Header gradient → gray for tasks
     qcUpdateGradient('#6B7280');
   } else {
-    if (tabs) tabs.style.display = '';
     if (panelRdv) { panelRdv.style.display = ''; panelRdv.classList.add('active'); }
     if (panelTask) { panelTask.style.display = 'none'; panelTask.classList.remove('active'); }
     if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
@@ -822,7 +781,7 @@ bridge({
   qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
   qcServiceChanged, qcSyncServiceOptions,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
-  qcSwitchTab, qcAddTodo, qcDeleteTodo,
+  qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,
   qcSwitchMode
 });

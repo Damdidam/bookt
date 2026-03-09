@@ -23,7 +23,6 @@ async function calSaveAll() {
 
   const newPrac = document.getElementById('uPracSelect').value;
   const newComment = document.getElementById('uComment').value.trim();
-  const newNote = document.getElementById('calIntNote').value.trim();
   const isFreestyle = !calState.fcCurrentBooking?.service_name;
   const newLabel = isFreestyle ? document.getElementById('uFreeLabel').value.trim() : '';
   // Color from the global swatch (works for all booking types)
@@ -37,7 +36,6 @@ async function calSaveAll() {
   if (String(newPrac) !== String(calState.fcEditOriginal.practitioner_id)) editPayload.practitioner_id = newPrac;
   // FE-1: API PATCH /edit accepts `comment` and maps it to DB column `comment_client`
   if (newComment !== (calState.fcEditOriginal.comment || '')) editPayload.comment = newComment;
-  if (newNote !== (calState.fcEditOriginal.internal_note || '')) editPayload.internal_note = newNote;
   if (isFreestyle) {
     if (newLabel !== (calState.fcEditOriginal.custom_label || '')) editPayload.custom_label = newLabel;
   }

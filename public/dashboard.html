@@ -72,7 +72,6 @@
     <div class="m-status-strip" id="mStatusStrip"></div>
     <div class="m-tabs">
       <div class="m-tab active" data-tab="rdv" onclick="switchCalTab(this,'rdv')">RDV</div>
-      <div class="m-tab" data-tab="suivi" onclick="switchCalTab(this,'suivi')">Suivi<span class="tab-count" id="mCountSuivi" style="display:none"></span></div>
       <div class="m-tab" data-tab="historique" onclick="switchCalTab(this,'historique')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
     </div>
     <div class="m-body">
@@ -140,33 +139,9 @@
           </div>
         </div>
         <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Commentaire</span><span class="m-sec-line"></span></div>
-          <textarea class="m-input" id="uComment" rows="2" placeholder="Ajouter un commentaire..." style="resize:vertical"></textarea>
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Note</span><span class="m-sec-line"></span></div>
+          <textarea class="m-input" id="uComment" rows="2" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
         </div>
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Note interne</span><span class="m-sec-line"></span></div>
-          <textarea class="m-input m-input-note" id="calIntNote" rows="2" placeholder="Note visible uniquement par l'équipe..." style="resize:vertical"></textarea>
-        </div>
-        <div class="m-sec" id="mLockSec">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2)">
-            <input type="checkbox" id="calLocked">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Verrouiller ce rendez-vous
-          </label>
-        </div>
-        <div id="calEditDiff" style="display:none;margin:8px 0"></div>
-        <div class="notify-panel" id="calNotifyPanel">
-          <h4><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Notifier ?</h4>
-          <div class="notify-options">
-            <div class="notify-opt" onclick="calSelectNotify('email',this)"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</div>
-            <div class="notify-opt" onclick="calSelectNotify('sms',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>SMS</div>
-            <div class="notify-opt" onclick="calSelectNotify('both',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Les deux</div>
-            <div class="notify-opt" onclick="calSelectNotify('none',this)"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Non</div>
-          </div>
-          <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
-        </div>
-      </div>
-      <div class="m-panel" id="calPanelSuivi">
         <!-- Tâches -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Tâches</span><span class="m-sec-line"></span></div>
@@ -195,6 +170,24 @@
             </select>
             <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
           </div>
+        </div>
+        <div class="m-sec" id="mLockSec">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2)">
+            <input type="checkbox" id="calLocked">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Verrouiller ce rendez-vous
+          </label>
+        </div>
+        <div id="calEditDiff" style="display:none;margin:8px 0"></div>
+        <div class="notify-panel" id="calNotifyPanel">
+          <h4><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Notifier ?</h4>
+          <div class="notify-options">
+            <div class="notify-opt" onclick="calSelectNotify('email',this)"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</div>
+            <div class="notify-opt" onclick="calSelectNotify('sms',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>SMS</div>
+            <div class="notify-opt" onclick="calSelectNotify('both',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Les deux</div>
+            <div class="notify-opt" onclick="calSelectNotify('none',this)"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Non</div>
+          </div>
+          <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
         </div>
       </div>
       <div class="m-panel" id="calPanelHistorique">
@@ -228,10 +221,6 @@
     <div class="qc-mode-toggle" id="qcModeToggle">
       <button class="qc-mode-btn active" data-mode="rdv" onclick="qcSwitchMode('rdv',this)">RDV</button>
       <button class="qc-mode-btn" data-mode="task" onclick="qcSwitchMode('task',this)">Tâche</button>
-    </div>
-    <div class="m-tabs" id="qcTabs">
-      <div class="m-tab active" data-tab="qc-rdv" onclick="qcSwitchTab(this,'qc-rdv')">RDV</div>
-      <div class="m-tab" data-tab="qc-suivi" onclick="qcSwitchTab(this,'qc-suivi')">Suivi<span class="tab-count" id="qcCountSuivi" style="display:none"></span></div>
     </div>
     <div class="m-body">
       <!-- TAB: RDV -->
@@ -294,27 +283,13 @@
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/></svg> Mode</span><span class="m-sec-line"></span></div>
           <select class="m-input" id="qcMode"><option value="cabinet">Cabinet</option></select>
         </div>
-        <!-- Commentaire -->
+        <!-- Note -->
         <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Commentaire</span><span class="m-sec-line"></span></div>
-          <textarea class="m-input" id="qcComment" rows="2" placeholder="Ajouter un commentaire..." style="resize:vertical"></textarea>
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Note</span><span class="m-sec-line"></span></div>
+          <textarea class="m-input" id="qcComment" rows="2" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
         </div>
-        <!-- Note interne -->
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Note interne</span><span class="m-sec-line"></span></div>
-          <textarea class="m-input m-input-note" id="qcIntNote" rows="2" placeholder="Note visible uniquement par l'équipe..." style="resize:vertical"></textarea>
-        </div>
-        <div class="m-sec">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2)">
-            <input type="checkbox" id="qcLocked">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Verrouiller ce rendez-vous
-          </label>
-        </div>
-      </div>
-      <!-- TAB: Suivi (Tâches + Rappels) -->
-      <div class="m-panel" id="qcPanelSuivi">
-        <div class="m-sec">
+        <!-- Tâches -->
+        <div class="m-sec" id="qcSuiviSection">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Tâches</span><span class="m-sec-line"></span></div>
           <div id="qcTodoList"></div>
           <div class="add-todo">
@@ -322,7 +297,8 @@
             <button class="cal-btn primary" onclick="qcAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
           </div>
         </div>
-        <div class="m-sec">
+        <!-- Rappels -->
+        <div class="m-sec" id="qcRappelsSection">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels</span><span class="m-sec-line"></span></div>
           <div id="qcReminderList"></div>
           <div class="add-reminder">
@@ -340,6 +316,13 @@
             </select>
             <button class="cal-btn primary" onclick="qcAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
           </div>
+        </div>
+        <div class="m-sec">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2)">
+            <input type="checkbox" id="qcLocked">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Verrouiller ce rendez-vous
+          </label>
         </div>
       </div>
       <!-- PANEL: Tâche interne (hidden by default) -->

@@ -139,13 +139,6 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
     }
 
-    // -- Tab counts --
-    const cSuivi = document.getElementById('mCountSuivi');
-    const openTodos = (calState.fcDetailData.todos || []).filter(t => !t.is_done).length;
-    const remCount = (calState.fcDetailData.reminders || []).length;
-    const suiviCount = openTodos + remCount;
-    if (suiviCount > 0) { cSuivi.textContent = suiviCount; cSuivi.style.display = 'flex'; } else { cSuivi.style.display = 'none'; }
-
     // -- Group siblings (fetched early for service card + horaire) --
     const siblings = d.group_siblings || [];
     const isGroup = siblings.length > 1;
@@ -271,7 +264,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
-    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', internal_note: b.internal_note || '', custom_label: b.custom_label || '', color: b.color || '', _swatchColor: bookingColor, client_phone: b.client_phone || '', client_email: b.client_email || '', locked: !!b.locked };
+    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', custom_label: b.custom_label || '', color: b.color || '', _swatchColor: bookingColor, client_phone: b.client_phone || '', client_email: b.client_email || '', locked: !!b.locked };
     const dm = Math.round((groupEndDate - s) / 60000);
     document.querySelectorAll('.m-chip').forEach(c => c.classList.toggle('active', parseInt(c.textContent) === dm || ({ '1h': 60, '1h30': 90, '2h': 120 }[c.textContent.trim()] === dm)));
     document.getElementById('calEditDiff').style.display = 'none';
@@ -301,9 +294,6 @@ async function fcOpenDetail(bookingId) {
     // -- Comment --
     document.getElementById('uComment').value = b.comment_client || '';
 
-    // -- Internal note --
-    document.getElementById('calIntNote').value = b.internal_note || '';
-
     // -- Lock toggle --
     document.getElementById('calLocked').checked = !!b.locked;
     document.getElementById('mLockSec').style.display = isFrozen ? 'none' : '';
@@ -319,7 +309,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('mBtnPurge').style.display = (isFrozen && userRole !== 'practitioner') ? '' : 'none';
 
     // -- Dirty guard (warn on close if unsaved changes) --
-    guardModal(modal, { exclude: ['#calIntNote'], noBackdropClose: true });
+    guardModal(modal, { noBackdropClose: true });
 
     // -- Show modal --
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'), 'rdv');
@@ -337,24 +327,13 @@ async function closeCalModal(id) {
   }
   modal._dirtyGuard?.destroy();
   modal.classList.remove('open');
-  // Auto-save internal note on close
-  if (id === 'calDetailModal' && calState.fcCurrentEventId) {
-    const note = document.getElementById('calIntNote')?.value;
-    if (note !== undefined) {
-      fetch(`/api/bookings/${calState.fcCurrentEventId}/note`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ internal_note: note })
-      }).catch(() => {});
-    }
-  }
 }
 
 function switchCalTab(el, tab) {
   document.querySelectorAll('#calDetailModal .m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#calDetailModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { rdv: 'calPanelRdv', suivi: 'calPanelSuivi', historique: 'calPanelHistorique' };
+  const panelMap = { rdv: 'calPanelRdv', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');
   // Lazy-load history when tab is first opened
   if (tab === 'historique') loadBookingHistory();
@@ -439,8 +418,7 @@ function historyDetail(entry) {
     case 'edit': {
       const fields = [];
       if (nd.practitioner_id && nd.practitioner_id !== od.practitioner_id) fields.push('praticien');
-      if (nd.comment !== undefined) fields.push('commentaire');
-      if (nd.internal_note !== undefined) fields.push('note interne');
+      if (nd.comment !== undefined) fields.push('note');
       if (nd.custom_label !== undefined) fields.push('intitul\u00e9');
       if (nd.color !== undefined) fields.push('couleur');
       return fields.length > 0 ? fields.join(', ') : '';
