@@ -17,7 +17,7 @@ router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
-            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color } = req.body;
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked } = req.body;
 
     // BK-V13-008: group_id removed from destructuring (dead code — group_id is generated server-side)
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -117,13 +117,13 @@ router.post('/manual', async (req, res, next) => {
 
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color)
-           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, 'confirmed', $7, $8, $9)
+            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked)
+           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, 'confirmed', $7, $8, $9, $10)
            RETURNING *`,
           [bid, practitioner_id, client_id || null,
            appointment_mode || 'cabinet',
            realStart.toISOString(), realEnd.toISOString(),
-           comment || null, custom_label || null, safeColor]
+           comment || null, custom_label || null, safeColor, !!locked]
         );
 
         await client.query(
@@ -326,15 +326,15 @@ router.post('/manual', async (req, res, next) => {
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
-            group_id, group_order, processing_time, processing_start)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11, $12, $13)
+            group_id, group_order, processing_time, processing_start, locked)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11, $12, $13, $14)
            RETURNING *`,
           [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
            slot.start_at, slot.end_at,
            comment || null,
            groupId, slot.group_order,
-           slot.processing_time || 0, slot.processing_start || 0]
+           slot.processing_time || 0, slot.processing_start || 0, !!locked]
         );
         results.push(result.rows[0]);
 

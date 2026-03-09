@@ -39,6 +39,7 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcClientId').value = '';
   document.getElementById('qcComment').value = '';
   document.getElementById('qcIntNote').value = '';
+  document.getElementById('qcLocked').checked = false;
   document.getElementById('qcAcResults').style.display = 'none';
 
   // Reset freestyle mode
@@ -606,6 +607,8 @@ async function calCreateBooking() {
       }
     }
 
+    const isLocked = document.getElementById('qcLocked')?.checked || false;
+
     let body;
     if (isFreestyle) {
       const endTime = document.getElementById('qcFreeEnd').value;
@@ -631,7 +634,8 @@ async function calCreateBooking() {
         color: document.getElementById('qcFreeColor')?.value || '#0D7377',
         appointment_mode: 'cabinet',
         comment: comment || null,
-        client_email: clientEmail || undefined
+        client_email: clientEmail || undefined,
+        locked: isLocked
       };
     } else {
       const svcItemEls = document.querySelectorAll('.qc-svc-item');
@@ -650,7 +654,8 @@ async function calCreateBooking() {
         start_at,
         appointment_mode: mode,
         comment: comment || null,
-        client_email: clientEmail || undefined
+        client_email: clientEmail || undefined,
+        locked: isLocked
       };
       if (services.length === 1) {
         body.service_id = services[0].service_id;

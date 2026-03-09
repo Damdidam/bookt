@@ -44,6 +44,10 @@ async function calSaveAll() {
   // Color for all booking types (empty = reset to default)
   if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
+  // Lock toggle
+  const newLocked = document.getElementById('calLocked')?.checked || false;
+  if (newLocked !== calState.fcEditOriginal.locked) editPayload.locked = newLocked;
+
   // Service conversion (freestyle ↔ service)
   if (calState._convertAction === 'to-service') {
     const svcId = document.getElementById('mConvertSvcSel')?.value;

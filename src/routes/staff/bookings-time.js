@@ -41,7 +41,7 @@ router.patch('/:id/move', async (req, res, next) => {
     // Fetch dragged booking + service info + group info
     const old = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
-              b.group_id, b.group_order, b.status,
+              b.group_id, b.group_order, b.status, b.locked,
               b.processing_time, b.processing_start,
               s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
@@ -55,6 +55,9 @@ router.patch('/:id/move', async (req, res, next) => {
     const IMMUTABLE = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE.includes(old.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
+    if (old.rows[0].locked) {
+      return res.status(400).json({ error: 'Ce RDV est verrouillé' });
     }
 
     const draggedBooking = old.rows[0];
@@ -302,7 +305,7 @@ router.patch('/:id/edit', async (req, res, next) => {
     const { id } = req.params;
     // STS-V12-007: UUID validation
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
-    const { practitioner_id, comment, internal_note, custom_label, color, service_id, service_variant_id } = req.body;
+    const { practitioner_id, comment, internal_note, custom_label, color, locked, service_id, service_variant_id } = req.body;
 
     // CRT-13: Validate comment/note length
     if (comment && comment.length > 5000) {
@@ -341,7 +344,7 @@ router.patch('/:id/edit', async (req, res, next) => {
         return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié (changement de praticien interdit)' });
       }
       // Only annotation fields are allowed for immutable statuses
-      const allowedFields = ['comment', 'internal_note', 'custom_label', 'color'];
+      const allowedFields = ['comment', 'internal_note', 'custom_label', 'color', 'locked'];
       const requestedFields = Object.keys(req.body).filter(k => req.body[k] !== undefined);
       const hasDisallowedField = requestedFields.some(k => !allowedFields.includes(k));
       if (hasDisallowedField) {
@@ -453,6 +456,7 @@ router.patch('/:id/edit', async (req, res, next) => {
     if (internal_note !== undefined) { sets.push(`internal_note = $${idx++}`); params.push(internal_note || null); }
     if (custom_label !== undefined) { sets.push(`custom_label = $${idx++}`); params.push(custom_label || null); }
     if (color !== undefined) { sets.push(`color = $${idx++}`); params.push(color || null); }
+    if (locked !== undefined) { sets.push(`locked = $${idx++}`); params.push(!!locked); }
 
     // Service conversion SET clauses
     if (serviceConversion) {
@@ -587,7 +591,7 @@ router.patch('/:id/resize', async (req, res, next) => {
 
     // Get current booking to know start_at, end_at, practitioner, group, status
     const current = await queryWithRLS(bid,
-      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id, b.status,
+      `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id, b.status, b.locked,
               b.processing_time, b.processing_start, COALESCE(s.buffer_before_min, 0) AS buffer_before_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -605,6 +609,9 @@ router.patch('/:id/resize', async (req, res, next) => {
     const IMMUTABLE_RESIZE = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_RESIZE.includes(current.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
+    if (current.rows[0].locked) {
+      return res.status(400).json({ error: 'Ce RDV est verrouillé' });
     }
 
     // Validate end > start
@@ -729,6 +736,9 @@ router.patch('/:id/modify', async (req, res, next) => {
     const IMMUTABLE_MOD = ['cancelled', 'completed', 'no_show'];
     if (IMMUTABLE_MOD.includes(old.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
+    }
+    if (old.rows[0].locked) {
+      return res.status(400).json({ error: 'Ce RDV est verrouillé' });
     }
 
     const oldBooking = old.rows[0];

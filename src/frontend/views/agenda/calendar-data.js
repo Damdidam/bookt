@@ -96,7 +96,7 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       start: b.start_at, end: b.end_at,
       backgroundColor: fcHexAlpha(accent, 0.1),
       borderColor: accent, textColor: accent,
-      editable: !frozen, durationEditable: !frozen,
+      editable: !frozen && !b.locked, durationEditable: !frozen && !b.locked,
       extendedProps: props
     };
   });
@@ -109,6 +109,7 @@ export function buildGroupEvents(grouped) {
     const first = members[0];
     const accent = accentFor(first);
     const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
+    const anyLocked = members.some(m => m.locked);
     const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
     const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
     return {
@@ -116,7 +117,7 @@ export function buildGroupEvents(grouped) {
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
       backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
-      editable: !anyFrozen, durationEditable: false,
+      editable: !anyFrozen && !anyLocked, durationEditable: false,
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
         _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
