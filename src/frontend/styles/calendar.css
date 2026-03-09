@@ -110,12 +110,13 @@
 .ev-inner{display:flex;flex-direction:column;gap:2px;overflow:hidden;position:relative}
 .ev-inner .ev-client{font-weight:700;font-size:.8rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev-inner .ev-service{font-size:.7rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:3px}
-.ev-inner .ev-badge{width:6px;height:6px;border-radius:50%;opacity:.7}
-.ev-inner .ev-badge-note{background:currentColor}.ev-inner .ev-badge-todo{background:#FBBF24}
-.ev-inner .ev-badge-st{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+/* Status corner — colored triangle top-right */
+.ev-corner{position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 10px 10px 0;border-color:transparent var(--st-color) transparent transparent;pointer-events:none}
+/* Unified icon bar — inline after client name */
+.ev-icons{display:inline-flex;align-items:center;gap:2px;margin-left:3px;opacity:.5;flex-shrink:0;vertical-align:middle}
+.ev-icons svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-/* Event status — accent border preserved, status shown via dot */
+/* Event status — accent border preserved, status shown via corner */
 .ev-pending{}
 .ev-confirmed{}
 .ev-modified_pending{background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.06) 4px,rgba(217,119,6,.06) 8px)!important}
@@ -125,10 +126,6 @@
 /* Partial category match — group contains services from hidden categories */
 .fc .fc-event.ev-partial-match{background-color:transparent!important;border-left-style:dashed!important;border-left-width:2px!important}
 .ev-pending_deposit{background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}
-/* Deposit badge on event */
-.ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
-/* Lock badge on event */
-.ev-badge-lock{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-lock svg{width:10px;height:10px}
 /* Processing time (pose) — overlay on FC event element */
 .ev-pose-overlay{position:absolute;left:0;right:0;z-index:2;cursor:pointer;background:repeating-linear-gradient(135deg,rgba(0,0,0,.04),rgba(0,0,0,.04) 4px,rgba(0,0,0,.10) 4px,rgba(0,0,0,.10) 8px);border-top:1.5px dashed rgba(0,0,0,.18);border-bottom:1.5px dashed rgba(0,0,0,.18)}
 /* Pose-child: real FC event visually overlaying the parent's pose zone */
