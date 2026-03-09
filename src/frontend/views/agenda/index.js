@@ -73,11 +73,6 @@ function fcToggleStatus(status, el) {
   fcRefresh();
 }
 
-function fcToggleFab() {
-  const menu = document.getElementById('fabMenu');
-  if (menu) menu.classList.toggle('open');
-}
-
 // ── Category filter ──
 function fcFilterCategory(cat, el) {
   if (cat === '__all__') {
@@ -275,7 +270,7 @@ async function loadAgenda() {
   toolbar += `</div>`;
 
   c.innerHTML = toolbar + `<div id="fcCalendar" style="${mobile && calState.fcMobileView === 'list' ? 'display:none' : ''}"></div><div id="fcMobList" class="mob-list ${mobile && calState.fcMobileView === 'list' ? 'active' : ''}"></div>` +
-    (mobile ? `<div class="cal-fab-wrap"><div class="fab-menu" id="fabMenu"><div class="fab-menu-item" onclick="fcToggleFab();fcOpenQuickCreate()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Nouveau RDV</div><div class="fab-menu-item" onclick="fcToggleFab();fcOpenTaskCreate()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Nouvelle t\u00e2che</div></div><button class="cal-fab" onclick="fcToggleFab()" title="Ajouter">+</button></div>` : '');
+    (mobile ? `<button class="cal-fab" onclick="fcOpenQuickCreate()" title="Nouveau">+</button>` : '');
 
   // Compute initial slot increment from all practitioners
   const allIncs = calState.fcPractitioners.map(p => p.slot_increment_min || 15);
@@ -326,6 +321,6 @@ async function loadAgenda() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcToggleFab });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory });
 
 export { loadAgenda };

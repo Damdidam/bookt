@@ -152,19 +152,16 @@
 .fc .fc-event.ev-task-done{opacity:.4;filter:grayscale(.3)}
 .ev-task-pill{font-style:italic;opacity:.8}
 .ev-task-pill .gi{width:10px;height:10px;opacity:.5}
+/* Quick-create mode toggle (RDV / Tâche) */
+.qc-mode-toggle{display:flex;gap:0;padding:0 20px}
+.qc-mode-btn{flex:1;padding:10px 0;font-size:.82rem;font-weight:600;color:var(--text-3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s}
+.qc-mode-btn.active{color:var(--primary);border-bottom-color:var(--primary)}
+.qc-mode-btn:hover:not(.active){color:var(--text)}
 /* Task modal status buttons */
 .td-status-btns{display:flex;gap:6px;flex-wrap:wrap}
 .td-st-btn{padding:5px 12px;border-radius:6px;border:1.5px solid color-mix(in srgb,var(--st-color) 30%,transparent);background:color-mix(in srgb,var(--st-color) 8%,transparent);color:var(--st-color);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s}
 .td-st-btn:hover{background:color-mix(in srgb,var(--st-color) 15%,transparent)}
 .td-st-btn.active{background:var(--st-color);color:#fff;border-color:var(--st-color)}
-/* FAB menu (mobile) */
-.cal-fab-wrap{position:fixed;bottom:22px;right:22px;z-index:600;display:flex;flex-direction:column-reverse;align-items:flex-end;gap:10px}
-.cal-fab{position:relative!important;bottom:auto!important;right:auto!important}
-.fab-menu{display:none;flex-direction:column-reverse;gap:8px;align-items:flex-end}
-.fab-menu.open{display:flex}
-.fab-menu-item{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border-light);border-radius:10px;padding:8px 14px;box-shadow:var(--shadow-md);font-size:.8rem;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--text)}
-.fab-menu-item:active{background:var(--bg)}
-.fab-menu-item .gi{width:15px;height:15px;flex-shrink:0}
 /* Partial category match — group contains services from hidden categories */
 .fc .fc-event.ev-partial-match{background-color:transparent!important;border-left-style:dashed!important;border-left-width:2px!important}
 .ev-pending_deposit{background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}

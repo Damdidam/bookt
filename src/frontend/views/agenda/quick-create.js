@@ -108,8 +108,15 @@ function fcOpenQuickCreate(startStr, endStr) {
   qcRenderReminders();
   qcUpdateTabCounts();
 
+  // Reset mode toggle to RDV
+  _qcSetMode('rdv');
+
   // Switch to RDV tab
   qcSwitchTab(document.querySelector('#calCreateModal .m-tab[data-tab="qc-rdv"]'), 'qc-rdv');
+
+  // Reset task fields
+  const ttl = document.getElementById('qcTaskTitle'); if (ttl) ttl.value = '';
+  const tn = document.getElementById('qcTaskNote'); if (tn) tn.value = '';
 
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
@@ -555,6 +562,9 @@ function qcRenderReminders() {
 
 // ── Create booking ──
 async function calCreateBooking() {
+  // If in task mode, delegate to task creation
+  if (_qcCurrentMode === 'task') return qcCreateTask();
+
   if (calCreateBooking._busy) return;
   calCreateBooking._busy = true;
   try {
@@ -747,6 +757,110 @@ function setupQuickCreateListeners() {
   });
 }
 
+// ── Mode toggle RDV / Tâche ──
+let _qcCurrentMode = 'rdv';
+
+function _qcSetMode(mode) {
+  _qcCurrentMode = mode;
+  const modal = document.getElementById('calCreateModal');
+  if (!modal) return;
+
+  // Toggle buttons
+  modal.querySelectorAll('.qc-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+  const tabs = document.getElementById('qcTabs');
+  const panelRdv = document.getElementById('qcPanelRdv');
+  const panelTask = document.getElementById('qcPanelTask');
+  const headerTitle = modal.querySelector('.m-client-name');
+  const btn = document.getElementById('qcBtnCreate');
+
+  // Hide all sub-panels (notes/todos/reminders)
+  modal.querySelectorAll('#qcPanelNotes,#qcPanelTodos,#qcPanelReminders').forEach(p => { p.style.display = 'none'; p.classList.remove('active'); });
+
+  if (mode === 'task') {
+    if (tabs) tabs.style.display = 'none';
+    if (panelRdv) { panelRdv.style.display = 'none'; panelRdv.classList.remove('active'); }
+    if (panelTask) { panelTask.style.display = ''; panelTask.classList.add('active'); }
+    if (headerTitle) headerTitle.textContent = 'Nouvelle tâche';
+    if (btn) btn.textContent = 'Créer la tâche';
+
+    // Sync date/time from RDV fields
+    const qcDate = document.getElementById('qcDate')?.value;
+    const qcTime = document.getElementById('qcTime')?.value;
+    if (qcDate) document.getElementById('qcTaskDate').value = qcDate;
+    if (qcTime) {
+      document.getElementById('qcTaskStart').value = qcTime;
+      // Default end = +1h
+      const [h, m] = qcTime.split(':').map(Number);
+      const eh = (h + 1) % 24;
+      document.getElementById('qcTaskEnd').value = String(eh).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+
+    // Populate practitioner select
+    const sel = document.getElementById('qcTaskPrac');
+    const dot = document.getElementById('qcTaskPracDot');
+    const currentPrac = document.getElementById('qcPrac')?.value;
+    sel.innerHTML = '';
+    (calState.fcPractitioners || []).forEach(p => {
+      sel.innerHTML += `<option value="${p.id}" ${String(p.id) === String(currentPrac) ? 'selected' : ''}>${esc(p.display_name)}</option>`;
+    });
+    const selP = calState.fcPractitioners.find(p => String(p.id) === String(sel.value));
+    if (dot) dot.style.background = selP?.color || 'var(--primary)';
+
+    // Color swatch
+    const wrap = document.getElementById('qcTaskColorWrap');
+    if (wrap) wrap.innerHTML = cswHTML('qcTaskColor', '#6B7280', false);
+
+    // Header gradient → gray for tasks
+    qcUpdateGradient('#6B7280');
+  } else {
+    if (tabs) tabs.style.display = '';
+    if (panelRdv) { panelRdv.style.display = ''; panelRdv.classList.add('active'); }
+    if (panelTask) { panelTask.style.display = 'none'; panelTask.classList.remove('active'); }
+    if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
+    if (btn) btn.textContent = 'Créer le RDV';
+
+    // Restore header gradient
+    qcUpdateGradient(document.getElementById('qcFreeColor')?.value || 'var(--primary)');
+  }
+}
+
+function qcSwitchMode(mode) {
+  if (mode === _qcCurrentMode) return;
+  _qcSetMode(mode);
+}
+
+async function qcCreateTask() {
+  if (qcCreateTask._busy) return;
+  qcCreateTask._busy = true;
+  try {
+    const title = document.getElementById('qcTaskTitle').value.trim();
+    const date = document.getElementById('qcTaskDate').value;
+    const startTime = document.getElementById('qcTaskStart').value;
+    const endTime = document.getElementById('qcTaskEnd').value;
+    const pracId = document.getElementById('qcTaskPrac').value;
+    const color = document.getElementById('qcTaskColor')?.value || '';
+    const note = document.getElementById('qcTaskNote').value.trim();
+
+    if (!title) { gToast('Titre requis', 'error'); return; }
+    if (!date || !startTime || !endTime) { gToast('Date et heures requises', 'error'); return; }
+
+    const start_at = toBrusselsISO(date, startTime);
+    const end_at = toBrusselsISO(date, endTime);
+
+    const r = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    gToast('Tâche créée', 'success');
+    closeCalModal('calCreateModal');
+    fcRefresh();
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { qcCreateTask._busy = false; }
+}
+
 // Expose to global scope for onclick handlers
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
@@ -754,7 +868,8 @@ bridge({
   qcServiceChanged, qcSyncServiceOptions,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcSwitchTab, qcAddNote, qcDeleteNote, qcAddTodo, qcDeleteTodo,
-  qcAddReminder, qcDeleteReminder
+  qcAddReminder, qcDeleteReminder,
+  qcSwitchMode
 });
 
 export { fcOpenQuickCreate, calCreateBooking, setupQuickCreateListeners };

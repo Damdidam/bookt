@@ -1,60 +1,16 @@
 /**
- * Task Detail — open, edit, create, delete internal tasks.
- * Combined create + detail in one module (modal reuse).
+ * Task Detail — open, edit, delete internal tasks.
+ * Creation is handled by the quick-create modal (qcSwitchMode).
  */
 import { api, calState } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { closeCalModal } from './booking-detail.js';
 import { fcRefresh } from './calendar-init.js';
-import { cswHTML, cswPick } from './color-swatches.js';
+import { cswHTML } from './color-swatches.js';
 import { toBrusselsISO } from '../../utils/format.js';
 
 let _currentTaskId = null;
-
-// ── Open task create modal ──
-function fcOpenTaskCreate(startStr) {
-  _currentTaskId = null;
-  const modal = document.getElementById('calTaskModal');
-  if (!modal) return;
-
-  document.getElementById('tdModalTitle').textContent = 'Nouvelle tâche';
-  document.getElementById('tdTitle').value = '';
-  document.getElementById('tdNote').value = '';
-
-  // Default date/time
-  let dt, st, et;
-  if (startStr) {
-    const d = new Date(startStr);
-    dt = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-    st = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
-    const end = new Date(d.getTime() + 60 * 60000);
-    et = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
-  } else {
-    const now = new Date();
-    dt = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-    const nextHour = new Date(now); nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
-    st = nextHour.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
-    const endH = new Date(nextHour.getTime() + 60 * 60000);
-    et = endH.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
-  }
-  document.getElementById('tdDate').value = dt;
-  document.getElementById('tdStart').value = st;
-  document.getElementById('tdEnd').value = et;
-
-  // Practitioner select
-  _populatePracSelect();
-
-  // Color swatch
-  document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', '#6B7280', false);
-
-  // Status row hidden for create
-  document.getElementById('tdStatusRow').style.display = 'none';
-  document.getElementById('tdDeleteBtn').style.display = 'none';
-  document.getElementById('tdSaveBtn').textContent = 'Créer';
-
-  modal.classList.add('open');
-}
 
 // ── Open task detail/edit modal ──
 async function fcOpenTaskDetail(taskId) {
@@ -65,7 +21,6 @@ async function fcOpenTaskDetail(taskId) {
   document.getElementById('tdModalTitle').textContent = 'Tâche interne';
 
   try {
-    // Fetch task data (reuse from FC event cache or fetch fresh)
     const r = await fetch(`/api/tasks/${taskId}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
@@ -146,25 +101,13 @@ async function fcSaveTask() {
   const end_at = toBrusselsISO(date, endTime);
 
   try {
-    if (_currentTaskId) {
-      // Edit existing
-      const r = await fetch(`/api/tasks/${_currentTaskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
-      });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-      gToast('Tâche mise à jour', 'success');
-    } else {
-      // Create new
-      const r = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
-      });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-      gToast('Tâche créée', 'success');
-    }
+    const r = await fetch(`/api/tasks/${_currentTaskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    gToast('Tâche mise à jour', 'success');
     closeCalModal('calTaskModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
@@ -185,6 +128,6 @@ async function fcDeleteTask() {
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
-bridge({ fcOpenTaskCreate, fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus });
+bridge({ fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus });
 
-export { fcOpenTaskCreate, fcOpenTaskDetail };
+export { fcOpenTaskDetail };
