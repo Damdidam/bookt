@@ -29,7 +29,12 @@ function setupSSE() {
       } catch (e) { /* ignore parse errors */ }
     });
     window.fcEventSource.onerror = function () {
-      // Browser auto-reconnects, nothing to do
+      // If token is expired, stop SSE reconnection loop and redirect to login
+      if (!api.isLoggedIn()) {
+        window.fcEventSource.close();
+        window.location.href = '/login.html?expired=1';
+      }
+      // Otherwise browser auto-reconnects
     };
   } catch (e) { /* ignore SSE setup errors */ }
 }

@@ -390,6 +390,7 @@ function buildEventDidMount() {
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
                 body: JSON.stringify({ end_at: dateToBrusselsISO(newEnd) })
               }).then(function (r) {
+                if (r.status === 401) { api.clearToken(); window.location.href = '/login.html?expired=1'; return; }
                 if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erreur'); });
                 var dur = Math.round((newEnd - info.event.start) / 60000);
                 storeUndoAction(info.event.id, 'resize', { end_at: dateToBrusselsISO(origEnd) });
