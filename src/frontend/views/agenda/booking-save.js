@@ -41,8 +41,9 @@ async function calSaveAll() {
   if (isFreestyle) {
     if (newLabel !== (calState.fcEditOriginal.custom_label || '')) editPayload.custom_label = newLabel;
   }
-  // Color for all booking types (empty = reset to default)
-  if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
+  // Color: compare against swatch value (includes fallback), not raw DB color,
+  // to avoid accidentally saving the practitioner/service color as an explicit override
+  if (newColor !== (calState.fcEditOriginal._swatchColor || calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
   // Lock toggle
   const newLocked = document.getElementById('calLocked')?.checked || false;
