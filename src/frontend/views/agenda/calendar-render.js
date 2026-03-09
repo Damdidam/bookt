@@ -19,6 +19,7 @@ const IC = {
   dollar:  `<svg viewBox="0 0 24 24" ${S}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
   chain:   `<svg viewBox="0 0 24 24" ${S}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
   sparkle: `<svg viewBox="0 0 24 24" ${S}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
+  note:    `<svg viewBox="0 0 24 24" ${S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
 };
 
 /**
@@ -60,9 +61,9 @@ function buildEventContent() {
       const grpLock = members.some(m => m.locked) ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
       const grpSt = members.every(m => m.status === 'cancelled') ? 'cancelled' : members.every(m => m.status === 'no_show') ? 'no_show' : members.every(m => m.status === 'completed') ? 'completed' : (members[0].status || 'confirmed');
       const grpStC = ST_COLORS[grpSt] || ST_COLORS.confirmed;
-      const grpNote = members.some(m => m.internal_note);
-      const grpBadges = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>' + (grpNote ? '<span class="ev-badge ev-badge-note" style="background:' + safeAccent + '"></span>' : '');
-      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpBadges}</div></div>` };
+      const grpNote = members.some(m => m.internal_note) ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
+      const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
+      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
     }
 
     // -- Week/Day: single event --
@@ -70,13 +71,11 @@ function buildEventContent() {
     const vipBadge = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
     const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
     const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
+    const noteBadge = p.internal_note ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
-    const badges = [
-      '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>',
-      (p.internal_note ? '<span class="ev-badge ev-badge-note" style="background:' + safeAccent + '"></span>' : '')
-    ].filter(Boolean).join('');
+    const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
     const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
-    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${lockBadge}</span><span class="ev-service">${svcLabel}</span>${badges ? '<div class="ev-badges">' + badges + '</div>' : ''}</div>` };
+    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
   };
 }
 

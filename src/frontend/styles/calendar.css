@@ -123,7 +123,8 @@
 .ev-inner .ev-service{font-size:.7rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:3px}
 .ev-inner .ev-badge{width:6px;height:6px;border-radius:50%;opacity:.7}
-.ev-inner .ev-badge-note{background:currentColor}.ev-inner .ev-badge-todo{background:#FBBF24}
+.ev-badge-note{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-note svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ev-inner .ev-badge-todo{background:#FBBF24}
 .ev-inner .ev-badge-st{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
 /* Event status — accent border preserved, status shown via dot */
