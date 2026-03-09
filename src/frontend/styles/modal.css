@@ -192,6 +192,10 @@ textarea.m-input{resize:vertical;min-height:38px}
 .m-btn-ghost{background:transparent;color:var(--text-3);padding:10px 14px}.m-btn-ghost:hover{color:var(--text);background:var(--surface)}
 .m-btn-danger{background:transparent;color:var(--red);margin-left:auto;padding:10px 12px;font-size:.72rem}.m-btn-danger:hover{background:var(--red-bg)}
 
+/* Quick-create bottom: primary button full width */
+#calCreateModal .m-bottom{flex-wrap:wrap}
+#calCreateModal .m-btn-primary{flex:1;text-align:center}
+
 /* ── Notes / Todos / Reminders — unified styling ── */
 
 /* note-card */
@@ -255,8 +259,9 @@ textarea.m-input{resize:vertical;min-height:38px}
 .qc-svc-item:last-child{border-bottom:none}
 .qc-svc-handle{color:var(--text-4);cursor:grab;display:flex;align-items:center}
 .qc-svc-color{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.qc-svc-item select{flex:1;padding:7px 10px;border:1.5px solid var(--border-light);border-radius:8px;font-family:var(--sans);font-size:.82rem;background:var(--white);outline:none}
+.qc-svc-item select{flex:1;min-width:0;padding:7px 10px;border:1.5px solid var(--border-light);border-radius:8px;font-family:var(--sans);font-size:.82rem;background:var(--white);outline:none}
 .qc-svc-item select:focus{border-color:var(--primary)}
+.qc-svc-item .qc-var-sel{flex:0 1 auto;max-width:38%;font-size:.78rem}
 .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap}
 .qc-svc-rm{width:24px;height:24px;border-radius:6px;background:transparent;border:none;cursor:pointer;color:var(--text-4);display:flex;align-items:center;justify-content:center;transition:all .15s}
 .qc-svc-rm:hover{background:var(--red-bg);color:var(--red)}

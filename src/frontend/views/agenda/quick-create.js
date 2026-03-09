@@ -283,7 +283,7 @@ function qcAddService() {
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
     <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
     <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${opts}</select>
-    <select class="qc-var-sel" id="qcVarSel${idx}" style="display:none;font-size:.78rem;max-width:140px" onchange="qcUpdateTotal()"></select>
+    <select class="qc-var-sel" id="qcVarSel${idx}" style="display:none" onchange="qcUpdateTotal()"></select>
     <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
     <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>`;
@@ -734,8 +734,8 @@ function _qcSetMode(mode) {
     if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
     if (btn) btn.textContent = 'Créer le RDV';
 
-    // Restore header gradient
-    qcUpdateGradient(document.getElementById('qcFreeColor')?.value || 'var(--primary)');
+    // Restore header gradient from service color
+    qcUpdateTotal();
   }
 }
 
