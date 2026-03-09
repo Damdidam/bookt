@@ -129,10 +129,33 @@ export function buildGroupEvents(grouped) {
   });
 }
 
+/** Build FC events from internal tasks. */
+export function buildTaskEvents(tasks) {
+  return tasks.map(t => {
+    const accent = t.color || '#6B7280';
+    const frozen = t.status === 'cancelled';
+    return {
+      id: 'task_' + t.id, resourceId: String(t.practitioner_id),
+      title: t.title,
+      start: t.start_at, end: t.end_at,
+      backgroundColor: fcHexAlpha(accent, 0.08),
+      borderColor: accent, textColor: accent,
+      editable: !frozen, durationEditable: !frozen,
+      extendedProps: { ...t, _isTask: true, _accent: accent }
+    };
+  });
+}
+
 /** Filter events by status visibility and category visibility. */
 export function applyVisibilityFilters(events) {
   return events.filter(ev => {
     const p = ev.extendedProps;
+    // Tasks: respect show/hide toggle, not affected by category filters
+    if (p._isTask) {
+      if (!calState.fcShowTasks) return false;
+      if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
+      return true;
+    }
     if (p._isGroup) {
       const members = p._members || [];
       const allCancelled = members.every(m => m.status === 'cancelled');
@@ -303,9 +326,14 @@ function buildEventsCallback() {
         }).catch(() => {});
     }
 
-    fetch('/api/bookings?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
-      .then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).then(d => {
-        const bookings = d.bookings || [];
+    const headers = { 'Authorization': 'Bearer ' + api.getToken() };
+    const qstr = params.toString();
+    Promise.all([
+      fetch('/api/bookings?' + qstr, { headers }).then(r => r.ok ? r.json() : { bookings: [] }),
+      fetch('/api/tasks?' + qstr, { headers }).then(r => r.ok ? r.json() : { tasks: [] })
+    ]).then(([bData, tData]) => {
+        const bookings = bData.bookings || [];
+        const tasks = tData.tasks || [];
 
         // Compute hours per practitioner (when "all" filter — no side-fetch needed)
         if (calState.fcCurrentFilter === 'all') {
@@ -318,7 +346,8 @@ function buildEventsCallback() {
         const { poseChildMap, poseChildIds } = detectPoseChildren(singles);
         const singleEvents = buildSingleEvents(singles, poseChildIds, poseChildMap);
         const groupEvents = buildGroupEvents(grouped);
-        const allEvents = singleEvents.concat(groupEvents);
+        const taskEvents = buildTaskEvents(tasks);
+        const allEvents = singleEvents.concat(groupEvents).concat(taskEvents);
         const filtered = applyVisibilityFilters(allEvents);
 
         // Inject featured slots background events if mode is active

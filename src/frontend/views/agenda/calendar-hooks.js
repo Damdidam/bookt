@@ -166,6 +166,37 @@ function buildEventDidMount() {
     // Skip styling for featured background events
     if (p._isFeaturedSlot) return;
 
+    // ── Internal task: separate handling ──
+    if (p._isTask) {
+      const accent = p._accent || DEFAULT_ACCENT;
+      const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
+      info.el.style.borderLeftWidth = '3px';
+      info.el.style.borderLeftStyle = 'dashed';
+      info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
+      info.el.style.borderTopWidth = '0'; info.el.style.borderRightWidth = '0'; info.el.style.borderBottomWidth = '0';
+      info.el.setAttribute('data-eid', info.event.id);
+      const taskId = info.event.id.replace('task_', '');
+      // Tooltip
+      const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      if (!isTouch) {
+        info.el.addEventListener('mouseenter', e => { if (!fsIsActive()) fcShowTooltip(info.event, e.clientX, e.clientY); });
+        info.el.addEventListener('mousemove', e => { if (!fsIsActive()) fcMoveTooltip(e.clientX, e.clientY); });
+        info.el.addEventListener('mouseleave', () => fcHideTooltip());
+      }
+      // Desktop dblclick → open task detail
+      info.el.addEventListener('dblclick', e => { e.stopPropagation(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); });
+      // Touch: single tap → tooltip, double tap → detail
+      let lastTap = 0;
+      info.el.addEventListener('touchend', e => {
+        if (fsIsActive()) return;
+        if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
+        const now = Date.now();
+        if (now - lastTap < 600) { e.preventDefault(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); lastTap = 0; }
+        else { lastTap = now; const touch = e.changedTouches?.[0]; if (touch) { fcShowTooltip(info.event, touch.clientX, touch.clientY); clearTimeout(window._ttAutoHide); window._ttAutoHide = setTimeout(fcHideTooltip, 2500); } }
+      }, { passive: false });
+      return; // Skip all booking-specific logic
+    }
+
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
 

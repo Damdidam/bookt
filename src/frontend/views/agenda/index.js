@@ -32,6 +32,7 @@ import './booking-ungroup.js';
 import './calendar-toolbar.js';
 import './calendar-mobile.js';
 import './calendar-featured.js';
+import './task-detail.js';
 
 // ── Practitioner filter ──
 function fcFilterPractitioner(id, el) {
@@ -63,12 +64,18 @@ function fcFilterPractitioner(id, el) {
 function fcToggleStatus(status, el) {
   if (status === 'cancelled') { calState.fcShowCancelled = !calState.fcShowCancelled; }
   else if (status === 'no_show') { calState.fcShowNoShow = !calState.fcShowNoShow; }
+  else if (status === 'tasks') { calState.fcShowTasks = !calState.fcShowTasks; }
   // Sync all copies (desktop + mobile)
   const isActive = el.classList.contains('active');
   document.querySelectorAll('.prac-pill.st-toggle').forEach(p => {
     if (p.textContent.trim() === el.textContent.trim()) p.classList.toggle('active', !isActive);
   });
   fcRefresh();
+}
+
+function fcToggleFab() {
+  const menu = document.getElementById('fabMenu');
+  if (menu) menu.classList.toggle('open');
 }
 
 // ── Category filter ──
@@ -216,6 +223,7 @@ async function loadAgenda() {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
+    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowTasks ? 'active' : ''}" onclick="fcToggleStatus('tasks',this)" style="font-size:.68rem;gap:4px"><span style="color:#6B7280"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>T\u00e2ches</div>`;
   } else {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-hours" data-prac-id="all"></span><span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
@@ -225,6 +233,7 @@ async function loadAgenda() {
     pillsHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
+    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowTasks ? 'active' : ''}" onclick="fcToggleStatus('tasks',this)" style="font-size:.68rem;gap:4px"><span style="color:#6B7280"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>T\u00e2ches</div>`;
   }
 
   // Build category filter chips
@@ -266,7 +275,7 @@ async function loadAgenda() {
   toolbar += `</div>`;
 
   c.innerHTML = toolbar + `<div id="fcCalendar" style="${mobile && calState.fcMobileView === 'list' ? 'display:none' : ''}"></div><div id="fcMobList" class="mob-list ${mobile && calState.fcMobileView === 'list' ? 'active' : ''}"></div>` +
-    (mobile ? `<button class="cal-fab" onclick="fcOpenQuickCreate()" title="Nouveau RDV">+</button>` : '');
+    (mobile ? `<div class="cal-fab-wrap"><div class="fab-menu" id="fabMenu"><div class="fab-menu-item" onclick="fcToggleFab();fcOpenQuickCreate()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Nouveau RDV</div><div class="fab-menu-item" onclick="fcToggleFab();fcOpenTaskCreate()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Nouvelle t\u00e2che</div></div><button class="cal-fab" onclick="fcToggleFab()" title="Ajouter">+</button></div>` : '');
 
   // Compute initial slot increment from all practitioners
   const allIncs = calState.fcPractitioners.map(p => p.slot_increment_min || 15);
@@ -317,6 +326,6 @@ async function loadAgenda() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcToggleFab });
 
 export { loadAgenda };

@@ -51,6 +51,23 @@ function buildEventDrop() {
     if (fsIsActive()) { info.revert(); return; }
     _busy = true;
     const ev = info.event, p = ev.extendedProps;
+    // ── Task drag & drop ──
+    if (p._isTask) {
+      const taskId = ev.id.replace('task_', '');
+      try {
+        const pracId = info.newResource ? info.newResource.id : p.practitioner_id;
+        const r = await fetch(`/api/tasks/${taskId}/move`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start), practitioner_id: pracId })
+        });
+        if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+        gToast(p.title + ' déplacée', 'success');
+        calState.fcCal.refetchEvents();
+      } catch (e) { info.revert(); gToast(e.message, 'error'); }
+      finally { _busy = false; }
+      return;
+    }
     // Capture old state BEFORE the API call (info.oldEvent has pre-drag values)
     const oldStart = info.oldEvent.start;
     const oldEnd = info.oldEvent.end;
@@ -112,6 +129,21 @@ function buildEventResize() {
     // Enforce minimum 15-minute duration
     const dur = Math.round(((ev.end || ev.start) - ev.start) / 60000);
     if (dur < 15) { info.revert(); gToast('Durée minimum : 15 min', 'error'); _busy = false; return; }
+    // ── Task resize ──
+    if (ev.extendedProps?._isTask) {
+      const taskId = ev.id.replace('task_', '');
+      try {
+        const r = await fetch(`/api/tasks/${taskId}/move`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ start_at: dateToBrusselsISO(ev.start), end_at: dateToBrusselsISO(ev.end || ev.start) })
+        });
+        if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+        gToast('Durée → ' + dur + ' min', 'success');
+      } catch (e) { info.revert(); gToast(e.message, 'error'); }
+      finally { _busy = false; }
+      return;
+    }
     try {
       const r = await fetch(`/api/bookings/${ev.id}/resize`, {
         method: 'PATCH',
@@ -138,6 +170,8 @@ function buildEventResize() {
 function buildEventOverlap() {
   return function (stillEvent, movingEvent) {
     if (calState.fcAllowOverlap) return true;
+    // Tasks always allow overlap
+    if (stillEvent.extendedProps?._isTask || movingEvent?.extendedProps?._isTask) return true;
     // Group container vs its own members -> always allow
     const sg = stillEvent.extendedProps?._groupId, mg = movingEvent?.extendedProps?._groupId;
     if (sg && mg && sg === mg) return true;

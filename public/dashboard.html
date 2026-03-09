@@ -390,6 +390,64 @@
   </div>
 </div>
 
+<!-- TASK DETAIL / CREATE MODAL -->
+<div class="m-overlay" id="calTaskModal">
+  <div class="m-dialog" style="max-width:440px">
+    <div class="m-header" style="padding:18px 20px 14px">
+      <button class="m-close" onclick="closeCalModal('calTaskModal')">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 class="m-title" id="tdModalTitle" style="margin:0;font-size:1rem">Tâche interne</h3>
+    </div>
+    <div class="m-body" style="padding:14px 20px 8px;gap:12px;display:flex;flex-direction:column">
+      <!-- Title -->
+      <div class="m-field">
+        <label class="m-field-label" for="tdTitle">Titre</label>
+        <input type="text" id="tdTitle" class="m-input" placeholder="Ex: Nettoyage, Réunion…" maxlength="150">
+      </div>
+      <!-- Date + times -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="m-field">
+          <label class="m-field-label" for="tdDate">Date</label>
+          <input type="date" id="tdDate" class="m-input">
+        </div>
+        <div class="m-field">
+          <label class="m-field-label" for="tdStart">Début</label>
+          <input type="time" id="tdStart" class="m-input">
+        </div>
+        <div class="m-field">
+          <label class="m-field-label" for="tdEnd">Fin</label>
+          <input type="time" id="tdEnd" class="m-input">
+        </div>
+      </div>
+      <!-- Practitioner -->
+      <div class="m-field">
+        <label class="m-field-label" for="tdPrac">Praticien</label>
+        <select id="tdPrac" class="m-input"></select>
+      </div>
+      <!-- Color swatch -->
+      <div class="m-field">
+        <label class="m-field-label">Couleur</label>
+        <div id="tdColorWrap"></div>
+      </div>
+      <!-- Note -->
+      <div class="m-field">
+        <label class="m-field-label" for="tdNote">Note</label>
+        <textarea id="tdNote" class="m-input" rows="2" placeholder="Détails optionnels…"></textarea>
+      </div>
+      <!-- Status row (edit only) -->
+      <div id="tdStatusRow" style="display:none"></div>
+    </div>
+    <div class="m-bottom" style="padding:12px 20px 16px;display:flex;gap:8px;justify-content:space-between">
+      <button class="m-btn m-btn-danger" id="tdDeleteBtn" onclick="fcDeleteTask()" style="display:none">Supprimer</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="m-btn m-btn-ghost" onclick="closeCalModal('calTaskModal')">Annuler</button>
+        <button class="m-btn m-btn-primary" id="tdSaveBtn" onclick="fcSaveTask()">Créer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="gToast" class="g-toast" style="display:none"></div>
 
 <!-- Vite entry point -->

@@ -25,6 +25,7 @@ const IC = {
   hourglass:`<svg class="gi" viewBox="0 0 24 24" ${S}><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>`,
   visio:    `<svg class="gi" viewBox="0 0 24 24" ${S}><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
   mobile:   `<svg class="gi" viewBox="0 0 24 24" ${S}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`,
+  wrench:   `<svg class="gi" viewBox="0 0 24 24" ${S}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
 };
 
 function fmtDur(mins) {
@@ -45,6 +46,23 @@ function fcShowTooltip(event, x, y) {
 
   // Skip featured slot background events
   if (p._isFeaturedSlot) return;
+
+  // ── Task tooltip (simpler) ──
+  if (p._isTask) {
+    const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
+    const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+    const dur = end ? Math.round((end - start) / 60000) : 0;
+    let html = `<div class="tt-head">${IC.wrench} ${esc(p.title)}</div>`;
+    html += `<div class="tt-time">${esc(dateStr)} · ${timeStr} · ${fmtDur(dur)}</div>`;
+    const infos = [];
+    if (p.practitioner_name) infos.push(ico('user') + esc(p.practitioner_name));
+    if (p.note) infos.push(ico('note') + '<em>' + esc(p.note.length > 80 ? p.note.slice(0, 77) + '…' : p.note) + '</em>');
+    if (infos.length) { html += `<div class="tt-infos">`; infos.forEach(r => { html += `<div class="tt-row">${r}</div>`; }); html += `</div>`; }
+    const stLabel = { planned: 'Planifiée', completed: 'Terminée', cancelled: 'Annulée' }[p.status] || p.status;
+    html += `<div class="tt-foot"><span class="tt-badge">${esc(stLabel)}</span></div>`;
+    const tt = document.createElement('div'); tt.className = 'fc-tooltip'; tt.id = 'fcTooltip'; tt.innerHTML = html;
+    document.body.appendChild(tt); fcMoveTooltip(x, y); return;
+  }
 
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + (end ? '–' + end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '');
   const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' });

@@ -20,6 +20,7 @@ const IC = {
   chain:   `<svg viewBox="0 0 24 24" ${S}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
   sparkle: `<svg viewBox="0 0 24 24" ${S}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
   note:    `<svg viewBox="0 0 24 24" ${S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  wrench:  `<svg viewBox="0 0 24 24" ${S}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
 };
 
 /**
@@ -33,6 +34,17 @@ function buildEventContent() {
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
     const isMonth = arg.view.type === 'dayGridMonth';
+
+    // -- Internal task --
+    if (p._isTask) {
+      if (isMonth) {
+        const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '';
+        return { html: `<span class="ev-month-pill ev-task-pill" style="color:${safeAccent}">${t} ${gi(IC.wrench)} <strong>${esc(p.title)}</strong></span>` };
+      }
+      const noteLine = p.note ? '<span class="ev-service">' + esc(p.note.length > 40 ? p.note.slice(0, 37) + '…' : p.note) + '</span>' : '';
+      const stDot = p.status === 'completed' ? '<span class="ev-badge ev-badge-st" style="background:#6B7280"></span>' : '';
+      return { html: `<div class="ev-inner ev-task-inner" style="color:${safeAccent}"><span class="ev-client">${gi(IC.wrench)} ${esc(p.title)}</span>${noteLine}<div class="ev-badges">${stDot}</div></div>` };
+    }
 
     // -- Month view (same for singles and groups) --
     if (isMonth) {
@@ -86,6 +98,12 @@ function buildEventClassNames() {
   return function (arg) {
     const p = arg.event.extendedProps;
     const cls = [];
+    if (p._isTask) {
+      cls.push('ev-task');
+      if (p.status === 'completed') cls.push('ev-task-done');
+      if (p.status === 'cancelled') cls.push('ev-cancelled');
+      return cls;
+    }
     if (p._isGroup) {
       const members = p._members || [];
       const hasCancel = members.every(m => m.status === 'cancelled');
