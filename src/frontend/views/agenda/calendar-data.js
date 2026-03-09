@@ -150,9 +150,8 @@ export function buildTaskEvents(tasks) {
 export function applyVisibilityFilters(events) {
   return events.filter(ev => {
     const p = ev.extendedProps;
-    // Tasks: respect show/hide toggle, not affected by category filters
+    // Tasks: always visible (they block slots), only hide cancelled if toggle off
     if (p._isTask) {
-      if (!calState.fcShowTasks) return false;
       if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
       return true;
     }

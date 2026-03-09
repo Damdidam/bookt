@@ -64,7 +64,6 @@ function fcFilterPractitioner(id, el) {
 function fcToggleStatus(status, el) {
   if (status === 'cancelled') { calState.fcShowCancelled = !calState.fcShowCancelled; }
   else if (status === 'no_show') { calState.fcShowNoShow = !calState.fcShowNoShow; }
-  else if (status === 'tasks') { calState.fcShowTasks = !calState.fcShowTasks; }
   // Sync all copies (desktop + mobile)
   const isActive = el.classList.contains('active');
   document.querySelectorAll('.prac-pill.st-toggle').forEach(p => {
@@ -218,7 +217,6 @@ async function loadAgenda() {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowTasks ? 'active' : ''}" onclick="fcToggleStatus('tasks',this)" style="font-size:.68rem;gap:4px"><span style="color:#6B7280"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>T\u00e2ches</div>`;
   } else {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-hours" data-prac-id="all"></span><span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
@@ -228,7 +226,6 @@ async function loadAgenda() {
     pillsHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
     pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowTasks ? 'active' : ''}" onclick="fcToggleStatus('tasks',this)" style="font-size:.68rem;gap:4px"><span style="color:#6B7280"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>T\u00e2ches</div>`;
   }
 
   // Build category filter chips
