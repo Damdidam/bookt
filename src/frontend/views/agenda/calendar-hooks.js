@@ -112,6 +112,28 @@ function redistributePoseColumns() {
       });
     }
 
+    // ── Fix real harness widths when single-practitioner or resource view ──
+    // FC creates sub-columns for pose children overlapping parents; undo that.
+    if (childHarnesses.length > 0 && (pracIds.length < 2 || isResourceView)) {
+      var groups = [];
+      realHarnesses.forEach(function (h) {
+        var hRect = h.getBoundingClientRect();
+        var placed = false;
+        for (var g = 0; g < groups.length; g++) {
+          if (groups[g].some(function (m) { var r = m.getBoundingClientRect(); return hRect.top < r.bottom - 1 && r.top < hRect.bottom - 1; })) {
+            groups[g].push(h); placed = true; break;
+          }
+        }
+        if (!placed) groups.push([h]);
+      });
+      groups.forEach(function (group) {
+        var w = 100 / group.length;
+        group.forEach(function (h, i) {
+          setHoriz(h, (i * w) + '%', (100 - (i + 1) * w) + '%');
+        });
+      });
+    }
+
     // ── Position each pose-child on its parent ──
     childHarnesses.forEach(function (ch) {
       var evEl = ch.querySelector('.ev-pose-child');
