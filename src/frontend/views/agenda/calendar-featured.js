@@ -261,13 +261,13 @@ function fsShowActionBar() {
       <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:#D97706"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       <span class="fs-action-label">Mode vedette</span>
       <span class="fs-action-count" id="fsCount">0 créneaux</span>
-      <span class="fs-lock-badge" id="fsLockBadge" style="display:none">🔒</span>
+      <span class="fs-lock-badge" id="fsLockBadge" style="display:none"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
     </div>
     <div class="fs-action-right">
       <button class="btn-outline btn-sm btn-danger" onclick="fsClearAll()">Tout effacer</button>
       <button class="btn-outline btn-sm" onclick="fsCancelMode()">Annuler</button>
       <button class="btn-primary btn-sm" onclick="fsSaveSlots()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer</button>
-      <button class="btn-outline btn-sm" id="fsLockBtn" onclick="fsToggleLock()">🔒 Verrouiller</button>
+      <button class="btn-outline btn-sm" id="fsLockBtn" onclick="fsToggleLock()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Verrouiller</button>
     </div>
   `;
   document.querySelector('.main')?.appendChild(bar);
@@ -283,11 +283,13 @@ function fsUpdateLockButton() {
   const btn = document.getElementById('fsLockBtn');
   const badge = document.getElementById('fsLockBadge');
   if (btn) {
+    const lockSvg = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    const unlockSvg = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 5-5 5 5 0 0 1 5 5"/></svg>';
     if (fsWeekLocked) {
-      btn.innerHTML = '🔓 Déverrouiller';
+      btn.innerHTML = unlockSvg + ' Déverrouiller';
       btn.classList.add('fs-locked');
     } else {
-      btn.innerHTML = '🔒 Verrouiller';
+      btn.innerHTML = lockSvg + ' Verrouiller';
       btn.classList.remove('fs-locked');
     }
   }

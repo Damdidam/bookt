@@ -125,10 +125,12 @@
 /* Partial category match — group contains services from hidden categories */
 .fc .fc-event.ev-partial-match{background-color:transparent!important;border-left-style:dashed!important;border-left-width:2px!important}
 .ev-pending_deposit{background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.05) 6px,rgba(245,158,11,.05) 12px)!important}
+/* VIP badge on event */
+.ev-badge-vip{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-vip svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Deposit badge on event */
-.ev-badge-dep{font-size:.6rem;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}
+.ev-badge-dep{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}.ev-badge-dep svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Lock badge on event */
-.ev-badge-lock{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-lock svg{width:10px;height:10px}
+.ev-badge-lock{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-lock svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Processing time (pose) — overlay on FC event element */
 .ev-pose-overlay{position:absolute;left:0;right:0;z-index:2;cursor:pointer;background:repeating-linear-gradient(135deg,rgba(0,0,0,.04),rgba(0,0,0,.04) 4px,rgba(0,0,0,.10) 4px,rgba(0,0,0,.10) 8px);border-top:1.5px dashed rgba(0,0,0,.18);border-bottom:1.5px dashed rgba(0,0,0,.18)}
 /* Pose-child: real FC event visually overlaying the parent's pose zone */
