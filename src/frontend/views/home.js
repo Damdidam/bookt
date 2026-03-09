@@ -4,6 +4,7 @@
 import { api, biz, userRole, calState, GendaUI, categoryLabels } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
 
 function _timeAgo(dateStr){
   const diff=Date.now()-new Date(dateStr).getTime();
@@ -111,16 +112,16 @@ async function loadDashboard(){
       const hasAlerts=(al.pending_confirmations||0)+(al.unpaid_deposits||0)+(al.recent_no_shows||0)+(al.upcoming_absences?.length||0)>0;
       if(hasAlerts){
         h+=`<div class="card"><div class="card-h"><h3>Alertes</h3></div>`;
-        if(al.pending_confirmations>0) h+=`<div class="da-alert warn">⏳ ${al.pending_confirmations} RDV en attente de confirmation (7 prochains jours)</div>`;
-        if(al.unpaid_deposits>0) h+=`<div class="da-alert warn">💳 ${al.unpaid_deposits} acompte${al.unpaid_deposits>1?'s':''} en attente de paiement</div>`;
-        if(al.recent_no_shows>0) h+=`<div class="da-alert error">🚫 ${al.recent_no_shows} no-show${al.recent_no_shows>1?'s':''} ces 7 derniers jours</div>`;
+        if(al.pending_confirmations>0) h+=`<div class="da-alert warn">${IC.hourglass} ${al.pending_confirmations} RDV en attente de confirmation (7 prochains jours)</div>`;
+        if(al.unpaid_deposits>0) h+=`<div class="da-alert warn">${IC.creditCard} ${al.unpaid_deposits} acompte${al.unpaid_deposits>1?'s':''} en attente de paiement</div>`;
+        if(al.recent_no_shows>0) h+=`<div class="da-alert error">${IC.ban} ${al.recent_no_shows} no-show${al.recent_no_shows>1?'s':''} ces 7 derniers jours</div>`;
         if(al.upcoming_absences?.length>0){
           al.upcoming_absences.forEach(a=>{
             const typeLabel=a.type==='maladie'?'maladie':a.type==='conge'?'congé':a.type==='formation'?'formation':'absence';
             const from=new Date(a.date_from).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
             const to=new Date(a.date_to).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
             const range=a.date_from===a.date_to?from:`${from} → ${to}`;
-            h+=`<div class="da-alert info">🏖 ${esc(a.practitioner_name)} — ${typeLabel} ${range}</div>`;
+            h+=`<div class="da-alert info">${IC.palmTree} ${esc(a.practitioner_name)} — ${typeLabel} ${range}</div>`;
           });
         }
         h+=`</div>`;

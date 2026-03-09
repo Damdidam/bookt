@@ -4,8 +4,6 @@
 import { api, calState, userRole, user } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
-import { fcRenderNotes } from './booking-notes.js';
-import { fcRenderSession } from './booking-session.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
 import { cswHTML, cswSelect } from './color-swatches.js';
@@ -13,6 +11,7 @@ import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
+import { IC } from '../../utils/icons.js';
 
 let _openingDetail = false;
 async function fcOpenDetail(bookingId) {
@@ -28,7 +27,7 @@ async function fcOpenDetail(bookingId) {
     const r = await fetch(`/api/bookings/${bookingId}/detail`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     if (!r.ok) throw new Error('RDV introuvable');
     const d = await r.json();
-    calState.fcDetailData = { notes: d.notes || [], todos: d.todos || [], reminders: d.reminders || [], documents: d.documents || [] };
+    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [] };
     const b = d.booking;
     calState.fcCurrentBooking = b;
     const isFreestyle = !b.service_name;
@@ -115,13 +114,13 @@ async function fcOpenDetail(bookingId) {
 
       if (depRefunded) {
         borderCol = '#60A5FA'; bgCol = '#EFF6FF'; textCol = '#1D4ED8';
-        statusText = 'Rembours\u00e9 \u2705';
+        statusText = 'Remboursé';
       } else if (depKept) {
         borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
         statusText = 'Conserv\u00e9 (annulation tardive)';
       } else if (depPaid) {
         borderCol = '#86EFAC'; bgCol = '#F0FDF4'; textCol = '#15803D';
-        statusText = 'Pay\u00e9 \u2705';
+        statusText = 'Payé';
         if (b.deposit_paid_at) extraHtml += `<div style="font-size:.72rem;color:#15803D;margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>`;
         if (isFuture) {
           extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
@@ -141,15 +140,11 @@ async function fcOpenDetail(bookingId) {
     }
 
     // -- Tab counts --
-    const cNotes = document.getElementById('mCountNotes');
-    const cTodos = document.getElementById('mCountTodos');
-    const cDocs = document.getElementById('mCountDocs');
-    if (calState.fcDetailData.notes.length > 0) { cNotes.textContent = calState.fcDetailData.notes.length; cNotes.style.display = 'flex'; } else { cNotes.style.display = 'none'; }
+    const cSuivi = document.getElementById('mCountSuivi');
     const openTodos = (calState.fcDetailData.todos || []).filter(t => !t.is_done).length;
-    if (openTodos > 0) { cTodos.textContent = openTodos; cTodos.style.display = 'flex'; } else { cTodos.style.display = 'none'; }
-    if (cDocs) {
-      if (calState.fcDetailData.documents.length > 0) { cDocs.textContent = calState.fcDetailData.documents.length; cDocs.style.display = 'flex'; } else { cDocs.style.display = 'none'; }
-    }
+    const remCount = (calState.fcDetailData.reminders || []).length;
+    const suiviCount = openTodos + remCount;
+    if (suiviCount > 0) { cSuivi.textContent = suiviCount; cSuivi.style.display = 'flex'; } else { cSuivi.style.display = 'none'; }
 
     // -- Group siblings (fetched early for service card + horaire) --
     const siblings = d.group_siblings || [];
@@ -314,7 +309,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('mLockSec').style.display = isFrozen ? 'none' : '';
 
     // -- Render sub-tabs --
-    fcRenderNotes(); fcRenderSession(b); fcRenderTodos(); fcRenderReminders(); fcRenderDocs(b);
+    fcRenderTodos(); fcRenderReminders();
 
     // -- Bottom bar: show/hide buttons based on status --
     document.getElementById('mBtnSave').style.display = isFrozen ? 'none' : '';
@@ -359,7 +354,7 @@ function switchCalTab(el, tab) {
   document.querySelectorAll('#calDetailModal .m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#calDetailModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { rdv: 'calPanelRdv', notes: 'calPanelNotes', session: 'calPanelSession', todos: 'calPanelTodos', reminders: 'calPanelReminders', docs: 'calPanelDocs', historique: 'calPanelHistorique' };
+  const panelMap = { rdv: 'calPanelRdv', suivi: 'calPanelSuivi', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');
   // Lazy-load history when tab is first opened
   if (tab === 'historique') loadBookingHistory();
@@ -491,97 +486,6 @@ async function loadBookingHistory() {
   } catch (e) {
     el.innerHTML = '<div class="m-empty" style="color:var(--red)">Erreur de chargement</div>';
   }
-}
-
-// ── Docs tab rendering ──
-function fcRenderDocs(booking) {
-  const listEl = document.getElementById('mDocsList');
-  const sendEl = document.getElementById('mDocsSend');
-  if (!listEl || !sendEl) return;
-
-  const docs = calState.fcDetailData.documents || [];
-
-  if (docs.length === 0) {
-    listEl.innerHTML = '<div class="m-empty"><div class="m-empty-icon">📄</div>Aucun document envoyé</div>';
-  } else {
-    const stColors = { pending: '#9C958E', sent: '#E6A817', viewed: '#3B82F6', completed: '#1B7A42' };
-    const stLabels = { pending: 'En attente', sent: 'Envoyé', viewed: 'Consulté', completed: 'Complété' };
-    const stBg = { pending: 'var(--surface)', sent: '#FEF3E2', viewed: '#EFF6FF', completed: '#F0FDF4' };
-    const typeIco = { info: 'ℹ️', form: '📋', consent: '✍️' };
-
-    listEl.innerHTML = docs.map(doc => {
-      const st = doc.status || 'pending';
-      const sentDate = doc.sent_at ? new Date(doc.sent_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:${stBg[st]};margin-bottom:6px;border:1px solid ${stColors[st]}22">
-        <span style="font-size:1.2rem">${typeIco[doc.template_type] || '📄'}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.85rem;font-weight:600;color:var(--text)">${esc(doc.template_name)}</div>
-          <div style="font-size:.72rem;color:var(--text-4)">${sentDate}</div>
-        </div>
-        <span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:6px;background:${stColors[st]}18;color:${stColors[st]}">${stLabels[st]}</span>
-      </div>`;
-    }).join('');
-  }
-
-  // Send button (only if client has email)
-  const b = booking || calState.fcCurrentBooking;
-  if (b?.client_email) {
-    sendEl.innerHTML = `
-      <div class="m-sec">
-        <div class="m-sec-head"><span class="m-sec-title">Envoyer un document</span><span class="m-sec-line"></span></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <select id="mDocTemplateSelect" class="m-input" style="flex:1;font-size:.82rem">
-            <option value="">Chargement...</option>
-          </select>
-          <button onclick="fcSendDocument()" class="m-st-btn green" style="white-space:nowrap;padding:8px 16px">Envoyer</button>
-        </div>
-      </div>`;
-    // Load templates
-    fetch('/api/documents', { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
-      .then(r => r.json())
-      .then(data => {
-        const templates = (data.templates || []).filter(t => t.is_active);
-        const sel = document.getElementById('mDocTemplateSelect');
-        if (sel) {
-          if (templates.length === 0) {
-            sel.innerHTML = '<option value="">Aucun template actif</option>';
-          } else {
-            const typeLabels = { info: 'Info', form: 'Formulaire', consent: 'Consentement' };
-            sel.innerHTML = templates.map(t => `<option value="${esc(String(t.id))}">${esc(t.name)} (${esc(typeLabels[t.type] || t.type)})</option>`).join('');
-          }
-        }
-      })
-      .catch(() => {
-        const sel = document.getElementById('mDocTemplateSelect');
-        if (sel) sel.innerHTML = '<option value="">Erreur de chargement</option>';
-      });
-  } else {
-    sendEl.innerHTML = '<div style="font-size:.78rem;color:var(--text-4);text-align:center;padding:8px">Le client n\'a pas d\'email — impossible d\'envoyer des documents</div>';
-  }
-}
-
-async function fcSendDocument() {
-  const sel = document.getElementById('mDocTemplateSelect');
-  const templateId = sel?.value;
-  if (!templateId) { gToast('Choisissez un template', 'error'); return; }
-
-  const bookingId = calState.fcCurrentEventId;
-  try {
-    const r = await fetch(`/api/bookings/${bookingId}/send-document`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ template_id: templateId })
-    });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-    const data = await r.json();
-
-    // Add to local state and re-render
-    calState.fcDetailData.documents.unshift(data.send);
-    const cDocs = document.getElementById('mCountDocs');
-    if (cDocs) { cDocs.textContent = calState.fcDetailData.documents.length; cDocs.style.display = 'flex'; }
-    fcRenderDocs(calState.fcCurrentBooking);
-    gToast('Document envoyé !', 'success');
-  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
 function fcResetBookingColor() {
@@ -791,7 +695,7 @@ function fcCancelConvert() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcSendDocument, fcResetBookingColor,
+bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };

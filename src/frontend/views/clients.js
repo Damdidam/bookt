@@ -4,6 +4,7 @@
 import { api, categoryLabels, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
 import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhiteboards on window
 
@@ -66,7 +67,7 @@ function clientLiveSearch(q) {
       }
       dd.innerHTML = cls.map(c => {
         const ns = c.no_show_count > 0
-          ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FDE68A;color:#B45309;margin-left:6px">⚠ ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
+          ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FDE68A;color:#B45309;margin-left:6px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
           : '';
         const bl = c.is_blocked
           ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FECACA;color:#dc2626;margin-left:6px">Bloqué</span>`
@@ -171,18 +172,18 @@ async function openClientDetail(id){
 
     // ── Documents pré-RDV section ──
     const docsList = d.documents || [];
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">📄 Documents pré-RDV${docsList.length > 0 ? ' (' + docsList.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">${IC.fileText} Documents pré-RDV${docsList.length > 0 ? ' (' + docsList.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
     if (docsList.length > 0) {
       const docStColors = { pending: '#9C958E', sent: '#E6A817', viewed: '#3B82F6', completed: '#1B7A42' };
       const docStLabels = { pending: 'En attente', sent: 'Envoyé', viewed: 'Consulté', completed: 'Complété' };
-      const docTypeIco = { info: 'ℹ️', form: '📋', consent: '✍️' };
+      const docTypeIco = { info: IC.info, form: IC.clipboard, consent: IC.penTool };
       m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
       docsList.forEach((doc, i) => {
         const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
         const sc = docStColors[doc.status] || '#888';
         const bkDate = doc.booking_date ? new Date(doc.booking_date).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) : '';
         m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem">
-          <span style="color:var(--text)">${docTypeIco[doc.template_type] || '📄'} ${doc.template_name}${bkDate ? ' · RDV ' + bkDate : ''}</span>
+          <span style="color:var(--text)">${docTypeIco[doc.template_type] || IC.fileText} ${doc.template_name}${bkDate ? ' · RDV ' + bkDate : ''}</span>
           <span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${docStLabels[doc.status] || doc.status}</span>
         </div>`;
       });

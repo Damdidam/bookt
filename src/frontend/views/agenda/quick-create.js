@@ -11,12 +11,12 @@ import { closeCalModal } from './booking-detail.js';
 import { guardModal } from '../../utils/dirty-guard.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO, toBrusselsISO } from '../../utils/format.js';
+import { IC } from '../../utils/icons.js';
 
 // Escape string for use inside JS single-quoted onclick handlers
 function escJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029'); }
 
-// In-memory storage for notes/todos/reminders during creation
-let qcNotes = [];
+// In-memory storage for todos/reminders during creation
 let qcTodos = [];
 let qcReminders = [];
 
@@ -99,11 +99,9 @@ function fcOpenQuickCreate(startStr, endStr) {
   if (qcPhone) qcPhone.value = '';
   _qcSearchResults = [];
 
-  // Reset in-memory notes/todos/reminders
-  qcNotes = [];
+  // Reset in-memory todos/reminders
   qcTodos = [];
   qcReminders = [];
-  qcRenderNotes();
   qcRenderTodos();
   qcRenderReminders();
   qcUpdateTabCounts();
@@ -140,17 +138,14 @@ function qcSwitchTab(el, tab) {
   document.querySelectorAll('#calCreateModal .m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#calCreateModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { 'qc-rdv': 'qcPanelRdv', 'qc-notes': 'qcPanelNotes', 'qc-todos': 'qcPanelTodos', 'qc-reminders': 'qcPanelReminders' };
+  const panelMap = { 'qc-rdv': 'qcPanelRdv', 'qc-suivi': 'qcPanelSuivi' };
   document.getElementById(panelMap[tab])?.classList.add('active');
 }
 
 function qcUpdateTabCounts() {
-  const cn = document.getElementById('qcCountNotes');
-  const ct = document.getElementById('qcCountTodos');
-  const cr = document.getElementById('qcCountReminders');
-  if (cn) { if (qcNotes.length > 0) { cn.textContent = qcNotes.length; cn.style.display = 'flex'; } else { cn.style.display = 'none'; } }
-  if (ct) { if (qcTodos.length > 0) { ct.textContent = qcTodos.length; ct.style.display = 'flex'; } else { ct.style.display = 'none'; } }
-  if (cr) { if (qcReminders.length > 0) { cr.textContent = qcReminders.length; cr.style.display = 'flex'; } else { cr.style.display = 'none'; } }
+  const cs = document.getElementById('qcCountSuivi');
+  const total = qcTodos.length + qcReminders.length;
+  if (cs) { if (total > 0) { cs.textContent = total; cs.style.display = 'flex'; } else { cs.style.display = 'none'; } }
 }
 
 // ── Freestyle toggle ──
@@ -394,7 +389,7 @@ function calSearchClients(q) {
       _qcSearchResults = clients;
       let h = clients.map(c => {
         const nsTag = c.no_show_count > 0
-          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">⚠ ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
           : '';
         const blTag = c.is_blocked
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
@@ -449,7 +444,7 @@ function _showDepositWarn(count) {
   const warn = document.createElement('div');
   warn.id = 'qcDepositWarn';
   warn.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:#FEF3E2;color:#B45309;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:6px';
-  warn.innerHTML = `<span>\u26a0\ufe0f</span><span>${count} no-show${count > 1 ? 's' : ''} \u2014 un acompte pourra \u00eatre exig\u00e9</span>`;
+  warn.innerHTML = `<span>${IC.alertTriangle}</span><span>${count} no-show${count > 1 ? 's' : ''} \u2014 un acompte pourra \u00eatre exig\u00e9</span>`;
   wrap.appendChild(warn);
 }
 
@@ -463,39 +458,6 @@ function calNewClient() {
   const phoneEl = document.getElementById('qcClientPhone');
   if (emailEl) { emailEl.value = ''; emailEl.focus(); }
   if (phoneEl) phoneEl.value = '';
-}
-
-// ── In-memory Notes ──
-function qcAddNote() {
-  const ta = document.getElementById('qcNewNote');
-  const content = ta.value.trim();
-  if (!content) return;
-  const pinned = document.getElementById('qcNotePinned')?.checked || false;
-  qcNotes.push({ content, is_pinned: pinned, created_at: new Date().toISOString() });
-  ta.value = '';
-  if (document.getElementById('qcNotePinned')) document.getElementById('qcNotePinned').checked = false;
-  qcRenderNotes();
-  qcUpdateTabCounts();
-}
-
-function qcDeleteNote(idx) {
-  qcNotes.splice(idx, 1);
-  qcRenderNotes();
-  qcUpdateTabCounts();
-}
-
-function qcRenderNotes() {
-  const el = document.getElementById('qcNoteList');
-  if (!el) return;
-  if (qcNotes.length === 0) {
-    el.innerHTML = '<div class="m-empty"><div class="m-empty-icon">📝</div>Aucune note pour l\'instant</div>';
-    return;
-  }
-  el.innerHTML = qcNotes.map((n, i) => `<div class="note-card${n.is_pinned ? ' pinned' : ''}">
-    <div class="note-content">${esc(n.content)}</div>
-    <div class="note-meta">${n.is_pinned ? '📌 Épinglée · ' : ''}À créer avec le RDV</div>
-    <button class="note-delete" onclick="qcDeleteNote(${i})" title="Supprimer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-  </div>`).join('');
 }
 
 // ── In-memory Todos ──
@@ -519,7 +481,7 @@ function qcRenderTodos() {
   const el = document.getElementById('qcTodoList');
   if (!el) return;
   if (qcTodos.length === 0) {
-    el.innerHTML = '<div class="m-empty"><div class="m-empty-icon">✅</div>Aucune tâche pour l\'instant</div>';
+    el.innerHTML = `<div class="m-empty"><div class="m-empty-icon">${IC.checkSquare}</div>Aucune tâche pour l'instant</div>`;
     return;
   }
   el.innerHTML = qcTodos.map((t, i) => `<div class="todo-item">
@@ -534,7 +496,7 @@ function qcAddReminder() {
   const offset = document.getElementById('qcReminderOffset').value;
   const channel = document.getElementById('qcReminderChannel').value;
   const offsetLabels = { '15': '15 min avant', '30': '30 min avant', '60': '1h avant', '120': '2h avant', '1440': 'La veille' };
-  const channelLabels = { browser: '🔔 Notif', email: '📧 Email', both: '🔔+📧' };
+  const channelLabels = { browser: IC.bell + ' Notif', email: IC.mail + ' Email', both: IC.bell + '+' + IC.mail };
   qcReminders.push({ offset_minutes: parseInt(offset), channel, offsetLabel: offsetLabels[offset] || offset + ' min', channelLabel: channelLabels[channel] || channel });
   qcRenderReminders();
   qcUpdateTabCounts();
@@ -550,11 +512,11 @@ function qcRenderReminders() {
   const el = document.getElementById('qcReminderList');
   if (!el) return;
   if (qcReminders.length === 0) {
-    el.innerHTML = '<div class="m-empty"><div class="m-empty-icon">⏰</div>Aucun rappel pour l\'instant</div>';
+    el.innerHTML = `<div class="m-empty"><div class="m-empty-icon">${IC.alarmClock}</div>Aucun rappel pour l'instant</div>`;
     return;
   }
   el.innerHTML = qcReminders.map((r, i) => `<div class="reminder-card">
-    <span class="reminder-icon">⏰</span>
+    <span class="reminder-icon">${IC.alarmClock}</span>
     <div><div class="ri-time">${esc(r.offsetLabel)}</div><div class="ri-channel">${esc(r.channelLabel)}</div></div>
     <button class="reminder-delete" onclick="qcDeleteReminder(${i})" title="Supprimer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>`).join('');
@@ -693,16 +655,9 @@ async function calCreateBooking() {
       }).catch(() => {});
     }
 
-    // Save notes, todos, reminders in parallel
+    // Save todos, reminders in parallel
     if (bookingId) {
       const promises = [];
-      for (const note of qcNotes) {
-        promises.push(fetch(`/api/bookings/${bookingId}/notes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-          body: JSON.stringify({ content: note.content, is_pinned: note.is_pinned })
-        }).catch(() => {}));
-      }
       for (const todo of qcTodos) {
         promises.push(fetch(`/api/bookings/${bookingId}/todos`, {
           method: 'POST',
@@ -722,7 +677,6 @@ async function calCreateBooking() {
 
     const count = result.bookings?.length || 1;
     const extra = [];
-    if (qcNotes.length) extra.push(`${qcNotes.length} note${qcNotes.length > 1 ? 's' : ''}`);
     if (qcTodos.length) extra.push(`${qcTodos.length} tâche${qcTodos.length > 1 ? 's' : ''}`);
     if (qcReminders.length) extra.push(`${qcReminders.length} rappel${qcReminders.length > 1 ? 's' : ''}`);
     const extraStr = extra.length ? ' + ' + extra.join(', ') : '';
@@ -774,8 +728,9 @@ function _qcSetMode(mode) {
   const headerTitle = modal.querySelector('.m-client-name');
   const btn = document.getElementById('qcBtnCreate');
 
-  // Hide all sub-panels (notes/todos/reminders)
-  modal.querySelectorAll('#qcPanelNotes,#qcPanelTodos,#qcPanelReminders').forEach(p => { p.style.display = 'none'; p.classList.remove('active'); });
+  // Hide suivi panel
+  const suiviPanel = document.getElementById('qcPanelSuivi');
+  if (suiviPanel) { suiviPanel.style.display = 'none'; suiviPanel.classList.remove('active'); }
 
   if (mode === 'task') {
     if (tabs) tabs.style.display = 'none';
@@ -867,7 +822,7 @@ bridge({
   qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
   qcServiceChanged, qcSyncServiceOptions,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
-  qcSwitchTab, qcAddNote, qcDeleteNote, qcAddTodo, qcDeleteTodo,
+  qcSwitchTab, qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,
   qcSwitchMode
 });

@@ -20,7 +20,6 @@ import { buildEventsCallback } from './calendar-data.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
 import './color-swatches.js';
-import './booking-notes.js';
 import './booking-todos.js';
 import './booking-reminders.js';
 import './booking-status.js';

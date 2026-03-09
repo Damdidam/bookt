@@ -72,11 +72,7 @@
     <div class="m-status-strip" id="mStatusStrip"></div>
     <div class="m-tabs">
       <div class="m-tab active" data-tab="rdv" onclick="switchCalTab(this,'rdv')">RDV</div>
-      <div class="m-tab" data-tab="notes" onclick="switchCalTab(this,'notes')">Notes<span class="tab-count" id="mCountNotes" style="display:none"></span></div>
-      <div class="m-tab" data-tab="session" onclick="switchCalTab(this,'session')">Séance</div>
-      <div class="m-tab" data-tab="todos" onclick="switchCalTab(this,'todos')">Tâches<span class="tab-count" id="mCountTodos" style="display:none"></span></div>
-      <div class="m-tab" data-tab="reminders" onclick="switchCalTab(this,'reminders')">Rappels</div>
-      <div class="m-tab" data-tab="docs" onclick="switchCalTab(this,'docs')">Docs<span class="tab-count" id="mCountDocs" style="display:none"></span></div>
+      <div class="m-tab" data-tab="suivi" onclick="switchCalTab(this,'suivi')">Suivi<span class="tab-count" id="mCountSuivi" style="display:none"></span></div>
       <div class="m-tab" data-tab="historique" onclick="switchCalTab(this,'historique')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
     </div>
     <div class="m-body">
@@ -123,7 +119,7 @@
           </div>
         </div>
         <div class="m-sec" id="mBufferSec" style="display:none">
-          <div class="m-sec-head"><span class="m-sec-title">⏸ Buffers</span><span class="m-sec-line"></span></div>
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Buffers</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-2">
             <div><div class="m-field-label">Avant (min)</div><input class="m-input" type="number" id="uBufBefore" value="0" min="0" step="5"></div>
             <div><div class="m-field-label">Après (min)</div><input class="m-input" type="number" id="uBufAfter" value="0" min="0" step="5"></div>
@@ -170,66 +166,36 @@
           <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
         </div>
       </div>
-      <div class="m-panel" id="calPanelNotes">
-        <div id="calNoteList"></div>
-        <div class="add-note">
-          <textarea id="calNewNote" placeholder="Ajouter une note..."></textarea>
-          <div class="add-note-actions">
-            <label style="font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="calNotePinned"> Épinglée</label>
-            <button class="cal-btn primary" onclick="calAddNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+      <div class="m-panel" id="calPanelSuivi">
+        <!-- Tâches -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Tâches</span><span class="m-sec-line"></span></div>
+          <div id="calTodoList"></div>
+          <div class="add-todo">
+            <input id="calNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')calAddTodo()">
+            <button class="cal-btn primary" onclick="calAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
           </div>
         </div>
-      </div>
-      <div class="m-panel" id="calPanelSession">
-        <div class="session-editor">
-          <div class="se-toolbar">
-            <button type="button" class="se-btn" data-cmd="bold" title="Gras"><b>B</b></button>
-            <button type="button" class="se-btn" data-cmd="italic" title="Italique"><i>I</i></button>
-            <button type="button" class="se-btn" data-cmd="underline" title="Souligné"><u>U</u></button>
-            <span class="se-sep"></span>
-            <input type="color" class="se-color" id="seColor" value="#0D7377" title="Couleur du texte">
-          </div>
-          <div class="se-body" id="seBody" contenteditable="true" data-placeholder="Notes de séance..."></div>
-        </div>
-        <div class="session-actions">
-          <span class="session-status" id="seStatus"></span>
-          <div style="display:flex;gap:6px">
-            <button class="cal-btn" onclick="calSaveSession()" style="padding:6px 14px;font-size:.78rem">Enregistrer</button>
-            <button class="cal-btn cal-green" id="seSendBtn" onclick="calSendSession()" style="padding:6px 14px;font-size:.78rem;display:flex;align-items:center;gap:4px">
-              <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              Envoyer
-            </button>
+        <!-- Rappels -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels</span><span class="m-sec-line"></span></div>
+          <div id="calReminderList"></div>
+          <div class="add-reminder">
+            <select id="calReminderOffset">
+              <option value="15">15 min avant</option>
+              <option value="30" selected>30 min avant</option>
+              <option value="60">1 heure avant</option>
+              <option value="120">2 heures avant</option>
+              <option value="1440">La veille</option>
+            </select>
+            <select id="calReminderChannel">
+              <option value="browser">Notif</option>
+              <option value="email">Email</option>
+              <option value="both">Les deux</option>
+            </select>
+            <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
           </div>
         </div>
-      </div>
-      <div class="m-panel" id="calPanelTodos">
-        <div id="calTodoList"></div>
-        <div class="add-todo">
-          <input id="calNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')calAddTodo()">
-          <button class="cal-btn primary" onclick="calAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
-        </div>
-      </div>
-      <div class="m-panel" id="calPanelReminders">
-        <div id="calReminderList"></div>
-        <div class="add-reminder">
-          <select id="calReminderOffset">
-            <option value="15">15 min avant</option>
-            <option value="30" selected>30 min avant</option>
-            <option value="60">1 heure avant</option>
-            <option value="120">2 heures avant</option>
-            <option value="1440">La veille</option>
-          </select>
-          <select id="calReminderChannel">
-            <option value="browser">Notif</option>
-            <option value="email">Email</option>
-            <option value="both">Les deux</option>
-          </select>
-          <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
-        </div>
-      </div>
-      <div class="m-panel" id="calPanelDocs">
-        <div id="mDocsList"></div>
-        <div id="mDocsSend" style="margin-top:12px"></div>
       </div>
       <div class="m-panel" id="calPanelHistorique">
         <div id="mHistoryTimeline"><div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Chargement...</div></div>
@@ -265,9 +231,7 @@
     </div>
     <div class="m-tabs" id="qcTabs">
       <div class="m-tab active" data-tab="qc-rdv" onclick="qcSwitchTab(this,'qc-rdv')">RDV</div>
-      <div class="m-tab" data-tab="qc-notes" onclick="qcSwitchTab(this,'qc-notes')">Notes<span class="tab-count" id="qcCountNotes" style="display:none"></span></div>
-      <div class="m-tab" data-tab="qc-todos" onclick="qcSwitchTab(this,'qc-todos')">Tâches<span class="tab-count" id="qcCountTodos" style="display:none"></span></div>
-      <div class="m-tab" data-tab="qc-reminders" onclick="qcSwitchTab(this,'qc-reminders')">Rappels<span class="tab-count" id="qcCountReminders" style="display:none"></span></div>
+      <div class="m-tab" data-tab="qc-suivi" onclick="qcSwitchTab(this,'qc-suivi')">Suivi<span class="tab-count" id="qcCountSuivi" style="display:none"></span></div>
     </div>
     <div class="m-body">
       <!-- TAB: RDV -->
@@ -348,42 +312,34 @@
           </label>
         </div>
       </div>
-      <!-- TAB: Notes -->
-      <div class="m-panel" id="qcPanelNotes">
-        <div id="qcNoteList"></div>
-        <div class="add-note">
-          <textarea id="qcNewNote" placeholder="Ajouter une note..."></textarea>
-          <div class="add-note-actions">
-            <label style="font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px"><input type="checkbox" id="qcNotePinned"> Épinglée</label>
-            <button class="cal-btn primary" onclick="qcAddNote()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+      <!-- TAB: Suivi (Tâches + Rappels) -->
+      <div class="m-panel" id="qcPanelSuivi">
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Tâches</span><span class="m-sec-line"></span></div>
+          <div id="qcTodoList"></div>
+          <div class="add-todo">
+            <input id="qcNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')qcAddTodo()">
+            <button class="cal-btn primary" onclick="qcAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
           </div>
         </div>
-      </div>
-      <!-- TAB: Tâches -->
-      <div class="m-panel" id="qcPanelTodos">
-        <div id="qcTodoList"></div>
-        <div class="add-todo">
-          <input id="qcNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')qcAddTodo()">
-          <button class="cal-btn primary" onclick="qcAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
-        </div>
-      </div>
-      <!-- TAB: Rappels -->
-      <div class="m-panel" id="qcPanelReminders">
-        <div id="qcReminderList"></div>
-        <div class="add-reminder">
-          <select id="qcReminderOffset">
-            <option value="15">15 min avant</option>
-            <option value="30" selected>30 min avant</option>
-            <option value="60">1 heure avant</option>
-            <option value="120">2 heures avant</option>
-            <option value="1440">La veille</option>
-          </select>
-          <select id="qcReminderChannel">
-            <option value="browser">Notif</option>
-            <option value="email">Email</option>
-            <option value="both">Les deux</option>
-          </select>
-          <button class="cal-btn primary" onclick="qcAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels</span><span class="m-sec-line"></span></div>
+          <div id="qcReminderList"></div>
+          <div class="add-reminder">
+            <select id="qcReminderOffset">
+              <option value="15">15 min avant</option>
+              <option value="30" selected>30 min avant</option>
+              <option value="60">1 heure avant</option>
+              <option value="120">2 heures avant</option>
+              <option value="1440">La veille</option>
+            </select>
+            <select id="qcReminderChannel">
+              <option value="browser">Notif</option>
+              <option value="email">Email</option>
+              <option value="both">Les deux</option>
+            </select>
+            <button class="cal-btn primary" onclick="qcAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+          </div>
         </div>
       </div>
       <!-- PANEL: Tâche interne (hidden by default) -->

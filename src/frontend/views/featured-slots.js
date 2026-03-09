@@ -5,6 +5,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
 
 let practitioners = [];
 let selectedPractId = null;
@@ -186,7 +187,7 @@ function render() {
   grid += '</div>';
 
   // Lock badge for header
-  const lockBadge = weekLocked ? ' <span style="color:var(--primary);font-size:.78rem">🔒 Verrouillée</span>' : '';
+  const lockBadge = weekLocked ? ` <span style="color:var(--primary);font-size:.78rem">${IC.lock} Verrouillée</span>` : '';
 
   let h = `<p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Sélectionnez les créneaux à mettre en avant sur votre page de réservation. Verrouillez la semaine pour n'exposer que ces créneaux aux clients.</p>`;
   h += `<div class="card"><div class="card-h" style="flex-wrap:wrap;gap:10px"><div style="display:flex;align-items:center;gap:12px">${practSelect}${weekNav}${lockBadge}</div>`;
@@ -196,9 +197,9 @@ function render() {
     h += `<button class="btn-primary btn-sm" onclick="fsSave()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer</button>`;
     // Lock/unlock button
     if (weekLocked) {
-      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()" style="border-color:var(--primary);color:var(--primary)">🔓 Déverrouiller</button>`;
+      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()" style="border-color:var(--primary);color:var(--primary)">${IC.unlock} Déverrouiller</button>`;
     } else {
-      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()">🔒 Verrouiller</button>`;
+      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()">${IC.lock} Verrouiller</button>`;
     }
     h += `</div>`;
   }
