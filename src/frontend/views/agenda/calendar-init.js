@@ -6,6 +6,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
+import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
 import { calState } from '../../state.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import { buildEventsCallback } from './calendar-data.js';
@@ -98,6 +99,9 @@ function initCalendar(initView, initSlotDur) {
       return { html: '<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>' + arg.resource.title + '</span>' };
     },
     dayMaxEvents: 3,
+    // ── Resource Timeline (Premium) ──
+    resourceAreaWidth: '140px',
+    resourceAreaHeaderContent: 'Praticien',
     editable: true, eventDurationEditable: !fcIsTouch, eventStartEditable: true, snapDuration: '00:05:00',
     selectable: false,
     slotEventOverlap: false,
@@ -134,7 +138,7 @@ function initCalendar(initView, initSlotDur) {
     eventResize: buildEventResize()
   };
 
-  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin];
+  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin, resourceTimelinePlugin];
   calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
   calState.fcCal.render();
 

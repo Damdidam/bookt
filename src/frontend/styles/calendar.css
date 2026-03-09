@@ -40,6 +40,17 @@
 .content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:82px;z-index:28}
 .content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:82px!important;z-index:28;background:var(--white)}
 .content.agenda-active .fc .fc-col-header{background:var(--white)}
+/* ===== RESOURCE TIMELINE VIEW ===== */
+.fc .fc-resource-timeline .fc-resource-area{width:140px}
+.fc .fc-resource-timeline .fc-datagrid-cell-cushion{font-size:.76rem;font-weight:600;color:var(--text-2);padding:6px 10px}
+.fc .fc-resource-timeline .fc-timeline-slot{height:40px}
+.fc .fc-resource-timeline .fc-timeline-slot-cushion{font-size:.68rem;color:#A8B3BF;font-weight:500}
+.fc .fc-resource-timeline .fc-timeline-event{border-radius:5px;font-size:.72rem;padding:2px 6px;border:none;border-left:3px solid transparent;min-height:28px}
+.fc .fc-resource-timeline .fc-timeline-event .fc-event-main{padding:2px 4px;overflow:hidden}
+.fc .fc-resource-timeline .fc-timeline-lane{border-bottom:1px solid #F0F2F5}
+.fc .fc-resource-timeline .fc-resource-group .fc-datagrid-cell-cushion{font-weight:700;text-transform:uppercase;font-size:.68rem;letter-spacing:.5px}
+.fc .fc-timeline-now-indicator-line{border-left:2px solid var(--red)}
+.fc .fc-timeline-now-indicator-arrow{display:none}
 /* Resource column headers */
 .fc .fc-resource-header{font-size:.76rem;font-weight:600;padding:8px 4px}
 .fc .fc-resource-header .fc-col-header-cell-cushion{text-decoration:none;color:var(--text-2)}

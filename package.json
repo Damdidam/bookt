@@ -18,6 +18,7 @@
     "@fullcalendar/interaction": "~6.1.20",
     "@fullcalendar/resource": "~6.1.20",
     "@fullcalendar/resource-timegrid": "~6.1.20",
+    "@fullcalendar/resource-timeline": "~6.1.20",
     "@fullcalendar/timegrid": "~6.1.20",
     "@sentry/node": "^8.0.0",
     "bcryptjs": "^2.4.3",
