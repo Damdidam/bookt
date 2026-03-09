@@ -234,6 +234,14 @@ textarea.m-input{resize:vertical;min-height:38px}
 .add-todo input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
 .add-reminder select{padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.85rem;outline:none;background:var(--white)}
 
+/* ── cal-btn — inline action buttons (todos, reminders, notify) ── */
+.cal-btn{padding:8px 14px;border-radius:8px;font-size:.78rem;font-weight:600;font-family:var(--sans);cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-2);transition:all .15s;white-space:nowrap}
+.cal-btn:hover{background:var(--surface);border-color:var(--text-4)}
+.cal-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 1px 4px rgba(13,115,119,.2)}
+.cal-btn.primary:hover{background:var(--primary-hover);box-shadow:0 2px 8px rgba(13,115,119,.3)}
+.cal-btn.cal-green{background:var(--green);color:#fff;border-color:var(--green)}
+.cal-btn.cal-green:hover{opacity:.9}
+
 /* Unified empty state */
 .m-empty{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:var(--text-4);text-align:center}
 .m-empty-icon{font-size:1.4rem;margin-bottom:6px}
