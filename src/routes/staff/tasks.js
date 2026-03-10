@@ -19,7 +19,7 @@ async function _checkBookingConflicts(bid, pracIds, startAt, endAt) {
   const result = await queryWithRLS(bid,
     `SELECT b.id, b.practitioner_id, b.start_at, b.end_at,
             COALESCE(c.full_name, 'Client') AS client_name,
-            COALESCE(s.name, b.freestyle_label, 'RDV') AS service_name
+            COALESCE(s.name, b.custom_label, 'RDV') AS service_name
      FROM bookings b
      LEFT JOIN clients c ON c.id = b.client_id
      LEFT JOIN services s ON s.id = b.service_id
