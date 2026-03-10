@@ -122,6 +122,13 @@ function initCalendar(initView, initSlotDur) {
     eventContent: buildEventContent(),
     eventClassNames: buildEventClassNames(),
     eventClick: function (info) {
+      // Gap analyzer: clicking a gap background opens quick-create
+      if (info.event.extendedProps?._isGapAnalyzer) {
+        const pracId = info.event.extendedProps?.practitioner_id || info.event.getResources()?.[0]?.id;
+        const startTime = info.event.startStr?.slice(11, 16);
+        if (window.gaFillGap) window.gaFillGap(pracId, startTime, null);
+        return;
+      }
       // In vedette mode, clicking a booked event toggles featured slot at that time
       if (fsIsActive() && !info.event.extendedProps?._isFeaturedSlot) {
         fsHandleDateClick(info.event.startStr);

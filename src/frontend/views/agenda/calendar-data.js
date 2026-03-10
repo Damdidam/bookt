@@ -7,6 +7,7 @@
 import { api, calState } from '../../state.js';
 import { fcHexAlpha } from './calendar-init.js';
 import { fsBuildBackgroundEvents } from './calendar-featured.js';
+import { gaBuildBackgroundEvents } from './gap-analyzer.js';
 
 const DEFAULT_ACCENT = '#0D7377';
 
@@ -351,7 +352,8 @@ function buildEventsCallback() {
 
         // Inject featured slots background events if mode is active
         const fsEvents = fsBuildBackgroundEvents();
-        successCb(filtered.concat(fsEvents));
+        const gaEvents = gaBuildBackgroundEvents();
+        successCb(filtered.concat(fsEvents).concat(gaEvents));
       }).catch(e => failCb(e));
   };
 }

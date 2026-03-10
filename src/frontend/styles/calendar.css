@@ -218,3 +218,59 @@
 .fs-action-count{font-size:.78rem;font-weight:600;color:#D97706;background:#FEF3C7;padding:3px 10px;border-radius:6px}
 .fs-action-right{display:flex;gap:8px;align-items:center}
 @media(max-width:640px){.fs-action-bar{padding:10px 16px;flex-direction:column;gap:8px}.fs-action-right{width:100%;justify-content:flex-end}}
+
+/* ===== GAP ANALYZER ===== */
+.ga-toggle-btn{position:relative}
+.ga-toggle-btn.active{background:#EFF6FF!important;color:#2563EB!important;border-color:#BFDBFE!important}
+.ga-toggle-btn.active::after{content:'';position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:#2563EB;border:2px solid var(--white)}
+#fcCalendar.ga-mode-active{box-shadow:0 0 0 2px #2563EB,0 0 16px rgba(37,99,235,.08);border-radius:12px}
+#fcCalendar.ga-mode-active .fc-scrollgrid{border-color:#BFDBFE}
+/* Background events = gap zones */
+.fc .fc-bg-event.ga-bg-gap{background:rgba(37,99,235,.10)!important;border:1.5px dashed rgba(37,99,235,.30)!important;border-radius:0;opacity:1!important}
+.fc .fc-bg-event.ga-bg-processing{background:rgba(168,85,247,.08)!important;border:1.5px dashed rgba(168,85,247,.25)!important;border-radius:0;opacity:1!important}
+/* Floating panel */
+.ga-panel{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:2px solid #BFDBFE;max-height:260px;display:flex;flex-direction:column;animation:gaBarIn .25s cubic-bezier(.4,0,.2,1)}
+@keyframes gaBarIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.ga-panel-header{display:flex;align-items:center;justify-content:space-between;padding:8px 28px 0;flex-shrink:0}
+.ga-panel-title{display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:700;color:#1E40AF}
+.ga-panel-count{font-size:.75rem;font-weight:600;color:#2563EB;background:#EFF6FF;padding:2px 10px;border-radius:6px;margin-left:4px}
+.ga-panel-close{background:none;border:none;cursor:pointer;color:var(--text-4);padding:4px;border-radius:6px;transition:all .15s}
+.ga-panel-close:hover{background:var(--surface);color:var(--text-2)}
+/* Panel body */
+.ga-panel-body{display:flex;gap:16px;padding:8px 28px 12px;overflow-x:auto;flex:1;min-height:0;align-items:flex-start}
+/* Stats column */
+.ga-stats{display:flex;gap:12px;align-items:flex-start;flex-shrink:0}
+.ga-prac-stat{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:10px}
+/* CSS donut */
+.ga-donut{width:42px;height:42px;border-radius:50%;background:conic-gradient(var(--color) calc(var(--pct) * 1%),var(--border-light) 0);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+.ga-donut::before{content:'';position:absolute;width:28px;height:28px;border-radius:50%;background:var(--surface)}
+.ga-donut-val{position:relative;z-index:1;font-size:.65rem;font-weight:800;color:var(--text-2)}
+.ga-prac-info{display:flex;flex-direction:column;gap:1px}
+.ga-prac-name{font-size:.78rem;font-weight:700;color:var(--text)}
+.ga-prac-meta{font-size:.66rem;color:var(--text-4)}
+/* Gap cards */
+.ga-gaps{display:flex;gap:8px;overflow-x:auto;flex:1;padding-bottom:4px;scrollbar-width:thin}
+.ga-gaps::-webkit-scrollbar{height:4px}
+.ga-gaps::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.ga-gap-card{min-width:180px;max-width:240px;padding:8px 12px;background:var(--white);border:1.5px solid var(--border-light);border-radius:10px;cursor:pointer;transition:all .15s;flex-shrink:0;display:flex;flex-direction:column;gap:5px}
+.ga-gap-card:hover{border-color:#93C5FD;box-shadow:0 2px 8px rgba(37,99,235,.08);transform:translateY(-1px)}
+.ga-gap-header{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ga-gap-time{font-size:.8rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.ga-gap-dur{font-size:.66rem;color:var(--text-4);font-weight:600}
+.ga-gap-type{font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:100px;margin-left:auto;text-transform:uppercase;letter-spacing:.3px}
+.ga-gap-type--gap{background:#DBEAFE;color:#1E40AF}
+.ga-gap-type--processing{background:#F3E8FF;color:#7C3AED}
+.ga-gap-services{display:flex;gap:3px;flex-wrap:wrap}
+.ga-svc-chip{font-size:.64rem;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--primary-light);color:var(--primary);cursor:pointer;transition:all .12s;white-space:nowrap}
+.ga-svc-chip:hover{background:var(--primary);color:#fff}
+.ga-gap-waitlist{display:flex;gap:3px;flex-wrap:wrap}
+.ga-wl-badge{font-size:.62rem;font-weight:600;padding:2px 7px;border-radius:5px;background:#FEF3C7;color:#92400E;display:inline-flex;align-items:center;gap:3px}
+/* Loading / empty */
+.ga-loading{display:flex;align-items:center;justify-content:center;padding:16px;color:var(--text-4);font-size:.82rem;gap:8px;width:100%}
+.ga-spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:#2563EB;border-radius:50%;animation:spin .6s linear infinite}
+.ga-empty{display:flex;align-items:center;justify-content:center;padding:16px;color:var(--text-4);font-size:.82rem;gap:6px;width:100%}
+/* Calendar padding when panel is open */
+#fcCalendar.ga-mode-active{padding-bottom:270px}
+/* Mobile: hide panel, disable button */
+@media(max-width:768px){.ga-panel{display:none}.ga-toggle-btn{opacity:.35;pointer-events:none}}
+@media(max-width:1000px){.ga-panel-header,.ga-panel-body{padding-left:16px;padding-right:16px}}
