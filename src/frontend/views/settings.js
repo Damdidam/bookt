@@ -96,6 +96,7 @@ async function loadSettings(){
     const slotInc = b.settings?.slot_increment_min || 15;
     const wlMode = b.settings?.waitlist_mode || 'off';
     const colorMode = b.settings?.calendar_color_mode || 'category';
+    const gapOn = b.settings?.gap_analyzer_enabled === true;
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Calendrier</h3></div><div class="sc-body">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
         <div class="field"><label>Incrément agenda</label><select id="s_slot_inc" class="field-input">
@@ -110,6 +111,17 @@ async function loadSettings(){
           <option value="category"${colorMode === 'category' ? ' selected' : ''}>Par catégorie</option>
           <option value="practitioner"${colorMode === 'practitioner' ? ' selected' : ''}>Par praticien</option>
         </select><div class="hint">Couleur des RDV sur l'agenda</div></div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_gap_analyzer" style="opacity:0;width:0;height:0;position:absolute"${gapOn?' checked':''}>
+            <span style="position:absolute;inset:0;background:${gapOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_gap_analyzer');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${gapOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Analyseur de gaps</span>
+        </label>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Détecte automatiquement les créneaux libres entre les RDV et suggère des services compatibles</div>
       </div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
 
@@ -367,7 +379,8 @@ async function saveCalendarSettings(){
     const data={
       settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
-      settings_calendar_color_mode:cm
+      settings_calendar_color_mode:cm,
+      settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);

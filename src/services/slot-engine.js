@@ -1,5 +1,10 @@
 const { queryWithRLS } = require('./db');
 const { getBusyBlocks } = require('./calendar-sync');
+const {
+  timeToMinutes, minutesToTime, intersectWindows,
+  getAbsencePeriod, restrictWindowsForAbsence,
+  brusselsOffset, nextDateStr
+} = require('./schedule-helpers');
 
 /**
  * SLOT ENGINE — the heart of the booking app.
@@ -245,22 +250,6 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   const now = new Date();
   const slots = [];
 
-  // DST-safe: compute correct UTC offset for a given date in Europe/Brussels
-  function brusselsOffset(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00Z');
-    const utc = new Date(d.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const bxl = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
-    const hours = Math.round((bxl - utc) / 3600000);
-    return `${hours >= 0 ? '+' : '-'}${String(Math.abs(hours)).padStart(2, '0')}:00`;
-  }
-
-  // DST-safe date iteration using string arithmetic (avoids setDate DST skips)
-  function nextDateStr(ds) {
-    const [y, m, d] = ds.split('-').map(Number);
-    const next = new Date(Date.UTC(y, m - 1, d + 1));
-    return next.toISOString().split('T')[0];
-  }
-
   for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
     // Calculate weekday from date string (noon UTC to avoid edge cases)
     const dayDate = new Date(dateStr + 'T12:00:00Z');
@@ -372,75 +361,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
   return slots;
 }
 
-// ===== Helpers =====
-
-function timeToMinutes(timeStr) {
-  // "09:30" → 570
-  const parts = String(timeStr).split(':');
-  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-}
-
-function minutesToTime(minutes) {
-  // 570 → "09:30"
-  const h = Math.floor(minutes / 60).toString().padStart(2, '0');
-  const m = (minutes % 60).toString().padStart(2, '0');
-  return `${h}:${m}`;
-}
-
-/**
- * Intersect two sets of time windows.
- * Each window: { start: "HH:MM", end: "HH:MM" }
- * Returns the overlapping segments.
- */
-function intersectWindows(windowsA, windowsB) {
-  const result = [];
-  for (const a of windowsA) {
-    const aStart = timeToMinutes(a.start), aEnd = timeToMinutes(a.end);
-    for (const b of windowsB) {
-      const bStart = timeToMinutes(b.start), bEnd = timeToMinutes(b.end);
-      const start = Math.max(aStart, bStart), end = Math.min(aEnd, bEnd);
-      if (start < end) {
-        result.push({ start: minutesToTime(start), end: minutesToTime(end) });
-      }
-    }
-  }
-  return result;
-}
-
-/**
- * Determine if a practitioner is absent on a given date, and what period.
- * Returns null (not absent), 'full', 'am', or 'pm'.
- */
-function getAbsencePeriod(absences, dateStr) {
-  if (!absences) return null;
-  for (const abs of absences) {
-    if (dateStr >= abs.from && dateStr <= abs.to) {
-      if (abs.from === abs.to) return abs.period;
-      if (dateStr === abs.from) return abs.period;
-      if (dateStr === abs.to) return abs.periodEnd;
-      return 'full'; // middle day → fully absent
-    }
-  }
-  return null;
-}
-
-/**
- * Restrict time windows for half-day absence.
- * 'am' absence blocks before 13:00, 'pm' blocks from 13:00 onward.
- */
-function restrictWindowsForAbsence(windows, period) {
-  const noon = 780; // 13:00 in minutes
-  return windows.map(w => {
-    const ws = timeToMinutes(w.start), we = timeToMinutes(w.end);
-    if (period === 'am') {
-      if (we <= noon) return null; // entire window in morning → blocked
-      return { start: ws < noon ? '13:00' : w.start, end: w.end };
-    } else { // pm
-      if (ws >= noon) return null; // entire window in afternoon → blocked
-      return { start: w.start, end: we > noon ? '13:00' : w.end };
-    }
-  }).filter(Boolean);
-}
+// ===== Helpers imported from schedule-helpers.js =====
 
 /**
  * MULTI-SERVICE SLOT ENGINE
@@ -706,20 +627,6 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
   // 7. Generate slots — same loop as getAvailableSlots, using chained totalDuration
   const now = new Date();
   const slots = [];
-
-  function brusselsOffset(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00Z');
-    const utc = new Date(d.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const bxl = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
-    const hours = Math.round((bxl - utc) / 3600000);
-    return `${hours >= 0 ? '+' : '-'}${String(Math.abs(hours)).padStart(2, '0')}:00`;
-  }
-
-  function nextDateStr(ds) {
-    const [y, m, d] = ds.split('-').map(Number);
-    const next = new Date(Date.UTC(y, m - 1, d + 1));
-    return next.toISOString().split('T')[0];
-  }
 
   for (let dateStr = dateFrom; dateStr <= dateTo; dateStr = nextDateStr(dateStr)) {
     const dayDate = new Date(dateStr + 'T12:00:00Z');

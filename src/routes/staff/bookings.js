@@ -77,6 +77,37 @@ router.get('/', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/bookings/gaps — Detect exploitable gaps for a date
+// UI: (future) Agenda gap-fill panel
+// ============================================================
+const { detectGaps } = require('../../services/gap-engine');
+
+router.get('/gaps', async (req, res, next) => {
+  try {
+    // Check if gap analyzer is enabled for this business
+    const bizResult = await queryWithRLS(req.businessId,
+      `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
+    const settings = bizResult.rows[0]?.settings || {};
+    if (!settings.gap_analyzer_enabled) {
+      return res.status(403).json({ error: 'Analyseur de gaps désactivé. Activez-le dans Paramètres > Calendrier.' });
+    }
+
+    const { date, practitioner_id } = req.query;
+    if (!date) return res.status(400).json({ error: 'Paramètre date requis' });
+    const result = await detectGaps({
+      businessId: req.businessId,
+      date,
+      practitionerId: practitioner_id || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.type === 'validation') return res.status(400).json({ error: err.message });
+    if (err.type === 'not_found') return res.status(404).json({ error: err.message });
+    next(err);
+  }
+});
+
+// ============================================================
 // GET /api/bookings/:id/history — Audit log timeline for a booking
 // UI: Calendar → detail modal → Historique tab
 // ============================================================
