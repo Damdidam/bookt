@@ -68,9 +68,9 @@
   .m-tab{padding:8px 10px;font-size:.72rem}
   .cal-modal-body{padding:16px 18px}
   .m-row-3{grid-template-columns:1fr}
-  .m-status-strip{margin:0 18px 12px;flex-wrap:wrap}
-  .m-st-actions{margin-left:0;width:100%;justify-content:center}
-  .m-st-btn{font-size:.68rem;padding:5px 8px}
+  .m-status-strip{margin:0 18px 12px;flex-wrap:wrap;justify-content:center}
+  .m-st-actions{margin-left:0;gap:4px}
+  .m-st-btn{font-size:.66rem;padding:4px 7px}
   .m-header-content{padding:0 18px}
   .m-client-hero{flex-wrap:wrap;gap:10px}
   .m-quick-actions{margin-left:0}

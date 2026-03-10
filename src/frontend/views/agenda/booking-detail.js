@@ -99,10 +99,10 @@ async function fcOpenDetail(bookingId) {
     }
     if (!['cancelled', 'no_show'].includes(b.status)) {
       const isLocked = !!b.locked;
-      acts.push(`<button class="m-st-btn m-st-lock${isLocked ? ' active' : ''}" onclick="fcToggleLockFromStrip()" id="mStripLockBtn" title="${isLocked ? 'Déverrouiller' : 'Verrouiller'}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${isLocked ? 'Déverrouiller' : 'Verrouiller'}</button>`);
+      acts.push(`<button class="m-st-btn m-st-lock${isLocked ? ' active' : ''}" onclick="fcToggleLockFromStrip()" id="mStripLockBtn" title="${isLocked ? 'Déverrouiller' : 'Verrouiller'}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>`);
     }
     document.getElementById('mStatusStrip').innerHTML = `
-      <span class="m-st-current" style="background:${st.bg};color:${st.c}">
+      <span class="m-st-current" style="color:${st.c}">
         <span class="m-st-dot" style="background:${st.c}"></span>
         ${st.l}
       </span>
