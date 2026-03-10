@@ -97,7 +97,7 @@
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
             <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="calEditDate" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="calEditStart" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="calEditStart" onchange="calOnStartChange()"></div>
             <div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
           </div>
           <div class="m-chips" id="calDurChips">

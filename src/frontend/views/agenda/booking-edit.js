@@ -32,6 +32,29 @@ function calSetDuration(min, el) {
 }
 
 /**
+ * Called when the user changes the start time.
+ * Auto-adjusts end time to preserve the original duration.
+ */
+function calOnStartChange() {
+  const ns = document.getElementById('calEditStart').value;
+  const ne = document.getElementById('calEditEnd').value;
+  if (!ns || !ne || !calState.fcEditOriginal) return;
+
+  // Compute original duration (from the booking as it was when modal opened)
+  const origDur = fcTimeDiffMin(calState.fcEditOriginal.start, calState.fcEditOriginal.end);
+  if (origDur <= 0) return;
+
+  // Auto-adjust end = new start + original duration
+  const [h, m] = ns.split(':').map(Number);
+  const endMin = h * 60 + m + origDur;
+  const newEnd = String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0');
+  document.getElementById('calEditEnd').value = newEnd;
+
+  fcUpdateEditDiff();
+  calCheckConflict();
+}
+
+/**
  * Live conflict detection in the booking detail modal.
  * Phase 1: instant client-side check (calendar events in memory).
  * Phase 2: debounced server-side check (authoritative, 500ms).
@@ -198,6 +221,6 @@ function fcUpdateEditDiff() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ calSetDuration, calCheckConflict, fcUpdateEditDiff });
+bridge({ calSetDuration, calCheckConflict, fcUpdateEditDiff, calOnStartChange });
 
 export { calSetDuration, calCheckConflict, fcUpdateEditDiff, fcTimeDiffMin, _serverSlotUnavailable, calResetSlotCheck };
