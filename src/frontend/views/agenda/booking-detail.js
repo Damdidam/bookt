@@ -246,7 +246,7 @@ async function fcOpenDetail(bookingId) {
         ${priceHtml}
         <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>
         ${convertFreeBtn}
-        ${canAddSvc ? '<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
+        ${canAddSvc ? '<button class="g-add-btn" onclick="fcStartConvert(&#39;group-add&#39;)" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }
 
     // -- Save button color (custom or freestyle = accent color) --
@@ -273,7 +273,7 @@ async function fcOpenDetail(bookingId) {
     calState.fcGroupSiblings = siblings; // store for ungroup module
     if (isGroup) {
       const canDetach = !isFrozen && userRole !== 'practitioner';
-      const addBtn = canDetach ? `<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>` : '';
+      const addBtn = canDetach ? `<button class="g-add-btn" onclick="fcStartConvert('group-add')" title="Ajouter une prestation"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>` : '';
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span>${addBtn}<span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
       siblings.forEach((sib, sibIdx) => {
         const isCur = String(sib.id) === String(bookingId);
@@ -656,14 +656,16 @@ function fcGetFilteredServices(pracId, category) {
 
 function fcStartConvert(action) {
   calState._convertAction = action;
+  calState._pendingServices = [];
   const freeCard = document.getElementById('mFreeCard');
   const svcCard = document.getElementById('mSvcCard');
   const bufSec = document.getElementById('mBufferSec');
   const convertPanel = document.getElementById('mConvertSvc');
 
-  if (action === 'to-service') {
-    freeCard.style.display = 'none';
-    bufSec.style.display = 'none';
+  if (action === 'to-service' || action === 'group-add') {
+    if (freeCard) freeCard.style.display = 'none';
+    if (svcCard && action === 'to-service') svcCard.style.display = 'none';
+    if (bufSec) bufSec.style.display = 'none';
     convertPanel.style.display = '';
     const pracId = document.getElementById('uPracSelect')?.value;
     // Populate category dropdown
@@ -674,23 +676,24 @@ function fcStartConvert(action) {
     ).join('');
     // Populate service dropdown (all categories)
     fcConvertRebuildServices(pracId, '');
-    // Reset variant + info
+    // Reset variant + info + list
     document.getElementById('mConvertVarWrap').style.display = 'none';
-    document.getElementById('mConvertInfo').style.display = 'none';
+    document.getElementById('mConvertInfo').textContent = '';
+    document.getElementById('mConvertList').innerHTML = '';
+    document.getElementById('mConvertTotal').style.display = 'none';
+    document.getElementById('mConvertValidateBtn').style.display = 'none';
     // Store original end time for cancel
     calState._convertOrigEnd = document.getElementById('calEditEnd').value;
   } else {
     // to-free: swap service card for freestyle card
-    svcCard.style.display = 'none';
-    freeCard.style.display = 'flex';
-    bufSec.style.display = '';
-    // Pre-fill label with service name
+    if (svcCard) svcCard.style.display = 'none';
+    if (freeCard) freeCard.style.display = 'flex';
+    if (bufSec) bufSec.style.display = '';
     const b = calState.fcCurrentBooking;
     const svcName = b?.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : (b?.service_name || '');
     document.getElementById('uFreeLabel').value = svcName;
     document.getElementById('uBufBefore').value = 0;
     document.getElementById('uBufAfter').value = 0;
-    // Hide the assign button in freeCard
     const wrap = document.getElementById('mConvertToSvcWrap');
     if (wrap) wrap.innerHTML = '';
   }
@@ -770,6 +773,7 @@ function fcConvertRecalcEnd() {
 
 function fcCancelConvert() {
   calState._convertAction = null;
+  calState._pendingServices = [];
   document.getElementById('mConvertSvc').style.display = 'none';
   const b = calState.fcCurrentBooking;
   const isFreestyle = !b?.service_name;
@@ -783,6 +787,117 @@ function fcCancelConvert() {
   if (calState._convertOrigEnd) {
     document.getElementById('calEditEnd').value = calState._convertOrigEnd;
     calState._convertOrigEnd = null;
+  }
+}
+
+// ── Multi-add: list management ──
+
+/** Add currently selected service/variant to the pending list */
+function fcConvertAddToList() {
+  const sel = document.getElementById('mConvertSvcSel');
+  const varSel = document.getElementById('mConvertVarSel');
+  const svcId = sel.value;
+  if (!svcId) { gToast('Choisissez une prestation', 'error'); return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  if (!svc) return;
+  const varId = varSel?.value || null;
+  const variant = varId ? (svc.variants || []).find(v => String(v.id) === String(varId)) : null;
+
+  const name = variant ? svc.name + ' \u2014 ' + variant.name : svc.name;
+  const dur = variant?.duration_min || svc.duration_min;
+  const price = variant?.price_cents ?? svc.price_cents ?? 0;
+
+  calState._pendingServices.push({ service_id: svcId, variant_id: varId, name, dur, price_cents: price });
+  fcConvertRenderList();
+  // Reset selects for next addition
+  sel.value = '';
+  varSel.innerHTML = '';
+  document.getElementById('mConvertVarWrap').style.display = 'none';
+  document.getElementById('mConvertInfo').textContent = '';
+}
+
+/** Remove a service from the pending list by index */
+function fcConvertRemoveFromList(idx) {
+  calState._pendingServices.splice(idx, 1);
+  fcConvertRenderList();
+}
+
+/** Re-render the pending list, total, and Valider button */
+function fcConvertRenderList() {
+  const list = document.getElementById('mConvertList');
+  const total = document.getElementById('mConvertTotal');
+  const btn = document.getElementById('mConvertValidateBtn');
+  const items = calState._pendingServices;
+
+  if (items.length === 0) {
+    list.innerHTML = '';
+    total.style.display = 'none';
+    btn.style.display = 'none';
+    return;
+  }
+
+  list.innerHTML = items.map((s, i) =>
+    `<div class="m-svc-list-item"><span>${esc(s.name)}</span><span class="m-svc-dur">${s.dur} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''}</span><button class="m-svc-list-rm" onclick="fcConvertRemoveFromList(${i})" title="Retirer">\u2715</button></div>`
+  ).join('');
+
+  const totalDur = items.reduce((a, s) => a + s.dur, 0);
+  const totalPrice = items.reduce((a, s) => a + (s.price_cents || 0), 0);
+  total.textContent = 'Total : ' + totalDur + ' min' + (totalPrice ? ' \u00b7 ' + (totalPrice / 100).toFixed(0) + '\u20ac' : '');
+  total.style.display = '';
+  btn.style.display = '';
+}
+
+/** Validate: execute all pending service additions */
+async function fcValidateConvert() {
+  const items = calState._pendingServices;
+  if (items.length === 0) return;
+
+  const bookingId = calState.fcCurrentEventId;
+  const isFreestyle = calState._convertAction === 'to-service';
+  const btn = document.getElementById('mConvertValidateBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'En cours\u2026'; }
+
+  try {
+    if (isFreestyle) {
+      // First service: convert freestyle via PATCH /edit
+      const first = items[0];
+      const r = await fetch(`/api/bookings/${bookingId}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ service_id: first.service_id, service_variant_id: first.variant_id })
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur conversion'); }
+
+      // Remaining services: group-add sequentially
+      for (let i = 1; i < items.length; i++) {
+        const r2 = await fetch(`/api/bookings/${bookingId}/group-add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ service_id: items[i].service_id, variant_id: items[i].variant_id })
+        });
+        if (!r2.ok) { const d = await r2.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout #' + (i + 1)); }
+      }
+    } else {
+      // group-add mode: all via group-add
+      for (const item of items) {
+        const r = await fetch(`/api/bookings/${bookingId}/group-add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ service_id: item.service_id, variant_id: item.variant_id })
+        });
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout'); }
+      }
+    }
+
+    gToast(items.length + ' prestation(s) ajout\u00e9e(s)', 'success');
+    calState._pendingServices = [];
+    calState._convertAction = null;
+    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
+    closeCalModal('calDetailModal');
+    fcRefresh();
+  } catch (e) {
+    gToast('Erreur : ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Valider'; }
   }
 }
 
@@ -900,6 +1015,7 @@ function fcInlineEdit(span, field) {
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
+         fcConvertAddToList, fcConvertRemoveFromList, fcValidateConvert,
          fcGetServiceCategories, fcGetFilteredServices,
          fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
          fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });

@@ -99,8 +99,16 @@
             <div class="m-svc-picker-field"><label>Prestation</label><select id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select></div>
             <div class="m-svc-picker-field" id="mConvertVarWrap" style="display:none"><label>Variante</label><select id="mConvertVarSel" onchange="fcConvertVarChanged()"></select></div>
           </div>
-          <div id="mConvertInfo" class="m-svc-picker-info" style="display:none"></div>
-          <div style="display:flex;justify-content:flex-end;margin-top:6px"><button type="button" class="m-link-btn" onclick="fcCancelConvert()" style="font-size:.75rem">Annuler</button></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <span id="mConvertInfo" class="m-svc-picker-info" style="flex:1"></span>
+            <button type="button" class="ug-btn ug-btn-confirm" onclick="fcConvertAddToList()" style="padding:4px 12px;font-size:.72rem">+ Ajouter</button>
+          </div>
+          <div id="mConvertList" class="m-svc-list"></div>
+          <div id="mConvertTotal" class="m-svc-total" style="display:none"></div>
+          <div class="ug-actions" style="margin-top:8px">
+            <button type="button" class="ug-btn ug-btn-cancel" onclick="fcCancelConvert()">Annuler</button>
+            <button type="button" class="ug-btn ug-btn-confirm" id="mConvertValidateBtn" onclick="fcValidateConvert()" style="display:none">Valider</button>
+          </div>
         </div>
         <div id="mGroupSiblings" style="display:none"></div>
         <!-- Horaire + Praticien (merged) -->

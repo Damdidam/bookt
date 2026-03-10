@@ -120,6 +120,15 @@ body.has-modal{overflow:hidden}
 @media(max-width:500px){.m-svc-picker{flex-direction:column}.m-svc-picker-field{min-width:100%}}
 @media(pointer:coarse){.m-svc-picker select{min-height:44px}}
 
+/* ── Service list (multi-add) ── */
+.m-svc-list{margin:8px 0;display:flex;flex-direction:column;gap:4px}
+.m-svc-list-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border-light);font-size:.78rem;animation:ugSlide .2s ease}
+.m-svc-list-item span:first-child{flex:1;font-weight:500}
+.m-svc-list-item .m-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap}
+.m-svc-list-rm{background:none;border:none;color:var(--text-4);cursor:pointer;padding:2px;border-radius:4px;line-height:1;font-size:.9rem;transition:all .15s}
+.m-svc-list-rm:hover{background:#FEE;color:#C62828}
+.m-svc-total{font-size:.72rem;color:var(--text-3);text-align:right;margin-top:4px;font-weight:600}
+
 /* ── Sections ── */
 .m-sec{margin-bottom:16px}
 .m-sec-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:4px}

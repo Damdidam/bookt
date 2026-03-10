@@ -51,14 +51,9 @@ async function calSaveAll() {
   const newLocked = document.getElementById('calLocked')?.value === 'true';
   if (newLocked !== calState.fcEditOriginal.locked) editPayload.locked = newLocked;
 
-  // Service conversion (freestyle ↔ service)
-  if (calState._convertAction === 'to-service') {
-    const svcId = document.getElementById('mConvertSvcSel')?.value;
-    if (svcId) {
-      editPayload.service_id = svcId;
-      editPayload.service_variant_id = document.getElementById('mConvertVarSel')?.value || null;
-    }
-  } else if (calState._convertAction === 'to-free') {
+  // Service conversion: freestyle → service now handled by fcValidateConvert() in booking-detail.js
+  // Only handle service → freestyle here (to-free)
+  if (calState._convertAction === 'to-free') {
     editPayload.service_id = null;
     editPayload.service_variant_id = null;
     editPayload.custom_label = document.getElementById('uFreeLabel')?.value.trim() || null;
