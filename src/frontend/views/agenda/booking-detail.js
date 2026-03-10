@@ -677,7 +677,7 @@ function fcStartConvert(action) {
     // Populate service dropdown (all categories)
     fcConvertRebuildServices(pracId, '');
     // Reset variant + info + list
-    document.getElementById('mConvertVarWrap').style.display = 'none';
+    document.getElementById('mConvertVarWrap').style.visibility = 'hidden';
     document.getElementById('mConvertInfo').textContent = '';
     document.getElementById('mConvertList').innerHTML = '';
     document.getElementById('mConvertTotal').style.display = 'none';
@@ -714,9 +714,9 @@ function fcConvertCatChanged() {
   const pracId = document.getElementById('uPracSelect')?.value;
   fcConvertRebuildServices(pracId, cat);
   // Reset variant + info
-  document.getElementById('mConvertVarWrap').style.display = 'none';
+  document.getElementById('mConvertVarWrap').style.visibility = 'hidden';
   document.getElementById('mConvertVarSel').innerHTML = '';
-  document.getElementById('mConvertInfo').style.display = 'none';
+  document.getElementById('mConvertInfo').textContent = '';
 }
 
 function fcConvertSvcChanged() {
@@ -725,28 +725,50 @@ function fcConvertSvcChanged() {
   const varSel = document.getElementById('mConvertVarSel');
   const info = document.getElementById('mConvertInfo');
   const svcId = sel.value;
-  if (!svcId) { varWrap.style.display = 'none'; info.style.display = 'none'; return; }
+  if (!svcId) { varWrap.style.visibility = 'hidden'; info.textContent = ''; return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
   if (variants.length > 0) {
     varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
-      `<option value="${v.id}" data-dur="${v.duration_min}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+      `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
     ).join('');
-    varWrap.style.display = '';
+    varWrap.style.visibility = 'visible';
   } else {
     varSel.innerHTML = '';
-    varWrap.style.display = 'none';
+    varWrap.style.visibility = 'hidden';
   }
-  // Show info line (duration + price)
-  const dur = svc?.duration_min || 0;
-  const price = svc?.price_cents ? (svc.price_cents / 100).toFixed(0) + '\u20ac' : '';
-  info.textContent = dur + ' min' + (price ? ' \u00b7 ' + price : '');
-  info.style.display = '';
+  // Show info line (duration + price) — service-level values (variant overrides in fcConvertUpdateInfo)
+  fcConvertUpdateInfo();
   // Recalculate end time from service duration
   fcConvertRecalcEnd();
 }
 
+/** Update the info line with the correct duration + price (variant-aware) */
+function fcConvertUpdateInfo() {
+  const sel = document.getElementById('mConvertSvcSel');
+  const varSel = document.getElementById('mConvertVarSel');
+  const info = document.getElementById('mConvertInfo');
+  const svcId = sel?.value;
+  if (!svcId) { info.textContent = ''; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  // If a variant is selected, use variant's duration + price
+  const varOpt = varSel?.selectedOptions?.[0];
+  const varId = varOpt?.value;
+  if (varId) {
+    const variant = svc?.variants?.find(v => String(v.id) === String(varId));
+    const dur = variant?.duration_min || parseInt(varOpt.dataset.dur) || 0;
+    const price = variant?.price_cents ?? parseInt(varOpt.dataset.price) ?? 0;
+    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  } else {
+    // No variant selected — use service-level values
+    const dur = svc?.duration_min || 0;
+    const price = svc?.price_cents ? (svc.price_cents / 100).toFixed(0) + '\u20ac' : '';
+    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + price : '');
+  }
+}
+
 function fcConvertVarChanged() {
+  fcConvertUpdateInfo();
   fcConvertRecalcEnd();
 }
 
@@ -812,7 +834,7 @@ function fcConvertAddToList() {
   // Reset selects for next addition
   sel.value = '';
   varSel.innerHTML = '';
-  document.getElementById('mConvertVarWrap').style.display = 'none';
+  document.getElementById('mConvertVarWrap').style.visibility = 'hidden';
   document.getElementById('mConvertInfo').textContent = '';
 }
 
