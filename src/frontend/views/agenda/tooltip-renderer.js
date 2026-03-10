@@ -26,6 +26,7 @@ const IC = {
   visio:    `<svg class="gi" viewBox="0 0 24 24" ${S}><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
   mobile:   `<svg class="gi" viewBox="0 0 24 24" ${S}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`,
   wrench:   `<svg class="gi" viewBox="0 0 24 24" ${S}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+  tag:       `<svg class="gi" viewBox="0 0 24 24" ${S}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>`,
 };
 
 function fmtDur(mins) {
@@ -136,6 +137,17 @@ function fcShowTooltip(event, x, y) {
     const depLabel = p.deposit_status === 'paid' ? 'Payé' : p.deposit_status === 'refunded' ? 'Remboursé' : p.deposit_status === 'cancelled' ? 'Conservé' : 'En attente';
     const depCls = p.deposit_status === 'paid' ? ' tt-dep-ok' : '';
     infos.push(ico('dollar') + depAmt + '€ · <span class="' + depCls.trim() + '">' + depLabel + '</span>');
+  }
+
+  // Last-minute promo
+  if (p.discount_pct) {
+    const origPrice = p.variant_price_cents ?? p.price_cents ?? 0;
+    if (origPrice > 0) {
+      const discPrice = Math.round(origPrice * (100 - p.discount_pct) / 100);
+      infos.push(ico('tag') + 'Promo -' + p.discount_pct + '% · <s>' + (origPrice / 100).toFixed(2) + '€</s> <strong style="color:#059669">' + (discPrice / 100).toFixed(2) + '€</strong>');
+    } else {
+      infos.push(ico('tag') + 'Promo -' + p.discount_pct + '%');
+    }
   }
 
   // Locked

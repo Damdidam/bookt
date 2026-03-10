@@ -141,6 +141,26 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
     }
 
+    // -- Promo banner (last-minute discount) --
+    document.querySelectorAll('.m-promo-banner').forEach(el => el.remove());
+    if (b.discount_pct) {
+      const origPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+      const discPrice = origPrice > 0 ? Math.round(origPrice * (100 - b.discount_pct) / 100) : 0;
+      const priceHtml = origPrice > 0
+        ? ' <s style="opacity:.5">' + (origPrice / 100).toFixed(2) + '€</s> → <strong>' + (discPrice / 100).toFixed(2) + '€</strong>'
+        : '';
+      const promoEl = document.createElement('div');
+      promoEl.className = 'm-promo-banner';
+      promoEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #f59e0b;background:#FFFBEB';
+      promoEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:#B45309">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+        Dernière minute : -${b.discount_pct}%${priceHtml}
+      </div>`;
+      const depBanner = document.querySelector('.m-deposit-banner');
+      if (depBanner) depBanner.insertAdjacentElement('afterend', promoEl);
+      else document.getElementById('mStatusStrip').insertAdjacentElement('afterend', promoEl);
+    }
+
     // -- Group siblings (fetched early for service card + horaire) --
     const siblings = d.group_siblings || [];
     const isGroup = siblings.length > 1;
@@ -188,6 +208,15 @@ async function fcOpenDetail(bookingId) {
       const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
       const displayPrice = b.variant_price_cents ?? b.price_cents;
       const svcDisplayName = b.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : b.service_name;
+      let priceHtml = '';
+      if (displayPrice) {
+        if (b.discount_pct) {
+          const disc = Math.round(displayPrice * (100 - b.discount_pct) / 100);
+          priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (displayPrice / 100).toFixed(2) + '\u20ac</s> ' + (disc / 100).toFixed(2) + '\u20ac</div>';
+        } else {
+          priceHtml = '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>';
+        }
+      }
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
       const convertFreeBtn = canConvert ? '<button class="m-convert-free-btn" onclick="fcStartConvert(\'to-free\')" title="Convertir en RDV libre">&times;</button>' : '';
       svcCard.innerHTML = `
@@ -195,7 +224,7 @@ async function fcOpenDetail(bookingId) {
           <div class="m-svc-name">${esc(svcDisplayName)}</div>
           <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}</div>
         </div>
-        ${displayPrice ? '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        ${priceHtml}
         ${convertFreeBtn}
         ${canAddSvc ? '<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }

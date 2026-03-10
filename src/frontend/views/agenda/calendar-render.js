@@ -21,6 +21,7 @@ const IC = {
   sparkle: `<svg viewBox="0 0 24 24" ${S}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
   note:    `<svg viewBox="0 0 24 24" ${S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
   wrench:  `<svg viewBox="0 0 24 24" ${S}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+  tag:     `<svg viewBox="0 0 24 24" ${S}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>`,
 };
 
 /**
@@ -73,21 +74,23 @@ function buildEventContent() {
       const grpLock = members.some(m => m.locked) ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
       const grpSt = members.every(m => m.status === 'cancelled') ? 'cancelled' : members.every(m => m.status === 'no_show') ? 'no_show' : members.every(m => m.status === 'completed') ? 'completed' : (members[0].status || 'confirmed');
       const grpStC = ST_COLORS[grpSt] || ST_COLORS.confirmed;
+      const grpPromo = members.some(m => m.discount_pct) ? '<span class="ev-badge-promo" title="Promo">' + IC.tag + '</span>' : '';
       const grpNote = members.some(m => m.internal_note) ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
-      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
+      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpPromo}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
     }
 
     // -- Week/Day: single event --
     const svcLabel = esc(p.variant_name ? (p.service_name||'RDV libre')+' — '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'));
     const vipBadge = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
     const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
+    const promoBadge = p.discount_pct ? '<span class="ev-badge-promo" title="Promo -' + p.discount_pct + '%">' + IC.tag + '</span>' : '';
     const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
     const noteBadge = p.internal_note ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
     const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
-    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
+    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${promoBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
   };
 }
 
