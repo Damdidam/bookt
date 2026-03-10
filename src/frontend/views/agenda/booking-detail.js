@@ -12,6 +12,7 @@ import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 import { IC } from '../../utils/icons.js';
+import { fcIsMobile } from '../../utils/touch.js';
 
 let _openingDetail = false;
 async function fcOpenDetail(bookingId) {
@@ -94,6 +95,9 @@ async function fcOpenDetail(bookingId) {
     }
     if (b.status === 'pending_deposit') acts.push('<button class="m-st-btn green" onclick="fcMarkDepositPaid()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Marquer pay\u00e9</button>');
     if (['completed', 'cancelled', 'no_show'].includes(b.status)) acts.push('<button class="m-st-btn" onclick="fcSetStatus(\'confirmed\')">↩ R\u00e9tablir</button>');
+    if (fcIsMobile() && !['cancelled', 'no_show', 'completed'].includes(b.status)) {
+      acts.push('<button class="m-st-btn m-st-move" onclick="fcScrollToHoraire()">\u2195 D\u00e9placer</button>');
+    }
     document.getElementById('mStatusStrip').innerHTML = `
       <span class="m-st-current" style="background:${st.bg};color:${st.c}">
         <span class="m-st-dot" style="background:${st.c}"></span>
@@ -712,8 +716,22 @@ function fcCancelConvert() {
   }
 }
 
+// ── Mobile reschedule: scroll to time picker ──
+function fcScrollToHoraire() {
+  const sec = document.getElementById('calEditStart')?.closest('.m-sec');
+  if (!sec) return;
+  sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  sec.classList.add('m-sec-highlight');
+  setTimeout(() => sec.classList.remove('m-sec-highlight'), 1500);
+  setTimeout(() => {
+    document.getElementById('calEditStart')?.focus();
+    document.getElementById('calEditStart')?.click();
+  }, 400);
+}
+
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
-         fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert });
+         fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
+         fcScrollToHoraire });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };
