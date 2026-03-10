@@ -94,8 +94,12 @@
         </div>
         <div id="mConvertSvc" class="m-convert-panel" style="display:none">
           <div class="m-field-label">Assigner une prestation</div>
-          <select class="m-input" id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select>
-          <select class="m-input" id="mConvertVarSel" style="display:none" onchange="fcConvertVarChanged()"></select>
+          <div class="m-svc-picker">
+            <div class="m-svc-picker-field"><label>Catégorie</label><select id="mConvertCatSel" onchange="fcConvertCatChanged()"><option value="">— Toutes —</option></select></div>
+            <div class="m-svc-picker-field"><label>Prestation</label><select id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select></div>
+            <div class="m-svc-picker-field" id="mConvertVarWrap" style="display:none"><label>Variante</label><select id="mConvertVarSel" onchange="fcConvertVarChanged()"></select></div>
+          </div>
+          <div id="mConvertInfo" class="m-svc-picker-info" style="display:none"></div>
           <div style="display:flex;justify-content:flex-end;margin-top:6px"><button type="button" class="m-link-btn" onclick="fcCancelConvert()" style="font-size:.75rem">Annuler</button></div>
         </div>
         <div id="mGroupSiblings" style="display:none"></div>

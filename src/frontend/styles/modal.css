@@ -110,6 +110,16 @@ body.has-modal{overflow:hidden}
 .m-convert-free-btn{background:none;border:none;color:var(--text-4);cursor:pointer;font-size:1.1rem;padding:2px 6px;border-radius:4px;line-height:1;transition:all .15s;margin-left:6px}
 .m-convert-free-btn:hover{background:#FEE;color:#C62828}
 
+/* ── Cascading service picker ── */
+.m-svc-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.m-svc-picker-field{flex:1;min-width:140px}
+.m-svc-picker-field label{font-size:.7rem;font-weight:600;color:var(--text-3);margin-bottom:2px;display:block}
+.m-svc-picker select{width:100%;padding:9px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-family:var(--sans);font-size:.82rem;background:var(--white);outline:none;transition:border-color .15s}
+.m-svc-picker select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.06)}
+.m-svc-picker-info{font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px;margin-top:2px}
+@media(max-width:500px){.m-svc-picker{flex-direction:column}.m-svc-picker-field{min-width:100%}}
+@media(pointer:coarse){.m-svc-picker select{min-height:44px}}
+
 /* ── Sections ── */
 .m-sec{margin-bottom:16px}
 .m-sec-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:4px}

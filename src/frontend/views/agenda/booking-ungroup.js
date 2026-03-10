@@ -172,7 +172,6 @@ function fcHideUngroupPanel() {
 
 /** Show the inline add-service panel at the bottom of the group list */
 function fcShowGroupAddPanel() {
-  // Remove any existing panels first
   fcHideUngroupPanel();
   fcHideGroupAddPanel();
 
@@ -180,17 +179,16 @@ function fcShowGroupAddPanel() {
   const svcs = ugGetPracServices(currentPracId);
   if (svcs.length === 0) { gToast('Aucune prestation disponible pour ce praticien', 'error'); return; }
 
-  // Get already-selected service IDs from current group
-  const siblings = calState.fcGroupSiblings || [];
-  const selectedIds = new Set(siblings.map(s => s.service_id));
+  // Build category options
+  const cats = [...new Set(svcs.map(s => s.category || ''))].filter(Boolean).sort();
+  const catOpts = '<option value="">\u2014 Cat\u00e9gorie \u2014</option>' + cats.map(c =>
+    `<option value="${esc(c)}">${esc(c)}</option>`
+  ).join('');
 
-  const svcOpts = svcs.map(s => {
-    const dis = selectedIds.has(s.id) ? ' disabled' : '';
-    return `<option value="${s.id}"${dis}>${esc(s.name)} (${s.duration_min} min)</option>`;
-  }).join('');
-
-  // Select first non-disabled option
-  const firstAvail = svcs.find(s => !selectedIds.has(s.id));
+  // Build service options (all initially)
+  const svcOpts = svcs.map(s =>
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+  ).join('');
 
   const panel = document.createElement('div');
   panel.className = 'm-ungroup-panel';
@@ -200,12 +198,12 @@ function fcShowGroupAddPanel() {
       <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       <span>Ajouter une prestation</span>
     </div>
-    <div class="ug-row">
-      <label class="ug-label">Prestation</label>
-      <select id="gaServiceSelect" class="m-input ug-select">
-        ${svcOpts}
-      </select>
+    <div class="m-svc-picker">
+      <div class="m-svc-picker-field"><label>Cat\u00e9gorie</label><select id="gaCatSelect" onchange="gaFilterByCategory()">${catOpts}</select></div>
+      <div class="m-svc-picker-field"><label>Prestation</label><select id="gaServiceSelect" onchange="gaServiceChanged()">${svcOpts}</select></div>
+      <div class="m-svc-picker-field" id="gaVarWrap" style="display:none"><label>Variante</label><select id="gaVarSelect"></select></div>
     </div>
+    <div id="gaInfo" class="m-svc-picker-info" style="display:none"></div>
     <div class="ug-actions">
       <button class="ug-btn ug-btn-cancel" onclick="fcHideGroupAddPanel()">Annuler</button>
       <button class="ug-btn ug-btn-confirm" id="gaConfirmBtn" onclick="fcConfirmGroupAdd()">
@@ -222,7 +220,6 @@ function fcShowGroupAddPanel() {
   } else if (groupEl && groupEl.style.display !== 'none') {
     groupEl.appendChild(panel);
   } else {
-    // Single booking — show panel after the service card
     const svcCard = document.getElementById('mSvcCard');
     if (svcCard) {
       svcCard.insertAdjacentElement('afterend', panel);
@@ -231,14 +228,52 @@ function fcShowGroupAddPanel() {
     }
   }
 
-  // Select first available service
-  if (firstAvail) document.getElementById('gaServiceSelect').value = firstAvail.id;
+  // Trigger initial info update
+  gaServiceChanged();
+}
+
+/** Category changed → rebuild service dropdown in group-add panel */
+function gaFilterByCategory() {
+  const cat = document.getElementById('gaCatSelect')?.value || '';
+  const pracId = calState.fcCurrentBooking?.practitioner_id;
+  const svcs = ugGetPracServices(pracId).filter(s => !cat || (s.category || '') === cat);
+  const sel = document.getElementById('gaServiceSelect');
+  sel.innerHTML = svcs.map(s =>
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+  ).join('');
+  gaServiceChanged();
+}
+
+/** Service changed → show/hide variant dropdown + update info */
+function gaServiceChanged() {
+  const sel = document.getElementById('gaServiceSelect');
+  const varWrap = document.getElementById('gaVarWrap');
+  const varSel = document.getElementById('gaVarSelect');
+  const info = document.getElementById('gaInfo');
+  const svcId = sel?.value;
+  if (!svcId) { if (varWrap) varWrap.style.display = 'none'; if (info) info.style.display = 'none'; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const variants = svc?.variants || [];
+  if (variants.length > 0) {
+    varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
+      `<option value="${v.id}" data-dur="${v.duration_min}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    ).join('');
+    varWrap.style.display = '';
+  } else {
+    varSel.innerHTML = '';
+    varWrap.style.display = 'none';
+  }
+  // Update info
+  const dur = svc?.duration_min || 0;
+  const price = svc?.price_cents ? (svc.price_cents / 100).toFixed(0) + '\u20ac' : '';
+  if (info) { info.textContent = dur + ' min' + (price ? ' \u00b7 ' + price : ''); info.style.display = ''; }
 }
 
 /** Confirm adding a service to the group */
 async function fcConfirmGroupAdd() {
   const svcId = document.getElementById('gaServiceSelect')?.value;
   if (!svcId) { gToast('Choisissez une prestation', 'error'); return; }
+  const varId = document.getElementById('gaVarSelect')?.value || null;
 
   const bookingId = calState.fcCurrentEventId;
   const btn = document.getElementById('gaConfirmBtn');
@@ -248,13 +283,13 @@ async function fcConfirmGroupAdd() {
     const r = await fetch(`/api/bookings/${bookingId}/group-add`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ service_id: svcId })
+      body: JSON.stringify({ service_id: svcId, variant_id: varId })
     });
     if (!r.ok) {
       const d = await r.json();
       throw new Error(d.error || 'Erreur');
     }
-    gToast('Prestation ajoutée au groupe', 'success');
+    gToast('Prestation ajout\u00e9e au groupe', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
@@ -269,4 +304,4 @@ function fcHideGroupAddPanel() {
   document.getElementById('groupAddPanel')?.remove();
 }
 
-bridge({ fcShowUngroupPanel, fcUngroupPracChange, fcConfirmUngroup, fcHideUngroupPanel, fcRemoveFromGroup, fcShowGroupAddPanel, fcConfirmGroupAdd, fcHideGroupAddPanel });
+bridge({ fcShowUngroupPanel, fcUngroupPracChange, fcConfirmUngroup, fcHideUngroupPanel, fcRemoveFromGroup, fcShowGroupAddPanel, gaFilterByCategory, gaServiceChanged, fcConfirmGroupAdd, fcHideGroupAddPanel });

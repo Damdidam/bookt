@@ -628,6 +628,30 @@ function initGroupDnD(container) {
   list.addEventListener('touchcancel', cancel);
 }
 
+// ── Service picker helpers (shared by convert + group-add) ──
+
+/** Return unique category names from services available to a practitioner */
+function fcGetServiceCategories(pracId) {
+  const svcs = calState.fcServices.filter(s => {
+    if (s.is_active === false) return false;
+    if (pracId && s.practitioner_ids?.length > 0)
+      return s.practitioner_ids.some(pid => String(pid) === String(pracId));
+    return true;
+  });
+  return [...new Set(svcs.map(s => s.category || ''))].filter(Boolean).sort();
+}
+
+/** Return services filtered by practitioner + optional category */
+function fcGetFilteredServices(pracId, category) {
+  return calState.fcServices.filter(s => {
+    if (s.is_active === false) return false;
+    if (pracId && s.practitioner_ids?.length > 0)
+      if (!s.practitioner_ids.some(pid => String(pid) === String(pracId))) return false;
+    if (category && (s.category || '') !== category) return false;
+    return true;
+  });
+}
+
 // ── Conversion freestyle ↔ service ──
 
 function fcStartConvert(action) {
@@ -641,18 +665,18 @@ function fcStartConvert(action) {
     freeCard.style.display = 'none';
     bufSec.style.display = 'none';
     convertPanel.style.display = '';
-    // Populate service dropdown filtered by current practitioner
     const pracId = document.getElementById('uPracSelect')?.value;
-    const services = calState.fcServices.filter(s => {
-      if (s.is_active === false) return false;
-      if (pracId && s.practitioner_ids?.length > 0) return s.practitioner_ids.some(pid => String(pid) === String(pracId));
-      return true;
-    });
-    const sel = document.getElementById('mConvertSvcSel');
-    sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
-      `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    // Populate category dropdown
+    const catSel = document.getElementById('mConvertCatSel');
+    const cats = fcGetServiceCategories(pracId);
+    catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
+      `<option value="${esc(c)}">${esc(c)}</option>`
     ).join('');
-    document.getElementById('mConvertVarSel').style.display = 'none';
+    // Populate service dropdown (all categories)
+    fcConvertRebuildServices(pracId, '');
+    // Reset variant + info
+    document.getElementById('mConvertVarWrap').style.display = 'none';
+    document.getElementById('mConvertInfo').style.display = 'none';
     // Store original end time for cancel
     calState._convertOrigEnd = document.getElementById('calEditEnd').value;
   } else {
@@ -672,22 +696,49 @@ function fcStartConvert(action) {
   }
 }
 
+/** Rebuild service dropdown for convert panel */
+function fcConvertRebuildServices(pracId, category) {
+  const services = fcGetFilteredServices(pracId, category);
+  const sel = document.getElementById('mConvertSvcSel');
+  sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+  ).join('');
+}
+
+/** Category changed → rebuild service dropdown */
+function fcConvertCatChanged() {
+  const cat = document.getElementById('mConvertCatSel')?.value || '';
+  const pracId = document.getElementById('uPracSelect')?.value;
+  fcConvertRebuildServices(pracId, cat);
+  // Reset variant + info
+  document.getElementById('mConvertVarWrap').style.display = 'none';
+  document.getElementById('mConvertVarSel').innerHTML = '';
+  document.getElementById('mConvertInfo').style.display = 'none';
+}
+
 function fcConvertSvcChanged() {
   const sel = document.getElementById('mConvertSvcSel');
+  const varWrap = document.getElementById('mConvertVarWrap');
   const varSel = document.getElementById('mConvertVarSel');
+  const info = document.getElementById('mConvertInfo');
   const svcId = sel.value;
-  if (!svcId) { varSel.style.display = 'none'; return; }
+  if (!svcId) { varWrap.style.display = 'none'; info.style.display = 'none'; return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
   if (variants.length > 0) {
     varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
       `<option value="${v.id}" data-dur="${v.duration_min}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
     ).join('');
-    varSel.style.display = '';
+    varWrap.style.display = '';
   } else {
     varSel.innerHTML = '';
-    varSel.style.display = 'none';
+    varWrap.style.display = 'none';
   }
+  // Show info line (duration + price)
+  const dur = svc?.duration_min || 0;
+  const price = svc?.price_cents ? (svc.price_cents / 100).toFixed(0) + '\u20ac' : '';
+  info.textContent = dur + ' min' + (price ? ' \u00b7 ' + price : '');
+  info.style.display = '';
   // Recalculate end time from service duration
   fcConvertRecalcEnd();
 }
@@ -848,7 +899,8 @@ function fcInlineEdit(span, field) {
 
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
-         fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
+         fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
+         fcGetServiceCategories, fcGetFilteredServices,
          fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
          fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });
 
