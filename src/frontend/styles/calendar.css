@@ -223,6 +223,7 @@
 .ga-toggle-btn{position:relative}
 .ga-toggle-btn.active{background:#EFF6FF!important;color:#2563EB!important;border-color:#BFDBFE!important}
 .ga-toggle-btn.active::after{content:'';position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:#2563EB;border:2px solid var(--white)}
+.ga-badge{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;background:#EF4444;color:#fff;border:2px solid var(--bg-1,#fff);border-radius:50%;font-size:.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;line-height:1}
 #fcCalendar.ga-mode-active{box-shadow:0 0 0 2px #2563EB,0 0 16px rgba(37,99,235,.08);border-radius:12px}
 #fcCalendar.ga-mode-active .fc-scrollgrid{border-color:#BFDBFE}
 /* Background events = gap zones */

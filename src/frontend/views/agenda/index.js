@@ -253,7 +253,7 @@ async function loadAgenda() {
   const initView = mobile ? 'timeGridDay' : 'timeGridWeek';
   const canFeatured = ['owner', 'manager'].includes(userRole);
   const fsBtnHtml = canFeatured ? `<button class="at-view-btn fs-toggle-btn" id="fsToggleBtn" onclick="fsToggleMode()" title="Mode vedette"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>` : '';
-  const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>` : '';
+  const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="ga-badge" id="gaBadge" style="display:none"></span></button>` : '';
   let toolbar = `<div class="agenda-toolbar">`;
   // Desktop: Row 1 -- nav + title + views + date
   toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button><button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')">Timeline</button>${fsBtnHtml}${gaBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
@@ -287,6 +287,9 @@ async function loadAgenda() {
 
   // Setup quick create listeners (once)
   setupQuickCreateListeners();
+
+  // Gap analyzer: silent scan for badge + morning toast
+  setTimeout(() => { if (window.gaAutoScan) window.gaAutoScan(); }, 800);
 
   // Featured mode: reload slots when week changes, deactivate on month view
   calState.fcCal.on('datesSet', function (info) {

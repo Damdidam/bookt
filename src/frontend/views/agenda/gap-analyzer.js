@@ -119,8 +119,55 @@ async function gaLoadData() {
   fcRefresh();
 }
 
+// ── Auto scan (badge + morning toast) ──
+async function gaAutoScan() {
+  const freshBiz = api.getBusiness();
+  if (!freshBiz?.settings?.gap_analyzer_enabled) return;
+  if (!api.getToken()) return;
+
+  const cal = calState.fcCal;
+  if (!cal) return;
+  const date = localDate(cal.getDate());
+
+  try {
+    let url = `/api/bookings/gaps?date=${date}`;
+    if (calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all')
+      url += `&practitioner_id=${calState.fcCurrentFilter}`;
+    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+    if (!r.ok) return;
+    const data = await r.json();
+
+    let totalGaps = 0, totalMin = 0;
+    (data.practitioners || []).forEach(p => {
+      totalGaps += p.gaps.length;
+      totalMin += p.stats?.gap_min || 0;
+    });
+
+    // A — Update badge
+    const badge = document.getElementById('gaBadge');
+    if (badge) {
+      if (totalGaps > 0) { badge.textContent = totalGaps; badge.style.display = 'flex'; }
+      else { badge.style.display = 'none'; }
+    }
+
+    // B — Morning toast (once per session per day)
+    const toastKey = `ga_toast_${date}`;
+    if (totalGaps > 0 && !sessionStorage.getItem(toastKey)) {
+      gToast(
+        `${totalGaps} créneau${totalGaps > 1 ? 'x' : ''} libre${totalGaps > 1 ? 's' : ''} (${fmtMin(totalMin)}) — Analyseur prêt`,
+        'info',
+        { label: 'Voir →', fn: 'gaToggleMode()' }
+      );
+      sessionStorage.setItem(toastKey, '1');
+    }
+  } catch (e) { /* silent */ }
+}
+
 // ── Event hooks ──
 function gaOnDatesSet() {
+  // Always refresh badge (even when panel is closed)
+  gaAutoScan();
+
   if (!gaActive) return;
   const viewType = calState.fcCal?.view?.type;
   if (!viewType || (!viewType.includes('Day') && viewType !== 'timeGridDay')) {
@@ -339,6 +386,6 @@ function gaBuildBackgroundEvents() {
 }
 
 // ── Bridge ──
-bridge({ gaToggleMode, gaDeactivate, gaFillGap });
+bridge({ gaToggleMode, gaDeactivate, gaFillGap, gaAutoScan });
 
-export { gaIsActive, gaToggleMode, gaOnDatesSet, gaOnFilterChanged, gaBuildBackgroundEvents, gaDeactivate };
+export { gaIsActive, gaToggleMode, gaOnDatesSet, gaOnFilterChanged, gaBuildBackgroundEvents, gaDeactivate, gaAutoScan };
