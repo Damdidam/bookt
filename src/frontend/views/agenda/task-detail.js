@@ -41,24 +41,22 @@ async function fcOpenTaskDetail(taskId) {
     document.getElementById('tdStart').value = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
     document.getElementById('tdEnd').value = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
 
-    // Practitioner(s) — checkbox list for groups, single select for solo
+    // Practitioner(s) — always show checkboxes so user can add more
     const pracField = document.getElementById('tdPracField');
-    if (task.group_members && task.group_members.length > 1) {
-      _isGroupTask = true;
-      _currentGroupId = task.group_id;
-      const assignedIds = new Set(task.group_members.map(m => m.practitioner_id));
-      let html = `<label class="m-field-label">Praticiens (${task.group_members.length})</label>`;
-      html += '<div class="td-prac-checks" id="tdPracChecks">';
-      (calState.fcPractitioners || []).forEach(p => {
-        const checked = assignedIds.has(p.id) ? 'checked' : '';
-        html += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${p.color || 'var(--primary)'}"></span><span>${esc(p.display_name)}</span></label>`;
-      });
-      html += '</div>';
-      pracField.innerHTML = html;
-    } else {
-      pracField.innerHTML = '<label class="m-field-label" for="tdPrac">Praticien</label><select id="tdPrac" class="m-input"></select>';
-      _populatePracSelect(task.practitioner_id);
-    }
+    _currentGroupId = task.group_id || null;
+    const assignedIds = task.group_members
+      ? new Set(task.group_members.map(m => m.practitioner_id))
+      : new Set([task.practitioner_id]);
+    _isGroupTask = assignedIds.size > 1;
+    const countLabel = assignedIds.size > 1 ? `Praticiens (${assignedIds.size})` : 'Praticien(s)';
+    let pracHtml = `<label class="m-field-label">${countLabel}</label>`;
+    pracHtml += '<div class="td-prac-checks" id="tdPracChecks">';
+    (calState.fcPractitioners || []).forEach(p => {
+      const checked = assignedIds.has(p.id) ? 'checked' : '';
+      pracHtml += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${p.color || 'var(--primary)'}"></span><span>${esc(p.display_name)}</span></label>`;
+    });
+    pracHtml += '</div>';
+    pracField.innerHTML = pracHtml;
 
     document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', task.color || '#6B7280', false);
 
