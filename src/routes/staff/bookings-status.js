@@ -526,6 +526,133 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/bookings/:id/send-deposit-request
+// Send deposit request notification via SMS or email
+// UI: Quick-create post-creation panel + Detail modal deposit banner
+// ============================================================
+router.post('/:id/send-deposit-request', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const { channel } = req.body;
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+    if (!['sms', 'email'].includes(channel)) {
+      return res.status(400).json({ error: 'Channel doit \u00eatre "sms" ou "email"' });
+    }
+
+    // 1. Fetch booking + client + business + service
+    const bkResult = await queryWithRLS(bid, `
+      SELECT b.id, b.status, b.deposit_required, b.deposit_status,
+             b.deposit_amount_cents, b.deposit_deadline, b.public_token,
+             b.start_at, b.end_at, b.practitioner_id,
+             c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+             s.name AS service_name,
+             p.display_name AS practitioner_name,
+             biz.name AS business_name, biz.email AS business_email,
+             biz.address AS business_address, biz.theme, biz.plan
+      FROM bookings b
+      LEFT JOIN clients c ON c.id = b.client_id
+      LEFT JOIN services s ON s.id = b.service_id
+      JOIN practitioners p ON p.id = b.practitioner_id
+      JOIN businesses biz ON biz.id = b.business_id
+      WHERE b.id = $1 AND b.business_id = $2
+    `, [id, bid]);
+
+    if (bkResult.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const bk = bkResult.rows[0];
+
+    // Practitioner scope
+    if (req.practitionerFilter && String(bk.practitioner_id) !== String(req.practitionerFilter)) {
+      return res.status(403).json({ error: 'Acc\u00e8s interdit' });
+    }
+
+    // 2. Validate booking is pending_deposit
+    if (bk.status !== 'pending_deposit' || !bk.deposit_required) {
+      return res.status(400).json({ error: 'Ce RDV ne n\u00e9cessite pas d\'acompte' });
+    }
+    if (bk.deposit_status !== 'pending') {
+      return res.status(400).json({ error: 'L\'acompte n\'est plus en attente' });
+    }
+
+    // 3. Validate client contact
+    if (channel === 'email' && !bk.client_email) {
+      return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
+    }
+    if (channel === 'sms' && !bk.client_phone) {
+      return res.status(400).json({ error: 'Le client n\'a pas de num\u00e9ro de t\u00e9l\u00e9phone' });
+    }
+
+    // 4. Plan gating: SMS requires Pro/Premium
+    if (channel === 'sms' && !['pro', 'premium'].includes(bk.plan)) {
+      return res.status(403).json({ error: 'L\'envoi SMS n\u00e9cessite le plan Pro ou Premium' });
+    }
+
+    // 5. Anti-spam: min 60 min between sends
+    const notifType = channel === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
+    const lastSent = await queryWithRLS(bid, `
+      SELECT sent_at FROM notifications
+      WHERE booking_id = $1 AND business_id = $2 AND type = $3 AND status = 'sent'
+      ORDER BY sent_at DESC LIMIT 1
+    `, [id, bid, notifType]);
+
+    if (lastSent.rows.length > 0) {
+      const lastAt = new Date(lastSent.rows[0].sent_at);
+      const minSince = (Date.now() - lastAt.getTime()) / 60000;
+      if (minSince < 60) {
+        const waitMin = Math.ceil(60 - minSince);
+        return res.status(429).json({
+          error: `Demande d\u00e9j\u00e0 envoy\u00e9e r\u00e9cemment. R\u00e9essayez dans ${waitMin} min.`,
+          last_sent_at: lastAt.toISOString()
+        });
+      }
+    }
+
+    // 6. Build deposit URL
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
+
+    // 7. Store deposit_payment_url
+    await queryWithRLS(bid, `UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2 AND business_id = $3`, [depositUrl, id, bid]);
+
+    // 8. Send
+    let sendResult;
+    if (channel === 'email') {
+      const { sendDepositRequestEmail } = require('../../services/email');
+      sendResult = await sendDepositRequestEmail({
+        booking: bk,
+        business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme },
+        depositUrl
+      });
+    } else {
+      const { sendSMS } = require('../../services/sms');
+      const amtStr = ((bk.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+      const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+        timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
+      });
+      const body = `${bk.business_name} \u2014 Acompte de ${amtStr}\u20ac requis pour votre RDV du ${dateStr}. D\u00e9tails : ${depositUrl}`;
+      sendResult = await sendSMS({ to: bk.client_phone, body, businessId: bid });
+    }
+
+    // 9. Log notification
+    const status = sendResult.success ? 'sent' : 'failed';
+    const provider = channel === 'sms' ? 'twilio' : 'brevo';
+    const providerId = sendResult.messageId || sendResult.sid || null;
+    await queryWithRLS(bid, `
+      INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status, provider, provider_message_id, error, sent_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${status === 'sent' ? 'NOW()' : 'NULL'})
+    `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, sendResult.error || null]);
+
+    if (!sendResult.success) {
+      return res.status(500).json({ error: 'Envoi \u00e9chou\u00e9: ' + (sendResult.error || 'erreur inconnue') });
+    }
+
+    res.json({ sent: true, channel, deposit_url: depositUrl });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // DELETE /api/bookings/:id — Permanently delete a cancelled/no-show booking
 // UI: Calendar → event detail → "Supprimer définitivement" (only for cancelled/no_show)
 // ============================================================

@@ -129,6 +129,15 @@ async function fcOpenDetail(bookingId) {
         }
       } else {
         if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px">Deadline : ${depDl}</div>`;
+        extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">';
+        if (b.client_email) {
+          extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#FEF3E2;color:#B45309;border:1px solid #F59E0B;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer par email</button>`;
+        }
+        if (b.client_phone) {
+          extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#FEF3E2;color:#B45309;border:1px solid #F59E0B;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('sms')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>Envoyer par SMS</button>`;
+        }
+        extraHtml += '</div>';
+        extraHtml += '<div id="mDepositSendStatus" style="display:none;margin-top:6px;font-size:.75rem;padding:6px 10px;border-radius:6px"></div>';
       }
 
       const depEl = document.createElement('div');

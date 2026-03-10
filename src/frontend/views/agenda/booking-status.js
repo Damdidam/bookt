@@ -89,7 +89,28 @@ async function fcRefundDeposit(amountCents) {
   finally { fcRefundDeposit._busy = false; }
 }
 
-// Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit });
+async function fcSendDepositRequest(channel) {
+  if (fcSendDepositRequest._busy) return;
+  fcSendDepositRequest._busy = true;
+  const statusEl = document.getElementById('mDepositSendStatus');
+  try {
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = '#FEF3E2'; statusEl.style.color = '#B45309'; statusEl.textContent = 'Envoi en cours…'; }
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-deposit-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ channel })
+    });
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    const label = channel === 'sms' ? 'SMS' : 'email';
+    gToast(`Demande d'acompte envoyée par ${label}`, 'success');
+    if (statusEl) { statusEl.style.background = '#F0FDF4'; statusEl.style.color = '#15803D'; statusEl.textContent = `✓ Demande envoyée par ${label}`; }
+  } catch (e) {
+    gToast('Erreur: ' + e.message, 'error');
+    if (statusEl) { statusEl.style.background = '#FEF2F2'; statusEl.style.color = '#DC2626'; statusEl.textContent = e.message; }
+  } finally { fcSendDepositRequest._busy = false; }
+}
 
-export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit };
+// Expose to global scope for onclick handlers
+bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest });
+
+export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest };

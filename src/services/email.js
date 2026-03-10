@@ -526,4 +526,64 @@ async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send deposit request email to client
+ */
+async function sendDepositRequestEmail({ booking, business, depositUrl }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+  });
+  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const deadlineStr = booking.deposit_deadline
+    ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
+        timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
+        hour: '2-digit', minute: '2-digit'
+      })
+    : null;
+
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name);
+  const safeServiceName = escHtml(booking.service_name || 'Rendez-vous');
+  const safePracName = escHtml(booking.practitioner_name || '');
+  const safeBizName = escHtml(business.name);
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
+    <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
+      <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">\u{1F4C5} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:14px;color:#92700C">${safeServiceName}</div>
+      ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
+    </div>
+    <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
+      <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
+      <div style="font-size:24px;font-weight:800;color:#1A1816">${amtStr} \u20ac</div>
+      ${deadlineStr ? `<div style="font-size:12px;color:#92700C;margin-top:6px">\u00c0 r\u00e9gler avant le ${deadlineStr}</div>` : ''}
+    </div>
+    <p style="font-size:14px;color:#3D3832">Consultez les d\u00e9tails et les instructions de paiement en cliquant ci-dessous.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Acompte requis pour votre rendez-vous',
+    preheader: `Acompte de ${amtStr}\u20ac requis avant votre RDV du ${dateStr}`,
+    bodyHTML,
+    ctaText: 'Voir les d\u00e9tails de l\u2019acompte',
+    ctaUrl: depositUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Acompte requis \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acompte — Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+
+/* ── Kill mobile browser helpers ── */
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
+body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;--gold:#A68B3C;--gold-bg:#FAF6EC;--amber:#B45309;--amber-bg:#FEF3E2;--amber-border:#F59E0B;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--radius:14px;--radius-sm:10px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.container{width:100%;max-width:520px}
+.logo{text-align:center;margin-bottom:24px}
+.logo a{font-family:var(--serif);font-size:1.3rem;color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.logo .l{width:32px;height:32px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
+.card-header{padding:24px 28px;border-bottom:1px solid var(--border-light);text-align:center}
+.card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
+.card-header .biz{font-size:.88rem;color:var(--text-3)}
+.details{padding:24px 28px}
+.detail-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-light)}
+.detail-row:last-child{border:none}
+.detail-row .icon{width:36px;height:36px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.detail-row .info{flex:1}
+.detail-row .label{font-size:.72rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px}
+.detail-row .value{font-size:.92rem;font-weight:600}
+.detail-row .sub{font-size:.78rem;color:var(--text-3)}
+.deposit-box{margin:0 28px 24px;border-radius:var(--radius-sm);padding:24px;text-align:center}
+.deposit-box .amount{font-size:1.8rem;font-weight:800;margin-bottom:4px}
+.deposit-box .dep-label{font-size:.82rem;font-weight:600;margin-bottom:12px}
+.deposit-box .dep-sub{font-size:.78rem;opacity:.8}
+.deposit-box .dep-icon{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.deadline-bar{margin:0 28px 20px;padding:12px 16px;border-radius:8px;display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:600}
+.contact-section{padding:20px 28px;border-top:1px solid var(--border-light);text-align:center}
+.contact-section p{font-size:.85rem;color:var(--text-3);margin-bottom:12px}
+.contact-section .contact-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.contact-section .c-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border:1.5px solid var(--border-light);border-radius:8px;background:var(--white);font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s;text-decoration:none}
+.contact-section .c-btn:hover{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:16px;font-size:.78rem;font-weight:700;margin-bottom:12px}
+.loading{text-align:center;padding:60px}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{text-align:center;padding:60px}
+.error .e-icon{font-size:3rem;margin-bottom:12px}
+.footer-link{text-align:center;margin-top:16px}
+.footer-link a{font-size:.82rem;color:var(--primary);text-decoration:none;font-weight:600}
+.footer-link a:hover{text-decoration:underline}
+#countdown{font-size:.78rem;color:var(--amber);margin-top:6px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo"><a href="/"><span class="l">G</span>Genda</a></div>
+  <div class="card" id="cardContent">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:12px;color:var(--text-4);font-size:.85rem">Chargement...</p></div>
+  </div>
+  <div class="footer-link" id="footerLink" style="display:none"></div>
+</div>
+
+<script>
+const token = window.location.pathname.split('/').pop();
+if (!token) { showError('Lien invalide'); }
+else { loadBooking(); }
+
+async function loadBooking() {
+  try {
+    const res = await fetch(`/api/public/booking/${token}`);
+    if (!res.ok) { showError('Rendez-vous introuvable'); return; }
+    const data = await res.json();
+    render(data);
+  } catch (err) { showError('Erreur de chargement'); }
+}
+
+function render(d) {
+  const bk = d.booking, biz = d.business;
+  const start = new Date(bk.start_at), end = new Date(bk.end_at);
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+  // Apply business theme
+  if (biz.theme?.primary_color) {
+    document.documentElement.style.setProperty('--primary', biz.theme.primary_color);
+  }
+
+  // No deposit required
+  if (!bk.deposit_required) {
+    document.getElementById('cardContent').innerHTML = `
+      <div class="card-header">
+        <h1>Votre rendez-vous</h1>
+        <div class="biz">${esc(biz.name)}</div>
+      </div>
+      <div style="padding:40px 28px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <p style="font-size:.92rem;color:var(--text-2);font-weight:600">Aucun acompte requis pour ce rendez-vous.</p>
+        <p style="font-size:.82rem;color:var(--text-3);margin-top:4px">${dateStr} &middot; ${timeStr}</p>
+      </div>`;
+    showFooter(biz);
+    return;
+  }
+
+  const depAmount = ((bk.deposit_amount_cents || 0) / 100).toFixed(2);
+  const depStatus = bk.deposit_status || 'pending';
+
+  // Deposit status colors
+  const statusConfig = {
+    pending:   { bg: 'var(--amber-bg)', border: 'var(--amber-border)', color: 'var(--amber)', badgeBg: 'var(--amber-bg)', icon: 'hourglass', label: 'En attente de paiement' },
+    paid:      { bg: 'var(--green-bg)', border: '#86EFAC', color: 'var(--green)', badgeBg: 'var(--green-bg)', icon: 'check', label: 'Acompte reçu' },
+    refunded:  { bg: '#EFF6FF', border: '#93C5FD', color: '#1D4ED8', badgeBg: '#EFF6FF', icon: 'refund', label: 'Acompte remboursé' },
+    cancelled: { bg: 'var(--red-bg)', border: '#FECACA', color: 'var(--red)', badgeBg: 'var(--red-bg)', icon: 'x', label: 'Acompte conservé' }
+  };
+  const cfg = statusConfig[depStatus] || statusConfig.pending;
+
+  const icons = {
+    hourglass: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>',
+    check: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    refund: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+    x: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+  };
+
+  let html = `
+    <div class="card-header">
+      <div class="status-badge" style="background:${cfg.badgeBg};color:${cfg.color}">${cfg.label}</div>
+      <h1>Acompte</h1>
+      <div class="biz">${esc(biz.name)}</div>
+    </div>
+    <div class="deposit-box" style="background:${cfg.bg};border:1.5px solid ${cfg.border};color:${cfg.color}">
+      <div class="dep-icon" style="background:${cfg.border}22;color:${cfg.color}">${icons[cfg.icon]}</div>`;
+
+  if (depStatus === 'pending') {
+    html += `
+      <div class="dep-label">Acompte requis</div>
+      <div class="amount">${depAmount} &euro;</div>
+      <div class="dep-sub">pour confirmer votre rendez-vous</div>`;
+  } else if (depStatus === 'paid') {
+    html += `
+      <div class="dep-label">Acompte pay&eacute;</div>
+      <div class="amount">${depAmount} &euro;</div>
+      <div class="dep-sub">Votre rendez-vous est confirm&eacute;</div>`;
+  } else if (depStatus === 'refunded') {
+    html += `
+      <div class="dep-label">Acompte rembours&eacute;</div>
+      <div class="amount">${depAmount} &euro;</div>
+      <div class="dep-sub">Le montant vous sera restitu&eacute;</div>`;
+  } else {
+    html += `
+      <div class="dep-label">Acompte conserv&eacute;</div>
+      <div class="amount">${depAmount} &euro;</div>
+      <div class="dep-sub">Suite &agrave; une annulation tardive</div>`;
+  }
+  html += '</div>';
+
+  // Deadline bar (only for pending)
+  if (depStatus === 'pending' && bk.deposit_deadline) {
+    const dl = new Date(bk.deposit_deadline);
+    const dlStr = dl.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' \u00e0 ' + dl.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    html += `<div class="deadline-bar" style="background:var(--amber-bg);color:var(--amber)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg>
+      <span>Paiement avant le ${dlStr}</span>
+    </div>
+    <div id="countdown" style="text-align:center;margin-bottom:20px"></div>`;
+  }
+
+  // Booking details
+  html += `<div class="details">
+    <div class="detail-row">
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+      <div class="info"><div class="label">Date</div><div class="value">${dateStr}</div><div class="sub">${timeStr} \u2013 ${endStr}</div></div>
+    </div>
+    <div class="detail-row">
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+      <div class="info"><div class="label">Prestation</div><div class="value">${esc(bk.service.name)}</div><div class="sub">${bk.service.duration_min} min</div></div>
+    </div>
+    <div class="detail-row">
+      <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <div class="info"><div class="label">${esc(biz.practitioner_label || 'Praticien\u00b7ne')}</div><div class="value">${esc(bk.practitioner.name)}</div>${bk.practitioner.title ? '<div class="sub">' + esc(bk.practitioner.title) + '</div>' : ''}</div>
+    </div>
+  </div>`;
+
+  // Contact section (for pending deposits)
+  if (depStatus === 'pending') {
+    html += `<div class="contact-section">
+      <p>Pour effectuer le paiement, veuillez contacter directement l'\u00e9tablissement :</p>
+      <div class="contact-btns">`;
+    if (biz.phone) {
+      html += `<a class="c-btn" href="tel:${esc(biz.phone)}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Appeler</a>`;
+    }
+    if (biz.email) {
+      html += `<a class="c-btn" href="mailto:${esc(biz.email)}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> Email</a>`;
+    }
+    html += `</div></div>`;
+  }
+
+  document.getElementById('cardContent').innerHTML = html;
+  showFooter(biz);
+
+  // Start countdown if pending + deadline
+  if (depStatus === 'pending' && bk.deposit_deadline) {
+    startCountdown(new Date(bk.deposit_deadline));
+  }
+}
+
+function startCountdown(deadline) {
+  const el = document.getElementById('countdown');
+  if (!el) return;
+  function update() {
+    const now = new Date(), diff = deadline - now;
+    if (diff <= 0) { el.textContent = 'D\u00e9lai expir\u00e9'; el.style.color = 'var(--red)'; return; }
+    const days = Math.floor(diff / 86400000);
+    const hrs = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    let parts = [];
+    if (days > 0) parts.push(days + 'j');
+    if (hrs > 0) parts.push(hrs + 'h');
+    parts.push(mins + 'min');
+    el.textContent = '\u23f3 ' + parts.join(' ') + ' restant' + (days > 0 || hrs > 1 ? 's' : '');
+  }
+  update();
+  setInterval(update, 60000);
+}
+
+function showFooter(biz) {
+  const fl = document.getElementById('footerLink');
+  if (biz.slug) {
+    fl.innerHTML = `<a href="/${biz.slug}/book">R\u00e9server un autre rendez-vous chez ${esc(biz.name)}</a>`;
+    fl.style.display = '';
+  }
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function showError(msg) {
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">\u26a0\ufe0f</div><p style="font-size:.92rem;font-weight:600">${msg}</p><p style="font-size:.82rem;color:var(--text-3);margin-top:6px">V\u00e9rifiez le lien ou contactez le salon.</p></div>`;
+}
+</script>
+</body>
+</html>

@@ -1389,7 +1389,7 @@ router.get('/booking/:token', async (req, res, next) => {
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.comment_client, b.public_token, b.created_at,
-              b.deposit_required, b.deposit_amount_cents, b.deposit_status,
+              b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline,
               s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -1419,7 +1419,7 @@ router.get('/booking/:token', async (req, res, next) => {
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
-        deposit_status: bk.deposit_status,
+        deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline,
         service: { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color },
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }

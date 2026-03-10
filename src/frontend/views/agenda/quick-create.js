@@ -646,16 +646,26 @@ async function calCreateBooking() {
 
     const count = result.bookings?.length || 1;
     const extra = [];
-    if (qcTodos.length) extra.push(`${qcTodos.length} tâche${qcTodos.length > 1 ? 's' : ''}`);
+    if (qcTodos.length) extra.push(`${qcTodos.length} t\u00e2che${qcTodos.length > 1 ? 's' : ''}`);
     if (qcReminders.length) extra.push(`${qcReminders.length} rappel${qcReminders.length > 1 ? 's' : ''}`);
     const extraStr = extra.length ? ' + ' + extra.join(', ') : '';
 
-    gToast(isFreestyle
-      ? `${clientName} — RDV libre créé !${extraStr}`
+    const toastMsg = isFreestyle
+      ? `${clientName} \u2014 RDV libre cr\u00e9\u00e9 !${extraStr}`
       : count > 1
-        ? `${clientName} — ${count} ${categoryLabels.services.toLowerCase()} créées !${extraStr}`
-        : `${clientName} — RDV créé !${extraStr}`, 'success');
+        ? `${clientName} \u2014 ${count} ${categoryLabels.services.toLowerCase()} cr\u00e9\u00e9es !${extraStr}`
+        : `${clientName} \u2014 RDV cr\u00e9\u00e9 !${extraStr}`;
 
+    // Check if deposit is required — show deposit notification panel
+    const mainBooking = result.booking || result.bookings?.[0];
+    if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
+      gToast(toastMsg, 'success');
+      fcRefresh();
+      _showDepositRequestPanel(mainBooking, clientName, clientEmail, clientPhone);
+      return;
+    }
+
+    gToast(toastMsg, 'success');
     document.getElementById('calCreateModal')._dirtyGuard?.markClean();
     closeCalModal('calCreateModal');
     fcRefresh();
@@ -778,6 +788,94 @@ async function qcCreateTask() {
   finally { qcCreateTask._busy = false; }
 }
 
+// ── Deposit request panel (shown after creating a pending_deposit booking) ──
+
+function _showDepositRequestPanel(booking, clientName, clientEmail, clientPhone) {
+  const modalBody = document.querySelector('#calCreateModal .m-body');
+  const modalBottom = document.querySelector('#calCreateModal .m-bottom');
+
+  qcUpdateGradient('#F59E0B');
+  const headerTitle = document.querySelector('#calCreateModal .m-client-name');
+  if (headerTitle) headerTitle.textContent = 'Demande d\u2019acompte';
+
+  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const hasEmail = !!clientEmail;
+  const hasPhone = !!clientPhone;
+  const safeId = String(booking.id).replace(/[^a-zA-Z0-9_-]/g, '');
+
+  let channelBtns = '';
+  if (hasEmail) {
+    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF3E2;color:#B45309;font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','email')">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      Par email</button>`;
+  }
+  if (hasPhone) {
+    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid ${hasEmail ? 'var(--border)' : '#F59E0B'};background:${hasEmail ? 'var(--white)' : '#FEF3E2'};color:${hasEmail ? 'var(--text-3)' : '#B45309'};font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','sms')">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      Par SMS</button>`;
+  }
+
+  modalBody.innerHTML = `
+    <div style="padding:24px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:16px;background:#FEF3E2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 4px;font-family:var(--sans)">Envoyer une demande d\u2019acompte ?</h3>
+      <p style="font-size:.88rem;color:var(--text-3);margin:0 0 20px">
+        <strong>${esc(clientName)}</strong> \u2014 ${amtStr} \u20ac
+      </p>
+      ${(!hasEmail && !hasPhone) ? '<p style="font-size:.82rem;color:var(--red);margin:0 0 16px">Aucun contact disponible (ni email, ni t\u00e9l\u00e9phone)</p>' : ''}
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        ${channelBtns}
+      </div>
+      <div id="qcDepositSendStatus" style="display:none;margin-top:12px"></div>
+    </div>`;
+
+  modalBottom.innerHTML = `
+    <button class="m-btn" style="padding:10px 24px;border-radius:10px;border:1.5px solid var(--border);background:var(--white);color:var(--text-3);font-weight:600;font-size:.85rem;cursor:pointer" onclick="qcSkipDepositRequest()">Plus tard</button>`;
+}
+
+async function qcSendDepositRequest(bookingId, channel) {
+  const statusEl = document.getElementById('qcDepositSendStatus');
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '<div style="font-size:.82rem;color:var(--text-3)">Envoi en cours\u2026</div>';
+  }
+  // Disable buttons
+  document.querySelectorAll('#calCreateModal .m-body .m-btn').forEach(b => { b.disabled = true; b.style.opacity = '.5'; });
+
+  try {
+    const r = await fetch(`/api/bookings/${bookingId}/send-deposit-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ channel })
+    });
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.error || 'Erreur d\u2019envoi');
+    }
+    const channelLabel = channel === 'sms' ? 'SMS' : 'email';
+    if (statusEl) {
+      statusEl.innerHTML = `<div style="font-size:.88rem;color:var(--green);font-weight:700">\u2713 Demande envoy\u00e9e par ${channelLabel}</div>`;
+    }
+    setTimeout(() => {
+      document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+      closeCalModal('calCreateModal');
+    }, 1500);
+  } catch (e) {
+    if (statusEl) {
+      statusEl.innerHTML = `<div style="font-size:.82rem;color:var(--red)">${esc(e.message)}</div>`;
+    }
+    // Re-enable buttons
+    document.querySelectorAll('#calCreateModal .m-body .m-btn').forEach(b => { b.disabled = false; b.style.opacity = ''; });
+  }
+}
+
+function qcSkipDepositRequest() {
+  document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+  closeCalModal('calCreateModal');
+}
+
 // Expose to global scope for onclick handlers
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
@@ -786,7 +884,8 @@ bridge({
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,
-  qcSwitchMode
+  qcSwitchMode,
+  qcSendDepositRequest, qcSkipDepositRequest
 });
 
 export { fcOpenQuickCreate, calCreateBooking, setupQuickCreateListeners };

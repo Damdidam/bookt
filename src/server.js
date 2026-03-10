@@ -206,6 +206,11 @@ app.get('/docs/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pre-rdv.html'));
 });
 
+// /deposit/:token → public deposit details page
+app.get('/deposit/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/deposit.html'));
+});
+
 // /whiteboard/:id → staff whiteboard editor
 app.get('/whiteboard/:id', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/whiteboard.html'));
