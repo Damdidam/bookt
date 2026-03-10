@@ -45,7 +45,8 @@ async function gaToggleMode() {
     return;
   }
 
-  if (!biz?.settings?.gap_analyzer_enabled) {
+  const freshBiz = api.getBusiness();
+  if (!freshBiz?.settings?.gap_analyzer_enabled) {
     gToast('Activez l\u2019analyseur dans Param\u00e8tres > Calendrier', 'info');
     return;
   }

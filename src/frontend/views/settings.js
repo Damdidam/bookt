@@ -415,6 +415,18 @@ async function saveCalendarSettings(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
+    // Update local biz cache so other modules see new settings immediately
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.slot_increment_min=data.settings_slot_increment_min;
+    freshBiz.settings.waitlist_mode=data.settings_waitlist_mode;
+    freshBiz.settings.calendar_color_mode=data.settings_calendar_color_mode;
+    freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
+    freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
+    freshBiz.settings.last_minute_deadline=data.settings_last_minute_deadline;
+    freshBiz.settings.last_minute_discount_pct=data.settings_last_minute_discount_pct;
+    freshBiz.settings.last_minute_min_price_cents=data.settings_last_minute_min_price_cents;
+    api.setBusiness(freshBiz);
     calState.fcColorMode=cm;
     if(window.fcRefresh)window.fcRefresh();
     GendaUI.toast('Paramètres calendrier enregistrés','success');window._settingsGuard?.markClean();
