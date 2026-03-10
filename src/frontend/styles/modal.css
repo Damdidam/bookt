@@ -326,3 +326,59 @@ textarea.m-input{resize:vertical;min-height:38px}
 .td-prac-check:has(input:checked){border-color:var(--primary);background:var(--primary-light)}
 .td-prac-check input[type="checkbox"]{display:none}
 .td-prac-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* =============================================
+   MODAL REDESIGN v2 — Accordion, Inline Edit,
+   Color Popover, Lock Toggle, Deposit Button
+   ============================================= */
+
+/* ── Inline editable contact in header ── */
+.m-inline-edit{display:inline-flex;align-items:center;gap:2px;cursor:pointer;border-radius:4px;padding:1px 4px;margin:-1px -4px;transition:all .15s}
+.m-inline-edit:hover{background:rgba(13,115,119,.06);color:var(--primary)}
+.m-inline-edit svg.m-edit-icon{width:10px;height:10px;opacity:0;transition:opacity .15s;flex-shrink:0}
+.m-inline-edit:hover svg.m-edit-icon{opacity:.6}
+.m-inline-input{font-family:var(--sans);font-size:.72rem;color:var(--text);border:1.5px solid var(--primary);border-radius:4px;padding:2px 6px;outline:none;background:var(--white);box-shadow:0 0 0 3px rgba(13,115,119,.08);width:140px}
+
+/* ── Color dot in service card ── */
+.m-color-dot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(0,0,0,.08);cursor:pointer;flex-shrink:0;transition:all .15s;position:relative}
+.m-color-dot:hover{transform:scale(1.15);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+/* ── Color popover ── */
+.m-color-popover{position:absolute;top:calc(100% + 8px);right:0;background:var(--white);border:1.5px solid var(--border-light);border-radius:12px;padding:12px;box-shadow:var(--shadow-lg);z-index:20;display:none;min-width:200px}
+.m-color-popover.open{display:block;animation:popIn .15s ease}
+@keyframes popIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.m-color-reset{font-size:.72rem;color:var(--text-4);text-decoration:underline;cursor:pointer;border:none;background:none;margin-top:8px;font-family:var(--sans);padding:0}
+.m-color-reset:hover{color:var(--primary)}
+
+/* ── Accordion (collapsible sections) ── */
+.m-accordion{margin-bottom:8px;border:1.5px solid var(--border-light);border-radius:10px;overflow:hidden;transition:border-color .15s}
+.m-accordion:hover{border-color:var(--border)}
+.m-accordion.open{border-color:var(--primary-soft)}
+.m-accordion-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;transition:all .15s}
+.m-accordion-head:hover{background:var(--surface)}
+.m-accordion-head svg.gi{width:14px;height:14px;color:var(--text-4);flex-shrink:0}
+.m-accordion-title{font-size:.78rem;font-weight:600;color:var(--text-2);flex:1}
+.m-accordion-chevron{width:16px;height:16px;color:var(--text-4);transition:transform .2s;flex-shrink:0}
+.m-accordion.open .m-accordion-chevron{transform:rotate(180deg)}
+.m-accordion-body{max-height:0;overflow:hidden;transition:max-height .25s cubic-bezier(.4,0,.2,1)}
+.m-accordion.open .m-accordion-body{max-height:500px}
+.m-accordion-inner{padding:0 14px 14px}
+
+/* ── Badge (pastille rouge) ── */
+.m-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#EF4444;color:#fff;font-size:.6rem;font-weight:800;padding:0 5px;line-height:1}
+
+/* ── Lock toggle in bottom bar ── */
+.m-lock-toggle{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-4);transition:all .15s;flex-shrink:0;padding:0}
+.m-lock-toggle:hover{border-color:var(--text-4);color:var(--text-3)}
+.m-lock-toggle.active{border-color:#FCD34D;background:#FEF3C7;color:#D97706}
+.m-lock-toggle.active:hover{background:#FDE68A}
+.m-lock-toggle svg{width:16px;height:16px}
+
+/* ── Deposit request button in status strip ── */
+.m-st-btn.orange{color:#B45309;border-color:#F5D08B;background:#FEF9E7}
+.m-st-btn.orange:hover{background:#FEF3C7;border-color:#F59E0B}
+
+/* ── Invoice link in service card ── */
+.m-svc-invoice{font-size:.68rem;color:var(--text-4);text-decoration:none;cursor:pointer;border:none;background:none;font-family:var(--sans);font-weight:600;padding:2px 0;display:inline-flex;align-items:center;gap:3px;transition:all .15s}
+.m-svc-invoice:hover{color:var(--primary)}
+.m-svc-invoice svg{width:11px;height:11px}

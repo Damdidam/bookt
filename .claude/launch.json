@@ -2,7 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "vite-dev",
+      "name": "mockup",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5555"],
+      "port": 5555
+    },
+    {
+      "name": "vite",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--config", "vite.config.js"],
       "port": 5173

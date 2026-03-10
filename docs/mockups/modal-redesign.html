@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modal Booking Detail — Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F8F9FA;--white:#FFF;--surface:#F2F4F6;--surface-2:#E8EBEE;--border:#D8DDE3;--border-light:#E8ECF0;
+  --text:#1A2332;--text-2:#3A4555;--text-3:#6B7A8D;--text-4:#A0AAB6;
+  --primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EDF8F7;--primary-soft:#CCEBE8;
+  --green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#C62828;--red-bg:#FEF2F2;
+  --serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;
+  --shadow:0 2px 8px rgba(0,0,0,.06);--shadow-lg:0 8px 32px rgba(0,0,0,.1);
+  --radius:14px;--radius-sm:10px;--radius-xs:6px;
+  --transition:all .2s cubic-bezier(.4,0,.2,1)
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--sans);background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+
+/* Overlay */
+.m-overlay{position:fixed;inset:0;background:rgba(24,22,19,.45);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px;z-index:100}
+
+/* Dialog */
+.m-dialog{background:var(--white);border-radius:18px;width:100%;max-width:540px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(.22,1,.36,1)}
+@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+
+/* Header */
+.m-header{position:relative;overflow:hidden;flex-shrink:0}
+.m-header-bg{height:72px;position:relative;background:linear-gradient(135deg,#E91E63 0%,#E91E63AA 60%,#E91E6355 100%)}
+.m-header-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 20%,var(--white) 100%)}
+.m-header-content{padding:0 24px;position:relative;margin-top:-36px;z-index:2}
+.m-close{position:absolute;top:8px;right:8px;z-index:10;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.25);backdrop-filter:blur(8px);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;transition:all .15s}
+.m-close:hover{background:rgba(0,0,0,.45)}
+.m-close svg{width:14px;height:14px}
+
+/* Client hero */
+.m-client-hero{display:flex;align-items:flex-end;gap:14px;margin-bottom:16px}
+.m-avatar{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);flex-shrink:0;border:3px solid var(--white);background:linear-gradient(135deg,#E91E63,#E91E63CC)}
+.m-client-info{flex:1;min-width:0}
+.m-client-name{font-family:var(--serif);font-size:1.35rem;font-weight:400;color:var(--text);line-height:1.2;display:flex;align-items:center;gap:8px}
+.m-client-name a{color:inherit;text-decoration:none}
+.m-client-name a:hover{color:var(--primary)}
+.m-client-meta{font-size:.72rem;color:var(--text-4);margin-top:2px;display:flex;gap:8px;align-items:center}
+.m-client-meta a{color:var(--text-4);text-decoration:none}
+.m-client-meta a:hover{color:var(--primary)}
+
+/* NEW — inline editable contact */
+.m-inline-edit{display:inline-flex;align-items:center;gap:2px;cursor:pointer;border-radius:4px;padding:1px 4px;margin:-1px -4px;transition:all .15s}
+.m-inline-edit:hover{background:rgba(13,115,119,.06);color:var(--primary)}
+.m-inline-edit svg{width:10px;height:10px;opacity:0;transition:opacity .15s}
+.m-inline-edit:hover svg{opacity:.6}
+.m-inline-input{font-family:var(--sans);font-size:.72rem;color:var(--text);border:1.5px solid var(--primary);border-radius:4px;padding:2px 6px;outline:none;background:var(--white);box-shadow:0 0 0 3px rgba(13,115,119,.08);width:140px}
+
+/* VIP badge */
+.vip-badge{font-size:.55rem;font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.5px;background:#FEF9E7;color:#D4A017;border:1px solid #F5E6A3}
+
+/* Quick actions */
+.m-quick-actions{display:flex;gap:4px;margin-left:auto;flex-shrink:0;align-self:center}
+.m-qbtn{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all .15s;text-decoration:none}
+.m-qbtn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.m-qbtn svg{width:15px;height:15px}
+
+/* Status strip */
+.m-status-strip{display:flex;align-items:center;gap:6px;padding:10px 16px;margin:0 24px 16px;background:var(--surface);border-radius:10px;flex-shrink:0}
+.m-st-current{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:700;flex-shrink:0}
+.m-st-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.m-st-actions{display:flex;gap:4px;margin-left:auto;align-items:center}
+.m-st-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:100px;font-size:.68rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-3);transition:all .15s;font-family:var(--sans);white-space:nowrap}
+.m-st-btn:hover{border-color:var(--text-4);background:var(--surface)}
+.m-st-btn.green{color:var(--green);border-color:#B8E6C8;background:var(--green-bg)}.m-st-btn.green:hover{background:#C8EDCE;border-color:#86D99A}
+.m-st-btn.red{color:var(--red);border-color:#F5C4C4;background:var(--red-bg)}.m-st-btn.red:hover{background:#FDE0E0;border-color:#F09898}
+.m-st-move{color:var(--primary)!important;border-color:#B2DFDB!important;background:#E0F2F1!important}.m-st-move:hover{background:var(--primary)!important;color:#fff!important}
+.m-st-lock{padding:4px 7px}
+
+/* Tabs */
+.m-tabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--border-light);flex-shrink:0}
+.m-tab{padding:10px 16px;font-size:.75rem;font-weight:600;color:var(--text-4);cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;margin-bottom:-1px;white-space:nowrap}
+.m-tab:hover{color:var(--text-2)}
+.m-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* Body */
+.m-body{padding:20px 24px;overflow-y:auto;flex:1;min-height:0}
+
+/* Service card — with inline color dot */
+.m-svc-card{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px;border-left:4px solid #E91E63;position:relative}
+.m-svc-name{font-size:.88rem;font-weight:700;color:var(--text)}
+.m-svc-meta{font-size:.72rem;color:var(--text-4)}
+.m-svc-price{margin-left:auto;font-size:.88rem;font-weight:700;color:var(--text);white-space:nowrap}
+
+/* NEW — color dot in service card */
+.m-color-dot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(0,0,0,.08);cursor:pointer;flex-shrink:0;transition:all .15s;position:relative}
+.m-color-dot:hover{transform:scale(1.15);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+/* NEW — color popover */
+.m-color-popover{position:absolute;top:calc(100% + 8px);right:0;background:var(--white);border:1.5px solid var(--border-light);border-radius:12px;padding:12px;box-shadow:var(--shadow-lg);z-index:20;display:none;min-width:200px}
+.m-color-popover.open{display:block;animation:fadeIn .15s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.color-dots{display:flex;gap:6px;flex-wrap:wrap}
+.color-dot{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:var(--transition)}
+.color-dot:hover{transform:scale(1.15)}
+.color-dot.active{border-color:var(--text);box-shadow:0 0 0 2px var(--white),0 0 0 4px var(--text)}
+.m-color-reset{font-size:.72rem;color:var(--text-4);text-decoration:underline;cursor:pointer;border:none;background:none;margin-top:8px;font-family:var(--sans)}
+.m-color-reset:hover{color:var(--primary)}
+
+/* Section (simplified — no separator line) */
+.m-sec{margin-bottom:16px}
+.m-sec-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:4px}
+.m-sec-title{font-size:.68rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:4px}
+.m-sec-title svg{width:12px;height:12px}
+.m-sec-line{flex:1;height:1px;background:var(--border-light);margin-left:8px}
+
+/* Inputs */
+.m-row{display:grid;gap:8px;margin-bottom:8px}
+.m-row-3{grid-template-columns:1fr 1fr 1fr}
+.m-row-2{grid-template-columns:1fr 1fr}
+.m-field-label{font-size:.62rem;font-weight:700;color:var(--text-4);margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+.m-input{width:100%;padding:9px 12px;border:1.5px solid var(--border-light);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;color:var(--text);transition:all .15s}
+.m-input:hover{border-color:var(--border)}
+.m-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.06)}
+
+/* Duration chips */
+.m-chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.m-chip{padding:5px 11px;border-radius:100px;font-size:.72rem;font-weight:600;background:var(--surface);color:var(--text-3);cursor:pointer;border:1.5px solid transparent;transition:all .12s}
+.m-chip:hover{border-color:var(--border);background:var(--surface-2)}
+.m-chip.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
+
+/* Practitioner dropdown */
+.m-prac-wrap{position:relative}
+.m-prac-dot{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;z-index:1}
+.m-prac-wrap .m-input{padding-left:26px}
+
+/* ========================================
+   NEW — Accordion (collapsible sections)
+   ======================================== */
+.m-accordion{margin-bottom:8px;border:1.5px solid var(--border-light);border-radius:10px;overflow:hidden;transition:border-color .15s}
+.m-accordion:hover{border-color:var(--border)}
+.m-accordion.open{border-color:var(--primary-soft)}
+
+.m-accordion-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;transition:all .15s}
+.m-accordion-head:hover{background:var(--surface)}
+.m-accordion-head svg.gi{width:14px;height:14px;color:var(--text-4);flex-shrink:0}
+
+.m-accordion-title{font-size:.78rem;font-weight:600;color:var(--text-2);flex:1}
+
+/* Badge (pastille rouge) */
+.m-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#EF4444;color:#fff;font-size:.6rem;font-weight:800;padding:0 5px;line-height:1}
+
+/* Chevron */
+.m-accordion-chevron{width:16px;height:16px;color:var(--text-4);transition:transform .2s;flex-shrink:0}
+.m-accordion.open .m-accordion-chevron{transform:rotate(180deg)}
+
+/* Accordion body */
+.m-accordion-body{max-height:0;overflow:hidden;transition:max-height .25s cubic-bezier(.4,0,.2,1)}
+.m-accordion.open .m-accordion-body{max-height:500px}
+.m-accordion-inner{padding:0 14px 14px}
+
+/* Note textarea */
+textarea.m-input{resize:vertical;min-height:38px}
+
+/* Todo items */
+.todo-item{display:flex;align-items:center;gap:10px;padding:8px 0;transition:var(--transition)}
+.todo-item+.todo-item{border-top:1px solid var(--border-light)}
+.todo-item.done{opacity:.5}
+.todo-item.done .todo-text{text-decoration:line-through}
+.todo-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:var(--primary);flex-shrink:0;transition:var(--transition)}
+.todo-check:hover{border-color:var(--primary);background:var(--primary-light)}
+.todo-check.done{background:var(--primary);border-color:var(--primary);color:#fff}
+.todo-text{font-size:.82rem;flex:1;color:var(--text)}
+.todo-delete{width:20px;height:20px;border-radius:5px;background:transparent;border:none;cursor:pointer;color:var(--text-4);font-size:.65rem;transition:var(--transition);display:flex;align-items:center;justify-content:center}
+.todo-delete:hover{background:var(--red-bg);color:var(--red)}
+.add-todo{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-light)}
+.add-todo input{flex:1;padding:7px 10px;border:1.5px solid var(--border-light);border-radius:6px;font-family:var(--sans);font-size:.82rem;outline:none}
+.add-todo input:focus{border-color:var(--primary)}
+.add-todo button{padding:6px 12px;border-radius:6px;font-size:.75rem;font-weight:700;background:var(--primary);color:#fff;border:none;cursor:pointer}
+
+/* Reminder card */
+.reminder-card{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:.82rem}
+.reminder-card+.reminder-card{border-top:1px solid var(--border-light)}
+.ri-time{font-weight:600;color:var(--text)}
+.ri-channel{font-size:.72rem;color:var(--text-4)}
+.reminder-delete{margin-left:auto;width:20px;height:20px;border-radius:5px;background:transparent;border:none;cursor:pointer;color:var(--text-4);display:flex;align-items:center;justify-content:center}
+.reminder-delete:hover{background:var(--red-bg);color:var(--red)}
+
+/* ========================================
+   NEW — Bottom bar with lock toggle
+   ======================================== */
+.m-bottom{padding:14px 24px;background:var(--white);border-top:1px solid var(--border-light);display:flex;gap:8px;align-items:center;flex-shrink:0}
+.m-btn{padding:10px 20px;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;border:none;transition:all .15s;font-family:var(--sans)}
+.m-btn-primary{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(13,115,119,.25)}
+.m-btn-primary:hover{background:var(--primary-hover);box-shadow:0 4px 16px rgba(13,115,119,.3)}
+.m-btn-ghost{background:transparent;color:var(--text-3);padding:10px 14px}
+.m-btn-ghost:hover{color:var(--text);background:var(--surface)}
+.m-btn-danger{background:transparent;color:var(--red);margin-left:auto;padding:10px 12px;font-size:.72rem;border:none;cursor:pointer;font-family:var(--sans);font-weight:600}
+.m-btn-danger:hover{background:var(--red-bg);border-radius:8px}
+
+/* Lock toggle button */
+.m-lock-toggle{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-4);transition:all .15s;flex-shrink:0}
+.m-lock-toggle:hover{border-color:var(--text-4);color:var(--text-3)}
+.m-lock-toggle.active{border-color:#FCD34D;background:#FEF3C7;color:#D97706}
+.m-lock-toggle svg{width:16px;height:16px}
+
+/* Notify panel */
+.notify-panel{margin-top:16px;padding:16px;background:var(--surface);border-radius:var(--radius-sm);display:none}
+
+/* Responsive */
+@media(max-width:680px){
+  body{padding:0}
+  .m-overlay{padding:0}
+  .m-dialog{max-width:100%!important;max-height:100vh;border-radius:0;height:100vh}
+}
+</style>
+</head>
+<body>
+
+<div class="m-overlay">
+  <div class="m-dialog">
+
+    <!-- HEADER -->
+    <div class="m-header">
+      <div class="m-header-bg"></div>
+      <button class="m-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="m-header-content">
+        <div class="m-client-hero">
+          <div class="m-avatar">ED</div>
+          <div class="m-client-info">
+            <div class="m-client-name">
+              <a href="#">epil despoils</a>
+              <span class="vip-badge">VIP</span>
+            </div>
+            <div class="m-client-meta">
+              <span class="m-inline-edit" onclick="startInlineEdit(this, 'phone')" title="Cliquer pour modifier">
+                <a href="tel:+32466383930">+32466383930</a>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </span>
+              <span>&middot;</span>
+              <span class="m-inline-edit" onclick="startInlineEdit(this, 'email')" title="Cliquer pour modifier">
+                <a href="mailto:epil@despoils.be">epil@despoils.be</a>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </span>
+            </div>
+          </div>
+          <div class="m-quick-actions">
+            <a class="m-qbtn" href="tel:+32466383930" title="Appeler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>
+            <a class="m-qbtn" href="mailto:epil@despoils.be" title="Email"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></a>
+            <button class="m-qbtn" title="Fiche client"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS STRIP -->
+    <div class="m-status-strip">
+      <span class="m-st-current" style="color:var(--green)">
+        <span class="m-st-dot" style="background:var(--green)"></span>
+        Confirme
+      </span>
+      <div class="m-st-actions">
+        <button class="m-st-btn green"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><polyline points="20 6 9 17 4 12"/></svg> Termine</button>
+        <button class="m-st-btn red"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No-show</button>
+        <button class="m-st-btn red">Annuler</button>
+        <button class="m-st-btn m-st-move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><polyline points="7 3 12 8 17 3"/><polyline points="17 21 12 16 7 21"/><line x1="12" y1="8" x2="12" y2="16"/></svg> Deplacer</button>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="m-tabs">
+      <div class="m-tab active">RDV</div>
+      <div class="m-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
+    </div>
+
+    <!-- BODY -->
+    <div class="m-body">
+
+      <!-- Service card with inline color dot -->
+      <div class="m-svc-card" style="position:relative">
+        <div style="flex:1;min-width:0">
+          <div class="m-svc-name">Epilation maillot</div>
+          <div class="m-svc-meta">20 min</div>
+        </div>
+        <div class="m-svc-price">18.00&euro;</div>
+        <div class="m-color-dot" style="background:#E91E63" onclick="toggleColorPopover()" title="Changer la couleur"></div>
+        <button style="width:28px;height:28px;border-radius:50%;border:1.5px dashed var(--primary);background:var(--primary-light);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--primary);flex-shrink:0" title="Ajouter une prestation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <!-- Color popover -->
+        <div class="m-color-popover" id="colorPopover">
+          <div class="color-dots">
+            <div class="color-dot active" style="background:#1A73E8"></div>
+            <div class="color-dot" style="background:#E91E63"></div>
+            <div class="color-dot" style="background:#4CAF50"></div>
+            <div class="color-dot" style="background:#FF9800"></div>
+            <div class="color-dot" style="background:#7C4DFF"></div>
+            <div class="color-dot" style="background:#00BCD4"></div>
+            <div class="color-dot" style="background:#E91E90"></div>
+            <div class="color-dot" style="background:#009688"></div>
+            <div class="color-dot" style="background:#607D8B"></div>
+            <div class="color-dot" style="background:#263238"></div>
+          </div>
+          <button class="m-color-reset">Reinitialiser la couleur</button>
+        </div>
+      </div>
+
+      <!-- HORAIRE + PRATICIEN (merged) -->
+      <div class="m-sec">
+        <div class="m-sec-head">
+          <span class="m-sec-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Horaire
+          </span>
+          <span class="m-sec-line"></span>
+        </div>
+        <div class="m-row m-row-3">
+          <div><div class="m-field-label">Date</div><input type="date" class="m-input" value="2026-03-11"></div>
+          <div><div class="m-field-label">Debut</div><input type="time" class="m-input" value="09:30"></div>
+          <div><div class="m-field-label">Fin</div><input type="time" class="m-input" value="09:50"></div>
+        </div>
+        <div class="m-chips">
+          <span class="m-chip">15</span>
+          <span class="m-chip active">20</span>
+          <span class="m-chip">30</span>
+          <span class="m-chip">45</span>
+          <span class="m-chip">1h</span>
+          <span class="m-chip">1h30</span>
+          <span class="m-chip">2h</span>
+        </div>
+        <!-- Praticien inline -->
+        <div class="m-prac-wrap">
+          <span class="m-prac-dot" style="background:#E91E63"></span>
+          <select class="m-input">
+            <option selected>Sophie Laurent</option>
+            <option>Marc Dupont</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- NOTE — accordion -->
+      <div class="m-accordion" id="accNote">
+        <div class="m-accordion-head" onclick="toggleAccordion('accNote')">
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          <span class="m-accordion-title">Note</span>
+          <span class="m-badge">1</span>
+          <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="m-accordion-body">
+          <div class="m-accordion-inner">
+            <textarea class="m-input" rows="2" placeholder="Ajouter une note..." style="resize:vertical">Cliente allergique au latex, utiliser gants nitrile.</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- TACHES — accordion -->
+      <div class="m-accordion" id="accTodos">
+        <div class="m-accordion-head" onclick="toggleAccordion('accTodos')">
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span class="m-accordion-title">Taches</span>
+          <span class="m-badge">2</span>
+          <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="m-accordion-body">
+          <div class="m-accordion-inner">
+            <div class="todo-item">
+              <div class="todo-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <span class="todo-text" style="text-decoration:line-through;opacity:.5">Preparer la salle 2</span>
+              <button class="todo-delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="todo-item">
+              <div class="todo-check"></div>
+              <span class="todo-text">Verifier stock cire</span>
+              <button class="todo-delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="add-todo">
+              <input placeholder="Nouvelle tache...">
+              <button>+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RAPPELS — accordion -->
+      <div class="m-accordion" id="accReminders">
+        <div class="m-accordion-head" onclick="toggleAccordion('accReminders')">
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="m-accordion-title">Rappels</span>
+          <span class="m-badge">1</span>
+          <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="m-accordion-body">
+          <div class="m-accordion-inner">
+            <div class="reminder-card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--gold);flex-shrink:0"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <div>
+                <div class="ri-time">30 min avant</div>
+                <div class="ri-channel">Notification</div>
+              </div>
+              <button class="reminder-delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end m-body -->
+
+    <!-- BOTTOM BAR -->
+    <div class="m-bottom">
+      <button class="m-lock-toggle" title="Verrouiller" onclick="this.classList.toggle('active')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+      <button class="m-btn m-btn-primary" style="background:#E91E63;box-shadow:0 2px 8px #E91E6340">Enregistrer</button>
+      <button class="m-btn m-btn-ghost">Notifier</button>
+      <button class="m-btn-danger">Annuler le RDV</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function toggleAccordion(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function toggleColorPopover() {
+  const pop = document.getElementById('colorPopover');
+  pop.classList.toggle('open');
+}
+
+// Auto-open accordions that have content (badges)
+document.querySelectorAll('.m-accordion').forEach(acc => {
+  if (acc.querySelector('.m-badge')) {
+    acc.classList.add('open');
+  }
+});
+
+// Close color popover on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.m-color-dot') && !e.target.closest('.m-color-popover')) {
+    document.getElementById('colorPopover').classList.remove('open');
+  }
+});
+
+// Inline edit demo
+function startInlineEdit(el, field) {
+  const link = el.querySelector('a');
+  const currentValue = link.textContent;
+  const input = document.createElement('input');
+  input.className = 'm-inline-input';
+  input.type = field === 'email' ? 'email' : 'tel';
+  input.value = currentValue;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  function finish() {
+    const newSpan = document.createElement('span');
+    newSpan.className = 'm-inline-edit';
+    newSpan.onclick = () => startInlineEdit(newSpan, field);
+    newSpan.title = 'Cliquer pour modifier';
+    newSpan.innerHTML = `<a href="${field === 'email' ? 'mailto:' : 'tel:'}${input.value}">${input.value}</a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    input.replaceWith(newSpan);
+  }
+
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(); }
+    if (e.key === 'Escape') { input.value = currentValue; finish(); }
+  });
+}
+</script>
+
+</body>
+</html>

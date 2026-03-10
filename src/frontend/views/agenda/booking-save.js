@@ -48,7 +48,7 @@ async function calSaveAll() {
   if (newColor !== (calState.fcEditOriginal._swatchColor || calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
   // Lock toggle
-  const newLocked = document.getElementById('calLocked')?.checked || false;
+  const newLocked = document.getElementById('calLocked')?.value === 'true';
   if (newLocked !== calState.fcEditOriginal.locked) editPayload.locked = newLocked;
 
   // Service conversion (freestyle ↔ service)

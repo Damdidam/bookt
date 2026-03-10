@@ -6,7 +6,6 @@ import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
-import { cswHTML, cswSelect } from './color-swatches.js';
 import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict, calResetSlotCheck } from './booking-edit.js';
@@ -62,9 +61,9 @@ async function fcOpenDetail(bookingId) {
           ${freeTag}
         </div>
         <div class="m-client-meta">
-          ${b.client_phone ? `<a href="tel:${encodeURIComponent(b.client_phone)}">${esc(b.client_phone)}</a>` : ''}
-          ${b.client_phone && b.client_email ? '<span>\u00b7</span>' : ''}
-          ${b.client_email ? `<a href="mailto:${encodeURIComponent(b.client_email)}">${esc(b.client_email)}</a>` : ''}
+          <span class="m-inline-edit" onclick="fcInlineEdit(this,'phone')">${b.client_phone ? esc(b.client_phone) : '<em style="opacity:.4">+ Tél</em>'}<svg class="gi m-edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
+          <span>\u00b7</span>
+          <span class="m-inline-edit" onclick="fcInlineEdit(this,'email')">${b.client_email ? esc(b.client_email) : '<em style="opacity:.4">+ Email</em>'}<svg class="gi m-edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
         </div>
       </div>
       <div class="m-quick-actions">
@@ -196,6 +195,10 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('uFreeLabel').value = b.custom_label || '';
       document.getElementById('uBufBefore').value = 0;
       document.getElementById('uBufAfter').value = 0;
+      // Color dot for freestyle
+      let freeDot = freeCard.querySelector('.m-color-dot');
+      if (!freeDot) { freeDot = document.createElement('span'); freeDot.className = 'm-color-dot'; freeDot.onclick = function(){ fcShowColorPopover(this); }; freeDot.title = 'Couleur'; freeCard.appendChild(freeDot); }
+      freeDot.style.background = accentColor;
       // "Assign service" link
       const wrap = document.getElementById('mConvertToSvcWrap');
       if (wrap) wrap.innerHTML = canConvert ? '<button class="m-link-btn" onclick="fcStartConvert(\'to-service\')" style="font-size:.72rem;color:var(--primary)">Assigner une prestation</button>' : '';
@@ -241,6 +244,7 @@ async function fcOpenDetail(bookingId) {
           <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}</div>
         </div>
         ${priceHtml}
+        <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>
         ${convertFreeBtn}
         ${canAddSvc ? '<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }
@@ -255,20 +259,11 @@ async function fcOpenDetail(bookingId) {
       saveBtn.style.boxShadow = '';
     }
 
-    // -- Booking color swatch (all types) --
+    // -- Booking color (hidden input for save) --
     const defaultColor = isFreestyle ? (b.practitioner_color || '#0D7377') : (b.service_color || b.practitioner_color || '#0D7377');
     const bookingColor = b.color || defaultColor;
-    document.getElementById('uBookingColorWrap').innerHTML = cswHTML('uBookingColor', bookingColor, true);
-    document.getElementById('mColorReset').style.display = b.color ? '' : 'none';
-    calState._fcDefaultColor = defaultColor; // store for reset
-    document.getElementById('uBookingColor').onchange = function () {
-      const c = this.value;
-      document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
-      document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
-      saveBtn.style.background = c; saveBtn.style.boxShadow = `0 2px 8px ${c}40`;
-      if (svcCard.style.display !== 'none') svcCard.style.borderLeftColor = c;
-      document.getElementById('mColorReset').style.display = '';
-    };
+    document.getElementById('uBookingColor').value = b.color || '';
+    calState._fcDefaultColor = defaultColor;
 
     // -- Frozen status (used by group detach buttons and bottom bar) --
     const isFrozen = ['cancelled', 'no_show'].includes(b.status);
@@ -342,18 +337,39 @@ async function fcOpenDetail(bookingId) {
     // -- Comment --
     document.getElementById('uComment').value = b.comment_client || '';
 
-    // -- Lock toggle --
-    document.getElementById('calLocked').checked = !!b.locked;
-    document.getElementById('mLockSec').style.display = isFrozen ? 'none' : '';
+    // -- Lock toggle (hidden input + bottom bar button) --
+    document.getElementById('calLocked').value = b.locked ? 'true' : 'false';
+    const lockBtn = document.getElementById('mBtnLock');
+    if (lockBtn) {
+      lockBtn.classList.toggle('active', !!b.locked);
+      lockBtn.title = b.locked ? 'D\u00e9verrouiller' : 'Verrouiller';
+      lockBtn.style.display = isFrozen ? 'none' : '';
+    }
 
     // -- Render sub-tabs --
     fcRenderTodos(); fcRenderReminders();
+
+    // -- Accordion state: open if content, show badges --
+    const comment = b.comment_client || '';
+    const todoCount = (calState.fcDetailData.todos || []).length;
+    const reminderCount = (calState.fcDetailData.reminders || []).length;
+    const accNote = document.getElementById('accNote');
+    const accTodos = document.getElementById('accTodos');
+    const accReminders = document.getElementById('accReminders');
+    if (comment) accNote?.classList.add('open'); else accNote?.classList.remove('open');
+    if (todoCount > 0) accTodos?.classList.add('open'); else accTodos?.classList.remove('open');
+    if (reminderCount > 0) accReminders?.classList.add('open'); else accReminders?.classList.remove('open');
+    const noteBadge = document.getElementById('accNoteBadge');
+    if (noteBadge) { noteBadge.style.display = comment ? '' : 'none'; }
+    const todosBadge = document.getElementById('accTodosBadge');
+    if (todosBadge) { todosBadge.textContent = todoCount; todosBadge.style.display = todoCount > 0 ? '' : 'none'; }
+    const remindersBadge = document.getElementById('accRemindersBadge');
+    if (remindersBadge) { remindersBadge.textContent = reminderCount; remindersBadge.style.display = reminderCount > 0 ? '' : 'none'; }
 
     // -- Bottom bar: show/hide buttons based on status --
     document.getElementById('mBtnSave').style.display = isFrozen ? 'none' : '';
     document.getElementById('mBtnNotify').style.display = isFrozen ? 'none' : '';
     document.getElementById('mBtnCancel').style.display = isFrozen ? 'none' : '';
-    // Only owners/managers can permanently delete
     document.getElementById('mBtnPurge').style.display = (isFrozen && userRole !== 'practitioner') ? '' : 'none';
 
     // -- Dirty guard (warn on close if unsaved changes) --
@@ -516,16 +532,15 @@ async function loadBookingHistory() {
 
 function fcResetBookingColor() {
   const c = calState._fcDefaultColor || '#0D7377';
-  cswSelect('uBookingColor', c);
+  document.getElementById('uBookingColor').value = '';
   document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
   document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
   const sb = document.getElementById('mBtnSave');
   const svc = document.getElementById('mSvcCard');
   if (svc && svc.style.display !== 'none') svc.style.borderLeftColor = c;
   sb.style.background = ''; sb.style.boxShadow = '';
-  document.getElementById('mColorReset').style.display = 'none';
-  // Mark as "no custom color" — save will send color: null
-  document.getElementById('uBookingColor').value = '';
+  document.querySelectorAll('.m-color-dot').forEach(d => d.style.background = c);
+  document.querySelector('.m-color-popover')?.remove();
 }
 
 // Touch-friendly drag & drop reorder for group siblings
@@ -734,20 +749,107 @@ function fcScrollToHoraire() {
 }
 
 function fcToggleLockFromStrip() {
-  const cb = document.getElementById('calLocked');
-  if (cb) cb.checked = !cb.checked;
+  const hidden = document.getElementById('calLocked');
+  const wasLocked = hidden?.value === 'true';
+  if (hidden) hidden.value = wasLocked ? 'false' : 'true';
+  const locked = !wasLocked;
   const btn = document.getElementById('mStripLockBtn');
   if (btn) {
-    const locked = cb?.checked;
     btn.classList.toggle('active', locked);
-    btn.title = locked ? 'Déverrouiller' : 'Verrouiller';
-    btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${locked ? 'Déverrouiller' : 'Verrouiller'}`;
+    btn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller';
+    btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${locked ? 'D\u00e9verrouiller' : 'Verrouiller'}`;
   }
+  const bottomBtn = document.getElementById('mBtnLock');
+  if (bottomBtn) { bottomBtn.classList.toggle('active', locked); bottomBtn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller'; }
+}
+
+// ── Accordion toggle ──
+function fcToggleAccordion(id) {
+  const acc = document.getElementById(id);
+  if (acc) acc.classList.toggle('open');
+}
+
+// ── Lock toggle from bottom bar ──
+function fcToggleLockFromBottom() {
+  const hidden = document.getElementById('calLocked');
+  const wasLocked = hidden?.value === 'true';
+  if (hidden) hidden.value = wasLocked ? 'false' : 'true';
+  const locked = !wasLocked;
+  const btn = document.getElementById('mBtnLock');
+  if (btn) { btn.classList.toggle('active', locked); btn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller'; }
+  const stripBtn = document.getElementById('mStripLockBtn');
+  if (stripBtn) {
+    stripBtn.classList.toggle('active', locked);
+    stripBtn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller';
+    stripBtn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${locked ? 'D\u00e9verrouiller' : 'Verrouiller'}`;
+  }
+}
+
+// ── Color popover ──
+const CSW_COLORS = ['#1E3A8A','#B91C1C','#059669','#EA580C','#7C3AED','#DB2777','#0EA5A4','#374151'];
+
+function fcShowColorPopover(dotEl) {
+  const existing = document.querySelector('.m-color-popover');
+  if (existing) { existing.remove(); return; }
+  const pop = document.createElement('div');
+  pop.className = 'm-color-popover open';
+  const cur = document.getElementById('uBookingColor')?.value || '';
+  pop.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">${CSW_COLORS.map(c => `<span style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:2.5px solid ${c === cur ? 'var(--text)' : 'transparent'};transition:all .15s;display:inline-block" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''" onclick="fcPickColor('${c}')"></span>`).join('')}</div><button class="m-color-reset" onclick="fcResetBookingColor()">R\u00e9initialiser</button>`;
+  const card = dotEl.closest('.m-svc-card,.m-free-card');
+  if (card) { card.style.position = 'relative'; card.appendChild(pop); }
+  setTimeout(() => {
+    const closer = e => { if (!pop.contains(e.target) && e.target !== dotEl) { pop.remove(); document.removeEventListener('click', closer); } };
+    document.addEventListener('click', closer);
+  }, 10);
+}
+
+function fcPickColor(color) {
+  document.getElementById('uBookingColor').value = color;
+  document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${color} 0%,${color}AA 60%,${color}55 100%)`;
+  document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${color},${color}CC)`;
+  const sb = document.getElementById('mBtnSave');
+  sb.style.background = color; sb.style.boxShadow = `0 2px 8px ${color}40`;
+  const svc = document.getElementById('mSvcCard');
+  if (svc && svc.style.display !== 'none') svc.style.borderLeftColor = color;
+  document.querySelectorAll('.m-color-dot').forEach(d => d.style.background = color);
+  document.querySelector('.m-color-popover')?.remove();
+}
+
+// ── Inline edit (phone/email in header) ──
+function fcInlineEdit(span, field) {
+  const inputId = field === 'phone' ? 'uClientPhone' : 'uClientEmail';
+  const hidden = document.getElementById(inputId);
+  const currentVal = hidden?.value || '';
+  const input = document.createElement('input');
+  input.className = 'm-inline-input';
+  input.type = field === 'email' ? 'email' : 'tel';
+  input.value = currentVal;
+  input.placeholder = field === 'phone' ? '+32 ...' : 'email@exemple.com';
+  const origHTML = span.innerHTML;
+  span.innerHTML = '';
+  span.appendChild(input);
+  span.onclick = null;
+  input.focus();
+  input.select();
+  const editIcon = '<svg class="gi m-edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+  const commit = () => {
+    const v = input.value.trim();
+    if (hidden) hidden.value = v;
+    span.innerHTML = v ? esc(v) + editIcon : '<em style="opacity:.4">+ ' + (field === 'phone' ? 'T\u00e9l' : 'Email') + '</em>' + editIcon;
+    span.onclick = function() { fcInlineEdit(this, field); };
+  };
+  let committed = false;
+  input.addEventListener('blur', () => { if (!committed) { committed = true; commit(); } });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); committed = true; commit(); }
+    if (e.key === 'Escape') { if (hidden) hidden.value = currentVal; span.innerHTML = origHTML; span.onclick = function() { fcInlineEdit(this, field); }; committed = true; }
+  });
 }
 
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
-         fcScrollToHoraire, fcToggleLockFromStrip });
+         fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
+         fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };
