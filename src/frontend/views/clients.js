@@ -6,7 +6,6 @@ import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
-import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhiteboards on window
 
 let clientSearch='';
 let clientFilter='';
@@ -158,9 +157,6 @@ async function openClientDetail(id){
     }
     m+=`</div>`;
 
-    // ── Whiteboards section ──
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg> Whiteboards</span><span class="m-sec-line"></span><button style="font-size:.68rem;padding:3px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:700" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.8rem;color:var(--text-4)">Chargement...</div></div>`;
-
     // ── Session notes section ──
     const sessionBookings = (d.bookings || []).filter(b => b.session_notes && b.session_notes.trim() && b.session_notes.trim() !== '<br>');
     m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes de séance${sessionBookings.length > 0 ? ' (' + sessionBookings.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
@@ -216,16 +212,6 @@ async function openClientDetail(id){
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('clientModal')">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     guardModal(document.getElementById('clientModal'));
-    // Load whiteboards for this client
-    window.loadClientWhiteboards(cl.id).then(wbs=>{
-      const el=document.getElementById('clientWbList');
-      if(!el)return;
-      if(wbs.length===0){el.textContent='Aucun whiteboard';return;}
-      el.innerHTML=wbs.map(w=>{
-        const dt=new Date(w.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-light)"><span style="cursor:pointer;color:var(--primary);font-weight:500" onclick="window.open('/whiteboard/${w.id}','_blank')">${w.title||'Whiteboard'}</span><span style="font-size:.72rem;color:var(--text-4)">${dt}</span></div>`;
-      }).join('');
-    });
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
