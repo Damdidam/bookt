@@ -189,7 +189,7 @@ async function fcOpenDetail(bookingId) {
     calState._convertAction = null;
 
     if (isFreestyle) {
-      freeCard.style.display = 'block';
+      freeCard.style.display = 'flex';
       svcCard.style.display = 'none';
       bufSec.style.display = '';
       document.getElementById('uFreeLabel').value = b.custom_label || '';
@@ -658,7 +658,7 @@ function fcStartConvert(action) {
   } else {
     // to-free: swap service card for freestyle card
     svcCard.style.display = 'none';
-    freeCard.style.display = 'block';
+    freeCard.style.display = 'flex';
     bufSec.style.display = '';
     // Pre-fill label with service name
     const b = calState.fcCurrentBooking;
@@ -723,7 +723,7 @@ function fcCancelConvert() {
   const b = calState.fcCurrentBooking;
   const isFreestyle = !b?.service_name;
   if (isFreestyle) {
-    document.getElementById('mFreeCard').style.display = 'block';
+    document.getElementById('mFreeCard').style.display = 'flex';
     document.getElementById('mBufferSec').style.display = '';
   } else {
     document.getElementById('mSvcCard').style.display = 'flex';
@@ -757,7 +757,7 @@ function fcToggleLockFromStrip() {
   if (btn) {
     btn.classList.toggle('active', locked);
     btn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller';
-    btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${locked ? 'D\u00e9verrouiller' : 'Verrouiller'}`;
+    btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 ${locked ? '10 0v4' : '9.9 0 1 1 2.1 1.4'}"/></svg>`;
   }
   const bottomBtn = document.getElementById('mBtnLock');
   if (bottomBtn) { bottomBtn.classList.toggle('active', locked); bottomBtn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller'; }
@@ -781,7 +781,7 @@ function fcToggleLockFromBottom() {
   if (stripBtn) {
     stripBtn.classList.toggle('active', locked);
     stripBtn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller';
-    stripBtn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${locked ? 'D\u00e9verrouiller' : 'Verrouiller'}`;
+    stripBtn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 ${locked ? '10 0v4' : '9.9 0 1 1 2.1 1.4'}"/></svg>`;
   }
 }
 
