@@ -117,25 +117,25 @@ async function loadSettings(){
         </select><div class="hint">Couleur des RDV sur l'agenda</div></div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <span style="position:relative;display:inline-block;width:36px;height:20px">
             <input type="checkbox" id="s_gap_analyzer" style="opacity:0;width:0;height:0;position:absolute"${gapOn?' checked':''}>
             <span style="position:absolute;inset:0;background:${gapOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_gap_analyzer');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
             <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${gapOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
           </span>
           <span style="font-weight:600;font-size:.85rem">Analyseur de gaps</span>
-        </label>
+        </div>
         <div class="hint" style="margin-top:4px;margin-left:46px">Détecte automatiquement les créneaux libres entre les RDV et suggère des services compatibles</div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <span style="position:relative;display:inline-block;width:36px;height:20px">
             <input type="checkbox" id="s_last_minute" style="opacity:0;width:0;height:0;position:absolute"${lmOn?' checked':''}>
             <span style="position:absolute;inset:0;background:${lmOn?'#f59e0b':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'#f59e0b':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
             <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${lmOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
           </span>
           <span style="font-weight:600;font-size:.85rem">Promotions dernière minute</span>
-        </label>
+        </div>
         <div class="hint" style="margin-top:4px;margin-left:46px">Propose les créneaux restants avec une réduction pour maximiser le remplissage</div>
         <div id="lm_details" style="display:${lmOn?'grid':'none'};grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;margin-left:46px">
           <div class="field"><label>Fenêtre</label><select id="s_lm_deadline" class="field-input">
