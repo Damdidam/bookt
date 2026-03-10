@@ -14,6 +14,24 @@ router.use(resolvePractitionerScope);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEX_RE = /^#[0-9a-fA-F]{3,8}$/;
 
+// ── Conflict check: does any practitioner have active bookings in [start, end)? ──
+async function _checkBookingConflicts(bid, pracIds, startAt, endAt) {
+  const result = await queryWithRLS(bid,
+    `SELECT b.id, b.practitioner_id, b.start_at, b.end_at,
+            COALESCE(c.full_name, 'Client') AS client_name,
+            COALESCE(s.name, b.freestyle_label, 'RDV') AS service_name
+     FROM bookings b
+     LEFT JOIN clients c ON c.id = b.client_id
+     LEFT JOIN services s ON s.id = b.service_id
+     WHERE b.business_id = $1
+       AND b.practitioner_id = ANY($2::uuid[])
+       AND b.status IN ('pending','confirmed','modified_pending','pending_deposit')
+       AND b.start_at < $4 AND b.end_at > $3`,
+    [bid, pracIds, startAt, endAt]
+  );
+  return result.rows;
+}
+
 // ============================================================
 // GET /api/tasks — list tasks (for calendar)
 // ============================================================
@@ -66,6 +84,13 @@ router.post('/', async (req, res, next) => {
     if (!start_at || !end_at) return res.status(400).json({ error: 'Dates requises' });
     if (new Date(end_at) <= new Date(start_at)) return res.status(400).json({ error: 'Fin doit être après début' });
     if (color && !HEX_RE.test(color)) return res.status(400).json({ error: 'Couleur invalide' });
+
+    // ── Conflict check: reject if any practitioner has an active booking ──
+    const conflicts = await _checkBookingConflicts(bid, pracIds, start_at, end_at);
+    if (conflicts.length > 0) {
+      const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
+      return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
+    }
 
     if (pracIds.length === 1) {
       // Single practitioner — no group_id (backward compatible)
@@ -223,6 +248,27 @@ router.patch('/:id', async (req, res, next) => {
       if (refreshed.rows.length > 0) task.group_id = refreshed.rows[0].group_id;
     }
 
+    // ── Conflict check if time changes ──
+    const newStart = req.body.start_at || task.start_at;
+    const newEnd = req.body.end_at || task.end_at;
+    if (req.body.start_at || req.body.end_at) {
+      // Gather all practitioner IDs affected
+      let affectedPracIds;
+      if (task.group_id) {
+        const members = await queryWithRLS(bid,
+          `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
+          [task.group_id, bid]);
+        affectedPracIds = members.rows.map(r => r.practitioner_id);
+      } else {
+        affectedPracIds = [req.body.practitioner_id || task.practitioner_id];
+      }
+      const conflicts = await _checkBookingConflicts(bid, affectedPracIds, newStart, newEnd);
+      if (conflicts.length > 0) {
+        const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
+        return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
+      }
+    }
+
     // Build SET clause for shared fields
     const sharedFields = ['title', 'start_at', 'end_at', 'color', 'note', 'status'];
     const singleOnlyFields = ['practitioner_id'];
@@ -296,7 +342,18 @@ router.patch('/:id/move', async (req, res, next) => {
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
     const task = existing.rows[0];
 
+    // ── Conflict check before move ──
     if (task.group_id) {
+      const members = await queryWithRLS(bid,
+        `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
+        [task.group_id, bid]);
+      const pracIds = members.rows.map(r => r.practitioner_id);
+      const conflicts = await _checkBookingConflicts(bid, pracIds, start_at, end_at);
+      if (conflicts.length > 0) {
+        const names = conflicts.map(c => `${c.client_name} (${c.service_name})`);
+        return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
+      }
+
       // Group move: update ALL siblings with same time
       await queryWithRLS(bid,
         `UPDATE internal_tasks SET start_at = $1, end_at = $2, updated_at = now()
@@ -312,6 +369,14 @@ router.patch('/:id/move', async (req, res, next) => {
       }
       broadcast(bid, 'booking_update', { action: 'task_moved' });
       return res.json({ updated: true, group_moved: true });
+    }
+
+    // Single task: conflict check
+    const movePracId = (practitioner_id && UUID_RE.test(practitioner_id)) ? practitioner_id : task.practitioner_id;
+    const moveConflicts = await _checkBookingConflicts(bid, [movePracId], start_at, end_at);
+    if (moveConflicts.length > 0) {
+      const names = moveConflicts.map(c => `${c.client_name} (${c.service_name})`);
+      return res.status(409).json({ error: `Conflit avec ${[...new Set(names)].join(', ')}` });
     }
 
     // Single task move (original logic)
