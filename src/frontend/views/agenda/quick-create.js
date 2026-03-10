@@ -368,13 +368,16 @@ function calSearchClients(q) {
       const clients = d.clients || [];
       _qcSearchResults = clients;
       let h = clients.map(c => {
+        const vipTag = c.is_vip
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FEF9E7;color:#D4A017;margin-left:4px">★ VIP</span>`
+          : '';
         const nsTag = c.no_show_count > 0
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
           : '';
         const blTag = c.is_blocked
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
           : '';
-        return `<div class="ac-item" onclick="calPickClient('${safeId(c.id)}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
+        return `<div class="ac-item" onclick="calPickClient('${safeId(c.id)}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${vipTag}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
       }).join('');
       h += `<div class="ac-item ac-new" onclick="calNewClient()">+ ${categoryLabels.client} : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';

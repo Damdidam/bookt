@@ -42,6 +42,8 @@ router.get('/', async (req, res, next) => {
       sql += ` AND c.is_blocked = true`;
     } else if (filter === 'flagged') {
       sql += ` AND c.no_show_count > 0`;
+    } else if (filter === 'vip') {
+      sql += ` AND c.is_vip = true`;
     }
 
     sql += ` GROUP BY c.id ORDER BY last_visit DESC NULLS LAST`;
@@ -66,6 +68,7 @@ router.get('/', async (req, res, next) => {
     }
     if (filter === 'blocked') { countSql += ` AND is_blocked = true`; }
     else if (filter === 'flagged') { countSql += ` AND no_show_count > 0`; }
+    else if (filter === 'vip') { countSql += ` AND is_vip = true`; }
     const countResult = await queryWithRLS(bid, countSql, countParams);
 
     // Stats
@@ -74,7 +77,8 @@ router.get('/', async (req, res, next) => {
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE is_blocked = true) AS blocked,
         COUNT(*) FILTER (WHERE no_show_count > 0 AND is_blocked = false) AS flagged,
-        COUNT(*) FILTER (WHERE no_show_count = 0 AND is_blocked = false) AS clean
+        COUNT(*) FILTER (WHERE no_show_count = 0 AND is_blocked = false) AS clean,
+        COUNT(*) FILTER (WHERE is_vip = true) AS vip
        FROM clients WHERE business_id = $1`,
       [bid]
     );
@@ -125,7 +129,7 @@ router.get('/:id', async (req, res, next) => {
     const client = await queryWithRLS(bid,
       `SELECT id, business_id, full_name, phone, email, bce_number, notes,
               consent_sms, consent_marketing, no_show_count, is_blocked,
-              blocked_at, blocked_reason, last_no_show_at, created_at, updated_at
+              blocked_at, blocked_reason, last_no_show_at, is_vip, created_at, updated_at
        FROM clients WHERE id = $1 AND business_id = $2`,
       [req.params.id, bid]
     );
@@ -190,7 +194,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
 
     const fieldMap = { full_name: 'full_name', phone: 'phone', email: 'email',
       bce_number: 'bce_number', notes: 'notes', consent_sms: 'consent_sms',
-      consent_marketing: 'consent_marketing' };
+      consent_marketing: 'consent_marketing', is_vip: 'is_vip' };
     for (const [bodyKey, col] of Object.entries(fieldMap)) {
       if (bodyKey in req.body) {
         sets.push(`${col} = $${idx}`);

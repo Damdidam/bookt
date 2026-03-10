@@ -51,11 +51,13 @@ async function fcOpenDetail(bookingId) {
     const initials = (b.client_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const heroEl = document.getElementById('mClientHero');
     const freeTag = isFreestyle ? `<span class="m-free-tag" style="background:${accentColor}18;color:${accentColor}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> LIBRE</span>` : '';
+    const vipTag = b.is_vip ? `<span style="font-size:.55rem;font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.5px;background:#FEF9E7;color:#D4A017;border:1px solid #F5E6A3">★ VIP</span>` : '';
     heroEl.innerHTML = `
       <div class="m-avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC)">${initials}</div>
       <div class="m-client-info">
         <div class="m-client-name">
           <a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${safeClientId}')">${esc(b.client_name || '\u2014')}</a>
+          ${vipTag}
           ${freeTag}
         </div>
         <div class="m-client-meta">
