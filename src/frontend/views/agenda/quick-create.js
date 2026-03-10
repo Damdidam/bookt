@@ -724,16 +724,16 @@ function _qcSetMode(mode) {
       document.getElementById('qcTaskEnd').value = String(eh).padStart(2, '0') + ':' + String(m).padStart(2, '0');
     }
 
-    // Populate practitioner select
-    const sel = document.getElementById('qcTaskPrac');
-    const dot = document.getElementById('qcTaskPracDot');
+    // Populate practitioner checkboxes (multi-select)
+    const pracWrap = document.getElementById('qcTaskPracWrap');
     const currentPrac = document.getElementById('qcPrac')?.value;
-    sel.innerHTML = '';
+    let pracHtml = '<div class="td-prac-checks" id="qcTaskPracChecks">';
     (calState.fcPractitioners || []).forEach(p => {
-      sel.innerHTML += `<option value="${p.id}" ${String(p.id) === String(currentPrac) ? 'selected' : ''}>${esc(p.display_name)}</option>`;
+      const checked = String(p.id) === String(currentPrac) ? 'checked' : '';
+      pracHtml += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${p.color || 'var(--primary)'}"></span><span>${esc(p.display_name)}</span></label>`;
     });
-    const selP = calState.fcPractitioners.find(p => String(p.id) === String(sel.value));
-    if (dot) dot.style.background = selP?.color || 'var(--primary)';
+    pracHtml += '</div>';
+    if (pracWrap) pracWrap.innerHTML = pracHtml;
 
     // Color swatch
     const wrap = document.getElementById('qcTaskColorWrap');
@@ -765,23 +765,32 @@ async function qcCreateTask() {
     const date = document.getElementById('qcTaskDate').value;
     const startTime = document.getElementById('qcTaskStart').value;
     const endTime = document.getElementById('qcTaskEnd').value;
-    const pracId = document.getElementById('qcTaskPrac').value;
     const color = document.getElementById('qcTaskColor')?.value || '';
     const note = document.getElementById('qcTaskNote').value.trim();
 
+    // Collect selected practitioner IDs from checkboxes
+    const checks = document.querySelectorAll('#qcTaskPracChecks input[type="checkbox"]:checked');
+    const pracIds = [...checks].map(cb => cb.value);
+
     if (!title) { gToast('Titre requis', 'error'); return; }
+    if (pracIds.length === 0) { gToast('Sélectionnez au moins un praticien', 'error'); return; }
     if (!date || !startTime || !endTime) { gToast('Date et heures requises', 'error'); return; }
 
     const start_at = toBrusselsISO(date, startTime);
     const end_at = toBrusselsISO(date, endTime);
 
+    const body = { title, start_at, end_at, color: color || null, note: note || null };
+    if (pracIds.length === 1) body.practitioner_id = pracIds[0];
+    else body.practitioner_ids = pracIds;
+
     const r = await fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
+      body: JSON.stringify(body)
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-    gToast('Tâche créée', 'success');
+    const countMsg = pracIds.length > 1 ? ` (${pracIds.length} praticiens)` : '';
+    gToast('Tâche créée' + countMsg, 'success');
     closeCalModal('calCreateModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }

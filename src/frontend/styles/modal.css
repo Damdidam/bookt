@@ -319,3 +319,10 @@ textarea.m-input{resize:vertical;min-height:38px}
 .dg-btn{min-height:44px;min-width:100px;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer;border:none;font-family:var(--sans);transition:all .15s}
 .dg-stay{background:var(--surface);color:var(--text-3)}.dg-stay:hover{background:var(--border-light)}
 .dg-leave{background:var(--red);color:#fff;margin-left:10px}.dg-leave:hover{opacity:.85}
+
+/* ── Practitioner checkbox chips (tasks) ── */
+.td-prac-checks{display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto;padding:4px 0}
+.td-prac-check{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px solid var(--border);cursor:pointer;font-size:.82rem;font-weight:500;transition:all .15s;white-space:nowrap}
+.td-prac-check:has(input:checked){border-color:var(--primary);background:var(--primary-light)}
+.td-prac-check input[type="checkbox"]{display:none}
+.td-prac-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
