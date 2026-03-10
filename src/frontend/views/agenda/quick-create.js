@@ -791,6 +791,7 @@ async function qcCreateTask() {
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     const countMsg = pracIds.length > 1 ? ` (${pracIds.length} praticiens)` : '';
     gToast('Tâche créée' + countMsg, 'success');
+    document.getElementById('calCreateModal')._dirtyGuard?.markClean();
     closeCalModal('calCreateModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
