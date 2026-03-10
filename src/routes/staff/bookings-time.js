@@ -11,6 +11,75 @@ const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurr
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ============================================================
+// GET /api/bookings/:id/check-slot — Pre-flight slot availability
+// UI: Calendar → detail modal → time inputs (debounced 500ms)
+// ============================================================
+router.get('/:id/check-slot', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    const { start_at, end_at, practitioner_id } = req.query;
+    if (!start_at || !end_at) return res.status(400).json({ error: 'start_at et end_at requis' });
+    if (isNaN(new Date(start_at).getTime()) || isNaN(new Date(end_at).getTime())) return res.status(400).json({ error: 'Format invalide' });
+
+    // If overlaps allowed globally, always available
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
+    if (globalAllowOverlap) return res.json({ available: true });
+
+    // Fetch booking for default practitioner + group + processing info
+    const bk = await queryWithRLS(bid,
+      `SELECT b.practitioner_id, b.group_id, b.processing_time, b.processing_start,
+              COALESCE(s.buffer_before_min, 0) AS buffer_before
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.id = $1 AND b.business_id = $2`, [id, bid]);
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const b = bk.rows[0];
+    const pracId = practitioner_id || b.practitioner_id;
+    const maxConcurrent = await getMaxConcurrent(bid, pracId);
+
+    // Exclude this booking + group siblings
+    let excludeIds = [id];
+    if (b.group_id) {
+      const sibs = await queryWithRLS(bid, `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2`, [b.group_id, bid]);
+      excludeIds = sibs.rows.map(r => r.id);
+    }
+
+    // Build conflict query (read-only, no FOR UPDATE)
+    const params = [bid, pracId, start_at, end_at, excludeIds];
+    let reversePoseClause = '';
+    const pt = parseInt(b.processing_time) || 0;
+    if (pt > 0) {
+      params.push(parseInt(b.buffer_before) || 0, parseInt(b.processing_start) || 0, pt);
+      reversePoseClause = `AND NOT (
+        b.start_at >= $3::timestamptz + ($6::integer + $7::integer) * interval '1 minute'
+        AND b.end_at <= $3::timestamptz + ($6::integer + $7::integer + $8::integer) * interval '1 minute'
+      )`;
+    }
+
+    const conflicts = await queryWithRLS(bid,
+      `SELECT b.id, s.name AS service_name, b.start_at, b.end_at
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.business_id = $1 AND b.practitioner_id = $2
+       AND b.status IN ('pending','confirmed','modified_pending','pending_deposit')
+       AND b.start_at < $4 AND b.end_at > $3
+       AND b.id != ALL($5::uuid[])
+       AND NOT (b.processing_time > 0
+         AND $3::timestamptz >= b.start_at + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
+         AND $4::timestamptz <= b.start_at + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')
+       ${reversePoseClause}`, params);
+
+    if (conflicts.rows.length >= maxConcurrent) {
+      return res.json({ available: false, conflicts: conflicts.rows.map(c => ({
+        id: c.id, service_name: c.service_name, start_at: c.start_at, end_at: c.end_at
+      }))});
+    }
+    res.json({ available: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // PATCH /api/bookings/:id/move — Drag & drop
 // UI: Calendar → drag event to new time/date/practitioner
 // ============================================================

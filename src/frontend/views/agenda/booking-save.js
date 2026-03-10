@@ -6,7 +6,7 @@ import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
-import { fcTimeDiffMin } from './booking-edit.js';
+import { fcTimeDiffMin, _serverSlotUnavailable } from './booking-edit.js';
 import { storeUndoAction } from './booking-undo.js';
 import { toBrusselsISO } from '../../utils/format.js';
 
@@ -15,6 +15,10 @@ async function calSaveAll() {
   if (calSaveAll._busy) return;
   calSaveAll._busy = true;
   try {
+  if (_serverSlotUnavailable) {
+    gToast('Créneau indisponible — modifiez l\'horaire', 'error');
+    return;
+  }
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
   const ne = document.getElementById('calEditEnd').value;

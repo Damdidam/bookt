@@ -9,7 +9,7 @@ import { fcRenderReminders } from './booking-reminders.js';
 import { cswHTML, cswSelect } from './color-swatches.js';
 import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
-import { calCheckConflict } from './booking-edit.js';
+import { calCheckConflict, calResetSlotCheck } from './booking-edit.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 import { IC } from '../../utils/icons.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
@@ -97,6 +97,10 @@ async function fcOpenDetail(bookingId) {
     if (['completed', 'cancelled', 'no_show'].includes(b.status)) acts.push('<button class="m-st-btn" onclick="fcSetStatus(\'confirmed\')">↩ R\u00e9tablir</button>');
     if (!fcIsMobile() && !['cancelled', 'no_show', 'completed'].includes(b.status)) {
       acts.push('<button class="m-st-btn m-st-move" onclick="fcScrollToHoraire()">\u2195 D\u00e9placer</button>');
+    }
+    if (!['cancelled', 'no_show'].includes(b.status)) {
+      const isLocked = !!b.locked;
+      acts.push(`<button class="m-st-btn m-st-lock${isLocked ? ' active' : ''}" onclick="fcToggleLockFromStrip()" id="mStripLockBtn" title="${isLocked ? 'Déverrouiller' : 'Verrouiller'}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${isLocked ? 'Déverrouiller' : 'Verrouiller'}</button>`);
     }
     document.getElementById('mStatusStrip').innerHTML = `
       <span class="m-st-current" style="background:${st.bg};color:${st.c}">
@@ -315,6 +319,7 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calNotifyPanel').style.display = 'none';
     document.getElementById('calConflictWarn').style.display = 'none';
     calState.fcSelectedNotifyChannel = null;
+    calResetSlotCheck();
     // Check conflicts with current time (in case it already overlaps)
     setTimeout(calCheckConflict, 50);
 
@@ -729,9 +734,21 @@ function fcScrollToHoraire() {
   }, 400);
 }
 
+function fcToggleLockFromStrip() {
+  const cb = document.getElementById('calLocked');
+  if (cb) cb.checked = !cb.checked;
+  const btn = document.getElementById('mStripLockBtn');
+  if (btn) {
+    const locked = cb?.checked;
+    btn.classList.toggle('active', locked);
+    btn.title = locked ? 'Déverrouiller' : 'Verrouiller';
+    btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ${locked ? 'Déverrouiller' : 'Verrouiller'}`;
+  }
+}
+
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
-         fcScrollToHoraire });
+         fcScrollToHoraire, fcToggleLockFromStrip });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };
