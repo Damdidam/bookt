@@ -11,6 +11,25 @@ const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Check if a slot date falls within the last-minute promotional window.
+ * @param {string} slotDate - YYYY-MM-DD
+ * @param {string} todayBrussels - YYYY-MM-DD (today in Europe/Brussels)
+ * @param {string} deadline - 'j-2' | 'j-1' | 'same_day'
+ */
+function isWithinLastMinuteWindow(slotDate, todayBrussels, deadline) {
+  const slot = new Date(slotDate + 'T12:00:00Z');
+  const now = new Date(todayBrussels + 'T12:00:00Z');
+  const diffDays = Math.round((slot - now) / 86400000);
+  if (diffDays < 0) return false;
+  switch (deadline) {
+    case 'j-2': return diffDays <= 2;
+    case 'j-1': return diffDays <= 1;
+    case 'same_day': return diffDays === 0;
+    default: return false;
+  }
+}
+
 const SECTOR_PRACTITIONER = {
   coiffeur:'Coiffeur·se', esthetique:'Esthéticien·ne', bien_etre:'Praticien·ne',
   osteopathe:'Ostéopathe', veterinaire:'Vétérinaire', photographe:'Photographe',
@@ -239,6 +258,8 @@ router.get('/:slug', async (req, res, next) => {
         multi_service_enabled: !!biz.settings?.multi_service_enabled,
         practitioner_choice_enabled: !!biz.settings?.practitioner_choice_enabled,
         booking_confirmation_required: !!biz.settings?.booking_confirmation_required,
+        last_minute_enabled: !!biz.settings?.last_minute_enabled,
+        last_minute_discount_pct: biz.settings?.last_minute_discount_pct || 0,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),
@@ -315,12 +336,13 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     }
 
     const bizResult = await query(
-      `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`,
+      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`,
       [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
+    const bizSettings = bizResult.rows[0].settings || {};
     const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const from = date_from || brusselsToday;
     const defaultToDate = new Date(brusselsToday + 'T12:00:00Z');
@@ -342,6 +364,42 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
       dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
       variantId: variant_id || null
     });
+
+    // ── Last-minute discount tagging ──
+    if (bizSettings.last_minute_enabled && slots.length > 0) {
+      const discountPct = bizSettings.last_minute_discount_pct || 10;
+      const minPriceCents = bizSettings.last_minute_min_price_cents || 0;
+      const deadline = bizSettings.last_minute_deadline || 'j-1';
+
+      // Resolve service price (with variant override)
+      let servicePriceCents = 0;
+      const svcPriceResult = await query(
+        `SELECT price_cents FROM services WHERE id = $1 AND business_id = $2`,
+        [service_id, businessId]
+      );
+      servicePriceCents = svcPriceResult.rows[0]?.price_cents || 0;
+      if (variant_id) {
+        const varPriceResult = await query(
+          `SELECT price_cents FROM service_variants WHERE id = $1 AND service_id = $2`,
+          [variant_id, service_id]
+        );
+        if (varPriceResult.rows[0]?.price_cents != null) {
+          servicePriceCents = varPriceResult.rows[0].price_cents;
+        }
+      }
+
+      if (servicePriceCents > 0 && servicePriceCents >= minPriceCents) {
+        const discountedCents = Math.round(servicePriceCents * (100 - discountPct) / 100);
+        for (const slot of slots) {
+          if (isWithinLastMinuteWindow(slot.date, brusselsToday, deadline)) {
+            slot.is_last_minute = true;
+            slot.discount_pct = discountPct;
+            slot.original_price_cents = servicePriceCents;
+            slot.discounted_price_cents = discountedCents;
+          }
+        }
+      }
+    }
 
     const byDate = {};
     for (const slot of slots) {
@@ -521,7 +579,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       variant_id, variant_ids,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing,
-      flexible
+      flexible, is_last_minute
     } = req.body;
 
     if (!practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
@@ -1195,18 +1253,40 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Determine locked status based on service flexibility setting
       const singleLocked = resolvedFlexEnabled ? (flexible !== true) : false;
 
+      // Resolve last-minute discount (validate server-side to prevent abuse)
+      let resolvedDiscountPct = null;
+      if (is_last_minute && bizSettings.last_minute_enabled) {
+        const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
+        const startBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        if (isWithinLastMinuteWindow(startBrussels, todayBrussels, lmDeadline)) {
+          const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+          // Resolve effective price (variant or service)
+          let effPrice = 0;
+          const _sp = await client.query(`SELECT price_cents FROM services WHERE id = $1`, [effectiveServiceId]);
+          effPrice = _sp.rows[0]?.price_cents || 0;
+          if (resolvedVariantId) {
+            const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+            if (_vp.rows[0]?.price_cents != null) effPrice = _vp.rows[0].price_cents;
+          }
+          if (effPrice > 0 && effPrice >= lmMinPrice) {
+            resolvedDiscountPct = bizSettings.last_minute_discount_pct || 10;
+          }
+        }
+      }
+
       // Create booking
       const booking = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
-          processing_time, processing_start, locked)
+          processing_time, processing_start, locked, discount_pct)
          VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,
           ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-          $11,$12,$13)
-         RETURNING id, public_token, start_at, end_at, status`,
+          $11,$12,$13,$14)
+         RETURNING id, public_token, start_at, end_at, status, discount_pct`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
-         resolvedProcessingTime, resolvedProcessingStart, singleLocked]
+         resolvedProcessingTime, resolvedProcessingStart, singleLocked, resolvedDiscountPct]
       );
 
       // Queue notifications
@@ -1284,6 +1364,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       booking: {
         id: createdBooking.id, token: createdBooking.public_token,
         start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
+        discount_pct: createdBooking.discount_pct || null,
         cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${createdBooking.public_token}`
       },
       needs_confirmation: singleNeedsConfirm

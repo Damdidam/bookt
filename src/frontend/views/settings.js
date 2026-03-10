@@ -97,6 +97,10 @@ async function loadSettings(){
     const wlMode = b.settings?.waitlist_mode || 'off';
     const colorMode = b.settings?.calendar_color_mode || 'category';
     const gapOn = b.settings?.gap_analyzer_enabled === true;
+    const lmOn = b.settings?.last_minute_enabled === true;
+    const lmDeadline = b.settings?.last_minute_deadline || 'j-1';
+    const lmDiscount = b.settings?.last_minute_discount_pct || 10;
+    const lmMinPrice = b.settings?.last_minute_min_price_cents || 0;
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Calendrier</h3></div><div class="sc-body">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
         <div class="field"><label>Incrément agenda</label><select id="s_slot_inc" class="field-input">
@@ -122,6 +126,29 @@ async function loadSettings(){
           <span style="font-weight:600;font-size:.85rem">Analyseur de gaps</span>
         </label>
         <div class="hint" style="margin-top:4px;margin-left:46px">Détecte automatiquement les créneaux libres entre les RDV et suggère des services compatibles</div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_last_minute" style="opacity:0;width:0;height:0;position:absolute"${lmOn?' checked':''}>
+            <span style="position:absolute;inset:0;background:${lmOn?'#f59e0b':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'#f59e0b':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${lmOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Promotions dernière minute</span>
+        </label>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Propose les créneaux restants avec une réduction pour maximiser le remplissage</div>
+        <div id="lm_details" style="display:${lmOn?'grid':'none'};grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;margin-left:46px">
+          <div class="field"><label>Fenêtre</label><select id="s_lm_deadline" class="field-input">
+            <option value="j-2"${lmDeadline==='j-2'?' selected':''}>J-2 avant le RDV</option>
+            <option value="j-1"${lmDeadline==='j-1'?' selected':''}>J-1 (veille)</option>
+            <option value="same_day"${lmDeadline==='same_day'?' selected':''}>Jour même</option>
+          </select><div class="hint">Quand les créneaux deviennent "dernière minute"</div></div>
+          <div class="field"><label>Réduction</label><select id="s_lm_discount" class="field-input">
+            ${[5,10,15,20,25].map(v=>`<option value="${v}"${lmDiscount===v?' selected':''}>${v}%</option>`).join('')}
+          </select><div class="hint">Pourcentage de réduction affiché</div></div>
+          <div class="field"><label>Prix min. service</label><input type="number" id="s_lm_min_price" class="field-input" value="${lmMinPrice}" min="0" step="100" placeholder="0">
+          <div class="hint">En centimes. Services sous ce prix ne sont pas remisés (0 = pas de seuil)</div></div>
+        </div>
       </div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
 
@@ -380,7 +407,11 @@ async function saveCalendarSettings(){
       settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
       settings_calendar_color_mode:cm,
-      settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false
+      settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false,
+      settings_last_minute_enabled:document.getElementById('s_last_minute')?.checked||false,
+      settings_last_minute_deadline:document.getElementById('s_lm_deadline')?.value||'j-1',
+      settings_last_minute_discount_pct:parseInt(document.getElementById('s_lm_discount')?.value)||10,
+      settings_last_minute_min_price_cents:parseInt(document.getElementById('s_lm_min_price')?.value)||0
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);

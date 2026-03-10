@@ -74,6 +74,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_booking_confirmation_required, settings_booking_confirmation_timeout, settings_booking_confirmation_channel,
       // Gap analyzer
       settings_gap_analyzer_enabled,
+      // Last-minute promotions
+      settings_last_minute_enabled, settings_last_minute_deadline,
+      settings_last_minute_discount_pct, settings_last_minute_min_price_cents,
       // Sector
       sector
     } = req.body;
@@ -96,7 +99,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_practitioner_choice_enabled !== undefined
         || settings_booking_confirmation_required !== undefined || settings_booking_confirmation_timeout !== undefined
         || settings_booking_confirmation_channel !== undefined
-        || settings_gap_analyzer_enabled !== undefined) {
+        || settings_gap_analyzer_enabled !== undefined
+        || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
+        || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -130,6 +135,11 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
       if (settings_calendar_color_mode !== undefined) { cur.calendar_color_mode = ['category','practitioner'].includes(settings_calendar_color_mode) ? settings_calendar_color_mode : 'category'; }
       if (settings_gap_analyzer_enabled !== undefined) cur.gap_analyzer_enabled = !!settings_gap_analyzer_enabled;
+      // Last-minute promotions
+      if (settings_last_minute_enabled !== undefined) cur.last_minute_enabled = !!settings_last_minute_enabled;
+      if (settings_last_minute_deadline !== undefined) { cur.last_minute_deadline = ['j-2','j-1','same_day'].includes(settings_last_minute_deadline) ? settings_last_minute_deadline : 'j-1'; }
+      if (settings_last_minute_discount_pct !== undefined) { const _v = parseInt(settings_last_minute_discount_pct); cur.last_minute_discount_pct = [5,10,15,20,25].includes(_v) ? _v : 10; }
+      if (settings_last_minute_min_price_cents !== undefined) { const _v = parseInt(settings_last_minute_min_price_cents); cur.last_minute_min_price_cents = (_v >= 0 && _v <= 100000) ? _v : 0; }
       // Booking page
       if (settings_practitioner_choice_enabled !== undefined) cur.practitioner_choice_enabled = !!settings_practitioner_choice_enabled;
       // Booking confirmation
