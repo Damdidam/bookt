@@ -343,6 +343,19 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDiff').style.display = 'none';
     document.getElementById('calNotifyPanel').style.display = 'none';
     document.getElementById('calConflictWarn').style.display = 'none';
+    const poseInfoEl = document.getElementById('calPoseInfo');
+    if (poseInfoEl) { poseInfoEl.style.display = 'none'; }
+    // Show pose window if booking has processing_time
+    const bPt = parseInt(b.processing_time) || 0;
+    if (bPt > 0 && poseInfoEl) {
+      const bPs = parseInt(b.processing_start) || 0;
+      const bBuf = parseInt(b.buffer_before_min) || 0;
+      const poseStartMs = s.getTime() + (bBuf + bPs) * 60000;
+      const poseEndMs = poseStartMs + bPt * 60000;
+      const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      poseInfoEl.style.display = 'block';
+      poseInfoEl.innerHTML = `\u23f3 Temps de pose : ${fmt(poseStartMs)} \u2013 ${fmt(poseEndMs)} (${bPt}min)`;
+    }
     calState.fcSelectedNotifyChannel = null;
     calResetSlotCheck();
     // Check conflicts with current time (in case it already overlaps)

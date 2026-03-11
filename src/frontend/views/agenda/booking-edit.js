@@ -77,6 +77,10 @@ function calCheckConflict() {
 
   // ── Phase 1: Client-side check (instant) ──
   const conflicts = [];
+  const poseOptimized = [];
+  const myPt = parseInt(calState.fcCurrentBooking.processing_time) || 0;
+  const myPs = parseInt(calState.fcCurrentBooking.processing_start) || 0;
+  const myBuf = parseInt(calState.fcCurrentBooking.buffer_before_min) || 0;
   for (const ev of calState.fcCal.getEvents()) {
     if (ev.id === myId) continue;
     if (myGroup && ev.extendedProps?._groupId === myGroup) continue;
@@ -84,6 +88,7 @@ function calCheckConflict() {
     const st = ev.extendedProps?.status;
     if (st === 'cancelled' || st === 'no_show') continue;
     if (newStart < ev.end && newEnd > ev.start) {
+      // Forward: current booking fits inside existing event's pose
       const pt = parseInt(ev.extendedProps?.processing_time) || 0;
       if (pt > 0) {
         const ps = parseInt(ev.extendedProps?.processing_start) || 0;
@@ -94,6 +99,15 @@ function calCheckConflict() {
       }
       const name = ev.extendedProps?.client_name || ev.title || 'RDV';
       const time = ev.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) + ' \u2013 ' + ev.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      // Reverse: existing event fits inside current booking's pose
+      if (myPt > 0) {
+        const myPoseStart = new Date(newStart.getTime() + (myBuf + myPs) * 60000);
+        const myPoseEnd = new Date(newStart.getTime() + (myBuf + myPs + myPt) * 60000);
+        if (ev.start >= myPoseStart && ev.end <= myPoseEnd) {
+          poseOptimized.push(`<strong>${esc(name)}</strong> (${time})`);
+          continue;
+        }
+      }
       conflicts.push(`<strong>${esc(name)}</strong> (${time})`);
     }
   }
@@ -109,6 +123,18 @@ function calCheckConflict() {
       ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Chevauchement avec '
       : '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Conflit avec '
     ) + conflicts.join(', ');
+  }
+
+  // Pose optimization info
+  const poseInfo = document.getElementById('calPoseInfo');
+  if (poseOptimized.length > 0 && poseInfo) {
+    const poseStartMs = newStart.getTime() + (myBuf + myPs) * 60000;
+    const poseEndMs = poseStartMs + myPt * 60000;
+    const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    poseInfo.style.display = 'block';
+    poseInfo.innerHTML = `\u23f3 Temps de pose (${fmt(poseStartMs)}\u2013${fmt(poseEndMs)}) optimis\u00e9 : ${poseOptimized.join(', ')}`;
+  } else if (poseInfo) {
+    poseInfo.style.display = 'none';
   }
 
   // ── Phase 2: Debounced server-side check ──
