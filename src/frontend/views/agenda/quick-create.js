@@ -341,6 +341,7 @@ function qcAddService() {
         <select class="qc-var-sel" id="qcVarSel${idx}" onchange="qcUpdateTotal()"></select>
       </div>
     </div>
+    <span class="m-svc-picker-info" id="qcSvcInfo${idx}"></span>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
   qcUpdateTotal();
@@ -360,14 +361,21 @@ function qcUpdateTotal() {
   let availModes = null;
   svcItems.forEach((item, i) => {
     const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel || !sel.value) return;
+    const infoEl = item.querySelector('.m-svc-picker-info');
+    if (!sel || !sel.value) {
+      if (infoEl) infoEl.textContent = '';
+      item.style.borderColor = 'var(--border-light)';
+      return;
+    }
     const opt = sel.options[sel.selectedIndex];
     let dur = parseInt(opt?.dataset.dur || 30);
     const buf = parseInt(opt?.dataset.buf || 0);
     const color = opt?.dataset.color || '#0D7377';
     const varSel = item.querySelector('.qc-var-sel');
+    let priceCents = 0;
     if (varSel?.value && varSel.selectedIndex > 0) {
       dur = parseInt(varSel.options[varSel.selectedIndex]?.dataset.dur || dur);
+      priceCents = parseInt(varSel.options[varSel.selectedIndex]?.dataset.price || 0);
     }
     total += dur + buf;
     if (i === 0) firstColor = color;
@@ -375,6 +383,14 @@ function qcUpdateTotal() {
     if (durEl) durEl.textContent = dur + 'min';
     const colEl = item.querySelector('.qc-svc-color');
     if (colEl) colEl.style.background = color;
+    // Info line: show confirmed selection with duration + price
+    if (infoEl) {
+      const svcObj = calState.fcServices.find(s => String(s.id) === String(sel.value));
+      if (!priceCents && svcObj?.price_cents) priceCents = svcObj.price_cents;
+      const priceTxt = priceCents ? ' · ' + (priceCents / 100).toFixed(0) + '€' : '';
+      infoEl.textContent = '✓ ' + dur + 'min' + priceTxt;
+    }
+    item.style.borderColor = 'var(--primary)';
     const svcId = sel.value;
     // Bug B5 fix: coerce both sides to string for type-safe comparison
     const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
