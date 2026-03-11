@@ -1123,7 +1123,7 @@ function buildModeSelector(){
 
 // ──────── DATE/SLOTS ────────
 function buildDateRow(){
-  const today=new Date();today.setDate(today.getDate()+1+weekOffset*7);
+  const today=new Date();today.setDate(today.getDate()+weekOffset*7);
   const row=document.getElementById('dateRow');
   let html='';
   for(let i=0;i<7;i++){
@@ -1151,7 +1151,7 @@ function buildDateRow(){
 
 async function loadSlots(){
   document.getElementById('slotsArea').innerHTML='<div class="slots-loading"><div class="spinner"></div>Chargement des créneaux...</div>';
-  const today=new Date();today.setDate(today.getDate()+1+weekOffset*7);
+  const today=new Date();today.setDate(today.getDate()+weekOffset*7);
   const endDate=new Date(today);endDate.setDate(today.getDate()+6);
   const dateFrom=today.toISOString().split('T')[0],dateTo=endDate.toISOString().split('T')[0];
   // Check if week is locked — show message instead of recursive skip
