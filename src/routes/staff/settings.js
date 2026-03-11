@@ -75,6 +75,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_booking_confirmation_required, settings_booking_confirmation_timeout, settings_booking_confirmation_channel,
       // Gap analyzer
       settings_gap_analyzer_enabled,
+      // Featured slots (mode vedette)
+      settings_featured_slots_enabled,
       // Last-minute promotions
       settings_last_minute_enabled, settings_last_minute_deadline,
       settings_last_minute_discount_pct, settings_last_minute_min_price_cents,
@@ -101,6 +103,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_booking_confirmation_required !== undefined || settings_booking_confirmation_timeout !== undefined
         || settings_booking_confirmation_channel !== undefined
         || settings_gap_analyzer_enabled !== undefined
+        || settings_featured_slots_enabled !== undefined
         || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
         || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined) {
       // Fetch current settings first
@@ -139,6 +142,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
       if (settings_calendar_color_mode !== undefined) { cur.calendar_color_mode = ['category','practitioner'].includes(settings_calendar_color_mode) ? settings_calendar_color_mode : 'category'; }
       if (settings_gap_analyzer_enabled !== undefined) cur.gap_analyzer_enabled = !!settings_gap_analyzer_enabled;
+      if (settings_featured_slots_enabled !== undefined) cur.featured_slots_enabled = !!settings_featured_slots_enabled;
       // Last-minute promotions
       if (settings_last_minute_enabled !== undefined) cur.last_minute_enabled = !!settings_last_minute_enabled;
       if (settings_last_minute_deadline !== undefined) { cur.last_minute_deadline = ['j-2','j-1','same_day'].includes(settings_last_minute_deadline) ? settings_last_minute_deadline : 'j-1'; }

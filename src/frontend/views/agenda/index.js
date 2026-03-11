@@ -264,7 +264,7 @@ async function loadAgenda() {
   // Build unified toolbar
   const mobile = fcIsMobile();
   const initView = mobile ? 'timeGridDay' : 'timeGridWeek';
-  const canFeatured = ['owner', 'manager'].includes(userRole);
+  const canFeatured = ['owner', 'manager'].includes(userRole) && calState.fcBusinessSettings?.featured_slots_enabled;
   const fsBtnHtml = canFeatured ? `<button class="at-view-btn fs-toggle-btn" id="fsToggleBtn" onclick="fsToggleMode()" title="Mode vedette"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>` : '';
   const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="ga-badge" id="gaBadge" style="display:none"></span></button>` : '';
   let toolbar = `<div class="agenda-toolbar">`;

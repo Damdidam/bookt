@@ -97,6 +97,7 @@ async function loadSettings(){
     const wlMode = b.settings?.waitlist_mode || 'off';
     const colorMode = b.settings?.calendar_color_mode || 'category';
     const gapOn = b.settings?.gap_analyzer_enabled === true;
+    const fsOn = b.settings?.featured_slots_enabled === true;
     const lmOn = b.settings?.last_minute_enabled === true;
     const lmDeadline = b.settings?.last_minute_deadline || 'j-1';
     const lmDiscount = b.settings?.last_minute_discount_pct || 10;
@@ -126,6 +127,17 @@ async function loadSettings(){
           <span style="font-weight:600;font-size:.85rem">Analyseur de gaps</span>
         </div>
         <div class="hint" style="margin-top:4px;margin-left:46px">Détecte automatiquement les créneaux libres entre les RDV et suggère des services compatibles</div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_featured_slots" style="opacity:0;width:0;height:0;position:absolute"${fsOn?' checked':''}>
+            <span style="position:absolute;inset:0;background:${fsOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_featured_slots');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${fsOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Mode vedette</span>
+        </div>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Met en avant les créneaux prioritaires à remplir sur le calendrier</div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
@@ -432,6 +444,7 @@ async function saveCalendarSettings(){
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
       settings_calendar_color_mode:cm,
       settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false,
+      settings_featured_slots_enabled:document.getElementById('s_featured_slots')?.checked||false,
       settings_last_minute_enabled:document.getElementById('s_last_minute')?.checked||false,
       settings_last_minute_deadline:document.getElementById('s_lm_deadline')?.value||'j-1',
       settings_last_minute_discount_pct:parseInt(document.getElementById('s_lm_discount')?.value)||10,
@@ -446,6 +459,7 @@ async function saveCalendarSettings(){
     freshBiz.settings.waitlist_mode=data.settings_waitlist_mode;
     freshBiz.settings.calendar_color_mode=data.settings_calendar_color_mode;
     freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
+    freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
     freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
     freshBiz.settings.last_minute_deadline=data.settings_last_minute_deadline;
     freshBiz.settings.last_minute_discount_pct=data.settings_last_minute_discount_pct;
