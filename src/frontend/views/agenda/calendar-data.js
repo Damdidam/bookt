@@ -160,11 +160,14 @@ export function applyVisibilityFilters(events) {
       const members = p._members || [];
       const allCancelled = members.every(m => m.status === 'cancelled');
       const allNoShow = members.every(m => m.status === 'no_show');
+      const allPending = members.every(m => m.status === 'pending' || m.status === 'pending_deposit');
       if ((allCancelled || p.status === 'cancelled') && !calState.fcShowCancelled) return false;
       if ((allNoShow || p.status === 'no_show') && !calState.fcShowNoShow) return false;
+      if ((allPending || p.status === 'pending' || p.status === 'pending_deposit') && !calState.fcShowPending) return false;
     } else {
       if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
       if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
+      if ((p.status === 'pending' || p.status === 'pending_deposit') && !calState.fcShowPending) return false;
     }
     // Category filter — for groups: show if ANY member matches a visible category
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
