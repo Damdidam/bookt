@@ -32,21 +32,23 @@ export function separateGroupedAndSingles(bookings) {
   return { grouped, singles };
 }
 
-/** Detect bookings that fall entirely within another booking's processing (pose) window. */
-export function detectPoseChildren(singles) {
+/** Detect bookings AND tasks that fall entirely within another booking's processing (pose) window. */
+export function detectPoseChildren(singles, tasks) {
   const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
   const poseChildMap = {}; // parent booking id -> [child bookings]
   const poseChildIds = new Set();
+  const taskPoseChildIds = new Set(); // task ids that are pose children
+  const taskPoseParentMap = {}; // task id -> parent booking id
   // Round ms timestamp to nearest minute (avoids sub-second DB precision mismatches)
   const toMin = t => Math.round(t / 60000);
-  singles.forEach(b => {
-    if (parseInt(b.processing_time) > 0) return;
-    if (['cancelled','no_show'].includes(b.status)) return;
-    const bStartMin = toMin(new Date(b.start_at).getTime());
-    const bEndMin = toMin(new Date(b.end_at).getTime());
+
+  // Helper: check if an item (booking or task) fits within any pose parent
+  function checkAgainstPoseParents(item, pracId, itemId, isTask) {
+    const bStartMin = toMin(new Date(item.start_at).getTime());
+    const bEndMin = toMin(new Date(item.end_at).getTime());
     for (var pi = 0; pi < poseParentBookings.length; pi++) {
       var par = poseParentBookings[pi];
-      if (String(par.practitioner_id) !== String(b.practitioner_id)) continue;
+      if (String(par.practitioner_id) !== String(pracId)) continue;
       var parStart = new Date(par.start_at).getTime();
       var parPs = parseInt(par.processing_start) || 0;
       var parBuf = parseInt(par.buffer_before_min) || 0;
@@ -54,14 +56,35 @@ export function detectPoseChildren(singles) {
       var poseStartMin = toMin(parStart + (parBuf + parPs) * 60000);
       var poseEndMin = toMin(parStart + (parBuf + parPs + parPt) * 60000);
       if (bStartMin >= poseStartMin && bEndMin <= poseEndMin) {
-        if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
-        poseChildMap[par.id].push(b);
-        poseChildIds.add(b.id);
+        if (isTask) {
+          taskPoseChildIds.add(itemId);
+          taskPoseParentMap[itemId] = par.id;
+        } else {
+          if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
+          poseChildMap[par.id].push(item);
+          poseChildIds.add(itemId);
+        }
         break;
       }
     }
+  }
+
+  // Check bookings
+  singles.forEach(b => {
+    if (parseInt(b.processing_time) > 0) return;
+    if (['cancelled','no_show'].includes(b.status)) return;
+    checkAgainstPoseParents(b, b.practitioner_id, b.id, false);
   });
-  return { poseChildMap, poseChildIds };
+
+  // Check tasks
+  if (tasks && tasks.length > 0) {
+    tasks.forEach(t => {
+      if (t.status === 'cancelled') return;
+      checkAgainstPoseParents(t, t.practitioner_id, t.id, true);
+    });
+  }
+
+  return { poseChildMap, poseChildIds, taskPoseChildIds, taskPoseParentMap };
 }
 
 /** Build FC events from single (non-grouped) bookings.
@@ -136,10 +159,16 @@ export function buildGroupEvents(grouped) {
 }
 
 /** Build FC events from internal tasks. */
-export function buildTaskEvents(tasks) {
+export function buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap) {
   return tasks.map(t => {
     const accent = t.color || '#6B7280';
     const frozen = t.status === 'cancelled';
+    const props = { ...t, _isTask: true, _accent: accent };
+    // Mark tasks that fall within a booking's pose window
+    if (taskPoseChildIds && taskPoseChildIds.has(t.id)) {
+      props._isPoseChild = true;
+      props._poseParentId = taskPoseParentMap[t.id];
+    }
     return {
       id: 'task_' + t.id, resourceId: String(t.practitioner_id),
       title: t.title,
@@ -147,7 +176,7 @@ export function buildTaskEvents(tasks) {
       backgroundColor: fcHexAlpha(accent, 0.08),
       borderColor: accent, textColor: accent,
       editable: !frozen && !calState.fcLocked, durationEditable: !frozen && !calState.fcLocked,
-      extendedProps: { ...t, _isTask: true, _accent: accent }
+      extendedProps: props
     };
   });
 }
@@ -366,10 +395,10 @@ function buildEventsCallback() {
 
         // Pipeline
         const { grouped, singles } = separateGroupedAndSingles(bookings);
-        const { poseChildMap, poseChildIds } = detectPoseChildren(singles);
+        const { poseChildMap, poseChildIds, taskPoseChildIds, taskPoseParentMap } = detectPoseChildren(singles, tasks);
         const singleEvents = buildSingleEvents(singles, poseChildIds, poseChildMap);
         const groupEvents = buildGroupEvents(grouped);
-        const taskEvents = buildTaskEvents(tasks);
+        const taskEvents = buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap);
         const allEvents = singleEvents.concat(groupEvents).concat(taskEvents);
         const filtered = applyVisibilityFilters(allEvents);
 

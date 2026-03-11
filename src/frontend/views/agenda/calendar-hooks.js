@@ -194,6 +194,15 @@ function buildEventDidMount() {
         if (now - lastTap < 600) { e.preventDefault(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); lastTap = 0; }
         else { lastTap = now; const touch = e.changedTouches?.[0]; if (touch) { fcShowTooltip(info.event, touch.clientX, touch.clientY); clearTimeout(window._ttAutoHide); window._ttAutoHide = setTimeout(fcHideTooltip, 2500); } }
       }, { passive: false });
+      // Task pose child: mark for redistribution (overlap parent visually)
+      if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
+        info.el.classList.add('ev-pose-child');
+        info.el.setAttribute('data-pose-parent', p._poseParentId);
+        clearTimeout(window._poseRedistTimer);
+        clearTimeout(window._poseRedistTimer2);
+        window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
+        window._poseRedistTimer2 = setTimeout(redistributePoseColumns, 120);
+      }
       return; // Skip all booking-specific logic
     }
 
