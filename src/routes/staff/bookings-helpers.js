@@ -227,8 +227,8 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
     const psIdx = params.length - 1;
     const ptIdx = params.length;
     reversePoseClause = `AND NOT (
-       b.start_at >= $3::timestamptz + ($${bufIdx}::integer + $${psIdx}::integer) * interval '1 minute'
-       AND b.end_at <= $3::timestamptz + ($${bufIdx}::integer + $${psIdx}::integer + $${ptIdx}::integer) * interval '1 minute'
+       date_trunc('minute', b.start_at) >= date_trunc('minute', $3::timestamptz) + ($${bufIdx}::integer + $${psIdx}::integer) * interval '1 minute'
+       AND date_trunc('minute', b.end_at) <= date_trunc('minute', $3::timestamptz) + ($${bufIdx}::integer + $${psIdx}::integer + $${ptIdx}::integer) * interval '1 minute'
      )`;
   }
 
@@ -241,8 +241,8 @@ async function checkBookingConflicts(client, { bid, pracId, newStart, newEnd, ex
      ${excludeClause}
      AND NOT (
        b.processing_time > 0
-       AND $3::timestamptz >= b.start_at + (COALESCE(s.buffer_before_min, 0) + b.processing_start) * interval '1 minute'
-       AND $4::timestamptz <= b.start_at + (COALESCE(s.buffer_before_min, 0) + b.processing_start + b.processing_time) * interval '1 minute'
+       AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min, 0) + b.processing_start) * interval '1 minute'
+       AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min, 0) + b.processing_start + b.processing_time) * interval '1 minute'
      )
      ${reversePoseClause}
      FOR UPDATE OF b`,

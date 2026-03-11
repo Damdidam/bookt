@@ -28,8 +28,8 @@ async function _checkBookingConflicts(bid, pracIds, startAt, endAt) {
        AND b.status IN ('pending','confirmed','modified_pending','pending_deposit')
        AND b.start_at < $4 AND b.end_at > $3
        AND NOT (b.processing_time > 0
-         AND $3::timestamptz >= b.start_at + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
-         AND $4::timestamptz <= b.start_at + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')`,
+         AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
+         AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')`,
     [bid, pracIds, startAt, endAt]
   );
   return result.rows;

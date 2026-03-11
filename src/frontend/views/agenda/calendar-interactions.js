@@ -234,23 +234,26 @@ function buildEventAllow() {
       if (st === 'cancelled' || st === 'no_show' || st === 'completed') continue;
       const evEnd = ev.end || ev.start;
       if (ev.start < newEnd && evEnd > newStart) {
+        // Helper: round ms timestamp to nearest minute (avoids sub-minute precision mismatches
+        // between FullCalendar snap positions and DB timestamps with fractional seconds)
+        const toMin = t => Math.round(t / 60000);
         // Skip if dragged event fits entirely within this event's pose window
         const pt = parseInt(ev.extendedProps?.processing_time) || 0;
         if (pt > 0) {
           const ps = parseInt(ev.extendedProps?.processing_start) || 0;
           const buf = parseInt(ev.extendedProps?.buffer_before_min) || 0;
-          const poseStart = new Date(ev.start.getTime() + (buf + ps) * 60000);
-          const poseEnd = new Date(ev.start.getTime() + (buf + ps + pt) * 60000);
-          if (newStart >= poseStart && newEnd <= poseEnd) continue;
+          const poseStartMs = ev.start.getTime() + (buf + ps) * 60000;
+          const poseEndMs = ev.start.getTime() + (buf + ps + pt) * 60000;
+          if (toMin(newStart.getTime()) >= toMin(poseStartMs) && toMin(newEnd.getTime()) <= toMin(poseEndMs)) continue;
         }
         // Reverse: skip if existing event fits entirely within moving event's pose window
         const mpt = parseInt(draggedEvent.extendedProps?.processing_time) || 0;
         if (mpt > 0) {
           const mps = parseInt(draggedEvent.extendedProps?.processing_start) || 0;
           const mbuf = parseInt(draggedEvent.extendedProps?.buffer_before_min) || 0;
-          const movePoseStart = new Date(newStart.getTime() + (mbuf + mps) * 60000);
-          const movePoseEnd = new Date(newStart.getTime() + (mbuf + mps + mpt) * 60000);
-          if (ev.start >= movePoseStart && evEnd <= movePoseEnd) continue;
+          const movePoseStartMs = newStart.getTime() + (mbuf + mps) * 60000;
+          const movePoseEndMs = newStart.getTime() + (mbuf + mps + mpt) * 60000;
+          if (toMin(ev.start.getTime()) >= toMin(movePoseStartMs) && toMin(evEnd.getTime()) <= toMin(movePoseEndMs)) continue;
         }
         overlapCount++;
       }

@@ -53,8 +53,8 @@ router.get('/:id/check-slot', async (req, res, next) => {
     if (pt > 0) {
       params.push(parseInt(b.buffer_before) || 0, parseInt(b.processing_start) || 0, pt);
       reversePoseClause = `AND NOT (
-        b.start_at >= $3::timestamptz + ($6::integer + $7::integer) * interval '1 minute'
-        AND b.end_at <= $3::timestamptz + ($6::integer + $7::integer + $8::integer) * interval '1 minute'
+        date_trunc('minute', b.start_at) >= date_trunc('minute', $3::timestamptz) + ($6::integer + $7::integer) * interval '1 minute'
+        AND date_trunc('minute', b.end_at) <= date_trunc('minute', $3::timestamptz) + ($6::integer + $7::integer + $8::integer) * interval '1 minute'
       )`;
     }
 
@@ -66,8 +66,8 @@ router.get('/:id/check-slot', async (req, res, next) => {
        AND b.start_at < $4 AND b.end_at > $3
        AND b.id != ALL($5::uuid[])
        AND NOT (b.processing_time > 0
-         AND $3::timestamptz >= b.start_at + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
-         AND $4::timestamptz <= b.start_at + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')
+         AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
+         AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')
        ${reversePoseClause}`, params);
 
     if (conflicts.rows.length >= maxConcurrent) {
