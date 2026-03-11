@@ -378,6 +378,22 @@
         </div>
       </div>
     </div>
+    <div id="qcDepositToggle" style="display:none;padding:10px 14px;margin:0 20px 8px;background:#FEF9E7;border:1.5px solid #F5D08B;border-radius:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <div>
+            <div style="font-size:.82rem;font-weight:600;color:#92400E">Demander un acompte</div>
+            <div id="qcDepositHint" style="font-size:.72rem;color:#B45309"></div>
+          </div>
+        </div>
+        <label style="position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" id="qcDepositCheck" style="display:none" onchange="qcDepositUserToggle(this)">
+          <span id="qcDepositTrack" style="position:absolute;inset:0;background:var(--border);border-radius:11px;transition:all .2s"></span>
+          <span id="qcDepositThumb" style="position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+        </label>
+      </div>
+    </div>
     <div class="m-bottom">
       <button class="m-btn m-btn-primary" id="qcBtnCreate" onclick="calCreateBooking()">Créer le RDV</button>
       <button class="m-btn m-btn-ghost" onclick="closeCalModal('calCreateModal')">Annuler</button>

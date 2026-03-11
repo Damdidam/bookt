@@ -8,7 +8,7 @@ import { calState } from '../../state.js';
 import { esc, safeId } from '../../utils/dom.js';
 
 const DEFAULT_ACCENT = '#0D7377';
-const ST_COLORS = { confirmed:'#15803D', pending:'#EAB308', modified_pending:'#D97706', completed:'#374151', no_show:'#DC2626', cancelled:'#DC2626' };
+const ST_COLORS = { confirmed:'#15803D', pending:'#EAB308', modified_pending:'#D97706', pending_deposit:'#D97706', completed:'#374151', no_show:'#DC2626', cancelled:'#DC2626' };
 
 /* Harmonised Lucide-style SVG icons — stroke-based, currentColor, no fill */
 const gi = svg => svg.replace('<svg ', '<svg class="gi" '); // inject .gi class for inline icon contexts
@@ -76,8 +76,9 @@ function buildEventContent() {
       const grpStC = ST_COLORS[grpSt] || ST_COLORS.confirmed;
       const grpPromo = members.some(m => m.discount_pct) ? '<span class="ev-badge-promo" title="Promo">' + IC.tag + '</span>' : '';
       const grpNote = members.some(m => m.internal_note) ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
+      const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
-      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpPromo}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
+      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
     }
 
     // -- Week/Day: single event --
@@ -115,6 +116,7 @@ function buildEventClassNames() {
       if (hasCancel) cls.push('ev-cancelled');
       else if (hasNoShow) cls.push('ev-no_show');
       else if (hasCompleted) cls.push('ev-completed');
+      else if (members.some(m => m.status === 'pending_deposit')) cls.push('ev-pending_deposit');
     } else {
       cls.push('ev-' + safeId(p.status || 'confirmed'));
     }

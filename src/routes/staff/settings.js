@@ -62,6 +62,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_deposit_type, settings_deposit_percent,
       settings_deposit_fixed_cents, settings_deposit_deadline_hours,
       settings_deposit_message, settings_deposit_deduct,
+      settings_deposit_price_threshold_cents, settings_deposit_duration_threshold_min, settings_deposit_threshold_mode,
       // V23b cancellation policy
       settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text,
       // Multi-service booking
@@ -124,6 +125,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_deposit_deadline_hours !== undefined) { const _v = parseInt(settings_deposit_deadline_hours); cur.deposit_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_deposit_message !== undefined) cur.deposit_message = settings_deposit_message;
       if (settings_deposit_deduct !== undefined) cur.deposit_deduct = !!settings_deposit_deduct;
+      if (settings_deposit_price_threshold_cents !== undefined) { const _v = parseInt(settings_deposit_price_threshold_cents); cur.deposit_price_threshold_cents = isNaN(_v) ? 0 : _v; }
+      if (settings_deposit_duration_threshold_min !== undefined) { const _v = parseInt(settings_deposit_duration_threshold_min); cur.deposit_duration_threshold_min = isNaN(_v) ? 0 : _v; }
+      if (settings_deposit_threshold_mode !== undefined) cur.deposit_threshold_mode = ['any', 'both'].includes(settings_deposit_threshold_mode) ? settings_deposit_threshold_mode : 'any';
       // V23b cancellation policy
       if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_cancel_grace_minutes !== undefined) { const _v = parseInt(settings_cancel_grace_minutes); cur.cancel_grace_minutes = isNaN(_v) ? 240 : _v; }

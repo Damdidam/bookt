@@ -111,6 +111,12 @@ function fcOpenQuickCreate(startStr, endStr) {
   const ttl = document.getElementById('qcTaskTitle'); if (ttl) ttl.value = '';
   const tn = document.getElementById('qcTaskNote'); if (tn) tn.value = '';
 
+  // Reset deposit toggle
+  const depToggle = document.getElementById('qcDepositToggle');
+  const depCheck = document.getElementById('qcDepositCheck');
+  if (depToggle) depToggle.style.display = 'none';
+  if (depCheck) { depCheck.checked = false; delete depCheck.dataset.userOverride; }
+
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
   guardModal(qcModal, { noBackdropClose: true });
@@ -353,6 +359,84 @@ function qcUpdateTotal() {
     modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'Téléphone' })[m] || esc(m)}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
+
+  // Check deposit suggestion whenever services change
+  qcCheckDepositSuggestion();
+}
+
+// ── Deposit auto-suggestion ──
+function qcCheckDepositSuggestion() {
+  const s = calState.fcBusinessSettings || {};
+  if (!s.deposit_enabled) return;
+
+  const toggle = document.getElementById('qcDepositToggle');
+  const check = document.getElementById('qcDepositCheck');
+  const hint = document.getElementById('qcDepositHint');
+  const track = document.getElementById('qcDepositTrack');
+  const thumb = document.getElementById('qcDepositThumb');
+  if (!toggle || !check) return;
+
+  const isFreestyle = document.getElementById('qcFreestyle')?.checked;
+
+  // Compute total price + duration from selected services
+  let totalPrice = 0, totalDur = 0;
+  if (isFreestyle) {
+    // Freestyle: compute duration from start/end, no price
+    const st = document.getElementById('qcTime')?.value;
+    const et = document.getElementById('qcFreeEnd')?.value;
+    if (st && et) {
+      const [sh, sm] = st.split(':').map(Number);
+      const [eh, em] = et.split(':').map(Number);
+      totalDur = (eh * 60 + em) - (sh * 60 + sm);
+      if (totalDur < 0) totalDur = 0;
+    }
+  } else {
+    document.querySelectorAll('.qc-svc-item').forEach(item => {
+      const sel = item.querySelector('[id^="qcSvcSel"]');
+      if (!sel?.value) return;
+      const svc = calState.fcServices.find(sv => String(sv.id) === String(sel.value));
+      if (!svc) return;
+      const varSel = item.querySelector('.qc-var-sel');
+      const variant = varSel?.value ? svc.variants?.find(v => String(v.id) === String(varSel.value)) : null;
+      totalPrice += variant?.price_cents || svc.price_cents || 0;
+      totalDur += variant?.duration_min || svc.duration_min || 30;
+    });
+  }
+
+  const priceThresh = s.deposit_price_threshold_cents || 0;
+  const durThresh = s.deposit_duration_threshold_min || 0;
+  const mode = s.deposit_threshold_mode || 'any';
+
+  // Always show toggle when deposit is enabled
+  toggle.style.display = '';
+
+  // Auto-suggest logic
+  const priceHit = priceThresh > 0 && totalPrice >= priceThresh;
+  const durHit = durThresh > 0 && totalDur >= durThresh;
+  const suggest = (priceThresh > 0 || durThresh > 0) && (mode === 'both' ? (priceHit && durHit) : (priceHit || durHit));
+
+  if (suggest && !check.checked && !check.dataset.userOverride) {
+    check.checked = true;
+    _qcUpdateDepositVisual(true);
+    const reasons = [];
+    if (priceHit) reasons.push((totalPrice / 100).toFixed(0) + '€');
+    if (durHit) reasons.push(totalDur + ' min');
+    hint.textContent = 'Suggéré — ' + reasons.join(' · ');
+  } else if (!suggest && hint) {
+    hint.textContent = '';
+  }
+}
+
+function qcDepositUserToggle(el) {
+  el.dataset.userOverride = 'true';
+  _qcUpdateDepositVisual(el.checked);
+}
+
+function _qcUpdateDepositVisual(on) {
+  const track = document.getElementById('qcDepositTrack');
+  const thumb = document.getElementById('qcDepositThumb');
+  if (track) track.style.background = on ? '#D97706' : 'var(--border)';
+  if (thumb) thumb.style.left = on ? '20px' : '2px';
 }
 
 // ── Client autocomplete ──
@@ -614,6 +698,10 @@ async function calCreateBooking() {
         body.services = services;
       }
     }
+
+    // Deposit toggle: force deposit if staff checked the toggle
+    const depCheck = document.getElementById('qcDepositCheck');
+    if (depCheck?.checked) body.force_deposit = true;
 
     const r = await fetch('/api/bookings/manual', {
       method: 'POST',
@@ -895,7 +983,8 @@ bridge({
   qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,
   qcSwitchMode,
-  qcSendDepositRequest, qcSkipDepositRequest
+  qcSendDepositRequest, qcSkipDepositRequest,
+  qcDepositUserToggle, qcCheckDepositSuggestion
 });
 
 export { fcOpenQuickCreate, calCreateBooking, setupQuickCreateListeners };

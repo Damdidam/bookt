@@ -17,7 +17,8 @@ router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
-            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked } = req.body;
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked,
+            force_deposit } = req.body;
 
     // BK-V13-008: group_id removed from destructuring (dead code — group_id is generated server-side)
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -142,7 +143,8 @@ router.post('/manual', async (req, res, next) => {
             [client_id, bid]
           );
           const dc = depCheck.rows[0];
-          if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
+          const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
+          if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
             const depCents = dc.settings.deposit_type === 'fixed'
               ? (dc.settings.deposit_fixed_cents || 2500)
               : 0; // freestyle has no service price, use fixed or skip
@@ -355,7 +357,8 @@ router.post('/manual', async (req, res, next) => {
           [client_id, bid]
         );
         const dc = depCheck.rows[0];
-        if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
+        const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
+        if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
           const svcPriceResult = await client.query(
             `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
              FROM bookings b

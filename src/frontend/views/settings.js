@@ -189,6 +189,9 @@ async function loadSettings(){
     // 3c. Politique d'acompte
     const depOn=b.settings?.deposit_enabled===true;
     const depThresh=b.settings?.deposit_noshow_threshold||2;
+    const depPriceThresh=b.settings?.deposit_price_threshold_cents||0;
+    const depDurThresh=b.settings?.deposit_duration_threshold_min||0;
+    const depThreshMode=b.settings?.deposit_threshold_mode||'any';
     const depType=b.settings?.deposit_type||'percent';
     const depPct=b.settings?.deposit_percent||50;
     const depFixed=b.settings?.deposit_fixed_cents||2500;
@@ -212,7 +215,28 @@ async function loadSettings(){
     h+=`<div id="depositOptions" style="display:${depOn?'block':'none'}">`;
 
     // Threshold
-    h+=`<div class="field"><label>Seuil de déclenchement</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Exiger un acompte après</span><input type="number" id="s_dep_threshold" value="${depThresh}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">no-show(s)</span></div></div>`;
+    h+=`<div class="field"><label>Seuil de déclenchement (no-shows)</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Exiger un acompte après</span><input type="number" id="s_dep_threshold" value="${depThresh}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">no-show(s)</span></div></div>`;
+
+    // Price/duration auto-suggestion thresholds
+    h+=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:.82rem;font-weight:600;color:var(--text);margin-bottom:6px">Suggestion automatique (RDV staff)</div>
+      <p style="font-size:.75rem;color:var(--text-4);margin-bottom:12px">Quand le staff crée un RDV dépassant ces seuils, un toggle « Demander un acompte » s'active automatiquement. Le staff peut l'ignorer.</p>
+      <div class="field"><label>Seuil de prix</label><div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="s_dep_price_thresh" value="${depPriceThresh?depPriceThresh/100:''}" min="0" step="10" placeholder="Ex: 150" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
+        <span style="font-size:.85rem;color:var(--text-3)">EUR</span>
+        <span style="font-size:.75rem;color:var(--text-4);margin-left:4px">(vide = pas de seuil prix)</span>
+      </div></div>
+      <div class="field"><label>Seuil de durée</label><div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="s_dep_dur_thresh" value="${depDurThresh||''}" min="0" step="15" placeholder="Ex: 120" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
+        <span style="font-size:.85rem;color:var(--text-3)">min</span>
+        <span style="font-size:.75rem;color:var(--text-4);margin-left:4px">(vide = pas de seuil durée)</span>
+      </div></div>
+      <div class="field"><label>Mode</label><div style="display:flex;gap:8px">
+        <button class="btn-sm ${depThreshMode==='any'?'active':''}" onclick="document.getElementById('s_dep_thresh_mode').value='any';this.classList.add('active');this.nextElementSibling.classList.remove('active')">L'un ou l'autre</button>
+        <button class="btn-sm ${depThreshMode==='both'?'active':''}" onclick="document.getElementById('s_dep_thresh_mode').value='both';this.classList.add('active');this.previousElementSibling.classList.remove('active')">Les deux</button>
+        <input type="hidden" id="s_dep_thresh_mode" value="${depThreshMode}">
+      </div></div>
+    </div>`;
 
     // Type selector
     h+=`<div class="field"><label>Type de montant</label><div style="display:flex;gap:8px">
@@ -498,6 +522,9 @@ async function saveDepositSettings(){
       settings_deposit_deadline_hours:parseInt(document.getElementById('s_dep_deadline')?.value)||48,
       settings_deposit_message:document.getElementById('s_dep_message')?.value||'',
       settings_deposit_deduct:document.getElementById('s_dep_deduct')?.checked??true,
+      settings_deposit_price_threshold_cents:Math.round((parseFloat(document.getElementById('s_dep_price_thresh')?.value)||0)*100),
+      settings_deposit_duration_threshold_min:parseInt(document.getElementById('s_dep_dur_thresh')?.value)||0,
+      settings_deposit_threshold_mode:document.getElementById('s_dep_thresh_mode')?.value||'any',
       settings_cancel_deadline_hours:parseInt(document.getElementById('s_cancel_deadline')?.value)||48,
       settings_cancel_grace_minutes:(parseInt(document.getElementById('s_cancel_grace')?.value)||4)*60,
       settings_cancel_policy_text:document.getElementById('s_cancel_policy')?.value||''
