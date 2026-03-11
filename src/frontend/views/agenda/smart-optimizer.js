@@ -11,6 +11,7 @@ import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { fcIsMobile } from '../../utils/touch.js';
+import { MONTH_NAMES } from '../../utils/format.js';
 
 // ── State ──
 let soActive = false;
@@ -34,14 +35,9 @@ function pad2(n) { return String(n).padStart(2, '0'); }
 function timeStr(totalMin) { return pad2(Math.floor(totalMin / 60)) + ':' + pad2(totalMin % 60); }
 
 const DAY_NAMES_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-const DAY_NAMES_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 function dayLabel(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   return DAY_NAMES_SHORT[d.getDay()] + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
-}
-function dayLabelLong(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  return DAY_NAMES_FULL[d.getDay()] + ' ' + d.getDate() + '/' + pad2(d.getMonth() + 1);
 }
 
 // ── SVG Icons (no emojis) ──
@@ -249,21 +245,72 @@ function soRenderServicePicker() {
 function soRenderDayFilter() {
   const cal = calState.fcCal;
   if (!cal) return '';
+
   const viewStart = cal.view.currentStart;
   const viewEnd = cal.view.currentEnd;
   const now = new Date();
   const todayStr = localDate(now);
 
-  let html = `<div class="so-field"><label class="so-label">Jour</label>`;
-  html += `<select class="so-select" id="soDateSel" onchange="soDateChanged()">`;
-  html += `<option value="all"${soDateFilter === 'all' ? ' selected' : ''}>Tous les jours visibles</option>`;
+  // Month to display (from view start)
+  const refDate = new Date(viewStart);
+  const year = refDate.getFullYear();
+  const month = refDate.getMonth();
 
+  // Visible-range date set for in-range highlight
+  const visibleDates = new Set();
   for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) {
-    const ds = localDate(d);
-    if (ds < todayStr) continue;
-    html += `<option value="${ds}"${soDateFilter === ds ? ' selected' : ''}>${dayLabelLong(ds)}</option>`;
+    visibleDates.add(localDate(d));
   }
-  html += `</select></div>`;
+
+  let html = '<div class="so-field"><label class="so-label">Jour</label>';
+  html += '<div class="so-cal" id="soCal">';
+
+  // Header: month name + year
+  html += `<div class="so-cal-header"><span class="so-cal-month">${MONTH_NAMES[month]} ${year}</span></div>`;
+
+  // Grid
+  html += '<div class="so-cal-grid">';
+
+  // Weekday labels (Mon-Sun)
+  ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(w => {
+    html += `<span class="so-cal-wday">${w}</span>`;
+  });
+
+  // Offset: empty cells before day 1 (Monday-based)
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const offset = firstDay === 0 ? 6 : firstDay - 1;
+  for (let i = 0; i < offset; i++) {
+    html += '<span class="so-cal-day so-cal-day--empty"></span>';
+  }
+
+  // Day cells
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = year + '-' + pad2(month + 1) + '-' + pad2(day);
+    const cls = ['so-cal-day'];
+    let clickable = true;
+
+    if (ds < todayStr) {
+      cls.push('so-cal-day--past');
+      clickable = false;
+    }
+    if (ds === todayStr) cls.push('so-cal-day--today');
+    if (clickable) {
+      cls.push(visibleDates.has(ds) ? 'so-cal-day--in-range' : 'so-cal-day--out-range');
+    }
+    if (soDateFilter === ds) cls.push('so-cal-day--selected');
+
+    const onclick = clickable ? ` onclick="soCalDayClick('${ds}')"` : '';
+    html += `<span class="${cls.join(' ')}" data-date="${ds}"${onclick}>${day}</span>`;
+  }
+
+  html += '</div>'; // .so-cal-grid
+
+  // Reset button
+  const resetActive = soDateFilter === 'all' ? ' so-cal-reset--active' : '';
+  html += `<button class="so-cal-reset${resetActive}" onclick="soCalReset()">Tous les jours</button>`;
+
+  html += '</div></div>';
   return html;
 }
 
@@ -289,9 +336,43 @@ function soPracChanged() {
   soRenderSuggestions();
 }
 
-function soDateChanged() {
-  soDateFilter = document.getElementById('soDateSel')?.value || 'all';
+function soCalDayClick(dateStr) {
+  soDateFilter = soDateFilter === dateStr ? 'all' : dateStr;
+  soRefreshCalendar();
   soRenderSuggestions();
+}
+
+function soCalReset() {
+  soDateFilter = 'all';
+  soRefreshCalendar();
+  soRenderSuggestions();
+}
+
+function soRefreshCalendar() {
+  const cal = calState.fcCal;
+  if (!cal) return;
+  const container = document.getElementById('soCal');
+  if (!container) return;
+
+  const todayStr = localDate(new Date());
+  const viewStart = cal.view.currentStart;
+  const viewEnd = cal.view.currentEnd;
+  const visibleDates = new Set();
+  for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) {
+    visibleDates.add(localDate(d));
+  }
+
+  container.querySelectorAll('.so-cal-day[data-date]').forEach(cell => {
+    const ds = cell.dataset.date;
+    cell.classList.remove('so-cal-day--selected', 'so-cal-day--in-range', 'so-cal-day--out-range');
+    if (ds >= todayStr) {
+      cell.classList.add(visibleDates.has(ds) ? 'so-cal-day--in-range' : 'so-cal-day--out-range');
+    }
+    if (soDateFilter === ds) cell.classList.add('so-cal-day--selected');
+  });
+
+  const resetBtn = container.querySelector('.so-cal-reset');
+  if (resetBtn) resetBtn.classList.toggle('so-cal-reset--active', soDateFilter === 'all');
 }
 
 function soCatChanged() {
@@ -749,6 +830,6 @@ function _soQueueRemainingServices(services, idx) {
 }
 
 // ── Bridge ──
-bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soDateChanged, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions });
+bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions });
 
 export { soIsActive, soToggleMode, soDeactivate };
