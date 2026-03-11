@@ -299,6 +299,14 @@ async function loadAgenda() {
   // Init FullCalendar
   initCalendar(initView, initSlotDur);
 
+  // Measure toolbar height for sticky column headers
+  const tb = document.querySelector('.agenda-toolbar');
+  if (tb) {
+    const setToolbarH = () => c.style.setProperty('--toolbar-h', tb.offsetHeight + 'px');
+    setToolbarH();
+    window.addEventListener('resize', setToolbarH);
+  }
+
   // Star button always visible for owner/manager (auto-enable on use)
 
   // SSE: real-time calendar updates

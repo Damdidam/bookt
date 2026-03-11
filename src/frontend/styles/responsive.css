@@ -54,9 +54,9 @@
   .agenda-toolbar .at-row2::-webkit-scrollbar{display:none}
   .agenda-toolbar .at-row2 .prac-pill{padding:3px 10px;font-size:.64rem;gap:4px}
   .agenda-toolbar .at-row2 .prac-pill .dot{width:6px;height:6px}
-  /* Sticky day headers below mobile toolbar (~64px) */
-  .content.agenda-active .fc .fc-scrollgrid-section-header{top:64px}
-  .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:64px!important}
+  /* Sticky day headers below mobile toolbar (JS sets --toolbar-h) */
+  .content.agenda-active .fc .fc-scrollgrid-section-header{top:var(--toolbar-h,64px)}
+  .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:var(--toolbar-h,64px)!important}
 
   /* Modal → full screen bottom sheet */
   .cal-modal-overlay{padding:0;align-items:flex-end}
