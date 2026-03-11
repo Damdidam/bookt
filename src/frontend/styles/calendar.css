@@ -320,6 +320,9 @@
 .so-slots{display:flex;flex-direction:column;gap:6px}
 .so-slot-card{padding:10px 14px;background:var(--white);border:1.5px solid var(--border-light);border-radius:10px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:5px}
 .so-slot-card:hover{border-color:#F9A8D4;box-shadow:0 2px 8px rgba(219,39,119,.08);transform:translateY(-1px)}
+.so-slot-meta{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.so-slot-date{font-size:.66rem;font-weight:700;color:#9D174D;background:#FDF2F8;padding:2px 8px;border-radius:4px;letter-spacing:.2px;white-space:nowrap}
+.so-slot-prac{font-size:.7rem;color:var(--text-3);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .so-slot-header{display:flex;align-items:center;gap:8px}
 .so-slot-time{font-size:.85rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .so-slot-dur{font-size:.68rem;color:var(--text-4);font-weight:600;margin-left:auto}

@@ -2,6 +2,8 @@
  * Smart Optimizer — suggests optimal slots for new bookings.
  * Staff selects service(s), the app scores available slots:
  *   pose fit (100), gap fill (80), gap reduce (60), adjacent (40), free (20).
+ * Scans all visible days, supports multi-practitioner ("Tous"),
+ * and filters out planning absences (congé, maladie, formation…).
  * Pattern follows gap-analyzer.js (prefix so instead of ga).
  */
 import { calState } from '../../state.js';
@@ -12,8 +14,9 @@ import { fcIsMobile } from '../../utils/touch.js';
 
 // ── State ──
 let soActive = false;
-let soSelectedServices = []; // [{id, name, duration_min, variant_id, variant_name, color, price_cents}]
-let soPracId = null;
+let soSelectedServices = []; // [{id, name, duration_min, variant_id, variant_name, color, price_cents, …}]
+let soPracId = null; // practitioner id or 'all'
+let soAbsences = []; // fetched from /api/planning/absences
 
 function soIsActive() { return soActive; }
 
@@ -28,6 +31,12 @@ function fmtMin(min) {
 }
 function pad2(n) { return String(n).padStart(2, '0'); }
 function timeStr(totalMin) { return pad2(Math.floor(totalMin / 60)) + ':' + pad2(totalMin % 60); }
+
+const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+function dayLabel(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return DAY_NAMES[d.getDay()] + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
+}
 
 // ── SVG Icons (no emojis) ──
 const ICO = {
@@ -49,7 +58,7 @@ function soToggleMode() {
 }
 
 // ── Activate / Deactivate ──
-function soActivate() {
+async function soActivate() {
   // Mutual exclusivity with gap analyzer + featured mode
   if (typeof window.gaDeactivate === 'function') window.gaDeactivate();
   if (typeof window.fsCancelMode === 'function') window.fsCancelMode();
@@ -58,9 +67,13 @@ function soActivate() {
   soSelectedServices = [];
   soPracId = calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
-    : (calState.fcPractitioners[0]?.id || null);
+    : 'all';
 
   document.getElementById('soToggleBtn')?.classList.add('active');
+
+  // Load planning absences for visible range
+  await soLoadAbsences();
+
   soShowPanel();
 }
 
@@ -68,8 +81,71 @@ function soDeactivate() {
   soActive = false;
   soSelectedServices = [];
   soPracId = null;
+  soAbsences = [];
   document.getElementById('soToggleBtn')?.classList.remove('active');
   document.getElementById('soOverlay')?.remove();
+}
+
+// ── Load Absences from Planning ──
+async function soLoadAbsences() {
+  try {
+    const cal = calState.fcCal;
+    if (!cal) return;
+    const start = cal.view.currentStart;
+    const end = cal.view.currentEnd;
+    // Collect months spanned by the visible range
+    const months = new Set();
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+      months.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+    const allAbsences = [];
+    for (const m of months) {
+      const resp = await fetch('/api/planning/absences?month=' + m);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.absences) allAbsences.push(...data.absences);
+      }
+    }
+    // Deduplicate by id
+    const seen = new Set();
+    soAbsences = allAbsences.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
+  } catch (e) {
+    console.warn('SO: failed to load absences', e);
+    soAbsences = [];
+  }
+}
+
+// ── Absence helpers ──
+/** Returns 'full', 'am', 'pm', or null (no absence) for a given practitioner+date */
+function soGetAbsencePeriod(pracId, dateStr) {
+  for (const abs of soAbsences) {
+    if (String(abs.practitioner_id) !== String(pracId)) continue;
+    const from = (abs.date_from || '').slice(0, 10);
+    const to = (abs.date_to || '').slice(0, 10);
+    if (dateStr < from || dateStr > to) continue;
+    if (from === to) return abs.period || 'full';
+    if (dateStr === from) return abs.period || 'full';
+    if (dateStr === to) return abs.period_end || 'full';
+    return 'full'; // middle day
+  }
+  return null;
+}
+
+/** Trim work windows based on half-day absence period */
+function soFilterWorkWindows(workWindows, period) {
+  const noon = 780; // 13:00 in minutes
+  if (period === 'full') return [];
+  if (period === 'am') {
+    return workWindows
+      .filter(ww => ww.end > noon)
+      .map(ww => ({ start: Math.max(ww.start, noon), end: ww.end }));
+  }
+  if (period === 'pm') {
+    return workWindows
+      .filter(ww => ww.start < noon)
+      .map(ww => ({ start: ww.start, end: Math.min(ww.end, noon) }));
+  }
+  return workWindows;
 }
 
 // ── Modal DOM ──
@@ -112,18 +188,20 @@ function soShowPanel() {
 
 // ── Service Picker (left column) ──
 function soRenderServicePicker() {
+  const effectivePracId = soPracId === 'all' ? null : soPracId;
   let html = '';
 
-  // Practitioner dropdown
+  // Practitioner dropdown — includes "Tous les praticiens"
   html += `<div class="so-field"><label class="so-label">Praticien</label>`;
   html += `<select class="so-select" id="soPracSel" onchange="soPracChanged()">`;
+  html += `<option value="all"${soPracId === 'all' ? ' selected' : ''}>Tous les praticiens</option>`;
   calState.fcPractitioners.forEach(p => {
     html += `<option value="${p.id}" ${String(p.id) === String(soPracId) ? 'selected' : ''}>${esc(p.display_name)}</option>`;
   });
   html += `</select></div>`;
 
   // Category dropdown
-  const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(soPracId) : [];
+  const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
   html += `<div class="so-field"><label class="so-label">Cat\u00e9gorie</label>`;
   html += `<select class="so-select" id="soCatSel" onchange="soCatChanged()">`;
   html += `<option value="">\u2014 Toutes \u2014</option>`;
@@ -131,7 +209,7 @@ function soRenderServicePicker() {
   html += `</select></div>`;
 
   // Service dropdown
-  const services = window.fcGetFilteredServices ? window.fcGetFilteredServices(soPracId, '') : [];
+  const services = window.fcGetFilteredServices ? window.fcGetFilteredServices(effectivePracId, '') : [];
   html += `<div class="so-field"><label class="so-label">Prestation</label>`;
   html += `<select class="so-select" id="soSvcSel" onchange="soSvcChanged()">`;
   html += `<option value="">\u2014 Choisir \u2014</option>`;
@@ -154,7 +232,10 @@ function soRenderServicePicker() {
   html += `</div>`;
 
   // Total duration
-  html += `<div class="so-total" id="soTotal"></div>`;
+  html += `<div class="so-total" id="soTotal">`;
+  const dur = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
+  if (dur > 0) html += `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>`;
+  html += `</div>`;
 
   return html;
 }
@@ -176,13 +257,16 @@ function soRenderSelectedServices() {
 // ── Service Picker Events ──
 function soPracChanged() {
   soPracId = document.getElementById('soPracSel')?.value || null;
+  // Services are intentionally preserved across practitioner switches
   soRefreshDropdowns();
+  soRefreshSelected(); // keep selected list visible
   soRenderSuggestions();
 }
 
 function soCatChanged() {
   const cat = document.getElementById('soCatSel')?.value || '';
-  const services = window.fcGetFilteredServices ? window.fcGetFilteredServices(soPracId, cat) : [];
+  const effectivePracId = soPracId === 'all' ? null : soPracId;
+  const services = window.fcGetFilteredServices ? window.fcGetFilteredServices(effectivePracId, cat) : [];
   const sel = document.getElementById('soSvcSel');
   sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s => {
     const durLabel = window.svcDurPriceLabel ? window.svcDurPriceLabel(s) : (s.duration_min + ' min');
@@ -226,7 +310,8 @@ function soUpdateAddBtn() {
 }
 
 function soRefreshDropdowns() {
-  const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(soPracId) : [];
+  const effectivePracId = soPracId === 'all' ? null : soPracId;
+  const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
   const catSel = document.getElementById('soCatSel');
   if (catSel) {
     catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
@@ -289,45 +374,117 @@ function soRefreshSelected() {
   }
 }
 
-// ── Scoring Algorithm ──
+// ── Service availability check per practitioner ──
+function soCanPracDoServices(pracId) {
+  return soSelectedServices.every(svc => {
+    const fullSvc = calState.fcServices.find(s => String(s.id) === String(svc.id));
+    if (!fullSvc) return false;
+    if (!fullSvc.practitioner_ids || fullSvc.practitioner_ids.length === 0) return true;
+    return fullSvc.practitioner_ids.some(pid => String(pid) === String(pracId));
+  });
+}
+
+// ── Scoring Algorithm (multi-day, multi-practitioner, absence-aware) ──
 function soFindSlots() {
   const cal = calState.fcCal;
-  if (!cal || soSelectedServices.length === 0 || !soPracId) return [];
+  if (!cal || soSelectedServices.length === 0) return [];
 
   const totalDuration = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
-  const date = localDate(cal.view.currentStart);
+  const viewStart = cal.view.currentStart;
+  const viewEnd = cal.view.currentEnd;
 
-  // Get all events for this practitioner on this day
-  const dayStart = new Date(date + 'T00:00:00');
-  const dayEnd = new Date(date + 'T23:59:59');
-  const allEvents = cal.getEvents().filter(ev => {
-    const p = ev.extendedProps || {};
-    if (p._isTask) return false;
-    if (['cancelled', 'no_show'].includes(p.status)) return false;
-    // pending expired filter
-    if (p.status === 'pending' && ev.start && ev.start <= new Date()) return false;
-    if (String(p.practitioner_id) !== String(soPracId)) return false;
-    return ev.start < dayEnd && ev.end > dayStart;
+  // Which practitioners to scan
+  const pracIds = soPracId === 'all'
+    ? calState.fcPractitioners.map(p => p.id)
+    : (soPracId ? [soPracId] : []);
+
+  if (pracIds.length === 0) return [];
+
+  // Practitioner name map
+  const pracNames = {};
+  calState.fcPractitioners.forEach(p => { pracNames[p.id] = p.display_name; });
+
+  // All FullCalendar events (fetched once)
+  const allCalEvents = cal.getEvents();
+
+  const now = new Date();
+  const todayStr = localDate(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const allResults = [];
+
+  // Iterate each day in visible range
+  for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) {
+    const dateStr = localDate(d);
+    const jsDay = d.getDay();
+
+    // Skip past dates
+    if (dateStr < todayStr) continue;
+
+    for (const pracId of pracIds) {
+      // When scanning all practitioners, skip those who can't do the selected services
+      if (soPracId === 'all' && !soCanPracDoServices(pracId)) continue;
+
+      // Check absence for this day
+      const absPeriod = soGetAbsencePeriod(pracId, dateStr);
+      if (absPeriod === 'full') continue;
+
+      // Get business hours for this day
+      const pracHours = calState.fcPracBusinessHours[pracId] || calState.fcBusinessHours || [];
+      const todayHours = pracHours.filter(h => h.daysOfWeek.includes(jsDay));
+      if (todayHours.length === 0) continue;
+
+      // Build work windows in minutes from midnight
+      let workWindows = todayHours.map(h => {
+        const [sh, sm] = h.startTime.split(':').map(Number);
+        const [eh, em] = h.endTime.split(':').map(Number);
+        return { start: sh * 60 + sm, end: eh * 60 + em };
+      }).sort((a, b) => a.start - b.start);
+
+      // Trim work windows by half-day absence
+      if (absPeriod) {
+        workWindows = soFilterWorkWindows(workWindows, absPeriod);
+        if (workWindows.length === 0) continue;
+      }
+
+      // Filter events for this practitioner on this day
+      const dayStartDt = new Date(dateStr + 'T00:00:00');
+      const dayEndDt = new Date(dateStr + 'T23:59:59');
+      const events = allCalEvents.filter(ev => {
+        const p = ev.extendedProps || {};
+        if (p._isTask) return false;
+        if (['cancelled', 'no_show'].includes(p.status)) return false;
+        if (p.status === 'pending' && ev.start && ev.start <= now) return false;
+        if (String(p.practitioner_id) !== String(pracId)) return false;
+        return ev.start < dayEndDt && ev.end > dayStartDt;
+      }).sort((a, b) => a.start - b.start);
+
+      // Minimum start time (skip past slots for today)
+      const minStart = dateStr === todayStr ? nowMin : 0;
+
+      // Calculate slots for this day+practitioner
+      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pracNames[pracId] || '', minStart);
+      allResults.push(...daySlots);
+    }
+  }
+
+  // Deduplicate by pracId+date+start, keep highest score
+  const byKey = {};
+  allResults.forEach(r => {
+    const key = `${r.pracId}_${r.dateStr}_${r.start}`;
+    if (!byKey[key] || r.score > byKey[key].score) byKey[key] = r;
   });
 
-  // Sort by start time
-  allEvents.sort((a, b) => a.start - b.start);
+  // Sort by score desc, then date asc, then time asc
+  return Object.values(byKey)
+    .sort((a, b) => b.score - a.score || a.dateStr.localeCompare(b.dateStr) || a.start - b.start)
+    .slice(0, 12);
+}
 
-  // Get business hours for this practitioner
-  const pracHours = calState.fcPracBusinessHours[soPracId] || calState.fcBusinessHours || [];
-  const jsDay = dayStart.getDay(); // 0=Sun...6=Sat
-  const todayHours = pracHours.filter(h => h.daysOfWeek.includes(jsDay));
-  if (todayHours.length === 0) return [];
-
-  // Build work windows in minutes from midnight
-  const workWindows = todayHours.map(h => {
-    const [sh, sm] = h.startTime.split(':').map(Number);
-    const [eh, em] = h.endTime.split(':').map(Number);
-    return { start: sh * 60 + sm, end: eh * 60 + em };
-  }).sort((a, b) => a.start - b.start);
-
+/** Calculate scored slots for a single practitioner on a single day */
+function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pracName, minStartMin) {
   // Build occupied ranges in minutes from midnight
-  const occupied = allEvents.map(ev => {
+  const occupied = events.map(ev => {
     const s = ev.start.getHours() * 60 + ev.start.getMinutes();
     const e = ev.end.getHours() * 60 + ev.end.getMinutes();
     return { start: s, end: e, ev };
@@ -335,7 +492,7 @@ function soFindSlots() {
 
   // Find pose (processing) windows where a child could fit
   const poseWindows = [];
-  allEvents.forEach(ev => {
+  events.forEach(ev => {
     const p = ev.extendedProps || {};
     const pt = parseInt(p.processing_time) || 0;
     const ps = parseInt(p.processing_start) || 0;
@@ -347,73 +504,56 @@ function soFindSlots() {
     const poseEnd = poseStart + pt;
 
     // Check how much of the pose window is already taken by children
-    const childrenInPose = allEvents.filter(ch => {
+    const childRanges = events.filter(ch => {
       if (ch === ev) return false;
       const cp = ch.extendedProps || {};
       if (cp._isPoseChild && String(cp._poseParentId) === String(p.id)) return true;
-      // Also check geometrically
       const cs = ch.start.getHours() * 60 + ch.start.getMinutes();
       const ce = ch.end.getHours() * 60 + ch.end.getMinutes();
       return cs >= poseStart && ce <= poseEnd && ch !== ev;
-    });
-
-    // Find free sub-windows within the pose window
-    const childRanges = childrenInPose.map(ch => ({
+    }).map(ch => ({
       start: ch.start.getHours() * 60 + ch.start.getMinutes(),
       end: ch.end.getHours() * 60 + ch.end.getMinutes()
     })).sort((a, b) => a.start - b.start);
 
     let cursor = poseStart;
     childRanges.forEach(cr => {
-      if (cr.start > cursor) {
-        poseWindows.push({ start: cursor, end: cr.start, parentEvId: p.id });
-      }
+      if (cr.start > cursor) poseWindows.push({ start: cursor, end: cr.start });
       cursor = Math.max(cursor, cr.end);
     });
-    if (cursor < poseEnd) {
-      poseWindows.push({ start: cursor, end: poseEnd, parentEvId: p.id });
-    }
+    if (cursor < poseEnd) poseWindows.push({ start: cursor, end: poseEnd });
   });
 
   // Find free gaps within work windows
   const freeSlots = [];
   workWindows.forEach(ww => {
-    // Get occupied segments within this work window
     const segs = occupied.filter(o => o.end > ww.start && o.start < ww.end)
       .map(o => ({ start: Math.max(o.start, ww.start), end: Math.min(o.end, ww.end) }))
       .sort((a, b) => a.start - b.start);
 
     let cursor = ww.start;
     segs.forEach(seg => {
-      if (seg.start > cursor) {
-        freeSlots.push({ start: cursor, end: seg.start });
-      }
+      if (seg.start > cursor) freeSlots.push({ start: cursor, end: seg.start });
       cursor = Math.max(cursor, seg.end);
     });
-    if (cursor < ww.end) {
-      freeSlots.push({ start: cursor, end: ww.end });
-    }
+    if (cursor < ww.end) freeSlots.push({ start: cursor, end: ww.end });
   });
 
-  // Score each possible position
   const results = [];
   const step = 5; // 5-minute increments
+  const dl = dayLabel(dateStr);
 
   // 1. Check pose windows first (score 100)
   poseWindows.forEach(pw => {
-    const available = pw.end - pw.start;
-    if (available < totalDuration) return;
-    // Try fitting at the start of the pose window
+    if (pw.end - pw.start < totalDuration) return;
     for (let t = pw.start; t + totalDuration <= pw.end; t += step) {
+      if (t < minStartMin) continue;
       results.push({
-        start: t,
-        end: t + totalDuration,
-        score: 100,
-        type: 'pose',
-        label: 'Temps de pose',
-        icon: ICO.pose,
+        start: t, end: t + totalDuration, score: 100,
+        type: 'pose', label: 'Temps de pose', icon: ICO.pose,
+        pracId, pracName, dateStr, dayLabel: dl,
       });
-      if (results.length > 20) break; // limit pose results
+      if (results.length > 20) break;
     }
   });
 
@@ -423,14 +563,14 @@ function soFindSlots() {
     if (gapDur < totalDuration) return;
 
     for (let t = gap.start; t + totalDuration <= gap.end; t += step) {
-      const remainAfter = gapDur - totalDuration;
-      let score, type, label, icon;
+      if (t < minStartMin) continue;
 
-      // Check adjacency: is start at gap.start or end at gap.end?
+      const remainAfter = gapDur - totalDuration;
       const atStart = (t === gap.start);
       const atEnd = (t + totalDuration === gap.end);
       const perfectFit = atStart && atEnd;
 
+      let score, type, label, icon;
       if (perfectFit || remainAfter <= 5) {
         score = 80; type = 'gap_fill'; label = 'Gap combl\u00e9'; icon = ICO.gap;
       } else if (remainAfter < gapDur * 0.5) {
@@ -441,21 +581,14 @@ function soFindSlots() {
         score = 20; type = 'free'; label = 'Cr\u00e9neau libre'; icon = ICO.free;
       }
 
-      results.push({ start: t, end: t + totalDuration, score, type, label, icon });
+      results.push({
+        start: t, end: t + totalDuration, score, type, label, icon,
+        pracId, pracName, dateStr, dayLabel: dl,
+      });
     }
   });
 
-  // Deduplicate by start time, keep highest score
-  const byStart = {};
-  results.forEach(r => {
-    const key = r.start;
-    if (!byStart[key] || r.score > byStart[key].score) byStart[key] = r;
-  });
-
-  // Sort by score desc, then by time asc
-  return Object.values(byStart)
-    .sort((a, b) => b.score - a.score || a.start - b.start)
-    .slice(0, 8);
+  return results;
 }
 
 // ── Render Suggestions ──
@@ -475,10 +608,15 @@ function soRenderSuggestions() {
     return;
   }
 
+  const showPrac = soPracId === 'all';
   let html = '<div class="so-slots">';
   slots.forEach(slot => {
     const scoreClass = slot.score >= 80 ? 'so-score--high' : slot.score >= 60 ? 'so-score--mid' : 'so-score--low';
-    html += `<div class="so-slot-card" onclick="soFillSlot(${slot.start})">
+    html += `<div class="so-slot-card" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
+      <div class="so-slot-meta">
+        <span class="so-slot-date">${slot.dayLabel}</span>
+        ${showPrac ? `<span class="so-slot-prac">${esc(slot.pracName)}</span>` : ''}
+      </div>
       <div class="so-slot-header">
         <span class="so-slot-time">${timeStr(slot.start)} \u2013 ${timeStr(slot.end)}</span>
         <span class="so-slot-dur">${slot.end - slot.start}min</span>
@@ -494,15 +632,11 @@ function soRenderSuggestions() {
 }
 
 // ── Fill Slot → open quick-create ──
-function soFillSlot(startMin) {
-  const cal = calState.fcCal;
-  if (!cal) return;
-
-  const date = localDate(cal.view.currentStart);
-  const startStr = date + 'T' + timeStr(startMin) + ':00';
+function soFillSlot(startMin, slotPracId, dateStr) {
+  const startStr = dateStr + 'T' + timeStr(startMin) + ':00';
 
   // Snapshot state before deactivating (soDeactivate clears them)
-  const _pracId = soPracId;
+  const _pracId = slotPracId || soPracId;
   const _services = [...soSelectedServices];
 
   // Close optimizer
@@ -514,7 +648,7 @@ function soFillSlot(startMin) {
   requestAnimationFrame(() => {
     // Set practitioner
     const qcPrac = document.getElementById('qcPrac');
-    if (qcPrac && _pracId) {
+    if (qcPrac && _pracId && _pracId !== 'all') {
       qcPrac.value = _pracId;
       const evt = new Event('change', { bubbles: true });
       qcPrac.dispatchEvent(evt);
