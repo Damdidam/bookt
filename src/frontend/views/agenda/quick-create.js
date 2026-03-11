@@ -324,7 +324,9 @@ function qcAssignConfirm() {
   const price = variant?.price_cents || svc.price_cents || 0;
   const durPrice = dur + 'min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
   const modes = JSON.stringify(svc.mode_options || ['cabinet']);
-  const html = `<div class="qc-svc-confirmed" data-service-id="${svcId}" data-variant-id="${varId}" data-dur="${dur}" data-buf="${(svc.buffer_before_min||0)+(svc.buffer_after_min||0)}" data-price="${price}" data-color="${color}" data-modes='${modes}'>
+  const pt = variant?.processing_time || svc.processing_time || 0;
+  const ps = variant?.processing_start || svc.processing_start || 0;
+  const html = `<div class="qc-svc-confirmed" data-service-id="${svcId}" data-variant-id="${varId}" data-dur="${dur}" data-buf="${(svc.buffer_before_min||0)+(svc.buffer_after_min||0)}" data-price="${price}" data-color="${color}" data-modes='${modes}' data-pt="${pt}" data-ps="${ps}">`;
     <span class="qc-svc-color" style="background:${color}"></span>
     <span style="flex:1;font-weight:600">${esc(name)}</span>
     <span class="qc-svc-dur">${durPrice}</span>
@@ -412,6 +414,29 @@ function qcUpdateTotal() {
     modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'T\u00e9l\u00e9phone' })[m] || esc(m)}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
+
+  // Pose info
+  let poseHtml = '';
+  const timeVal = document.getElementById('qcTime')?.value;
+  if (timeVal && cards.length) {
+    const [hh, mm] = timeVal.split(':').map(Number);
+    let offsetMin = 0;
+    cards.forEach(card => {
+      const dur = parseInt(card.dataset.dur || 0);
+      const buf = parseInt(card.dataset.buf || 0);
+      const pt = parseInt(card.dataset.pt || 0);
+      const ps = parseInt(card.dataset.ps || 0);
+      if (pt > 0) {
+        const poseStartMin = hh * 60 + mm + offsetMin + ps;
+        const poseEndMin = poseStartMin + pt;
+        const fmt = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+        poseHtml += `<div>\u23f3 Pose ${fmt(poseStartMin)} \u2013 ${fmt(poseEndMin)} (${pt}min)</div>`;
+      }
+      offsetMin += dur + buf;
+    });
+  }
+  document.getElementById('qcPoseInfo')?.remove();
+  if (poseHtml && el) el.insertAdjacentHTML('afterend', `<div id="qcPoseInfo" style="font-size:.75rem;color:var(--text-4);margin-top:4px">${poseHtml}</div>`);
 
   // Check deposit suggestion whenever services change
   qcCheckDepositSuggestion();
@@ -823,7 +848,10 @@ function setupQuickCreateListeners() {
     }
   });
   document.addEventListener('input', e => {
-    if (e.target?.id === 'qcTime' && document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
+    if (e.target?.id === 'qcTime') {
+      if (document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
+      else qcUpdateTotal();
+    }
   });
 }
 
