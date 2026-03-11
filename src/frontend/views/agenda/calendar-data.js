@@ -176,6 +176,16 @@ export function applyVisibilityFilters(events) {
         if (calState.fcHiddenCategories.has(p.service_category || '')) return false;
       }
     }
+    // Search filter (client name / phone / email)
+    const sq = calState.calSearchQuery;
+    if (sq) {
+      if (p._isGroup) {
+        const members = p._members || [];
+        if (!members.some(m => (m.client_name || '').toLowerCase().includes(sq) || (m.client_phone || '').includes(sq) || (m.client_email || '').toLowerCase().includes(sq))) return false;
+      } else if (!(p.client_name || '').toLowerCase().includes(sq) && !(p.client_phone || '').includes(sq) && !(p.client_email || '').toLowerCase().includes(sq)) {
+        return false;
+      }
+    }
     return true;
   });
 }

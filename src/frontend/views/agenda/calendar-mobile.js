@@ -46,6 +46,11 @@ async function fcLoadMobileList() {
         if (calState.fcHiddenCategories.has(cat)) return false;
       }
     }
+    // Search filter
+    const sq = calState.calSearchQuery;
+    if (sq) {
+      if (!(b.client_name || '').toLowerCase().includes(sq) && !(b.client_phone || '').includes(sq) && !(b.client_email || '').toLowerCase().includes(sq)) return false;
+    }
     return true;
   });
 

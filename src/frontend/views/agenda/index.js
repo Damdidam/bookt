@@ -62,6 +62,14 @@ function fcFilterPractitioner(id, el) {
   gaOnFilterChanged();
 }
 
+// ── Booking search ──
+let _searchTimer = null;
+function fcSearchBookings(q) {
+  clearTimeout(_searchTimer);
+  calState.calSearchQuery = (q || '').trim().toLowerCase();
+  _searchTimer = setTimeout(() => fcRefresh(), 200);
+}
+
 // ── Status toggle ──
 function fcToggleStatus(status, el) {
   if (status === 'cancelled') { calState.fcShowCancelled = !calState.fcShowCancelled; }
@@ -131,6 +139,7 @@ async function loadAgenda() {
     calState.fcServices = svD.services || [];
     calState.fcAllowOverlap = !!(bizD.business?.settings?.allow_overlap);
     calState.fcColorMode = bizD.business?.settings?.calendar_color_mode || 'category';
+    calState.calSearchQuery = '';
     calState.fcBusinessSettings = bizD.business?.settings || {};
 
     // Compute calendar bounds — prefer business_schedule (salon hours), fallback to practitioner avails
@@ -258,16 +267,17 @@ async function loadAgenda() {
   let toolbar = `<div class="agenda-toolbar">`;
   // Desktop: Row 1 -- nav + title + views + date
   toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button><button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')">Timeline</button>${fsBtnHtml}${gaBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
-  // Desktop: Row 2 -- filter pills
-  toolbar += `<div class="at-row-filters">${pillsHtml}</div>`;
+  // Desktop: Row 2 -- filter pills + search
+  const searchHtml = `<input type="search" id="calSearch" class="at-search" placeholder="Rechercher un client..." oninput="fcSearchBookings(this.value)">`;
+  toolbar += `<div class="at-row-filters">${pillsHtml}${searchHtml}</div>`;
   // Desktop: Row 2b -- thin full-width fill bar (no text)
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
   // Desktop: Row 3 -- category filter chips (if multiple categories)
   if (catChipsHtml) toolbar += catChipsHtml;
   // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)
   toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Auj.</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
-  // Mobile: Row 2 -- pills scrollable
-  toolbar += `<div class="at-row2">${pillsHtml}</div>`;
+  // Mobile: Row 2 -- pills scrollable + search
+  toolbar += `<div class="at-row2">${pillsHtml}${searchHtml}</div>`;
   toolbar += `</div>`;
 
   c.innerHTML = toolbar + `<div id="fcCalendar" style="${mobile && calState.fcMobileView === 'list' ? 'display:none' : ''}"></div><div id="fcMobList" class="mob-list ${mobile && calState.fcMobileView === 'list' ? 'active' : ''}"></div>` +
@@ -326,6 +336,6 @@ async function loadAgenda() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings });
 
 export { loadAgenda };

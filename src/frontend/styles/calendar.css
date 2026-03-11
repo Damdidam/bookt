@@ -17,6 +17,8 @@
 .agenda-toolbar .at-view-btn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
 .agenda-toolbar .at-date{font-size:.76rem;color:var(--text-4);white-space:nowrap;flex-shrink:0;margin-left:4px}
 .at-row-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.at-search{border:1px solid var(--border-light);border-radius:8px;padding:5px 10px;font-size:.75rem;font-family:inherit;outline:none;background:var(--bg-1);min-width:160px;margin-left:auto}
+.at-search:focus{border-color:var(--primary)}
 /* Fill rate bar — full-width thin bar */
 .at-row-stats{padding:6px 0 0}
 .at-row-stats .fill-bar{width:100%;height:3px;background:var(--border-light);border-radius:2px;overflow:hidden}
