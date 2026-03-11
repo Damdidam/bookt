@@ -91,7 +91,7 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
       props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
     }
-    return {
+    const ev = {
       id: b.id, resourceId: String(b.practitioner_id),
       title: b.client_name || 'Sans nom',
       start: b.start_at, end: b.end_at,
@@ -100,6 +100,9 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       editable: !frozen && !b.locked, durationEditable: !frozen && !b.locked,
       extendedProps: props
     };
+    // Cancelled/completed/no_show events must never block drag & drop of other events
+    if (frozen) ev.overlap = true;
+    return ev;
   });
 }
 
@@ -110,10 +113,11 @@ export function buildGroupEvents(grouped) {
     const first = members[0];
     const accent = accentFor(first);
     const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
+    const allFrozen = members.every(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
     const anyLocked = members.some(m => m.locked);
     const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
     const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
-    return {
+    const gev = {
       id: 'group_' + gid, resourceId: String(first.practitioner_id),
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
@@ -127,6 +131,9 @@ export function buildGroupEvents(grouped) {
         status: first.status
       }
     };
+    // All-cancelled/completed/no_show groups must never block drag & drop of other events
+    if (allFrozen) gev.overlap = true;
+    return gev;
   });
 }
 
