@@ -3,7 +3,7 @@
  * Staff selects service(s), the app scores available slots:
  *   pose fit (100), gap fill (80), gap reduce (60), adjacent (40), free (20).
  * Scans all visible days, supports multi-practitioner ("Tous"),
- * and filters out planning absences (congé, maladie, formation…).
+ * day filtering, and filters out planning absences.
  * Pattern follows gap-analyzer.js (prefix so instead of ga).
  */
 import { calState } from '../../state.js';
@@ -14,9 +14,10 @@ import { fcIsMobile } from '../../utils/touch.js';
 
 // ── State ──
 let soActive = false;
-let soSelectedServices = []; // [{id, name, duration_min, variant_id, variant_name, color, price_cents, …}]
-let soPracId = null; // practitioner id or 'all'
-let soAbsences = []; // fetched from /api/planning/absences
+let soSelectedServices = [];
+let soPracId = null;   // practitioner id or 'all'
+let soDateFilter = 'all'; // 'all' or 'YYYY-MM-DD'
+let soAbsences = [];
 
 function soIsActive() { return soActive; }
 
@@ -32,10 +33,15 @@ function fmtMin(min) {
 function pad2(n) { return String(n).padStart(2, '0'); }
 function timeStr(totalMin) { return pad2(Math.floor(totalMin / 60)) + ':' + pad2(totalMin % 60); }
 
-const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const DAY_NAMES_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const DAY_NAMES_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 function dayLabel(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
-  return DAY_NAMES[d.getDay()] + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
+  return DAY_NAMES_SHORT[d.getDay()] + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
+}
+function dayLabelLong(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return DAY_NAMES_FULL[d.getDay()] + ' ' + d.getDate() + '/' + pad2(d.getMonth() + 1);
 }
 
 // ── SVG Icons (no emojis) ──
@@ -45,9 +51,11 @@ const ICO = {
   adjacent: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>',
   free:     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
   plus:     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-  close:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  spark:    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-  remove:   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  close:    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  spark:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  remove:   '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  empty:    '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="1"/></svg>',
+  arrow:    '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
 };
 
 // ── Toggle ──
@@ -59,21 +67,18 @@ function soToggleMode() {
 
 // ── Activate / Deactivate ──
 async function soActivate() {
-  // Mutual exclusivity with gap analyzer + featured mode
   if (typeof window.gaDeactivate === 'function') window.gaDeactivate();
   if (typeof window.fsCancelMode === 'function') window.fsCancelMode();
 
   soActive = true;
   soSelectedServices = [];
+  soDateFilter = 'all';
   soPracId = calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
     : 'all';
 
   document.getElementById('soToggleBtn')?.classList.add('active');
-
-  // Load planning absences for visible range
   await soLoadAbsences();
-
   soShowPanel();
 }
 
@@ -81,6 +86,7 @@ function soDeactivate() {
   soActive = false;
   soSelectedServices = [];
   soPracId = null;
+  soDateFilter = 'all';
   soAbsences = [];
   document.getElementById('soToggleBtn')?.classList.remove('active');
   document.getElementById('soOverlay')?.remove();
@@ -93,7 +99,6 @@ async function soLoadAbsences() {
     if (!cal) return;
     const start = cal.view.currentStart;
     const end = cal.view.currentEnd;
-    // Collect months spanned by the visible range
     const months = new Set();
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
       months.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
@@ -106,7 +111,6 @@ async function soLoadAbsences() {
         if (data.absences) allAbsences.push(...data.absences);
       }
     }
-    // Deduplicate by id
     const seen = new Set();
     soAbsences = allAbsences.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
   } catch (e) {
@@ -116,7 +120,6 @@ async function soLoadAbsences() {
 }
 
 // ── Absence helpers ──
-/** Returns 'full', 'am', 'pm', or null (no absence) for a given practitioner+date */
 function soGetAbsencePeriod(pracId, dateStr) {
   for (const abs of soAbsences) {
     if (String(abs.practitioner_id) !== String(pracId)) continue;
@@ -126,14 +129,13 @@ function soGetAbsencePeriod(pracId, dateStr) {
     if (from === to) return abs.period || 'full';
     if (dateStr === from) return abs.period || 'full';
     if (dateStr === to) return abs.period_end || 'full';
-    return 'full'; // middle day
+    return 'full';
   }
   return null;
 }
 
-/** Trim work windows based on half-day absence period */
 function soFilterWorkWindows(workWindows, period) {
-  const noon = 780; // 13:00 in minutes
+  const noon = 780;
   if (period === 'full') return [];
   if (period === 'am') {
     return workWindows
@@ -159,26 +161,25 @@ function soShowPanel() {
 
   let html = `<div class="so-modal" id="soPanel">`;
 
-  // Header
+  // Header — gradient
   html += `<div class="so-modal-header">
     <div class="so-panel-title">${ICO.spark}<span>Optimiseur de RDV</span></div>
     <button class="so-panel-close" onclick="soDeactivate()" title="Fermer">${ICO.close}</button>
   </div>`;
 
-  // Body: 2 columns
+  // Body
   html += `<div class="so-modal-body">`;
 
-  // Left: service picker
+  // Left column
   html += `<div class="so-left" id="soLeft">`;
   html += soRenderServicePicker();
   html += `</div>`;
 
-  // Divider
   html += `<div class="so-divider"></div>`;
 
-  // Right: suggestions
+  // Right column
   html += `<div class="so-right" id="soRight">`;
-  html += `<div class="so-empty">S\u00e9lectionnez une prestation pour voir les suggestions</div>`;
+  html += `<div class="so-empty">${ICO.empty}<span>S\u00e9lectionnez une prestation<br>pour voir les cr\u00e9neaux optimaux</span></div>`;
   html += `</div>`;
 
   html += `</div></div>`;
@@ -191,7 +192,7 @@ function soRenderServicePicker() {
   const effectivePracId = soPracId === 'all' ? null : soPracId;
   let html = '';
 
-  // Practitioner dropdown — includes "Tous les praticiens"
+  // Practitioner
   html += `<div class="so-field"><label class="so-label">Praticien</label>`;
   html += `<select class="so-select" id="soPracSel" onchange="soPracChanged()">`;
   html += `<option value="all"${soPracId === 'all' ? ' selected' : ''}>Tous les praticiens</option>`;
@@ -200,7 +201,12 @@ function soRenderServicePicker() {
   });
   html += `</select></div>`;
 
-  // Category dropdown
+  // Day filter
+  html += soRenderDayFilter();
+
+  html += `<div class="so-sep"></div>`;
+
+  // Category
   const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
   html += `<div class="so-field"><label class="so-label">Cat\u00e9gorie</label>`;
   html += `<select class="so-select" id="soCatSel" onchange="soCatChanged()">`;
@@ -208,7 +214,7 @@ function soRenderServicePicker() {
   cats.forEach(c => { html += `<option value="${esc(c)}">${esc(c)}</option>`; });
   html += `</select></div>`;
 
-  // Service dropdown
+  // Service
   const services = window.fcGetFilteredServices ? window.fcGetFilteredServices(effectivePracId, '') : [];
   html += `<div class="so-field"><label class="so-label">Prestation</label>`;
   html += `<select class="so-select" id="soSvcSel" onchange="soSvcChanged()">`;
@@ -219,24 +225,45 @@ function soRenderServicePicker() {
   });
   html += `</select></div>`;
 
-  // Variant dropdown (hidden by default)
+  // Variant (hidden)
   html += `<div class="so-field" id="soVarWrap" style="display:none"><label class="so-label">Variante</label>`;
   html += `<select class="so-select" id="soVarSel" onchange="soVarChanged()"></select></div>`;
 
   // Add button
   html += `<button class="so-add-btn" id="soAddBtn" onclick="soAddService()" disabled>${ICO.plus} Ajouter</button>`;
 
-  // Selected services list
+  // Selected services
   html += `<div class="so-selected" id="soSelectedList">`;
   html += soRenderSelectedServices();
   html += `</div>`;
 
-  // Total duration
+  // Total
   html += `<div class="so-total" id="soTotal">`;
   const dur = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
   if (dur > 0) html += `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>`;
   html += `</div>`;
 
+  return html;
+}
+
+function soRenderDayFilter() {
+  const cal = calState.fcCal;
+  if (!cal) return '';
+  const viewStart = cal.view.currentStart;
+  const viewEnd = cal.view.currentEnd;
+  const now = new Date();
+  const todayStr = localDate(now);
+
+  let html = `<div class="so-field"><label class="so-label">Jour</label>`;
+  html += `<select class="so-select" id="soDateSel" onchange="soDateChanged()">`;
+  html += `<option value="all"${soDateFilter === 'all' ? ' selected' : ''}>Tous les jours visibles</option>`;
+
+  for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) {
+    const ds = localDate(d);
+    if (ds < todayStr) continue;
+    html += `<option value="${ds}"${soDateFilter === ds ? ' selected' : ''}>${dayLabelLong(ds)}</option>`;
+  }
+  html += `</select></div>`;
   return html;
 }
 
@@ -257,9 +284,13 @@ function soRenderSelectedServices() {
 // ── Service Picker Events ──
 function soPracChanged() {
   soPracId = document.getElementById('soPracSel')?.value || null;
-  // Services are intentionally preserved across practitioner switches
   soRefreshDropdowns();
-  soRefreshSelected(); // keep selected list visible
+  soRefreshSelected();
+  soRenderSuggestions();
+}
+
+function soDateChanged() {
+  soDateFilter = document.getElementById('soDateSel')?.value || 'all';
   soRenderSuggestions();
 }
 
@@ -312,33 +343,28 @@ function soUpdateAddBtn() {
 function soRefreshDropdowns() {
   const effectivePracId = soPracId === 'all' ? null : soPracId;
 
-  // Preserve current dropdown selections before rebuild
   const prevCat = document.getElementById('soCatSel')?.value || '';
   const prevSvc = document.getElementById('soSvcSel')?.value || '';
   const prevVar = document.getElementById('soVarSel')?.value || '';
 
-  // Rebuild category dropdown
   const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
   const catSel = document.getElementById('soCatSel');
   if (catSel) {
     catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
       `<option value="${esc(c)}">${esc(c)}</option>`
     ).join('');
-    // Restore category if it still exists for this practitioner
     if (prevCat && [...catSel.options].some(o => o.value === prevCat)) {
       catSel.value = prevCat;
     }
   }
 
-  // Rebuild service dropdown (respects restored category)
   soCatChanged();
 
-  // Restore service + variant if they still exist
   if (prevSvc) {
     const svcSel = document.getElementById('soSvcSel');
     if (svcSel && [...svcSel.options].some(o => o.value === prevSvc)) {
       svcSel.value = prevSvc;
-      soSvcChanged(); // rebuilds variant dropdown
+      soSvcChanged();
       if (prevVar) {
         const varSel = document.getElementById('soVarSel');
         if (varSel && [...varSel.options].some(o => o.value === prevVar)) {
@@ -375,12 +401,9 @@ function soAddService() {
     buffer_after_min: svc.buffer_after_min || 0,
   });
 
-  // Reset picker
   document.getElementById('soSvcSel').value = '';
   document.getElementById('soVarWrap').style.display = 'none';
   soUpdateAddBtn();
-
-  // Refresh display
   soRefreshSelected();
   soRenderSuggestions();
 }
@@ -413,7 +436,7 @@ function soCanPracDoServices(pracId) {
   });
 }
 
-// ── Scoring Algorithm (multi-day, multi-practitioner, absence-aware) ──
+// ── Scoring Algorithm ──
 function soFindSlots() {
   const cal = calState.fcCal;
   if (!cal || soSelectedServices.length === 0) return [];
@@ -422,61 +445,52 @@ function soFindSlots() {
   const viewStart = cal.view.currentStart;
   const viewEnd = cal.view.currentEnd;
 
-  // Which practitioners to scan
   const pracIds = soPracId === 'all'
     ? calState.fcPractitioners.map(p => p.id)
     : (soPracId ? [soPracId] : []);
 
   if (pracIds.length === 0) return [];
 
-  // Practitioner name map
   const pracNames = {};
   calState.fcPractitioners.forEach(p => { pracNames[p.id] = p.display_name; });
 
-  // All FullCalendar events (fetched once)
   const allCalEvents = cal.getEvents();
-
   const now = new Date();
   const todayStr = localDate(now);
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
   const allResults = [];
 
-  // Iterate each day in visible range
   for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) {
     const dateStr = localDate(d);
     const jsDay = d.getDay();
 
-    // Skip past dates
     if (dateStr < todayStr) continue;
 
+    // Day filter
+    if (soDateFilter !== 'all' && dateStr !== soDateFilter) continue;
+
     for (const pracId of pracIds) {
-      // When scanning all practitioners, skip those who can't do the selected services
       if (soPracId === 'all' && !soCanPracDoServices(pracId)) continue;
 
-      // Check absence for this day
       const absPeriod = soGetAbsencePeriod(pracId, dateStr);
       if (absPeriod === 'full') continue;
 
-      // Get business hours for this day
       const pracHours = calState.fcPracBusinessHours[pracId] || calState.fcBusinessHours || [];
       const todayHours = pracHours.filter(h => h.daysOfWeek.includes(jsDay));
       if (todayHours.length === 0) continue;
 
-      // Build work windows in minutes from midnight
       let workWindows = todayHours.map(h => {
         const [sh, sm] = h.startTime.split(':').map(Number);
         const [eh, em] = h.endTime.split(':').map(Number);
         return { start: sh * 60 + sm, end: eh * 60 + em };
       }).sort((a, b) => a.start - b.start);
 
-      // Trim work windows by half-day absence
       if (absPeriod) {
         workWindows = soFilterWorkWindows(workWindows, absPeriod);
         if (workWindows.length === 0) continue;
       }
 
-      // Filter events for this practitioner on this day
       const dayStartDt = new Date(dateStr + 'T00:00:00');
       const dayEndDt = new Date(dateStr + 'T23:59:59');
       const events = allCalEvents.filter(ev => {
@@ -488,38 +502,31 @@ function soFindSlots() {
         return ev.start < dayEndDt && ev.end > dayStartDt;
       }).sort((a, b) => a.start - b.start);
 
-      // Minimum start time (skip past slots for today)
       const minStart = dateStr === todayStr ? nowMin : 0;
-
-      // Calculate slots for this day+practitioner
       const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pracNames[pracId] || '', minStart);
       allResults.push(...daySlots);
     }
   }
 
-  // Deduplicate by pracId+date+start, keep highest score
   const byKey = {};
   allResults.forEach(r => {
     const key = `${r.pracId}_${r.dateStr}_${r.start}`;
     if (!byKey[key] || r.score > byKey[key].score) byKey[key] = r;
   });
 
-  // Sort by score desc, then date asc, then time asc
   return Object.values(byKey)
     .sort((a, b) => b.score - a.score || a.dateStr.localeCompare(b.dateStr) || a.start - b.start)
-    .slice(0, 12);
+    .slice(0, 15);
 }
 
 /** Calculate scored slots for a single practitioner on a single day */
 function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pracName, minStartMin) {
-  // Build occupied ranges in minutes from midnight
   const occupied = events.map(ev => {
     const s = ev.start.getHours() * 60 + ev.start.getMinutes();
     const e = ev.end.getHours() * 60 + ev.end.getMinutes();
     return { start: s, end: e, ev };
   }).sort((a, b) => a.start - b.start);
 
-  // Find pose (processing) windows where a child could fit
   const poseWindows = [];
   events.forEach(ev => {
     const p = ev.extendedProps || {};
@@ -532,7 +539,6 @@ function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pr
     const poseStart = evStartMin + buf + ps;
     const poseEnd = poseStart + pt;
 
-    // Check how much of the pose window is already taken by children
     const childRanges = events.filter(ch => {
       if (ch === ev) return false;
       const cp = ch.extendedProps || {};
@@ -553,7 +559,6 @@ function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pr
     if (cursor < poseEnd) poseWindows.push({ start: cursor, end: poseEnd });
   });
 
-  // Find free gaps within work windows
   const freeSlots = [];
   workWindows.forEach(ww => {
     const segs = occupied.filter(o => o.end > ww.start && o.start < ww.end)
@@ -569,10 +574,9 @@ function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pr
   });
 
   const results = [];
-  const step = 5; // 5-minute increments
+  const step = 5;
   const dl = dayLabel(dateStr);
 
-  // 1. Check pose windows first (score 100)
   poseWindows.forEach(pw => {
     if (pw.end - pw.start < totalDuration) return;
     for (let t = pw.start; t + totalDuration <= pw.end; t += step) {
@@ -586,7 +590,6 @@ function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pr
     }
   });
 
-  // 2. Check free gaps
   freeSlots.forEach(gap => {
     const gapDur = gap.end - gap.start;
     if (gapDur < totalDuration) return;
@@ -626,33 +629,42 @@ function soRenderSuggestions() {
   if (!right) return;
 
   if (soSelectedServices.length === 0) {
-    right.innerHTML = `<div class="so-empty">S\u00e9lectionnez une prestation pour voir les suggestions</div>`;
+    right.innerHTML = `<div class="so-empty">${ICO.empty}<span>S\u00e9lectionnez une prestation<br>pour voir les cr\u00e9neaux optimaux</span></div>`;
     return;
   }
 
   const slots = soFindSlots();
 
   if (slots.length === 0) {
-    right.innerHTML = `<div class="so-empty">Aucun cr\u00e9neau disponible pour ${fmtMin(soSelectedServices.reduce((s, sv) => s + sv.duration_min, 0))}</div>`;
+    right.innerHTML = `<div class="so-empty">${ICO.empty}<span>Aucun cr\u00e9neau disponible<br>pour ${fmtMin(soSelectedServices.reduce((s, sv) => s + sv.duration_min, 0))}</span></div>`;
     return;
   }
 
   const showPrac = soPracId === 'all';
-  let html = '<div class="so-slots">';
+  let html = `<div class="so-right-header">
+    <span class="so-right-title">Cr\u00e9neaux sugg\u00e9r\u00e9s</span>
+    <span class="so-right-count">${slots.length} r\u00e9sultat${slots.length > 1 ? 's' : ''}</span>
+  </div>`;
+  html += '<div class="so-slots">';
   slots.forEach(slot => {
-    const scoreClass = slot.score >= 80 ? 'so-score--high' : slot.score >= 60 ? 'so-score--mid' : 'so-score--low';
-    html += `<div class="so-slot-card" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
-      <div class="so-slot-meta">
-        <span class="so-slot-date">${slot.dayLabel}</span>
-        ${showPrac ? `<span class="so-slot-prac">${esc(slot.pracName)}</span>` : ''}
-      </div>
-      <div class="so-slot-header">
-        <span class="so-slot-time">${timeStr(slot.start)} \u2013 ${timeStr(slot.end)}</span>
-        <span class="so-slot-dur">${slot.end - slot.start}min</span>
+    const tier = slot.score >= 80 ? 'high' : slot.score >= 60 ? 'mid' : 'low';
+    html += `<div class="so-slot-card" data-tier="${tier}" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
+      <div class="so-slot-top">
+        <div class="so-slot-left">
+          <div class="so-slot-meta">
+            <span class="so-slot-date">${slot.dayLabel}</span>
+            ${showPrac ? `<span class="so-slot-prac">${esc(slot.pracName)}</span>` : ''}
+          </div>
+          <div class="so-slot-time">${timeStr(slot.start)} \u2013 ${timeStr(slot.end)}</div>
+        </div>
+        <div class="so-slot-right-info">
+          <span class="so-slot-dur">${slot.end - slot.start}min</span>
+          <span class="so-slot-arrow">${ICO.arrow}</span>
+        </div>
       </div>
       <div class="so-slot-footer">
-        <span class="so-score-badge ${scoreClass}">${slot.icon} ${slot.label}</span>
-        <span class="so-score-pts">${slot.score} pts</span>
+        <span class="so-score-badge so-score--${tier}">${slot.icon} ${slot.label}</span>
+        <div class="so-score-bar"><div class="so-score-fill" data-tier="${tier}" style="width:${slot.score}%"></div></div>
       </div>
     </div>`;
   });
@@ -664,18 +676,13 @@ function soRenderSuggestions() {
 function soFillSlot(startMin, slotPracId, dateStr) {
   const startStr = dateStr + 'T' + timeStr(startMin) + ':00';
 
-  // Snapshot state before deactivating (soDeactivate clears them)
   const _pracId = slotPracId || soPracId;
   const _services = [...soSelectedServices];
 
-  // Close optimizer
   soDeactivate();
-
-  // Open quick-create pre-filled
   fcOpenQuickCreate(startStr);
 
   requestAnimationFrame(() => {
-    // Set practitioner
     const qcPrac = document.getElementById('qcPrac');
     if (qcPrac && _pracId && _pracId !== 'all') {
       qcPrac.value = _pracId;
@@ -683,7 +690,6 @@ function soFillSlot(startMin, slotPracId, dateStr) {
       qcPrac.dispatchEvent(evt);
     }
 
-    // Add first service
     if (_services.length > 0) {
       requestAnimationFrame(() => {
         const firstSvc = _services[0];
@@ -692,7 +698,6 @@ function soFillSlot(startMin, slotPracId, dateStr) {
           qcSvcSel.value = firstSvc.id;
           if (typeof window.qcAssignSvcChanged === 'function') window.qcAssignSvcChanged();
 
-          // Set variant if needed
           if (firstSvc.variant_id) {
             requestAnimationFrame(() => {
               const qcVarSel = document.getElementById('qcAssignVarSel');
@@ -700,10 +705,7 @@ function soFillSlot(startMin, slotPracId, dateStr) {
                 qcVarSel.value = firstSvc.variant_id;
                 if (typeof window.qcAssignVarChanged === 'function') window.qcAssignVarChanged();
               }
-              // Confirm first service
               if (typeof window.qcAssignConfirm === 'function') window.qcAssignConfirm();
-
-              // Queue remaining services
               _soQueueRemainingServices(_services, 1);
             });
           } else {
@@ -716,13 +718,11 @@ function soFillSlot(startMin, slotPracId, dateStr) {
   });
 }
 
-/** Programmatically add remaining services (idx onwards) via qcAssignConfirm */
 function _soQueueRemainingServices(services, idx) {
   if (idx >= services.length) return;
   const svc = services[idx];
 
   requestAnimationFrame(() => {
-    // Open assign panel
     if (typeof window.qcShowAssignPanel === 'function') window.qcShowAssignPanel();
 
     requestAnimationFrame(() => {
@@ -749,9 +749,6 @@ function _soQueueRemainingServices(services, idx) {
 }
 
 // ── Bridge ──
-bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions });
-
-// We also need qcShowAssignPanel, qcAssignSvcChanged, qcAssignVarChanged, qcAssignConfirm
-// These are already bridged in quick-create.js / booking-detail.js
+bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soDateChanged, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions });
 
 export { soIsActive, soToggleMode, soDeactivate };
