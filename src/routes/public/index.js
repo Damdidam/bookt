@@ -1443,6 +1443,101 @@ router.get('/booking/:token', async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/public/deposit/:token/checkout
+// Create Stripe Checkout Session for deposit payment
+// ============================================================
+router.post('/deposit/:token/checkout', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    // 1. Fetch booking + business
+    const result = await query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
+              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
+              b.start_at, b.deposit_payment_intent_id,
+              c.full_name AS client_name, c.email AS client_email,
+              s.name AS service_name,
+              biz.name AS business_name, biz.stripe_customer_id
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+    const bk = result.rows[0];
+
+    // 2. Validate deposit is still pending
+    if (!bk.deposit_required || bk.status !== 'pending_deposit') {
+      return res.status(400).json({ error: 'Aucun acompte en attente pour ce rendez-vous' });
+    }
+    if (bk.deposit_status !== 'pending') {
+      return res.status(400).json({ error: 'L\'acompte n\'est plus en attente' });
+    }
+
+    // 3. Check deadline
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      return res.status(400).json({ error: 'Le délai de paiement est dépassé' });
+    }
+
+    // 4. Check Stripe
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.status(503).json({ error: 'Paiement en ligne non disponible' });
+    const stripe = require('stripe')(key);
+
+    const amountCents = bk.deposit_amount_cents || 0;
+    if (amountCents < 50) return res.status(400).json({ error: 'Montant trop faible' });
+
+    // 5. Create Checkout Session
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+      timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Acompte — ${bk.service_name || 'Rendez-vous'}`,
+            description: `${bk.business_name} · ${dateStr}`
+          }
+        },
+        quantity: 1
+      }],
+      customer_email: bk.client_email || undefined,
+      metadata: {
+        type: 'deposit',
+        booking_id: bk.id,
+        business_id: bk.business_id,
+        booking_token: token
+      },
+      success_url: `${baseUrl}/deposit/${token}?paid=1`,
+      cancel_url: `${baseUrl}/deposit/${token}`,
+      locale: 'fr',
+      expires_after: 1800 // 30 min
+    });
+
+    // 6. Store payment intent ID (available after session creation)
+    if (session.payment_intent) {
+      await query(
+        `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,
+        [session.payment_intent, bk.id]
+      );
+    }
+
+    res.json({ url: session.url, session_id: session.id });
+  } catch (err) {
+    console.error('[DEPOSIT CHECKOUT] Error:', err);
+    next(err);
+  }
+});
+
+// ============================================================
 // POST /api/public/booking/:token/cancel
 // Client self-cancel
 // ============================================================

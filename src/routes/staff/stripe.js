@@ -224,6 +224,90 @@ async function handleStripeWebhook(req, res) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
+
+        // ===== DEPOSIT PAYMENT =====
+        if (session.metadata?.type === 'deposit') {
+          const bookingId = session.metadata.booking_id;
+          const businessId = session.metadata.business_id;
+          const bookingToken = session.metadata.booking_token;
+          if (!bookingId || !businessId) break;
+
+          const piId = session.payment_intent || null;
+          console.log(`[STRIPE WH] Deposit paid for booking ${bookingId} (PI: ${piId})`);
+
+          // Update booking: pending_deposit → confirmed, deposit_status → paid
+          const upd = await query(
+            `UPDATE bookings SET
+              status = 'confirmed',
+              deposit_status = 'paid',
+              deposit_paid_at = NOW(),
+              deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
+              deposit_deadline = NULL
+             WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
+             RETURNING id, business_id, group_id, client_id`,
+            [piId, bookingId, businessId]
+          );
+
+          if (upd.rows.length > 0) {
+            const bk = upd.rows[0];
+
+            // Propagate to group siblings (pending_deposit → confirmed)
+            if (bk.group_id) {
+              await query(
+                `UPDATE bookings SET status = 'confirmed'
+                 WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'`,
+                [bk.group_id, businessId, bookingId]
+              );
+            }
+
+            // SSE broadcast to update calendar in real-time
+            try {
+              const { broadcast } = require('../../services/sse');
+              broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: bookingId });
+            } catch (e) { /* SSE optional */ }
+
+            // Send confirmation email to client
+            try {
+              const bkData = await query(
+                `SELECT b.start_at, b.end_at, b.deposit_amount_cents,
+                        c.full_name AS client_name, c.email AS client_email,
+                        s.name AS service_name, s.duration_min,
+                        p.display_name AS practitioner_name,
+                        biz.name AS business_name, biz.email AS business_email,
+                        biz.address AS business_address, biz.theme, biz.slug
+                 FROM bookings b
+                 LEFT JOIN clients c ON c.id = b.client_id
+                 LEFT JOIN services s ON s.id = b.service_id
+                 JOIN practitioners p ON p.id = b.practitioner_id
+                 JOIN businesses biz ON biz.id = b.business_id
+                 WHERE b.id = $1`,
+                [bookingId]
+              );
+              if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
+                const d = bkData.rows[0];
+                const { sendDepositPaidEmail } = require('../../services/email');
+                await sendDepositPaidEmail({
+                  booking: d,
+                  business: { name: d.business_name, email: d.business_email, address: d.business_address, theme: d.theme, slug: d.slug }
+                });
+              }
+            } catch (emailErr) {
+              console.error('[STRIPE WH] Deposit confirmation email failed:', emailErr.message);
+            }
+
+            // Log notification
+            try {
+              await query(
+                `INSERT INTO notifications (business_id, booking_id, type, status, sent_at)
+                 VALUES ($1, $2, 'deposit_paid_webhook', 'sent', NOW())`,
+                [businessId, bookingId]
+              );
+            } catch (logErr) { /* non-critical */ }
+          }
+          break;
+        }
+
+        // ===== SUBSCRIPTION PAYMENT =====
         const businessId = session.metadata?.business_id;
         if (!businessId) break;
 

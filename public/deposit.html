@@ -53,6 +53,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 .footer-link a{font-size:.82rem;color:var(--primary);text-decoration:none;font-weight:600}
 .footer-link a:hover{text-decoration:underline}
 #countdown{font-size:.78rem;color:var(--amber);margin-top:6px;font-weight:600}
+.pay-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 56px);margin:0 28px 20px;padding:14px 24px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-family:var(--sans);font-size:.92rem;font-weight:700;cursor:pointer;transition:all .15s}
+.pay-btn:hover{background:var(--primary-hover);transform:translateY(-1px)}
+.pay-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.pay-btn .spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite}
+.pay-or{text-align:center;font-size:.78rem;color:var(--text-4);margin:-8px 0 12px;font-weight:600}
 </style>
 </head>
 <body>
@@ -186,10 +191,15 @@ function render(d) {
     </div>
   </div>`;
 
-  // Contact section (for pending deposits)
+  // Pay online button (for pending deposits)
   if (depStatus === 'pending') {
-    html += `<div class="contact-section">
-      <p>Pour effectuer le paiement, veuillez contacter directement l'\u00e9tablissement :</p>
+    html += `<button class="pay-btn" id="payBtn" onclick="startPayment()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Payer ${depAmount} € en ligne
+    </button>`;
+    html += `<div class="pay-or">ou</div>`;
+    html += `<div class="contact-section" style="border-top:none;padding-top:0">
+      <p>Contactez directement l'\u00e9tablissement :</p>
       <div class="contact-btns">`;
     if (biz.phone) {
       html += `<a class="c-btn" href="tel:${esc(biz.phone)}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Appeler</a>`;
@@ -237,6 +247,57 @@ function showFooter(biz) {
 }
 
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function startPayment() {
+  const btn = document.getElementById('payBtn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Redirection vers le paiement…';
+  try {
+    const res = await fetch(`/api/public/deposit/${token}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Erreur'); btn.disabled = false; btn.innerHTML = 'Réessayer'; return; }
+    if (data.url) window.location.href = data.url;
+  } catch (err) {
+    alert('Erreur de connexion');
+    btn.disabled = false;
+    btn.innerHTML = 'Réessayer';
+  }
+}
+
+// Handle ?paid=1 success redirect — poll until status changes
+if (new URLSearchParams(window.location.search).get('paid') === '1') {
+  (async function pollPaid() {
+    // Show immediate success feedback while webhook processes
+    const card = document.getElementById('cardContent');
+    card.innerHTML = `<div style="padding:60px 28px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 style="font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px">Paiement reçu !</h2>
+      <p style="font-size:.88rem;color:var(--text-3)">Votre acompte a bien été enregistré.<br>Votre rendez-vous est confirmé.</p>
+      <div class="spinner" style="margin:20px auto 8px;border-top-color:var(--green)"></div>
+      <p style="font-size:.78rem;color:var(--text-4)">Chargement des détails…</p>
+    </div>`;
+    // Poll a few times then reload with full data
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const r = await fetch(`/api/public/booking/${token}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d.booking.deposit_status === 'paid' || attempts >= 6) {
+            clearInterval(interval);
+            window.history.replaceState({}, '', `/deposit/${token}`);
+            render(d);
+          }
+        }
+      } catch (e) { /* retry */ }
+      if (attempts >= 10) { clearInterval(interval); window.location.href = `/deposit/${token}`; }
+    }, 2000);
+  })();
+}
 
 function showError(msg) {
   document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">\u26a0\ufe0f</div><p style="font-size:.92rem;font-weight:600">${msg}</p><p style="font-size:.82rem;color:var(--text-3);margin-top:6px">V\u00e9rifiez le lien ou contactez le salon.</p></div>`;

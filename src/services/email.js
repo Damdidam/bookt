@@ -586,4 +586,60 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send deposit paid confirmation email to client
+ */
+async function sendDepositPaidEmail({ booking, business }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+  });
+  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name);
+  const safeServiceName = escHtml(booking.service_name || 'Rendez-vous');
+  const safePracName = escHtml(booking.practitioner_name || '');
+  const safeBizName = escHtml(business.name);
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p>Votre acompte a bien été reçu. Votre rendez-vous est confirmé !</p>
+    <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">✅ Acompte de ${amtStr} € reçu</div>
+      <div style="font-size:14px;color:#15803D">Votre rendez-vous est confirmé</div>
+    </div>
+    <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
+      <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">📅 ${dateStr} à ${timeStr}</div>
+      <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
+      ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
+    </div>
+    <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera déduit du prix total de votre prestation.</p>`;
+
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
+
+  const html = buildEmailHTML({
+    title: 'Acompte confirmé — Rendez-vous validé',
+    preheader: `Votre acompte de ${amtStr}€ a été reçu. RDV confirmé le ${dateStr}`,
+    bodyHTML,
+    ctaText: bookingUrl ? 'Gérer mon rendez-vous' : null,
+    ctaUrl: bookingUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Acompte reçu ✓ — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositPaidEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
