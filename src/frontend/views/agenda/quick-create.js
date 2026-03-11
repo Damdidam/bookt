@@ -84,10 +84,12 @@ function fcOpenQuickCreate(startStr, endStr) {
     qcRefreshServiceDropdowns();
   };
 
-  // Init service list with one entry
+  // Init service list — clear cards + open assign panel
   viewState.qcServiceCount = 0;
   document.getElementById('qcServiceList').innerHTML = '';
-  qcAddService();
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+  qcShowAssignPanel();
 
   // Reset client email/phone fields
   const qcDetails = document.getElementById('qcClientDetails');
@@ -177,226 +179,200 @@ function qcUpdateFreeDuration() {
   el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong>${(bb || ba) ? ' + buffers ' + (bb ? bb + 'min avant ' : '') + (ba ? ba + 'min après' : '') : ''}`;
 }
 
-// ── Service management ──
+// ── Service management (assign panel pattern — matches detail modal) ──
 
-/** Get service IDs already picked in existing dropdowns (optionally exclude one index) */
-function qcGetSelectedServiceIds(excludeIdx) {
+/** Get service IDs already confirmed */
+function qcGetSelectedServiceIds() {
   const ids = new Set();
-  document.querySelectorAll('.qc-svc-item').forEach(item => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const idx = parseInt(sel.id.replace('qcSvcSel', ''));
-    if (idx === excludeIdx) return;
-    if (sel.value) ids.add(String(sel.value));
+  document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
+    if (card.dataset.serviceId) ids.add(String(card.dataset.serviceId));
   });
+  // Also include the current picker selection if open
+  const assignSel = document.getElementById('qcAssignSvcSel');
+  if (assignSel?.value && document.getElementById('qcAssignSvc')?.style.display !== 'none') {
+    ids.add(String(assignSel.value));
+  }
   return ids;
 }
 
-/** Get services filtered by the currently selected practitioner */
-function qcGetPracServices() {
+/** Show the assign panel — reuses same pattern as mConvertSvc in detail modal */
+function qcShowAssignPanel() {
+  const panel = document.getElementById('qcAssignSvc');
   const pracId = document.getElementById('qcPrac')?.value;
-  return calState.fcServices.filter(s => {
-    if (s.is_active === false) return false;
-    // If service has practitioner_ids, check the selected practitioner is assigned
-    if (pracId && s.practitioner_ids && s.practitioner_ids.length > 0) {
-      return s.practitioner_ids.some(pid => String(pid) === String(pracId));
-    }
-    // If no practitioner_ids info, show the service (backwards compat)
-    return true;
-  });
+  const taken = qcGetSelectedServiceIds();
+
+  // Check if all services are already added
+  const available = fcGetFilteredServices(pracId, '').filter(s => !taken.has(String(s.id)));
+  if (available.length === 0) { gToast('Toutes les prestations sont d\u00e9j\u00e0 ajout\u00e9es', 'error'); return; }
+
+  // Populate category dropdown
+  const catSel = document.getElementById('qcAssignCatSel');
+  const cats = fcGetServiceCategories(pracId);
+  catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
+    `<option value="${esc(c)}">${esc(c)}</option>`
+  ).join('');
+
+  // Populate service dropdown (all categories, excluding taken)
+  qcAssignRebuildServices(pracId, '', taken);
+
+  // Reset variant + info + button
+  document.getElementById('qcAssignVarWrap').style.display = 'none';
+  document.getElementById('qcAssignVarSel').innerHTML = '';
+  document.getElementById('qcAssignInfo').textContent = '';
+  const addBtn = document.getElementById('qcAssignAddBtn');
+  if (addBtn) { addBtn.disabled = true; addBtn.textContent = '+ Ajouter'; }
+
+  // Hide the add button, show the panel
+  document.getElementById('qcAddSvcBtn').style.display = 'none';
+  panel.style.display = '';
 }
 
-/** Handle category change — rebuild service dropdown filtered by category */
-function qcCatChanged(idx) {
-  const cat = document.getElementById('qcCatSel' + idx)?.value || '';
-  const pracId = document.getElementById('qcPrac')?.value;
-  const svcSel = document.getElementById('qcSvcSel' + idx);
-  const varSel = document.getElementById('qcVarSel' + idx);
-  if (!svcSel) return;
-  const taken = qcGetSelectedServiceIds(idx);
-  const services = fcGetFilteredServices(pracId, cat).filter(s => !taken.has(String(s.id)));
-  svcSel.innerHTML = '<option value="">— Choisir —</option>' + services.map(s => {
-    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-    return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min||0)+(s.buffer_after_min||0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
-  }).join('');
-  if (varSel) varSel.innerHTML = '';
-  const varWrap = document.getElementById('qcVarWrap' + idx);
-  if (varWrap) varWrap.style.display = 'none';
-  qcUpdateTotal();
+/** Rebuild service dropdown for the assign panel */
+function qcAssignRebuildServices(pracId, category, taken) {
+  if (!taken) taken = qcGetSelectedServiceIds();
+  const services = fcGetFilteredServices(pracId, category).filter(s => !taken.has(String(s.id)));
+  const sel = document.getElementById('qcAssignSvcSel');
+  sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}" data-color="${/^#[0-9a-fA-F]{3,8}$/.test(s.color)?s.color:'#0D7377'}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`
+  ).join('');
 }
 
-/** Handle service selection change — populate variant dropdown if needed + prevent duplicates */
-function qcServiceChanged(idx) {
-  const sel = document.getElementById('qcSvcSel' + idx);
-  const varSel = document.getElementById('qcVarSel' + idx);
-  if (!sel || !varSel) { qcUpdateTotal(); return; }
+/** Category changed in assign panel */
+function qcAssignCatChanged() {
+  const cat = document.getElementById('qcAssignCatSel')?.value || '';
+  const pracId = document.getElementById('qcPrac')?.value;
+  qcAssignRebuildServices(pracId, cat);
+  document.getElementById('qcAssignVarWrap').style.display = 'none';
+  document.getElementById('qcAssignVarSel').innerHTML = '';
+  document.getElementById('qcAssignInfo').textContent = '';
+  qcAssignUpdateAddBtn();
+}
+
+/** Service changed in assign panel — populate variant dropdown if needed */
+function qcAssignSvcChanged() {
+  const sel = document.getElementById('qcAssignSvcSel');
+  const varWrap = document.getElementById('qcAssignVarWrap');
+  const varSel = document.getElementById('qcAssignVarSel');
   const svcId = sel.value;
+  if (!svcId) { varWrap.style.display = 'none'; document.getElementById('qcAssignInfo').textContent = ''; qcAssignUpdateAddBtn(); return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
-  const varWrap = document.getElementById('qcVarWrap' + idx);
   if (variants.length > 0) {
-    varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
-    if (varWrap) varWrap.style.display = '';
+    varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
+      `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    ).join('');
+    varWrap.style.display = 'block';
   } else {
     varSel.innerHTML = '';
-    if (varWrap) varWrap.style.display = 'none';
+    varWrap.style.display = 'none';
   }
-  // Refresh other dropdowns to disable services already picked
-  qcSyncServiceOptions();
-  qcUpdateTotal();
+  qcAssignUpdateInfo();
+  qcAssignUpdateAddBtn();
 }
 
-/** Sync all service dropdowns: disable options already selected elsewhere, respecting category filter */
-function qcSyncServiceOptions() {
-  const pracId = document.getElementById('qcPrac')?.value;
-  document.querySelectorAll('.qc-svc-item').forEach(item => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
-    const catSel = document.getElementById('qcCatSel' + myIdx);
-    const cat = catSel?.value || '';
-    const taken = qcGetSelectedServiceIds(myIdx);
-    const curVal = sel.value;
-    const filtered = fcGetFilteredServices(pracId, cat);
-    sel.innerHTML = '<option value="">— Choisir —</option>' + filtered.map(s => {
-      const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-      const disabled = taken.has(String(s.id)) ? ' disabled' : '';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
-    }).join('');
-    sel.value = curVal;
-  });
+/** Variant changed in assign panel */
+function qcAssignVarChanged() {
+  qcAssignUpdateInfo();
+  qcAssignUpdateAddBtn();
 }
 
-/** Rebuild all service dropdowns with filtered options, preserving selections (e.g. when practitioner changes) */
-function qcRefreshServiceDropdowns() {
-  const pracId = document.getElementById('qcPrac')?.value;
-  // Refresh category dropdowns
-  const cats = fcGetServiceCategories(pracId);
-  const catOptsHtml = '<option value="">— Toutes —</option>' + cats.map(c => `<option value="${c}">${esc(c)}</option>`).join('');
-  document.querySelectorAll('.qc-svc-item').forEach(item => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
-    const catSel = document.getElementById('qcCatSel' + myIdx);
-    const curCat = catSel?.value || '';
-    if (catSel) { catSel.innerHTML = catOptsHtml; catSel.value = curCat; }
-    const cat = catSel?.value || '';
-    const taken = qcGetSelectedServiceIds(myIdx);
-    const curVal = sel.value;
-    const filtered = fcGetFilteredServices(pracId, cat);
-    const filteredIds = new Set(filtered.map(s => String(s.id)));
-    sel.innerHTML = '<option value="">— Choisir —</option>' + filtered.map(s => {
-      const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-      const disabled = taken.has(String(s.id)) ? ' disabled' : '';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
-    }).join('');
-    if (filteredIds.has(String(curVal))) sel.value = curVal;
-    // Refresh variant dropdown for the selected service
-    const varSel = item.querySelector('.qc-var-sel');
-    const varWrap = item.querySelector('[id^="qcVarWrap"]');
-    if (varSel) {
-      const svc = calState.fcServices.find(s => String(s.id) === String(sel.value));
-      const variants = svc?.variants || [];
-      if (variants.length > 0) {
-        varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
-        if (varWrap) varWrap.style.display = '';
-      } else {
-        varSel.innerHTML = '';
-        if (varWrap) varWrap.style.display = 'none';
-      }
-    }
-  });
-  qcUpdateTotal();
+/** Update info line with duration + price (variant-aware) */
+function qcAssignUpdateInfo() {
+  const sel = document.getElementById('qcAssignSvcSel');
+  const varSel = document.getElementById('qcAssignVarSel');
+  const info = document.getElementById('qcAssignInfo');
+  const svcId = sel?.value;
+  if (!svcId) { info.textContent = ''; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const varOpt = varSel?.selectedOptions?.[0];
+  const varId = varOpt?.value;
+  if (varId) {
+    const variant = svc?.variants?.find(v => String(v.id) === String(varId));
+    const dur = variant?.duration_min || parseInt(varOpt.dataset.dur) || 0;
+    const price = variant?.price_cents ?? parseInt(varOpt.dataset.price) ?? 0;
+    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  } else {
+    info.textContent = svcDurPriceLabel(svc);
+  }
 }
 
-function qcAddService() {
-  const idx = viewState.qcServiceCount++;
-  const pracId = document.getElementById('qcPrac')?.value;
-  const cats = fcGetServiceCategories(pracId);
-  const catOpts = '<option value="">— Toutes —</option>' + cats.map(c => `<option value="${c}">${esc(c)}</option>`).join('');
-  const taken = qcGetSelectedServiceIds(-1);
-  const available = fcGetFilteredServices(pracId, '').filter(s => !taken.has(String(s.id)));
-  if (available.length === 0) { gToast('Toutes les prestations sont déjà ajoutées', 'error'); viewState.qcServiceCount--; return; }
-  const svcOpts = '<option value="">— Choisir —</option>' + available.map(s => {
-    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-    return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
-  }).join('');
-  const html = `<div class="qc-svc-item m-convert-panel" id="qcSvc${idx}" style="border-color:var(--border-light)">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
-      <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
-      <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer" style="margin-left:auto"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="m-svc-picker">
-      <div class="m-svc-picker-field">
-        <label>Catégorie</label>
-        <select onchange="qcCatChanged(${idx})" id="qcCatSel${idx}">${catOpts}</select>
-      </div>
-      <div class="m-svc-picker-field">
-        <label>Prestation</label>
-        <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${svcOpts}</select>
-      </div>
-      <div class="m-svc-picker-field" id="qcVarWrap${idx}" style="display:none">
-        <label>Variante</label>
-        <select class="qc-var-sel" id="qcVarSel${idx}" onchange="qcUpdateTotal()"></select>
-      </div>
-    </div>
-    <span class="m-svc-picker-info" id="qcSvcInfo${idx}"></span>
+/** Enable/disable + Ajouter button based on selection state */
+function qcAssignUpdateAddBtn() {
+  const btn = document.getElementById('qcAssignAddBtn');
+  if (!btn) return;
+  const svcId = document.getElementById('qcAssignSvcSel')?.value;
+  if (!svcId) { btn.disabled = true; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const hasVariants = (svc?.variants || []).length > 0;
+  const varSelected = !!document.getElementById('qcAssignVarSel')?.value;
+  btn.disabled = hasVariants && !varSelected;
+}
+
+/** Confirm selection: create confirmed card + hide panel */
+function qcAssignConfirm() {
+  const sel = document.getElementById('qcAssignSvcSel');
+  const varSel = document.getElementById('qcAssignVarSel');
+  const svcId = sel?.value;
+  if (!svcId) return;
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  if (!svc) return;
+  const varId = varSel?.value || '';
+  const variant = varId ? svc.variants?.find(v => String(v.id) === String(varId)) : null;
+  const color = /^#[0-9a-fA-F]{3,8}$/.test(svc.color) ? svc.color : '#0D7377';
+  const name = variant ? svc.name + ' \u2014 ' + variant.name : svc.name;
+  const dur = variant?.duration_min || svc.duration_min || 0;
+  const price = variant?.price_cents || svc.price_cents || 0;
+  const durPrice = dur + 'min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  const modes = JSON.stringify(svc.mode_options || ['cabinet']);
+  const html = `<div class="qc-svc-confirmed" data-service-id="${svcId}" data-variant-id="${varId}" data-dur="${dur}" data-buf="${(svc.buffer_before_min||0)+(svc.buffer_after_min||0)}" data-price="${price}" data-color="${color}" data-modes='${modes}'>
+    <span class="qc-svc-color" style="background:${color}"></span>
+    <span style="flex:1;font-weight:600">${esc(name)}</span>
+    <span class="qc-svc-dur">${durPrice}</span>
+    <button class="qc-svc-rm" onclick="qcRemoveConfirmed(this)" title="Retirer">\u2715</button>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
   qcUpdateTotal();
 }
 
-function qcRemoveService(idx) {
-  const el = document.getElementById('qcSvc' + idx);
-  if (el) el.remove();
-  if (document.querySelectorAll('.qc-svc-item').length === 0) qcAddService();
-  else { qcSyncServiceOptions(); qcUpdateTotal(); }
+/** Cancel assign panel without adding */
+function qcAssignCancel() {
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+}
+
+/** Remove a confirmed service card */
+function qcRemoveConfirmed(btn) {
+  const card = btn.closest('.qc-svc-confirmed');
+  if (card) card.remove();
+  qcUpdateTotal();
+}
+
+/** Clear all confirmed cards + reset panel (used when practitioner changes) */
+function qcRefreshServiceDropdowns() {
+  document.getElementById('qcServiceList').innerHTML = '';
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+  qcShowAssignPanel();
 }
 
 function qcUpdateTotal() {
   let total = 0;
   let firstColor = '#0D7377';
-  const svcItems = document.querySelectorAll('.qc-svc-item');
+  const cards = document.querySelectorAll('.qc-svc-confirmed');
   let availModes = null;
-  svcItems.forEach((item, i) => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    const infoEl = item.querySelector('.m-svc-picker-info');
-    if (!sel || !sel.value) {
-      if (infoEl) infoEl.textContent = '';
-      item.style.borderColor = 'var(--border-light)';
-      return;
-    }
-    const opt = sel.options[sel.selectedIndex];
-    let dur = parseInt(opt?.dataset.dur || 30);
-    const buf = parseInt(opt?.dataset.buf || 0);
-    const color = opt?.dataset.color || '#0D7377';
-    const varSel = item.querySelector('.qc-var-sel');
-    let priceCents = 0;
-    if (varSel?.value && varSel.selectedIndex > 0) {
-      dur = parseInt(varSel.options[varSel.selectedIndex]?.dataset.dur || dur);
-      priceCents = parseInt(varSel.options[varSel.selectedIndex]?.dataset.price || 0);
-    }
+  cards.forEach((card, i) => {
+    const dur = parseInt(card.dataset.dur || 0);
+    const buf = parseInt(card.dataset.buf || 0);
+    const color = card.dataset.color || '#0D7377';
     total += dur + buf;
     if (i === 0) firstColor = color;
-    const durEl = item.querySelector('.qc-svc-dur');
-    if (durEl) durEl.textContent = dur + 'min';
-    const colEl = item.querySelector('.qc-svc-color');
-    if (colEl) colEl.style.background = color;
-    // Info line: show confirmed selection with duration + price
-    if (infoEl) {
-      const svcObj = calState.fcServices.find(s => String(s.id) === String(sel.value));
-      if (!priceCents && svcObj?.price_cents) priceCents = svcObj.price_cents;
-      const priceTxt = priceCents ? ' · ' + (priceCents / 100).toFixed(0) + '€' : '';
-      infoEl.textContent = '✓ ' + dur + 'min' + priceTxt;
-    }
-    item.style.borderColor = 'var(--primary)';
-    const svcId = sel.value;
-    // Bug B5 fix: coerce both sides to string for type-safe comparison
-    const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
-    const modes = svc?.mode_options || ['cabinet'];
-    if (!availModes) availModes = new Set(modes);
-    else availModes = new Set([...availModes].filter(m => modes.includes(m)));
+    try {
+      const modes = JSON.parse(card.dataset.modes || '["cabinet"]');
+      if (!availModes) availModes = new Set(modes);
+      else availModes = new Set([...availModes].filter(m => modes.includes(m)));
+    } catch (_) { /* ignore */ }
   });
 
   // Update gradient to first service color
@@ -404,11 +380,13 @@ function qcUpdateTotal() {
 
   // Update total display
   const el = document.getElementById('qcTotalDuration');
-  if (svcItems.length > 1) {
+  if (cards.length > 1) {
     const h = Math.floor(total / 60), m = total % 60;
-    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> · ${svcItems.length} ${categoryLabels.services.toLowerCase()}`;
-  } else {
+    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dur\u00e9e totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> \u00b7 ${cards.length} ${categoryLabels.services.toLowerCase()}`;
+  } else if (cards.length === 1) {
     el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${total} min`;
+  } else {
+    el.innerHTML = '';
   }
 
   // Update mode selector
@@ -421,7 +399,7 @@ function qcUpdateTotal() {
   } else {
     modeRow.style.display = '';
     const curVal = modeSel.value;
-    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'Téléphone' })[m] || esc(m)}</option>`).join('');
+    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'T\u00e9l\u00e9phone' })[m] || esc(m)}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
 
@@ -456,15 +434,9 @@ function qcCheckDepositSuggestion() {
       if (totalDur < 0) totalDur = 0;
     }
   } else {
-    document.querySelectorAll('.qc-svc-item').forEach(item => {
-      const sel = item.querySelector('[id^="qcSvcSel"]');
-      if (!sel?.value) return;
-      const svc = calState.fcServices.find(sv => String(sv.id) === String(sel.value));
-      if (!svc) return;
-      const varSel = item.querySelector('.qc-var-sel');
-      const variant = varSel?.value ? svc.variants?.find(v => String(v.id) === String(varSel.value)) : null;
-      totalPrice += variant?.price_cents || svc.price_cents || 0;
-      totalDur += variant?.duration_min || svc.duration_min || 30;
+    document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
+      totalPrice += parseInt(card.dataset.price || 0);
+      totalDur += parseInt(card.dataset.dur || 0);
     });
   }
 
@@ -737,14 +709,16 @@ async function calCreateBooking() {
         locked: isLocked
       };
     } else {
-      const svcItemEls = document.querySelectorAll('.qc-svc-item');
-      const services = [...svcItemEls].map(item => {
-        const svcSel = item.querySelector('[id^="qcSvcSel"]');
-        const varSel = item.querySelector('.qc-var-sel');
-        const obj = { service_id: svcSel.value };
-        if (varSel?.value) obj.variant_id = varSel.value;
+      // Check if assign panel is open with pending selection
+      if (document.getElementById('qcAssignSvc')?.style.display !== 'none') {
+        gToast('Confirmez ou annulez la prestation en cours', 'error'); return;
+      }
+      const cards = document.querySelectorAll('.qc-svc-confirmed');
+      const services = [...cards].map(c => {
+        const obj = { service_id: c.dataset.serviceId };
+        if (c.dataset.variantId) obj.variant_id = c.dataset.variantId;
         return obj;
-      });
+      }).filter(s => s.service_id);
       if (services.length === 0) { gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
 
       body = {
@@ -1042,8 +1016,9 @@ function qcSkipDepositRequest() {
 // Expose to global scope for onclick handlers
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
-  qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
-  qcCatChanged, qcServiceChanged, qcSyncServiceOptions,
+  qcShowAssignPanel, qcAssignCatChanged, qcAssignSvcChanged, qcAssignVarChanged,
+  qcAssignConfirm, qcAssignCancel, qcRemoveConfirmed,
+  qcUpdateTotal, qcRefreshServiceDropdowns,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,

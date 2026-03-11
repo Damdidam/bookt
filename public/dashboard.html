@@ -273,7 +273,22 @@
           </label>
           <div id="qcNormalMode">
             <div id="qcServiceList"></div>
-            <button class="cal-btn" style="margin-top:6px;font-size:.75rem;padding:5px 12px" onclick="qcAddService()" id="qcAddSvcBtn">+ Ajouter une prestation</button>
+            <div id="qcAssignSvc" class="m-convert-panel" style="display:none">
+              <div class="m-field-label">Assigner une prestation</div>
+              <div class="m-svc-picker">
+                <div class="m-svc-picker-field"><label>Catégorie</label><select id="qcAssignCatSel" onchange="qcAssignCatChanged()"><option value="">— Toutes —</option></select></div>
+                <div class="m-svc-picker-field"><label>Prestation</label><select id="qcAssignSvcSel" onchange="qcAssignSvcChanged()"><option value="">— Choisir —</option></select></div>
+                <div class="m-svc-picker-field" id="qcAssignVarWrap" style="display:none"><label>Variante</label><select id="qcAssignVarSel" onchange="qcAssignVarChanged()"></select></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                <span id="qcAssignInfo" class="m-svc-picker-info" style="flex:1"></span>
+                <button type="button" class="ug-btn ug-btn-confirm" id="qcAssignAddBtn" onclick="qcAssignConfirm()" disabled style="padding:4px 12px;font-size:.72rem">+ Ajouter</button>
+              </div>
+              <div class="ug-actions" style="margin-top:8px">
+                <button type="button" class="ug-btn ug-btn-cancel" onclick="qcAssignCancel()">Annuler</button>
+              </div>
+            </div>
+            <button class="cal-btn" style="margin-top:6px;font-size:.75rem;padding:5px 12px" onclick="qcShowAssignPanel()" id="qcAddSvcBtn">+ Ajouter une prestation</button>
             <div id="qcTotalDuration" style="font-size:.72rem;color:var(--text-4);margin-top:6px"></div>
           </div>
           <div id="qcFreestyleMode" style="display:none">
