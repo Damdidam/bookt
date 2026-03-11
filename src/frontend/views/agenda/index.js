@@ -363,6 +363,10 @@ function fcToggleLock() {
   cal.setOption('editable', !calState.fcLocked);
   cal.setOption('eventStartEditable', !calState.fcLocked && !fcIsMobile());
   cal.setOption('eventDurationEditable', !calState.fcLocked && !fcIsTouch);
+  // Force re-render so already-rendered events pick up the new editable state
+  const currentView = cal.view.type;
+  const currentDate = cal.getDate();
+  cal.changeView(currentView, currentDate);
   // Visual feedback
   const btn = document.getElementById('calLockBtn');
   if (btn) {
