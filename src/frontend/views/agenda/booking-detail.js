@@ -343,6 +343,8 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDiff').style.display = 'none';
     document.getElementById('calNotifyPanel').style.display = 'none';
     document.getElementById('calConflictWarn').style.display = 'none';
+    const schedWarnEl = document.getElementById('calScheduleWarn');
+    if (schedWarnEl) schedWarnEl.style.display = 'none';
     const poseInfoEl = document.getElementById('calPoseInfo');
     if (poseInfoEl) { poseInfoEl.style.display = 'none'; }
     // Show pose window if booking has processing_time

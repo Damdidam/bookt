@@ -7,6 +7,7 @@ const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
 const { calSyncPush, businessAllowsOverlap, getMaxConcurrent, checkPracAvailability, checkBookingConflicts } = require('./bookings-helpers');
+const { dateToWeekday, timeToMinutes } = require('../../services/schedule-helpers');
 
 // ============================================================
 // POST /api/bookings/manual
@@ -234,7 +235,7 @@ router.post('/manual', async (req, res, next) => {
     // Fetch all service durations
     const svcIds = serviceList.map(s => s.service_id);
     const svcResult = await queryWithRLS(bid,
-      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, available_schedule
        FROM services WHERE business_id = $1 AND id = ANY($2)`,
       [bid, svcIds]
     );
@@ -308,6 +309,41 @@ router.post('/manual', async (req, res, next) => {
     });
 
     const totalEnd = slots[slots.length - 1].end_at;
+
+    // ── Validate service available_schedule (restricted windows) ──
+    const _bruFmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
+    for (const slot of slots) {
+      const svc = svcMap[slot.service_id];
+      if (svc.available_schedule?.type === 'restricted') {
+        // Convert slot times to Brussels local
+        const sp = {}; _bruFmt.formatToParts(new Date(slot.start_at)).forEach(p => { sp[p.type] = p.value; });
+        const ep = {}; _bruFmt.formatToParts(new Date(slot.end_at)).forEach(p => { ep[p.type] = p.value; });
+        const slotDate = `${sp.year}-${sp.month}-${sp.day}`;
+        const weekday = dateToWeekday(slotDate);
+        const svcWindows = (svc.available_schedule.windows || []).filter(w => w.day === weekday);
+        if (svcWindows.length === 0) {
+          return res.status(400).json({
+            error: `La prestation "${svc.name}" n'est pas disponible ce jour`
+          });
+        }
+        const startMin = parseInt(sp.hour) * 60 + parseInt(sp.minute);
+        const endMin = parseInt(ep.hour) * 60 + parseInt(ep.minute);
+        const fitsWindow = svcWindows.some(w => {
+          const wStart = timeToMinutes(w.from);
+          const wEnd = timeToMinutes(w.to);
+          return startMin >= wStart && endMin <= wEnd;
+        });
+        if (!fitsWindow) {
+          const windowsStr = svcWindows.map(w => `${w.from}–${w.to}`).join(', ');
+          return res.status(400).json({
+            error: `La prestation "${svc.name}" est restreinte aux créneaux : ${windowsStr}`
+          });
+        }
+      }
+    }
 
     // Check practitioner availability (absences, exceptions, hours)
     const availCheck = await checkPracAvailability(bid, practitioner_id, start_at, totalEnd);

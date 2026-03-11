@@ -137,6 +137,33 @@ function calCheckConflict() {
     poseInfo.style.display = 'none';
   }
 
+  // ── Schedule restriction check (service available_schedule) ──
+  const schedWarn = document.getElementById('calScheduleWarn');
+  if (schedWarn) {
+    const svcId = calState.fcCurrentBooking?.service_id;
+    const svc = svcId && calState.fcServices?.find(s => String(s.id) === String(svcId));
+    if (svc?.available_schedule?.type === 'restricted') {
+      const jsDay = newStart.getDay(); // 0=Sun
+      const weekday = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon..6=Sun
+      const svcWindows = (svc.available_schedule.windows || []).filter(w => w.day === weekday);
+      const startMin = newStart.getHours() * 60 + newStart.getMinutes();
+      const endMin = newEnd.getHours() * 60 + newEnd.getMinutes();
+      const _tm = t => { const p = String(t).split(':'); return parseInt(p[0]) * 60 + parseInt(p[1]); };
+      const fits = svcWindows.some(w => startMin >= _tm(w.from) && endMin <= _tm(w.to));
+      if (!fits) {
+        const windowsStr = svcWindows.length > 0
+          ? svcWindows.map(w => w.from + '\u2013' + w.to).join(', ')
+          : 'aucun cr\u00e9neau ce jour';
+        schedWarn.style.display = 'block';
+        schedWarn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Cette prestation est restreinte : ' + windowsStr;
+      } else {
+        schedWarn.style.display = 'none';
+      }
+    } else {
+      schedWarn.style.display = 'none';
+    }
+  }
+
   // ── Phase 2: Debounced server-side check ──
   _scheduleServerCheck(nd, ns, ne, pracId);
 }

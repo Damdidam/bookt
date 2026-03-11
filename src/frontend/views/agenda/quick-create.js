@@ -438,6 +438,42 @@ function qcUpdateTotal() {
   document.getElementById('qcPoseInfo')?.remove();
   if (poseHtml && el) el.insertAdjacentHTML('afterend', `<div id="qcPoseInfo" style="font-size:.75rem;color:var(--text-4);margin-top:4px">${poseHtml}</div>`);
 
+  // ── Schedule restriction warning ──
+  document.getElementById('qcScheduleWarn')?.remove();
+  const dateVal = document.getElementById('qcDate')?.value;
+  if (timeVal && dateVal && cards.length) {
+    const [hh2, mm2] = timeVal.split(':').map(Number);
+    let offMin = 0;
+    const warns = [];
+    cards.forEach(card => {
+      const svcId = card.dataset.serviceId;
+      const dur2 = parseInt(card.dataset.dur || 0);
+      const buf2 = parseInt(card.dataset.buf || 0);
+      const svc2 = calState.fcServices?.find(s => String(s.id) === String(svcId));
+      if (svc2?.available_schedule?.type === 'restricted') {
+        const sStart = new Date(dateVal + 'T00:00:00');
+        const jsDay = sStart.getDay();
+        const weekday = jsDay === 0 ? 6 : jsDay - 1;
+        const svcWindows = (svc2.available_schedule.windows || []).filter(w => w.day === weekday);
+        const sMin = hh2 * 60 + mm2 + offMin;
+        const eMin = sMin + dur2;
+        const _tm = t => { const p = String(t).split(':'); return parseInt(p[0]) * 60 + parseInt(p[1]); };
+        const fits = svcWindows.some(w => sMin >= _tm(w.from) && eMin <= _tm(w.to));
+        if (!fits) {
+          const windowsStr = svcWindows.length > 0
+            ? svcWindows.map(w => w.from + '\u2013' + w.to).join(', ')
+            : 'non disponible ce jour';
+          warns.push(`<strong>${esc(svc2.name)}</strong> : ${windowsStr}`);
+        }
+      }
+      offMin += dur2 + buf2;
+    });
+    if (warns.length > 0) {
+      const warnHtml = `<div id="qcScheduleWarn" style="margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:#FFF3E0;color:#E65100"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Restriction horaire : ${warns.join(' \u00b7 ')}</div>`;
+      el.insertAdjacentHTML('afterend', warnHtml);
+    }
+  }
+
   // Check deposit suggestion whenever services change
   qcCheckDepositSuggestion();
 }
@@ -848,7 +884,7 @@ function setupQuickCreateListeners() {
     }
   });
   document.addEventListener('input', e => {
-    if (e.target?.id === 'qcTime') {
+    if (e.target?.id === 'qcTime' || e.target?.id === 'qcDate') {
       if (document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
       else qcUpdateTotal();
     }
