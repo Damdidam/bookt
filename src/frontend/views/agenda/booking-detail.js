@@ -15,13 +15,27 @@ import { IC } from '../../utils/icons.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 
 let _openingDetail = false;
+let _countdownTimer = null;
+
+function fmtCountdown(ms) {
+  if (ms <= 0) return 'Expiré';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return min + 'min';
+  const h = Math.floor(min / 60);
+  const rm = min % 60;
+  if (h < 24) return h + 'h ' + (rm > 0 ? rm + 'min' : '');
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return d + 'j ' + (rh > 0 ? rh + 'h' : '');
+}
 async function fcOpenDetail(bookingId) {
   if (_openingDetail) return; // Prevent concurrent opens (e.g. double-click firing twice)
   _openingDetail = true;
   calState.fcCurrentEventId = bookingId;
   const modal = document.getElementById('calDetailModal');
 
-  // Cleanup: remove any leftover deposit banners from previous opens
+  // Cleanup: clear countdown timer + remove leftover deposit banners
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
   document.querySelectorAll('.m-deposit-banner').forEach(el => el.remove());
 
   try {
@@ -107,6 +121,21 @@ async function fcOpenDetail(bookingId) {
         ${st.l}
       </span>
       <div class="m-st-actions">${acts.join('')}</div>`;
+
+    // -- Countdown for pending confirmation --
+    if (b.status === 'pending' && b.confirmation_expires_at) {
+      const dlDate = new Date(b.confirmation_expires_at);
+      const cdEl = document.createElement('span');
+      cdEl.style.cssText = 'font-size:.72rem;font-weight:500;margin-left:8px;opacity:.8';
+      const update = () => {
+        const diff = dlDate - Date.now();
+        cdEl.textContent = '· ' + fmtCountdown(diff);
+        if (diff <= 0 && _countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+      };
+      update();
+      _countdownTimer = setInterval(update, 30000);
+      document.querySelector('.m-st-current')?.appendChild(cdEl);
+    }
 
     // -- Deposit banner --
     if (b.deposit_required) {
@@ -392,6 +421,7 @@ async function closeCalModal(id) {
     if (!leave) return;
   }
   modal._dirtyGuard?.destroy();
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
   modal.classList.remove('open');
 }
 
