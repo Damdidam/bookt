@@ -37,11 +37,13 @@ export function detectPoseChildren(singles) {
   const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
   const poseChildMap = {}; // parent booking id -> [child bookings]
   const poseChildIds = new Set();
+  // Round ms timestamp to nearest minute (avoids sub-second DB precision mismatches)
+  const toMin = t => Math.round(t / 60000);
   singles.forEach(b => {
     if (parseInt(b.processing_time) > 0) return;
     if (['cancelled','no_show'].includes(b.status)) return;
-    const bStart = new Date(b.start_at).getTime();
-    const bEnd = new Date(b.end_at).getTime();
+    const bStartMin = toMin(new Date(b.start_at).getTime());
+    const bEndMin = toMin(new Date(b.end_at).getTime());
     for (var pi = 0; pi < poseParentBookings.length; pi++) {
       var par = poseParentBookings[pi];
       if (String(par.practitioner_id) !== String(b.practitioner_id)) continue;
@@ -49,9 +51,9 @@ export function detectPoseChildren(singles) {
       var parPs = parseInt(par.processing_start) || 0;
       var parBuf = parseInt(par.buffer_before_min) || 0;
       var parPt = parseInt(par.processing_time) || 0;
-      var poseStart = parStart + (parBuf + parPs) * 60000;
-      var poseEnd = poseStart + parPt * 60000;
-      if (bStart >= poseStart && bEnd <= poseEnd) {
+      var poseStartMin = toMin(parStart + (parBuf + parPs) * 60000);
+      var poseEndMin = toMin(parStart + (parBuf + parPs + parPt) * 60000);
+      if (bStartMin >= poseStartMin && bEndMin <= poseEndMin) {
         if (!poseChildMap[par.id]) poseChildMap[par.id] = [];
         poseChildMap[par.id].push(b);
         poseChildIds.add(b.id);
