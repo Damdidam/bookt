@@ -247,8 +247,8 @@ function buildEventDidMount() {
     info.el.style.borderRightWidth = '0';
     info.el.style.borderBottomWidth = '0';
 
-    // Dashed border for pending_deposit
-    if (p.status === 'pending_deposit' || (p._isGroup && p._members?.some(m => m.status === 'pending_deposit'))) {
+    // Dashed border for pending_deposit / pending
+    if (p.status === 'pending_deposit' || p.status === 'pending' || (p._isGroup && p._members?.some(m => m.status === 'pending_deposit' || m.status === 'pending'))) {
       info.el.style.borderLeftStyle = 'dashed';
     }
 
