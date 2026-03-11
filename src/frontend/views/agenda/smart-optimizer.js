@@ -69,39 +69,45 @@ function soDeactivate() {
   soSelectedServices = [];
   soPracId = null;
   document.getElementById('soToggleBtn')?.classList.remove('active');
-  document.getElementById('soPanel')?.remove();
+  document.getElementById('soOverlay')?.remove();
 }
 
-// ── Panel DOM ──
+// ── Modal DOM ──
 function soShowPanel() {
-  document.getElementById('soPanel')?.remove();
+  document.getElementById('soOverlay')?.remove();
 
-  const panel = document.createElement('div');
-  panel.id = 'soPanel';
-  panel.className = 'so-panel';
+  const overlay = document.createElement('div');
+  overlay.id = 'soOverlay';
+  overlay.className = 'so-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) soDeactivate(); };
+
+  let html = `<div class="so-modal" id="soPanel">`;
 
   // Header
-  let html = `<div class="so-panel-header">
+  html += `<div class="so-modal-header">
     <div class="so-panel-title">${ICO.spark}<span>Optimiseur de RDV</span></div>
     <button class="so-panel-close" onclick="soDeactivate()" title="Fermer">${ICO.close}</button>
   </div>`;
 
   // Body: 2 columns
-  html += `<div class="so-panel-body">`;
+  html += `<div class="so-modal-body">`;
 
   // Left: service picker
   html += `<div class="so-left" id="soLeft">`;
   html += soRenderServicePicker();
   html += `</div>`;
 
+  // Divider
+  html += `<div class="so-divider"></div>`;
+
   // Right: suggestions
   html += `<div class="so-right" id="soRight">`;
   html += `<div class="so-empty">S\u00e9lectionnez une prestation pour voir les suggestions</div>`;
   html += `</div>`;
 
-  html += `</div>`;
-  panel.innerHTML = html;
-  document.querySelector('.main')?.appendChild(panel);
+  html += `</div></div>`;
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
 }
 
 // ── Service Picker (left column) ──
