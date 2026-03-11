@@ -751,9 +751,10 @@ router.delete('/:id', async (req, res, next) => {
       // permanent external calendar deletion if the transaction rolls back).
       // Store the external event info needed for post-transaction cleanup.
       const calEventRows = await client.query(
-        `SELECT ce.booking_id, ce.google_event_id, ce.outlook_event_id, ce.calendar_connection_id
+        `SELECT ce.booking_id, ce.external_event_id, ce.connection_id
          FROM calendar_events ce
-         WHERE ce.booking_id = ANY($1::uuid[]) AND ce.business_id = $2`,
+         JOIN calendar_connections cc ON cc.id = ce.connection_id
+         WHERE ce.booking_id = ANY($1::uuid[]) AND cc.business_id = $2`,
         [bookingIds, bid]
       );
       const calEventsToDelete = calEventRows.rows;
