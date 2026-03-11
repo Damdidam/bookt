@@ -95,8 +95,8 @@ function fcShowTooltip(event, x, y) {
   // ── Info rows ──
   const infos = [];
 
-  // Practitioner
-  if (p.practitioner_name) infos.push(ico('user') + esc(p.practitioner_name));
+  // Practitioner (always show)
+  infos.push(ico('user') + esc(p.practitioner_name || '—'));
 
   // Appointment mode (only if not cabinet)
   if (p.appointment_mode && p.appointment_mode !== 'cabinet') {
