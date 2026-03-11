@@ -226,42 +226,39 @@ async function loadAgenda() {
     for (let d = 0; d < 7; d++) { if (!activeDays.has(d)) calState.fcHiddenDays.push(d); }
   } catch (e) { calState.fcPractitioners = []; calState.fcServices = []; }
 
-  // Build filter pills HTML (shared between desktop & mobile)
+  // Build filter pills — separate prac pills from status toggles
   const isPrac = userRole === 'practitioner';
   let pillsHtml = '';
+  let statusPillsHtml = '';
+  // Status toggles (shared by all roles)
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowPending ? 'active' : ''}" onclick="fcToggleStatus('pending',this)" style="font-size:.68rem;gap:4px"><span style="color:#D97706"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>En attente</div>`;
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   if (isPrac) {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowPending ? 'active' : ''}" onclick="fcToggleStatus('pending',this)" style="font-size:.68rem;gap:4px"><span style="color:#D97706"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>En attente</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   } else {
-    pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-hours" data-prac-id="all"></span><span class="prac-fill" data-fill-id="all"></span></div>`;
+    pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-hours" data-prac-id="${p.id}"></span><span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
+      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
     });
-    pillsHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowPending ? 'active' : ''}" onclick="fcToggleStatus('pending',this)" style="font-size:.68rem;gap:4px"><span style="color:#D97706"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>En attente</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   }
 
-  // Build category filter chips
+  // Build category filter chips (inner only — no wrapper div)
   const catSet = new Set();
   calState.fcServices.forEach(s => { if (s.is_active !== false) catSet.add(s.category || ''); });
   const categories = [...catSet].sort((a, b) => (a || 'zzz').localeCompare(b || 'zzz'));
   calState.fcHiddenCategories = new Set();
-  let catChipsHtml = '';
+  let catChipsInnerHtml = '';
   if (categories.length > 1) {
-    catChipsHtml = `<div class="at-row-cats" id="atCatFilters">`;
-    catChipsHtml += `<div class="cat-chip active" data-cat="__all__" onclick="fcFilterCategory('__all__',this)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
+    catChipsInnerHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
+    catChipsInnerHtml += `<div class="cat-chip active" data-cat="__all__" onclick="fcFilterCategory('__all__',this)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
     categories.forEach(cat => {
       const label = cat || 'Autres';
       const svcOfCat = calState.fcServices.find(s => (s.category || '') === cat && s.is_active !== false);
       const color = svcOfCat?.color || 'var(--primary)';
-      catChipsHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
+      catChipsInnerHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
     });
-    catChipsHtml += `</div>`;
   }
 
   // Build unified toolbar
@@ -277,19 +274,33 @@ async function loadAgenda() {
   const zoomHtml = `<div class="at-zoom" id="calZoomGroup"><button class="at-zoom-btn" onclick="fcZoom('out')" title="Zoom arrière"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button class="at-zoom-btn at-zoom-fit" onclick="fcZoom('fit')" title="Ajuster à l'écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button><button class="at-zoom-btn" onclick="fcZoom('in')" title="Zoom avant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>`;
 
   let toolbar = `<div class="agenda-toolbar">`;
-  // Desktop: Row 1 -- nav + title + views + tools + date
-  toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button><button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')">Timeline</button><span class="at-sep" style="height:22px"></span>${lockBtnHtml}${zoomHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
-  // Desktop: Row 2 -- filter pills + search
-  const searchHtml = `<input type="search" id="calSearch" class="at-search" placeholder="Rechercher un client..." oninput="fcSearchBookings(this.value)">`;
-  toolbar += `<div class="at-row-filters">${pillsHtml}${searchHtml}</div>`;
-  // Desktop: Row 2b -- thin full-width fill bar (no text)
+  // Desktop: Row 1 -- nav + title + prac pills + views + tools + search icon + filter toggle
+  const searchHtml = `<input type="search" id="calSearch" class="at-search at-search-hidden" placeholder="Rechercher un client..." oninput="fcSearchBookings(this.value)">`;
+  const searchIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+  const filterIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
+  toolbar += `<div class="at-row-nav">`;
+  toolbar += `<div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div>`;
+  toolbar += `<span class="at-title" id="atTitle"></span>`;
+  if (pillsHtml) toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
+  toolbar += `<div class="at-views">`;
+  toolbar += `<button class="at-view-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
+  toolbar += `<button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
+  toolbar += `<button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
+  toolbar += `<button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')"><span class="vl">Timeline</span><span class="vs">TL</span></button>`;
+  toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${zoomHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;
+  toolbar += `</div>`;
+  toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
+  toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
+  toolbar += `</div>`;
+  // Desktop: Fill bar
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
-  // Desktop: Row 3 -- category filter chips (if multiple categories)
-  if (catChipsHtml) toolbar += catChipsHtml;
+  // Desktop: Collapsible filter panel (status toggles + category chips)
+  toolbar += `<div class="at-filter-panel" id="atFilterPanel"><div class="at-filter-panel-inner">${statusPillsHtml}${catChipsInnerHtml}</div></div>`;
   // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)
   toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Auj.</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
-  // Mobile: Row 2 -- pills scrollable + search
-  toolbar += `<div class="at-row2">${pillsHtml}${searchHtml}</div>`;
+  // Mobile: Row 2 -- prac pills + status pills + search (scrollable)
+  const mobSearchHtml = `<input type="search" id="calSearchMob" class="at-search" placeholder="Rechercher..." oninput="fcSearchBookings(this.value)">`;
+  toolbar += `<div class="at-row2">${pillsHtml}${statusPillsHtml}${mobSearchHtml}</div>`;
   toolbar += `</div>`;
 
   c.innerHTML = toolbar + `<div id="fcCalendar" style="${mobile && calState.fcMobileView === 'list' ? 'display:none' : ''}"></div><div id="fcMobList" class="mob-list ${mobile && calState.fcMobileView === 'list' ? 'active' : ''}"></div>` +
@@ -425,7 +436,48 @@ function _applyZoom(px) {
   if (fitBtn) fitBtn.classList.toggle('active', px < 20);
 }
 
+// ── Filter panel toggle ──
+function fcToggleFilterPanel() {
+  const panel = document.getElementById('atFilterPanel');
+  const btn = document.getElementById('atFilterToggle');
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (btn) btn.classList.toggle('active');
+  // Recalculate --toolbar-h for sticky headers after transition
+  const recalc = () => {
+    const tb = document.querySelector('.agenda-toolbar');
+    const c = document.querySelector('.content.agenda-active');
+    if (tb && c) c.style.setProperty('--toolbar-h', tb.offsetHeight + 'px');
+  };
+  // Immediate + after transition
+  requestAnimationFrame(recalc);
+  panel.addEventListener('transitionend', recalc, { once: true });
+}
+
+// ── Expandable search ──
+function fcToggleSearch() {
+  const wrap = document.getElementById('atSearchWrap');
+  const input = document.getElementById('calSearch');
+  if (!wrap || !input) return;
+  if (wrap.classList.contains('expanded')) {
+    wrap.classList.remove('expanded');
+    input.value = '';
+    fcSearchBookings('');
+  } else {
+    wrap.classList.add('expanded');
+    setTimeout(() => input.focus(), 220);
+  }
+}
+
+// Close search on click outside
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('atSearchWrap');
+  if (wrap && wrap.classList.contains('expanded') && !wrap.contains(e.target)) {
+    wrap.classList.remove('expanded');
+  }
+});
+
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcZoom });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcZoom, fcToggleFilterPanel, fcToggleSearch });
 
 export { loadAgenda };
