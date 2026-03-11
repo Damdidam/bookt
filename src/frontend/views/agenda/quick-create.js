@@ -206,6 +206,23 @@ function qcGetPracServices() {
   });
 }
 
+/** Handle category change — rebuild service dropdown filtered by category */
+function qcCatChanged(idx) {
+  const cat = document.getElementById('qcCatSel' + idx)?.value || '';
+  const pracId = document.getElementById('qcPrac')?.value;
+  const svcSel = document.getElementById('qcSvcSel' + idx);
+  const varSel = document.getElementById('qcVarSel' + idx);
+  if (!svcSel) return;
+  const taken = qcGetSelectedServiceIds(idx);
+  const services = fcGetFilteredServices(pracId, cat).filter(s => !taken.has(String(s.id)));
+  svcSel.innerHTML = '<option value="">— Choisir —</option>' + services.map(s => {
+    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
+    return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min||0)+(s.buffer_after_min||0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
+  }).join('');
+  if (varSel) { varSel.innerHTML = ''; varSel.style.display = 'none'; }
+  qcUpdateTotal();
+}
+
 /** Handle service selection change — populate variant dropdown if needed + prevent duplicates */
 function qcServiceChanged(idx) {
   const sel = document.getElementById('qcSvcSel' + idx);
@@ -226,38 +243,49 @@ function qcServiceChanged(idx) {
   qcUpdateTotal();
 }
 
-/** Sync all service dropdowns: disable options already selected elsewhere */
+/** Sync all service dropdowns: disable options already selected elsewhere, respecting category filter */
 function qcSyncServiceOptions() {
-  const allFiltered = qcGetPracServices();
+  const pracId = document.getElementById('qcPrac')?.value;
   document.querySelectorAll('.qc-svc-item').forEach(item => {
     const sel = item.querySelector('[id^="qcSvcSel"]');
     if (!sel) return;
     const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
+    const catSel = document.getElementById('qcCatSel' + myIdx);
+    const cat = catSel?.value || '';
     const taken = qcGetSelectedServiceIds(myIdx);
     const curVal = sel.value;
-    sel.innerHTML = allFiltered.map(s => {
+    const filtered = fcGetFilteredServices(pracId, cat);
+    sel.innerHTML = '<option value="">— Choisir —</option>' + filtered.map(s => {
       const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
       const disabled = taken.has(String(s.id)) ? ' disabled' : '';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${s.duration_min} min)</option>`;
+      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
     }).join('');
     sel.value = curVal;
   });
 }
 
-/** Rebuild all service dropdowns with filtered options, preserving selections */
+/** Rebuild all service dropdowns with filtered options, preserving selections (e.g. when practitioner changes) */
 function qcRefreshServiceDropdowns() {
-  const filtered = qcGetPracServices();
-  const filteredIds = new Set(filtered.map(s => String(s.id)));
+  const pracId = document.getElementById('qcPrac')?.value;
+  // Refresh category dropdowns
+  const cats = fcGetServiceCategories(pracId);
+  const catOptsHtml = '<option value="">— Toutes —</option>' + cats.map(c => `<option value="${c}">${esc(c)}</option>`).join('');
   document.querySelectorAll('.qc-svc-item').forEach(item => {
     const sel = item.querySelector('[id^="qcSvcSel"]');
     if (!sel) return;
     const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
+    const catSel = document.getElementById('qcCatSel' + myIdx);
+    const curCat = catSel?.value || '';
+    if (catSel) { catSel.innerHTML = catOptsHtml; catSel.value = curCat; }
+    const cat = catSel?.value || '';
     const taken = qcGetSelectedServiceIds(myIdx);
     const curVal = sel.value;
-    sel.innerHTML = filtered.map(s => {
+    const filtered = fcGetFilteredServices(pracId, cat);
+    const filteredIds = new Set(filtered.map(s => String(s.id)));
+    sel.innerHTML = '<option value="">— Choisir —</option>' + filtered.map(s => {
       const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
       const disabled = taken.has(String(s.id)) ? ' disabled' : '';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${s.duration_min} min)</option>`;
+      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
     }).join('');
     if (filteredIds.has(String(curVal))) sel.value = curVal;
     // Refresh variant dropdown for the selected service
@@ -279,22 +307,27 @@ function qcRefreshServiceDropdowns() {
 
 function qcAddService() {
   const idx = viewState.qcServiceCount++;
-  const filtered = qcGetPracServices();
+  const pracId = document.getElementById('qcPrac')?.value;
+  const cats = fcGetServiceCategories(pracId);
+  const catOpts = '<option value="">— Toutes —</option>' + cats.map(c => `<option value="${c}">${esc(c)}</option>`).join('');
   const taken = qcGetSelectedServiceIds(-1);
-  const available = filtered.filter(s => !taken.has(String(s.id)));
+  const available = fcGetFilteredServices(pracId, '').filter(s => !taken.has(String(s.id)));
   if (available.length === 0) { gToast('Toutes les prestations sont déjà ajoutées', 'error'); viewState.qcServiceCount--; return; }
-  const opts = available.map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
-  if (!opts) { gToast('Aucune prestation disponible pour ce praticien', 'error'); return; }
+  const svcOpts = '<option value="">— Choisir —</option>' + available.map(s => {
+    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
+    return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
+  }).join('');
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
     <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
     <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
-    <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${opts}</select>
+    <select onchange="qcCatChanged(${idx})" id="qcCatSel${idx}" class="qc-cat-sel">${catOpts}</select>
+    <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${svcOpts}</select>
     <select class="qc-var-sel" id="qcVarSel${idx}" style="display:none" onchange="qcUpdateTotal()"></select>
     <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
     <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
-  qcServiceChanged(idx);
+  qcUpdateTotal();
 }
 
 function qcRemoveService(idx) {
@@ -311,7 +344,7 @@ function qcUpdateTotal() {
   let availModes = null;
   svcItems.forEach((item, i) => {
     const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
+    if (!sel || !sel.value) return;
     const opt = sel.options[sel.selectedIndex];
     let dur = parseInt(opt?.dataset.dur || 30);
     const buf = parseInt(opt?.dataset.buf || 0);
@@ -978,7 +1011,7 @@ function qcSkipDepositRequest() {
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
   qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
-  qcServiceChanged, qcSyncServiceOptions,
+  qcCatChanged, qcServiceChanged, qcSyncServiceOptions,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,

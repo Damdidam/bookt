@@ -1035,7 +1035,7 @@ function fcInlineEdit(span, field) {
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
          fcConvertDirectAdd,
-         fcGetServiceCategories, fcGetFilteredServices,
+         fcGetServiceCategories, fcGetFilteredServices, svcDurPriceLabel,
          fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
          fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });
 

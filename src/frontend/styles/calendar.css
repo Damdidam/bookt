@@ -180,6 +180,7 @@
 .ev-pose-child:hover{box-shadow:0 3px 12px rgba(0,0,0,.25)!important}
 /* Multi-service quick create */
 .qc-svc-item select{flex:1;font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.qc-svc-item .qc-cat-sel{max-width:130px;flex:0 0 auto}
 .qc-svc-item .qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap;min-width:50px}
 .qc-svc-item .qc-svc-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
 .qc-svc-item .qc-svc-rm{background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--text-4);padding:2px 6px;border-radius:4px}
