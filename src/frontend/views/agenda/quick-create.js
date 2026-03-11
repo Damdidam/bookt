@@ -326,7 +326,7 @@ function qcAssignConfirm() {
   const modes = JSON.stringify(svc.mode_options || ['cabinet']);
   const pt = variant?.processing_time || svc.processing_time || 0;
   const ps = variant?.processing_start || svc.processing_start || 0;
-  const html = `<div class="qc-svc-confirmed" data-service-id="${svcId}" data-variant-id="${varId}" data-dur="${dur}" data-buf="${(svc.buffer_before_min||0)+(svc.buffer_after_min||0)}" data-price="${price}" data-color="${color}" data-modes='${modes}' data-pt="${pt}" data-ps="${ps}">`;
+  const html = `<div class="qc-svc-confirmed" data-service-id="${svcId}" data-variant-id="${varId}" data-dur="${dur}" data-buf="${(svc.buffer_before_min||0)+(svc.buffer_after_min||0)}" data-price="${price}" data-color="${color}" data-modes='${modes}' data-pt="${pt}" data-ps="${ps}">
     <span class="qc-svc-color" style="background:${color}"></span>
     <span style="flex:1;font-weight:600">${esc(name)}</span>
     <span class="qc-svc-dur">${durPrice}</span>
