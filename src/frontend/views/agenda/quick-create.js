@@ -219,7 +219,9 @@ function qcCatChanged(idx) {
     const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
     return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min||0)+(s.buffer_after_min||0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
   }).join('');
-  if (varSel) { varSel.innerHTML = ''; varSel.style.display = 'none'; }
+  if (varSel) varSel.innerHTML = '';
+  const varWrap = document.getElementById('qcVarWrap' + idx);
+  if (varWrap) varWrap.style.display = 'none';
   qcUpdateTotal();
 }
 
@@ -231,12 +233,13 @@ function qcServiceChanged(idx) {
   const svcId = sel.value;
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
+  const varWrap = document.getElementById('qcVarWrap' + idx);
   if (variants.length > 0) {
     varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
-    varSel.style.display = '';
+    if (varWrap) varWrap.style.display = '';
   } else {
     varSel.innerHTML = '';
-    varSel.style.display = 'none';
+    if (varWrap) varWrap.style.display = 'none';
   }
   // Refresh other dropdowns to disable services already picked
   qcSyncServiceOptions();
@@ -290,15 +293,16 @@ function qcRefreshServiceDropdowns() {
     if (filteredIds.has(String(curVal))) sel.value = curVal;
     // Refresh variant dropdown for the selected service
     const varSel = item.querySelector('.qc-var-sel');
+    const varWrap = item.querySelector('[id^="qcVarWrap"]');
     if (varSel) {
       const svc = calState.fcServices.find(s => String(s.id) === String(sel.value));
       const variants = svc?.variants || [];
       if (variants.length > 0) {
         varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
-        varSel.style.display = '';
+        if (varWrap) varWrap.style.display = '';
       } else {
         varSel.innerHTML = '';
-        varSel.style.display = 'none';
+        if (varWrap) varWrap.style.display = 'none';
       }
     }
   });
@@ -318,13 +322,23 @@ function qcAddService() {
     return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
   }).join('');
   const html = `<div class="qc-svc-item" id="qcSvc${idx}">
-    <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
-    <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
-    <select onchange="qcCatChanged(${idx})" id="qcCatSel${idx}" class="qc-cat-sel">${catOpts}</select>
-    <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${svcOpts}</select>
-    <select class="qc-var-sel" id="qcVarSel${idx}" style="display:none" onchange="qcUpdateTotal()"></select>
-    <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
-    <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="qc-svc-header">
+      <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
+      <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
+      <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="qc-field">
+      <label>Catégorie</label>
+      <select onchange="qcCatChanged(${idx})" id="qcCatSel${idx}">${catOpts}</select>
+    </div>
+    <div class="qc-field">
+      <label>Prestation</label>
+      <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${svcOpts}</select>
+    </div>
+    <div class="qc-field" id="qcVarWrap${idx}" style="display:none">
+      <label>Variante</label>
+      <select class="qc-var-sel" id="qcVarSel${idx}" onchange="qcUpdateTotal()"></select>
+    </div>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
   qcUpdateTotal();
