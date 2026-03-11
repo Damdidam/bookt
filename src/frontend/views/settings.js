@@ -74,6 +74,17 @@ async function loadSettings(){
           <span style="position:absolute;left:${!!(b.settings?.multi_service_enabled)?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
         </label>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);margin-top:10px">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Vue par d\u00e9faut du calendrier</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Choisissez la vue affich\u00e9e \u00e0 l'ouverture de l'agenda</div>
+        </div>
+        <div style="display:flex;gap:4px;margin-left:16px" id="defaultViewBtns">
+          <button class="btn-sm${(b.settings?.default_calendar_view||'week')==='day'?' active':''}" onclick="saveDefaultView('day')">Jour</button>
+          <button class="btn-sm${(b.settings?.default_calendar_view||'week')==='week'?' active':''}" onclick="saveDefaultView('week')">Semaine</button>
+          <button class="btn-sm${(b.settings?.default_calendar_view||'week')==='month'?' active':''}" onclick="saveDefaultView('month')">Mois</button>
+        </div>
+      </div>
     </div></div>`;
 
     // 3a-bis. Réservation en ligne
@@ -483,6 +494,17 @@ async function saveMultiServicePolicy(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveDefaultView(view){
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_default_calendar_view:view})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const labels={day:'Jour',week:'Semaine',month:'Mois'};
+    GendaUI.toast('Vue par d\u00e9faut : '+labels[view],'success');
+    document.querySelectorAll('#defaultViewBtns .btn-sm').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`#defaultViewBtns .btn-sm[onclick="saveDefaultView('${view}')"]`)?.classList.add('active');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveOverlapPolicy(){
   const on=document.getElementById('s_overlap').checked;
   try{
@@ -671,6 +693,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
-export { loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };

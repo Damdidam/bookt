@@ -80,6 +80,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // Last-minute promotions
       settings_last_minute_enabled, settings_last_minute_deadline,
       settings_last_minute_discount_pct, settings_last_minute_min_price_cents,
+      // Default calendar view
+      settings_default_calendar_view,
       // Sector
       sector
     } = req.body;
@@ -105,7 +107,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_gap_analyzer_enabled !== undefined
         || settings_featured_slots_enabled !== undefined
         || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
-        || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined) {
+        || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined
+        || settings_default_calendar_view !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -154,6 +157,11 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_booking_confirmation_required !== undefined) cur.booking_confirmation_required = !!settings_booking_confirmation_required;
       if (settings_booking_confirmation_timeout !== undefined) { const _v = parseInt(settings_booking_confirmation_timeout); cur.booking_confirmation_timeout_min = (_v >= 5 && _v <= 1440) ? _v : 30; }
       if (settings_booking_confirmation_channel !== undefined) { cur.booking_confirmation_channel = ['email','sms','both'].includes(settings_booking_confirmation_channel) ? settings_booking_confirmation_channel : 'email'; }
+      // Default calendar view
+      if (settings_default_calendar_view !== undefined) {
+        const allowed = ['day', 'week', 'month'];
+        if (allowed.includes(settings_default_calendar_view)) cur.default_calendar_view = settings_default_calendar_view;
+      }
       mergedSettings = cur;
     }
 
