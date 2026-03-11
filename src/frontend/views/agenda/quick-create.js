@@ -349,12 +349,22 @@ function qcRemoveConfirmed(btn) {
   qcUpdateTotal();
 }
 
-/** Clear all confirmed cards + reset panel (used when practitioner changes) */
+/** When practitioner changes: keep valid cards, remove incompatible ones */
 function qcRefreshServiceDropdowns() {
-  document.getElementById('qcServiceList').innerHTML = '';
+  const pracId = document.getElementById('qcPrac')?.value;
+  const available = new Set(fcGetFilteredServices(pracId, '').map(s => String(s.id)));
+  let removed = 0;
+  document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
+    if (!available.has(String(card.dataset.serviceId))) {
+      card.remove();
+      removed++;
+    }
+  });
+  if (removed > 0) gToast(removed + ' prestation(s) retirée(s) (non disponible pour ce praticien)', 'info');
+  // Close assign panel if open (services list changed)
   document.getElementById('qcAssignSvc').style.display = 'none';
   document.getElementById('qcAddSvcBtn').style.display = '';
-  qcShowAssignPanel();
+  qcUpdateTotal();
 }
 
 function qcUpdateTotal() {
