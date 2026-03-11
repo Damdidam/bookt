@@ -151,7 +151,11 @@ router.post('/manual', async (req, res, next) => {
             if (depCents > 0) {
               const dlHours = dc.settings.deposit_deadline_hours ?? 48;
               // Bug M8 fix: Use realStart (actual booking start incl. buffer) instead of raw start_at
-              const deadline = new Date(realStart.getTime() - dlHours * 3600000);
+              let deadline = new Date(realStart.getTime() - dlHours * 3600000);
+              // If staff forced deposit and deadline is in the past, set minimum 2h from now
+              if (force_deposit && deadline <= new Date()) {
+                deadline = new Date(Date.now() + 2 * 3600000);
+              }
               if (deadline > new Date()) {
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
@@ -376,7 +380,11 @@ router.post('/manual', async (req, res, next) => {
           }
           if (depCents > 0) {
             const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-            const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
+            let deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
+            // If staff forced deposit and deadline is in the past, set minimum 2h from now
+            if (force_deposit && deadline <= new Date()) {
+              deadline = new Date(Date.now() + 2 * 3600000);
+            }
             if (deadline > new Date()) {
               // CRT-V10-7: Deposit amount on the first booking only
               await client.query(
