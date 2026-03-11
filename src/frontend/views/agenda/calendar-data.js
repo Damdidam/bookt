@@ -97,7 +97,8 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       start: b.start_at, end: b.end_at,
       backgroundColor: fcHexAlpha(accent, 0.1),
       borderColor: accent, textColor: accent,
-      editable: !frozen && !b.locked, durationEditable: !frozen && !b.locked,
+      editable: !frozen && !b.locked && !calState.fcLocked,
+      durationEditable: !frozen && !b.locked && !calState.fcLocked,
       extendedProps: props
     };
     // Cancelled/completed/no_show events must never block drag & drop of other events
@@ -122,7 +123,7 @@ export function buildGroupEvents(grouped) {
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
       backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: accent,
-      editable: !anyFrozen && !anyLocked, durationEditable: false,
+      editable: !anyFrozen && !anyLocked && !calState.fcLocked, durationEditable: false,
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
         _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
@@ -148,7 +149,7 @@ export function buildTaskEvents(tasks) {
       start: t.start_at, end: t.end_at,
       backgroundColor: fcHexAlpha(accent, 0.08),
       borderColor: accent, textColor: accent,
-      editable: !frozen, durationEditable: !frozen,
+      editable: !frozen && !calState.fcLocked, durationEditable: !frozen && !calState.fcLocked,
       extendedProps: { ...t, _isTask: true, _accent: accent }
     };
   });
