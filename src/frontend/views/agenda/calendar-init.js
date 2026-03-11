@@ -96,7 +96,7 @@ function initCalendar(initView, initSlotDur) {
     },
     resourceLabelContent: function (arg) {
       var color = arg.resource.extendedProps?.color || '#0D7377';
-      return { html: '<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>' + arg.resource.title + '</span>' };
+      return { html: '<span style="display:inline-flex;align-items:center;gap:8px;padding:2px 0"><span style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;box-shadow:0 0 0 3px ' + color + '22"></span><span style="font-weight:700;font-size:.84rem;color:#1A2332;letter-spacing:.2px">' + arg.resource.title + '</span></span>' };
     },
     dayMaxEvents: 3,
     // ── Resource Timeline (Premium) ──
