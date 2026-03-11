@@ -699,12 +699,33 @@ function fcStartConvert(action) {
   }
 }
 
+/** Build "duration · price" label — variant-range-aware */
+function svcDurPriceLabel(svc) {
+  const vars = svc?.variants || [];
+  const vDurs = vars.map(v => v.duration_min).filter(d => d > 0);
+  const vPrices = vars.map(v => v.price_cents).filter(p => p > 0);
+  let dur, price = '';
+  if (vDurs.length > 0) {
+    const mn = Math.min(...vDurs), mx = Math.max(...vDurs);
+    dur = mn === mx ? mn + ' min' : mn + '\u2013' + mx + ' min';
+  } else {
+    dur = (svc?.duration_min || 0) + ' min';
+  }
+  if (vPrices.length > 0) {
+    const mn = Math.min(...vPrices) / 100, mx = Math.max(...vPrices) / 100;
+    price = mn === mx ? mn + '\u20ac' : mn + '\u2013' + mx + '\u20ac';
+  } else if (svc?.price_cents) {
+    price = (svc.price_cents / 100).toFixed(0) + '\u20ac';
+  }
+  return dur + (price ? ' \u00b7 ' + price : '');
+}
+
 /** Rebuild service dropdown for convert panel */
 function fcConvertRebuildServices(pracId, category) {
   const services = fcGetFilteredServices(pracId, category);
   const sel = document.getElementById('mConvertSvcSel');
   sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
-    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`
   ).join('');
 }
 
@@ -760,10 +781,8 @@ function fcConvertUpdateInfo() {
     const price = variant?.price_cents ?? parseInt(varOpt.dataset.price) ?? 0;
     info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
   } else {
-    // No variant selected — use service-level values
-    const dur = svc?.duration_min || 0;
-    const price = svc?.price_cents ? (svc.price_cents / 100).toFixed(0) + '\u20ac' : '';
-    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + price : '');
+    // No variant selected — show range if service has variants, else service-level values
+    info.textContent = svcDurPriceLabel(svc);
   }
 }
 
