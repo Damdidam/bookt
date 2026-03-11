@@ -282,17 +282,7 @@ textarea.m-input{resize:vertical;min-height:38px}
 .session-status{font-size:.72rem;color:var(--text-4);display:flex;align-items:center;gap:4px}
 .session-status svg{width:12px;height:12px}
 
-/* ── Quick create — reuse .m-* classes, only QC-specific overrides here ── */
-.qc-svc-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-light)}
-.qc-svc-item:last-child{border-bottom:none}
-.qc-svc-handle{color:var(--text-4);cursor:grab;display:flex;align-items:center}
-.qc-svc-color{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.qc-svc-item select{flex:1;min-width:0;padding:7px 10px;border:1.5px solid var(--border-light);border-radius:8px;font-family:var(--sans);font-size:.82rem;background:var(--white);outline:none}
-.qc-svc-item select:focus{border-color:var(--primary)}
-.qc-svc-item .qc-var-sel{flex:0 1 auto;max-width:38%;font-size:.78rem}
-.qc-svc-dur{font-size:.72rem;color:var(--text-4);white-space:nowrap}
-.qc-svc-rm{width:24px;height:24px;border-radius:6px;background:transparent;border:none;cursor:pointer;color:var(--text-4);display:flex;align-items:center;justify-content:center;transition:all .15s}
-.qc-svc-rm:hover{background:var(--red-bg);color:var(--red)}
+/* ── Quick create — now reuses .m-convert-panel + .m-svc-picker layout ── */
 .color-dots{display:flex;gap:6px}
 .color-dot{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:var(--transition)}
 .color-dot:hover{transform:scale(1.15)}.color-dot.active{border-color:var(--text);box-shadow:0 0 0 2px var(--white),0 0 0 4px var(--text)}
