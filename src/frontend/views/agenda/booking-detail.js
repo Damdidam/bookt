@@ -219,7 +219,8 @@ async function fcOpenDetail(bookingId) {
           <div class="m-svc-name">${svcNames}</div>
           <div class="m-svc-meta">${siblings.length} prestations \u00b7 ${totalDur} min</div>
         </div>
-        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2) + '\u20ac</div>' : ''}`;
+        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>`;
     } else {
       freeCard.style.display = 'none';
       bufSec.style.display = 'none';
