@@ -160,8 +160,8 @@ export function applyVisibilityFilters(events) {
       const members = p._members || [];
       const allCancelled = members.every(m => m.status === 'cancelled');
       const allNoShow = members.every(m => m.status === 'no_show');
-      if (allCancelled && !calState.fcShowCancelled) return false;
-      if (allNoShow && !calState.fcShowNoShow) return false;
+      if ((allCancelled || p.status === 'cancelled') && !calState.fcShowCancelled) return false;
+      if ((allNoShow || p.status === 'no_show') && !calState.fcShowNoShow) return false;
     } else {
       if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
       if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
