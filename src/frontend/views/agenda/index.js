@@ -413,8 +413,13 @@ function fcZoom(action) {
 function _applyZoom(px) {
   const el = document.getElementById('fcCalendar');
   if (el) el.style.setProperty('--fc-slot-h', px + 'px');
-  // Tell FullCalendar to recalculate layout
-  if (calState.fcCal) calState.fcCal.updateSize();
+  // Force FullCalendar to fully re-render (recalculates event positions)
+  const cal = calState.fcCal;
+  if (cal) {
+    const currentView = cal.view.type;
+    const currentDate = cal.getDate();
+    cal.changeView(currentView, currentDate);
+  }
   // Update fit button active state
   const fitBtn = document.querySelector('.at-zoom-fit');
   if (fitBtn) fitBtn.classList.toggle('active', px < 20);
