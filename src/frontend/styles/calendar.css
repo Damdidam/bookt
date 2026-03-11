@@ -15,6 +15,16 @@
 .agenda-toolbar .at-view-btn{padding:6px 16px;border-radius:8px;font-size:.76rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-view-btn:hover{background:var(--surface);border-color:var(--text-4)}
 .agenda-toolbar .at-view-btn.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
+/* Lock button */
+.at-lock-btn{padding:6px 10px!important}
+.at-lock-btn.active{background:#FEF3C7!important;color:#D97706!important;border-color:#FCD34D!important}
+/* Zoom controls */
+.at-zoom{display:inline-flex;align-items:center;border:1.5px solid var(--border-light);border-radius:8px;overflow:hidden;margin-left:2px}
+.at-zoom-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--white);border:none;cursor:pointer;color:var(--text-3);transition:all .15s}
+.at-zoom-btn:hover{background:var(--surface);color:var(--text-2)}
+.at-zoom-btn:not(:last-child){border-right:1px solid var(--border-light)}
+.at-zoom-fit.active{background:var(--primary-light);color:var(--primary)}
+@media(max-width:767px){.at-lock-btn,.at-zoom{display:none}}
 .agenda-toolbar .at-date{font-size:.76rem;color:var(--text-4);white-space:nowrap;flex-shrink:0;margin-left:4px}
 .at-row-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .at-search{border:1px solid var(--border-light);border-radius:8px;padding:5px 10px;font-size:.75rem;font-family:inherit;outline:none;background:var(--bg-1);min-width:160px;margin-left:auto}
@@ -76,7 +86,7 @@
 .fc .fc-col-header-cell.fc-day-today{color:var(--primary);background:linear-gradient(180deg,#E4F5F4 0%,#EDF8F7 100%)}
 .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion{position:relative}
 .fc .fc-day-today{background:#F6FCFC!important}
-.fc .fc-timegrid-slot{height:26px}
+.fc .fc-timegrid-slot{height:var(--fc-slot-h,26px)}
 .fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:#A8B3BF;font-weight:500}
 .fc .fc-timegrid-now-indicator-line{border:none;height:2px;background:var(--red);z-index:5}
 .fc .fc-timegrid-now-indicator-arrow{display:none}
