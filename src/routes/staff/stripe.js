@@ -389,6 +389,26 @@ async function handleStripeWebhook(req, res) {
         break;
       }
 
+      case 'account.updated': {
+        // Stripe Connect: sync account verification status
+        const acct = event.data.object;
+        const connectId = acct.id;
+        if (connectId && connectId.startsWith('acct_')) {
+          const found = await query(
+            `SELECT id FROM businesses WHERE stripe_connect_id = $1`, [connectId]
+          );
+          if (found.rows.length > 0) {
+            const newStatus = deriveConnectStatus(acct);
+            await query(
+              `UPDATE businesses SET stripe_connect_status = $1, updated_at = NOW() WHERE id = $2`,
+              [newStatus, found.rows[0].id]
+            );
+            console.log(`[STRIPE WH] Connect account ${connectId} → ${newStatus}`);
+          }
+        }
+        break;
+      }
+
       case 'invoice.paid': {
         const invoice = event.data.object;
         const subId = invoice.subscription;
@@ -429,6 +449,164 @@ async function syncSubscription(sub, businessId) {
     [plan, priceId, sub.status, trialEnd, businessId]
   );
   console.log(`[STRIPE WH] Business ${businessId} → plan ${plan} (${sub.status})`);
+}
+
+// ============================================================
+// STRIPE CONNECT EXPRESS — Merchant payouts
+// ============================================================
+
+// POST /api/stripe/connect/onboard — Start or resume Connect onboarding
+router.post('/connect/onboard', requireAuth, requireOwner, async (req, res, next) => {
+  try {
+    const stripe = getStripe();
+    if (!stripe) return res.status(503).json({ error: 'Stripe non configur\u00e9.' });
+
+    const bid = req.businessId;
+    const bizResult = await query(
+      `SELECT b.id, b.email, b.name, b.stripe_connect_id,
+              u.email AS owner_email
+       FROM businesses b
+       JOIN users u ON u.business_id = b.id AND u.role = 'owner'
+       WHERE b.id = $1 LIMIT 1`,
+      [bid]
+    );
+    const biz = bizResult.rows[0];
+    if (!biz) return res.status(404).json({ error: 'Business non trouv\u00e9.' });
+
+    let connectId = biz.stripe_connect_id;
+
+    // Create Express account if none exists
+    if (!connectId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'BE',
+        email: biz.owner_email || biz.email,
+        business_type: 'individual',
+        metadata: { business_id: bid, business_name: biz.name },
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+          bancontact_payments: { requested: true }
+        }
+      });
+      connectId = account.id;
+
+      await query(
+        `UPDATE businesses SET stripe_connect_id = $1, stripe_connect_status = 'onboarding', updated_at = NOW()
+         WHERE id = $2`,
+        [connectId, bid]
+      );
+      console.log(`[STRIPE CONNECT] Created Express account ${connectId} for business ${bid}`);
+    }
+
+    // Create Account Link for onboarding (or re-onboarding)
+    const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+    const accountLink = await stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${baseUrl}/dashboard?connect=refresh`,
+      return_url: `${baseUrl}/dashboard?connect=success`,
+      type: 'account_onboarding'
+    });
+
+    res.json({ url: accountLink.url });
+  } catch (err) {
+    console.error('[STRIPE CONNECT] Onboard error:', err);
+    next(err);
+  }
+});
+
+// GET /api/stripe/connect/status — Connect account status
+router.get('/connect/status', requireAuth, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const result = await query(
+      `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`,
+      [bid]
+    );
+    const b = result.rows[0];
+    if (!b) return res.status(404).json({ error: 'Business non trouv\u00e9.' });
+
+    const resp = {
+      connect_id: b.stripe_connect_id || null,
+      connect_status: b.stripe_connect_status || 'none',
+      charges_enabled: false,
+      payouts_enabled: false,
+      details_submitted: false
+    };
+
+    // If account exists, fetch live status from Stripe
+    if (b.stripe_connect_id) {
+      const stripe = getStripe();
+      if (stripe) {
+        try {
+          const acct = await stripe.accounts.retrieve(b.stripe_connect_id);
+          resp.charges_enabled = acct.charges_enabled;
+          resp.payouts_enabled = acct.payouts_enabled;
+          resp.details_submitted = acct.details_submitted;
+
+          // Sync status to DB if changed
+          const newStatus = deriveConnectStatus(acct);
+          if (newStatus !== b.stripe_connect_status) {
+            await query(
+              `UPDATE businesses SET stripe_connect_status = $1, updated_at = NOW() WHERE id = $2`,
+              [newStatus, bid]
+            );
+            resp.connect_status = newStatus;
+          }
+        } catch (e) {
+          console.error('[STRIPE CONNECT] Status fetch error:', e.message);
+        }
+      }
+    }
+
+    res.json(resp);
+  } catch (err) { next(err); }
+});
+
+// POST /api/stripe/connect/dashboard — Login link to Express dashboard
+router.post('/connect/dashboard', requireAuth, requireOwner, async (req, res, next) => {
+  try {
+    const stripe = getStripe();
+    if (!stripe) return res.status(503).json({ error: 'Stripe non configur\u00e9.' });
+
+    const bid = req.businessId;
+    const result = await query(
+      `SELECT stripe_connect_id FROM businesses WHERE id = $1`, [bid]
+    );
+    const connectId = result.rows[0]?.stripe_connect_id;
+    if (!connectId) return res.status(400).json({ error: 'Aucun compte Stripe connect\u00e9.' });
+
+    const loginLink = await stripe.accounts.createLoginLink(connectId);
+    res.json({ url: loginLink.url });
+  } catch (err) {
+    console.error('[STRIPE CONNECT] Dashboard error:', err);
+    next(err);
+  }
+});
+
+// DELETE /api/stripe/connect — Disconnect Connect account
+router.delete('/connect', requireAuth, requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    await query(
+      `UPDATE businesses SET stripe_connect_id = NULL, stripe_connect_status = 'none', updated_at = NOW()
+       WHERE id = $1`,
+      [bid]
+    );
+    console.log(`[STRIPE CONNECT] Business ${bid} disconnected`);
+    res.json({ disconnected: true });
+  } catch (err) { next(err); }
+});
+
+/**
+ * Derive connect status from Stripe account object
+ */
+function deriveConnectStatus(acct) {
+  if (acct.charges_enabled && acct.payouts_enabled) return 'active';
+  if (acct.requirements?.disabled_reason) return 'disabled';
+  if (acct.requirements?.currently_due?.length > 0) return 'restricted';
+  if (acct.details_submitted && !acct.charges_enabled) return 'onboarding';
+  return 'onboarding';
 }
 
 module.exports = router;

@@ -175,6 +175,12 @@ async function loadSettings(){
       </div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
 
+    // 3a-bis. Paiements (Stripe Connect)
+    // Fetch connect status async — render placeholder first
+    h+=`<div class="settings-card" id="connectCard"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Paiements</h3></div><div class="sc-body" id="connectBody"><div style="text-align:center;padding:20px;color:var(--text-4);font-size:.82rem">Chargement...</div></div></div>`;
+    // Load connect status after render
+    setTimeout(()=>loadConnectStatus(),100);
+
     // 3b. Rappels patients
     const plan=b.plan||'free';
     const re24=b.settings?.reminder_email_24h!==false;
@@ -494,6 +500,95 @@ async function saveMultiServicePolicy(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+// ===== Stripe Connect =====
+async function loadConnectStatus(){
+  const el=document.getElementById('connectBody');
+  if(!el)return;
+  try{
+    const r=await fetch('/api/stripe/connect/status',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const st=d.connect_status||'none';
+    let html='';
+    if(st==='none'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Recevoir les paiements</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Connectez votre compte Stripe pour encaisser les acomptes de vos clients</div>
+        </div>
+        <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg> Connecter Stripe</button>
+      </div>`;
+    }else if(st==='onboarding'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--gold-border,var(--border));border-radius:var(--radius-sm);background:var(--gold-bg,#FFFBEB)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold,#F59E0B);margin-right:6px"></span>Configuration en cours</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Finalisez votre inscription Stripe pour activer les paiements</div>
+        </div>
+        <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px">Reprendre</button>
+      </div>`;
+    }else if(st==='active'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--green-border,#BBF7D0);border-radius:var(--radius-sm);background:var(--green-bg,#F0FDF4)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22C55E;margin-right:6px"></span>Paiements actifs</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Votre compte Stripe est connect\u00e9. Les acomptes sont encaiss\u00e9s directement sur votre compte.</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px">
+          <button class="btn-outline btn-sm" onclick="openStripeDashboard()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Dashboard Stripe</button>
+          <button class="btn-outline btn-sm" onclick="disconnectStripe()" style="color:var(--red,#EF4444)">D\u00e9connecter</button>
+        </div>
+      </div>`;
+    }else if(st==='restricted'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--coral-border,var(--border));border-radius:var(--radius-sm);background:var(--coral-lighter,#FFF1F2)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--coral,#F97316);margin-right:6px"></span>Action requise</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Stripe n\u00e9cessite des informations suppl\u00e9mentaires pour activer les paiements</div>
+        </div>
+        <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px">Compl\u00e9ter</button>
+      </div>`;
+    }else{
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--red-border,var(--border));border-radius:var(--radius-sm);background:var(--red-bg,#FEF2F2)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red,#EF4444);margin-right:6px"></span>Compte d\u00e9sactiv\u00e9</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Votre compte Stripe a \u00e9t\u00e9 d\u00e9sactiv\u00e9. Contactez le support Stripe.</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="connectStripe()">R\u00e9activer</button>
+      </div>`;
+    }
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML=`<div style="font-size:.82rem;color:var(--text-4);padding:10px">Impossible de charger le statut Stripe</div>`;
+  }
+}
+
+async function connectStripe(){
+  try{
+    GendaUI.toast('Redirection vers Stripe...','info');
+    const r=await fetch('/api/stripe/connect/onboard',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    window.location.href=d.url;
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function openStripeDashboard(){
+  try{
+    GendaUI.toast('Ouverture du dashboard...','info');
+    const r=await fetch('/api/stripe/connect/dashboard',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    window.location.href=d.url;
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function disconnectStripe(){
+  if(!confirm('D\u00e9connecter votre compte Stripe ? Les paiements d\'acomptes ne seront plus possibles.'))return;
+  try{
+    const r=await fetch('/api/stripe/connect',{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Compte Stripe d\u00e9connect\u00e9','success');
+    loadConnectStatus();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveDefaultView(view){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_default_calendar_view:view})});
@@ -693,6 +788,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
 
-export { loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
