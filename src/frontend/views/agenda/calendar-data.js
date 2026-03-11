@@ -101,8 +101,6 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       durationEditable: !frozen && !b.locked && !calState.fcLocked,
       extendedProps: props
     };
-    // Cancelled/completed/no_show events must never block drag & drop of other events
-    if (frozen) ev.overlap = true;
     return ev;
   });
 }
@@ -114,7 +112,6 @@ export function buildGroupEvents(grouped) {
     const first = members[0];
     const accent = accentFor(first);
     const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
-    const allFrozen = members.every(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
     const anyLocked = members.some(m => m.locked);
     const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
     const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
@@ -132,8 +129,6 @@ export function buildGroupEvents(grouped) {
         status: first.status
       }
     };
-    // All-cancelled/completed/no_show groups must never block drag & drop of other events
-    if (allFrozen) gev.overlap = true;
     return gev;
   });
 }
