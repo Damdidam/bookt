@@ -19,12 +19,15 @@ async function processExpiredPendingBookings() {
     await client.query('BEGIN');
 
     // Find pending bookings whose confirmation window has elapsed
+    // OR whose start time has already passed (no-show prevention)
     const expired = await client.query(
       `SELECT id, business_id, service_id, practitioner_id, start_at, end_at, group_id
        FROM bookings
        WHERE status = 'pending'
-         AND confirmation_expires_at IS NOT NULL
-         AND confirmation_expires_at < NOW()
+         AND (
+           (confirmation_expires_at IS NOT NULL AND confirmation_expires_at < NOW())
+           OR start_at <= NOW()
+         )
        FOR UPDATE SKIP LOCKED`
     );
 
