@@ -755,7 +755,7 @@ function fcConvertSvcChanged() {
     varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
       `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
     ).join('');
-    varWrap.style.display = '';
+    varWrap.style.display = 'block';
   } else {
     varSel.innerHTML = '';
     varWrap.style.display = 'none';
