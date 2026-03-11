@@ -524,7 +524,8 @@ function initPage(){
   if(b.logo_url){var img=document.createElement('img');img.src=b.logo_url;img.alt='';hLogo.innerHTML='';hLogo.appendChild(img);}else hLogo.textContent=init;
   document.getElementById('hName').textContent=b.name;
   document.getElementById('hTagline').textContent=b.tagline||'';
-  document.getElementById('hBack').href='/'+slug;
+  document.getElementById('hBack').href='#';
+  document.getElementById('hBack').addEventListener('click',function(e){e.preventDefault();if(currentStepIdx<=0||stepOrder[currentStepIdx]===1)window.location.href='/'+slug;else goToStep(1);});
   document.getElementById('btnBackSite').onclick=()=>window.location.href='/'+slug;
   document.title='Prendre RDV — '+b.name;
   if(b.theme?.primary_color)document.documentElement.style.setProperty('--primary',b.theme.primary_color);
