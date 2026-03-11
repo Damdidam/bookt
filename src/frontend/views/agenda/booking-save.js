@@ -51,7 +51,7 @@ async function calSaveAll() {
   const newLocked = document.getElementById('calLocked')?.value === 'true';
   if (newLocked !== calState.fcEditOriginal.locked) editPayload.locked = newLocked;
 
-  // Service conversion: freestyle → service now handled by fcValidateConvert() in booking-detail.js
+  // Service conversion: freestyle → service now handled by fcConvertDirectAdd() in booking-detail.js
   // Only handle service → freestyle here (to-free)
   if (calState._convertAction === 'to-free') {
     editPayload.service_id = null;

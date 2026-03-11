@@ -9,6 +9,7 @@ import { fcRenderReminders } from './booking-reminders.js';
 import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict, calResetSlotCheck } from './booking-edit.js';
+import { fcRefresh } from './calendar-init.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 import { IC } from '../../utils/icons.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
@@ -656,7 +657,6 @@ function fcGetFilteredServices(pracId, category) {
 
 function fcStartConvert(action) {
   calState._convertAction = action;
-  calState._pendingServices = [];
   const freeCard = document.getElementById('mFreeCard');
   const svcCard = document.getElementById('mSvcCard');
   const bufSec = document.getElementById('mBufferSec');
@@ -676,12 +676,13 @@ function fcStartConvert(action) {
     ).join('');
     // Populate service dropdown (all categories)
     fcConvertRebuildServices(pracId, '');
-    // Reset variant + info + list
-    document.getElementById('mConvertVarWrap').style.visibility = 'hidden';
+    // Reset variant + info + conflict banner + button
+    document.getElementById('mConvertVarWrap').style.display = 'none';
     document.getElementById('mConvertInfo').textContent = '';
-    document.getElementById('mConvertList').innerHTML = '';
-    document.getElementById('mConvertTotal').style.display = 'none';
-    document.getElementById('mConvertValidateBtn').style.display = 'none';
+    const conflictBanner = document.getElementById('mConvertConflict');
+    if (conflictBanner) conflictBanner.style.display = 'none';
+    const addBtn = document.getElementById('mConvertAddBtn');
+    if (addBtn) { addBtn.disabled = true; addBtn.textContent = '+ Ajouter'; }
     // Store original end time for cancel
     calState._convertOrigEnd = document.getElementById('calEditEnd').value;
   } else {
@@ -734,10 +735,11 @@ function fcConvertCatChanged() {
   const cat = document.getElementById('mConvertCatSel')?.value || '';
   const pracId = document.getElementById('uPracSelect')?.value;
   fcConvertRebuildServices(pracId, cat);
-  // Reset variant + info
-  document.getElementById('mConvertVarWrap').style.visibility = 'hidden';
+  // Reset variant + info + button
+  document.getElementById('mConvertVarWrap').style.display = 'none';
   document.getElementById('mConvertVarSel').innerHTML = '';
   document.getElementById('mConvertInfo').textContent = '';
+  fcConvertUpdateAddBtn();
 }
 
 function fcConvertSvcChanged() {
@@ -746,20 +748,21 @@ function fcConvertSvcChanged() {
   const varSel = document.getElementById('mConvertVarSel');
   const info = document.getElementById('mConvertInfo');
   const svcId = sel.value;
-  if (!svcId) { varWrap.style.visibility = 'hidden'; info.textContent = ''; return; }
+  if (!svcId) { varWrap.style.display = 'none'; info.textContent = ''; return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
   if (variants.length > 0) {
     varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
       `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
     ).join('');
-    varWrap.style.visibility = 'visible';
+    varWrap.style.display = '';
   } else {
     varSel.innerHTML = '';
-    varWrap.style.visibility = 'hidden';
+    varWrap.style.display = 'none';
   }
   // Show info line (duration + price) — service-level values (variant overrides in fcConvertUpdateInfo)
   fcConvertUpdateInfo();
+  fcConvertUpdateAddBtn();
   // Recalculate end time from service duration
   fcConvertRecalcEnd();
 }
@@ -786,12 +789,27 @@ function fcConvertUpdateInfo() {
   }
 }
 
+/** Enable/disable the Ajouter button based on selection state */
+function fcConvertUpdateAddBtn() {
+  const btn = document.getElementById('mConvertAddBtn');
+  if (!btn) return;
+  const svcId = document.getElementById('mConvertSvcSel')?.value;
+  if (!svcId) { btn.disabled = true; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const hasVariants = (svc?.variants || []).length > 0;
+  const varSelected = !!document.getElementById('mConvertVarSel')?.value;
+  btn.disabled = hasVariants && !varSelected;
+}
+
 function fcConvertVarChanged() {
   fcConvertUpdateInfo();
+  fcConvertUpdateAddBtn();
   fcConvertRecalcEnd();
 }
 
 function fcConvertRecalcEnd() {
+  // In group-add mode, the new service chains after the last sibling — don't modify calEditEnd
+  if (calState._convertAction === 'group-add') return;
   const sel = document.getElementById('mConvertSvcSel');
   const varSel = document.getElementById('mConvertVarSel');
   const opt = sel.selectedOptions[0];
@@ -814,8 +832,9 @@ function fcConvertRecalcEnd() {
 
 function fcCancelConvert() {
   calState._convertAction = null;
-  calState._pendingServices = [];
   document.getElementById('mConvertSvc').style.display = 'none';
+  const conflictBanner = document.getElementById('mConvertConflict');
+  if (conflictBanner) conflictBanner.style.display = 'none';
   const b = calState.fcCurrentBooking;
   const isFreestyle = !b?.service_name;
   if (isFreestyle) {
@@ -831,114 +850,72 @@ function fcCancelConvert() {
   }
 }
 
-// ── Multi-add: list management ──
+// ── Direct add: send to server immediately ──
 
-/** Add currently selected service/variant to the pending list */
-function fcConvertAddToList() {
-  const sel = document.getElementById('mConvertSvcSel');
-  const varSel = document.getElementById('mConvertVarSel');
-  const svcId = sel.value;
-  if (!svcId) { gToast('Choisissez une prestation', 'error'); return; }
-  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
-  if (!svc) return;
-  const varId = varSel?.value || null;
-  const variant = varId ? (svc.variants || []).find(v => String(v.id) === String(varId)) : null;
+/** Send the selected service/variant directly to the server */
+async function fcConvertDirectAdd(force) {
+  const btn = document.getElementById('mConvertAddBtn');
+  const svcId = document.getElementById('mConvertSvcSel')?.value;
+  const varId = document.getElementById('mConvertVarSel')?.value || null;
+  if (!svcId) return;
 
-  const name = variant ? svc.name + ' \u2014 ' + variant.name : svc.name;
-  const dur = variant?.duration_min || svc.duration_min;
-  const price = variant?.price_cents ?? svc.price_cents ?? 0;
-
-  calState._pendingServices.push({ service_id: svcId, variant_id: varId, name, dur, price_cents: price });
-  fcConvertRenderList();
-  // Reset selects for next addition
-  sel.value = '';
-  varSel.innerHTML = '';
-  document.getElementById('mConvertVarWrap').style.visibility = 'hidden';
-  document.getElementById('mConvertInfo').textContent = '';
-}
-
-/** Remove a service from the pending list by index */
-function fcConvertRemoveFromList(idx) {
-  calState._pendingServices.splice(idx, 1);
-  fcConvertRenderList();
-}
-
-/** Re-render the pending list, total, and Valider button */
-function fcConvertRenderList() {
-  const list = document.getElementById('mConvertList');
-  const total = document.getElementById('mConvertTotal');
-  const btn = document.getElementById('mConvertValidateBtn');
-  const items = calState._pendingServices;
-
-  if (items.length === 0) {
-    list.innerHTML = '';
-    total.style.display = 'none';
-    btn.style.display = 'none';
-    return;
-  }
-
-  list.innerHTML = items.map((s, i) =>
-    `<div class="m-svc-list-item"><span>${esc(s.name)}</span><span class="m-svc-dur">${s.dur} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''}</span><button class="m-svc-list-rm" onclick="fcConvertRemoveFromList(${i})" title="Retirer">\u2715</button></div>`
-  ).join('');
-
-  const totalDur = items.reduce((a, s) => a + s.dur, 0);
-  const totalPrice = items.reduce((a, s) => a + (s.price_cents || 0), 0);
-  total.textContent = 'Total : ' + totalDur + ' min' + (totalPrice ? ' \u00b7 ' + (totalPrice / 100).toFixed(0) + '\u20ac' : '');
-  total.style.display = '';
-  btn.style.display = '';
-}
-
-/** Validate: execute all pending service additions */
-async function fcValidateConvert() {
-  const items = calState._pendingServices;
-  if (items.length === 0) return;
+  // Disable + spinner
+  if (btn) { btn.disabled = true; btn.textContent = 'En cours\u2026'; }
+  const conflictEl = document.getElementById('mConvertConflict');
+  if (conflictEl) conflictEl.style.display = 'none';
 
   const bookingId = calState.fcCurrentEventId;
-  const isFreestyle = calState._convertAction === 'to-service';
-  const btn = document.getElementById('mConvertValidateBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'En cours\u2026'; }
-
   try {
-    if (isFreestyle) {
-      // First service: convert freestyle via PATCH /edit
-      const first = items[0];
+    if (calState._convertAction === 'to-service') {
+      // Freestyle → service conversion via PATCH /edit
       const r = await fetch(`/api/bookings/${bookingId}/edit`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ service_id: first.service_id, service_variant_id: first.variant_id })
+        body: JSON.stringify({ service_id: svcId, service_variant_id: varId })
       });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur conversion'); }
-
-      // Remaining services: group-add sequentially
-      for (let i = 1; i < items.length; i++) {
-        const r2 = await fetch(`/api/bookings/${bookingId}/group-add`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-          body: JSON.stringify({ service_id: items[i].service_id, variant_id: items[i].variant_id })
-        });
-        if (!r2.ok) { const d = await r2.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout #' + (i + 1)); }
-      }
     } else {
-      // group-add mode: all via group-add
-      for (const item of items) {
-        const r = await fetch(`/api/bookings/${bookingId}/group-add`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-          body: JSON.stringify({ service_id: item.service_id, variant_id: item.variant_id })
-        });
-        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout'); }
+      // group-add: POST /group-add
+      const body = { service_id: svcId, variant_id: varId };
+      if (force) body.force = true;
+      const r = await fetch(`/api/bookings/${bookingId}/group-add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify(body)
+      });
+
+      if (r.status === 409) {
+        // Conflict → show alert banner with force option
+        const d = await r.json().catch(() => ({}));
+        if (conflictEl) {
+          conflictEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+            + '<span style="flex:1">' + esc(d.error || 'Conflit horaire d\u00e9tect\u00e9') + '</span>'
+            + '<button class="m-convert-conflict-force" onclick="fcConvertDirectAdd(true)">Ajouter quand m\u00eame</button>';
+          conflictEl.style.display = 'flex';
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '+ Ajouter'; }
+        return; // Wait for user decision
       }
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout'); }
     }
 
-    gToast(items.length + ' prestation(s) ajout\u00e9e(s)', 'success');
-    calState._pendingServices = [];
+    // Success → toast, close panel, refresh modal without closing
+    gToast('Prestation ajout\u00e9e', 'success');
     calState._convertAction = null;
-    document.getElementById('calDetailModal')._dirtyGuard?.markClean();
-    closeCalModal('calDetailModal');
+    document.getElementById('mConvertSvc').style.display = 'none';
+    // Restore card visibility
+    const b = calState.fcCurrentBooking;
+    if (!b?.service_name) {
+      document.getElementById('mFreeCard').style.display = 'flex';
+      document.getElementById('mBufferSec').style.display = '';
+    } else {
+      document.getElementById('mSvcCard').style.display = 'flex';
+    }
     fcRefresh();
+    await fcOpenDetail(bookingId);
   } catch (e) {
     gToast('Erreur : ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Valider'; }
+    if (btn) { btn.disabled = false; btn.textContent = '+ Ajouter'; }
   }
 }
 
@@ -1056,7 +1033,7 @@ function fcInlineEdit(span, field) {
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
-         fcConvertAddToList, fcConvertRemoveFromList, fcValidateConvert,
+         fcConvertDirectAdd,
          fcGetServiceCategories, fcGetFilteredServices,
          fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
          fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });

@@ -369,7 +369,7 @@ router.post('/:id/group-add', async (req, res, next) => {
     const { id } = req.params;
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
 
-    const { service_id, variant_id } = req.body;
+    const { service_id, variant_id, force } = req.body;
 
     // Only owner/manager/staff can add to group — not practitioners
     if (req.user.role === 'practitioner') {
@@ -480,8 +480,8 @@ router.post('/:id/group-add', async (req, res, next) => {
           [booking.group_id, bid]
         );
 
-        // Conflict check for the new time range
-        if (!globalAllowOverlap) {
+        // Conflict check for the new time range (skip if force=true)
+        if (!globalAllowOverlap && !force) {
           const maxConc = await getMaxConcurrent(bid, booking.practitioner_id);
           const conflicts = await checkBookingConflicts(client, { bid, pracId: booking.practitioner_id, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() });
           if (conflicts.length >= maxConc) {
