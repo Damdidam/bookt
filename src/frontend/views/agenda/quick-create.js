@@ -321,23 +321,25 @@ function qcAddService() {
     const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
     return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`;
   }).join('');
-  const html = `<div class="qc-svc-item" id="qcSvc${idx}">
-    <div class="qc-svc-header">
+  const html = `<div class="qc-svc-item m-convert-panel" id="qcSvc${idx}" style="border-color:var(--border-light)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
       <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
       <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
-      <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer" style="margin-left:auto"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div class="qc-field">
-      <label>Catégorie</label>
-      <select onchange="qcCatChanged(${idx})" id="qcCatSel${idx}">${catOpts}</select>
-    </div>
-    <div class="qc-field">
-      <label>Prestation</label>
-      <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${svcOpts}</select>
-    </div>
-    <div class="qc-field" id="qcVarWrap${idx}" style="display:none">
-      <label>Variante</label>
-      <select class="qc-var-sel" id="qcVarSel${idx}" onchange="qcUpdateTotal()"></select>
+    <div class="m-svc-picker">
+      <div class="m-svc-picker-field">
+        <label>Catégorie</label>
+        <select onchange="qcCatChanged(${idx})" id="qcCatSel${idx}">${catOpts}</select>
+      </div>
+      <div class="m-svc-picker-field">
+        <label>Prestation</label>
+        <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${svcOpts}</select>
+      </div>
+      <div class="m-svc-picker-field" id="qcVarWrap${idx}" style="display:none">
+        <label>Variante</label>
+        <select class="qc-var-sel" id="qcVarSel${idx}" onchange="qcUpdateTotal()"></select>
+      </div>
     </div>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
