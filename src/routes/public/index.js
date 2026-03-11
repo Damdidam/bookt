@@ -371,12 +371,15 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
       const minPriceCents = bizSettings.last_minute_min_price_cents || 0;
       const deadline = bizSettings.last_minute_deadline || 'j-1';
 
-      // Resolve service price (with variant override)
+      // Resolve service price + promo eligibility (with variant override)
       let servicePriceCents = 0;
       const svcPriceResult = await query(
-        `SELECT price_cents FROM services WHERE id = $1 AND business_id = $2`,
+        `SELECT price_cents, promo_eligible FROM services WHERE id = $1 AND business_id = $2`,
         [service_id, businessId]
       );
+      if (svcPriceResult.rows[0]?.promo_eligible === false) {
+        // Service opted out of last-minute promos — skip tagging
+      } else {
       servicePriceCents = svcPriceResult.rows[0]?.price_cents || 0;
       if (variant_id) {
         const varPriceResult = await query(
@@ -399,6 +402,7 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
           }
         }
       }
+      } // end promo_eligible check
     }
 
     const byDate = {};
@@ -1263,7 +1267,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
           // Resolve effective price (variant or service)
           let effPrice = 0;
-          const _sp = await client.query(`SELECT price_cents FROM services WHERE id = $1`, [effectiveServiceId]);
+          const _sp = await client.query(`SELECT price_cents, promo_eligible FROM services WHERE id = $1`, [effectiveServiceId]);
+          if (_sp.rows[0]?.promo_eligible === false) { /* Service not eligible */ }
+          else {
           effPrice = _sp.rows[0]?.price_cents || 0;
           if (resolvedVariantId) {
             const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
@@ -1272,6 +1278,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           if (effPrice > 0 && effPrice >= lmMinPrice) {
             resolvedDiscountPct = bizSettings.last_minute_discount_pct || 10;
           }
+          } // end promo_eligible check
         }
       }
 

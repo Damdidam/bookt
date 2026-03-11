@@ -43,7 +43,7 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
             price_cents, price_label, mode_options, prep_instructions_fr,
             prep_instructions_nl, color, description, available_schedule, practitioner_ids, variants,
             bookable_online, processing_time, processing_start,
-            flexibility_enabled, flexibility_discount_pct } = req.body;
+            flexibility_enabled, flexibility_discount_pct, promo_eligible } = req.body;
 
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
@@ -69,8 +69,8 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
         `INSERT INTO services (business_id, name, category, duration_min,
           buffer_before_min, buffer_after_min, price_cents, price_label,
           mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule, bookable_online,
-          processing_time, processing_start, flexibility_enabled, flexibility_discount_pct)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          processing_time, processing_start, flexibility_enabled, flexibility_discount_pct, promo_eligible)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
          RETURNING *`,
         [bid, name, category || null, duration_min,
          buffer_before_min || 0, buffer_after_min || 0,
@@ -81,7 +81,8 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
          available_schedule ? JSON.stringify(available_schedule) : null,
          bookable_online !== false,
          parseInt(processing_time) || 0, parseInt(processing_start) || 0,
-         !!flexibility_enabled, parseInt(flexibility_discount_pct) || 0]
+         !!flexibility_enabled, parseInt(flexibility_discount_pct) || 0,
+         promo_eligible !== false]
       );
 
       const svc = result.rows[0];
@@ -167,7 +168,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
       'buffer_after_min', 'price_cents', 'price_label', 'mode_options',
       'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description', 'available_schedule', 'bookable_online',
       'processing_time', 'processing_start',
-      'flexibility_enabled', 'flexibility_discount_pct'];
+      'flexibility_enabled', 'flexibility_discount_pct', 'promo_eligible'];
 
     const sets = [];
     const params = [id, bid];

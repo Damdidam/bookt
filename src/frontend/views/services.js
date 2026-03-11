@@ -640,6 +640,8 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_flexibility" onchange="svcToggleFlexibility()" ${isFlexEnabled?'checked':''}><span class="svc-switch-track"></span> Proposer la flexibilité au client</label>`;
   m+=`<div id="svc_flexibility_fields" style="display:${isFlexEnabled?'flex':'none'};align-items:center;gap:8px;margin:8px 0 0 48px"><label style="font-size:.8rem;white-space:nowrap">Réduction offerte</label><input type="number" class="svc-input" id="svc_flex_discount" min="0" max="100" value="${flexDiscount}" style="width:70px"><span style="font-size:.82rem">%</span></div>`;
   m+=`</div>`;
+  const isPromoEligible=svc?svc.promo_eligible!==false:true;
+  m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_promo_eligible" ${isPromoEligible?'checked':''}><span class="svc-switch-track"></span> Éligible aux promotions dernière minute</label></div>`;
   m+=`</div>`;
 
   // ── SECTION 4: Affectation ──
@@ -816,6 +818,7 @@ async function saveService(id){
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.flexibility_enabled=document.getElementById('svc_flexibility').checked;
   body.flexibility_discount_pct=parseInt(document.getElementById('svc_flex_discount')?.value)||0;
+  body.promo_eligible=document.getElementById('svc_promo_eligible').checked;
   body.available_schedule=buildScheduleFromEditor();
   // Duplicate check: same name + same category (exclude current service if editing)
   const dupName=body.name.trim().toLowerCase();
