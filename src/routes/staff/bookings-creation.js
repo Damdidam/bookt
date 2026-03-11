@@ -19,7 +19,10 @@ router.post('/manual', async (req, res, next) => {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
             services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked,
-            force_deposit } = req.body;
+            force_deposit, skip_confirmation } = req.body;
+
+    // Default status: pending (staff confirms later). skip_confirmation → confirmed immediately.
+    const bookingStatus = skip_confirmation ? 'confirmed' : 'pending';
 
     // BK-V13-008: group_id removed from destructuring (dead code — group_id is generated server-side)
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -120,11 +123,12 @@ router.post('/manual', async (req, res, next) => {
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked)
-           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, 'confirmed', $7, $8, $9, $10)
+           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, $7, $8, $9, $10, $11)
            RETURNING *`,
           [bid, practitioner_id, client_id || null,
            appointment_mode || 'cabinet',
            realStart.toISOString(), realEnd.toISOString(),
+           bookingStatus,
            comment || null, custom_label || null, safeColor, !!locked]
         );
 
@@ -178,8 +182,8 @@ router.post('/manual', async (req, res, next) => {
       broadcast(bid, 'booking_update', { action: 'created' });
       calSyncPush(bid, bookings[0].id).catch(() => {});
 
-      // Send confirmation email (non-blocking)
-      if (client_email && client_id) {
+      // Send confirmation email only if confirmed (non-blocking)
+      if (bookingStatus === 'confirmed' && client_email && client_id) {
         (async () => {
           try {
             const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
@@ -369,11 +373,12 @@ router.post('/manual', async (req, res, next) => {
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
             group_id, group_order, processing_time, processing_start, locked)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11, $12, $13, $14)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
            RETURNING *`,
           [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
            slot.start_at, slot.end_at,
+           bookingStatus,
            comment || null,
            groupId, slot.group_order,
            slot.processing_time || 0, slot.processing_start || 0, !!locked]
@@ -455,8 +460,8 @@ router.post('/manual', async (req, res, next) => {
     broadcast(bid, 'booking_update', { action: 'created' });
     bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
 
-    // Send confirmation email (non-blocking)
-    if (client_email && client_id) {
+    // Send confirmation email only if confirmed (non-blocking)
+    if (bookingStatus === 'confirmed' && client_email && client_id) {
       (async () => {
         try {
           const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);

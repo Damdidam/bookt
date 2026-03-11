@@ -39,6 +39,7 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcClientId').value = '';
   document.getElementById('qcComment').value = '';
   document.getElementById('qcLocked').checked = false;
+  document.getElementById('qcSkipConfirm').checked = false;
   document.getElementById('qcAcResults').style.display = 'none';
 
   // Reset freestyle mode
@@ -750,6 +751,7 @@ async function calCreateBooking() {
     }
 
     const isLocked = document.getElementById('qcLocked')?.checked || false;
+    const skipConfirm = document.getElementById('qcSkipConfirm')?.checked || false;
 
     let body;
     if (isFreestyle) {
@@ -777,7 +779,8 @@ async function calCreateBooking() {
         appointment_mode: 'cabinet',
         comment: comment || null,
         client_email: clientEmail || undefined,
-        locked: isLocked
+        locked: isLocked,
+        skip_confirmation: skipConfirm
       };
     } else {
       // Check if assign panel is open with pending selection
@@ -799,7 +802,8 @@ async function calCreateBooking() {
         appointment_mode: mode,
         comment: comment || null,
         client_email: clientEmail || undefined,
-        locked: isLocked
+        locked: isLocked,
+        skip_confirmation: skipConfirm
       };
       if (services.length === 1) {
         body.service_id = services[0].service_id;
