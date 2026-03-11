@@ -311,14 +311,43 @@ function soUpdateAddBtn() {
 
 function soRefreshDropdowns() {
   const effectivePracId = soPracId === 'all' ? null : soPracId;
+
+  // Preserve current dropdown selections before rebuild
+  const prevCat = document.getElementById('soCatSel')?.value || '';
+  const prevSvc = document.getElementById('soSvcSel')?.value || '';
+  const prevVar = document.getElementById('soVarSel')?.value || '';
+
+  // Rebuild category dropdown
   const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
   const catSel = document.getElementById('soCatSel');
   if (catSel) {
     catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
       `<option value="${esc(c)}">${esc(c)}</option>`
     ).join('');
+    // Restore category if it still exists for this practitioner
+    if (prevCat && [...catSel.options].some(o => o.value === prevCat)) {
+      catSel.value = prevCat;
+    }
   }
+
+  // Rebuild service dropdown (respects restored category)
   soCatChanged();
+
+  // Restore service + variant if they still exist
+  if (prevSvc) {
+    const svcSel = document.getElementById('soSvcSel');
+    if (svcSel && [...svcSel.options].some(o => o.value === prevSvc)) {
+      svcSel.value = prevSvc;
+      soSvcChanged(); // rebuilds variant dropdown
+      if (prevVar) {
+        const varSel = document.getElementById('soVarSel');
+        if (varSel && [...varSel.options].some(o => o.value === prevVar)) {
+          varSel.value = prevVar;
+        }
+      }
+      soUpdateAddBtn();
+    }
+  }
 }
 
 function soAddService() {
