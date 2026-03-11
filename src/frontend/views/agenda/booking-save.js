@@ -43,9 +43,9 @@ async function calSaveAll() {
   if (isFreestyle) {
     if (newLabel !== (calState.fcEditOriginal.custom_label || '')) editPayload.custom_label = newLabel;
   }
-  // Color: compare against swatch value (includes fallback), not raw DB color,
-  // to avoid accidentally saving the practitioner/service color as an explicit override
-  if (newColor !== (calState.fcEditOriginal._swatchColor || calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
+  // Color: compare against raw DB value (b.color || '') to detect actual changes.
+  // uBookingColor is initialized to b.color || '' so this is a 1:1 comparison.
+  if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
   // Lock toggle
   const newLocked = document.getElementById('calLocked')?.value === 'true';
