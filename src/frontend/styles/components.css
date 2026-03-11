@@ -505,8 +505,8 @@
 .plan-box .plan-price{font-size:1.7rem;font-weight:700;color:var(--primary)}
 .plan-box .plan-price span{font-size:.78rem;font-weight:400;color:var(--text-4)}
 .plan-box ul{list-style:none;text-align:left;margin:12px 0;font-size:.8rem;color:var(--text-3)}
-.plan-box ul li{padding:4px 0}
-.plan-box ul li::before{content:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ';color:var(--green);font-weight:700}
+.plan-box ul li{padding:4px 0;display:flex;align-items:baseline;gap:6px}
+.plan-box ul li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
 .plan-box .current-badge{position:absolute;top:-10px;right:12px;background:var(--primary);color:#fff;padding:2px 10px;border-radius:8px;font-size:.68rem;font-weight:700}
 .danger-zone{background:var(--red-bg);border-color:#FECACA}
 .danger-zone .sc-h{border-color:#FECACA}
