@@ -7,7 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
-import { calState } from '../../state.js';
+import { api, calState } from '../../state.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import { buildEventsCallback } from './calendar-data.js';
 import { buildEventContent, buildEventClassNames } from './calendar-render.js';
@@ -17,6 +17,42 @@ import { fcHideTooltip } from './tooltip-renderer.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { atUpdateTitle } from './calendar-toolbar.js';
 import { fcLoadMobileList } from './calendar-mobile.js';
+
+// ── Absence helpers ──
+
+/** Fetch absences for a given month (YYYY-MM) and store in calState */
+var _absenceLoadedMonth = null;
+async function fcLoadAbsences(monthStr) {
+  if (_absenceLoadedMonth === monthStr) return; // already loaded
+  try {
+    const resp = await fetch('/api/planning/absences?month=' + monthStr, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      calState.fcAbsences = data.absences || [];
+      _absenceLoadedMonth = monthStr;
+    }
+  } catch (_) { /* silent */ }
+}
+
+/** Get absence period for a practitioner on a given date string (YYYY-MM-DD).
+ *  Returns null | 'full' | 'am' | 'pm' */
+function fcGetAbsencePeriod(pracId, dateStr) {
+  for (var i = 0; i < calState.fcAbsences.length; i++) {
+    var abs = calState.fcAbsences[i];
+    if (String(abs.practitioner_id) !== String(pracId)) continue;
+    var from = abs.date_from.slice(0, 10);
+    var to = abs.date_to.slice(0, 10);
+    if (dateStr >= from && dateStr <= to) {
+      if (from === to) return abs.period || 'full';
+      if (dateStr === from) return abs.period || 'full';
+      if (dateStr === to) return abs.period_end || 'full';
+      return 'full';
+    }
+  }
+  return null;
+}
 
 /**
  * Convert hex color to rgba with alpha.
@@ -124,7 +160,22 @@ function initCalendar(initView, initSlotDur) {
     },
     resourceLabelContent: function (arg) {
       var color = arg.resource.extendedProps?.color || '#0D7377';
-      return { html: '<span style="display:inline-flex;align-items:center;gap:8px;padding:2px 0"><span style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;box-shadow:0 0 0 3px ' + color + '22"></span><span style="font-weight:700;font-size:.84rem;color:#1A2332;letter-spacing:.2px">' + arg.resource.title + '</span></span>' };
+      var name = arg.resource.title;
+      // Show absence badge in day views
+      var absHtml = '';
+      var view = calState.fcCal && calState.fcCal.view;
+      if (view && (view.type === 'timeGridDay' || view.type === 'resourceTimeGridDay')) {
+        var dateStr = view.currentStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        var period = fcGetAbsencePeriod(arg.resource.id, dateStr);
+        if (period === 'full') {
+          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:#B45309;margin-top:1px">Absent(e) journée</span>';
+        } else if (period === 'am') {
+          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:#B45309;margin-top:1px">Absent(e) matin</span>';
+        } else if (period === 'pm') {
+          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:#B45309;margin-top:1px">Absent(e) après-midi</span>';
+        }
+      }
+      return { html: '<span style="display:inline-flex;align-items:center;gap:8px;padding:2px 0"><span style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;box-shadow:0 0 0 3px ' + color + '22"></span><span style="font-weight:700;font-size:.84rem;color:#1A2332;letter-spacing:.2px">' + name + absHtml + '</span></span>' };
     },
     dayMaxEvents: 3,
     // ── Resource Timeline (Premium) ──
@@ -192,8 +243,14 @@ function initCalendar(initView, initSlotDur) {
     // Sync view buttons (for navLinkDayClick, etc.)
     var vt = calState.fcCal.view.type;
     document.querySelectorAll('.at-view-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === vt); });
+    // Load absences for visible month and refresh resource labels (absence badges)
+    var viewStart = calState.fcCal.view.currentStart;
+    var m = viewStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }).slice(0, 7);
+    fcLoadAbsences(m).then(function () {
+      if (calState.fcCal) calState.fcCal.refetchResources();
+    });
   });
   atUpdateTitle(); // initial
 }
 
-export { fcSlotDuration, fcHexAlpha, fcDarkenHex, fcRefresh, initCalendar };
+export { fcSlotDuration, fcHexAlpha, fcDarkenHex, fcRefresh, initCalendar, fcLoadAbsences };
