@@ -314,6 +314,10 @@ async function loadAgenda() {
   // Init FullCalendar
   initCalendar(initView, initSlotDur);
 
+  // Restore lock state (from memory or localStorage)
+  try { if (!calState.fcLocked && localStorage.getItem('bookt_cal_locked') === '1') calState.fcLocked = true; } catch (_) {}
+  if (calState.fcLocked) { fcApplyLockUI(); calState.fcCal?.refetchEvents(); }
+
   // Measure toolbar height for sticky column headers
   const tb = document.querySelector('.agenda-toolbar');
   if (tb) {
@@ -368,21 +372,27 @@ async function loadAgenda() {
 }
 
 // ── Lock toggle ──
+const LOCK_ICON = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+const UNLOCK_ICON = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M17 11V7a5 5 0 0 0-9.58-2"/></svg>';
+
+function fcApplyLockUI() {
+  const btn = document.getElementById('calLockBtn');
+  if (btn) {
+    btn.classList.toggle('active', !!calState.fcLocked);
+    btn.innerHTML = calState.fcLocked ? LOCK_ICON : UNLOCK_ICON;
+  }
+}
+
 function fcToggleLock() {
   calState.fcLocked = !calState.fcLocked;
+  try { localStorage.setItem('bookt_cal_locked', calState.fcLocked ? '1' : '0'); } catch (_) {}
   const cal = calState.fcCal;
   if (!cal) return;
   // Refetch events so they are rebuilt with the new fcLocked state
   // (per-event editable overrides global options, so we must reconstruct them)
   cal.refetchEvents();
   // Visual feedback
-  const btn = document.getElementById('calLockBtn');
-  if (btn) {
-    btn.classList.toggle('active', calState.fcLocked);
-    btn.innerHTML = calState.fcLocked
-      ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
-      : '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M17 11V7a5 5 0 0 0-9.58-2"/></svg>';
-  }
+  fcApplyLockUI();
   GendaUI.toast(calState.fcLocked ? 'Calendrier verrouillé' : 'Calendrier déverrouillé', 'info');
 }
 
