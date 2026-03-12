@@ -353,7 +353,7 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     const fromDate = new Date(from + 'T00:00:00Z');
     const toDate = new Date(to + 'T00:00:00Z');
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return res.status(400).json({ error: 'Dates invalides' });
-    if (toDate <= fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
+    if (toDate < fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
     if ((toDate - fromDate) / 86400000 > 60) {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
@@ -467,7 +467,7 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
     const fromDate = new Date(from + 'T00:00:00Z');
     const toDate = new Date(to + 'T00:00:00Z');
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return res.status(400).json({ error: 'Dates invalides' });
-    if (toDate <= fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
+    if (toDate < fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
     if ((toDate - fromDate) / 86400000 > 60) {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
