@@ -135,6 +135,8 @@ function redistributePoseColumns() {
     }
 
     // ── Position each pose-child on its parent ──
+    // First pass: extract parent bounds and group children by parent
+    var childByParent = {};
     childHarnesses.forEach(function (ch) {
       var evEl = ch.querySelector('.ev-pose-child');
       if (!evEl) return;
@@ -144,14 +146,75 @@ function redistributePoseColumns() {
       if (!parentEl) return;
       var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
       if (!parentHarness) return;
+
+      // Extract parent's horizontal bounds
+      var pLeft = '0%', pRight = '0%';
       var pm = parentHarness.style.cssText.match(/inset:\s*([^;!]+)/i);
       if (pm) {
         var pp = pm[1].trim().split(/\s+/);
-        setHoriz(ch, pp.length >= 4 ? pp[3] : '0%', pp.length >= 2 ? pp[1] : '0%');
+        pLeft = pp.length >= 4 ? pp[3] : '0%';
+        pRight = pp.length >= 2 ? pp[1] : '0%';
       } else {
-        setHoriz(ch, parentHarness.style.left || '0%', parentHarness.style.right || '0%');
+        pLeft = parentHarness.style.left || '0%';
+        pRight = parentHarness.style.right || '0%';
       }
-      ch.style.zIndex = '10';
+
+      if (!childByParent[parentId]) childByParent[parentId] = { pLeft: pLeft, pRight: pRight, children: [] };
+      childByParent[parentId].children.push(ch);
+    });
+
+    // Second pass: for each parent, distribute children
+    Object.keys(childByParent).forEach(function (pid) {
+      var info = childByParent[pid];
+      var kids = info.children;
+
+      if (kids.length === 1) {
+        // Single child: just overlay on parent
+        setHoriz(kids[0], info.pLeft, info.pRight);
+        kids[0].style.zIndex = '10';
+        return;
+      }
+
+      // Multiple children of same parent: check for vertical overlap
+      // Group overlapping children, distribute within parent bounds
+      var pLeftPct = parseFloat(info.pLeft) || 0;
+      var pRightPct = parseFloat(info.pRight) || 0;
+      var parentWidth = 100 - pLeftPct - pRightPct;
+      if (parentWidth <= 0) parentWidth = 100;
+
+      var overlapGroups = [];
+      kids.forEach(function (ch) {
+        var r = ch.getBoundingClientRect();
+        var placed = false;
+        for (var g = 0; g < overlapGroups.length; g++) {
+          if (overlapGroups[g].some(function (m) {
+            var mr = m.getBoundingClientRect();
+            return r.top < mr.bottom - 1 && mr.top < r.bottom - 1;
+          })) {
+            overlapGroups[g].push(ch);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) overlapGroups.push([ch]);
+      });
+
+      overlapGroups.forEach(function (group) {
+        if (group.length === 1) {
+          // No overlap with siblings: full parent width
+          setHoriz(group[0], info.pLeft, info.pRight);
+          group[0].style.zIndex = '10';
+        } else {
+          // Overlapping siblings: split into sub-columns within parent bounds
+          var w = parentWidth / group.length;
+          group.forEach(function (ch, i) {
+            var left = pLeftPct + i * w;
+            var right = 100 - left - w;
+            setHoriz(ch, left + '%', right + '%');
+            ch.style.zIndex = String(10 + i);
+          });
+        }
+      });
     });
   });
 }

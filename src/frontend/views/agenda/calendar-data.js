@@ -48,6 +48,7 @@ export function detectPoseChildren(singles, tasks) {
     const bEndMin = toMin(new Date(item.end_at).getTime());
     for (var pi = 0; pi < poseParentBookings.length; pi++) {
       var par = poseParentBookings[pi];
+      if (String(par.id) === String(itemId)) continue; // self-check: don't detect self as child
       if (String(par.practitioner_id) !== String(pracId)) continue;
       var parStart = new Date(par.start_at).getTime();
       var parPs = parseInt(par.processing_start) || 0;
@@ -69,9 +70,9 @@ export function detectPoseChildren(singles, tasks) {
     }
   }
 
-  // Check bookings
+  // Check bookings (including those with their own processing_time — they can
+  // be children of another booking's pose window, e.g. coloration inside coloration)
   singles.forEach(b => {
-    if (parseInt(b.processing_time) > 0) return;
     if (['cancelled','no_show'].includes(b.status)) return;
     checkAgainstPoseParents(b, b.practitioner_id, b.id, false);
   });
