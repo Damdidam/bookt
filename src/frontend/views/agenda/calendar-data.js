@@ -150,7 +150,13 @@ export function buildGroupEvents(grouped) {
         _isGroup: true, _groupId: gid, _accent: accent,
         _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
         client_name: first.client_name,
+        client_is_vip: first.client_is_vip,
         practitioner_id: first.practitioner_id,
+        practitioner_name: first.practitioner_name,
+        processing_time: first.processing_time,
+        processing_start: first.processing_start,
+        buffer_before_min: first.buffer_before_min,
+        internal_note: first.internal_note,
         status: first.status
       }
     };
