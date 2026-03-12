@@ -30,7 +30,16 @@ function atNav(action) {
 
 function atView(view) {
   if (!calState.fcCal) return;
-  calState.fcCal.changeView(view);
+  const prevType = calState.fcCal.view.type;
+  // When switching between views, preserve the visible date context.
+  // rollingWeek starts from yesterday, so switching to day view without
+  // an explicit date would show yesterday. Use getDate() to keep the
+  // calendar's current reference date, and for rollingWeek→day use today.
+  let targetDate = calState.fcCal.getDate();
+  if (prevType === 'rollingWeek' && (view === 'resourceTimeGridDay' || view === 'timeGridDay')) {
+    targetDate = new Date();
+  }
+  calState.fcCal.changeView(view, targetDate);
   document.querySelectorAll('.at-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
 }
 
