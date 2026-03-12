@@ -71,7 +71,7 @@ function buildEventContent() {
         return label;
       }).join(' · ');
       const clientDim = isPartial ? ' style="opacity:.4"' : '';
-      const iconDim = isPartial ? 'opacity:.3' : 'opacity:.5';
+      const iconDim = isPartial ? 'opacity:.3' : 'opacity:.8';
       const grpVip = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
       const grpLock = members.some(m => m.locked) ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
       const grpSt = members.every(m => m.status === 'cancelled') ? 'cancelled' : members.every(m => m.status === 'no_show') ? 'no_show' : members.every(m => m.status === 'completed') ? 'completed' : (members[0].status || 'confirmed');
@@ -80,7 +80,7 @@ function buildEventContent() {
       const grpNote = members.some(m => m.internal_note) ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
       const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
-      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
+      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.68rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
     }
 
     // -- Week/Day: single event --
@@ -92,7 +92,7 @@ function buildEventContent() {
     const noteBadge = p.internal_note ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
-    const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
+    const freeTag = !p.service_name ? '<span style="font-size:.68rem;opacity:.85;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
     return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${promoBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
   };
 }

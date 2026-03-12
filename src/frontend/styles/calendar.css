@@ -153,6 +153,7 @@
 /* Month view compact pills */
 .ev-month-pill{font-size:.74rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;padding:1px 4px;line-height:1.4}
 .ev-month-pill strong{font-weight:700}
+.ev-month-pill .gi{width:11px;height:11px;opacity:.85;vertical-align:middle}
 .fc .fc-daygrid-day-frame{min-height:80px}
 .fc .fc-daygrid-day-top{display:flex;justify-content:flex-end}
 .fc .fc-daygrid-day-number{font-size:.78rem;font-weight:600;color:var(--text-3);padding:4px 8px;cursor:pointer;text-decoration:none}
@@ -169,9 +170,10 @@
 .ev-inner{display:flex;flex-direction:column;gap:2px;overflow:hidden;position:relative}
 .ev-inner .ev-client{font-weight:700;font-size:.8rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev-inner .ev-service{font-size:.7rem;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-inner .gi{width:12px;height:12px;opacity:.85;flex-shrink:0;vertical-align:middle}
 .ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:3px}
 .ev-inner .ev-badge{width:6px;height:6px;border-radius:50%;opacity:.7}
-.ev-badge-note{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-note svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ev-badge-note{display:inline-flex;align-items:center;margin-left:3px;opacity:.9}.ev-badge-note svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ev-inner .ev-badge-todo{background:#FBBF24}
 .ev-inner .ev-badge-st{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
@@ -185,11 +187,11 @@
 /* ── Internal Tasks ── */
 .fc .fc-event.ev-task{border-left-style:dashed!important;border-left-width:3px!important;opacity:.85}
 .ev-task-inner .ev-client{font-weight:600;font-size:.72rem;display:flex;align-items:center;gap:4px}
-.ev-task-inner .ev-client .gi{width:11px;height:11px;opacity:.5;flex-shrink:0}
+.ev-task-inner .ev-client .gi{width:13px;height:13px;opacity:.8;flex-shrink:0}
 .ev-task-inner .ev-service{font-size:.64rem;opacity:.45;font-style:italic}
 .fc .fc-event.ev-task-done{opacity:.4;filter:grayscale(.3)}
 .ev-task-pill{font-style:italic;opacity:.8}
-.ev-task-pill .gi{width:10px;height:10px;opacity:.5}
+.ev-task-pill .gi{width:12px;height:12px;opacity:.8}
 /* Quick-create mode toggle (RDV / Tâche) */
 .qc-mode-toggle{display:flex;gap:0;padding:0 20px}
 .qc-mode-btn{flex:1;padding:10px 0;font-size:.82rem;font-weight:600;color:var(--text-3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s}
@@ -204,13 +206,13 @@
 .fc .fc-event.ev-partial-match{background-color:transparent!important;border-left-style:dashed!important;border-left-width:2px!important}
 .ev-pending_deposit,.ev-pending{background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.12) 6px,rgba(245,158,11,.12) 12px)!important}
 /* VIP badge on event */
-.ev-badge-vip{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-vip svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ev-badge-vip{display:inline-flex;align-items:center;margin-left:3px;opacity:.9}.ev-badge-vip svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Deposit badge on event */
-.ev-badge-dep{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-dep.paid{opacity:1}.ev-badge-dep svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ev-badge-dep{display:inline-flex;align-items:center;margin-left:3px;opacity:.9}.ev-badge-dep.paid{opacity:1}.ev-badge-dep svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Lock badge on event */
-.ev-badge-lock{display:inline-flex;align-items:center;margin-left:3px;opacity:.7}.ev-badge-lock svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ev-badge-lock{display:inline-flex;align-items:center;margin-left:3px;opacity:.9}.ev-badge-lock svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Promo badge on event */
-.ev-badge-promo{display:inline-flex;align-items:center;margin-left:3px;color:#f59e0b}.ev-badge-promo svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ev-badge-promo{display:inline-flex;align-items:center;margin-left:3px;color:#f59e0b}.ev-badge-promo svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Processing time (pose) — overlay on FC event element */
 .ev-pose-overlay{position:absolute;left:0;right:0;z-index:2;cursor:pointer;background:repeating-linear-gradient(135deg,rgba(0,0,0,.04),rgba(0,0,0,.04) 4px,rgba(0,0,0,.10) 4px,rgba(0,0,0,.10) 8px);border-top:1.5px dashed rgba(0,0,0,.18);border-bottom:1.5px dashed rgba(0,0,0,.18)}
 /* Pose-child: real FC event visually overlaying the parent's pose zone */
