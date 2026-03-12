@@ -24,6 +24,11 @@ router.post('/manual', async (req, res, next) => {
     // Default status: pending (staff confirms later). skip_confirmation → confirmed immediately.
     const bookingStatus = skip_confirmation ? 'confirmed' : 'pending';
 
+    // Fetch confirmation timeout from business settings (same as public flow)
+    const _bizConf = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+    const _bizSettings = _bizConf.rows[0]?.settings || {};
+    const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
+
     // BK-V13-008: group_id removed from destructuring (dead code — group_id is generated server-side)
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -122,8 +127,10 @@ router.post('/manual', async (req, res, next) => {
 
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked)
-           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, $7, $8, $9, $10, $11)
+            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked,
+            confirmation_expires_at)
+           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, $7, $8, $9, $10, $11,
+            ${bookingStatus === 'pending' ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
            RETURNING *`,
           [bid, practitioner_id, client_id || null,
            appointment_mode || 'cabinet',
@@ -372,8 +379,10 @@ router.post('/manual', async (req, res, next) => {
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
-            group_id, group_order, processing_time, processing_start, locked)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            group_id, group_order, processing_time, processing_start, locked,
+            confirmation_expires_at)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+            ${bookingStatus === 'pending' ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
            RETURNING *`,
           [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
