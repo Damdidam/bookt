@@ -861,8 +861,10 @@ function soFillSlot(startMin, slotPracId, dateStr) {
     const observer = new MutationObserver(() => {
       if (!qcModal.classList.contains('open')) {
         observer.disconnect();
-        // Clear selections for next booking
-        S.selectedServices = [];
+        const booked = qcModal._soBooked;
+        qcModal._soBooked = false;
+        // Only clear selections if a booking was actually created
+        if (booked) S.selectedServices = [];
         const so = document.getElementById('soOverlay');
         if (so) { so.style.display = ''; soRender(); }
       }

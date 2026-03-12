@@ -860,6 +860,8 @@ async function calCreateBooking() {
 
     // Check if deposit is required — show deposit notification panel
     const mainBooking = result.booking || result.bookings?.[0];
+    // Signal to Quick Booking that a booking was created (not just modal closed)
+    document.getElementById('calCreateModal')._soBooked = true;
     if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
       gToast(toastMsg, 'success');
       fcRefresh();
@@ -996,6 +998,7 @@ async function qcCreateTask() {
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     const countMsg = pracIds.length > 1 ? ` (${pracIds.length} praticiens)` : '';
     gToast('Tâche créée' + countMsg, 'success');
+    document.getElementById('calCreateModal')._soBooked = true;
     document.getElementById('calCreateModal')._dirtyGuard?.markClean();
     closeCalModal('calCreateModal');
     fcRefresh();
