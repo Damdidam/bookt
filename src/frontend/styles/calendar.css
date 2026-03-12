@@ -356,6 +356,7 @@
 .so-svc-rm:hover{background:#FEF2F2;color:#C62828}
 .so-total{font-size:.74rem;color:var(--text-3);padding:8px 0 0;border-top:1px solid var(--border-light);font-weight:600}
 .so-svc-pose{font-size:.6rem;color:#9D174D;font-weight:600;opacity:.7}
+.so-svc-sched{font-size:.56rem;color:#1D4ED8;font-weight:600;opacity:.7}
 .so-pose-tag{display:inline-flex;align-items:center;gap:3px;font-size:.56rem;font-weight:700;color:#9D174D;background:#FDF2F8;padding:2px 7px;border-radius:100px;white-space:nowrap}
 /* Right panel */
 .so-right{overflow-y:hidden;min-height:0;padding:0;display:flex;flex-direction:column}

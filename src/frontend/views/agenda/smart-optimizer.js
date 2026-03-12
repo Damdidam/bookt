@@ -19,6 +19,7 @@ let soSelectedServices = [];
 let soPracId = null;   // practitioner id or 'all'
 let soDateFilter = 'all'; // 'all' or 'YYYY-MM-DD'
 let soAbsences = [];
+let soHasScheduleConflict = false;
 
 function soIsActive() { return soActive; }
 
@@ -144,6 +145,28 @@ function soFilterWorkWindows(workWindows, period) {
       .map(ww => ({ start: ww.start, end: Math.min(ww.end, noon) }));
   }
   return workWindows;
+}
+
+// ── Service schedule helpers ──
+function soIntersectWindows(a, b) {
+  const result = [];
+  for (const wa of a) {
+    for (const wb of b) {
+      const s = Math.max(wa.start, wb.start);
+      const e = Math.min(wa.end, wb.end);
+      if (s < e) result.push({ start: s, end: e });
+    }
+  }
+  return result;
+}
+
+function soGetScheduleLabel(svcId) {
+  const fullSvc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  if (fullSvc?.available_schedule?.type !== 'restricted') return '';
+  const windows = fullSvc.available_schedule.windows || [];
+  if (windows.length === 0) return '';
+  const ranges = [...new Set(windows.map(w => w.from + '\u2013' + w.to))];
+  return ranges.join(', ');
 }
 
 // ── Modal DOM ──
@@ -325,10 +348,12 @@ function soRenderSelectedServices() {
     const poseLabel = svc.processing_time > 0
       ? ` <span class="so-svc-pose">(+${svc.processing_time}min pose)</span>`
       : '';
+    const schedLabel = soGetScheduleLabel(svc.id);
+    const schedTag = schedLabel ? ` <span class="so-svc-sched">${schedLabel}</span>` : '';
     html += `<div class="so-svc-card">
       <span class="so-svc-dot" style="background:${svc.color}"></span>
       <span class="so-svc-name">${esc(svc.name)}</span>
-      <span class="so-svc-dur">${svc.duration_min}min${poseLabel}</span>
+      <span class="so-svc-dur">${svc.duration_min}min${poseLabel}${schedTag}</span>
       <button class="so-svc-rm" onclick="soRemoveService(${idx})" title="Retirer">${ICO.remove}</button>
     </div>`;
   });
@@ -424,8 +449,14 @@ function soUpdateAddBtn() {
   if (!svcId) { btn.disabled = true; return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const hasVariants = (svc?.variants || []).length > 0;
-  const varSelected = !!document.getElementById('soVarSel')?.value;
-  btn.disabled = hasVariants && !varSelected;
+  const varId = document.getElementById('soVarSel')?.value || '';
+  const varSelected = !!varId;
+  if (hasVariants && !varSelected) { btn.disabled = true; return; }
+  // Prevent duplicate service+variant
+  const isDuplicate = soSelectedServices.some(s =>
+    String(s.id) === String(svcId) && String(s.variant_id || '') === String(varId)
+  );
+  btn.disabled = isDuplicate;
 }
 
 function soRefreshDropdowns() {
@@ -473,6 +504,16 @@ function soAddService() {
   const varSel = document.getElementById('soVarSel');
   const varId = varSel?.value || '';
   const variant = varId ? svc.variants?.find(v => String(v.id) === String(varId)) : null;
+
+  // Prevent duplicate service+variant
+  const isDuplicate = soSelectedServices.some(s =>
+    String(s.id) === String(svc.id) && String(s.variant_id || '') === String(varId)
+  );
+  if (isDuplicate) {
+    gToast('Cette prestation est d\u00e9j\u00e0 s\u00e9lectionn\u00e9e', 'info');
+    return;
+  }
+
   const color = /^#[0-9a-fA-F]{3,8}$/.test(svc.color) ? svc.color : '#0D7377';
 
   soSelectedServices.push({
@@ -531,6 +572,7 @@ function soFindSlots() {
   const cal = calState.fcCal;
   if (!cal || soSelectedServices.length === 0) return [];
 
+  soHasScheduleConflict = false;
   const totalDuration = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
   const totalPoseTime = soSelectedServices.reduce((s, svc) => s + (svc.processing_time || 0), 0);
   const viewStart = cal.view.currentStart;
@@ -561,6 +603,26 @@ function soFindSlots() {
     // Day filter
     if (soDateFilter !== 'all' && dateStr !== soDateFilter) continue;
 
+    // Service time restrictions for this weekday
+    const schedDay = jsDay === 0 ? 6 : jsDay - 1;
+    let svcTimeWindows = null; // null = no restriction
+    let daySkipped = false;
+    for (const svc of soSelectedServices) {
+      const fullSvc = calState.fcServices.find(s => String(s.id) === String(svc.id));
+      if (fullSvc?.available_schedule?.type !== 'restricted') continue;
+      const wins = (fullSvc.available_schedule.windows || [])
+        .filter(w => w.day === schedDay)
+        .map(w => {
+          const [fh, fm] = w.from.split(':').map(Number);
+          const [th, tm] = w.to.split(':').map(Number);
+          return { start: fh * 60 + fm, end: th * 60 + tm };
+        });
+      if (wins.length === 0) { daySkipped = true; break; }
+      svcTimeWindows = svcTimeWindows === null ? wins : soIntersectWindows(svcTimeWindows, wins);
+      if (svcTimeWindows.length === 0) { daySkipped = true; break; }
+    }
+    if (daySkipped) { soHasScheduleConflict = true; continue; }
+
     for (const pracId of pracIds) {
       if (soPracId === 'all' && !soCanPracDoServices(pracId)) continue;
 
@@ -579,6 +641,12 @@ function soFindSlots() {
 
       if (absPeriod) {
         workWindows = soFilterWorkWindows(workWindows, absPeriod);
+        if (workWindows.length === 0) continue;
+      }
+
+      // Intersect with service time restrictions
+      if (svcTimeWindows !== null) {
+        workWindows = soIntersectWindows(workWindows, svcTimeWindows);
         if (workWindows.length === 0) continue;
       }
 
@@ -732,7 +800,11 @@ function soRenderSuggestions() {
   const slots = soFindSlots();
 
   if (slots.length === 0) {
-    right.innerHTML = `<div class="so-empty">${ICO.empty}<span>Aucun cr\u00e9neau disponible<br>pour ${fmtMin(soSelectedServices.reduce((s, sv) => s + sv.duration_min, 0))}</span></div>`;
+    if (soHasScheduleConflict) {
+      right.innerHTML = `<div class="so-empty">${ICO.empty}<span>Horaires incompatibles<br><small>Les prestations s\u00e9lectionn\u00e9es n\u2019ont aucune plage horaire commune</small></span></div>`;
+    } else {
+      right.innerHTML = `<div class="so-empty">${ICO.empty}<span>Aucun cr\u00e9neau disponible<br>pour ${fmtMin(soSelectedServices.reduce((s, sv) => s + sv.duration_min, 0))}</span></div>`;
+    }
     return;
   }
 
