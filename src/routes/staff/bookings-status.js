@@ -302,7 +302,7 @@ router.patch('/:id/status', async (req, res, next) => {
       // ===== DEPOSIT: refund logic on cancellation =====
       if (status === 'cancelled') {
         const depInfo = await client.query(
-          `SELECT b.deposit_required, b.deposit_status, b.start_at, b.created_at, biz.settings
+          `SELECT b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
            FROM bookings b JOIN businesses biz ON biz.id = b.business_id
            WHERE b.id = $1 AND b.business_id = $2`,
           [id, bid]
@@ -324,6 +324,21 @@ router.patch('/:id/status', async (req, res, next) => {
             }
           } else if (dep.deposit_status === 'pending') {
             newDepStatus = 'cancelled';
+          }
+          // ===== Stripe refund: actually refund the money when status is 'refunded' =====
+          if (newDepStatus === 'refunded' && dep.deposit_payment_intent_id && dep.deposit_payment_intent_id.startsWith('pi_')) {
+            const key = process.env.STRIPE_SECRET_KEY;
+            if (key) {
+              const stripe = require('stripe')(key);
+              try {
+                await stripe.refunds.create({ payment_intent: dep.deposit_payment_intent_id });
+              } catch (stripeErr) {
+                if (stripeErr.code !== 'charge_already_refunded') {
+                  console.error('[DEPOSIT CANCEL REFUND] Stripe refund failed:', stripeErr.message);
+                  // Don't block cancellation — log and continue
+                }
+              }
+            }
           }
           if (newDepStatus) {
             await client.query(
@@ -469,6 +484,23 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       const REFUNDABLE = ['pending', 'confirmed', 'modified_pending', 'pending_deposit'];
       if (!REFUNDABLE.includes(bk.rows[0].status)) {
         return { error: 400, message: `Impossible de rembourser un RDV en statut "${bk.rows[0].status}"` };
+      }
+
+      // ===== Stripe refund: actually refund the money =====
+      const piId = bk.rows[0].deposit_payment_intent_id;
+      if (piId && piId.startsWith('pi_')) {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (!key) return { error: 500, message: 'Stripe non configuré — remboursement impossible' };
+        const stripe = require('stripe')(key);
+        try {
+          await stripe.refunds.create({ payment_intent: piId });
+        } catch (stripeErr) {
+          // If already refunded on Stripe, continue (idempotent)
+          if (stripeErr.code !== 'charge_already_refunded') {
+            console.error('[DEPOSIT REFUND] Stripe refund failed:', stripeErr.message);
+            return { error: 500, message: 'Erreur Stripe: ' + stripeErr.message };
+          }
+        }
       }
 
       await client.query(
