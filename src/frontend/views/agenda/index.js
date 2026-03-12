@@ -263,8 +263,8 @@ async function loadAgenda() {
 
   // Build unified toolbar
   const mobile = fcIsMobile();
-  const viewMap = { day: 'resourceTimeGridDay', week: 'timeGridWeek', month: 'dayGridMonth' };
-  const initView = mobile ? 'timeGridDay' : (viewMap[calState.fcDefaultView] || 'timeGridWeek');
+  const viewMap = { day: 'resourceTimeGridDay', week: 'rollingWeek', month: 'dayGridMonth' };
+  const initView = mobile ? 'timeGridDay' : (viewMap[calState.fcDefaultView] || 'rollingWeek');
   const canFeatured = ['owner', 'manager'].includes(userRole) && calState.fcBusinessSettings?.featured_slots_enabled;
   const fsBtnHtml = canFeatured ? `<button class="at-view-btn fs-toggle-btn" id="fsToggleBtn" onclick="fsToggleMode()" title="Mode vedette"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>` : '';
   const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="ga-badge" id="gaBadge" style="display:none"></span></button>` : '';
@@ -284,7 +284,7 @@ async function loadAgenda() {
   if (pillsHtml) toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
   toolbar += `<div class="at-views">`;
   toolbar += `<button class="at-view-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
-  toolbar += `<button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
+  toolbar += `<button class="at-view-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
   toolbar += `<button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
   toolbar += `<button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')"><span class="vl">Timeline</span><span class="vs">TL</span></button>`;
   toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${zoomHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;

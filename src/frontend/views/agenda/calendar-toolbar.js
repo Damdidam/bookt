@@ -10,7 +10,18 @@ function atNav(action) {
   if (!calState.fcCal) return;
   if (action === 'prev') calState.fcCal.prev();
   else if (action === 'next') calState.fcCal.next();
-  else if (action === 'today') calState.fcCal.today();
+  else if (action === 'today') {
+    // Rolling week: "today" should show yesterday as first visible day
+    if (calState.fcCal.view.type === 'rollingWeek') {
+      const t = new Date();
+      t.setDate(t.getDate() - 1);
+      const hd = calState.fcHiddenDays || [];
+      while (hd.includes(t.getDay())) t.setDate(t.getDate() - 1);
+      calState.fcCal.gotoDate(t);
+    } else {
+      calState.fcCal.today();
+    }
+  }
   if (fcIsMobile() && calState.fcMobileView === 'list') {
     calState.fcMobileDate = calState.fcCal.getDate();
     fcLoadMobileList();
@@ -54,7 +65,7 @@ function atUpdateTitle() {
     const d = view.currentStart;
     title = DFULL[d.getDay()] + ' ' + d.getDate() + ' ' + MFULL[d.getMonth()];
     if (d.getFullYear() !== new Date().getFullYear()) title += ' ' + d.getFullYear();
-  } else if (view.type === 'timeGridWeek') {
+  } else if (view.type === 'timeGridWeek' || view.type === 'rollingWeek') {
     const s = view.currentStart, e = new Date(view.currentEnd.getTime() - 86400000);
     if (s.getMonth() === e.getMonth()) {
       title = s.getDate() + ' \u2013 ' + e.getDate() + ' ' + MNAMES[s.getMonth()] + ' ' + s.getFullYear();

@@ -80,10 +80,26 @@ function initCalendar(initView, initSlotDur) {
     }
   }
 
+  // Rolling week: start from yesterday (or last visible day before today)
+  if (initView === 'rollingWeek') {
+    initialDate = new Date(today);
+    initialDate.setDate(today.getDate() - 1);
+    while (calState.fcHiddenDays.includes(initialDate.getDay())) {
+      initialDate.setDate(initialDate.getDate() - 1);
+    }
+  }
+
   calState.fcCalOptions = {
     locale: 'fr',
     initialView: initView,
     ...(initialDate && { initialDate }),
+    views: {
+      rollingWeek: {
+        type: 'timeGrid',
+        duration: { days: 7 },
+        dateAlignment: 'day'
+      }
+    },
     headerToolbar: false,
     slotMinTime: calState.fcSlotMin, slotMaxTime: calState.fcSlotMax,
     hiddenDays: calState.fcHiddenDays,
