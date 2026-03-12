@@ -34,7 +34,9 @@ router.get('/', async (req, res, next) => {
              s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
-             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email, c.is_vip AS client_is_vip
+             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email, c.is_vip AS client_is_vip,
+             (SELECT COUNT(*) FROM booking_notes bn WHERE bn.booking_id = b.id)::int AS notes_count,
+             (SELECT bn2.content FROM booking_notes bn2 WHERE bn2.booking_id = b.id ORDER BY bn2.is_pinned DESC, bn2.created_at DESC LIMIT 1) AS first_note
       FROM bookings b
       LEFT JOIN services s ON s.id = b.service_id
       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id

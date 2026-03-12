@@ -103,15 +103,13 @@ function fcShowTooltip(event, x, y) {
   // 5. Practitioner
   infos.push(ico('user') + esc(p.practitioner_name || '—'));
 
-  // 6. Internal note (show content, not just flag)
-  if (p.internal_note) {
-    const noteTxt = typeof p.internal_note === 'string' ? p.internal_note : '';
-    if (noteTxt) {
-      const trimmed = noteTxt.length > 80 ? noteTxt.slice(0, 77) + '…' : noteTxt;
-      infos.push(ico('note') + '<em>' + esc(trimmed) + '</em>');
-    } else {
-      infos.push(ico('note') + 'Note interne');
-    }
+  // 6. Note (internal_note field OR booking_notes records)
+  const noteTxt = (typeof p.internal_note === 'string' && p.internal_note) || (typeof p.first_note === 'string' && p.first_note) || '';
+  if (noteTxt) {
+    const trimmed = noteTxt.length > 80 ? noteTxt.slice(0, 77) + '…' : noteTxt;
+    infos.push(ico('note') + '<em>' + esc(trimmed) + '</em>');
+  } else if (p.internal_note || p.notes_count > 0) {
+    infos.push(ico('note') + 'Note interne');
   }
 
   if (infos.length) {

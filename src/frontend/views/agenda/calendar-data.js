@@ -157,6 +157,8 @@ export function buildGroupEvents(grouped) {
         processing_start: first.processing_start,
         buffer_before_min: first.buffer_before_min,
         internal_note: first.internal_note,
+        notes_count: members.reduce((sum, m) => sum + (m.notes_count || 0), 0),
+        first_note: (members.find(m => m.first_note) || {}).first_note || '',
         status: first.status
       }
     };
