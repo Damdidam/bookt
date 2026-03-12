@@ -418,6 +418,7 @@
 .so-cal-day--empty{visibility:hidden;pointer-events:none}
 .so-cal-day--past{color:var(--text-4);opacity:.3;cursor:default;pointer-events:none}
 .so-cal-day--holiday{color:#DC2626;opacity:.45;cursor:default;pointer-events:none;text-decoration:line-through}
+.so-cal-day--absent{color:#B45309;opacity:.5;text-decoration:line-through}
 .so-cal-day--today::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:3px;height:3px;border-radius:50%;background:#DB2777}
 .so-cal-day--in-range{background:#FDF2F8}
 .so-cal-day--in-range:hover:not(.so-cal-day--selected){background:#FCE7F3}

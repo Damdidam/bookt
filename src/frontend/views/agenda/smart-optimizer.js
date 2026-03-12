@@ -91,9 +91,18 @@ async function soLoadAbsences() {
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
       months.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
     }
+    // Include displayed mini-calendar month + dateFilter month
+    if (S.calYear != null && S.calMonth != null) {
+      months.add(S.calYear + '-' + pad2(S.calMonth + 1));
+    }
+    if (S.dateFilter !== 'all') {
+      const parts = S.dateFilter.split('-');
+      months.add(parts[0] + '-' + parts[1]);
+    }
+    const headers = { 'Authorization': 'Bearer ' + api.getToken() };
     const all = [];
     for (const m of months) {
-      const resp = await fetch('/api/planning/absences?month=' + m);
+      const resp = await fetch('/api/planning/absences?month=' + m, { headers });
       if (resp.ok) { const data = await resp.json(); if (data.absences) all.push(...data.absences); }
     }
     const seen = new Set();
@@ -112,9 +121,13 @@ async function soLoadHolidays() {
     const end = cal.view.currentEnd;
     const years = new Set();
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) years.add(d.getFullYear());
+    // Include displayed mini-calendar year + dateFilter year
+    if (S.calYear != null) years.add(S.calYear);
+    if (S.dateFilter !== 'all') years.add(parseInt(S.dateFilter.split('-')[0]));
+    const headers = { 'Authorization': 'Bearer ' + api.getToken() };
     const set = new Set();
     for (const y of years) {
-      const resp = await fetch('/api/availabilities/holidays?year=' + y);
+      const resp = await fetch('/api/availabilities/holidays?year=' + y, { headers });
       if (resp.ok) { const data = await resp.json(); (data || []).forEach(h => { if (h.date) set.add(h.date.slice(0, 10)); }); }
     }
     S.holidays = set;
@@ -622,15 +635,20 @@ function soRenderDayFilterHTML() {
     if (hidden.has(fcDay)) continue; // skip non-working day columns
     const ds = year + '-' + pad2(month + 1) + '-' + pad2(day);
     const isHoliday = S.holidays.has(ds);
+    // Check if all selected practitioners are absent this day
+    const isAbsent = ds >= todayStr && !isHoliday && S.pracId !== 'all'
+      ? soGetAbsencePeriod(S.pracId, ds) === 'full'
+      : false;
     const cls = ['so-cal-day'];
     let clickable = true;
     if (ds < todayStr) { cls.push('so-cal-day--past'); clickable = false; }
     if (isHoliday) { cls.push('so-cal-day--holiday'); clickable = false; }
+    if (isAbsent) { cls.push('so-cal-day--absent'); }
     if (ds === todayStr) cls.push('so-cal-day--today');
     if (clickable) cls.push(visibleDates.has(ds) ? 'so-cal-day--in-range' : 'so-cal-day--out-range');
     if (S.dateFilter === ds) cls.push('so-cal-day--selected');
     const onclick = clickable ? ` onclick="soCalDayClick('${ds}')"` : '';
-    const title = isHoliday ? ' title="Jour férié"' : '';
+    const title = isHoliday ? ' title="Jour férié"' : (isAbsent ? ' title="En congé"' : '');
     html += `<span class="${cls.join(' ')}" data-date="${ds}"${onclick}${title}>${day}</span>`;
   }
 
@@ -775,7 +793,7 @@ function soPracChanged() {
 
 async function soCalDayClick(dateStr) {
   S.dateFilter = dateStr;
-  await soFetchEvents();
+  await Promise.all([soLoadAbsences(), soLoadHolidays(), soFetchEvents()]);
   soRender();
 }
 
@@ -784,15 +802,17 @@ function soCalReset() {
   soRender();
 }
 
-function soCalPrev() {
+async function soCalPrev() {
   S.calMonth--;
   if (S.calMonth < 0) { S.calMonth = 11; S.calYear--; }
+  await Promise.all([soLoadAbsences(), soLoadHolidays()]);
   soRender();
 }
 
-function soCalNext() {
+async function soCalNext() {
   S.calMonth++;
   if (S.calMonth > 11) { S.calMonth = 0; S.calYear++; }
+  await Promise.all([soLoadAbsences(), soLoadHolidays()]);
   soRender();
 }
 
