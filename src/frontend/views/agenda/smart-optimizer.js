@@ -462,7 +462,7 @@ function soRenderLeft() {
   const effectivePracId = S.pracId === 'all' ? null : S.pracId;
   let html = '';
 
-  // Practitioner
+  // ── Praticien ──
   html += `<div class="so-field"><label class="so-label">Praticien</label>`;
   html += `<select class="so-select" id="soPracSel" onchange="soPracChanged()">`;
   html += `<option value="all"${S.pracId === 'all' ? ' selected' : ''}>Tous les praticiens</option>`;
@@ -471,23 +471,20 @@ function soRenderLeft() {
   });
   html += `</select></div>`;
 
-  // Day filter (mini calendar)
+  // ── Quand : date + horaire ──
+  html += '<div class="so-group">';
   html += soRenderDayFilterHTML();
-
-  // Time preference
   html += soRenderTimePrefHTML();
+  html += '</div>';
 
-  html += `<div class="so-sep"></div>`;
-
-  // Category
+  // ── Prestation ──
+  html += '<div class="so-group">';
   const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
   html += `<div class="so-field"><label class="so-label">Cat\u00e9gorie</label>`;
   html += `<select class="so-select" id="soCatSel" onchange="soCatChanged()">`;
   html += `<option value="">\u2014 Toutes \u2014</option>`;
   cats.forEach(c => { html += `<option value="${esc(c)}">${esc(c)}</option>`; });
   html += `</select></div>`;
-
-  // Service
   const services = window.fcGetFilteredServices ? window.fcGetFilteredServices(effectivePracId, '') : [];
   html += `<div class="so-field"><label class="so-label">Prestation</label>`;
   html += `<select class="so-select" id="soSvcSel" onchange="soSvcChanged()">`;
@@ -497,18 +494,13 @@ function soRenderLeft() {
     html += `<option value="${s.id}">${esc(s.name)} (${durLabel})</option>`;
   });
   html += `</select></div>`;
-
-  // Variant (hidden)
   html += `<div class="so-field" id="soVarWrap" style="display:none"><label class="so-label">Variante</label>`;
   html += `<select class="so-select" id="soVarSel" onchange="soVarChanged()"></select></div>`;
-
-  // Add button
   html += `<button class="so-add-btn" id="soAddBtn" onclick="soAddService()" disabled>${ICO.plus} Ajouter</button>`;
+  html += '</div>';
 
-  // Selected services
+  // ── S\u00e9lection ──
   html += `<div class="so-selected" id="soSelectedList">${soSelectedServicesHTML()}</div>`;
-
-  // Total
   html += `<div class="so-total" id="soTotal">${soTotalHTML()}</div>`;
 
   left.innerHTML = html;
