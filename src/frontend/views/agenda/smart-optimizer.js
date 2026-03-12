@@ -42,6 +42,7 @@ const S = {
   pracId: null,
   dateFilter: 'all',
   absences: [],
+  holidays: new Set(),   // Set of 'YYYY-MM-DD' strings (jours fériés)
 };
 
 function soIsActive() { return S.active; }
@@ -89,6 +90,26 @@ async function soLoadAbsences() {
   } catch (e) {
     console.warn('SO: failed to load absences', e);
     S.absences = [];
+  }
+}
+
+async function soLoadHolidays() {
+  try {
+    const cal = calState.fcCal;
+    if (!cal) return;
+    const start = cal.view.currentStart;
+    const end = cal.view.currentEnd;
+    const years = new Set();
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) years.add(d.getFullYear());
+    const set = new Set();
+    for (const y of years) {
+      const resp = await fetch('/api/availabilities/holidays?year=' + y);
+      if (resp.ok) { const data = await resp.json(); (data || []).forEach(h => { if (h.date) set.add(h.date.slice(0, 10)); }); }
+    }
+    S.holidays = set;
+  } catch (e) {
+    console.warn('SO: failed to load holidays', e);
+    S.holidays = new Set();
   }
 }
 
@@ -198,6 +219,7 @@ function soFindSlots() {
     const dateStr = localDate(d);
     const jsDay = d.getDay();
     if (dateStr < todayStr) continue;
+    if (S.holidays.has(dateStr)) continue;
     if (S.dateFilter !== 'all' && dateStr !== S.dateFilter) continue;
 
     totalDayCount++;
@@ -482,30 +504,46 @@ function soRenderDayFilterHTML() {
   const year = refDate.getFullYear();
   const month = refDate.getMonth();
 
+  // Determine which weekday columns to show (hide merchant's non-working days)
+  const hidden = new Set(calState.fcHiddenDays || []);
+  // Display order: Mon(1) Tue(2) Wed(3) Thu(4) Fri(5) Sat(6) Sun(0)
+  const ALL_FC_DAYS = [1, 2, 3, 4, 5, 6, 0];
+  const ALL_LABELS  = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const visDays   = ALL_FC_DAYS.filter(d => !hidden.has(d));
+  const visLabels = ALL_FC_DAYS.map((d, i) => hidden.has(d) ? null : ALL_LABELS[i]).filter(Boolean);
+  const colCount  = visDays.length || 7;
+
   const visibleDates = new Set();
   for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) visibleDates.add(localDate(d));
 
   let html = '<div class="so-field"><label class="so-label">Jour</label>';
   html += '<div class="so-cal" id="soCal">';
   html += `<div class="so-cal-header"><span class="so-cal-month">${MONTH_NAMES[month]} ${year}</span></div>`;
-  html += '<div class="so-cal-grid">';
-  ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(w => { html += `<span class="so-cal-wday">${w}</span>`; });
+  html += `<div class="so-cal-grid" style="grid-template-columns:repeat(${colCount},1fr)">`;
+  visLabels.forEach(w => { html += `<span class="so-cal-wday">${w}</span>`; });
 
-  const firstDay = new Date(year, month, 1).getDay();
-  const offset = firstDay === 0 ? 6 : firstDay - 1;
-  for (let i = 0; i < offset; i++) html += '<span class="so-cal-day so-cal-day--empty"></span>';
+  // Offset: empty cells before day 1 (only for visible columns)
+  const firstDayFC = new Date(year, month, 1).getDay();
+  const offset = visDays.indexOf(firstDayFC);
+  if (offset > 0) for (let i = 0; i < offset; i++) html += '<span class="so-cal-day so-cal-day--empty"></span>';
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   for (let day = 1; day <= daysInMonth; day++) {
+    const dt = new Date(year, month, day);
+    const fcDay = dt.getDay();
+    if (hidden.has(fcDay)) continue; // skip non-working day columns
     const ds = year + '-' + pad2(month + 1) + '-' + pad2(day);
+    const isHoliday = S.holidays.has(ds);
     const cls = ['so-cal-day'];
     let clickable = true;
     if (ds < todayStr) { cls.push('so-cal-day--past'); clickable = false; }
+    if (isHoliday) { cls.push('so-cal-day--holiday'); clickable = false; }
     if (ds === todayStr) cls.push('so-cal-day--today');
     if (clickable) cls.push(visibleDates.has(ds) ? 'so-cal-day--in-range' : 'so-cal-day--out-range');
     if (S.dateFilter === ds) cls.push('so-cal-day--selected');
     const onclick = clickable ? ` onclick="soCalDayClick('${ds}')"` : '';
-    html += `<span class="${cls.join(' ')}" data-date="${ds}"${onclick}>${day}</span>`;
+    const title = isHoliday ? ' title="Jour férié"' : '';
+    html += `<span class="${cls.join(' ')}" data-date="${ds}"${onclick}${title}>${day}</span>`;
   }
 
   html += '</div>';
@@ -839,7 +877,7 @@ async function soActivate() {
     : 'all';
 
   document.getElementById('soToggleBtn')?.classList.add('active');
-  await soLoadAbsences();
+  await Promise.all([soLoadAbsences(), soLoadHolidays()]);
   soShowPanel();
   soRender();
 }
@@ -850,13 +888,14 @@ function soDeactivate() {
   S.pracId = null;
   S.dateFilter = 'all';
   S.absences = [];
+  S.holidays = new Set();
   document.getElementById('soToggleBtn')?.classList.remove('active');
   document.getElementById('soOverlay')?.remove();
 }
 
 async function soOnDatesSet() {
   if (!S.active) return;
-  await soLoadAbsences();
+  await Promise.all([soLoadAbsences(), soLoadHolidays()]);
   soRender();
 }
 
