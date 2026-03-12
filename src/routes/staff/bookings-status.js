@@ -280,6 +280,25 @@ router.patch('/:id/status', async (req, res, next) => {
         }
       }
 
+      // ===== UNDO: if reverting from cancelled (expired pending) to confirmed, decrement expired counter =====
+      if (old.rows[0].status === 'cancelled' && status === 'confirmed') {
+        // Check audit log to see if this was an expired pending
+        const auditCheck = await client.query(
+          `SELECT 1 FROM audit_logs
+           WHERE entity_type = 'booking' AND entity_id = $1 AND action = 'confirmation_expired'
+             AND business_id = $2
+           LIMIT 1`,
+          [id, bid]
+        );
+        if (auditCheck.rows.length > 0 && old.rows[0].client_id) {
+          await client.query(
+            `UPDATE clients SET expired_pending_count = GREATEST(expired_pending_count - 1, 0), updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [old.rows[0].client_id, bid]
+          );
+        }
+      }
+
       // ===== DEPOSIT: refund logic on cancellation =====
       if (status === 'cancelled') {
         const depInfo = await client.query(

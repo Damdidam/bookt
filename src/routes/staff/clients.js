@@ -42,6 +42,8 @@ router.get('/', async (req, res, next) => {
       sql += ` AND c.is_blocked = true`;
     } else if (filter === 'flagged') {
       sql += ` AND c.no_show_count > 0`;
+    } else if (filter === 'fantome') {
+      sql += ` AND c.expired_pending_count > 0`;
     } else if (filter === 'vip') {
       sql += ` AND c.is_vip = true`;
     }
@@ -68,6 +70,7 @@ router.get('/', async (req, res, next) => {
     }
     if (filter === 'blocked') { countSql += ` AND is_blocked = true`; }
     else if (filter === 'flagged') { countSql += ` AND no_show_count > 0`; }
+    else if (filter === 'fantome') { countSql += ` AND expired_pending_count > 0`; }
     else if (filter === 'vip') { countSql += ` AND is_vip = true`; }
     const countResult = await queryWithRLS(bid, countSql, countParams);
 
@@ -77,7 +80,8 @@ router.get('/', async (req, res, next) => {
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE is_blocked = true) AS blocked,
         COUNT(*) FILTER (WHERE no_show_count > 0 AND is_blocked = false) AS flagged,
-        COUNT(*) FILTER (WHERE no_show_count = 0 AND is_blocked = false) AS clean,
+        COUNT(*) FILTER (WHERE expired_pending_count > 0 AND is_blocked = false) AS fantome,
+        COUNT(*) FILTER (WHERE no_show_count = 0 AND expired_pending_count = 0 AND is_blocked = false) AS clean,
         COUNT(*) FILTER (WHERE is_vip = true) AS vip
        FROM clients WHERE business_id = $1`,
       [bid]
@@ -91,6 +95,7 @@ router.get('/', async (req, res, next) => {
         tag: c.is_blocked ? 'bloqué'
            : c.no_show_count >= 3 ? 'récidiviste'
            : c.no_show_count >= 1 ? 'à surveiller'
+           : c.expired_pending_count >= 3 ? 'fantôme'
            : parseInt(c.completed_count) >= 5 ? 'fidèle'
            : parseInt(c.total_bookings) === 0 ? 'nouveau'
            : 'actif'
@@ -129,7 +134,9 @@ router.get('/:id', async (req, res, next) => {
     const client = await queryWithRLS(bid,
       `SELECT id, business_id, full_name, phone, email, bce_number, notes,
               consent_sms, consent_marketing, no_show_count, is_blocked,
-              blocked_at, blocked_reason, last_no_show_at, is_vip, created_at, updated_at
+              blocked_at, blocked_reason, last_no_show_at, is_vip,
+              expired_pending_count, last_expired_pending_at,
+              created_at, updated_at
        FROM clients WHERE id = $1 AND business_id = $2`,
       [req.params.id, bid]
     );
@@ -286,6 +293,28 @@ router.post('/:id/reset-noshow', requireRole('owner', 'manager'), async (req, re
         updated_at = NOW()
        WHERE id = $1 AND business_id = $2
        RETURNING id, full_name, no_show_count, is_blocked`,
+      [req.params.id, bid]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Client introuvable' });
+    res.json({ reset: true, client: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/clients/:id/reset-expired — reset expired pending counter
+// ============================================================
+router.post('/:id/reset-expired', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+
+    const result = await queryWithRLS(bid,
+      `UPDATE clients SET
+        expired_pending_count = 0,
+        last_expired_pending_at = NULL,
+        updated_at = NOW()
+       WHERE id = $1 AND business_id = $2
+       RETURNING id, full_name, expired_pending_count`,
       [req.params.id, bid]
     );
 

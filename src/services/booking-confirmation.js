@@ -21,7 +21,7 @@ async function processExpiredPendingBookings() {
     // Find pending bookings whose confirmation window has elapsed
     // OR whose start time has already passed (no-show prevention)
     const expired = await client.query(
-      `SELECT id, business_id, service_id, practitioner_id, start_at, end_at, group_id
+      `SELECT id, business_id, service_id, practitioner_id, start_at, end_at, group_id, client_id
        FROM bookings
        WHERE status = 'pending'
          AND (
@@ -58,6 +58,32 @@ async function processExpiredPendingBookings() {
          VALUES ($1, 'booking', $2, 'confirmation_expired', '{"status":"pending"}', '{"status":"cancelled","reason":"confirmation_timeout"}')`,
         [bk.business_id, bk.id]
       );
+
+      // ── Expired pending strike: increment counter on client ──
+      if (bk.client_id) {
+        await client.query(
+          `UPDATE clients SET expired_pending_count = expired_pending_count + 1,
+            last_expired_pending_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND business_id = $2`,
+          [bk.client_id, bk.business_id]
+        );
+      }
+      // Strike sibling clients too (group bookings — different clients)
+      if (bk.group_id) {
+        const sibClients = await client.query(
+          `SELECT DISTINCT client_id FROM bookings
+           WHERE group_id = $1 AND id != $2 AND client_id IS NOT NULL AND client_id != $3`,
+          [bk.group_id, bk.id, bk.client_id || '00000000-0000-0000-0000-000000000000']
+        );
+        for (const sib of sibClients.rows) {
+          await client.query(
+            `UPDATE clients SET expired_pending_count = expired_pending_count + 1,
+              last_expired_pending_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [sib.client_id, bk.business_id]
+          );
+        }
+      }
 
       processed++;
 
