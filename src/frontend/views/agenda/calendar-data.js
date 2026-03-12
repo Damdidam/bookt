@@ -151,6 +151,7 @@ export function buildGroupEvents(grouped) {
         _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
         client_name: first.client_name,
         client_is_vip: first.client_is_vip,
+        client_notes: first.client_notes,
         practitioner_id: first.practitioner_id,
         practitioner_name: first.practitioner_name,
         processing_time: first.processing_time,
