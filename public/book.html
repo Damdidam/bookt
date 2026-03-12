@@ -966,10 +966,11 @@ function buildPractitioners(){
   }
   const displayPracs=pracs.length>0?pracs:siteData.practitioners;
 
-  // If practitioner choice is disabled by business → auto-assign
+  // If practitioner choice is disabled by business → "no preference" mode
+  // so the slot engine returns ALL available practitioners (not just the first one)
   if(!siteData.business.practitioner_choice_enabled){
-    selectedPractitioner=displayPracs[0]||siteData.practitioners[0];
-    noPrefSelected=false;
+    selectedPractitioner=null;
+    noPrefSelected=true;
     return false;
   }
   // If only 1 practitioner → auto-assign even if setting is on
