@@ -861,8 +861,10 @@ function soFillSlot(startMin, slotPracId, dateStr) {
     const observer = new MutationObserver(() => {
       if (!qcModal.classList.contains('open')) {
         observer.disconnect();
+        // Clear selections for next booking
+        S.selectedServices = [];
         const so = document.getElementById('soOverlay');
-        if (so) { so.style.display = ''; soRenderRight(); }
+        if (so) { so.style.display = ''; soRender(); }
       }
     });
     observer.observe(qcModal, { attributes: true, attributeFilter: ['class'] });
