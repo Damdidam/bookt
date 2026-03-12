@@ -212,8 +212,8 @@ function soFindSlots() {
     : (S.pracId ? [S.pracId] : []);
   if (pracIds.length === 0) return { slots: [], scheduleConflict: false, skippedDayCount: 0, totalDayCount: 0 };
 
-  const pracNames = {};
-  calState.fcPractitioners.forEach(p => { pracNames[p.id] = p.display_name; });
+  const pracNames = {}, pracColors = {};
+  calState.fcPractitioners.forEach(p => { pracNames[p.id] = p.display_name; pracColors[p.id] = p.color || 'var(--primary)'; });
 
   const allCalEvents = cal.getEvents();
   const now = new Date();
@@ -308,7 +308,7 @@ function soFindSlots() {
 
       const minStart = dateStr === todayStr ? nowMin : 0;
       const step = soGetStep();
-      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', minStart, step);
+      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', pracColors[pracId] || 'var(--primary)', minStart, step);
       allResults.push(...daySlots);
     }
   }
@@ -325,7 +325,7 @@ function soFindSlots() {
   return { slots, scheduleConflict, skippedDayCount, totalDayCount };
 }
 
-function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracName, minStartMin, step) {
+function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracName, pracColor, minStartMin, step) {
   const occupied = events.map(ev => {
     const s = ev.start.getHours() * 60 + ev.start.getMinutes();
     const e = ev.end.getHours() * 60 + ev.end.getMinutes();
@@ -384,7 +384,7 @@ function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, prac
       results.push({
         start: t, end: t + totalDuration, score: 100,
         type: 'pose', label: 'Temps de pose', icon: ICO.pose,
-        pracId, pracName, dateStr, dayLabel: dl, poseTime: totalPoseTime,
+        pracId, pracName, pracColor, dateStr, dayLabel: dl, poseTime: totalPoseTime,
       });
     }
   });
@@ -413,7 +413,7 @@ function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, prac
       }
       results.push({
         start: t, end: t + totalDuration, score, type, label, icon,
-        pracId, pracName, dateStr, dayLabel: dl, poseTime: totalPoseTime,
+        pracId, pracName, pracColor, dateStr, dayLabel: dl, poseTime: totalPoseTime,
       });
     }
   });
@@ -674,11 +674,11 @@ function soRenderRight() {
     html += `<div class="so-day-slots">`;
     daySlots.forEach(slot => {
       const tier = slot.score >= 80 ? 'high' : slot.score >= 60 ? 'mid' : 'low';
-      html += `<div class="so-slot-card" data-tier="${tier}" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
+      html += `<div class="so-slot-card" data-tier="${tier}" style="--prac-color:${slot.pracColor}" onclick="soFillSlot(${slot.start},'${slot.pracId}','${slot.dateStr}')">
         <div class="so-slot-top">
           <div class="so-slot-left">
             <div class="so-slot-time">${timeStr(slot.start)} \u2013 ${timeStr(slot.end)}</div>
-            ${showPrac ? `<span class="so-slot-prac">${esc(slot.pracName)}</span>` : ''}
+            ${showPrac ? `<span class="so-slot-prac"><span class="so-prac-dot" style="background:${slot.pracColor}"></span>${esc(slot.pracName)}</span>` : ''}
           </div>
           <div class="so-slot-right-info">
             <span class="so-score-badge so-score--${tier}">${slot.icon} ${slot.label}</span>
