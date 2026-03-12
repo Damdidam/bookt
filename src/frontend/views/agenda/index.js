@@ -17,7 +17,7 @@ import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
 import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
 import { gaOnDatesSet, gaOnFilterChanged, gaDeactivate } from './gap-analyzer.js';
-import { soDeactivate } from './smart-optimizer.js';
+import { soDeactivate, soOnDatesSet } from './smart-optimizer.js';
 import { buildEventsCallback } from './calendar-data.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
@@ -268,7 +268,7 @@ async function loadAgenda() {
   const canFeatured = ['owner', 'manager'].includes(userRole) && calState.fcBusinessSettings?.featured_slots_enabled;
   const fsBtnHtml = canFeatured ? `<button class="at-view-btn fs-toggle-btn" id="fsToggleBtn" onclick="fsToggleMode()" title="Mode vedette"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>` : '';
   const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="ga-badge" id="gaBadge" style="display:none"></span></button>` : '';
-  const soBtnHtml = ['owner', 'manager'].includes(userRole) ? `<button class="at-view-btn so-toggle-btn" id="soToggleBtn" onclick="soToggleMode()" title="Optimiseur de RDV"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>` : '';
+  const soBtnHtml = ['owner', 'manager'].includes(userRole) ? `<button class="at-view-btn so-toggle-btn" id="soToggleBtn" onclick="soToggleMode()" title="Quick booking"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>` : '';
   // Lock & Zoom buttons
   const lockBtnHtml = `<button class="at-view-btn at-lock-btn" id="calLockBtn" onclick="fcToggleLock()" title="Verrouiller le calendrier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M17 11V7a5 5 0 0 0-9.58-2"/></svg></button>`;
   const zoomHtml = `<div class="at-zoom" id="calZoomGroup"><button class="at-zoom-btn" onclick="fcZoom('out')" title="Zoom arrière"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button class="at-zoom-btn at-zoom-fit" onclick="fcZoom('fit')" title="Ajuster à l'écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button><button class="at-zoom-btn" onclick="fcZoom('in')" title="Zoom avant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>`;
@@ -337,6 +337,7 @@ async function loadAgenda() {
   calState.fcCal.on('datesSet', function (info) {
     fsOnDatesSet();
     gaOnDatesSet();
+    soOnDatesSet();
     if (info.view.type === 'dayGridMonth') { fsDeactivate(); soDeactivate(); }
   });
 

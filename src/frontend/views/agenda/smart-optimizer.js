@@ -1,5 +1,5 @@
 /**
- * Smart Optimizer — suggests optimal slots for new bookings.
+ * Quick Booking — suggests optimal slots for new bookings.
  * Staff selects service(s), the app scores available slots:
  *   pose fit (100), gap fill (80), gap reduce (60), adjacent (40), free (20).
  * Scans all visible days, supports multi-practitioner ("Tous"),
@@ -57,7 +57,7 @@ const ICO = {
 // ── Toggle ──
 function soToggleMode() {
   if (soActive) { soDeactivate(); return; }
-  if (fcIsMobile()) { gToast('Optimiseur non disponible sur mobile', 'info'); return; }
+  if (fcIsMobile()) { gToast('Quick booking non disponible sur mobile', 'info'); return; }
   soActivate();
 }
 
@@ -159,7 +159,7 @@ function soShowPanel() {
 
   // Header — gradient
   html += `<div class="so-modal-header">
-    <div class="so-panel-title">${ICO.spark}<span>Optimiseur de RDV</span></div>
+    <div class="so-panel-title">${ICO.spark}<span>Quick booking</span></div>
     <button class="so-panel-close" onclick="soDeactivate()" title="Fermer">${ICO.close}</button>
   </div>`;
 
@@ -236,7 +236,11 @@ function soRenderServicePicker() {
   // Total
   html += `<div class="so-total" id="soTotal">`;
   const dur = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
-  if (dur > 0) html += `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>`;
+  const poseT = soSelectedServices.reduce((s, svc) => s + (svc.processing_time || 0), 0);
+  if (dur > 0) {
+    html += `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>`;
+    if (poseT > 0) html += ` <span class="so-svc-pose">(dont ${fmtMin(poseT)} de pose)</span>`;
+  }
   html += `</div>`;
 
   return html;
@@ -318,10 +322,13 @@ function soRenderSelectedServices() {
   if (soSelectedServices.length === 0) return '';
   let html = '';
   soSelectedServices.forEach((svc, idx) => {
+    const poseLabel = svc.processing_time > 0
+      ? ` <span class="so-svc-pose">(+${svc.processing_time}min pose)</span>`
+      : '';
     html += `<div class="so-svc-card">
       <span class="so-svc-dot" style="background:${svc.color}"></span>
       <span class="so-svc-name">${esc(svc.name)}</span>
-      <span class="so-svc-dur">${svc.duration_min}min</span>
+      <span class="so-svc-dur">${svc.duration_min}min${poseLabel}</span>
       <button class="so-svc-rm" onclick="soRemoveService(${idx})" title="Retirer">${ICO.remove}</button>
     </div>`;
   });
@@ -501,8 +508,10 @@ function soRefreshSelected() {
   const total = document.getElementById('soTotal');
   if (total) {
     const dur = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
+    const poseTotal = soSelectedServices.reduce((s, svc) => s + (svc.processing_time || 0), 0);
+    const poseInfo = poseTotal > 0 ? ` <span class="so-svc-pose">(dont ${fmtMin(poseTotal)} de pose)</span>` : '';
     total.innerHTML = dur > 0
-      ? `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>`
+      ? `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>${poseInfo}`
       : '';
   }
 }
@@ -523,6 +532,7 @@ function soFindSlots() {
   if (!cal || soSelectedServices.length === 0) return [];
 
   const totalDuration = soSelectedServices.reduce((s, svc) => s + svc.duration_min, 0);
+  const totalPoseTime = soSelectedServices.reduce((s, svc) => s + (svc.processing_time || 0), 0);
   const viewStart = cal.view.currentStart;
   const viewEnd = cal.view.currentEnd;
 
@@ -584,7 +594,7 @@ function soFindSlots() {
       }).sort((a, b) => a.start - b.start);
 
       const minStart = dateStr === todayStr ? nowMin : 0;
-      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pracNames[pracId] || '', minStart);
+      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', minStart);
       allResults.push(...daySlots);
     }
   }
@@ -597,11 +607,11 @@ function soFindSlots() {
 
   return Object.values(byKey)
     .sort((a, b) => b.score - a.score || a.dateStr.localeCompare(b.dateStr) || a.start - b.start)
-    .slice(0, 15);
+    .slice(0, 6);
 }
 
 /** Calculate scored slots for a single practitioner on a single day */
-function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pracName, minStartMin) {
+function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracName, minStartMin) {
   const occupied = events.map(ev => {
     const s = ev.start.getHours() * 60 + ev.start.getMinutes();
     const e = ev.end.getHours() * 60 + ev.end.getMinutes();
@@ -665,7 +675,7 @@ function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pr
       results.push({
         start: t, end: t + totalDuration, score: 100,
         type: 'pose', label: 'Temps de pose', icon: ICO.pose,
-        pracId, pracName, dateStr, dayLabel: dl,
+        pracId, pracName, dateStr, dayLabel: dl, poseTime: totalPoseTime,
       });
       if (results.length > 20) break;
     }
@@ -694,9 +704,14 @@ function _soCalcDaySlots(events, workWindows, totalDuration, pracId, dateStr, pr
         score = 20; type = 'free'; label = 'Cr\u00e9neau libre'; icon = ICO.free;
       }
 
+      // Bonus: service with pose creates a gap the practitioner can use
+      if (totalPoseTime > 0 && (type === 'free' || type === 'adjacent' || type === 'gap_reduce')) {
+        score += 10;
+      }
+
       results.push({
         start: t, end: t + totalDuration, score, type, label, icon,
-        pracId, pracName, dateStr, dayLabel: dl,
+        pracId, pracName, dateStr, dayLabel: dl, poseTime: totalPoseTime,
       });
     }
   });
@@ -744,8 +759,8 @@ function soRenderSuggestions() {
         </div>
       </div>
       <div class="so-slot-footer">
-        <span class="so-score-badge so-score--${tier}">${slot.icon} ${slot.label}</span>
-        <div class="so-score-bar"><div class="so-score-fill" data-tier="${tier}" style="width:${slot.score}%"></div></div>
+        <span class="so-score-badge so-score--${tier}">${slot.icon} ${slot.label}</span>${slot.poseTime > 0 ? `<span class="so-pose-tag">${ICO.pose} +${slot.poseTime}min pose</span>` : ''}
+        <div class="so-score-bar"><div class="so-score-fill" data-tier="${tier}" style="width:${Math.min(slot.score, 100)}%"></div></div>
       </div>
     </div>`;
   });
@@ -829,7 +844,17 @@ function _soQueueRemainingServices(services, idx) {
   });
 }
 
-// ── Bridge ──
-bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions });
+// ── Auto-recalculate on calendar date change ──
+async function soOnDatesSet() {
+  if (!soActive) return;
+  await soLoadAbsences();
+  // Refresh the mini-calendar (in-range highlights change with new view dates)
+  const left = document.getElementById('soLeft');
+  if (left) left.innerHTML = soRenderServicePicker();
+  soRenderSuggestions();
+}
 
-export { soIsActive, soToggleMode, soDeactivate };
+// ── Bridge ──
+bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions, soOnDatesSet });
+
+export { soIsActive, soToggleMode, soDeactivate, soOnDatesSet };
