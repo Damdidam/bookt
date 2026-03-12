@@ -6,7 +6,7 @@
  * day filtering, and filters out planning absences + service schedule restrictions.
  * Pattern follows gap-analyzer.js (prefix so instead of ga).
  */
-import { calState } from '../../state.js';
+import { calState, api } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcOpenQuickCreate } from './quick-create.js';
@@ -48,6 +48,7 @@ const S = {
   calMonth: null,         // mini-calendar display month (0-indexed)
   timePref: 'all',        // 'all' | 'matin' | 'apresmidi' | 'heure'
   timeFrom: 600,          // minutes (600 = 10:00), used when timePref === 'heure'
+  cachedEvents: [],       // bookings + tasks from API (independent of FC visibility filters)
 };
 
 function soIsActive() { return S.active; }
@@ -123,6 +124,57 @@ async function soLoadHolidays() {
   }
 }
 
+/**
+ * Fetch bookings + tasks directly from API.
+ * Independent of FullCalendar's event store — ensures ALL practitioners
+ * and ALL statuses (pending_deposit, pending, etc.) are included
+ * regardless of FC filters or visibility toggles.
+ */
+async function soFetchEvents() {
+  const cal = calState.fcCal;
+  if (!cal) return;
+  try {
+    let from = new Date(cal.view.currentStart);
+    let to = new Date(cal.view.currentEnd);
+    // Expand range to include filtered date if outside FC view
+    if (S.dateFilter !== 'all') {
+      const fd = new Date(S.dateFilter + 'T00:00:00');
+      const fn = new Date(fd); fn.setDate(fn.getDate() + 1);
+      if (fd < from) from = fd;
+      if (fn > to) to = fn;
+    }
+    const headers = { 'Authorization': 'Bearer ' + api.getToken() };
+    const qs = 'from=' + encodeURIComponent(from.toISOString()) + '&to=' + encodeURIComponent(to.toISOString());
+    const [bkRes, tkRes] = await Promise.all([
+      fetch('/api/bookings?' + qs, { headers }).then(r => r.ok ? r.json() : { bookings: [] }),
+      fetch('/api/tasks?' + qs, { headers }).then(r => r.ok ? r.json() : { tasks: [] }),
+    ]);
+    const events = [];
+    (bkRes.bookings || []).forEach(bk => {
+      events.push({
+        start: new Date(bk.start_at), end: new Date(bk.end_at),
+        practitioner_id: String(bk.practitioner_id), status: bk.status,
+        _isTask: false, id: bk.id,
+        processing_time: parseInt(bk.processing_time) || 0,
+        processing_start: parseInt(bk.processing_start) || 0,
+        buffer_before_min: parseInt(bk.buffer_before_min) || 0,
+      });
+    });
+    (tkRes.tasks || []).forEach(tk => {
+      if (tk.status === 'cancelled') return;
+      events.push({
+        start: new Date(tk.start_at), end: new Date(tk.end_at),
+        practitioner_id: String(tk.practitioner_id), status: tk.status,
+        _isTask: true, id: tk.id,
+        processing_time: 0, processing_start: 0, buffer_before_min: 0,
+      });
+    });
+    S.cachedEvents = events;
+  } catch (e) {
+    console.warn('SO: failed to fetch events', e);
+  }
+}
+
 function soGetAbsencePeriod(pracId, dateStr) {
   for (const abs of S.absences) {
     if (String(abs.practitioner_id) !== String(pracId)) continue;
@@ -191,7 +243,10 @@ function soFindSlots() {
   const cal = calState.fcCal;
   if (!cal || S.selectedServices.length === 0) return { slots: [], scheduleConflict: false, skippedDayCount: 0, totalDayCount: 0 };
 
-  const totalDuration = S.selectedServices.reduce((s, svc) => s + svc.duration_min, 0);
+  const rawDuration = S.selectedServices.reduce((s, svc) => s + svc.duration_min, 0);
+  const bufBefore = S.selectedServices.length > 0 ? (S.selectedServices[0].buffer_before_min || 0) : 0;
+  const bufAfter = S.selectedServices.length > 0 ? (S.selectedServices[S.selectedServices.length - 1].buffer_after_min || 0) : 0;
+  const totalDuration = rawDuration + bufBefore + bufAfter;
   const totalPoseTime = S.selectedServices.reduce((s, svc) => s + (svc.processing_time || 0), 0);
   const viewStart = cal.view.currentStart;
   const viewEnd = cal.view.currentEnd;
@@ -215,7 +270,7 @@ function soFindSlots() {
   const pracNames = {}, pracColors = {};
   calState.fcPractitioners.forEach(p => { pracNames[p.id] = p.display_name; pracColors[p.id] = p.color || 'var(--primary)'; });
 
-  const allCalEvents = cal.getEvents();
+  const allCalEvents = S.cachedEvents;
   const now = new Date();
   const todayStr = localDate(now);
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -298,11 +353,9 @@ function soFindSlots() {
       const dayStartDt = new Date(dateStr + 'T00:00:00');
       const dayEndDt = new Date(dateStr + 'T23:59:59');
       const events = allCalEvents.filter(ev => {
-        const p = ev.extendedProps || {};
-        if (p._isTask) return false;
-        if (['cancelled', 'no_show'].includes(p.status)) return false;
-        if (p.status === 'pending' && ev.start && ev.start <= now) return false;
-        if (String(p.practitioner_id) !== String(pracId)) return false;
+        if (['cancelled', 'no_show'].includes(ev.status)) return false;
+        if (ev.status === 'pending' && ev.start && ev.start <= now) return false;
+        if (ev.practitioner_id !== String(pracId)) return false;
         return ev.start < dayEndDt && ev.end > dayStartDt;
       }).sort((a, b) => a.start - b.start);
 
@@ -328,31 +381,33 @@ function soFindSlots() {
 function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracName, pracColor, minStartMin, step) {
   const occupied = events.map(ev => {
     const s = ev.start.getHours() * 60 + ev.start.getMinutes();
-    const e = ev.end.getHours() * 60 + ev.end.getMinutes();
+    let e = ev.end.getHours() * 60 + ev.end.getMinutes();
+    // Fix: event ending at midnight (00:00 next day) produces e=0 — clamp to 1440
+    if (localDate(ev.end) !== dateStr) e = 1440;
     return { start: s, end: e, ev };
   }).sort((a, b) => a.start - b.start);
 
   const poseWindows = [];
   events.forEach(ev => {
-    const p = ev.extendedProps || {};
-    const pt = parseInt(p.processing_time) || 0;
-    const ps = parseInt(p.processing_start) || 0;
-    const buf = parseInt(p.buffer_before_min) || 0;
+    if (ev._isTask) return; // tasks have no pose windows
+    const pt = ev.processing_time || 0;
+    const ps = ev.processing_start || 0;
+    const buf = ev.buffer_before_min || 0;
     if (pt <= 0) return;
     const evStartMin = ev.start.getHours() * 60 + ev.start.getMinutes();
     const poseStart = evStartMin + buf + ps;
     const poseEnd = poseStart + pt;
     const childRanges = events.filter(ch => {
       if (ch === ev) return false;
-      const cp = ch.extendedProps || {};
-      if (cp._isPoseChild && String(cp._poseParentId) === String(p.id)) return true;
       const cs = ch.start.getHours() * 60 + ch.start.getMinutes();
-      const ce = ch.end.getHours() * 60 + ch.end.getMinutes();
-      return cs >= poseStart && ce <= poseEnd && ch !== ev;
-    }).map(ch => ({
-      start: ch.start.getHours() * 60 + ch.start.getMinutes(),
-      end: ch.end.getHours() * 60 + ch.end.getMinutes()
-    })).sort((a, b) => a.start - b.start);
+      let ce = ch.end.getHours() * 60 + ch.end.getMinutes();
+      if (localDate(ch.end) !== dateStr) ce = 1440;
+      return cs >= poseStart && ce <= poseEnd;
+    }).map(ch => {
+      let ce = ch.end.getHours() * 60 + ch.end.getMinutes();
+      if (localDate(ch.end) !== dateStr) ce = 1440;
+      return { start: ch.start.getHours() * 60 + ch.start.getMinutes(), end: ce };
+    }).sort((a, b) => a.start - b.start);
     let cursor = poseStart;
     childRanges.forEach(cr => {
       if (cr.start > cursor) poseWindows.push({ start: cursor, end: cr.start });
@@ -718,8 +773,9 @@ function soPracChanged() {
   soRender();
 }
 
-function soCalDayClick(dateStr) {
+async function soCalDayClick(dateStr) {
   S.dateFilter = dateStr;
+  await soFetchEvents();
   soRender();
 }
 
@@ -981,7 +1037,7 @@ async function soActivate() {
     : 'all';
 
   document.getElementById('soToggleBtn')?.classList.add('active');
-  await Promise.all([soLoadAbsences(), soLoadHolidays()]);
+  await Promise.all([soLoadAbsences(), soLoadHolidays(), soFetchEvents()]);
   soShowPanel();
   soRender();
 }
@@ -993,6 +1049,7 @@ function soDeactivate() {
   S.dateFilter = 'all';
   S.absences = [];
   S.holidays = new Set();
+  S.cachedEvents = [];
   S.calYear = null;
   S.calMonth = null;
   S.timePref = 'all';
@@ -1013,13 +1070,14 @@ function soClearAll() {
 
 async function soOnDatesSet() {
   if (!S.active) return;
-  await Promise.all([soLoadAbsences(), soLoadHolidays()]);
+  await Promise.all([soLoadAbsences(), soLoadHolidays(), soFetchEvents()]);
   soRender();
 }
 
-// Light refresh: only re-render slots (right panel) without touching left panel
-function soRefreshSlots() {
+// Light refresh: re-fetch events + re-render slots (right panel only)
+async function soRefreshSlots() {
   if (!S.active) return;
+  await soFetchEvents();
   soRenderRight();
 }
 
