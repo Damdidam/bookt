@@ -757,7 +757,7 @@ function fcStartConvert(action) {
     document.getElementById('uBufBefore').value = 0;
     document.getElementById('uBufAfter').value = 0;
     const wrap = document.getElementById('mConvertToSvcWrap');
-    if (wrap) wrap.innerHTML = '';
+    if (wrap) wrap.innerHTML = '<button class="m-link-btn" onclick="fcStartConvert(\'to-service\')" style="font-size:.72rem;color:var(--primary)">Assigner une prestation</button>';
   }
 }
 
