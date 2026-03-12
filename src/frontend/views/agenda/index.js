@@ -311,12 +311,14 @@ async function loadAgenda() {
   const initInc = allIncs.length > 0 ? Math.min(...allIncs) : 15;
   const initSlotDur = fcSlotDuration(initInc);
 
-  // Init FullCalendar
+  // Restore lock state BEFORE calendar init so editable option + events are correct from the start
+  try { calState.fcLocked = localStorage.getItem('bookt_cal_locked') === '1'; } catch (_) {}
+
+  // Init FullCalendar (uses calState.fcLocked for editable option)
   initCalendar(initView, initSlotDur);
 
-  // Restore lock state (from memory or localStorage)
-  try { if (!calState.fcLocked && localStorage.getItem('bookt_cal_locked') === '1') calState.fcLocked = true; } catch (_) {}
-  if (calState.fcLocked) { fcApplyLockUI(); calState.fcCal?.setOption('editable', false); calState.fcCal?.refetchEvents(); }
+  // Apply lock UI (button icon/class) — no need for setOption/refetchEvents, already baked into init
+  if (calState.fcLocked) fcApplyLockUI();
 
   // Measure toolbar height for sticky column headers
   const tb = document.querySelector('.agenda-toolbar');
