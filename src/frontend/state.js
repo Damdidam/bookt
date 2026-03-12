@@ -86,7 +86,8 @@ export const calState = {
   fcMobileView: 'grid',
   fcMobileDate: new Date(),
   fcAllBookings: [],
-  fcCurrentBooking: null
+  fcCurrentBooking: null,
+  fcLocked: false
 };
 
 // ── View-specific state ──

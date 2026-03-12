@@ -316,7 +316,7 @@ async function loadAgenda() {
 
   // Restore lock state (from memory or localStorage)
   try { if (!calState.fcLocked && localStorage.getItem('bookt_cal_locked') === '1') calState.fcLocked = true; } catch (_) {}
-  if (calState.fcLocked) { fcApplyLockUI(); calState.fcCal?.refetchEvents(); }
+  if (calState.fcLocked) { fcApplyLockUI(); calState.fcCal?.setOption('editable', false); calState.fcCal?.refetchEvents(); }
 
   // Measure toolbar height for sticky column headers
   const tb = document.querySelector('.agenda-toolbar');
@@ -397,8 +397,9 @@ function fcToggleLock() {
   try { localStorage.setItem('bookt_cal_locked', calState.fcLocked ? '1' : '0'); } catch (_) {}
   const cal = calState.fcCal;
   if (!cal) return;
-  // Refetch events so they are rebuilt with the new fcLocked state
-  // (per-event editable overrides global options, so we must reconstruct them)
+  // Belt-and-suspenders: update global FC option AND refetch events
+  // so both global defaults and per-event properties reflect lock state
+  cal.setOption('editable', !calState.fcLocked);
   cal.refetchEvents();
   // Visual feedback
   fcApplyLockUI();

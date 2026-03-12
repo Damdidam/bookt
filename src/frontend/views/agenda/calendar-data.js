@@ -123,6 +123,7 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       backgroundColor: fcHexAlpha(accent, 0.15),
       borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
       editable: !frozen && !b.locked && !calState.fcLocked,
+      startEditable: !frozen && !b.locked && !calState.fcLocked,
       durationEditable: !frozen && !b.locked && !calState.fcLocked,
       extendedProps: props
     };
@@ -145,7 +146,7 @@ export function buildGroupEvents(grouped) {
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
       backgroundColor: fcHexAlpha(accent, 0.15), borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
-      editable: !anyFrozen && !anyLocked && !calState.fcLocked, durationEditable: false,
+      editable: !anyFrozen && !anyLocked && !calState.fcLocked, startEditable: !anyFrozen && !anyLocked && !calState.fcLocked, durationEditable: false,
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
         _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
@@ -184,7 +185,7 @@ export function buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap) {
       start: t.start_at, end: t.end_at,
       backgroundColor: fcHexAlpha(accent, 0.12),
       borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
-      editable: !frozen && !calState.fcLocked, durationEditable: !frozen && !calState.fcLocked,
+      editable: !frozen && !calState.fcLocked, startEditable: !frozen && !calState.fcLocked, durationEditable: !frozen && !calState.fcLocked,
       extendedProps: props
     };
   });

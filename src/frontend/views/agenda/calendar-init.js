@@ -130,7 +130,7 @@ function initCalendar(initView, initSlotDur) {
     // ── Resource Timeline (Premium) ──
     resourceAreaWidth: '140px',
     resourceAreaHeaderContent: 'Praticien',
-    editable: true, eventDurationEditable: !fcIsTouch, eventStartEditable: !fcIsMobile(), snapDuration: '00:05:00',
+    editable: true, snapDuration: '00:05:00',
     selectable: false,
     slotEventOverlap: false,
     eventOrder: function (a, b) {
