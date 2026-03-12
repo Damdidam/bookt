@@ -335,7 +335,7 @@
 .so-modal-body{display:grid;grid-template-columns:270px 1px 1fr;gap:0;flex:1;min-height:0;overflow:hidden}
 .so-divider{background:var(--border-light);width:1px}
 /* Left panel */
-.so-left{display:flex;flex-direction:column;gap:10px;overflow-y:hidden;padding:18px 22px;background:#FAFBFC}
+.so-left{display:flex;flex-direction:column;gap:10px;overflow-y:auto;scrollbar-width:thin;padding:18px 22px;background:#FAFBFC}
 .so-field{display:flex;flex-direction:column;gap:4px}
 .so-label{font-size:.62rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px}
 .so-select{padding:8px 12px;border:1.5px solid var(--border-light);border-radius:10px;font-size:.78rem;font-family:var(--sans);background:var(--white);color:var(--text);outline:none;transition:all .15s;box-shadow:var(--shadow-xs)}

@@ -775,8 +775,28 @@ function soFillSlot(startMin, slotPracId, dateStr) {
   const _pracId = slotPracId || soPracId;
   const _services = [...soSelectedServices];
 
-  soDeactivate();
+  // Hide Quick booking overlay (don't destroy — keep state)
+  const overlay = document.getElementById('soOverlay');
+  if (overlay) overlay.style.display = 'none';
+
   fcOpenQuickCreate(startStr);
+
+  // Watch for quick-create modal close → restore Quick booking
+  const qcModal = document.getElementById('calCreateModal');
+  if (qcModal) {
+    const observer = new MutationObserver(() => {
+      if (!qcModal.classList.contains('open')) {
+        observer.disconnect();
+        const so = document.getElementById('soOverlay');
+        if (so) {
+          so.style.display = '';
+          // Re-render suggestions (events may have changed if a booking was created)
+          soRenderSuggestions();
+        }
+      }
+    });
+    observer.observe(qcModal, { attributes: true, attributeFilter: ['class'] });
+  }
 
   requestAnimationFrame(() => {
     const qcPrac = document.getElementById('qcPrac');
