@@ -5,7 +5,7 @@ import { api, calState } from '../../state.js';
 import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
-import { closeCalModal } from './booking-detail.js';
+import { closeCalModal, fcOpenDetail } from './booking-detail.js';
 import { storeUndoAction } from './booking-undo.js';
 
 async function fcSetStatus(newStatus) {
@@ -110,7 +110,30 @@ async function fcSendDepositRequest(channel) {
   } finally { fcSendDepositRequest._busy = false; }
 }
 
-// Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest });
+async function fcRequireDeposit() {
+  if (fcRequireDeposit._busy) return;
+  const amountInput = document.getElementById('mReqDepAmount');
+  const deadlineInput = document.getElementById('mReqDepDeadline');
+  const amountCents = Math.round(parseFloat(amountInput?.value || 0) * 100);
+  const deadlineHours = parseInt(deadlineInput?.value || 48);
+  if (!amountCents || amountCents <= 0) { gToast('Montant invalide', 'error'); return; }
+  if (!confirm(`Exiger un acompte de ${(amountCents / 100).toFixed(2)}\u20ac ? Le client devra payer avant le RDV.`)) return;
+  fcRequireDeposit._busy = true;
+  try {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/require-deposit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ amount_cents: amountCents, deadline_hours: deadlineHours })
+    });
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    gToast('Acompte exig\u00e9 — envoyez la demande par email ou SMS', 'success');
+    // Refresh the detail modal to show the deposit banner
+    fcOpenDetail(calState.fcCurrentEventId);
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { fcRequireDeposit._busy = false; }
+}
 
-export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest };
+// Expose to global scope for onclick handlers
+bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit });
+
+export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit };

@@ -201,6 +201,32 @@ async function fcOpenDetail(bookingId) {
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
     }
 
+    // -- "Exiger un acompte" button for confirmed bookings without deposit --
+    document.querySelectorAll('.m-require-deposit-wrap').forEach(el => el.remove());
+    if (!b.deposit_required && ['confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
+      const s = calState.fcBusinessSettings || {};
+      const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+      let defaultCents = s.deposit_type === 'fixed'
+        ? (s.deposit_fixed_cents || 2500)
+        : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
+      if (defaultCents <= 0) defaultCents = 2500;
+      const defaultDlHours = s.deposit_deadline_hours ?? 48;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'm-require-deposit-wrap';
+      wrap.style.cssText = 'padding:0 24px 8px';
+      wrap.innerHTML = `<button class="m-link-btn" id="mReqDepBtn" style="font-size:.72rem;color:var(--primary);display:inline-flex;align-items:center;gap:5px" onclick="document.getElementById('mReqDepPanel').style.display='';this.style.display='none'"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Exiger un acompte</button>
+        <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF3E2">
+          <div style="font-size:.8rem;font-weight:700;color:#B45309;margin-bottom:8px">Exiger un acompte</div>
+          <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+            <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defaultCents / 100).toFixed(2)}" style="width:90px;padding:5px 8px;border:1px solid #F59E0B;border-radius:6px;font-size:.8rem;font-family:inherit"></div>
+            <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" style="width:70px;padding:5px 8px;border:1px solid #F59E0B;border-radius:6px;font-size:.8rem;font-family:inherit"></div>
+            <div style="display:flex;gap:6px"><button class="ug-btn ug-btn-confirm" onclick="fcRequireDeposit()" style="padding:5px 14px;font-size:.72rem;font-weight:600">Confirmer</button><button class="ug-btn ug-btn-cancel" onclick="document.getElementById('mReqDepPanel').style.display='none';document.getElementById('mReqDepBtn').style.display=''" style="padding:5px 10px;font-size:.72rem">Annuler</button></div>
+          </div>
+        </div>`;
+      document.getElementById('mStatusStrip').insertAdjacentElement('afterend', wrap);
+    }
+
     // -- Promo banner (last-minute discount) --
     document.querySelectorAll('.m-promo-banner').forEach(el => el.remove());
     if (b.discount_pct) {

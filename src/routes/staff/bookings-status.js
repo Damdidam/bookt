@@ -704,6 +704,90 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/bookings/:id/require-deposit
+// Retroactively require a deposit on an already-confirmed booking
+// UI: Calendar → event detail → "Exiger un acompte"
+// ============================================================
+router.post('/:id/require-deposit', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    const { amount_cents, deadline_hours } = req.body;
+    if (!amount_cents || amount_cents <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+    const txResult = await transactionWithRLS(bid, async (client) => {
+      const bk = await client.query(
+        `SELECT id, status, deposit_required, start_at, group_id, practitioner_id
+         FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
+      const b = bk.rows[0];
+
+      // Practitioner scope
+      if (req.practitionerFilter && String(b.practitioner_id) !== String(req.practitionerFilter)) {
+        return { error: 403, message: 'Accès interdit' };
+      }
+
+      if (b.deposit_required) return { error: 400, message: 'Un acompte est déjà exigé sur ce RDV' };
+      if (!['confirmed', 'modified_pending'].includes(b.status)) {
+        return { error: 400, message: `Impossible d'exiger un acompte pour un RDV en statut "${b.status}"` };
+      }
+      if (new Date(b.start_at) <= new Date()) {
+        return { error: 400, message: 'Impossible d\'exiger un acompte pour un RDV passé' };
+      }
+
+      // Calculate deadline
+      const dlHours = deadline_hours || 48;
+      let deadline = new Date(new Date(b.start_at).getTime() - dlHours * 3600000);
+      // If deadline already past, give at least 2h from now
+      if (deadline <= new Date()) {
+        deadline = new Date(Date.now() + 2 * 3600000);
+      }
+
+      await client.query(
+        `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+          deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2, updated_at = NOW()
+         WHERE id = $3 AND business_id = $4`,
+        [amount_cents, deadline.toISOString(), id, bid]
+      );
+
+      // Group siblings: also set pending_deposit status (no amount)
+      if (b.group_id) {
+        await propagateGroupStatus(client, {
+          groupId: b.group_id,
+          bid,
+          excludeId: id,
+          status: 'pending_deposit',
+          cancelReason: null
+        });
+      }
+
+      // Audit log
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'booking', $3, 'require_deposit', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ status: b.status, deposit_required: false }),
+         JSON.stringify({ status: 'pending_deposit', deposit_required: true, deposit_amount_cents: amount_cents, deposit_deadline: deadline.toISOString() })]
+      );
+
+      return { ok: true };
+    });
+
+    if (txResult.error) return res.status(txResult.error).json({ error: txResult.message });
+
+    broadcast(bid, 'booking_update', { action: 'require_deposit', booking_id: id, status: 'pending_deposit' });
+    calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+
+    res.json({ updated: true, status: 'pending_deposit' });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // DELETE /api/bookings/:id — Permanently delete a cancelled/no-show booking
 // UI: Calendar → event detail → "Supprimer définitivement" (only for cancelled/no_show)
 // ============================================================
