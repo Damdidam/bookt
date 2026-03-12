@@ -1052,7 +1052,12 @@ function goToStep(n){
     if(!showPrac){computeStepOrder();n=3;}
   }
   if(n===3&&!vedetteMode){
-    if(!selectedPractitioner&&!noPrefSelected){
+    // When practitioner choice is disabled → "no preference" mode
+    // so the slot engine returns ALL available practitioners
+    if(!siteData.business.practitioner_choice_enabled){
+      selectedPractitioner=null;
+      noPrefSelected=true;
+    }else if(!selectedPractitioner&&!noPrefSelected){
       let pracs;
       if(multiServiceMode&&selectedServices.length>1){
         pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
