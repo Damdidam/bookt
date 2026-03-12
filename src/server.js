@@ -302,6 +302,25 @@ app.listen(PORT, () => {
       confirmRunning = false;
     }
   }, confirmInterval);
+
+  // ===== DEPOSIT EXPIRY CRON — auto-cancel pending_deposit bookings past deadline every 2 min =====
+  const depositInterval = parseInt(process.env.DEPOSIT_EXPIRY_CRON_INTERVAL_MS, 10) || 2 * 60 * 1000;
+  let depositRunning = false;
+  setInterval(async () => {
+    if (depositRunning) return;
+    depositRunning = true;
+    try {
+      const { processExpiredDeposits } = require('./services/deposit-expiry');
+      const result = await processExpiredDeposits();
+      if (result.processed > 0) {
+        console.log(`[DEPOSIT CRON] ${result.processed} expired deposit booking(s) auto-cancelled`);
+      }
+    } catch (e) {
+      console.error('[DEPOSIT CRON] Error:', e.message);
+    } finally {
+      depositRunning = false;
+    }
+  }, depositInterval);
 });
 
 module.exports = app;
