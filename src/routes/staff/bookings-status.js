@@ -466,7 +466,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
     // All deposit-refund operations in a single transaction for atomicity
     const txResult = await transactionWithRLS(bid, async (client) => {
       const bk = await client.query(
-        `SELECT deposit_required, deposit_status, deposit_amount_cents, status, practitioner_id, group_id FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        `SELECT deposit_required, deposit_status, deposit_amount_cents, deposit_payment_intent_id, status, practitioner_id, group_id FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
         [id, bid]
       );
       if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
