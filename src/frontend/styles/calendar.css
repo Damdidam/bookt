@@ -403,8 +403,10 @@
 .so-empty svg{opacity:.25}
 /* Mini calendar */
 .so-cal{display:flex;flex-direction:column;gap:6px}
-.so-cal-header{display:flex;align-items:center;justify-content:center;padding:2px 0}
-.so-cal-month{font-size:.76rem;font-weight:700;color:var(--text-2);text-transform:capitalize}
+.so-cal-header{display:flex;align-items:center;justify-content:space-between;padding:2px 0;gap:6px}
+.so-cal-month{font-size:.76rem;font-weight:700;color:var(--text-2);text-transform:capitalize;flex:1;text-align:center}
+.so-cal-nav{background:none;border:1px solid var(--border-light);cursor:pointer;color:var(--text-3);padding:2px 8px;border-radius:6px;font-size:.9rem;font-family:var(--sans);transition:all .12s;display:flex;align-items:center;justify-content:center;line-height:1}
+.so-cal-nav:hover{background:var(--surface);color:#DB2777;border-color:#FBCFE8}
 .so-cal-grid{display:grid;gap:2px;justify-items:center}
 .so-cal-wday{font-size:.6rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.3px;padding-bottom:2px;user-select:none;width:32px;text-align:center}
 .so-cal-day{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:600;color:var(--text-2);border-radius:50%;cursor:pointer;transition:all .12s;user-select:none;position:relative;border:none;background:none;padding:0}

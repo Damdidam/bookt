@@ -43,6 +43,8 @@ const S = {
   dateFilter: 'all',
   absences: [],
   holidays: new Set(),   // Set of 'YYYY-MM-DD' strings (jours fériés)
+  calYear: null,          // mini-calendar display year
+  calMonth: null,         // mini-calendar display month (0-indexed)
 };
 
 function soIsActive() { return S.active; }
@@ -500,9 +502,15 @@ function soRenderDayFilterHTML() {
   const viewEnd = cal.view.currentEnd;
   const now = new Date();
   const todayStr = localDate(now);
-  const refDate = new Date(viewStart);
-  const year = refDate.getFullYear();
-  const month = refDate.getMonth();
+
+  // Use stored month if set, otherwise derive from FC view
+  if (S.calYear === null || S.calMonth === null) {
+    const refDate = new Date(viewStart);
+    S.calYear = refDate.getFullYear();
+    S.calMonth = refDate.getMonth();
+  }
+  const year = S.calYear;
+  const month = S.calMonth;
 
   // Determine which weekday columns to show (hide merchant's non-working days)
   const hidden = new Set(calState.fcHiddenDays || []);
@@ -518,7 +526,7 @@ function soRenderDayFilterHTML() {
 
   let html = '<div class="so-field"><label class="so-label">Jour</label>';
   html += '<div class="so-cal" id="soCal">';
-  html += `<div class="so-cal-header"><span class="so-cal-month">${MONTH_NAMES[month]} ${year}</span></div>`;
+  html += `<div class="so-cal-header"><button class="so-cal-nav" onclick="soCalPrev()" title="Mois précédent">‹</button><span class="so-cal-month">${MONTH_NAMES[month]} ${year}</span><button class="so-cal-nav" onclick="soCalNext()" title="Mois suivant">›</button></div>`;
   html += `<div class="so-cal-grid" style="grid-template-columns:repeat(${colCount},1fr)">`;
   visLabels.forEach(w => { html += `<span class="so-cal-wday">${w}</span>`; });
 
@@ -661,6 +669,18 @@ function soCalDayClick(dateStr) {
 
 function soCalReset() {
   S.dateFilter = 'all';
+  soRender();
+}
+
+function soCalPrev() {
+  S.calMonth--;
+  if (S.calMonth < 0) { S.calMonth = 11; S.calYear--; }
+  soRender();
+}
+
+function soCalNext() {
+  S.calMonth++;
+  if (S.calMonth > 11) { S.calMonth = 0; S.calYear++; }
   soRender();
 }
 
@@ -872,6 +892,8 @@ async function soActivate() {
   S.active = true;
   S.selectedServices = [];
   S.dateFilter = 'all';
+  S.calYear = null;
+  S.calMonth = null;
   S.pracId = calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
     : 'all';
@@ -889,6 +911,8 @@ function soDeactivate() {
   S.dateFilter = 'all';
   S.absences = [];
   S.holidays = new Set();
+  S.calYear = null;
+  S.calMonth = null;
   document.getElementById('soToggleBtn')?.classList.remove('active');
   document.getElementById('soOverlay')?.remove();
 }
@@ -903,6 +927,6 @@ async function soOnDatesSet() {
    12. BRIDGE + EXPORTS
    ═══════════════════════════════════════════════════════════ */
 
-bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions, soOnDatesSet });
+bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCalPrev, soCalNext, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions, soOnDatesSet });
 
 export { soIsActive, soToggleMode, soDeactivate, soOnDatesSet };
