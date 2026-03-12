@@ -300,6 +300,7 @@ router.patch('/:id/status', async (req, res, next) => {
       }
 
       // ===== DEPOSIT: refund logic on cancellation =====
+      let depositRefunded = false;
       if (status === 'cancelled') {
         const depInfo = await client.query(
           `SELECT b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
@@ -345,6 +346,7 @@ router.patch('/:id/status', async (req, res, next) => {
               `UPDATE bookings SET deposit_status = $1 WHERE id = $2 AND business_id = $3`,
               [newDepStatus, id, bid]
             );
+            if (newDepStatus === 'refunded') depositRefunded = true;
 
             // Bug H6 + B4 fix: Update sibling deposits, differentiating by actual deposit_status
             if (old.rows[0].group_id) {
@@ -387,7 +389,7 @@ router.patch('/:id/status', async (req, res, next) => {
          JSON.stringify(newAudit)]
       );
 
-      return { oldStatus: old.rows[0].status, affectedSiblingIds };
+      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded };
     });
 
     // Handle early returns from transaction
@@ -415,6 +417,32 @@ router.patch('/:id/status', async (req, res, next) => {
           catch (e) { console.warn('[WAITLIST] Sibling processing error:', e.message); }
         }
       }
+    }
+
+    // Send deposit refund email on auto-refund during cancellation (non-blocking)
+    if (txResult.depositRefunded) {
+      try {
+        const emailData = await queryWithRLS(bid,
+          `SELECT b.start_at, b.deposit_amount_cents, b.client_id,
+                  c.first_name || ' ' || c.last_name AS client_name, c.email AS client_email,
+                  s.name AS service_name, biz.name AS biz_name, biz.slug, biz.email AS biz_email,
+                  biz.address, biz.settings, biz.theme
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
+          const d = emailData.rows[0];
+          const { sendDepositRefundEmail } = require('../../services/email');
+          sendDepositRefundEmail({
+            booking: { start_at: d.start_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name },
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme }
+          }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
+        }
+      } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
     }
 
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
@@ -556,6 +584,30 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         broadcast(bid, 'booking_update', { action: 'deposit_refunded', booking_id: sibId, status: 'cancelled' });
       }
     }
+
+    // Send refund confirmation email to client (non-blocking)
+    try {
+      const emailData = await queryWithRLS(bid,
+        `SELECT b.start_at, b.deposit_amount_cents, b.client_id,
+                c.first_name || ' ' || c.last_name AS client_name, c.email AS client_email,
+                s.name AS service_name, biz.name AS biz_name, biz.slug, biz.email AS biz_email,
+                biz.address, biz.settings, biz.theme
+         FROM bookings b
+         LEFT JOIN clients c ON c.id = b.client_id
+         LEFT JOIN services s ON s.id = b.service_id
+         JOIN businesses biz ON biz.id = b.business_id
+         WHERE b.id = $1 AND b.business_id = $2`,
+        [id, bid]
+      );
+      if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
+        const d = emailData.rows[0];
+        const { sendDepositRefundEmail } = require('../../services/email');
+        sendDepositRefundEmail({
+          booking: { start_at: d.start_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name },
+          business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme }
+        }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
+      }
+    } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
 
     // Process waitlist (same as cancellation)
     try {

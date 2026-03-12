@@ -550,6 +550,8 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
   const safePracName = escHtml(booking.practitioner_name || '');
   const safeBizName = escHtml(business.name);
 
+  const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
@@ -562,6 +564,13 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
       <div style="font-size:24px;font-weight:800;color:#1A1816">${amtStr} \u20ac</div>
       ${deadlineStr ? `<div style="font-size:12px;color:#92700C;margin-top:6px">\u00c0 r\u00e9gler avant le ${deadlineStr}</div>` : ''}
+    </div>
+    <div style="background:#F0F9FF;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #60A5FA">
+      <div style="font-size:13px;color:#1E40AF;line-height:1.5">
+        <strong>\u2139\ufe0f Bon \u00e0 savoir :</strong><br>
+        \u2022 Cet acompte sera <strong>d\u00e9duit de votre facture totale</strong> lors de votre passage.<br>
+        \u2022 Il est <strong>restituable</strong> en cas d'annulation jusqu'\u00e0 <strong>${cancelDeadlineH}h avant</strong> votre rendez-vous.
+      </div>
     </div>
     <p style="font-size:14px;color:#3D3832">Consultez les d\u00e9tails et les instructions de paiement en cliquant ci-dessous.</p>`;
 
@@ -616,7 +625,8 @@ async function sendDepositPaidEmail({ booking, business }) {
       <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
-    <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera déduit du prix total de votre prestation.</p>`;
+    <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>
+    <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
@@ -642,4 +652,59 @@ async function sendDepositPaidEmail({ booking, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositPaidEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send deposit refund confirmation email to client
+ */
+async function sendDepositRefundEmail({ booking, business }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+  });
+  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name);
+  const safeServiceName = escHtml(booking.service_name || 'Rendez-vous');
+  const safeBizName = escHtml(business.name);
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p>Votre acompte a \u00e9t\u00e9 rembours\u00e9 suite \u00e0 l'annulation de votre rendez-vous.</p>
+    <div style="background:#EFF6FF;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #60A5FA">
+      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">\u21a9\ufe0f Acompte de ${amtStr} \u20ac rembours\u00e9</div>
+      <div style="font-size:14px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
+    </div>
+    <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
+      <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Rendez-vous annul\u00e9</div>
+      <div style="font-size:14px;color:#3D3832">\u{1F4C5} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
+    </div>
+    <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
+
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
+
+  const html = buildEmailHTML({
+    title: 'Acompte rembours\u00e9',
+    preheader: `Votre acompte de ${amtStr}\u20ac a \u00e9t\u00e9 rembours\u00e9`,
+    bodyHTML,
+    ctaText: bookingUrl ? 'Reprendre rendez-vous' : null,
+    ctaUrl: bookingUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Acompte rembours\u00e9 \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositPaidEmail, sendDepositRefundEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
