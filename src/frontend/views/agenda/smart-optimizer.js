@@ -655,7 +655,7 @@ function soPracChanged() {
 }
 
 function soCalDayClick(dateStr) {
-  S.dateFilter = S.dateFilter === dateStr ? 'all' : dateStr;
+  S.dateFilter = dateStr;
   soRender();
 }
 
