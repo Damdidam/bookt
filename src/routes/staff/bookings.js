@@ -30,6 +30,7 @@ router.get('/', async (req, res, next) => {
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
              b.locked,
              b.discount_pct,
+             b.confirmation_expires_at, b.deposit_deadline,
              b.processing_time, b.processing_start,
              s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,

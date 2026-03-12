@@ -137,6 +137,21 @@ async function fcOpenDetail(bookingId) {
       document.querySelector('.m-st-current')?.appendChild(cdEl);
     }
 
+    // -- Countdown for deposit deadline --
+    if (b.status === 'pending_deposit' && b.deposit_deadline) {
+      const dlDate = new Date(b.deposit_deadline);
+      const cdEl = document.createElement('span');
+      cdEl.style.cssText = 'font-size:.72rem;font-weight:500;margin-left:8px;opacity:.8';
+      const update = () => {
+        const diff = dlDate - Date.now();
+        cdEl.textContent = '· ' + fmtCountdown(diff);
+        if (diff <= 0 && _countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+      };
+      update();
+      _countdownTimer = setInterval(update, 30000);
+      document.querySelector('.m-st-current')?.appendChild(cdEl);
+    }
+
     // -- Deposit banner --
     if (b.deposit_required) {
       const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2);

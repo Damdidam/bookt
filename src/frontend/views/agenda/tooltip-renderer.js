@@ -24,6 +24,18 @@ function fmtDur(mins) {
   return m > 0 ? h + 'h' + String(m).padStart(2, '0') : h + 'h';
 }
 
+function fmtCountdown(ms) {
+  if (ms <= 0) return 'Expiré';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return min + 'min';
+  const h = Math.floor(min / 60);
+  const rm = min % 60;
+  if (h < 24) return h + 'h ' + (rm > 0 ? rm + 'min' : '');
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return d + 'j ' + (rh > 0 ? rh + 'h' : '');
+}
+
 function ico(name) { return `<span class="tt-ico">${IC[name] || ''}</span>`; }
 
 function fcShowTooltip(event, x, y) {
@@ -124,7 +136,16 @@ function fcShowTooltip(event, x, y) {
     html += `</div>`;
   }
 
-  // ── 7. Status badge ──
+  // ── 7. Countdown timer for pending / pending_deposit ──
+  if (p.status === 'pending' && p.confirmation_expires_at) {
+    const diff = new Date(p.confirmation_expires_at) - Date.now();
+    html += `<div class="tt-row" style="color:#B45309;font-size:.75rem;font-weight:600">${ico('hourglass')}Expire dans ${fmtCountdown(diff)}</div>`;
+  } else if (p.status === 'pending_deposit' && p.deposit_deadline) {
+    const diff = new Date(p.deposit_deadline) - Date.now();
+    html += `<div class="tt-row" style="color:#B45309;font-size:.75rem;font-weight:600">${ico('hourglass')}Acompte : expire dans ${fmtCountdown(diff)}</div>`;
+  }
+
+  // ── 8. Status badge ──
   const st = p.status || 'confirmed';
   html += `<div class="tt-foot"><span class="tt-badge ${esc(st)}">${esc(STATUS_FR[st] || st)}</span></div>`;
 
