@@ -54,6 +54,43 @@ function fcGetAbsencePeriod(pracId, dateStr) {
   return null;
 }
 
+/** Apply hatching overlay on resource columns of absent practitioners (day views only) */
+function fcApplyAbsenceOverlays() {
+  // Remove all existing overlays
+  document.querySelectorAll('.fc-col-absent-overlay').forEach(function (el) { el.remove(); });
+  var cal = calState.fcCal;
+  if (!cal) return;
+  var view = cal.view;
+  if (!view || (view.type !== 'timeGridDay' && view.type !== 'resourceTimeGridDay')) return;
+  var dateStr = view.currentStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+
+  // Find resource columns in the timegrid body
+  var cols = document.querySelectorAll('td.fc-timegrid-col[data-resource-id]');
+  cols.forEach(function (col) {
+    var pracId = col.getAttribute('data-resource-id');
+    var period = fcGetAbsencePeriod(pracId, dateStr);
+    if (!period) return;
+
+    // Create overlay div inside the column
+    var overlay = document.createElement('div');
+    overlay.className = 'fc-col-absent-overlay';
+    // For half-day: position top or bottom half
+    if (period === 'am') {
+      overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;height:50%;z-index:1;pointer-events:none;' +
+        'background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(180,83,9,0.06) 5px,rgba(180,83,9,0.06) 10px)';
+    } else if (period === 'pm') {
+      overlay.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:50%;z-index:1;pointer-events:none;' +
+        'background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(180,83,9,0.06) 5px,rgba(180,83,9,0.06) 10px)';
+    } else {
+      overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;pointer-events:none;' +
+        'background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(180,83,9,0.06) 5px,rgba(180,83,9,0.06) 10px)';
+    }
+    // Ensure parent is positioned
+    col.style.position = 'relative';
+    col.appendChild(overlay);
+  });
+}
+
 /**
  * Convert hex color to rgba with alpha.
  */
@@ -248,6 +285,7 @@ function initCalendar(initView, initSlotDur) {
     var m = viewStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }).slice(0, 7);
     fcLoadAbsences(m).then(function () {
       if (calState.fcCal) calState.fcCal.refetchResources();
+      fcApplyAbsenceOverlays();
     });
   });
   atUpdateTitle(); // initial
