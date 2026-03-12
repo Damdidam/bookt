@@ -442,7 +442,9 @@ function soShowPanel() {
       </div>
     </div>
     <div class="so-modal-body">
-      <div class="so-left" id="soLeft"></div>
+      <div class="so-col-config" id="soColConfig"></div>
+      <div class="so-divider"></div>
+      <div class="so-col-services" id="soColServices"></div>
       <div class="so-divider"></div>
       <div class="so-right" id="soRight"></div>
     </div>
@@ -454,16 +456,16 @@ function soShowPanel() {
 // ── Central render ──
 function soRender() {
   if (!document.getElementById('soOverlay')) return;
-  soRenderLeft();
+  soRenderConfig();
+  soRenderServices();
   soRenderRight();
 }
 
-// ── Left panel ──
-function soRenderLeft() {
-  const left = document.getElementById('soLeft');
-  if (!left) return;
+// ── Column 1: Config (practitioner, calendar, time) ──
+function soRenderConfig() {
+  const el = document.getElementById('soColConfig');
+  if (!el) return;
 
-  const effectivePracId = S.pracId === 'all' ? null : S.pracId;
   let html = '';
 
   // ── Praticien ──
@@ -475,15 +477,14 @@ function soRenderLeft() {
   });
   html += `</select></div>`;
 
-  // ── Quand : date + horaire ──
-  html += '<div class="so-group">';
+  // ── Calendrier + horaire ──
   html += soRenderDayFilterHTML();
   html += soRenderTimePrefHTML();
-  html += '</div>';
 
-  // ── Prestation ──
-  html += '<div class="so-group">';
+  // ── Prestation picker ──
+  const effectivePracId = S.pracId === 'all' ? null : S.pracId;
   const cats = window.fcGetServiceCategories ? window.fcGetServiceCategories(effectivePracId) : [];
+  html += `<div class="so-config-sep"></div>`;
   html += `<div class="so-field"><label class="so-label">Cat\u00e9gorie</label>`;
   html += `<select class="so-select" id="soCatSel" onchange="soCatChanged()">`;
   html += `<option value="">\u2014 Toutes \u2014</option>`;
@@ -501,13 +502,21 @@ function soRenderLeft() {
   html += `<div class="so-field" id="soVarWrap" style="display:none"><label class="so-label">Variante</label>`;
   html += `<select class="so-select" id="soVarSel" onchange="soVarChanged()"></select></div>`;
   html += `<button class="so-add-btn" id="soAddBtn" onclick="soAddService()" disabled>${ICO.plus} Ajouter</button>`;
-  html += '</div>';
 
-  // ── S\u00e9lection ──
-  html += `<div class="so-selected" id="soSelectedList">${soSelectedServicesHTML()}</div>`;
+  el.innerHTML = html;
+}
+
+// ── Column 2: Selected services ──
+function soRenderServices() {
+  const el = document.getElementById('soColServices');
+  if (!el) return;
+
+  const count = S.selectedServices.length;
+  let html = `<div class="so-svc-header"><span class="so-label">Prestations</span>${count > 0 ? `<span class="so-svc-count">${count}</span>` : ''}</div>`;
+  html += `<div class="so-svc-list" id="soSelectedList">${soSelectedServicesHTML()}</div>`;
   html += `<div class="so-total" id="soTotal">${soTotalHTML()}</div>`;
 
-  left.innerHTML = html;
+  el.innerHTML = html;
 }
 
 function soRenderDayFilterHTML() {
@@ -601,8 +610,10 @@ function soRenderTimePrefHTML() {
 }
 
 function soSelectedServicesHTML() {
-  if (S.selectedServices.length === 0) return '';
-  let html = '<label class="so-label">Prestations sélectionnées</label>';
+  if (S.selectedServices.length === 0) {
+    return `<div class="so-svc-empty">${ICO.empty}<span>Ajoutez des prestations<br>depuis le panneau de gauche</span></div>`;
+  }
+  let html = '';
   S.selectedServices.forEach((svc, idx) => {
     const poseLabel = svc.processing_time > 0 ? ` <span class="so-svc-pose">(+${svc.processing_time}min pose)</span>` : '';
     const priceLabel = svc.price_cents > 0 ? `<span class="so-svc-price">${(svc.price_cents / 100).toFixed(2)}\u20ac</span>` : '';
@@ -834,22 +845,27 @@ function soAddService() {
   if (varWrap) varWrap.style.display = 'none';
   soUpdateAddBtn();
 
-  // Refresh selected list + total + right panel
-  const list = document.getElementById('soSelectedList');
-  if (list) list.innerHTML = soSelectedServicesHTML();
-  const total = document.getElementById('soTotal');
-  if (total) total.innerHTML = soTotalHTML();
+  // Refresh selected list + total + count badge + right panel
+  soUpdateServicesDom();
   soRenderRight();
 }
 
 function soRemoveService(idx) {
   S.selectedServices.splice(idx, 1);
+  soUpdateServicesDom();
+  soUpdateAddBtn();
+  soRenderRight();
+}
+
+function soUpdateServicesDom() {
   const list = document.getElementById('soSelectedList');
   if (list) list.innerHTML = soSelectedServicesHTML();
   const total = document.getElementById('soTotal');
   if (total) total.innerHTML = soTotalHTML();
-  soUpdateAddBtn();
-  soRenderRight();
+  const badge = document.querySelector('.so-svc-count');
+  const count = S.selectedServices.length;
+  if (badge) badge.textContent = count > 0 ? count : '';
+  if (badge) badge.style.display = count > 0 ? '' : 'none';
 }
 
 /* ═══════════════════════════════════════════════════════════
