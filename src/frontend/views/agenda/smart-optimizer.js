@@ -165,6 +165,17 @@ function soFindSlots() {
   const viewStart = cal.view.currentStart;
   const viewEnd = cal.view.currentEnd;
 
+  // Expand scan range to include filtered date even if outside FC view
+  let scanStart = new Date(viewStart);
+  let scanEnd = new Date(viewEnd);
+  if (S.dateFilter !== 'all') {
+    const filterDate = new Date(S.dateFilter + 'T00:00:00');
+    const filterNext = new Date(filterDate);
+    filterNext.setDate(filterNext.getDate() + 1);
+    if (filterDate < scanStart) scanStart = filterDate;
+    if (filterNext > scanEnd) scanEnd = filterNext;
+  }
+
   const pracIds = S.pracId === 'all'
     ? calState.fcPractitioners.map(p => p.id)
     : (S.pracId ? [S.pracId] : []);
@@ -183,7 +194,7 @@ function soFindSlots() {
   let totalDayCount = 0;
   let scheduleConflict = false;
 
-  for (let d = new Date(viewStart); d < viewEnd; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(scanStart); d < scanEnd; d.setDate(d.getDate() + 1)) {
     const dateStr = localDate(d);
     const jsDay = d.getDay();
     if (dateStr < todayStr) continue;
