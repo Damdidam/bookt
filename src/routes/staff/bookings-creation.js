@@ -59,6 +59,12 @@ router.post('/manual', async (req, res, next) => {
       return res.status(400).json({ error: `Mode invalide. Valeurs : ${VALID_MODES.join(', ')}` });
     }
 
+    // Reject bookings that start too far in the past (2h tolerance for walk-ins / late entries)
+    const startMs = new Date(start_at).getTime();
+    if (startMs < Date.now() - 2 * 3600000) {
+      return res.status(400).json({ error: 'Impossible de créer un rendez-vous aussi loin dans le passé' });
+    }
+
     // Validate text field lengths
     if (comment && comment.length > 5000) {
       return res.status(400).json({ error: 'Commentaire trop long (max 5000 caractères)' });

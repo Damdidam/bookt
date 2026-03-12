@@ -100,6 +100,10 @@ router.patch('/:id/move', async (req, res, next) => {
     if (new Date(start_at) >= new Date(end_at)) {
       return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
     }
+    // Reject moves too far in the past (2h tolerance)
+    if (new Date(start_at).getTime() < Date.now() - 2 * 3600000) {
+      return res.status(400).json({ error: 'Impossible de déplacer un rendez-vous aussi loin dans le passé' });
+    }
 
     // CRT-8: Validate practitioner_id belongs to this business and is active
     if (practitioner_id) {

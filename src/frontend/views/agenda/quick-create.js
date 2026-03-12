@@ -717,6 +717,11 @@ async function calCreateBooking() {
 
     const start_at = toBrusselsISO(date, time);
 
+    // Reject bookings too far in the past (>2h tolerance)
+    if (new Date(start_at).getTime() < Date.now() - 2 * 3600000) {
+      gToast('Impossible de créer un RDV aussi loin dans le passé', 'error'); return;
+    }
+
     const clientEmail = document.getElementById('qcClientEmail')?.value.trim() || '';
     const clientPhone = document.getElementById('qcClientPhone')?.value.trim() || '';
 
