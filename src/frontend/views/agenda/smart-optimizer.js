@@ -45,6 +45,8 @@ const S = {
   holidays: new Set(),   // Set of 'YYYY-MM-DD' strings (jours fériés)
   calYear: null,          // mini-calendar display year
   calMonth: null,         // mini-calendar display month (0-indexed)
+  timePref: 'all',        // 'all' | 'matin' | 'apresmidi' | 'heure'
+  timeFrom: 600,          // minutes (600 = 10:00), used when timePref === 'heure'
 };
 
 function soIsActive() { return S.active; }
@@ -63,6 +65,11 @@ function fmtMin(min) {
 }
 function pad2(n) { return String(n).padStart(2, '0'); }
 function timeStr(totalMin) { return pad2(Math.floor(totalMin / 60)) + ':' + pad2(totalMin % 60); }
+function soGetStep() {
+  const sd = calState.fcCal?.getOption('slotDuration') || '00:15:00';
+  const [h, m] = sd.split(':').map(Number);
+  return (h * 60 + m) || 15;
+}
 function dayLabel(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   return DAY_NAMES_SHORT[d.getDay()] + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1);
@@ -275,6 +282,18 @@ function soFindSlots() {
         if (workWindows.length === 0) continue;
       }
 
+      // Apply time preference filter
+      if (S.timePref === 'matin') {
+        workWindows = workWindows.map(w => ({ start: w.start, end: Math.min(w.end, 780) })).filter(w => w.start < w.end);
+        if (workWindows.length === 0) continue;
+      } else if (S.timePref === 'apresmidi') {
+        workWindows = workWindows.map(w => ({ start: Math.max(w.start, 780), end: w.end })).filter(w => w.start < w.end);
+        if (workWindows.length === 0) continue;
+      } else if (S.timePref === 'heure') {
+        workWindows = workWindows.map(w => ({ start: Math.max(w.start, S.timeFrom), end: w.end })).filter(w => w.start < w.end);
+        if (workWindows.length === 0) continue;
+      }
+
       const dayStartDt = new Date(dateStr + 'T00:00:00');
       const dayEndDt = new Date(dateStr + 'T23:59:59');
       const events = allCalEvents.filter(ev => {
@@ -287,7 +306,8 @@ function soFindSlots() {
       }).sort((a, b) => a.start - b.start);
 
       const minStart = dateStr === todayStr ? nowMin : 0;
-      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', minStart);
+      const step = soGetStep();
+      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', minStart, step);
       allResults.push(...daySlots);
     }
   }
@@ -299,13 +319,12 @@ function soFindSlots() {
   });
 
   const slots = Object.values(byKey)
-    .sort((a, b) => b.score - a.score || a.dateStr.localeCompare(b.dateStr) || a.start - b.start)
-    .slice(0, 10);
+    .sort((a, b) => a.dateStr.localeCompare(b.dateStr) || a.start - b.start || b.score - a.score);
 
   return { slots, scheduleConflict, skippedDayCount, totalDayCount };
 }
 
-function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracName, minStartMin) {
+function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracName, minStartMin, step) {
   const occupied = events.map(ev => {
     const s = ev.start.getHours() * 60 + ev.start.getMinutes();
     const e = ev.end.getHours() * 60 + ev.end.getMinutes();
@@ -355,7 +374,6 @@ function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, prac
   });
 
   const results = [];
-  const step = 5;
   const dl = dayLabel(dateStr);
 
   poseWindows.forEach(pw => {
@@ -367,7 +385,6 @@ function _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, prac
         type: 'pose', label: 'Temps de pose', icon: ICO.pose,
         pracId, pracName, dateStr, dayLabel: dl, poseTime: totalPoseTime,
       });
-      if (results.length > 20) break;
     }
   });
 
@@ -456,6 +473,9 @@ function soRenderLeft() {
 
   // Day filter (mini calendar)
   html += soRenderDayFilterHTML();
+
+  // Time preference
+  html += soRenderTimePrefHTML();
 
   html += `<div class="so-sep"></div>`;
 
@@ -558,6 +578,29 @@ function soRenderDayFilterHTML() {
   const resetActive = S.dateFilter === 'all' ? ' so-cal-reset--active' : '';
   html += `<button class="so-cal-reset${resetActive}" onclick="soCalReset()">Tous les jours</button>`;
   html += '</div></div>';
+  return html;
+}
+
+function soRenderTimePrefHTML() {
+  const pills = [
+    { id: 'all', label: 'Journée' },
+    { id: 'matin', label: 'Matin' },
+    { id: 'apresmidi', label: 'Après-midi' },
+    { id: 'heure', label: 'Heure' },
+  ];
+  let html = '<div class="so-field"><label class="so-label">Préférence horaire</label>';
+  html += '<div class="so-pills">';
+  pills.forEach(p => {
+    const active = S.timePref === p.id ? ' active' : '';
+    html += `<button class="so-pill${active}" onclick="soSetTimePref('${p.id}')">${p.label}</button>`;
+  });
+  html += '</div>';
+  const showTime = S.timePref === 'heure' ? '' : ' style="display:none"';
+  const timeVal = timeStr(S.timeFrom);
+  html += `<div class="so-time-input"${showTime}><label class="so-label" style="margin-top:6px">À partir de</label>`;
+  html += `<input type="time" class="so-select" id="soTimeFrom" value="${timeVal}" onchange="soTimeFromChanged()">`;
+  html += '</div>';
+  html += '</div>';
   return html;
 }
 
@@ -682,6 +725,21 @@ function soCalNext() {
   S.calMonth++;
   if (S.calMonth > 11) { S.calMonth = 0; S.calYear++; }
   soRender();
+}
+
+function soSetTimePref(pref) {
+  S.timePref = pref;
+  if (pref === 'heure') {
+    const inp = document.getElementById('soTimeFrom');
+    if (inp) { const [h, m] = inp.value.split(':').map(Number); S.timeFrom = h * 60 + (m || 0); }
+  }
+  soRender();
+}
+
+function soTimeFromChanged() {
+  const inp = document.getElementById('soTimeFrom');
+  if (inp) { const [h, m] = inp.value.split(':').map(Number); S.timeFrom = h * 60 + (m || 0); }
+  soRenderRight();
 }
 
 // Targeted dropdown updates (avoid full re-render to preserve selection state)
@@ -894,6 +952,8 @@ async function soActivate() {
   S.dateFilter = 'all';
   S.calYear = null;
   S.calMonth = null;
+  S.timePref = 'all';
+  S.timeFrom = 600;
   S.pracId = calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
     : 'all';
@@ -913,6 +973,8 @@ function soDeactivate() {
   S.holidays = new Set();
   S.calYear = null;
   S.calMonth = null;
+  S.timePref = 'all';
+  S.timeFrom = 600;
   document.getElementById('soToggleBtn')?.classList.remove('active');
   document.getElementById('soOverlay')?.remove();
 }
@@ -927,6 +989,6 @@ async function soOnDatesSet() {
    12. BRIDGE + EXPORTS
    ═══════════════════════════════════════════════════════════ */
 
-bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCalPrev, soCalNext, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions, soOnDatesSet });
+bridge({ soToggleMode, soDeactivate, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCalPrev, soCalNext, soSetTimePref, soTimeFromChanged, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions, soOnDatesSet });
 
 export { soIsActive, soToggleMode, soDeactivate, soOnDatesSet };
