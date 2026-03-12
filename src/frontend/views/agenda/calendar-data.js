@@ -120,7 +120,7 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       id: b.id, resourceId: String(b.practitioner_id),
       title: b.client_name || 'Sans nom',
       start: b.start_at, end: b.end_at,
-      backgroundColor: fcHexAlpha(accent, 0.1),
+      backgroundColor: fcHexAlpha(accent, 0.15),
       borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
       editable: !frozen && !b.locked && !calState.fcLocked,
       durationEditable: !frozen && !b.locked && !calState.fcLocked,
@@ -144,7 +144,7 @@ export function buildGroupEvents(grouped) {
       id: 'group_' + gid, resourceId: String(first.practitioner_id),
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
-      backgroundColor: fcHexAlpha(accent, 0.1), borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
+      backgroundColor: fcHexAlpha(accent, 0.15), borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
       editable: !anyFrozen && !anyLocked && !calState.fcLocked, durationEditable: false,
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
@@ -173,7 +173,7 @@ export function buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap) {
       id: 'task_' + t.id, resourceId: String(t.practitioner_id),
       title: t.title,
       start: t.start_at, end: t.end_at,
-      backgroundColor: fcHexAlpha(accent, 0.08),
+      backgroundColor: fcHexAlpha(accent, 0.12),
       borderColor: accent, textColor: fcDarkenHex(accent, 0.7),
       editable: !frozen && !calState.fcLocked, durationEditable: !frozen && !calState.fcLocked,
       extendedProps: props
