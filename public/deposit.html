@@ -265,10 +265,10 @@ async function startPayment() {
   }
 }
 
-// Handle ?paid=1 success redirect — poll until status changes
+// Handle ?paid=1 success redirect — verify with Stripe then show confirmed
 if (new URLSearchParams(window.location.search).get('paid') === '1') {
-  (async function pollPaid() {
-    // Show immediate success feedback while webhook processes
+  (async function verifyAndShow() {
+    // Show immediate success feedback
     const card = document.getElementById('cardContent');
     card.innerHTML = `<div style="padding:60px 28px;text-align:center">
       <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
@@ -277,9 +277,15 @@ if (new URLSearchParams(window.location.search).get('paid') === '1') {
       <h2 style="font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px">Paiement reçu !</h2>
       <p style="font-size:.88rem;color:var(--text-3)">Votre acompte a bien été enregistré.<br>Votre rendez-vous est confirmé.</p>
       <div class="spinner" style="margin:20px auto 8px;border-top-color:var(--green)"></div>
-      <p style="font-size:.78rem;color:var(--text-4)">Chargement des détails…</p>
+      <p style="font-size:.78rem;color:var(--text-4)">Vérification en cours…</p>
     </div>`;
-    // Poll a few times then reload with full data
+
+    // 1. Call verify endpoint to confirm payment with Stripe directly
+    try {
+      await fetch(`/api/public/deposit/${token}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    } catch (e) { /* verify is best-effort */ }
+
+    // 2. Poll booking status (should be updated now, or by webhook)
     let attempts = 0;
     const interval = setInterval(async () => {
       attempts++;
@@ -295,7 +301,7 @@ if (new URLSearchParams(window.location.search).get('paid') === '1') {
         }
       } catch (e) { /* retry */ }
       if (attempts >= 10) { clearInterval(interval); window.location.href = `/deposit/${token}`; }
-    }, 2000);
+    }, 1500);
   })();
 }
 

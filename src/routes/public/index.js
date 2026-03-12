@@ -1529,18 +1529,98 @@ router.post('/deposit/:token/checkout', async (req, res, next) => {
       expires_at: Math.floor(Date.now() / 1000) + 1800 // 30 min from now
     });
 
-    // 6. Store payment intent ID (available after session creation)
-    if (session.payment_intent) {
-      await query(
-        `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,
-        [session.payment_intent, bk.id]
-      );
-    }
+    // 6. Store checkout session ID (payment_intent is null at creation for Checkout sessions)
+    // We store session.id (cs_...) so the verify endpoint can check payment status with Stripe
+    await query(
+      `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,
+      [session.id, bk.id]
+    );
 
     res.json({ url: session.url, session_id: session.id });
   } catch (err) {
     console.error('[DEPOSIT CHECKOUT] Error:', err);
     next(err);
+  }
+});
+
+// ============================================================
+// POST /api/public/deposit/:token/verify
+// Verify payment status directly with Stripe (fallback when webhook delayed/missing)
+// ============================================================
+router.post('/deposit/:token/verify', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_status, b.deposit_payment_intent_id,
+              b.group_id
+       FROM bookings b
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+    const bk = result.rows[0];
+
+    // Already paid or not pending
+    if (bk.deposit_status === 'paid') return res.json({ status: 'paid', updated: false });
+    if (bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
+      return res.json({ status: bk.deposit_status, updated: false });
+    }
+
+    // Need a stored checkout session ID (cs_...) to verify
+    const csId = bk.deposit_payment_intent_id;
+    if (!csId || !csId.startsWith('cs_')) {
+      return res.json({ status: 'pending', updated: false, reason: 'no_session' });
+    }
+
+    // Check with Stripe
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.json({ status: 'pending', updated: false, reason: 'stripe_not_configured' });
+    const stripe = require('stripe')(key);
+
+    const session = await stripe.checkout.sessions.retrieve(csId);
+    if (session.payment_status !== 'paid') {
+      return res.json({ status: 'pending', updated: false, payment_status: session.payment_status });
+    }
+
+    // Payment confirmed by Stripe! Update booking
+    const piId = session.payment_intent || null;
+    console.log(`[DEPOSIT VERIFY] Payment confirmed for booking ${bk.id} (PI: ${piId}, CS: ${csId})`);
+
+    const upd = await query(
+      `UPDATE bookings SET
+        status = 'confirmed',
+        deposit_status = 'paid',
+        deposit_paid_at = NOW(),
+        deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
+        deposit_deadline = NULL
+       WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
+       RETURNING id`,
+      [piId, bk.id, bk.business_id]
+    );
+
+    if (upd.rows.length > 0) {
+      // Propagate to group siblings
+      if (bk.group_id) {
+        await query(
+          `UPDATE bookings SET status = 'confirmed'
+           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'`,
+          [bk.group_id, bk.business_id, bk.id]
+        );
+      }
+
+      // SSE broadcast
+      try {
+        const { broadcast } = require('../../services/sse');
+        broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id });
+      } catch (e) { /* SSE optional */ }
+    }
+
+    res.json({ status: 'paid', updated: true });
+  } catch (err) {
+    console.error('[DEPOSIT VERIFY] Error:', err.message);
+    // Don't fail the page — just return pending
+    res.json({ status: 'pending', updated: false, reason: 'verify_error' });
   }
 });
 
