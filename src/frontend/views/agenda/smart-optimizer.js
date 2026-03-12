@@ -602,15 +602,19 @@ function soRenderTimePrefHTML() {
 
 function soSelectedServicesHTML() {
   if (S.selectedServices.length === 0) return '';
-  let html = '';
+  let html = '<label class="so-label">Prestations sélectionnées</label>';
   S.selectedServices.forEach((svc, idx) => {
     const poseLabel = svc.processing_time > 0 ? ` <span class="so-svc-pose">(+${svc.processing_time}min pose)</span>` : '';
+    const priceLabel = svc.price_cents > 0 ? `<span class="so-svc-price">${(svc.price_cents / 100).toFixed(2)}\u20ac</span>` : '';
     const schedLabel = soGetScheduleLabel(svc.id);
     const schedTag = schedLabel ? ` <span class="so-svc-sched">${schedLabel}</span>` : '';
     html += `<div class="so-svc-card">
       <span class="so-svc-dot" style="background:${svc.color}"></span>
-      <span class="so-svc-name">${esc(svc.name)}</span>
-      <span class="so-svc-dur">${svc.duration_min}min${poseLabel}${schedTag}</span>
+      <div class="so-svc-info">
+        <span class="so-svc-name">${esc(svc.name)}</span>
+        <span class="so-svc-dur">${svc.duration_min}min${poseLabel}${schedTag}</span>
+      </div>
+      ${priceLabel}
       <button class="so-svc-rm" onclick="soRemoveService(${idx})" title="Retirer">${ICO.remove}</button>
     </div>`;
   });
@@ -621,8 +625,10 @@ function soTotalHTML() {
   const dur = S.selectedServices.reduce((s, svc) => s + svc.duration_min, 0);
   if (dur === 0) return '';
   const poseT = S.selectedServices.reduce((s, svc) => s + (svc.processing_time || 0), 0);
-  let html = `Dur\u00e9e totale : <strong>${fmtMin(dur)}</strong>`;
-  if (poseT > 0) html += ` <span class="so-svc-pose">(dont ${fmtMin(poseT)} de pose)</span>`;
+  const totalCents = S.selectedServices.reduce((s, svc) => s + (svc.price_cents || 0), 0);
+  let html = `<div class="so-total-row"><span>Durée totale</span><strong>${fmtMin(dur)}</strong></div>`;
+  if (poseT > 0) html += `<div class="so-total-row"><span>Dont pose</span><span class="so-svc-pose">${fmtMin(poseT)}</span></div>`;
+  if (totalCents > 0) html += `<div class="so-total-row so-total-price"><span>Total</span><strong>${(totalCents / 100).toFixed(2)}\u20ac</strong></div>`;
   return html;
 }
 
@@ -995,10 +1001,16 @@ async function soOnDatesSet() {
   soRender();
 }
 
+// Light refresh: only re-render slots (right panel) without touching left panel
+function soRefreshSlots() {
+  if (!S.active) return;
+  soRenderRight();
+}
+
 /* ═══════════════════════════════════════════════════════════
    12. BRIDGE + EXPORTS
    ═══════════════════════════════════════════════════════════ */
 
 bridge({ soToggleMode, soDeactivate, soClearAll, soAddService, soRemoveService, soPracChanged, soCalDayClick, soCalReset, soCalPrev, soCalNext, soSetTimePref, soTimeFromChanged, soCatChanged, soSvcChanged, soVarChanged, soFillSlot, soRenderSuggestions, soOnDatesSet });
 
-export { soIsActive, soToggleMode, soDeactivate, soOnDatesSet };
+export { soIsActive, soToggleMode, soDeactivate, soOnDatesSet, soRefreshSlots };

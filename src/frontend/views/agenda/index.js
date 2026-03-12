@@ -17,7 +17,7 @@ import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
 import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
 import { gaOnDatesSet, gaOnFilterChanged, gaDeactivate } from './gap-analyzer.js';
-import { soIsActive, soDeactivate, soOnDatesSet } from './smart-optimizer.js';
+import { soIsActive, soDeactivate, soOnDatesSet, soRefreshSlots } from './smart-optimizer.js';
 import { buildEventsCallback } from './calendar-data.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
@@ -351,7 +351,7 @@ async function loadAgenda() {
   calState.fcCal.on('eventsSet', function () {
     if (!soIsActive()) return;
     clearTimeout(_soEventsDebounce);
-    _soEventsDebounce = setTimeout(() => soOnDatesSet(), 300);
+    _soEventsDebounce = setTimeout(() => soRefreshSlots(), 300);
   });
 
   // Touch devices: setup swipe navigation
