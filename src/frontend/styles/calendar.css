@@ -65,7 +65,7 @@
 /* Sticky day headers — below toolbar (height measured by JS → --toolbar-h) */
 .content.agenda-active .fc .fc-header-toolbar{display:none!important}
 .content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:var(--toolbar-h,82px);z-index:28}
-.content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:var(--toolbar-h,82px)!important;z-index:28;background:linear-gradient(180deg,#F0F7F7 0%,#F8FAFB 100%)}
+.content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:var(--toolbar-h,82px)!important;z-index:28;background:linear-gradient(180deg,#D8E6E6 0%,#E6EEEE 100%)}
 .content.agenda-active .fc .fc-col-header{background:transparent}
 /* ===== RESOURCE TIMELINE VIEW ===== */
 .fc .fc-resource-timeline .fc-resource-area{width:140px}
@@ -100,12 +100,12 @@
 .fc .fc-scrollgrid{border:1px solid #DFE3E8;border-radius:12px;overflow:clip;background:var(--white)}
 .fc td,.fc th{border-color:#DFE3E8}
 /* Column headers — gradient background with stronger text */
-.fc .fc-col-header{background:linear-gradient(180deg,#F0F7F7 0%,#F8FAFB 100%);border-bottom:2px solid #D4E4E5}
-.fc .fc-col-header-cell{font-size:.78rem;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;padding:12px 0;border-right:1px solid #E4ECEC}
+.fc .fc-col-header{background:linear-gradient(180deg,#D8E6E6 0%,#E6EEEE 100%);border-bottom:2px solid #C2D4D5}
+.fc .fc-col-header-cell{font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;padding:12px 0;border-right:1px solid #CBDADA}
 .fc .fc-col-header-cell:last-child{border-right:none}
 .fc .fc-col-header-cell .fc-col-header-cell-cushion{text-decoration:none;color:inherit;display:flex;flex-direction:column;align-items:center;gap:2px}
-.fc .fc-col-header-cell.fc-day-today{color:var(--primary);background:linear-gradient(180deg,#E4F5F4 0%,#EDF8F7 100%)}
-.fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion{position:relative}
+.fc .fc-col-header-cell.fc-day-today{color:#fff;background:linear-gradient(135deg,#0D7377 0%,#16998D 100%);text-shadow:0 1px 2px rgba(0,0,0,.15)}
+.fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion{position:relative;color:#fff}
 .fc .fc-day-today{background:#F6FCFC!important}
 .fc .fc-timegrid-slot{height:var(--fc-slot-h,26px)}
 .fc .fc-timegrid-slot-label-cushion{font-size:.7rem;color:#A8B3BF;font-weight:500}
