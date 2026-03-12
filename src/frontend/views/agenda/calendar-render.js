@@ -6,6 +6,7 @@
  */
 import { calState } from '../../state.js';
 import { esc, safeId } from '../../utils/dom.js';
+import { fcDarkenHex } from './calendar-init.js';
 
 const DEFAULT_ACCENT = '#0D7377';
 const ST_COLORS = { confirmed:'#15803D', pending:'#EAB308', modified_pending:'#D97706', pending_deposit:'#D97706', completed:'#374151', no_show:'#DC2626', cancelled:'#DC2626' };
@@ -34,17 +35,18 @@ function buildEventContent() {
     if (p._isFeaturedSlot) return { html: '' };
     const accent = p._accent || DEFAULT_ACCENT;
     const safeAccent = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : DEFAULT_ACCENT;
+    const darkAccent = fcDarkenHex(safeAccent, 0.7);
     const isMonth = arg.view.type === 'dayGridMonth';
 
     // -- Internal task --
     if (p._isTask) {
       if (isMonth) {
         const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '';
-        return { html: `<span class="ev-month-pill ev-task-pill" style="color:${safeAccent}">${t} ${gi(IC.wrench)} <strong>${esc(p.title)}</strong></span>` };
+        return { html: `<span class="ev-month-pill ev-task-pill" style="color:${darkAccent}">${t} ${gi(IC.wrench)} <strong>${esc(p.title)}</strong></span>` };
       }
       const noteLine = p.note ? '<span class="ev-service">' + esc(p.note.length > 40 ? p.note.slice(0, 37) + '…' : p.note) + '</span>' : '';
       const stDot = p.status === 'completed' ? '<span class="ev-badge ev-badge-st" style="background:#6B7280"></span>' : '';
-      return { html: `<div class="ev-inner ev-task-inner" style="color:${safeAccent}"><span class="ev-client">${gi(IC.wrench)} ${esc(p.title)}</span>${noteLine}<div class="ev-badges">${stDot}</div></div>` };
+      return { html: `<div class="ev-inner ev-task-inner" style="color:${darkAccent}"><span class="ev-client">${gi(IC.wrench)} ${esc(p.title)}</span>${noteLine}<div class="ev-badges">${stDot}</div></div>` };
     }
 
     // -- Month view (same for singles and groups) --
@@ -52,7 +54,7 @@ function buildEventContent() {
       const t = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : '';
       const name = (p.client_name || arg.event.title || '').split(' ')[0];
       const extra = p._isGroup ? ' ' + gi(IC.chain) : (!p.service_name ? ' ' + gi(IC.sparkle) : '');
-      return { html: `<span class="ev-month-pill" style="color:${safeAccent}">${t} <strong>${esc(name)}</strong>${extra}</span>` };
+      return { html: `<span class="ev-month-pill" style="color:${darkAccent}">${t} <strong>${esc(name)}</strong>${extra}</span>` };
     }
 
     // -- Week/Day: group container --
@@ -78,7 +80,7 @@ function buildEventContent() {
       const grpNote = members.some(m => m.internal_note) ? '<span class="ev-badge-note" title="Note interne">' + IC.note + '</span>' : '';
       const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
-      return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
+      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.58rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
     }
 
     // -- Week/Day: single event --
@@ -91,7 +93,7 @@ function buildEventContent() {
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
     const freeTag = !p.service_name ? '<span style="font-size:.58rem;opacity:.6;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
-    return { html: `<div class="ev-inner" style="color:${safeAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${promoBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
+    return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${promoBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
   };
 }
 

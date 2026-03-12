@@ -29,6 +29,18 @@ function fcHexAlpha(hex, alpha) {
 }
 
 /**
+ * Darken a hex color by a factor (0-1). factor=0.7 → 30% darker.
+ */
+function fcDarkenHex(hex, factor) {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  const r = Math.round(parseInt(hex.substring(0, 2), 16) * factor);
+  const g = Math.round(parseInt(hex.substring(2, 4), 16) * factor);
+  const b = Math.round(parseInt(hex.substring(4, 6), 16) * factor);
+  return '#' + [r, g, b].map(c => Math.min(255, c).toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * Convert minutes to HH:MM:00 slot duration string.
  */
 function fcSlotDuration(min) {
@@ -168,4 +180,4 @@ function initCalendar(initView, initSlotDur) {
   atUpdateTitle(); // initial
 }
 
-export { fcSlotDuration, fcHexAlpha, fcRefresh, initCalendar };
+export { fcSlotDuration, fcHexAlpha, fcDarkenHex, fcRefresh, initCalendar };
