@@ -1526,7 +1526,7 @@ router.post('/deposit/:token/checkout', async (req, res, next) => {
       success_url: `${baseUrl}/deposit/${token}?paid=1`,
       cancel_url: `${baseUrl}/deposit/${token}`,
       locale: 'fr',
-      expires_after: 1800 // 30 min
+      expires_at: Math.floor(Date.now() / 1000) + 1800 // 30 min from now
     });
 
     // 6. Store payment intent ID (available after session creation)
