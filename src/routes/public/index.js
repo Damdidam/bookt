@@ -936,8 +936,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const dc = depCheck.rows[0];
             if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
               const svcPriceResult = await client.query(
-                `SELECT COALESCE(SUM(s.price_cents), 0) AS total_price
-                 FROM bookings b JOIN services s ON s.id = b.service_id
+                `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
+                 FROM bookings b
+                 JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                  WHERE b.id = ANY($1) AND b.business_id = $2`,
                 [bookings.map(b => b.id), businessId]
               );
