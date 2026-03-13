@@ -136,6 +136,8 @@ async function loadServices(){
         if(desc) h+=`<div class="svc-cat-comment">${esc(desc)}</div>`;
         h+=`</div>`;
         h+=`<div class="svc-cat-actions">`;
+        const catHasActive=groupSvcs.some(s=>s.is_active!==false);
+        h+=`<label class="svc-toggle" title="${catHasActive?'Désactiver la catégorie':'Activer la catégorie'}" onclick="event.stopPropagation()"><input type="checkbox"${catHasActive?' checked':''} onchange="toggleCategory('${safeCat}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
         if(cat!=='Autres') h+=`<button class="svc-icon-btn" onclick="event.stopPropagation();openCategoryModal('${safeCat}')" title="Modifier">${PENCIL_SVG}</button>`;
         if(cat!=='Autres') h+=`<button class="svc-icon-btn danger" onclick="event.stopPropagation();svcDeleteCategory('${safeCat}')" title="Supprimer">${TRASH_SVG}</button>`;
         h+=`</div>`;
@@ -193,9 +195,9 @@ function renderServiceRow(s,sortIdx){
   if(vars.length>0) h+=renderVariantList(vars,s.color||'var(--primary)',s.id);
   h+=`</div>`; // end info
   h+=`<div class="svc-row-actions">`;
+  h+=`<label class="svc-toggle" title="${s.is_active!==false?'Désactiver':'Activer'}" onclick="event.stopPropagation()"><input type="checkbox"${s.is_active!==false?' checked':''} onchange="toggleService('${s.id}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
   h+=`<button class="svc-icon-btn" onclick="openServiceModal('${s.id}')" title="Modifier">${PENCIL_SVG}</button>`;
-  if(s.is_active!==false) h+=`<button class="svc-icon-btn danger" onclick="if(confirm('Supprimer cette prestation ?'))deleteService('${s.id}')" title="Supprimer">${TRASH_SVG}</button>`;
-  else h+=`<button class="svc-icon-btn" onclick="if(confirm('Réactiver ?'))reactivateService('${s.id}')" title="Réactiver" style="color:#2E7D32;border-color:#C8E6C9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
+  h+=`<button class="svc-icon-btn danger" onclick="if(confirm('Supprimer cette prestation ?'))deleteService('${s.id}')" title="Supprimer">${TRASH_SVG}</button>`;
   h+=`</div>`;
   h+=`</div>`; // end row
   return h;
@@ -838,14 +840,22 @@ async function saveService(id){
 
 // ===== SERVICE CRUD =====
 
+const BOOKING_WARNING='Ces prestations sont actuellement utilisées dans des RDV à venir. La désactivation empêche les nouvelles réservations mais les RDV existants sont maintenus.';
 async function deactivateService(id){
-  try{const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' désactivée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  try{const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);const d=await r.json();GendaUI.toast(categoryLabels.service+' désactivée','success');if(d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent cette prestation. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function reactivateService(id){
   try{const r=await fetch(`/api/services/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true})});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' réactivée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function deleteService(id){
   try{const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' supprimée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+async function toggleService(id,active){
+  if(active) return reactivateService(id);
+  return deactivateService(id);
+}
+async function toggleCategory(cat,active){
+  try{const r=await fetch('/api/services/category-toggle',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({category:cat,is_active:active})});if(!r.ok)throw new Error((await r.json()).error);const d=await r.json();GendaUI.toast(`${d.toggled} prestation${d.toggled>1?'s':''} ${active?'activée':'désactivée'}${d.toggled>1?'s':''}`,'success');if(!active&&d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent ces prestations. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 // ===== VARIANT ROW (in modal) =====
@@ -1001,6 +1011,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility });
 
-export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };
+export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart };

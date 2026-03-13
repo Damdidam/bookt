@@ -331,7 +331,42 @@ router.patch('/:id/deactivate', requireRole('owner', 'manager'), async (req, res
        WHERE id = $1 AND business_id = $2`,
       [req.params.id, req.businessId]
     );
-    res.json({ deactivated: true });
+    // Count future active bookings using this service
+    const upcoming = await queryWithRLS(req.businessId,
+      `SELECT COUNT(*)::int AS cnt FROM bookings
+       WHERE service_id = $1 AND business_id = $2
+         AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+      [req.params.id, req.businessId]
+    );
+    res.json({ deactivated: true, active_bookings: upcoming.rows[0].cnt });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/services/category-toggle — bulk activate/deactivate all services in a category
+router.patch('/category-toggle', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const { category, is_active } = req.body;
+    if (!category || typeof is_active !== 'boolean') return res.status(400).json({ error: 'category and is_active required' });
+    const result = await queryWithRLS(req.businessId,
+      `UPDATE services SET is_active = $1, updated_at = NOW()
+       WHERE business_id = $2 AND category = $3
+       RETURNING id`,
+      [is_active, req.businessId, category]
+    );
+    let active_bookings = 0;
+    if (!is_active && result.rows.length > 0) {
+      const ids = result.rows.map(r => r.id);
+      const upcoming = await queryWithRLS(req.businessId,
+        `SELECT COUNT(*)::int AS cnt FROM bookings
+         WHERE service_id = ANY($1) AND business_id = $2
+           AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+        [ids, req.businessId]
+      );
+      active_bookings = upcoming.rows[0].cnt;
+    }
+    res.json({ toggled: result.rows.length, is_active, active_bookings });
   } catch (err) {
     next(err);
   }

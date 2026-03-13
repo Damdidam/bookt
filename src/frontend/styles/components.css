@@ -168,6 +168,12 @@
 .svc-icon-btn.danger{color:#C62828;border-color:#FFCDD2}
 .svc-icon-btn.danger:hover{background:#FFF5F5}
 .svc-icon-btn svg{width:14px;height:14px}
+.svc-toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;cursor:pointer;vertical-align:middle}
+.svc-toggle input{opacity:0;width:0;height:0;position:absolute}
+.svc-toggle-slider{position:absolute;inset:0;background:#ccc;border-radius:20px;transition:.2s}
+.svc-toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.svc-toggle input:checked+.svc-toggle-slider{background:var(--primary)}
+.svc-toggle input:checked+.svc-toggle-slider:before{transform:translateX(16px)}
 
 /* Template picker (keep existing) */
 .svc-tpl-picker{z-index:1000;min-width:280px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg,0 4px 24px rgba(0,0,0,.15));overflow:hidden}
