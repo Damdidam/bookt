@@ -635,14 +635,14 @@ async function sendDepositPaidEmail({ booking, business }) {
     <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
 
   const html = buildEmailHTML({
     title: 'Acompte confirmé — Rendez-vous validé',
     preheader: `Votre acompte de ${amtStr}€ a été reçu. RDV confirmé le ${dateStr}`,
     bodyHTML,
-    ctaText: bookingUrl ? 'Gérer mon rendez-vous' : null,
-    ctaUrl: bookingUrl,
+    ctaText: manageUrl ? 'Gérer mon rendez-vous' : null,
+    ctaUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
