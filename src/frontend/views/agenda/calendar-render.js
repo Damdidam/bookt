@@ -77,7 +77,7 @@ function buildEventContent() {
       const grpSt = members.every(m => m.status === 'cancelled') ? 'cancelled' : members.every(m => m.status === 'no_show') ? 'no_show' : members.every(m => m.status === 'completed') ? 'completed' : (members[0].status || 'confirmed');
       const grpStC = ST_COLORS[grpSt] || ST_COLORS.confirmed;
       const grpPromo = members.some(m => m.discount_pct) ? '<span class="ev-badge-promo" title="Promo">' + IC.tag + '</span>' : '';
-      const grpHasNote = members.some(m => m.internal_note || m.notes_count > 0 || m.client_notes);
+      const grpHasNote = members.some(m => m.internal_note || m.notes_count > 0 || m.client_notes || m.comment_client);
       const grpNote = grpHasNote ? '<span class="ev-badge-note" title="Note">' + IC.note + '</span>' : '';
       const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
@@ -90,7 +90,7 @@ function buildEventContent() {
     const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
     const promoBadge = p.discount_pct ? '<span class="ev-badge-promo" title="Promo -' + p.discount_pct + '%">' + IC.tag + '</span>' : '';
     const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
-    const hasNote = p.internal_note || p.notes_count > 0 || p.client_notes;
+    const hasNote = p.internal_note || p.notes_count > 0 || p.client_notes || p.comment_client;
     const noteBadge = hasNote ? '<span class="ev-badge-note" title="Note">' + IC.note + '</span>' : '';
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
