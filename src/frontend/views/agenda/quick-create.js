@@ -164,8 +164,9 @@ function qcToggleFreestyle() {
     }
     qcUpdateFreeDuration();
     qcUpdateGradient('#0D7377');
+    qcCheckDepositSuggestion(); // Show deposit toggle in freestyle mode
   } else {
-    qcUpdateTotal();
+    qcUpdateTotal(); // calls qcCheckDepositSuggestion() internally
   }
   _qcUpdateDepositAmountRow();
 }
