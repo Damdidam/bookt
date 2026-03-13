@@ -40,6 +40,7 @@ function atView(view) {
     targetDate = new Date();
   }
   calState.fcCal.changeView(view, targetDate);
+  calState.fcCal.refetchEvents();
   document.querySelectorAll('.at-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
 }
 
