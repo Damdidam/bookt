@@ -953,9 +953,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 const deadline = new Date(startDate.getTime() - dlHours * 3600000);
                 if (deadline > new Date()) {
                   // Deposit amount on the first booking only
+                  // Clear confirmation_expires_at — deposit payment serves as confirmation
                   await client.query(
                     `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                      confirmation_expires_at = NULL
                      WHERE id = $3 AND business_id = $4`,
                     [depCents, deadline.toISOString(), bookings[0].id, businessId]
                   );
@@ -1030,8 +1032,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             };
             const groupSvcs = multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
 
-            if (multiNeedsConfirm) {
+            if (multiNeedsConfirm && multiBookings[0].status !== 'pending_deposit') {
               // Send confirmation REQUEST (client must click to confirm)
+              // Skip if deposit is active — deposit payment serves as confirmation
               const { sendBookingConfirmationRequest } = require('../../services/email');
               if (multiConfChannel === 'email' || multiConfChannel === 'both') {
                 await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: multiConfTimeout, groupServices: groupSvcs });
@@ -1044,7 +1047,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
                 } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
               }
-            } else {
+            } else if (!multiNeedsConfirm) {
               await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0], groupServices: groupSvcs });
             }
           }
@@ -1063,7 +1066,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           group_order: b.group_order
         })),
         group_id: groupId,
-        needs_confirmation: multiNeedsConfirm
+        needs_confirmation: multiNeedsConfirm && multiBookings[0].status !== 'pending_deposit'
       });
     }
 
@@ -1347,7 +1350,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             practitioner_name: pracRow.rows[0]?.display_name || '',
             comment: client_comment
           };
-          if (singleNeedsConfirm) {
+          if (singleNeedsConfirm && createdBooking.status !== 'pending_deposit') {
+            // Skip confirmation request if deposit is active — payment serves as confirmation
             const { sendBookingConfirmationRequest } = require('../../services/email');
             if (singleConfChannel === 'email' || singleConfChannel === 'both') {
               await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: singleConfTimeout });
@@ -1360,7 +1364,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
               } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
             }
-          } else {
+          } else if (!singleNeedsConfirm) {
             await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0] });
           }
         }
@@ -1374,7 +1378,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         discount_pct: createdBooking.discount_pct || null,
         cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${createdBooking.public_token}`
       },
-      needs_confirmation: singleNeedsConfirm
+      needs_confirmation: singleNeedsConfirm && createdBooking.status !== 'pending_deposit'
     });
   } catch (err) {
     if (err.type === 'conflict') return res.status(409).json({ error: err.message });

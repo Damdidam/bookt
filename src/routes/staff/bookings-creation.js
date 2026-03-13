@@ -177,7 +177,8 @@ router.post('/manual', async (req, res, next) => {
               if (deadline > new Date()) {
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    confirmation_expires_at = NULL
                    WHERE id = $3 AND business_id = $4`,
                   [depCents, deadline.toISOString(), booking.id, bid]
                 );
@@ -195,8 +196,9 @@ router.post('/manual', async (req, res, next) => {
       broadcast(bid, 'booking_update', { action: 'created' });
       calSyncPush(bid, bookings[0].id).catch(() => {});
 
-      // Send confirmation email only if confirmed (non-blocking)
-      if (bookingStatus === 'confirmed' && client_email && client_id) {
+      // Send confirmation email only if confirmed AND not pending deposit (non-blocking)
+      // When deposit is active, payment serves as confirmation — skip confirmation email
+      if (bookingStatus === 'confirmed' && bookings[0].status !== 'pending_deposit' && client_email && client_id) {
         (async () => {
           try {
             const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
@@ -445,7 +447,8 @@ router.post('/manual', async (req, res, next) => {
               // CRT-V10-7: Deposit amount on the first booking only
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                  confirmation_expires_at = NULL
                  WHERE id = $3 AND business_id = $4`,
                 [depCents, deadline.toISOString(), results[0].id, bid]
               );
@@ -475,8 +478,9 @@ router.post('/manual', async (req, res, next) => {
     broadcast(bid, 'booking_update', { action: 'created' });
     bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
 
-    // Send confirmation email only if confirmed (non-blocking)
-    if (bookingStatus === 'confirmed' && client_email && client_id) {
+    // Send confirmation email only if confirmed AND not pending deposit (non-blocking)
+    // When deposit is active, payment serves as confirmation — skip confirmation email
+    if (bookingStatus === 'confirmed' && bookings[0].status !== 'pending_deposit' && client_email && client_id) {
       (async () => {
         try {
           const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
