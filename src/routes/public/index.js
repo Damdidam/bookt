@@ -964,6 +964,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   bookings[0].status = 'pending_deposit';
                   bookings[0].deposit_required = true;
                   bookings[0].deposit_amount_cents = depCents;
+                  bookings[0].deposit_deadline = deadline.toISOString();
                   // Set pending_deposit status on all other group members (no deposit amount)
                   if (bookings.length > 1) {
                     const otherIds = bookings.slice(1).map(b => b.id);
@@ -1016,10 +1017,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
 
-      // Send email (non-blocking): confirmation request OR direct confirmation
+      // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
       (async () => {
         try {
-          const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
+          const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
           const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
           if (bizRow.rows[0]) {
             const lastBooking = multiBookings[multiBookings.length - 1];
@@ -1032,9 +1033,20 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             };
             const groupSvcs = multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
 
-            if (multiNeedsConfirm && multiBookings[0].status !== 'pending_deposit') {
+            if (multiBookings[0].status === 'pending_deposit') {
+              // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const depositUrl = `${baseUrl}/deposit/${multiBookings[0].public_token}`;
+              await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, multiBookings[0].id]);
+              const { sendDepositRequestEmail } = require('../../services/email');
+              const svcName = groupSvcs.map(s => s.name).join(' + ') || 'Rendez-vous';
+              await sendDepositRequestEmail({
+                booking: { ...emailBooking, service_name: svcName },
+                business: bizRow.rows[0],
+                depositUrl
+              });
+            } else if (multiNeedsConfirm) {
               // Send confirmation REQUEST (client must click to confirm)
-              // Skip if deposit is active — deposit payment serves as confirmation
               const { sendBookingConfirmationRequest } = require('../../services/email');
               if (multiConfChannel === 'email' || multiConfChannel === 'both') {
                 await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: multiConfTimeout, groupServices: groupSvcs });
@@ -1047,7 +1059,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
                 } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
               }
-            } else if (!multiNeedsConfirm) {
+            } else {
               await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0], groupServices: groupSvcs });
             }
           }
@@ -1331,10 +1343,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
 
-    // Send email (non-blocking): confirmation request OR direct confirmation
+    // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
     (async () => {
       try {
-        const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
+        const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
         const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
         if (bizRow.rows[0]) {
           // Fetch service name for email
@@ -1350,8 +1362,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             practitioner_name: pracRow.rows[0]?.display_name || '',
             comment: client_comment
           };
-          if (singleNeedsConfirm && createdBooking.status !== 'pending_deposit') {
-            // Skip confirmation request if deposit is active — payment serves as confirmation
+          if (createdBooking.status === 'pending_deposit') {
+            // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
+            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const depositUrl = `${baseUrl}/deposit/${createdBooking.public_token}`;
+            await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, createdBooking.id]);
+            const { sendDepositRequestEmail } = require('../../services/email');
+            await sendDepositRequestEmail({ booking: emailBooking, business: bizRow.rows[0], depositUrl });
+          } else if (singleNeedsConfirm) {
             const { sendBookingConfirmationRequest } = require('../../services/email');
             if (singleConfChannel === 'email' || singleConfChannel === 'both') {
               await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: singleConfTimeout });
@@ -1364,7 +1382,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
               } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
             }
-          } else if (!singleNeedsConfirm) {
+          } else {
             await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0] });
           }
         }

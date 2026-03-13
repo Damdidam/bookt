@@ -1463,8 +1463,13 @@ async function submitBooking(){
       +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
     document.getElementById('confirmDetails').innerHTML=confirmHtml;
 
-    // Update step 5 heading based on confirmation requirement
-    if(data.needs_confirmation){
+    // Update step 5 heading based on booking status
+    if(data.booking && data.booking.status === 'pending_deposit'){
+      document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+      document.querySelector('#step5 .confirm-box h3').textContent='Acompte requis';
+      document.querySelector('#step5 .confirm-box p').textContent='Un acompte est nécessaire pour confirmer votre rendez-vous. Consultez l\u2019email que nous venons de vous envoyer.';
+      document.getElementById('calButtons').style.display='none';
+    }else if(data.needs_confirmation){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='V\u00e9rifiez vos emails !';
       document.querySelector('#step5 .confirm-box p').textContent='Votre cr\u00e9neau est r\u00e9serv\u00e9. Confirmez votre RDV en cliquant sur le lien envoy\u00e9 par email/SMS.';
@@ -1476,7 +1481,7 @@ async function submitBooking(){
       document.getElementById('calButtons').style.display='';
     }
 
-    if(!data.needs_confirmation) buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
+    if(!data.needs_confirmation && (!data.booking || data.booking.status !== 'pending_deposit')) buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
     goToStep(5);
   }catch(err){
     showError(err.message);
