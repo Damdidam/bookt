@@ -552,6 +552,9 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, groupSer
   const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
     timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
   });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+    : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
   const deadlineStr = booking.deposit_deadline
     ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
@@ -587,7 +590,8 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, groupSer
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
-      <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>
+      <div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
       ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
     </div>
@@ -641,6 +645,9 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
     timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
   });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+    : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
 
   const color = safeColor(business.theme?.primary_color);
@@ -676,7 +683,8 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
       <div style="font-size:14px;color:#15803D">Votre rendez-vous est confirmé</div>
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
-      <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr}</div>
+      <div style="font-size:14px;color:#1A1816">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
@@ -719,6 +727,9 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
     timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
   });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+    : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
 
   const color = safeColor(business.theme?.primary_color);
@@ -748,7 +759,8 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Rendez-vous annul\u00e9</div>
-      <div style="font-size:14px;color:#3D3832">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:14px;color:#3D3832">${_ic('calendar-dk')} ${dateStr}</div>
+      <div style="font-size:14px;color:#3D3832">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
     </div>
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
@@ -787,6 +799,9 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
     timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
   });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+    : null;
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
@@ -811,7 +826,8 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a \u00e9t\u00e9 annul\u00e9.</p>
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
-      <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr}</div>
+      <div style="font-size:14px;color:#DC2626">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>

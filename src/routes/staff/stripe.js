@@ -271,7 +271,8 @@ async function handleStripeWebhook(req, res) {
               const bkData = await query(
                 `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
                         c.full_name AS client_name, c.email AS client_email,
-                        s.name AS service_name, s.duration_min,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         p.display_name AS practitioner_name,
                         biz.name AS business_name, biz.email AS business_email,
                         biz.address AS business_address, biz.theme, biz.slug,
@@ -279,6 +280,7 @@ async function handleStripeWebhook(req, res) {
                  FROM bookings b
                  LEFT JOIN clients c ON c.id = b.client_id
                  LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                  JOIN practitioners p ON p.id = b.practitioner_id
                  JOIN businesses biz ON biz.id = b.business_id
                  WHERE b.id = $1`,
@@ -290,9 +292,12 @@ async function handleStripeWebhook(req, res) {
                 let groupServices = null;
                 if (d.group_id) {
                   const grp = await query(
-                    `SELECT s.name, s.duration_min, s.price_cents
+                    `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                            COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
                      FROM bookings b
                      LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                      WHERE b.group_id = $1 AND b.business_id = $2
                      ORDER BY b.group_order, b.start_at`,
                     [d.group_id, businessId]
@@ -301,6 +306,7 @@ async function handleStripeWebhook(req, res) {
                     groupServices = grp.rows;
                   }
                 }
+                if (groupServices) d.end_at = groupServices[groupServices.length - 1].end_at;
                 const { sendDepositPaidEmail } = require('../../services/email');
                 await sendDepositPaidEmail({
                   booking: d,

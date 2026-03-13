@@ -70,10 +70,11 @@ router.get('/pre-rdv-docs', requireCronKey, async (req, res) => {
       const bookings = await query(
         `SELECT bk.id, bk.service_id, bk.client_id, bk.business_id, bk.start_at, bk.token,
                 c.full_name AS client_name, c.email AS client_email,
-                s.name AS service_name
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name
          FROM bookings bk
          JOIN clients c ON c.id = bk.client_id
          JOIN services s ON s.id = bk.service_id
+         LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
          WHERE bk.status = 'confirmed'
            AND DATE(bk.start_at AT TIME ZONE 'Europe/Brussels') = $1
            AND c.email IS NOT NULL AND c.email != ''

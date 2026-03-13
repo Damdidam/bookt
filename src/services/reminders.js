@@ -46,11 +46,13 @@ async function processReminders() {
 async function process24hReminders(stats) {
   const bookings = await query(`
     SELECT
-      bk.id, bk.start_at, bk.public_token, bk.appointment_mode,
+      bk.id, bk.start_at, bk.end_at, bk.public_token, bk.appointment_mode,
+      bk.group_id, bk.group_order,
       c.full_name AS client_name, c.email AS client_email,
       c.phone AS client_phone, c.consent_sms,
       p.display_name AS practitioner_name,
-      s.name AS service_name, s.duration_min,
+      CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
       b.id AS business_id, b.name AS business_name, b.slug,
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme
@@ -58,12 +60,14 @@ async function process24hReminders(stats) {
     JOIN clients c ON c.id = bk.client_id
     JOIN practitioners p ON p.id = bk.practitioner_id
     JOIN services s ON s.id = bk.service_id
+    LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
     JOIN businesses b ON b.id = bk.business_id
     WHERE bk.status = 'confirmed'
       AND bk.reminder_24h_sent_at IS NULL
       AND bk.start_at > NOW() + INTERVAL '23 hours'
       AND bk.start_at <= NOW() + INTERVAL '25 hours'
       AND b.is_active = true
+      AND (bk.group_id IS NULL OR bk.group_order = 0)
     ORDER BY bk.start_at
     LIMIT 200
   `);
@@ -92,6 +96,36 @@ async function process24hReminders(stats) {
       const manageUrl = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
       const primaryColor = bk.theme?.primary_color || '#0D7377';
 
+      // Fetch group services if multi-service booking
+      let groupServices = null;
+      let groupEndAt = null;
+      if (bk.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [bk.group_id, bk.business_id]
+        );
+        if (grp.rows.length > 1) {
+          groupServices = grp.rows;
+          groupEndAt = grp.rows[grp.rows.length - 1].end_at;
+        }
+      }
+
+      const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+      let serviceHTML;
+      if (isMulti) {
+        serviceHTML = groupServices.map(s => `<div style="padding:2px 0;font-weight:600">\u2022 ${escHtml(s.name)} (${s.duration_min} min)</div>`).join('');
+        const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+        const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
+        serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
+      } else {
+        serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min)</span>`;
+      }
+
       // EMAIL 24h
       if (reminderEmailEnabled && bk.client_email) {
         const html = buildEmailHTML({
@@ -104,7 +138,7 @@ async function process24hReminders(stats) {
             <p>Nous vous rappelons votre rendez-vous :</p>
             <table style="width:100%;border-collapse:collapse;margin:16px 0">
               <tr><td style="padding:8px 0;color:#7A7470;width:100px"> Date</td><td style="padding:8px 0;font-weight:600">${startLocal}</td></tr>
-              <tr><td style="padding:8px 0;color:#7A7470"> Prestation</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min)</td></tr>
+              <tr><td style="padding:8px 0;color:#7A7470">${isMulti ? ' Prestations' : ' Prestation'}</td><td style="padding:8px 0">${serviceHTML}</td></tr>
               <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.practitioner_name)}</td></tr>
               ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0">${escHtml(bk.business_address)}</td></tr>` : ''}
             </table>
@@ -156,10 +190,18 @@ async function process24hReminders(stats) {
 
       // Mark as sent only if at least one notification succeeded
       if (anySent) {
-        await query(
-          `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
-          [bk.id, bk.business_id]
-        );
+        if (bk.group_id) {
+          // Mark all siblings in the group as sent
+          await query(
+            `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            [bk.group_id, bk.business_id]
+          );
+        } else {
+          await query(
+            `UPDATE bookings SET reminder_24h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            [bk.id, bk.business_id]
+          );
+        }
       }
     } catch (err) {
       console.error(`[REMINDERS] Error processing 24h for booking ${bk.id}:`, err.message);

@@ -721,11 +721,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const vid = variant_ids[i];
           if (vid && UUID_RE.test(vid)) {
             const vr = await queryWithRLS(businessId,
-              `SELECT duration_min, price_cents, processing_time, processing_start FROM service_variants
+              `SELECT name, duration_min, price_cents, processing_time, processing_start FROM service_variants
                WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
               [vid, multiServices[i].id, businessId]
             );
             if (vr.rows.length === 0) return res.status(404).json({ error: `Variante introuvable: ${vid}` });
+            multiServices[i]._variant_name = vr.rows[0].name;
             multiServices[i].duration_min = vr.rows[0].duration_min;
             if (vr.rows[0].price_cents != null) multiServices[i].price_cents = vr.rows[0].price_cents;
             multiServices[i]._processing_time = vr.rows[0].processing_time || 0;
@@ -1035,7 +1036,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               practitioner_name: pracRow.rows[0]?.display_name || '',
               comment: client_comment
             };
-            const groupSvcs = multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
+            const groupSvcs = multiServices.map(s => ({ name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
 
             if (multiBookings[0].status === 'pending_deposit') {
               // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
@@ -1420,11 +1421,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
         const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
         if (bizRow.rows[0]) {
-          // Fetch service name for email
+          // Fetch service name (+ variant name) for email
           let svcName = 'Rendez-vous';
           if (effectiveServiceId) {
             const svcRow = await query(`SELECT name FROM services WHERE id = $1`, [effectiveServiceId]);
             if (svcRow.rows[0]) svcName = svcRow.rows[0].name;
+            if (resolvedVariantId) {
+              const vrRow = await query(`SELECT name FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+              if (vrRow.rows[0]?.name) svcName = svcName + ' \u2014 ' + vrRow.rows[0].name;
+            }
           }
           const emailBooking = {
             ...createdBooking,
@@ -1498,7 +1503,10 @@ router.get('/booking/:token', async (req, res, next) => {
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.comment_client, b.public_token, b.created_at, b.group_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
-              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+              s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
@@ -1507,6 +1515,7 @@ router.get('/booking/:token', async (req, res, next) => {
               biz.category AS business_category, biz.sector AS business_sector
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
        JOIN businesses biz ON biz.id = b.business_id
@@ -1521,9 +1530,12 @@ router.get('/booking/:token', async (req, res, next) => {
     let groupServices = null;
     if (bk.group_id) {
       const grp = await query(
-        `SELECT s.name, s.duration_min, s.price_cents, s.color
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          WHERE b.group_id = $1 AND b.business_id = (SELECT business_id FROM bookings WHERE public_token = $2)
          ORDER BY b.group_order, b.start_at`,
         [bk.group_id, token]
@@ -1586,11 +1598,12 @@ router.post('/deposit/:token/checkout', async (req, res, next) => {
               b.deposit_amount_cents, b.deposit_deadline, b.public_token,
               b.start_at, b.deposit_payment_intent_id,
               c.full_name AS client_name, c.email AS client_email,
-              s.name AS service_name,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               biz.name AS business_name, biz.stripe_customer_id
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`,
       [token]
@@ -1821,12 +1834,14 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     (async () => {
       try {
         const fullBk = await query(
-          `SELECT b.*, s.name AS service_name, p.display_name AS practitioner_name,
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
                   biz.theme AS biz_theme, biz.slug AS biz_slug
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
            LEFT JOIN clients c ON c.id = b.client_id
            JOIN businesses biz ON biz.id = b.business_id
@@ -1837,14 +1852,15 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
             groupServices
           });
@@ -1877,8 +1893,11 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     let displayData = null;
     if (isForm) {
       const info = await query(
-        `SELECT b.status, b.start_at, s.name AS service_name, biz.name AS business_name, biz.theme
+        `SELECT b.status, b.start_at,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                biz.name AS business_name, biz.theme
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN businesses biz ON biz.id = b.business_id
          WHERE b.public_token = $1`, [token]
       );
@@ -2036,14 +2055,16 @@ router.post('/booking/:token/reject', async (req, res, next) => {
         const bkId = result.rows[0].id;
         const bizId = result.rows[0].business_id;
         const fullBk = await query(
-          `SELECT b.start_at, b.group_id, b.business_id,
+          `SELECT b.start_at, b.end_at, b.group_id, b.business_id,
                   c.full_name AS client_name, c.email AS client_email,
-                  s.name AS service_name, p.display_name AS practitioner_name,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
                   biz.theme AS biz_theme, biz.slug AS biz_slug
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
            JOIN businesses biz ON biz.id = b.business_id
            WHERE b.id = $1`, [bkId]
@@ -2053,14 +2074,15 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
             groupServices
           });
@@ -2085,9 +2107,12 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(
-      `SELECT b.status, b.start_at, b.end_at, s.name AS service_name, biz.name AS business_name, biz.theme
+      `SELECT b.status, b.start_at, b.end_at,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              biz.name AS business_name, biz.theme
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -2191,10 +2216,11 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
     const { token } = req.params;
     const result = await query(
       `SELECT b.status, b.start_at, b.end_at, b.confirmation_expires_at,
-              s.name AS service_name,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               biz.name AS business_name, biz.theme
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -2238,8 +2264,10 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
     if (isForm) {
       const info = await query(
         `SELECT b.status, b.start_at, b.confirmation_expires_at,
-                s.name AS service_name, biz.name AS business_name, biz.theme
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                biz.name AS business_name, biz.theme
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN businesses biz ON biz.id = b.business_id
          WHERE b.public_token = $1`, [token]
       );
@@ -2300,11 +2328,13 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
     (async () => {
       try {
         const fullBk = await query(
-          `SELECT b.*, s.name AS service_name, p.display_name AS practitioner_name,
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address, biz.theme AS biz_theme
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            JOIN practitioners p ON p.id = b.practitioner_id
            LEFT JOIN clients c ON c.id = b.client_id
            JOIN businesses biz ON biz.id = b.business_id
@@ -2315,14 +2345,15 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           await sendBookingConfirmation({
             booking: {
-              public_token: row.public_token, start_at: row.start_at, end_at: row.end_at,
+              public_token: row.public_token, start_at: row.start_at, end_at: groupEndAt || row.end_at,
               client_name: row.client_name, client_email: row.client_email,
               service_name: row.service_name, practitioner_name: row.practitioner_name,
               comment: row.comment_client
@@ -2357,7 +2388,7 @@ router.get('/docs/:token', async (req, res, next) => {
       `SELECT ps.*, dt.name AS template_name, dt.type AS template_type,
               dt.content_html, dt.form_fields, dt.subject,
               bk.start_at, bk.service_id,
-              s.name AS service_name,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               p.display_name AS practitioner_name,
               c.full_name AS client_name,
               b.name AS business_name, b.slug AS business_slug,
@@ -2367,6 +2398,7 @@ router.get('/docs/:token', async (req, res, next) => {
        JOIN document_templates dt ON dt.id = ps.template_id
        JOIN bookings bk ON bk.id = ps.booking_id
        LEFT JOIN services s ON s.id = bk.service_id
+       LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
        LEFT JOIN practitioners p ON p.id = bk.practitioner_id
        JOIN clients c ON c.id = ps.client_id
        JOIN businesses b ON b.id = ps.business_id
@@ -2902,12 +2934,14 @@ router.get('/booking/:token/ics', async (req, res, next) => {
   try {
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.appointment_mode,
-              s.name AS service_name, s.duration_min,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               c.full_name AS client_name,
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.address AS business_address
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        LEFT JOIN clients c ON c.id = b.client_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
