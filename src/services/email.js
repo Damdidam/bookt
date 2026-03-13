@@ -351,7 +351,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   }
 
   const ctaText = hasPublicToken ? 'G\u00e9rer mon rendez-vous' : null;
-  const ctaUrl = hasPublicToken ? `${baseUrl}/api/public/booking/${booking.public_token}` : null;
+  const ctaUrl = hasPublicToken ? `${baseUrl}/booking/${booking.public_token}` : null;
 
   const html = buildEmailHTML({
     title: isMulti ? 'Confirmation de vos prestations' : 'Confirmation de votre rendez-vous',
