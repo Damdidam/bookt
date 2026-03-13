@@ -6,7 +6,6 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
-import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
 import { api, calState } from '../../state.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import { buildEventsCallback } from './calendar-data.js';
@@ -261,7 +260,7 @@ function initCalendar(initView, initSlotDur) {
     eventResize: buildEventResize()
   };
 
-  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin, resourceTimelinePlugin];
+  calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin];
   calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
   calState.fcCal.render();
 

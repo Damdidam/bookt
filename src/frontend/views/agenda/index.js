@@ -285,7 +285,6 @@ async function loadAgenda() {
   toolbar += `<button class="at-view-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
   toolbar += `<button class="at-view-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
   toolbar += `<button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
-  toolbar += `<button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')"><span class="vl">Timeline</span><span class="vs">TL</span></button>`;
   toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;
   toolbar += `</div>`;
   toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
