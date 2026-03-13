@@ -285,6 +285,7 @@ async function loadAgenda() {
   const filterIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
   toolbar += `<div class="at-row-nav">`;
   toolbar += `<div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDate" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div>`;
+  toolbar += `<span class="at-title" id="atTitle"></span>`;
   if (pillsHtml) toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
   else toolbar += `<span style="flex:1"></span>`;
   toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;

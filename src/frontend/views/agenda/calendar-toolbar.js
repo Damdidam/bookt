@@ -77,10 +77,14 @@ function atUpdateTitle() {
     if (d.getFullYear() !== new Date().getFullYear()) title += ' ' + d.getFullYear();
   } else if (view.type === 'timeGridWeek' || view.type === 'rollingWeek') {
     const s = view.currentStart, e = new Date(view.currentEnd.getTime() - 86400000);
+    // ISO week number
+    const thu = new Date(s.getTime()); thu.setDate(thu.getDate() + 3 - (thu.getDay() + 6) % 7);
+    const w1 = new Date(thu.getFullYear(), 0, 4);
+    const wn = 1 + Math.round(((thu.getTime() - w1.getTime()) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7);
     if (s.getMonth() === e.getMonth()) {
-      title = s.getDate() + ' \u2013 ' + e.getDate() + ' ' + MNAMES[s.getMonth()] + ' ' + s.getFullYear();
+      title = 'Sem. ' + wn + ' \u2014 ' + s.getDate() + ' \u2013 ' + e.getDate() + ' ' + MNAMES[s.getMonth()] + ' ' + s.getFullYear();
     } else {
-      title = s.getDate() + ' ' + MNAMES[s.getMonth()] + ' \u2013 ' + e.getDate() + ' ' + MNAMES[e.getMonth()] + ' ' + s.getFullYear();
+      title = 'Sem. ' + wn + ' \u2014 ' + s.getDate() + ' ' + MNAMES[s.getMonth()] + ' \u2013 ' + e.getDate() + ' ' + MNAMES[e.getMonth()] + ' ' + s.getFullYear();
     }
   } else if (view.type === 'dayGridMonth') {
     const d = view.currentStart;
