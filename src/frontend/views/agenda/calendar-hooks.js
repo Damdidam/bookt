@@ -321,14 +321,8 @@ function buildEventDidMount() {
       info.el.style.borderLeftStyle = 'dashed';
       info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     } else if (p._borderSegments) {
-      // border-image cancels border-radius in CSS — use a child div instead
-      info.el.style.borderLeftColor = 'transparent';
-      const stripe = document.createElement('div');
       const stops = p._borderSegments.flatMap(s => [`${s.color} ${s.from.toFixed(1)}%`, `${s.color} ${s.to.toFixed(1)}%`]);
-      stripe.style.cssText = 'position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:6px 0 0 6px;background:linear-gradient(to bottom,' + stops.join(',') + ');pointer-events:none;z-index:1';
-      info.el.style.position = 'relative';
-      info.el.style.overflow = 'hidden';
-      info.el.appendChild(stripe);
+      info.el.style.borderImage = `linear-gradient(to bottom, ${stops.join(', ')}) 1`;
       const bgStops = p._borderSegments.flatMap(s => [`${fcHexAlpha(s.color, 0.22)} ${s.from.toFixed(1)}%`, `${fcHexAlpha(s.color, 0.22)} ${s.to.toFixed(1)}%`]);
       info.el.style.background = `linear-gradient(to bottom, ${bgStops.join(', ')})`;
     } else {
