@@ -294,6 +294,56 @@ function initCalendar(initView, initSlotDur) {
     });
   });
   atUpdateTitle(); // initial
+  setupScrollSnap();
+}
+
+// ── Scroll snap to nearest hour on scroll end ──
+let _scrollSnapTimer = 0;
+let _snapScrolling = false; // prevent re-trigger during smooth scroll
+
+function setupScrollSnap() {
+  window.removeEventListener('scroll', onScrollForSnap, true);
+  window.addEventListener('scroll', onScrollForSnap, { passive: true, capture: true });
+}
+
+function onScrollForSnap() {
+  if (_snapScrolling) return;
+  clearTimeout(_scrollSnapTimer);
+  _scrollSnapTimer = setTimeout(snapToHour, fcIsTouch ? 250 : 150);
+}
+
+function snapToHour() {
+  var cal = calState.fcCal;
+  if (!cal) return;
+  var vt = cal.view && cal.view.type;
+  if (!vt || vt === 'dayGridMonth') return;
+  if (fsIsActive()) return;
+
+  var slots = document.querySelectorAll('.fc-timegrid-slot-label[data-time]');
+  if (!slots.length) return;
+
+  // Compute snap target = toolbar height + sticky header height
+  var contentEl = document.querySelector('.content.agenda-active');
+  var toolbarH = contentEl ? parseFloat(getComputedStyle(contentEl).getPropertyValue('--toolbar-h')) || 82 : 82;
+  var headerEl = document.querySelector('.fc-scrollgrid-section-header');
+  var headerH = headerEl ? headerEl.getBoundingClientRect().height : 40;
+  var snapLine = toolbarH + headerH;
+
+  var nearest = null, minDist = Infinity;
+  for (var i = 0; i < slots.length; i++) {
+    var t = slots[i].dataset.time;
+    if (!t || !t.endsWith(':00:00')) continue;
+    var top = slots[i].getBoundingClientRect().top;
+    var d = Math.abs(top - snapLine);
+    if (d < minDist) { minDist = d; nearest = slots[i]; }
+  }
+
+  if (nearest && minDist > 5 && minDist < 120) {
+    var delta = nearest.getBoundingClientRect().top - snapLine;
+    _snapScrolling = true;
+    window.scrollBy({ top: delta, behavior: 'smooth' });
+    setTimeout(function () { _snapScrolling = false; }, 400);
+  }
 }
 
 export { fcSlotDuration, fcHexAlpha, fcDarkenHex, fcRefresh, initCalendar, fcLoadAbsences };
