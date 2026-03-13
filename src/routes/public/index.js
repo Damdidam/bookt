@@ -986,17 +986,19 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
         }
 
-        // Queue notifications for first booking
-        try {
-          await client.query('SAVEPOINT notif_multi_sp1');
-          await client.query(
-            `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-             VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-            [businessId, bookings[0].id, client_email, client_phone]
-          );
-        } catch (notifErr) {
-          await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp1');
-          console.error('Notification insert failed:', notifErr.message);
+        // Queue notifications for first booking (skip email_confirmation if deposit active)
+        if (bookings[0].status !== 'pending_deposit') {
+          try {
+            await client.query('SAVEPOINT notif_multi_sp1');
+            await client.query(
+              `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
+               VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
+              [businessId, bookings[0].id, client_email, client_phone]
+            );
+          } catch (notifErr) {
+            await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp1');
+            console.error('Notification insert failed:', notifErr.message);
+          }
         }
         try {
           await client.query('SAVEPOINT notif_multi_sp2');
@@ -1045,6 +1047,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 business: bizRow.rows[0],
                 depositUrl
               });
+              // Audit trail
+              try {
+                await query(
+                  `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
+                   VALUES ($1,$2,'email_deposit_request',$3,'sent',NOW())`,
+                  [businessId, multiBookings[0].id, client_email]
+                );
+              } catch (_) { /* best-effort audit */ }
             } else if (multiNeedsConfirm) {
               // Send confirmation REQUEST (client must click to confirm)
               const { sendBookingConfirmationRequest } = require('../../services/email');
@@ -1311,18 +1321,77 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
          resolvedProcessingTime, resolvedProcessingStart, singleLocked, resolvedDiscountPct]
       );
 
-      // Queue notifications
-      // NOTE: notification types may need a DB migration to add to the CHECK constraint
-      try {
-        await client.query('SAVEPOINT notif_sp1');
-        await client.query(
-          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-           VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-          [businessId, booking.rows[0].id, client_email, client_phone]
-        );
-      } catch (notifErr) {
-        await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
-        console.error('Notification insert failed:', notifErr.message);
+      // ── Deposit check (single-service — same pattern as multi-service) ──
+      if (clientId && booking.rows[0]) {
+        try {
+          await client.query('SAVEPOINT deposit_single_sp');
+          const depCheck = await client.query(
+            `SELECT c.no_show_count, biz.settings
+             FROM clients c JOIN businesses biz ON biz.id = c.business_id
+             WHERE c.id = $1 AND c.business_id = $2`,
+            [clientId, businessId]
+          );
+          const dc = depCheck.rows[0];
+          if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
+            // Get service price for percent calculation
+            let svcPrice = 0;
+            const svcPriceResult = await client.query(
+              `SELECT COALESCE(s.price_cents, 0) AS price
+               FROM bookings b JOIN services s ON s.id = b.service_id
+               WHERE b.id = $1 AND b.business_id = $2`,
+              [booking.rows[0].id, businessId]
+            );
+            svcPrice = parseInt(svcPriceResult.rows[0]?.price) || 0;
+            // If variant, use variant price
+            if (resolvedVariantId) {
+              const varPrice = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+              if (varPrice.rows[0]?.price_cents != null) svcPrice = varPrice.rows[0].price_cents;
+            }
+
+            let depCents = 0;
+            if (dc.settings.deposit_type === 'fixed') {
+              depCents = dc.settings.deposit_fixed_cents || 2500;
+            } else {
+              depCents = Math.round(svcPrice * (dc.settings.deposit_percent || 50) / 100);
+            }
+            if (depCents > 0) {
+              const dlHours = dc.settings.deposit_deadline_hours ?? 48;
+              const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+              if (deadline > new Date()) {
+                // Clear confirmation_expires_at — deposit payment serves as confirmation
+                await client.query(
+                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    confirmation_expires_at = NULL
+                   WHERE id = $3 AND business_id = $4`,
+                  [depCents, deadline.toISOString(), booking.rows[0].id, businessId]
+                );
+                booking.rows[0].status = 'pending_deposit';
+                booking.rows[0].deposit_required = true;
+                booking.rows[0].deposit_amount_cents = depCents;
+                booking.rows[0].deposit_deadline = deadline.toISOString();
+              }
+            }
+          }
+        } catch (depErr) {
+          await client.query('ROLLBACK TO SAVEPOINT deposit_single_sp');
+          console.error('Single-service deposit check failed:', depErr.message);
+        }
+      }
+
+      // Queue notifications (skip email_confirmation if deposit active)
+      if (booking.rows[0].status !== 'pending_deposit') {
+        try {
+          await client.query('SAVEPOINT notif_sp1');
+          await client.query(
+            `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
+             VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
+            [businessId, booking.rows[0].id, client_email, client_phone]
+          );
+        } catch (notifErr) {
+          await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
+          console.error('Notification insert failed:', notifErr.message);
+        }
       }
       try {
         await client.query('SAVEPOINT notif_sp2');
@@ -1369,6 +1438,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, createdBooking.id]);
             const { sendDepositRequestEmail } = require('../../services/email');
             await sendDepositRequestEmail({ booking: emailBooking, business: bizRow.rows[0], depositUrl });
+            // Audit trail
+            try {
+              await query(
+                `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
+                 VALUES ($1,$2,'email_deposit_request',$3,'sent',NOW())`,
+                [businessId, createdBooking.id, client_email]
+              );
+            } catch (_) { /* best-effort audit */ }
           } else if (singleNeedsConfirm) {
             const { sendBookingConfirmationRequest } = require('../../services/email');
             if (singleConfChannel === 'email' || singleConfChannel === 'both') {
