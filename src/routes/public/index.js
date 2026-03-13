@@ -1496,7 +1496,7 @@ router.get('/booking/:token', async (req, res, next) => {
     const { token } = req.params;
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
-              b.comment_client, b.public_token, b.created_at,
+              b.comment_client, b.public_token, b.created_at, b.group_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
               s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
@@ -1516,9 +1516,31 @@ router.get('/booking/:token', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
+
+    // Fetch group members if this is a grouped booking
+    let groupServices = null;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT s.name, s.duration_min, s.price_cents, s.color
+         FROM bookings b
+         LEFT JOIN services s ON s.id = b.service_id
+         WHERE b.group_id = $1 AND b.business_id = (SELECT business_id FROM bookings WHERE public_token = $2)
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, token]
+      );
+      if (grp.rows.length > 1) {
+        groupServices = grp.rows.map(r => ({ name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color }));
+      }
+    }
+
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
     const canCancel = (bk.status === 'confirmed' || bk.status === 'pending_deposit') && new Date() < deadline;
+
+    // Build service info: use group members if available, otherwise single service
+    const serviceInfo = groupServices
+      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
+      : { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
 
     res.json({
       booking: {
@@ -1528,7 +1550,7 @@ router.get('/booking/:token', async (req, res, next) => {
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
-        service: { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color },
+        service: serviceInfo,
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
       },
