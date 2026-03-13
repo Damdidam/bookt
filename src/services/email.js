@@ -52,6 +52,12 @@ function safeColor(color, fallback) {
   return fallback || '#0D7377';
 }
 
+/** Inline SVG icon for emails — hosted, compatible with all email clients */
+function _ic(name, w = 18, h = 18) {
+  const base = (process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be') + '/email';
+  return `<img src="${base}/${name}.svg" width="${w}" height="${h}" style="vertical-align:middle;margin-right:4px" alt="">`;
+}
+
 /**
  * Send a transactional email via Brevo
  * @param {Object} opts
@@ -312,8 +318,8 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
     : escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
 
-  let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">\u{1F4C5} ${dateStr}</div>`;
-  detailLines += `<div style="font-size:14px;color:#15613A">\u{1F550} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
+  let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">${_ic('calendar-grn')} ${dateStr}</div>`;
+  detailLines += `<div style="font-size:14px;color:#15613A">${_ic('clock-grn')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
 
   if (isMulti) {
     detailLines += `<div style="font-size:13px;color:#15613A;margin-top:8px;font-weight:600">Prestations :</div>`;
@@ -326,9 +332,9 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
     detailLines += `<div style="font-size:14px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStr}${totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}</div>`;
   } else {
-    detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">\u{1F486} ${serviceName}</div>`;
+    detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">${_ic('sparkle-grn')} ${serviceName}</div>`;
   }
-  if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">\u{1F464} ${practitionerName}</div>`;
+  if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">${_ic('user-grn')} ${practitionerName}</div>`;
 
   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
   const hasPublicToken = booking.public_token;
@@ -395,8 +401,8 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
     : escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
 
-  let detailLines = `<div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">\u{1F4C5} ${dateStr}</div>`;
-  detailLines += `<div style="font-size:14px;color:#92700C">\u{1F550} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
+  let detailLines = `<div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>`;
+  detailLines += `<div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
 
   if (isMulti) {
     detailLines += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
@@ -405,9 +411,9 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
       detailLines += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
     });
   } else {
-    detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">\u{1F486} ${serviceName}</div>`;
+    detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${_ic('sparkle-amb')} ${serviceName}</div>`;
   }
-  if (practitionerName) detailLines += `<div style="font-size:14px;color:#92700C">\u{1F464} ${practitionerName}</div>`;
+  if (practitionerName) detailLines += `<div style="font-size:14px;color:#92700C">${_ic('user-amb')} ${practitionerName}</div>`;
 
   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
   const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm-booking`;
@@ -422,13 +428,13 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
       ${detailLines}
     </div>
-    <p style="font-size:13px;color:#92700C;margin-top:8px">\u23f3 Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
+    <p style="font-size:13px;color:#92700C;margin-top:8px">${_ic('hourglass-amb', 16, 16)} Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
 
   const html = buildEmailHTML({
     title: 'Confirmez votre rendez-vous',
     preheader: `Confirmez votre RDV du ${dateStr} \u00e0 ${timeStr}`,
     bodyHTML,
-    ctaText: 'Confirmer mon RDV \u2705',
+    ctaText: 'Confirmer mon rendez-vous',
     ctaUrl: confirmUrl,
     businessName: business.name,
     primaryColor: color,
@@ -556,7 +562,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
-      <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">\u{1F4C5} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr} \u00e0 ${timeStr}</div>
       <div style="font-size:14px;color:#92700C">${safeServiceName}</div>
       ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
     </div>
@@ -567,7 +573,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
     </div>
     <div style="background:#F0F9FF;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #60A5FA">
       <div style="font-size:13px;color:#1E40AF;line-height:1.5">
-        <strong>\u2139\ufe0f Bon \u00e0 savoir :</strong><br>
+        ${_ic('info', 16, 16)} <strong>Bon \u00e0 savoir :</strong><br>
         \u2022 Cet acompte sera <strong>d\u00e9duit de votre facture totale</strong> lors de votre passage.<br>
         \u2022 Il est <strong>restituable</strong> en cas d'annulation jusqu'\u00e0 <strong>${cancelDeadlineH}h avant</strong> votre rendez-vous.
       </div>
@@ -617,11 +623,11 @@ async function sendDepositPaidEmail({ booking, business }) {
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre acompte a bien été reçu. Votre rendez-vous est confirmé !</p>
     <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
-      <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">✅ Acompte de ${amtStr} € reçu</div>
+      <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">${_ic('check')} Acompte de ${amtStr} \u20ac re\u00e7u</div>
       <div style="font-size:14px;color:#15803D">Votre rendez-vous est confirmé</div>
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
-      <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">📅 ${dateStr} à ${timeStr}</div>
+      <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
       <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
@@ -645,7 +651,7 @@ async function sendDepositPaidEmail({ booking, business }) {
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
-    subject: `Acompte reçu ✓ — ${business.name}`,
+    subject: `Acompte re\u00e7u \u2014 ${business.name}`,
     html,
     fromName: business.name,
     replyTo: business.email
@@ -673,12 +679,12 @@ async function sendDepositRefundEmail({ booking, business }) {
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre acompte a \u00e9t\u00e9 rembours\u00e9 suite \u00e0 l'annulation de votre rendez-vous.</p>
     <div style="background:#EFF6FF;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #60A5FA">
-      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">\u21a9\ufe0f Acompte de ${amtStr} \u20ac rembours\u00e9</div>
+      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">${_ic('refund')} Acompte de ${amtStr} \u20ac rembours\u00e9</div>
       <div style="font-size:14px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Rendez-vous annul\u00e9</div>
-      <div style="font-size:14px;color:#3D3832">\u{1F4C5} ${dateStr} \u00e0 ${timeStr}</div>
+      <div style="font-size:14px;color:#3D3832">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
       <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
     </div>
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
