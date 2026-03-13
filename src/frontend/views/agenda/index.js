@@ -285,12 +285,12 @@ async function loadAgenda() {
   toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
   toolbar += `</div>`;
   toolbar += `<div class="at-row-views">`;
-  toolbar += `<div class="at-views">`;
-  toolbar += `<button class="at-view-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
-  toolbar += `<button class="at-view-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
-  toolbar += `<button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
-  toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;
+  toolbar += `<div class="at-view-pill">`;
+  toolbar += `<button class="at-vp-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
+  toolbar += `<button class="at-vp-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
+  toolbar += `<button class="at-vp-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
   toolbar += `</div>`;
+  toolbar += `<div class="at-views">${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}</div>`;
   toolbar += `</div>`;
   // Desktop: Fill bar
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;

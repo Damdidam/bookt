@@ -278,7 +278,7 @@ function initCalendar(initView, initSlotDur) {
     atUpdateTitle();
     // Sync view buttons (for navLinkDayClick, etc.)
     var vt = calState.fcCal.view.type;
-    document.querySelectorAll('.at-view-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === vt); });
+    document.querySelectorAll('.at-vp-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === vt); });
     // Load absences for visible month and refresh resource labels (absence badges)
     var viewStart = calState.fcCal.view.currentStart;
     var m = viewStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }).slice(0, 7);
