@@ -327,7 +327,7 @@ function buildEventDidMount() {
     } else if (p._borderSegments) {
       const stops = p._borderSegments.flatMap(s => [`${s.color} ${s.from.toFixed(1)}%`, `${s.color} ${s.to.toFixed(1)}%`]);
       info.el.style.borderImage = `linear-gradient(to bottom, ${stops.join(', ')}) 1`;
-      const bgStops = p._borderSegments.flatMap(s => [`${fcHexAlpha(s.color, 0.15)} ${s.from.toFixed(1)}%`, `${fcHexAlpha(s.color, 0.15)} ${s.to.toFixed(1)}%`]);
+      const bgStops = p._borderSegments.flatMap(s => [`${fcHexAlpha(s.color, 0.22)} ${s.from.toFixed(1)}%`, `${fcHexAlpha(s.color, 0.22)} ${s.to.toFixed(1)}%`]);
       info.el.style.background = `linear-gradient(to bottom, ${bgStops.join(', ')})`;
     } else {
       info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
