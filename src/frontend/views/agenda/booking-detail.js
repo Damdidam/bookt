@@ -168,6 +168,21 @@ async function fcOpenDetail(bookingId) {
       if (depRefunded) {
         borderCol = '#60A5FA'; bgCol = '#EFF6FF'; textCol = '#1D4ED8';
         statusText = 'Remboursé';
+        if (isFuture && ['confirmed', 'pending', 'modified_pending'].includes(b.status) && userRole !== 'practitioner') {
+          const s = calState.fcBusinessSettings || {};
+          const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+          let defCents = s.deposit_type === 'fixed' ? (s.deposit_fixed_cents || 2500) : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
+          if (defCents <= 0) defCents = b.deposit_amount_cents || 2500;
+          const defDlH = s.deposit_deadline_hours ?? 48;
+          extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" id="mReReqDepBtn" style="font-size:.72rem;padding:4px 12px;background:#EFF6FF;color:#1D4ED8;border:1px solid #93C5FD;border-radius:6px;cursor:pointer;font-weight:600" onclick="document.getElementById('mReReqDepPanel').style.display='';this.style.display='none'">Redemander l'acompte</button></div>
+            <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid #F59E0B;background:#FEF9E7">
+              <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+                <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
+                <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+                <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReReqDepPanel').style.display='none';document.getElementById('mReReqDepBtn').style.display=''">Annuler</button></div>
+              </div>
+            </div>`;
+        }
       } else if (depKept) {
         borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
         statusText = 'Conserv\u00e9 (annulation tardive)';

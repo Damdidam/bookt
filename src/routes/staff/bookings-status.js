@@ -784,7 +784,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         return { error: 403, message: 'Accès interdit' };
       }
 
-      if (b.deposit_required) return { error: 400, message: 'Un acompte est déjà exigé sur ce RDV' };
+      if (b.deposit_required && b.deposit_status !== 'refunded') return { error: 400, message: 'Un acompte est déjà exigé sur ce RDV' };
       if (!['pending', 'confirmed', 'modified_pending'].includes(b.status)) {
         return { error: 400, message: `Impossible d'exiger un acompte pour un RDV en statut "${b.status}"` };
       }
@@ -802,7 +802,8 @@ router.post('/:id/require-deposit', async (req, res, next) => {
 
       await client.query(
         `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-          deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2, updated_at = NOW()
+          deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+          deposit_paid_at = NULL, deposit_payment_intent_id = NULL, updated_at = NOW()
          WHERE id = $3 AND business_id = $4`,
         [amount_cents, deadline.toISOString(), id, bid]
       );
