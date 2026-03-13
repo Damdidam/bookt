@@ -281,14 +281,16 @@ async function loadAgenda() {
   toolbar += `<div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div>`;
   toolbar += `<span class="at-title" id="atTitle"></span>`;
   if (pillsHtml) toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
+  toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
+  toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
+  toolbar += `</div>`;
+  toolbar += `<div class="at-row-views">`;
   toolbar += `<div class="at-views">`;
   toolbar += `<button class="at-view-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
   toolbar += `<button class="at-view-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
   toolbar += `<button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
   toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;
   toolbar += `</div>`;
-  toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
-  toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
   toolbar += `</div>`;
   // Desktop: Fill bar
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
