@@ -785,7 +785,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
       }
 
       if (b.deposit_required) return { error: 400, message: 'Un acompte est déjà exigé sur ce RDV' };
-      if (!['confirmed', 'modified_pending'].includes(b.status)) {
+      if (!['pending', 'confirmed', 'modified_pending'].includes(b.status)) {
         return { error: 400, message: `Impossible d'exiger un acompte pour un RDV en statut "${b.status}"` };
       }
       if (new Date(b.start_at) <= new Date()) {

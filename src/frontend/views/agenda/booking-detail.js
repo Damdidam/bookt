@@ -203,7 +203,7 @@ async function fcOpenDetail(bookingId) {
 
     // -- "Exiger un acompte" button for confirmed bookings without deposit --
     document.querySelectorAll('.m-require-deposit-wrap').forEach(el => el.remove());
-    if (!b.deposit_required && ['confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
+    if (!b.deposit_required && ['pending', 'confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
       const s = calState.fcBusinessSettings || {};
       const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
       let defaultCents = s.deposit_type === 'fixed'
