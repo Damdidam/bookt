@@ -10,6 +10,7 @@ import { fcOpenDetail } from './booking-detail.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { fcShowTooltip, fcMoveTooltip, fcHideTooltip } from './tooltip-renderer.js';
+import { fcHexAlpha } from './calendar-init.js';
 
 const DEFAULT_ACCENT = '#0D7377';
 
@@ -326,6 +327,8 @@ function buildEventDidMount() {
     } else if (p._borderSegments) {
       const stops = p._borderSegments.flatMap(s => [`${s.color} ${s.from.toFixed(1)}%`, `${s.color} ${s.to.toFixed(1)}%`]);
       info.el.style.borderImage = `linear-gradient(to bottom, ${stops.join(', ')}) 1`;
+      const bgStops = p._borderSegments.flatMap(s => [`${fcHexAlpha(s.color, 0.15)} ${s.from.toFixed(1)}%`, `${fcHexAlpha(s.color, 0.15)} ${s.to.toFixed(1)}%`]);
+      info.el.style.background = `linear-gradient(to bottom, ${bgStops.join(', ')})`;
     } else {
       info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     }
