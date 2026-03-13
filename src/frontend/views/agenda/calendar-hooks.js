@@ -17,13 +17,162 @@ const DEFAULT_ACCENT = '#0D7377';
 // Cache touch detection once (constant during session)
 const _isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
-// Single debounced schedule for redistributePoseColumns (replaces double setTimeout)
-let _poseRedistRAF = 0;
+// ── Debounced schedule for redistributePoseColumns ──
+let _redistScheduled = false;
 function scheduleRedistribute() {
-  cancelAnimationFrame(_poseRedistRAF);
-  _poseRedistRAF = requestAnimationFrame(function () {
-    _poseRedistRAF = requestAnimationFrame(redistributePoseColumns);
+  if (_redistScheduled) return;
+  _redistScheduled = true;
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      _redistScheduled = false;
+      redistributePoseColumns();
+    });
   });
+}
+
+// ── Event delegation (set up once, handles all events via bubbling) ──
+let _delegationReady = false;
+let _lastTapEid = null;
+let _lastTapTime = 0;
+let _hoveredEl = null;
+
+function findEventEl(target) {
+  if (!target || !target.closest) return null;
+  var el = target.closest('.fc-event');
+  if (!el || el.classList.contains('fc-bg-event')) return null;
+  return el;
+}
+
+function getFCEvent(el) {
+  var eid = el.getAttribute('data-eid');
+  if (!eid) return null;
+  return calState.fcCal?.getEventById(eid) || null;
+}
+
+function getBookingId(el) {
+  var eid = el.getAttribute('data-eid');
+  if (!eid) return null;
+  var ev = calState.fcCal?.getEventById(eid);
+  if (!ev) return eid;
+  var p = ev.extendedProps;
+  return p._isGroup ? (p._members?.[0]?.id || eid) : eid;
+}
+
+function openEventDetail(el) {
+  var eid = el.getAttribute('data-eid');
+  if (!eid) return;
+  if (eid.startsWith('task_')) {
+    window.fcOpenTaskDetail?.(eid.replace('task_', ''));
+  } else {
+    fcOpenDetail(getBookingId(el));
+  }
+}
+
+function setupEventDelegation() {
+  if (_delegationReady) return;
+  var container = document.getElementById('fcCalendar');
+  if (!container) return;
+  _delegationReady = true;
+
+  // ── Desktop: mouseover/mouseout/mousemove for tooltip ──
+  if (!_isTouch) {
+    container.addEventListener('mouseover', function (e) {
+      if (fsIsActive()) return;
+      var el = findEventEl(e.target);
+      if (el === _hoveredEl) return;
+      if (_hoveredEl) fcHideTooltip();
+      _hoveredEl = el;
+      if (!el) return;
+      var ev = getFCEvent(el);
+      if (ev) fcShowTooltip(ev, e.clientX, e.clientY);
+    });
+
+    container.addEventListener('mousemove', function (e) {
+      if (fsIsActive() || !_hoveredEl) return;
+      fcMoveTooltip(e.clientX, e.clientY);
+    });
+
+    container.addEventListener('mouseout', function (e) {
+      if (!_hoveredEl) return;
+      var related = findEventEl(e.relatedTarget);
+      if (related === _hoveredEl) return;
+      _hoveredEl = null;
+      fcHideTooltip();
+    });
+  }
+
+  // ── dblclick → open detail (or quick-create on pose overlay) ──
+  container.addEventListener('dblclick', function (e) {
+    if (fsIsActive()) return;
+
+    // Pose overlay → open quick-create at clicked time
+    var overlay = e.target.closest('.ev-pose-overlay');
+    if (overlay) {
+      e.stopPropagation();
+      var eventEl = overlay.closest('.fc-event');
+      if (!eventEl) return;
+      var ev = getFCEvent(eventEl);
+      if (!ev) return;
+      var rect = eventEl.getBoundingClientRect();
+      var clickRatio = (e.clientY - rect.top) / rect.height;
+      var evStart = ev.start.getTime();
+      var evEnd = (ev.end || ev.start).getTime();
+      var clickTime = new Date(evStart + clickRatio * (evEnd - evStart));
+      clickTime.setMinutes(Math.floor(clickTime.getMinutes() / 15) * 15, 0, 0);
+      var iso = clickTime.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T' + clickTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) + ':00';
+      fcOpenQuickCreate(iso);
+      return;
+    }
+
+    var el = findEventEl(e.target);
+    if (!el) return;
+    e.stopPropagation();
+    fcHideTooltip();
+    openEventDetail(el);
+  });
+
+  // ── Touch: single tap → tooltip, double tap → detail ──
+  container.addEventListener('touchend', function (e) {
+    var el = findEventEl(e.target);
+    if (!el) return;
+
+    // Vedette mode → toggle featured slot
+    if (fsIsActive()) {
+      var ev = getFCEvent(el);
+      if (ev) fsHandleDateClick(ev.startStr);
+      return;
+    }
+
+    // Skip during active drag/resize
+    if (el.classList.contains('fc-event-dragging') || el.classList.contains('fc-event-resizing')) return;
+
+    var eid = el.getAttribute('data-eid');
+    var now = Date.now();
+
+    if (_lastTapEid === eid && now - _lastTapTime < 600) {
+      // Double tap → open detail
+      e.preventDefault();
+      fcHideTooltip();
+      openEventDetail(el);
+      _lastTapEid = null;
+      _lastTapTime = 0;
+    } else {
+      // Single tap → show tooltip briefly
+      _lastTapEid = eid;
+      _lastTapTime = now;
+      var touch = e.changedTouches?.[0];
+      if (touch) {
+        var ev2 = getFCEvent(el);
+        if (ev2) {
+          fcShowTooltip(ev2, touch.clientX, touch.clientY);
+          clearTimeout(window._ttAutoHide);
+          window._ttAutoHide = setTimeout(fcHideTooltip, 2500);
+          var dismiss = function () { fcHideTooltip(); document.removeEventListener('touchstart', dismiss, true); };
+          setTimeout(function () { document.addEventListener('touchstart', dismiss, true); }, 100);
+        }
+      }
+    }
+  }, { passive: false });
 }
 
 /**
@@ -233,6 +382,8 @@ function redistributePoseColumns() {
 
 /**
  * Returns the `eventDidMount` callback.
+ * Listeners are delegated (set up once on container), so eventDidMount only handles
+ * styling, attributes, and pose markup — no addEventListener calls per event.
  */
 function buildEventDidMount() {
   return function (info) {
@@ -240,6 +391,9 @@ function buildEventDidMount() {
 
     // Skip styling for featured background events
     if (p._isFeaturedSlot) return;
+
+    // Ensure event delegation is set up (runs once)
+    setupEventDelegation();
 
     // ── Internal task: separate handling ──
     if (p._isTask) {
@@ -251,25 +405,7 @@ function buildEventDidMount() {
       info.el.style.borderTopWidth = '0'; info.el.style.borderRightWidth = '0'; info.el.style.borderBottomWidth = '0';
       info.el.setAttribute('data-eid', info.event.id);
       info.el.setAttribute('data-prac-id', String(p.practitioner_id || ''));
-      const taskId = info.event.id.replace('task_', '');
-      // Tooltip
-      if (!_isTouch) {
-        info.el.addEventListener('mouseenter', e => { if (!fsIsActive()) fcShowTooltip(info.event, e.clientX, e.clientY); });
-        info.el.addEventListener('mousemove', e => { if (!fsIsActive()) fcMoveTooltip(e.clientX, e.clientY); });
-        info.el.addEventListener('mouseleave', () => fcHideTooltip());
-      }
-      // Desktop dblclick → open task detail
-      info.el.addEventListener('dblclick', e => { e.stopPropagation(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); });
-      // Touch: single tap → tooltip, double tap → detail
-      let lastTap = 0;
-      info.el.addEventListener('touchend', e => {
-        if (fsIsActive()) return;
-        if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
-        const now = Date.now();
-        if (now - lastTap < 600) { e.preventDefault(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); lastTap = 0; }
-        else { lastTap = now; const touch = e.changedTouches?.[0]; if (touch) { fcShowTooltip(info.event, touch.clientX, touch.clientY); clearTimeout(window._ttAutoHide); window._ttAutoHide = setTimeout(fcHideTooltip, 2500); } }
-      }, { passive: false });
-      // Task pose child: mark for redistribution (overlap parent visually)
+      // Task pose child: mark for redistribution
       if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
         info.el.classList.add('ev-pose-child');
         info.el.setAttribute('data-pose-parent', p._poseParentId);
@@ -287,26 +423,11 @@ function buildEventDidMount() {
       overlay.className = 'ev-pose-overlay';
       overlay.style.top = p._poseStartPct + '%';
       overlay.style.height = (p._poseEndPct - p._poseStartPct) + '%';
-      // Click on pose zone → open quick-create (practitioner is free)
-      overlay.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        const rect = info.el.getBoundingClientRect();
-        const clickRatio = (e.clientY - rect.top) / rect.height;
-        const evStart = info.event.start.getTime();
-        const evEnd = (info.event.end || info.event.start).getTime();
-        const clickTime = new Date(evStart + clickRatio * (evEnd - evStart));
-        // Snap to 15min grid
-        clickTime.setMinutes(Math.floor(clickTime.getMinutes() / 15) * 15, 0, 0);
-        const iso = clickTime.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T' + clickTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) + ':00';
-        fcOpenQuickCreate(iso);
-      });
+      // dblclick handled by delegated listener (checks .ev-pose-overlay)
       info.el.appendChild(overlay);
     }
 
     // ── Pose child: mark for deferred redistribution ──
-    // FC creates too many sub-columns because it counts children as separate events.
-    // We mark children here, then redistributePoseColumns() fixes ALL harness positions
-    // after all events have rendered (scheduled once via setTimeout).
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       info.el.setAttribute('data-pose-parent', p._poseParentId);
@@ -362,76 +483,6 @@ function buildEventDidMount() {
       const cat = p._isGroup ? (p._members?.[0]?.service_category || '') : (p.service_category || '');
       info.el.setAttribute('data-category', cat);
     }
-
-    // Resolve booking ID (for groups -> first member)
-    const bookingId = p._isGroup ? p._members?.[0]?.id : info.event.id;
-
-    // ── Tooltip (hover desktop only, tap touch) ──
-    if (!_isTouch) {
-      info.el.addEventListener('mouseenter', function (e) {
-        if (fsIsActive()) return;
-        fcShowTooltip(info.event, e.clientX, e.clientY);
-      });
-      info.el.addEventListener('mousemove', function (e) {
-        if (fsIsActive()) return;
-        fcMoveTooltip(e.clientX, e.clientY);
-      });
-      info.el.addEventListener('mouseleave', function () {
-        fcHideTooltip();
-      });
-    }
-
-    // ── Desktop: native dblclick ──
-    info.el.addEventListener('dblclick', function (e) {
-      if (fsIsActive()) return;
-      e.stopPropagation();
-      fcHideTooltip();
-      fcOpenDetail(bookingId);
-    });
-    // Desktop: dblclick on resizer too (for short 15-min events where resizer covers most of the area)
-    const resizerForDbl = info.el.querySelector('.fc-event-resizer-end');
-    if (resizerForDbl) {
-      resizerForDbl.addEventListener('dblclick', function (e) {
-        if (fsIsActive()) return;
-        e.stopPropagation();
-        fcHideTooltip();
-        fcOpenDetail(bookingId);
-      });
-    }
-
-    // ── Touch: single tap -> tooltip (brief), double tap -> detail ──
-    let lastTap = 0;
-    info.el.addEventListener('touchend', function (e) {
-      // In vedette mode, tap on event toggles featured slot
-      if (fsIsActive()) {
-        fsHandleDateClick(info.event.startStr);
-        return;
-      }
-      // Skip during active drag/resize
-      if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
-      const onResizer = !!e.target.closest('.fc-event-resizer');
-      const now = Date.now();
-      if (now - lastTap < 600) {
-        // Double tap — always open detail (even on resizer for short events)
-        e.preventDefault();
-        fcHideTooltip();
-        fcOpenDetail(bookingId);
-        lastTap = 0;
-      } else {
-        lastTap = now;
-        // Single tap -> show tooltip briefly, hide on next touch anywhere
-        const touch = e.changedTouches?.[0];
-        if (touch) {
-          fcShowTooltip(info.event, touch.clientX, touch.clientY);
-          clearTimeout(window._ttAutoHide);
-          window._ttAutoHide = setTimeout(fcHideTooltip, 2500);
-          // Hide tooltip on next touch anywhere
-          const dismiss = function () { fcHideTooltip(); document.removeEventListener('touchstart', dismiss, true); };
-          setTimeout(function () { document.addEventListener('touchstart', dismiss, true); }, 100);
-        }
-      }
-    }, { passive: false });
-
   };
 }
 
