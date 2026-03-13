@@ -1792,7 +1792,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
                    OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
                  THEN 'refunded' ELSE 'cancelled' END
-          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'pending'
           ELSE deposit_status
         END,
         updated_at = NOW()

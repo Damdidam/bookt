@@ -324,7 +324,7 @@ router.patch('/:id/status', async (req, res, next) => {
               newDepStatus = 'cancelled';
             }
           } else if (dep.deposit_status === 'pending') {
-            newDepStatus = 'cancelled';
+            newDepStatus = 'pending';
           }
           // ===== Stripe refund: actually refund the money when status is 'refunded' =====
           if (newDepStatus === 'refunded' && dep.deposit_payment_intent_id && dep.deposit_payment_intent_id.startsWith('pi_')) {
@@ -352,7 +352,7 @@ router.patch('/:id/status', async (req, res, next) => {
             if (old.rows[0].group_id) {
               await client.query(
                 `UPDATE bookings SET
-                  deposit_status = CASE WHEN deposit_status = 'paid' THEN $1 ELSE 'cancelled' END,
+                  deposit_status = CASE WHEN deposit_status = 'paid' THEN $1 ELSE deposit_status END,
                   updated_at = NOW()
                  WHERE group_id = $2 AND business_id = $3 AND id != $4 AND deposit_required = true`,
                 [newDepStatus, old.rows[0].group_id, bid, id]

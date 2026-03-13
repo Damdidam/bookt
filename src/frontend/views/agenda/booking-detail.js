@@ -158,7 +158,7 @@ async function fcOpenDetail(bookingId) {
       const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       const depPaid = b.deposit_status === 'paid';
       const depRefunded = b.deposit_status === 'refunded';
-      const depKept = b.deposit_status === 'cancelled';
+      const depKept = b.deposit_status === 'cancelled' && !!b.deposit_paid_at;
       const isFuture = new Date(b.start_at) > new Date();
 
       let borderCol = '#F59E0B', bgCol = '#FEF3E2', textCol = '#B45309';
