@@ -17,14 +17,25 @@ const DEFAULT_ACCENT = '#0D7377';
 // Cache touch detection once (constant during session)
 const _isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
+// Single debounced schedule for redistributePoseColumns (replaces double setTimeout)
+let _poseRedistRAF = 0;
+function scheduleRedistribute() {
+  cancelAnimationFrame(_poseRedistRAF);
+  _poseRedistRAF = requestAnimationFrame(function () {
+    _poseRedistRAF = requestAnimationFrame(redistributePoseColumns);
+  });
+}
+
 /**
  * Redistribute harness positions in columns that contain pose-children.
  * FC creates N sub-columns for N overlapping events, but pose-children should
  * overlay their parent — not occupy their own sub-column. This function
  * recalculates: M real events → M equal columns, children match their parent.
+ *
+ * Optimized: read/compute/write phases to avoid layout thrashing.
  */
 function redistributePoseColumns() {
-  // ── CSS helpers: FC Scheduler v6 may use `inset` shorthand or left/right ──
+  // ── CSS helper: FC Scheduler v6 may use `inset` shorthand or left/right ──
   function setHoriz(h, newLeft, newRight) {
     var css = h.style.cssText;
     var m = css.match(/inset:\s*([^;!]+)/i);
@@ -40,179 +51,183 @@ function redistributePoseColumns() {
     }
   }
 
-  // If resource view is active, FC already handles practitioner columns — skip redistribution
   var viewType = calState.fcCal?.view?.type || '';
   var isResourceView = viewType.indexOf('resource') === 0;
 
-  // Build stable practitioner order
   var pracIds = (calState.fcCurrentFilter !== 'all')
     ? [calState.fcCurrentFilter]
     : (calState.fcPractitioners || []).map(function (p) { return String(p.id); });
 
-  // Helper: get practitioner_id from a harness element (fast: reads data attribute)
-  function getPracId(h) {
-    var evEl = h.querySelector('[data-prac-id]');
-    return evEl ? evEl.dataset.pracId : null;
-  }
+  var needsPracRedist = pracIds.length >= 2 && !isResourceView;
 
-  var processed = new Set();
-  // Process ALL day columns (not just those with pose-children)
+  // ═══ PHASE 1: READ — collect all geometry + metadata (no DOM writes) ═══
+  var columns = [];
+  var parentBounds = {}; // { eid: { left, right } } — shared across columns for pose-child lookup
+
   document.querySelectorAll('.fc-timegrid-col-events').forEach(function (colEvents) {
-    if (processed.has(colEvents)) return;
-    processed.add(colEvents);
-
-    var harnesses = [];
+    var items = [];
     for (var i = 0; i < colEvents.children.length; i++) {
       var h = colEvents.children[i];
-      if (h.classList.contains('fc-timegrid-event-harness')) harnesses.push(h);
+      if (!h.classList.contains('fc-timegrid-event-harness')) continue;
+
+      // Skip hidden events (category filter → display:none) and cancelled (opacity .25)
+      var evEl = h.querySelector('.fc-event');
+      if (evEl && (evEl.style.display === 'none' || evEl.classList.contains('ev-cancelled'))) continue;
+
+      var pracEl = h.querySelector('[data-prac-id]');
+      var eidEl = h.querySelector('[data-eid]');
+      items.push({
+        h: h,
+        rect: h.getBoundingClientRect(),
+        pracId: pracEl ? pracEl.dataset.pracId : null,
+        eid: eidEl ? eidEl.getAttribute('data-eid') : null,
+        isChild: !!h.querySelector('.ev-pose-child')
+      });
     }
-    if (harnesses.length < 2) return;
+    if (items.length < 2) return;
 
-    var isChild = function (h) { return !!h.querySelector('.ev-pose-child'); };
-    var realHarnesses = harnesses.filter(function (h) { return !isChild(h); });
-    var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
+    var hasChildren = items.some(function (it) { return it.isChild; });
+    // Skip column entirely if no pose children AND no multi-practitioner redistribution needed
+    if (!hasChildren && !needsPracRedist) return;
 
-    // ── Redistribute real harnesses by practitioner column ──
-    // Only split into columns when events from different practitioners overlap in time.
-    // If only one practitioner has events at a given time → full width.
-    // Skip if resource view is active (FC Scheduler handles columns natively).
-    if (pracIds.length >= 2 && !isResourceView) {
-      // Annotate each harness with its practitioner and bounding rect
-      var annotated = realHarnesses.map(function (h) {
-        return { h: h, pid: getPracId(h), rect: h.getBoundingClientRect() };
-      }).filter(function (a) { return a.pid && pracIds.indexOf(a.pid) !== -1; });
+    columns.push({ items: items, hasChildren: hasChildren });
+  });
 
-      // For each harness, find all overlapping harnesses (by vertical bounds)
+  // ═══ PHASE 2: COMPUTE — determine all positions (no DOM reads or writes) ═══
+  var writes = []; // { h, left, right, z }
+
+  columns.forEach(function (col) {
+    var real = col.items.filter(function (it) { return !it.isChild; });
+    var children = col.items.filter(function (it) { return it.isChild; });
+
+    // ── Multi-practitioner overlap detection ──
+    if (needsPracRedist) {
+      var annotated = real.filter(function (a) {
+        return a.pracId && pracIds.indexOf(a.pracId) !== -1;
+      });
+
       annotated.forEach(function (a) {
-        var overlappingPracs = new Set();
-        overlappingPracs.add(a.pid);
+        var overlappingPracs = new Set([a.pracId]);
         annotated.forEach(function (b) {
           if (b === a) return;
-          // Check vertical overlap
           if (a.rect.top < b.rect.bottom - 1 && b.rect.top < a.rect.bottom - 1) {
-            overlappingPracs.add(b.pid);
+            overlappingPracs.add(b.pracId);
           }
         });
 
+        var left, right;
         if (overlappingPracs.size >= 2) {
-          // Multiple practitioners overlap at this time → split into columns
-          var idx = pracIds.indexOf(a.pid);
+          var idx = pracIds.indexOf(a.pracId);
           var total = pracIds.length;
           var w = 100 / total;
-          setHoriz(a.h, (idx * w) + '%', (100 - (idx + 1) * w) + '%');
-          a.h.style.zIndex = String(idx + 1);
+          left = (idx * w) + '%';
+          right = (100 - (idx + 1) * w) + '%';
+          writes.push({ h: a.h, left: left, right: right, z: String(idx + 1) });
         } else {
-          // Only one practitioner at this time → full width
-          setHoriz(a.h, '0%', '0%');
-          a.h.style.zIndex = '1';
+          left = '0%'; right = '0%';
+          writes.push({ h: a.h, left: left, right: right, z: '1' });
         }
+        if (a.eid) parentBounds[a.eid] = { left: left, right: right };
       });
     }
 
-    // ── Fix real harness widths when single-practitioner or resource view ──
-    // FC creates sub-columns for pose children overlapping parents; undo that.
-    if (childHarnesses.length > 0 && (pracIds.length < 2 || isResourceView)) {
+    // ── Single-practitioner pose fix ──
+    if (col.hasChildren && !needsPracRedist) {
       var groups = [];
-      realHarnesses.forEach(function (h) {
-        var hRect = h.getBoundingClientRect();
+      real.forEach(function (a) {
         var placed = false;
         for (var g = 0; g < groups.length; g++) {
-          if (groups[g].some(function (m) { var r = m.getBoundingClientRect(); return hRect.top < r.bottom - 1 && r.top < hRect.bottom - 1; })) {
-            groups[g].push(h); placed = true; break;
-          }
+          if (groups[g].some(function (m) {
+            return a.rect.top < m.rect.bottom - 1 && m.rect.top < a.rect.bottom - 1;
+          })) { groups[g].push(a); placed = true; break; }
         }
-        if (!placed) groups.push([h]);
+        if (!placed) groups.push([a]);
       });
       groups.forEach(function (group) {
         var w = 100 / group.length;
-        group.forEach(function (h, i) {
-          setHoriz(h, (i * w) + '%', (100 - (i + 1) * w) + '%');
+        group.forEach(function (a, i) {
+          var left = (i * w) + '%';
+          var right = (100 - (i + 1) * w) + '%';
+          writes.push({ h: a.h, left: left, right: right, z: null });
+          if (a.eid) parentBounds[a.eid] = { left: left, right: right };
         });
       });
     }
 
-    // ── Position each pose-child on its parent ──
-    // First pass: extract parent bounds and group children by parent
-    var childByParent = {};
-    childHarnesses.forEach(function (ch) {
-      var evEl = ch.querySelector('.ev-pose-child');
-      if (!evEl) return;
-      var parentId = evEl.dataset.poseParent;
-      if (!parentId) return;
-      var parentEl = document.querySelector('[data-eid="' + parentId + '"]');
-      if (!parentEl) return;
-      var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
-      if (!parentHarness) return;
-
-      // Extract parent's horizontal bounds
-      var pLeft = '0%', pRight = '0%';
-      var pm = parentHarness.style.cssText.match(/inset:\s*([^;!]+)/i);
-      if (pm) {
-        var pp = pm[1].trim().split(/\s+/);
-        pLeft = pp.length >= 4 ? pp[3] : '0%';
-        pRight = pp.length >= 2 ? pp[1] : '0%';
-      } else {
-        pLeft = parentHarness.style.left || '0%';
-        pRight = parentHarness.style.right || '0%';
-      }
-
-      if (!childByParent[parentId]) childByParent[parentId] = { pLeft: pLeft, pRight: pRight, children: [] };
-      childByParent[parentId].children.push(ch);
-    });
-
-    // Second pass: for each parent, distribute children
-    Object.keys(childByParent).forEach(function (pid) {
-      var info = childByParent[pid];
-      var kids = info.children;
-
-      if (kids.length === 1) {
-        // Single child: just overlay on parent
-        setHoriz(kids[0], info.pLeft, info.pRight);
-        kids[0].style.zIndex = '10';
-        return;
-      }
-
-      // Multiple children of same parent: check for vertical overlap
-      // Group overlapping children, distribute within parent bounds
-      var pLeftPct = parseFloat(info.pLeft) || 0;
-      var pRightPct = parseFloat(info.pRight) || 0;
-      var parentWidth = 100 - pLeftPct - pRightPct;
-      if (parentWidth <= 0) parentWidth = 100;
-
-      var overlapGroups = [];
-      kids.forEach(function (ch) {
-        var r = ch.getBoundingClientRect();
-        var placed = false;
-        for (var g = 0; g < overlapGroups.length; g++) {
-          if (overlapGroups[g].some(function (m) {
-            var mr = m.getBoundingClientRect();
-            return r.top < mr.bottom - 1 && mr.top < r.bottom - 1;
-          })) {
-            overlapGroups[g].push(ch);
-            placed = true;
-            break;
+    // ── Pose-child positioning ──
+    if (col.hasChildren) {
+      var childByParent = {};
+      children.forEach(function (ci) {
+        var evEl = ci.h.querySelector('.ev-pose-child');
+        if (!evEl) return;
+        var parentId = evEl.dataset.poseParent;
+        if (!parentId) return;
+        // Look up parent bounds from computed map (no DOM read needed)
+        var bounds = parentBounds[parentId];
+        if (!bounds) {
+          // Fallback: parent might be in another column or not yet computed — try DOM
+          var parentEl = document.querySelector('[data-eid="' + parentId + '"]');
+          if (!parentEl) return;
+          var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
+          if (!parentHarness) return;
+          var pm = parentHarness.style.cssText.match(/inset:\s*([^;!]+)/i);
+          if (pm) {
+            var pp = pm[1].trim().split(/\s+/);
+            bounds = { left: pp.length >= 4 ? pp[3] : '0%', right: pp.length >= 2 ? pp[1] : '0%' };
+          } else {
+            bounds = { left: parentHarness.style.left || '0%', right: parentHarness.style.right || '0%' };
           }
         }
-        if (!placed) overlapGroups.push([ch]);
+        if (!childByParent[parentId]) childByParent[parentId] = { pLeft: bounds.left, pRight: bounds.right, children: [] };
+        childByParent[parentId].children.push(ci);
       });
 
-      overlapGroups.forEach(function (group) {
-        if (group.length === 1) {
-          // No overlap with siblings: full parent width
-          setHoriz(group[0], info.pLeft, info.pRight);
-          group[0].style.zIndex = '10';
-        } else {
-          // Overlapping siblings: split into sub-columns within parent bounds
-          var w = parentWidth / group.length;
-          group.forEach(function (ch, i) {
-            var left = pLeftPct + i * w;
-            var right = 100 - left - w;
-            setHoriz(ch, left + '%', right + '%');
-            ch.style.zIndex = String(10 + i);
-          });
+      Object.keys(childByParent).forEach(function (pid) {
+        var info = childByParent[pid];
+        var kids = info.children;
+
+        if (kids.length === 1) {
+          writes.push({ h: kids[0].h, left: info.pLeft, right: info.pRight, z: '10' });
+          return;
         }
+
+        var pLeftPct = parseFloat(info.pLeft) || 0;
+        var pRightPct = parseFloat(info.pRight) || 0;
+        var parentWidth = 100 - pLeftPct - pRightPct;
+        if (parentWidth <= 0) parentWidth = 100;
+
+        // Group overlapping children using cached rects
+        var overlapGroups = [];
+        kids.forEach(function (ci) {
+          var placed = false;
+          for (var g = 0; g < overlapGroups.length; g++) {
+            if (overlapGroups[g].some(function (m) {
+              return ci.rect.top < m.rect.bottom - 1 && m.rect.top < ci.rect.bottom - 1;
+            })) { overlapGroups[g].push(ci); placed = true; break; }
+          }
+          if (!placed) overlapGroups.push([ci]);
+        });
+
+        overlapGroups.forEach(function (group) {
+          if (group.length === 1) {
+            writes.push({ h: group[0].h, left: info.pLeft, right: info.pRight, z: '10' });
+          } else {
+            var w = parentWidth / group.length;
+            group.forEach(function (ci, i) {
+              var left = pLeftPct + i * w;
+              var right = 100 - left - w;
+              writes.push({ h: ci.h, left: left + '%', right: right + '%', z: String(10 + i) });
+            });
+          }
+        });
       });
-    });
+    }
+  });
+
+  // ═══ PHASE 3: WRITE — apply all DOM mutations in one batch ═══
+  writes.forEach(function (w) {
+    setHoriz(w.h, w.left, w.right);
+    if (w.z != null) w.h.style.zIndex = w.z;
   });
 }
 
@@ -258,10 +273,7 @@ function buildEventDidMount() {
       if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
         info.el.classList.add('ev-pose-child');
         info.el.setAttribute('data-pose-parent', p._poseParentId);
-        clearTimeout(window._poseRedistTimer);
-        clearTimeout(window._poseRedistTimer2);
-        window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
-        window._poseRedistTimer2 = setTimeout(redistributePoseColumns, 120);
+        scheduleRedistribute();
       }
       return; // Skip all booking-specific logic
     }
@@ -300,12 +312,8 @@ function buildEventDidMount() {
       info.el.setAttribute('data-pose-parent', p._poseParentId);
     }
     // Schedule redistribution for practitioner columns + pose-child positioning
-    // (debounced, run twice to survive FC re-layouts)
     if (info.view.type !== 'dayGridMonth') {
-      clearTimeout(window._poseRedistTimer);
-      clearTimeout(window._poseRedistTimer2);
-      window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
-      window._poseRedistTimer2 = setTimeout(redistributePoseColumns, 120);
+      scheduleRedistribute();
     }
 
     // ── Border styling ──
