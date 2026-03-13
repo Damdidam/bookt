@@ -1043,11 +1043,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               const depositUrl = `${baseUrl}/deposit/${multiBookings[0].public_token}`;
               await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, multiBookings[0].id]);
               const { sendDepositRequestEmail } = require('../../services/email');
-              const svcName = groupSvcs.map(s => s.name).join(' + ') || 'Rendez-vous';
               await sendDepositRequestEmail({
-                booking: { ...emailBooking, service_name: svcName },
+                booking: emailBooking,
                 business: bizRow.rows[0],
-                depositUrl
+                depositUrl,
+                groupServices: groupSvcs
               });
               // Audit trail
               try {
@@ -2240,6 +2240,14 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
         );
         if (fullBk.rows[0] && fullBk.rows[0].client_email) {
           const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
           await sendBookingConfirmation({
             booking: {
               public_token: row.public_token, start_at: row.start_at, end_at: row.end_at,
@@ -2247,7 +2255,8 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
               service_name: row.service_name, practitioner_name: row.practitioner_name,
               comment: row.comment_client
             },
-            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme }
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme },
+            groupServices
           });
         }
       } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }

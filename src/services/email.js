@@ -545,7 +545,7 @@ async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
 /**
  * Send deposit request email to client
  */
-async function sendDepositRequestEmail({ booking, business, depositUrl }) {
+async function sendDepositRequestEmail({ booking, business, depositUrl, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
@@ -562,18 +562,33 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
-  const safeServiceName = escHtml(booking.service_name || 'Rendez-vous');
   const safePracName = escHtml(booking.practitioner_name || '');
   const safeBizName = escHtml(business.name);
 
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const safeServiceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || 'Rendez-vous');
+
   const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+
+  let serviceDetailHTML = '';
+  if (isMulti) {
+    serviceDetailHTML += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
+    groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+    });
+  } else {
+    serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
+  }
 
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
       <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr} \u00e0 ${timeStr}</div>
-      <div style="font-size:14px;color:#92700C">${safeServiceName}</div>
+      ${serviceDetailHTML}
       ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
@@ -697,7 +712,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
 /**
  * Send deposit refund confirmation email to client
  */
-async function sendDepositRefundEmail({ booking, business }) {
+async function sendDepositRefundEmail({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
@@ -708,8 +723,21 @@ async function sendDepositRefundEmail({ booking, business }) {
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
-  const safeServiceName = escHtml(booking.service_name || 'Rendez-vous');
   const safeBizName = escHtml(business.name);
+
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const safeServiceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || 'Rendez-vous');
+
+  let serviceDetailHTML = '';
+  if (isMulti) {
+    groupServices.forEach(s => {
+      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)}</div>`;
+    });
+  } else {
+    serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
+  }
 
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
@@ -721,7 +749,7 @@ async function sendDepositRefundEmail({ booking, business }) {
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Rendez-vous annul\u00e9</div>
       <div style="font-size:14px;color:#3D3832">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
-      <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
+      ${serviceDetailHTML}
     </div>
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
 

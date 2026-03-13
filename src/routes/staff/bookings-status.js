@@ -423,7 +423,7 @@ router.patch('/:id/status', async (req, res, next) => {
     if (txResult.depositRefunded) {
       try {
         const emailData = await queryWithRLS(bid,
-          `SELECT b.start_at, b.deposit_amount_cents, b.client_id,
+          `SELECT b.start_at, b.deposit_amount_cents, b.client_id, b.group_id,
                   c.first_name || ' ' || c.last_name AS client_name, c.email AS client_email,
                   s.name AS service_name, biz.name AS biz_name, biz.slug, biz.email AS biz_email,
                   biz.address, biz.settings, biz.theme
@@ -436,10 +436,19 @@ router.patch('/:id/status', async (req, res, next) => {
         );
         if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
           const d = emailData.rows[0];
+          let groupServices = null;
+          if (d.group_id) {
+            const grp = await queryWithRLS(bid,
+              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [d.group_id, bid]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
           const { sendDepositRefundEmail } = require('../../services/email');
           sendDepositRefundEmail({
             booking: { start_at: d.start_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name },
-            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme }
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
+            groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
         }
       } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
@@ -588,7 +597,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
     // Send refund confirmation email to client (non-blocking)
     try {
       const emailData = await queryWithRLS(bid,
-        `SELECT b.start_at, b.deposit_amount_cents, b.client_id,
+        `SELECT b.start_at, b.deposit_amount_cents, b.client_id, b.group_id,
                 c.first_name || ' ' || c.last_name AS client_name, c.email AS client_email,
                 s.name AS service_name, biz.name AS biz_name, biz.slug, biz.email AS biz_email,
                 biz.address, biz.settings, biz.theme
@@ -601,10 +610,19 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       );
       if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
         const d = emailData.rows[0];
+        let groupServices = null;
+        if (d.group_id) {
+          const grp = await queryWithRLS(bid,
+            `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+            [d.group_id, bid]
+          );
+          if (grp.rows.length > 1) groupServices = grp.rows;
+        }
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
           booking: { start_at: d.start_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name },
-          business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme }
+          business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
+          groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
       }
     } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
@@ -649,12 +667,12 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     const bkResult = await queryWithRLS(bid, `
       SELECT b.id, b.status, b.deposit_required, b.deposit_status,
              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
-             b.start_at, b.end_at, b.practitioner_id,
+             b.start_at, b.end_at, b.practitioner_id, b.group_id,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
              s.name AS service_name,
              p.display_name AS practitioner_name,
              biz.name AS business_name, biz.email AS business_email,
-             biz.address AS business_address, biz.theme, biz.plan
+             biz.address AS business_address, biz.theme, biz.plan, biz.settings
       FROM bookings b
       LEFT JOIN clients c ON c.id = b.client_id
       LEFT JOIN services s ON s.id = b.service_id
@@ -722,11 +740,23 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     // 8. Send
     let sendResult;
     if (channel === 'email') {
+      let groupServices = null;
+      if (bk.group_id) {
+        const grp = await queryWithRLS(bid,
+          `SELECT s.name, s.duration_min, s.price_cents
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           WHERE b.group_id = $1 AND b.business_id = $2
+           ORDER BY b.group_order, b.start_at`,
+          [bk.group_id, bid]
+        );
+        if (grp.rows.length > 1) groupServices = grp.rows;
+      }
       const { sendDepositRequestEmail } = require('../../services/email');
       sendResult = await sendDepositRequestEmail({
         booking: bk,
-        business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme },
-        depositUrl
+        business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme, settings: bk.settings },
+        depositUrl,
+        groupServices
       });
     } else {
       const { sendSMS } = require('../../services/sms');
