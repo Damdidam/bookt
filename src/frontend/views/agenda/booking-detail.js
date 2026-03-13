@@ -513,7 +513,8 @@ const ACTION_LABELS = {
   ungroup: 'D\u00e9tach\u00e9 du groupe',
   group_remove: 'Supprim\u00e9 du groupe',
   group_reorder: 'Groupe r\u00e9ordonn\u00e9',
-  confirmation_expired: 'Confirmation expir\u00e9e'
+  confirmation_expired: 'Confirmation expir\u00e9e',
+  client_cancel: 'Annul\u00e9 par le client'
 };
 const ACTION_ICONS = {
   create: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
@@ -527,7 +528,8 @@ const ACTION_ICONS = {
   ungroup: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg>',
   group_remove: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
   group_reorder: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>',
-  confirmation_expired: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+  confirmation_expired: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  client_cancel: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="22" y2="16"/><line x1="22" y1="11" x2="17" y2="16"/></svg>'
 };
 const STATUS_MAP = {
   pending: 'En attente', confirmed: 'Confirm\u00e9', completed: 'Termin\u00e9',
@@ -593,6 +595,8 @@ function historyDetail(entry) {
       return nd.amount_cents ? (nd.amount_cents / 100).toFixed(2) + '\u20ac' : '';
     case 'confirmation_expired':
       return 'Annul\u00e9 \u2014 non confirm\u00e9 par le client';
+    case 'client_cancel':
+      return nd.cancel_reason || '';
     default:
       return '';
   }

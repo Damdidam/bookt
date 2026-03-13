@@ -324,7 +324,7 @@ router.patch('/:id/status', async (req, res, next) => {
               newDepStatus = 'cancelled';
             }
           } else if (dep.deposit_status === 'pending') {
-            newDepStatus = 'pending';
+            newDepStatus = 'cancelled';
           }
           // ===== Stripe refund: actually refund the money when status is 'refunded' =====
           if (newDepStatus === 'refunded' && dep.deposit_payment_intent_id && dep.deposit_payment_intent_id.startsWith('pi_')) {

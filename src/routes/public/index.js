@@ -1805,7 +1805,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
                    OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
                  THEN 'refunded' ELSE 'cancelled' END
-          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'pending'
+          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
           ELSE deposit_status
         END,
         updated_at = NOW()
@@ -1817,6 +1817,17 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (cancelResult.rowCount === 0) {
       return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
     }
+
+    // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
+    try {
+      await query(
+        `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, 'booking', $2, 'client_cancel', $3, $4)`,
+        [bk.business_id, bk.id,
+         JSON.stringify({ status: bk.status }),
+         JSON.stringify({ status: 'cancelled', cancel_reason: reason || null })]
+      );
+    } catch (e) { /* non-critical */ }
 
     // Queue cancellation notification
     // NOTE: notification types may need a DB migration to add to the CHECK constraint
