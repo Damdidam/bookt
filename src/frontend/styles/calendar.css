@@ -18,13 +18,7 @@
 /* Lock button */
 .at-lock-btn{padding:6px 10px!important}
 .at-lock-btn.active{background:#FEF3C7!important;color:#D97706!important;border-color:#FCD34D!important}
-/* Zoom controls */
-.at-zoom{display:inline-flex;align-items:center;border:1.5px solid var(--border-light);border-radius:8px;overflow:hidden;margin-left:2px}
-.at-zoom-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--white);border:none;cursor:pointer;color:var(--text-3);transition:all .15s}
-.at-zoom-btn:hover{background:var(--surface);color:var(--text-2)}
-.at-zoom-btn:not(:last-child){border-right:1px solid var(--border-light)}
-.at-zoom-fit.active{background:var(--primary-light);color:var(--primary)}
-@media(max-width:767px){.at-lock-btn,.at-zoom{display:none}}
+@media(max-width:767px){.at-lock-btn{display:none}}
 /* Prac pills inline in row 1 */
 .at-prac-pills{display:flex;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-shrink:1;min-width:0}
 .at-prac-pills::-webkit-scrollbar{display:none}

@@ -269,9 +269,8 @@ async function loadAgenda() {
   const fsBtnHtml = canFeatured ? `<button class="at-view-btn fs-toggle-btn" id="fsToggleBtn" onclick="fsToggleMode()" title="Mode vedette"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>` : '';
   const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="ga-badge" id="gaBadge" style="display:none"></span></button>` : '';
   const soBtnHtml = ['owner', 'manager'].includes(userRole) ? `<button class="at-view-btn so-toggle-btn" id="soToggleBtn" onclick="soToggleMode()" title="Quick booking"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>` : '';
-  // Lock & Zoom buttons
+  // Lock button
   const lockBtnHtml = `<button class="at-view-btn at-lock-btn" id="calLockBtn" onclick="fcToggleLock()" title="Verrouiller le calendrier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M17 11V7a5 5 0 0 0-9.58-2"/></svg></button>`;
-  const zoomHtml = `<div class="at-zoom" id="calZoomGroup"><button class="at-zoom-btn" onclick="fcZoom('out')" title="Zoom arrière"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button class="at-zoom-btn at-zoom-fit" onclick="fcZoom('fit')" title="Ajuster à l'écran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button><button class="at-zoom-btn" onclick="fcZoom('in')" title="Zoom avant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:12px;height:12px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>`;
 
   let toolbar = `<div class="agenda-toolbar">`;
   // Desktop: Row 1 -- nav + title + prac pills + views + tools + search icon + filter toggle
@@ -287,7 +286,7 @@ async function loadAgenda() {
   toolbar += `<button class="at-view-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
   toolbar += `<button class="at-view-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
   toolbar += `<button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')"><span class="vl">Timeline</span><span class="vs">TL</span></button>`;
-  toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${zoomHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;
+  toolbar += `<span class="at-sep" style="height:22px"></span>${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}`;
   toolbar += `</div>`;
   toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
   toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
@@ -408,57 +407,6 @@ function fcToggleLock() {
   GendaUI.toast(calState.fcLocked ? 'Calendrier verrouillé' : 'Calendrier déverrouillé', 'info');
 }
 
-// ── Zoom control ──
-const ZOOM_STEPS = [12, 16, 20, 26, 34, 44, 56];
-const ZOOM_DEFAULT = 3; // index of 26px
-let _zoomLevel = ZOOM_DEFAULT;
-
-function fcZoom(action) {
-  const cal = calState.fcCal;
-  if (!cal) return;
-  if (action === 'fit') {
-    // Calculate slot height to fit entire day in viewport
-    const tb = document.querySelector('.agenda-toolbar');
-    const tbH = tb ? tb.offsetHeight : 82;
-    const headerH = 50; // column header height estimate
-    const viewportH = window.innerHeight - tbH - headerH - 20; // 20px padding
-    const slotMin = calState.fcSlotMin || '08:00:00';
-    const slotMax = calState.fcSlotMax || '19:00:00';
-    const minH = parseInt(slotMin.split(':')[0]);
-    const maxH = parseInt(slotMax.split(':')[0]);
-    const totalSlots = (maxH - minH) * 4; // 15min slots
-    const fitHeight = Math.max(8, Math.floor(viewportH / totalSlots));
-    // Find nearest zoom step or use exact
-    let nearest = 0;
-    ZOOM_STEPS.forEach((s, i) => { if (Math.abs(s - fitHeight) < Math.abs(ZOOM_STEPS[nearest] - fitHeight)) nearest = i; });
-    _zoomLevel = nearest;
-    _applyZoom(fitHeight);
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  } else if (action === 'in') {
-    if (_zoomLevel < ZOOM_STEPS.length - 1) _zoomLevel++;
-    _applyZoom(ZOOM_STEPS[_zoomLevel]);
-  } else if (action === 'out') {
-    if (_zoomLevel > 0) _zoomLevel--;
-    _applyZoom(ZOOM_STEPS[_zoomLevel]);
-  }
-}
-
-function _applyZoom(px) {
-  const el = document.getElementById('fcCalendar');
-  if (el) el.style.setProperty('--fc-slot-h', px + 'px');
-  // Force FullCalendar to fully re-render (recalculates event positions)
-  const cal = calState.fcCal;
-  if (cal) {
-    const currentView = cal.view.type;
-    const currentDate = cal.getDate();
-    cal.changeView(currentView, currentDate);
-  }
-  // Update fit button active state
-  const fitBtn = document.querySelector('.at-zoom-fit');
-  if (fitBtn) fitBtn.classList.toggle('active', px < 20);
-}
-
 // ── Filter panel toggle ──
 function fcToggleFilterPanel() {
   const panel = document.getElementById('atFilterPanel');
@@ -501,6 +449,6 @@ document.addEventListener('click', (e) => {
 });
 
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcZoom, fcToggleFilterPanel, fcToggleSearch });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcToggleFilterPanel, fcToggleSearch });
 
 export { loadAgenda };
