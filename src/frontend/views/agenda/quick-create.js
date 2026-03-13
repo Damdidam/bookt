@@ -23,7 +23,7 @@ let qcReminders = [];
 // Cache autocomplete results so we can access email/phone without re-fetch
 let _qcSearchResults = [];
 
-function fcOpenQuickCreate(startStr, endStr) {
+function fcOpenQuickCreate(startStr, endStr, resourceId) {
   let d;
   if (startStr) { d = new Date(startStr); }
   else {
@@ -68,8 +68,10 @@ function fcOpenQuickCreate(startStr, endStr) {
     prSel.value = user.practitioner_id;
     prSel.disabled = true;
   } else {
-    // Default to filtered practitioner if one is selected
-    if (calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all') {
+    // Default to clicked resource column, or filtered practitioner
+    if (resourceId) {
+      prSel.value = resourceId;
+    } else if (calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all') {
       prSel.value = calState.fcCurrentFilter;
     }
     prSel.disabled = false;

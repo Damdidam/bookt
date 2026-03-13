@@ -32,7 +32,7 @@ function buildDateClick() {
     }
     const now = Date.now();
     if (window._fcLastDateClick && now - window._fcLastDateClick < 600 && window._fcLastDateClickDate === info.dateStr) {
-      fcOpenQuickCreate(info.dateStr);
+      fcOpenQuickCreate(info.dateStr, null, info.resource?.id);
       window._fcLastDateClick = 0;
     } else {
       window._fcLastDateClick = now;
