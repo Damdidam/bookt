@@ -142,6 +142,19 @@ export function buildGroupEvents(grouped) {
     const anyLocked = members.some(m => m.locked);
     const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
     const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
+    // Proportional border segments for multi-color groups
+    const accents = members.map(m => accentFor(m));
+    let _borderSegments = null;
+    if (new Set(accents).size > 1) {
+      const durations = members.map(m => Math.max((new Date(m.end_at) - new Date(m.start_at)) / 60000, 1));
+      const total = durations.reduce((s, d) => s + d, 0);
+      let cursor = 0;
+      _borderSegments = members.map((m, i) => {
+        const seg = { color: accents[i], from: cursor, to: cursor + durations[i] / total * 100 };
+        cursor = seg.to;
+        return seg;
+      });
+    }
     const gev = {
       id: 'group_' + gid, resourceId: String(first.practitioner_id),
       title: first.client_name || 'Sans nom',
@@ -151,6 +164,7 @@ export function buildGroupEvents(grouped) {
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
         _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
+        _borderSegments,
         client_name: first.client_name,
         client_is_vip: first.client_is_vip,
         client_notes: first.client_notes,

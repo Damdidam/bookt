@@ -314,14 +314,20 @@ function buildEventDidMount() {
     // ── Border styling ──
     info.el.style.borderLeftWidth = '3px';
     info.el.style.borderLeftStyle = 'solid';
-    info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     info.el.style.borderTopWidth = '0';
     info.el.style.borderRightWidth = '0';
     info.el.style.borderBottomWidth = '0';
 
-    // Dashed border for pending_deposit / pending
-    if (p.status === 'pending_deposit' || p.status === 'pending' || (p._isGroup && p._members?.some(m => m.status === 'pending_deposit' || m.status === 'pending'))) {
+    const isPending = p.status === 'pending_deposit' || p.status === 'pending'
+      || (p._isGroup && p._members?.some(m => m.status === 'pending_deposit' || m.status === 'pending'));
+    if (isPending) {
       info.el.style.borderLeftStyle = 'dashed';
+      info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
+    } else if (p._borderSegments) {
+      const stops = p._borderSegments.flatMap(s => [`${s.color} ${s.from.toFixed(1)}%`, `${s.color} ${s.to.toFixed(1)}%`]);
+      info.el.style.borderImage = `linear-gradient(to bottom, ${stops.join(', ')}) 1`;
+    } else {
+      info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     }
 
     info.el.setAttribute('data-eid', info.event.id);
@@ -336,6 +342,7 @@ function buildEventDidMount() {
         if (!anyVisible) { info.el.style.display = 'none'; }
         else if (anyHidden) {
           info.el.classList.add('ev-partial-match');
+          info.el.style.borderImage = 'none';
           info.el.style.setProperty('border-left-color', safeAccent + '55', 'important');
         }
       } else {
