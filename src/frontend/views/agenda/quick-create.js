@@ -119,6 +119,10 @@ function fcOpenQuickCreate(startStr, endStr) {
   const depCheck = document.getElementById('qcDepositCheck');
   if (depToggle) depToggle.style.display = 'none';
   if (depCheck) { depCheck.checked = false; delete depCheck.dataset.userOverride; }
+  const depAmtRow = document.getElementById('qcDepositAmountRow');
+  if (depAmtRow) depAmtRow.style.display = 'none';
+  const depAmtInp = document.getElementById('qcDepositAmount');
+  if (depAmtInp) depAmtInp.value = '';
 
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
@@ -163,6 +167,7 @@ function qcToggleFreestyle() {
   } else {
     qcUpdateTotal();
   }
+  _qcUpdateDepositAmountRow();
 }
 
 function qcUpdateFreeDuration() {
@@ -527,6 +532,7 @@ function qcCheckDepositSuggestion() {
   if (suggest && !check.checked && !check.dataset.userOverride) {
     check.checked = true;
     _qcUpdateDepositVisual(true);
+    _qcUpdateDepositAmountRow();
     const reasons = [];
     if (priceHit) reasons.push((totalPrice / 100).toFixed(0) + '€');
     if (durHit) reasons.push(totalDur + ' min');
@@ -539,6 +545,7 @@ function qcCheckDepositSuggestion() {
 function qcDepositUserToggle(el) {
   el.dataset.userOverride = 'true';
   _qcUpdateDepositVisual(el.checked);
+  _qcUpdateDepositAmountRow();
 }
 
 function _qcUpdateDepositVisual(on) {
@@ -546,6 +553,26 @@ function _qcUpdateDepositVisual(on) {
   const thumb = document.getElementById('qcDepositThumb');
   if (track) track.style.background = on ? '#D97706' : 'var(--border)';
   if (thumb) thumb.style.left = on ? '20px' : '2px';
+}
+
+/** Show/hide the deposit amount input — only visible in freestyle mode + deposit ON */
+function _qcUpdateDepositAmountRow() {
+  const row = document.getElementById('qcDepositAmountRow');
+  if (!row) return;
+  const isFreestyle = document.getElementById('qcFreestyle')?.checked;
+  const isChecked = document.getElementById('qcDepositCheck')?.checked;
+  const show = isFreestyle && isChecked;
+  row.style.display = show ? '' : 'none';
+  if (show) {
+    const inp = document.getElementById('qcDepositAmount');
+    if (inp && !inp.value) {
+      const s = calState.fcBusinessSettings || {};
+      const defaultEuros = s.deposit_type === 'fixed'
+        ? ((s.deposit_fixed_cents || 2500) / 100)
+        : 25;
+      inp.value = defaultEuros.toFixed(2);
+    }
+  }
 }
 
 // ── Client autocomplete ──
@@ -820,7 +847,17 @@ async function calCreateBooking() {
 
     // Deposit toggle: force deposit if staff checked the toggle
     const depCheck = document.getElementById('qcDepositCheck');
-    if (depCheck?.checked) body.force_deposit = true;
+    if (depCheck?.checked) {
+      body.force_deposit = true;
+      // Freestyle: send explicit deposit amount from the input
+      const depAmtRow = document.getElementById('qcDepositAmountRow');
+      if (depAmtRow && depAmtRow.style.display !== 'none') {
+        const raw = parseFloat(document.getElementById('qcDepositAmount')?.value);
+        if (!raw || raw <= 0) { gToast('Montant de l\'acompte requis', 'error'); return; }
+        if (raw > 10000) { gToast('Montant de l\'acompte trop élevé (max 10 000€)', 'error'); return; }
+        body.deposit_amount_cents = Math.round(raw * 100);
+      }
+    }
 
     const r = await fetch('/api/bookings/manual', {
       method: 'POST',

@@ -409,6 +409,11 @@
             <div id="qcDepositHint" style="font-size:.72rem;color:#B45309"></div>
           </div>
         </div>
+        <div id="qcDepositAmountRow" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #F5D08B">
+          <label style="font-size:.72rem;font-weight:600;color:#92400E;display:block;margin-bottom:3px">Montant de l'acompte (€)</label>
+          <input type="number" id="qcDepositAmount" min="1" step="0.01" placeholder="25.00"
+            style="width:110px;padding:5px 8px;border:1px solid #F59E0B;border-radius:6px;font-size:.82rem;font-family:inherit">
+        </div>
         <label style="position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0">
           <input type="checkbox" id="qcDepositCheck" style="display:none" onchange="qcDepositUserToggle(this)">
           <span id="qcDepositTrack" style="position:absolute;inset:0;background:var(--border);border-radius:11px;transition:all .2s"></span>

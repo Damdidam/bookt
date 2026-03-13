@@ -19,7 +19,7 @@ router.post('/manual', async (req, res, next) => {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
             services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked,
-            force_deposit, skip_confirmation } = req.body;
+            force_deposit, deposit_amount_cents, skip_confirmation } = req.body;
 
     // Default status: pending (staff confirms later). skip_confirmation → confirmed immediately.
     const bookingStatus = skip_confirmation ? 'confirmed' : 'pending';
@@ -163,9 +163,9 @@ router.post('/manual', async (req, res, next) => {
           const dc = depCheck.rows[0];
           const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
           if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
-            const depCents = dc.settings.deposit_type === 'fixed'
-              ? (dc.settings.deposit_fixed_cents || 2500)
-              : 0; // freestyle has no service price, use fixed or skip
+            const depCents = (deposit_amount_cents > 0)
+              ? deposit_amount_cents
+              : (dc.settings.deposit_fixed_cents || 2500);
             if (depCents > 0) {
               const dlHours = dc.settings.deposit_deadline_hours ?? 48;
               // Bug M8 fix: Use realStart (actual booking start incl. buffer) instead of raw start_at
