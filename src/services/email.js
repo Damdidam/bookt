@@ -604,7 +604,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
 /**
  * Send deposit paid confirmation email to client
  */
-async function sendDepositPaidEmail({ booking, business }) {
+async function sendDepositPaidEmail({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
@@ -615,9 +615,28 @@ async function sendDepositPaidEmail({ booking, business }) {
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
-  const safeServiceName = escHtml(booking.service_name || 'Rendez-vous');
   const safePracName = escHtml(booking.practitioner_name || '');
   const safeBizName = escHtml(business.name);
+
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const safeServiceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || 'Rendez-vous');
+
+  let serviceDetailHTML = '';
+  if (isMulti) {
+    serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;margin-top:8px;font-weight:600">Prestations :</div>`;
+    groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+    });
+    const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
+    serviceDetailHTML += `<div style="font-size:14px;color:#1A1816;margin-top:6px;font-weight:700">Total : ${durStr}${totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}</div>`;
+  } else {
+    serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
+  }
 
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
@@ -628,7 +647,7 @@ async function sendDepositPaidEmail({ booking, business }) {
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
       <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
-      <div style="font-size:14px;color:#3D3832">${safeServiceName}</div>
+      ${serviceDetailHTML}
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>

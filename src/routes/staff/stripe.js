@@ -269,12 +269,13 @@ async function handleStripeWebhook(req, res) {
             // Send confirmation email to client
             try {
               const bkData = await query(
-                `SELECT b.start_at, b.end_at, b.deposit_amount_cents,
+                `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
                         c.full_name AS client_name, c.email AS client_email,
                         s.name AS service_name, s.duration_min,
                         p.display_name AS practitioner_name,
                         biz.name AS business_name, biz.email AS business_email,
-                        biz.address AS business_address, biz.theme, biz.slug
+                        biz.address AS business_address, biz.theme, biz.slug,
+                        biz.settings AS business_settings
                  FROM bookings b
                  LEFT JOIN clients c ON c.id = b.client_id
                  LEFT JOIN services s ON s.id = b.service_id
@@ -285,10 +286,26 @@ async function handleStripeWebhook(req, res) {
               );
               if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
                 const d = bkData.rows[0];
+                // Fetch group services for multi-service bookings
+                let groupServices = null;
+                if (d.group_id) {
+                  const grp = await query(
+                    `SELECT s.name, s.duration_min, s.price_cents
+                     FROM bookings b
+                     LEFT JOIN services s ON s.id = b.service_id
+                     WHERE b.group_id = $1 AND b.business_id = $2
+                     ORDER BY b.group_order, b.start_at`,
+                    [d.group_id, businessId]
+                  );
+                  if (grp.rows.length > 1) {
+                    groupServices = grp.rows;
+                  }
+                }
                 const { sendDepositPaidEmail } = require('../../services/email');
                 await sendDepositPaidEmail({
                   booking: d,
-                  business: { name: d.business_name, email: d.business_email, address: d.business_address, theme: d.theme, slug: d.slug }
+                  business: { name: d.business_name, email: d.business_email, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+                  groupServices
                 });
               }
             } catch (emailErr) {
