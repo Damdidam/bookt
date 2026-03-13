@@ -14,6 +14,9 @@ import { fcHexAlpha } from './calendar-init.js';
 
 const DEFAULT_ACCENT = '#0D7377';
 
+// Cache touch detection once (constant during session)
+const _isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
 /**
  * Redistribute harness positions in columns that contain pose-children.
  * FC creates N sub-columns for N overlapping events, but pose-children should
@@ -46,17 +49,10 @@ function redistributePoseColumns() {
     ? [calState.fcCurrentFilter]
     : (calState.fcPractitioners || []).map(function (p) { return String(p.id); });
 
-  // Helper: get practitioner_id from a harness element
+  // Helper: get practitioner_id from a harness element (fast: reads data attribute)
   function getPracId(h) {
-    var evEl = h.querySelector('[data-eid]');
-    if (!evEl) return null;
-    var eid = evEl.dataset.eid;
-    var cal = calState.fcCal;
-    if (!cal) return null;
-    var ev = cal.getEventById(eid);
-    if (!ev) return null;
-    var ep = ev.extendedProps;
-    return String(ep?.practitioner_id || (ep?._isGroup ? ep._members?.[0]?.practitioner_id : '') || '');
+    var evEl = h.querySelector('[data-prac-id]');
+    return evEl ? evEl.dataset.pracId : null;
   }
 
   var processed = new Set();
@@ -239,10 +235,10 @@ function buildEventDidMount() {
       info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
       info.el.style.borderTopWidth = '0'; info.el.style.borderRightWidth = '0'; info.el.style.borderBottomWidth = '0';
       info.el.setAttribute('data-eid', info.event.id);
+      info.el.setAttribute('data-prac-id', String(p.practitioner_id || ''));
       const taskId = info.event.id.replace('task_', '');
       // Tooltip
-      const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      if (!isTouch) {
+      if (!_isTouch) {
         info.el.addEventListener('mouseenter', e => { if (!fsIsActive()) fcShowTooltip(info.event, e.clientX, e.clientY); });
         info.el.addEventListener('mousemove', e => { if (!fsIsActive()) fcMoveTooltip(e.clientX, e.clientY); });
         info.el.addEventListener('mouseleave', () => fcHideTooltip());
@@ -325,10 +321,14 @@ function buildEventDidMount() {
       info.el.style.borderLeftStyle = 'dashed';
       info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     } else if (p._borderSegments) {
+      // border-image cancels border-radius in CSS — use a child div instead
+      info.el.style.borderLeftColor = 'transparent';
+      const stripe = document.createElement('div');
       const stops = p._borderSegments.flatMap(s => [`${s.color} ${s.from.toFixed(1)}%`, `${s.color} ${s.to.toFixed(1)}%`]);
-      info.el.style.borderImage = `linear-gradient(to bottom, ${stops.join(', ')}) 1`;
-      info.el.style.borderRadius = '6px';
+      stripe.style.cssText = 'position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:6px 0 0 6px;background:linear-gradient(to bottom,' + stops.join(',') + ');pointer-events:none;z-index:1';
+      info.el.style.position = 'relative';
       info.el.style.overflow = 'hidden';
+      info.el.appendChild(stripe);
       const bgStops = p._borderSegments.flatMap(s => [`${fcHexAlpha(s.color, 0.22)} ${s.from.toFixed(1)}%`, `${fcHexAlpha(s.color, 0.22)} ${s.to.toFixed(1)}%`]);
       info.el.style.background = `linear-gradient(to bottom, ${bgStops.join(', ')})`;
     } else {
@@ -336,6 +336,7 @@ function buildEventDidMount() {
     }
 
     info.el.setAttribute('data-eid', info.event.id);
+    info.el.setAttribute('data-prac-id', String(p.practitioner_id || (p._isGroup ? p._members?.[0]?.practitioner_id : '') || ''));
 
     // ── Category filtering display ──
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
@@ -364,8 +365,7 @@ function buildEventDidMount() {
     const bookingId = p._isGroup ? p._members?.[0]?.id : info.event.id;
 
     // ── Tooltip (hover desktop only, tap touch) ──
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouch) {
+    if (!_isTouch) {
       info.el.addEventListener('mouseenter', function (e) {
         if (fsIsActive()) return;
         fcShowTooltip(info.event, e.clientX, e.clientY);

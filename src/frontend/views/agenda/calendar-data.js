@@ -32,9 +32,9 @@ export function separateGroupedAndSingles(bookings) {
   return { grouped, singles };
 }
 
-/** Detect bookings AND tasks that fall entirely within another booking's processing (pose) window. */
+/** Detect bookings AND tasks that fall entirely within another booking's processing (pose) window.
+ *  Optimized: groups pose parents by practitioner_id to avoid O(n*m) full scans. */
 export function detectPoseChildren(singles, tasks) {
-  const poseParentBookings = singles.filter(b => parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status));
   const poseChildMap = {}; // parent booking id -> [child bookings]
   const poseChildIds = new Set();
   const taskPoseChildIds = new Set(); // task ids that are pose children
@@ -42,21 +42,40 @@ export function detectPoseChildren(singles, tasks) {
   // Round ms timestamp to nearest minute (avoids sub-second DB precision mismatches)
   const toMin = t => Math.round(t / 60000);
 
-  // Helper: check if an item (booking or task) fits within any pose parent
+  // Index pose parents by practitioner_id for O(1) lookup per practitioner
+  const poseParentsByPrac = {};
+  singles.forEach(b => {
+    if (parseInt(b.processing_time) > 0 && !['cancelled','no_show'].includes(b.status)) {
+      const pid = String(b.practitioner_id);
+      if (!poseParentsByPrac[pid]) poseParentsByPrac[pid] = [];
+      const parStart = new Date(b.start_at).getTime();
+      const parPs = parseInt(b.processing_start) || 0;
+      const parBuf = parseInt(b.buffer_before_min) || 0;
+      const parPt = parseInt(b.processing_time) || 0;
+      poseParentsByPrac[pid].push({
+        id: b.id,
+        poseStartMin: toMin(parStart + (parBuf + parPs) * 60000),
+        poseEndMin: toMin(parStart + (parBuf + parPs + parPt) * 60000),
+        booking: b
+      });
+    }
+  });
+
+  // No pose parents at all → fast exit
+  if (Object.keys(poseParentsByPrac).length === 0) {
+    return { poseChildMap, poseChildIds, taskPoseChildIds, taskPoseParentMap };
+  }
+
+  // Helper: check if an item fits within any pose parent of the same practitioner
   function checkAgainstPoseParents(item, pracId, itemId, isTask) {
+    const parents = poseParentsByPrac[String(pracId)];
+    if (!parents) return;
     const bStartMin = toMin(new Date(item.start_at).getTime());
     const bEndMin = toMin(new Date(item.end_at).getTime());
-    for (var pi = 0; pi < poseParentBookings.length; pi++) {
-      var par = poseParentBookings[pi];
-      if (String(par.id) === String(itemId)) continue; // self-check: don't detect self as child
-      if (String(par.practitioner_id) !== String(pracId)) continue;
-      var parStart = new Date(par.start_at).getTime();
-      var parPs = parseInt(par.processing_start) || 0;
-      var parBuf = parseInt(par.buffer_before_min) || 0;
-      var parPt = parseInt(par.processing_time) || 0;
-      var poseStartMin = toMin(parStart + (parBuf + parPs) * 60000);
-      var poseEndMin = toMin(parStart + (parBuf + parPs + parPt) * 60000);
-      if (bStartMin >= poseStartMin && bEndMin <= poseEndMin) {
+    for (var pi = 0; pi < parents.length; pi++) {
+      var par = parents[pi];
+      if (String(par.id) === String(itemId)) continue;
+      if (bStartMin >= par.poseStartMin && bEndMin <= par.poseEndMin) {
         if (isTask) {
           taskPoseChildIds.add(itemId);
           taskPoseParentMap[itemId] = par.id;
@@ -70,8 +89,7 @@ export function detectPoseChildren(singles, tasks) {
     }
   }
 
-  // Check bookings (including those with their own processing_time — they can
-  // be children of another booking's pose window, e.g. coloration inside coloration)
+  // Check bookings
   singles.forEach(b => {
     if (['cancelled','no_show'].includes(b.status)) return;
     checkAgainstPoseParents(b, b.practitioner_id, b.id, false);
@@ -208,6 +226,7 @@ export function buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap) {
 
 /** Filter events by status visibility and category visibility. */
 export function applyVisibilityFilters(events) {
+  const now = new Date(); // compute once outside loop
   return events.filter(ev => {
     const p = ev.extendedProps;
     // Tasks: always visible (they block slots), only hide cancelled if toggle off
@@ -216,7 +235,6 @@ export function applyVisibilityFilters(events) {
       return true;
     }
     // Hide expired pending bookings (start_at already passed, not confirmed)
-    const now = new Date();
     if (p.status === 'pending' && ev.start && ev.start <= now) return false;
     if (p._isGroup) {
       const members = p._members || [];

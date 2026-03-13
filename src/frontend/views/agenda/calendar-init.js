@@ -274,17 +274,23 @@ function initCalendar(initView, initSlotDur) {
   // Update toolbar title & date on every navigation/view change
   // Guard: remove existing listener to prevent accumulation if re-initialized
   calState.fcCal.off('datesSet');
+  var _prevAbsMonth = null;
   calState.fcCal.on('datesSet', function () {
     atUpdateTitle();
     // Sync view buttons (for navLinkDayClick, etc.)
     var vt = calState.fcCal.view.type;
     document.querySelectorAll('.at-vp-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === vt); });
-    // Load absences for visible month and refresh resource labels (absence badges)
+    // Load absences for visible month — only refetch resources if month changed
     var viewStart = calState.fcCal.view.currentStart;
     var m = viewStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }).slice(0, 7);
+    var monthChanged = (m !== _prevAbsMonth);
+    _prevAbsMonth = m;
+    var isDayView = (vt === 'timeGridDay' || vt === 'resourceTimeGridDay');
     fcLoadAbsences(m).then(function () {
-      if (calState.fcCal) calState.fcCal.refetchResources();
-      fcApplyAbsenceOverlays();
+      // Only refetch resources when month changes (absence badges update)
+      if (monthChanged && calState.fcCal) calState.fcCal.refetchResources();
+      // Absence overlays only apply in day views
+      if (isDayView) fcApplyAbsenceOverlays();
     });
   });
   atUpdateTitle(); // initial

@@ -346,11 +346,16 @@ async function loadAgenda() {
   setTimeout(() => { if (window.gaAutoScan) window.gaAutoScan(); }, 800);
 
   // Featured mode: reload slots when week changes, deactivate on month view
+  // Debounced to avoid redundant API calls during rapid prev/next clicks
+  let _featureDatesDebounce = null;
   calState.fcCal.on('datesSet', function (info) {
-    fsOnDatesSet();
-    gaOnDatesSet();
-    soOnDatesSet();
     if (info.view.type === 'dayGridMonth') { fsDeactivate(); soDeactivate(); }
+    clearTimeout(_featureDatesDebounce);
+    _featureDatesDebounce = setTimeout(function () {
+      fsOnDatesSet();
+      gaOnDatesSet();
+      soOnDatesSet();
+    }, 200);
   });
 
   // Real-time QB slot refresh: when events change (SSE booking_update → refetch),
