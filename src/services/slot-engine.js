@@ -5,6 +5,7 @@ const {
   getAbsencePeriod, restrictWindowsForAbsence,
   brusselsOffset, nextDateStr
 } = require('./schedule-helpers');
+const { computeOptimalGranularity, rankSlots } = require('./slot-optimizer');
 
 /**
  * SLOT ENGINE — the heart of the booking app.
@@ -39,7 +40,20 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   const settings = bizResult.rows[0].settings;
   // SVC-V11-9: Guard against zero/negative granularity (would cause infinite loop)
-  const granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+  let granularity;
+  if (settings.slot_auto_optimize !== false) {
+    if (settings.optimized_granularity) {
+      granularity = Math.max(settings.optimized_granularity, 5);
+    } else {
+      const allSvcDur = await queryWithRLS(businessId,
+        `SELECT duration_min FROM services WHERE business_id = $1 AND is_active = true`,
+        [businessId]
+      );
+      granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
+    }
+  } else {
+    granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+  }
 
   // 2. Fetch service details
   const svcResult = await queryWithRLS(businessId,
@@ -358,6 +372,11 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     }
   }
 
+  // Smart ranking: score slots by gap-filling potential
+  if (settings.slot_auto_optimize !== false) {
+    rankSlots(slots, bookingMap);
+  }
+
   return slots;
 }
 
@@ -397,7 +416,20 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
   if (bizResult.rows.length === 0) throw Object.assign(new Error('Cabinet introuvable'), { type: 'not_found' });
 
   const settings = bizResult.rows[0].settings;
-  const granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+  let granularity;
+  if (settings.slot_auto_optimize !== false) {
+    if (settings.optimized_granularity) {
+      granularity = Math.max(settings.optimized_granularity, 5);
+    } else {
+      const allSvcDur = await queryWithRLS(businessId,
+        `SELECT duration_min FROM services WHERE business_id = $1 AND is_active = true`,
+        [businessId]
+      );
+      granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
+    }
+  } else {
+    granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+  }
 
   // 2. Fetch all services in one query, preserving order from serviceIds array
   const svcResult = await queryWithRLS(businessId,
@@ -729,6 +761,11 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
         }
       }
     }
+  }
+
+  // Smart ranking: score slots by gap-filling potential
+  if (settings.slot_auto_optimize !== false) {
+    rankSlots(slots, bookingMap);
   }
 
   return slots;

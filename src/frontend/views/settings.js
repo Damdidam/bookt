@@ -107,6 +107,7 @@ async function loadSettings(){
     const slotInc = b.settings?.slot_increment_min || 15;
     const wlMode = b.settings?.waitlist_mode || 'off';
     const colorMode = b.settings?.calendar_color_mode || 'category';
+    const autoOpt = b.settings?.slot_auto_optimize !== false;
     const gapOn = b.settings?.gap_analyzer_enabled === true;
     const fsOn = b.settings?.featured_slots_enabled === true;
     const lmOn = b.settings?.last_minute_enabled === true;
@@ -127,6 +128,17 @@ async function loadSettings(){
           <option value="category"${colorMode === 'category' ? ' selected' : ''}>Par catégorie</option>
           <option value="practitioner"${colorMode === 'practitioner' ? ' selected' : ''}>Par praticien</option>
         </select><div class="hint">Couleur des RDV sur l'agenda</div></div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_slot_auto_optimize" style="opacity:0;width:0;height:0;position:absolute"${autoOpt?' checked':''}>
+            <span style="position:absolute;inset:0;background:${autoOpt?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_slot_auto_optimize');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${autoOpt?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Optimisation auto des créneaux</span>
+        </div>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Calcule automatiquement l'espacement optimal des créneaux à partir de vos prestations et priorise les horaires qui comblent les trous</div>
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
@@ -460,6 +472,7 @@ async function saveCalendarSettings(){
       settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
       settings_calendar_color_mode:cm,
+      settings_slot_auto_optimize:document.getElementById('s_slot_auto_optimize')?.checked??true,
       settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false,
       settings_featured_slots_enabled:document.getElementById('s_featured_slots')?.checked||false,
       settings_last_minute_enabled:document.getElementById('s_last_minute')?.checked||false,
@@ -475,6 +488,7 @@ async function saveCalendarSettings(){
     freshBiz.settings.slot_increment_min=data.settings_slot_increment_min;
     freshBiz.settings.waitlist_mode=data.settings_waitlist_mode;
     freshBiz.settings.calendar_color_mode=data.settings_calendar_color_mode;
+    freshBiz.settings.slot_auto_optimize=data.settings_slot_auto_optimize;
     freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
     freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
     freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;

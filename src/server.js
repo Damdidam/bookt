@@ -321,6 +321,22 @@ app.listen(PORT, () => {
       depositRunning = false;
     }
   }, depositInterval);
+
+  // ===== SLOT CALIBRATION CRON — nightly recalibration of slot granularity from booking data =====
+  const calibrationInterval = 24 * 60 * 60 * 1000; // 24h
+  let calibrationRunning = false;
+  setInterval(async () => {
+    if (calibrationRunning) return;
+    calibrationRunning = true;
+    try {
+      const { calibrateAllBusinesses } = require('./services/slot-optimizer');
+      await calibrateAllBusinesses((sql, params) => pool.query(sql, params));
+    } catch (e) {
+      console.error('[SLOT CALIBRATION] Error:', e.message);
+    } finally {
+      calibrationRunning = false;
+    }
+  }, calibrationInterval);
 });
 
 module.exports = app;

@@ -68,7 +68,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // Multi-service booking
       settings_multi_service_enabled,
       // Calendar settings (business-level)
-      settings_slot_increment_min, settings_waitlist_mode, settings_calendar_color_mode,
+      settings_slot_increment_min, settings_waitlist_mode, settings_calendar_color_mode, settings_slot_auto_optimize,
       // Booking page settings
       settings_practitioner_choice_enabled,
       // Booking confirmation
@@ -100,7 +100,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_cancel_deadline_hours !== undefined || settings_cancel_grace_minutes !== undefined
         || settings_cancel_policy_text !== undefined
         || settings_multi_service_enabled !== undefined
-        || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined || settings_calendar_color_mode !== undefined
+        || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined || settings_calendar_color_mode !== undefined || settings_slot_auto_optimize !== undefined
         || settings_practitioner_choice_enabled !== undefined
         || settings_booking_confirmation_required !== undefined || settings_booking_confirmation_timeout !== undefined
         || settings_booking_confirmation_channel !== undefined
@@ -144,6 +144,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_slot_increment_min !== undefined) { const _v = parseInt(settings_slot_increment_min); cur.slot_increment_min = [5,10,15,20,30,45,60].includes(_v) ? _v : 15; }
       if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
       if (settings_calendar_color_mode !== undefined) { cur.calendar_color_mode = ['category','practitioner'].includes(settings_calendar_color_mode) ? settings_calendar_color_mode : 'category'; }
+      if (settings_slot_auto_optimize !== undefined) { cur.slot_auto_optimize = !!settings_slot_auto_optimize; if (!settings_slot_auto_optimize) delete cur.optimized_granularity; }
       if (settings_gap_analyzer_enabled !== undefined) cur.gap_analyzer_enabled = !!settings_gap_analyzer_enabled;
       if (settings_featured_slots_enabled !== undefined) cur.featured_slots_enabled = !!settings_featured_slots_enabled;
       // Last-minute promotions

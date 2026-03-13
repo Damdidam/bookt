@@ -117,6 +117,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
             cancellation_fee_percent: 50,
             noshow_policy: 'charge',
             slot_granularity_min: 15,
+            slot_auto_optimize: true,
             booking_horizon_days: 60
           }),
           // Default sections
