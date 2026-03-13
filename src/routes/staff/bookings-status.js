@@ -419,6 +419,43 @@ router.patch('/:id/status', async (req, res, next) => {
       }
     }
 
+    // Send cancellation confirmation email to client (non-blocking, skip if deposit refund email will be sent)
+    if (status === 'cancelled' && !txResult.depositRefunded) {
+      try {
+        const emailData = await queryWithRLS(bid,
+          `SELECT b.start_at, b.client_id, b.group_id,
+                  c.first_name || ' ' || c.last_name AS client_name, c.email AS client_email,
+                  s.name AS service_name, p.display_name AS practitioner_name,
+                  biz.name AS biz_name, biz.slug, biz.email AS biz_email,
+                  biz.address, biz.theme
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
+          const d = emailData.rows[0];
+          let groupServices = null;
+          if (d.group_id) {
+            const grp = await queryWithRLS(bid,
+              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [d.group_id, bid]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
+          const { sendCancellationEmail } = require('../../services/email');
+          sendCancellationEmail({
+            booking: { start_at: d.start_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, practitioner_name: d.practitioner_name },
+            business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme },
+            groupServices
+          }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
+        }
+      } catch (e) { console.warn('[EMAIL] Cancellation email fetch error:', e.message); }
+    }
+
     // Send deposit refund email on auto-refund during cancellation (non-blocking)
     if (txResult.depositRefunded) {
       try {

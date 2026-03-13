@@ -1817,6 +1817,41 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
     }
 
+    // Send cancellation confirmation email to client (non-blocking)
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, s.name AS service_name, p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug
+           FROM bookings b
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [bk.id]
+        );
+        if (fullBk.rows[0]?.client_email) {
+          const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
+          const { sendCancellationEmail } = require('../../services/email');
+          await sendCancellationEmail({
+            booking: { start_at: row.start_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
+            groupServices
+          });
+        }
+      } catch (e) { console.warn('[EMAIL] Cancellation email error:', e.message); }
+    })();
+
     // Trigger waitlist processing
     let waitlistResult = null;
     try {
@@ -1995,6 +2030,44 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     }
 
     broadcast(result.rows[0].business_id, 'booking_update', { action: 'rejected', source: 'public' });
+
+    // Send cancellation confirmation email to client (non-blocking)
+    (async () => {
+      try {
+        const bkId = result.rows[0].id;
+        const bizId = result.rows[0].business_id;
+        const fullBk = await query(
+          `SELECT b.start_at, b.group_id, b.business_id,
+                  c.full_name AS client_name, c.email AS client_email,
+                  s.name AS service_name, p.display_name AS practitioner_name,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [bkId]
+        );
+        if (fullBk.rows[0]?.client_email) {
+          const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT s.name, s.duration_min, s.price_cents FROM bookings b LEFT JOIN services s ON s.id = b.service_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
+          const { sendCancellationEmail } = require('../../services/email');
+          await sendCancellationEmail({
+            booking: { start_at: row.start_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
+            groupServices
+          });
+        }
+      } catch (e) { console.warn('[EMAIL] Rejection cancellation email error:', e.message); }
+    })();
 
     if (isForm && displayData) {
       const phone = displayData.business_phone ? ` au <strong>${escHtml(displayData.business_phone)}</strong>` : '';

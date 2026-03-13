@@ -777,4 +777,68 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositPaidEmail, sendDepositRefundEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send cancellation confirmation email to client
+ */
+async function sendCancellationEmail({ booking, business, groupServices }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+  });
+
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name);
+  const safePracName = escHtml(booking.practitioner_name || '');
+  const safeBizName = escHtml(business.name);
+
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const safeServiceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || 'Rendez-vous');
+
+  let serviceDetailHTML = '';
+  if (isMulti) {
+    groupServices.forEach(s => {
+      serviceDetailHTML += `<div style="font-size:13px;color:#6B6560;padding:2px 0">\u2022 ${escHtml(s.name)}</div>`;
+    });
+  } else {
+    serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
+  }
+
+  const bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <p>Votre rendez-vous a \u00e9t\u00e9 annul\u00e9.</p>
+    <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
+      <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr} \u00e0 ${timeStr}</div>
+      ${serviceDetailHTML}
+      ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
+    </div>
+    <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
+
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
+
+  const html = buildEmailHTML({
+    title: 'Rendez-vous annul\u00e9',
+    preheader: `Votre RDV du ${dateStr} \u00e0 ${timeStr} a \u00e9t\u00e9 annul\u00e9`,
+    bodyHTML,
+    ctaText: bookingUrl ? 'Reprendre rendez-vous' : null,
+    ctaUrl: bookingUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Rendez-vous annul\u00e9 \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
