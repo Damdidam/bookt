@@ -430,10 +430,12 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     </div>
     <p style="font-size:13px;color:#92700C;margin-top:8px">${_ic('hourglass-amb', 16, 16)} Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
 
+  const cancelUrl = `${baseUrl}/booking/${booking.public_token}`;
+
   const html = buildEmailHTML({
     title: 'Confirmez votre rendez-vous',
     preheader: `Confirmez votre RDV du ${dateStr} \u00e0 ${timeStr}`,
-    bodyHTML,
+    bodyHTML: bodyHTML + `<div style="text-align:center;margin-top:8px"><a href="${escHtml(cancelUrl)}" style="font-size:13px;color:#6B6560;text-decoration:underline">Annuler ce rendez-vous</a></div>`,
     ctaText: 'Confirmer mon rendez-vous',
     ctaUrl: confirmUrl,
     businessName: business.name,
@@ -580,10 +582,13 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
     </div>
     <p style="font-size:14px;color:#3D3832">Consultez les d\u00e9tails et les instructions de paiement en cliquant ci-dessous.</p>`;
 
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const cancelUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
+
   const html = buildEmailHTML({
     title: 'Acompte requis pour votre rendez-vous',
     preheader: `Acompte de ${amtStr}\u20ac requis avant votre RDV du ${dateStr}`,
-    bodyHTML,
+    bodyHTML: cancelUrl ? bodyHTML + `<div style="text-align:center;margin-top:8px"><a href="${escHtml(cancelUrl)}" style="font-size:13px;color:#6B6560;text-decoration:underline">Annuler ce rendez-vous</a></div>` : bodyHTML,
     ctaText: 'Voir les d\u00e9tails de l\u2019acompte',
     ctaUrl: depositUrl,
     businessName: business.name,
