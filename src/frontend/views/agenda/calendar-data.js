@@ -401,26 +401,19 @@ function updateFillRateDOM(totalAvail, totalBooked, pracStats) {
 
 // ── Main callback ──
 
-let _eventsAbort = null; // AbortController for in-flight event fetches
-
 /**
  * Returns the `events` callback for FullCalendar (fetches bookings from API).
  * Pipeline: fetch → separate → detect pose → build events → filter → inject featured.
  */
 function buildEventsCallback() {
   return function (info, successCb, failCb) {
-    // Cancel any in-flight fetch (rapid prev/next clicks)
-    if (_eventsAbort) _eventsAbort.abort();
-    _eventsAbort = new AbortController();
-    const signal = _eventsAbort.signal;
-
     const params = new URLSearchParams({ from: info.startStr, to: info.endStr });
     if (calState.fcCurrentFilter !== 'all') params.set('practitioner_id', calState.fcCurrentFilter);
 
     // Side-fetch all practitioners' hours (only when filtered to a single prac)
     if (calState.fcCurrentFilter !== 'all') {
       const allParams = new URLSearchParams({ from: info.startStr, to: info.endStr });
-      fetch('/api/bookings?' + allParams.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() }, signal })
+      fetch('/api/bookings?' + allParams.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
         .then(r => r.ok ? r.json() : null).then(d => {
           if (!d) return;
           calState.fcPracHours = computePracHours(d.bookings || []);
@@ -431,8 +424,8 @@ function buildEventsCallback() {
     const headers = { 'Authorization': 'Bearer ' + api.getToken() };
     const qstr = params.toString();
     Promise.all([
-      fetch('/api/bookings?' + qstr, { headers, signal }).then(r => r.ok ? r.json() : { bookings: [] }),
-      fetch('/api/tasks?' + qstr, { headers, signal }).then(r => r.ok ? r.json() : { tasks: [] })
+      fetch('/api/bookings?' + qstr, { headers }).then(r => r.ok ? r.json() : { bookings: [] }),
+      fetch('/api/tasks?' + qstr, { headers }).then(r => r.ok ? r.json() : { tasks: [] })
     ]).then(([bData, tData]) => {
         const bookings = bData.bookings || [];
         const tasks = tData.tasks || [];
@@ -456,7 +449,7 @@ function buildEventsCallback() {
         const fsEvents = fsBuildBackgroundEvents();
         const gaEvents = gaBuildBackgroundEvents();
         successCb(filtered.concat(fsEvents).concat(gaEvents));
-      }).catch(e => { if (e.name !== 'AbortError') failCb(e); });
+      }).catch(e => failCb(e));
   };
 }
 

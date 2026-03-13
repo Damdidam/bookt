@@ -6,14 +6,8 @@ import { fcIsMobile } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcLoadMobileList } from './calendar-mobile.js';
 
-let _navTs = 0;
 function atNav(action) {
   if (!calState.fcCal) return;
-  // Throttle: 300ms between navigations to let FC render + avoid cascading fetches
-  var now = Date.now();
-  if (now - _navTs < 300) return;
-  _navTs = now;
-
   if (action === 'prev') calState.fcCal.prev();
   else if (action === 'next') calState.fcCal.next();
   else if (action === 'today') {
