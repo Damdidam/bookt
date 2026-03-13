@@ -68,9 +68,12 @@
 .content.agenda-active .fc .fc-scrollgrid-section-header{position:sticky;top:var(--toolbar-h,82px);z-index:28}
 .content.agenda-active .fc .fc-scrollgrid-section-header>*{position:sticky!important;top:var(--toolbar-h,82px)!important;z-index:28;background:linear-gradient(180deg,#D8E6E6 0%,#E6EEEE 100%)}
 .content.agenda-active .fc .fc-col-header{background:transparent}
-/* Resource column headers (day view — practitioner names) */
+/* Resource column headers (day view — practitioner names) — dark header */
 .fc .fc-resource-header{font-size:.82rem;font-weight:700;padding:12px 8px;letter-spacing:.3px}
 .fc .fc-resource-header .fc-col-header-cell-cushion{text-decoration:none;color:var(--text)}
+.fc-resourceTimeGridDay-view .fc-scrollgrid-section-header>*{background:linear-gradient(180deg,#3B4654 0%,#4A5568 100%)!important}
+.fc-resourceTimeGridDay-view .fc-col-header-cell{color:#fff}
+.fc-resourceTimeGridDay-view .fc-resource-header .fc-col-header-cell-cushion{color:#fff}
 .fc .fc-scrollgrid-section-header .fc-non-business{display:none!important}
 .prac-pill{padding:6px 16px;border-radius:100px;font-size:.74rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .prac-pill:hover{border-color:var(--text-4);background:var(--surface)}
