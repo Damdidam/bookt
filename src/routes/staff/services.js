@@ -233,7 +233,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
           end_at = start_at + (interval '1 minute' * $1),
           updated_at = NOW()
          WHERE service_id = $2 AND business_id = $3
-         AND status IN ('pending', 'confirmed', 'modified_pending')
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
          AND start_at > NOW()`,
         [totalMin, id, bid]
       );
@@ -280,7 +280,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
           await queryWithRLS(bid,
             `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
              WHERE service_variant_id = $2 AND business_id = $3
-             AND status IN ('pending', 'confirmed', 'modified_pending') AND start_at > NOW()`,
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit') AND start_at > NOW()`,
             [totalMin, v.id, bid]
           );
         } else {
@@ -460,7 +460,7 @@ router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'),
         await queryWithRLS(bid,
           `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
            WHERE service_variant_id = $2 AND business_id = $3
-           AND status IN ('pending', 'confirmed', 'modified_pending') AND start_at > NOW()`,
+           AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit') AND start_at > NOW()`,
           [totalMin, variantId, bid]
         );
       }

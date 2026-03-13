@@ -26,7 +26,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 .card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
 .card-header{padding:24px 28px;border-bottom:1px solid var(--border-light);text-align:center}
 .card-header .status{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:16px;font-size:.78rem;font-weight:700;margin-bottom:10px}
-.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}.status.modified_pending{background:#FFF7ED;color:#D97706}
+.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}.status.modified_pending{background:#FFF7ED;color:#D97706}.status.pending_deposit{background:#FEF3E2;color:#B45309}
 .card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
 .card-header .biz{font-size:.88rem;color:var(--text-3)}
 .details{padding:24px 28px}
@@ -98,7 +98,7 @@ function render(d) {
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const modeLabels = { visio: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> En visio', phone: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Par téléphone' };
-  const statusLabels = { confirmed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmé', cancelled: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulé', completed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Terminé', no_show: 'No-show', pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente', modified_pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Modification proposée' };
+  const statusLabels = { confirmed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmé', cancelled: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulé', completed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Terminé', no_show: 'No-show', pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente', modified_pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Modification proposée', pending_deposit: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Acompte requis' };
   const price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(0)} €` : 'Gratuit';
 
   // Apply theme
@@ -132,7 +132,22 @@ function render(d) {
   `;
 
   // Calendar buttons (for active bookings)
-  if (['confirmed','pending','modified_pending'].includes(bk.status)) {
+  // Deposit info section (for pending_deposit bookings)
+  if (bk.status === 'pending_deposit' && bk.deposit_amount_cents) {
+    const depEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');
+    const depDeadline = bk.deposit_deadline ? new Date(bk.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const depUrl = '/deposit/' + bk.token;
+    html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#FEF3E2">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;color:#B45309">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Acompte de ${depEuros} € requis
+      </div>
+      <p style="font-size:.82rem;color:#92400E;margin-bottom:6px">Un acompte est requis pour confirmer votre rendez-vous.${depDeadline ? ' Payez avant le ' + depDeadline + '.' : ''}</p>
+      <a href="${depUrl}" style="display:block;text-align:center;padding:12px;background:#B45309;color:#fff;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;text-decoration:none;margin-top:12px">Payer l'acompte</a>
+    </div>`;
+  }
+
+  if (['confirmed','modified_pending'].includes(bk.status)) {
     const gcalUrl = buildGCalUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
     const outlookUrl = buildOutlookUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
     html += `<div class="cal-row">
@@ -156,7 +171,7 @@ function render(d) {
         <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser</button>
       </div>
     </div>`;
-  } else if (bk.status === 'confirmed') {
+  } else if (bk.status === 'confirmed' || bk.status === 'pending_deposit') {
     const deadlineDate = new Date(can.deadline);
     const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 

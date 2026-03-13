@@ -353,7 +353,7 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
          JOIN clients c ON c.id = b.client_id
          LEFT JOIN calendar_events ce ON ce.booking_id = b.id AND ce.connection_id = $1
          WHERE b.business_id = $2
-           AND b.status IN ('confirmed', 'pending')
+           AND b.status IN ('confirmed', 'pending', 'pending_deposit')
            AND b.start_at > NOW()
            AND ce.id IS NULL`;
       const pushParams = [conn.id, req.businessId];
@@ -443,7 +443,7 @@ router.get('/ical/:token', async (req, res) => {
                  JOIN services s ON s.id = b.service_id
                  JOIN clients c ON c.id = b.client_id
                  JOIN practitioners p ON p.id = b.practitioner_id
-                 WHERE b.business_id = $1 AND b.status IN ('confirmed','pending','modified_pending','completed')
+                 WHERE b.business_id = $1 AND b.status IN ('confirmed','pending','modified_pending','completed','pending_deposit')
                  AND b.start_at >= $2 AND b.start_at <= $3`;
     const bkParams = [businessId, startRange.toISOString(), endRange.toISOString()];
 

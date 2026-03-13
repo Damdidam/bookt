@@ -1082,7 +1082,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         booking: {
           id: multiBookings[0].id, token: multiBookings[0].public_token,
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
-          cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${multiBookings[0].public_token}`
+          cancel_url: `${process.env.BOOKING_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${multiBookings[0].public_token}`
         },
         bookings: multiBookings.map(b => ({
           id: b.id, token: b.public_token,
@@ -1473,7 +1473,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         id: createdBooking.id, token: createdBooking.public_token,
         start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
         discount_pct: createdBooking.discount_pct || null,
-        cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${createdBooking.public_token}`
+        cancel_url: `${process.env.BOOKING_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${createdBooking.public_token}`
       },
       needs_confirmation: singleNeedsConfirm && createdBooking.status !== 'pending_deposit'
     });
@@ -1497,7 +1497,7 @@ router.get('/booking/:token', async (req, res, next) => {
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.comment_client, b.public_token, b.created_at,
-              b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline,
+              b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
               s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -1527,7 +1527,7 @@ router.get('/booking/:token', async (req, res, next) => {
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
-        deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline,
+        deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
         service: { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color },
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }

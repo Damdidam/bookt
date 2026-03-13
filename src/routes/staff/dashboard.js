@@ -55,7 +55,7 @@ router.get('/summary', async (req, res, next) => {
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.business_id = $1
        AND DATE(b.start_at AT TIME ZONE 'Europe/Brussels') = $2
-       AND b.status IN ('pending', 'confirmed', 'completed')
+       AND b.status IN ('pending', 'confirmed', 'completed', 'pending_deposit')
        ${pracFilter ? 'AND b.practitioner_id = $3' : ''}
        ORDER BY b.start_at`,
       pracFilter ? [bid, today, pracFilter] : [bid, today]
@@ -117,7 +117,7 @@ router.get('/summary', async (req, res, next) => {
        LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.business_id = $1
        AND b.start_at > NOW()
-       AND b.status IN ('pending', 'confirmed')
+       AND b.status IN ('pending', 'confirmed', 'pending_deposit')
        ${pracFilter ? 'AND b.practitioner_id = $2' : ''}
        ORDER BY b.start_at LIMIT 1`,
       pracFilter ? [bid, pracFilter] : [bid]
