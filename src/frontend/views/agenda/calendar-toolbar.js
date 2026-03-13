@@ -90,10 +90,13 @@ function atUpdateTitle() {
   // Update both desktop and mobile title elements
   const el = document.getElementById('atTitle'); if (el) el.textContent = title;
   const elM = document.getElementById('atTitleMob'); if (elM) elM.textContent = title;
-  // Update date label
+  // Update today button label
   const now = new Date();
-  const dateStr = DNAMES[now.getDay()] + ' ' + now.getDate() + ' ' + MNAMES[now.getMonth()];
+  const DABBR = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.'];
+  const MABBR = ['Janv.','F\u00e9vr.','Mars','Avr.','Mai','Juin','Juil.','Ao\u00fbt','Sept.','Oct.','Nov.','D\u00e9c.'];
+  const dateStr = DABBR[now.getDay()] + ' ' + now.getDate() + ' ' + MABBR[now.getMonth()];
   const elD = document.getElementById('atDate'); if (elD) elD.textContent = dateStr;
+  const elDM = document.getElementById('atDateMob'); if (elDM) elDM.textContent = dateStr;
 }
 
 // Expose to global scope for onclick handlers
