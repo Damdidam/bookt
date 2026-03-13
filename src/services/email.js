@@ -126,7 +126,7 @@ async function sendEmail(opts) {
 /**
  * Build a styled HTML email using Genda branding
  */
-function buildEmailHTML({ title, preheader, bodyHTML, ctaText, ctaUrl, footerText, businessName, primaryColor }) {
+function buildEmailHTML({ title, preheader, bodyHTML, ctaText, ctaUrl, cancelText, cancelUrl, footerText, businessName, primaryColor }) {
   const color = safeColor(primaryColor);
   const safeTitle = escHtml(title);
   const safeBizName = escHtml(businessName) || 'Genda';
@@ -154,6 +154,10 @@ ${safePreheader ? `<span style="display:none!important;font-size:1px;color:#fff;
   ${safeCta && ctaUrl ? `
   <div style="text-align:center;margin:28px 0">
     <a href="${escHtml(ctaUrl || '')}" style="display:inline-block;padding:14px 32px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">${safeCta}</a>
+  </div>` : ''}
+  ${cancelText && cancelUrl ? `
+  <div style="text-align:center;margin:${safeCta ? '0' : '28px'} 0 8px">
+    <a href="${escHtml(cancelUrl)}" style="display:inline-block;padding:12px 28px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;border:2px solid #E57373">${escHtml(cancelText)}</a>
   </div>` : ''}
 </td></tr>
 
@@ -359,6 +363,8 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     bodyHTML,
     ctaText,
     ctaUrl,
+    cancelText: hasPublicToken ? 'Annuler mon rendez-vous' : null,
+    cancelUrl: hasPublicToken ? `${baseUrl}/booking/${booking.public_token}` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
@@ -435,9 +441,11 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
   const html = buildEmailHTML({
     title: 'Confirmez votre rendez-vous',
     preheader: `Confirmez votre RDV du ${dateStr} \u00e0 ${timeStr}`,
-    bodyHTML: bodyHTML + `<div style="text-align:center;margin-top:8px"><a href="${escHtml(cancelUrl)}" style="font-size:13px;color:#6B6560;text-decoration:underline">Annuler ce rendez-vous</a></div>`,
+    bodyHTML,
     ctaText: 'Confirmer mon rendez-vous',
     ctaUrl: confirmUrl,
+    cancelText: 'Annuler mon rendez-vous',
+    cancelUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
@@ -588,9 +596,11 @@ async function sendDepositRequestEmail({ booking, business, depositUrl }) {
   const html = buildEmailHTML({
     title: 'Acompte requis pour votre rendez-vous',
     preheader: `Acompte de ${amtStr}\u20ac requis avant votre RDV du ${dateStr}`,
-    bodyHTML: cancelUrl ? bodyHTML + `<div style="text-align:center;margin-top:8px"><a href="${escHtml(cancelUrl)}" style="font-size:13px;color:#6B6560;text-decoration:underline">Annuler ce rendez-vous</a></div>` : bodyHTML,
+    bodyHTML,
     ctaText: 'Voir les d\u00e9tails de l\u2019acompte',
     ctaUrl: depositUrl,
+    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
+    cancelUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
@@ -667,6 +677,8 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     bodyHTML,
     ctaText: manageUrl ? 'Gérer mon rendez-vous' : null,
     ctaUrl: manageUrl,
+    cancelText: manageUrl ? 'Annuler mon rendez-vous' : null,
+    cancelUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
