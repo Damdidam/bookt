@@ -377,7 +377,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
     <div class="fg">
       <label class="fl">Remarque <span class="opt">(optionnel)</span></label>
-      <textarea class="fi ft" id="cComment" placeholder="Informations utiles pour le praticien..."></textarea>
+      <textarea class="fi ft" id="cComment" maxlength="500" placeholder="Informations utiles pour le praticien..."></textarea>
+      <div id="cCommentCount" style="text-align:right;font-size:.7rem;color:#9CA3AF;margin-top:2px"></div>
     </div>
 
     <label class="checkbox"><input type="checkbox" id="cConsent" checked> J'accepte les confirmations et rappels par email et SMS.</label>
@@ -689,6 +690,11 @@ function initPage(){
   phoneInput.addEventListener('blur',validatePhoneField);
   document.getElementById('cEmail').addEventListener('blur',validateEmailField);
   document.getElementById('cName').addEventListener('blur',validateNameField);
+  document.getElementById('cComment').addEventListener('input',function(){
+    const c=this.value.length,el=document.getElementById('cCommentCount');
+    el.textContent=c>0?(c+' / 500'):'';
+    el.style.color=c>=480?'#DC2626':c>=400?'#F59E0B':'#9CA3AF';
+  });
 
   document.getElementById('loadingState').style.display='none';
 
