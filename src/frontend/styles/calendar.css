@@ -19,12 +19,15 @@
 .at-vp-btn:last-child{border-right:none}
 .at-vp-btn:hover{background:var(--surface)}
 .at-vp-btn.active{background:var(--primary-light);color:var(--primary)}
+/* Tool buttons (lock, vedette, gap, optimizer) */
+.agenda-toolbar .at-view-btn{padding:6px 10px;border-radius:8px;font-size:.76rem;font-weight:600;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-family:var(--sans);transition:all .15s;display:flex;align-items:center;justify-content:center}
+.agenda-toolbar .at-view-btn:hover{background:var(--surface);border-color:var(--text-4)}
 /* Lock button */
 .at-lock-btn{padding:6px 10px!important}
 .at-lock-btn.active{background:#FEF3C7!important;color:#D97706!important;border-color:#FCD34D!important}
 @media(max-width:767px){.at-lock-btn{display:none}}
 /* Prac pills inline in row 1 */
-.at-prac-pills{display:flex;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-shrink:1;min-width:0}
+.at-prac-pills{display:flex;flex:1;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-shrink:1;min-width:0}
 .at-prac-pills::-webkit-scrollbar{display:none}
 .at-row-nav .prac-pill{padding:4px 10px;font-size:.68rem;gap:5px}
 .at-row-nav .prac-pill .dot{width:7px;height:7px}
