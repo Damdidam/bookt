@@ -95,6 +95,21 @@ async function fcSendDepositRequest(channel) {
   const statusEl = document.getElementById('mDepositSendStatus');
   try {
     if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = '#FEF3E2'; statusEl.style.color = '#B45309'; statusEl.textContent = 'Envoi en cours…'; }
+    // Auto-save client contact if edited, so deposit goes to the new email/phone
+    const newEmail = document.getElementById('uClientEmail')?.value.trim() || '';
+    const newPhone = document.getElementById('uClientPhone')?.value.trim() || '';
+    const orig = calState.fcEditOriginal || {};
+    const contactChanged = newEmail !== (orig.client_email || '') || newPhone !== (orig.client_phone || '');
+    if (contactChanged && calState.fcCurrentBooking?.client_id) {
+      const cr = await fetch(`/api/clients/${calState.fcCurrentBooking.client_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ phone: newPhone || null, email: newEmail || null })
+      });
+      if (!cr.ok) { const d = await cr.json().catch(() => ({})); throw new Error(d.error || 'Erreur sauvegarde contact'); }
+      // Update original so subsequent saves don't re-patch
+      if (calState.fcEditOriginal) { calState.fcEditOriginal.client_email = newEmail; calState.fcEditOriginal.client_phone = newPhone; }
+    }
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-deposit-request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
