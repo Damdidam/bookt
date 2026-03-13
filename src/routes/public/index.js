@@ -1977,7 +1977,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Deadline check: prevent rejection bypass of cancellation deadline
     const bkCheck = await query(
-      `SELECT b.id, b.status, b.start_at, b.original_start_at, biz.settings AS business_settings
+      `SELECT b.id, b.status, b.start_at, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -1987,8 +1987,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     }
     const bkData = bkCheck.rows[0];
     const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? 24;
-    const origStartAt = bkData.original_start_at || bkData.start_at;
-    const deadline = new Date(new Date(origStartAt).getTime() - cancelWindowHours * 3600000);
+    const deadline = new Date(new Date(bkData.start_at).getTime() - cancelWindowHours * 3600000);
     if (new Date() >= deadline) {
       if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
       return res.status(400).json({ error: 'Délai de modification dépassé' });
