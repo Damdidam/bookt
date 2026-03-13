@@ -188,7 +188,7 @@ async function fsOnDatesSet() {
       return;
     }
     await fsLoadCurrentWeek();
-    fcRefresh();
+    // Note: fcRefresh() is called by the consolidated datesSet handler in index.js
   }
 }
 

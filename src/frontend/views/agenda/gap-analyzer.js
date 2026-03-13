@@ -68,6 +68,7 @@ async function gaActivate() {
 
   gaShowPanel();
   await gaLoadData();
+  fcRefresh();
 }
 
 function gaDeactivate() {
@@ -116,7 +117,8 @@ async function gaLoadData() {
 
   gaLoading = false;
   gaRenderPanel();
-  fcRefresh();
+  // Note: fcRefresh() called by consolidated datesSet handler in index.js when triggered from navigation.
+  // Direct calls (e.g. gaToggleMode, gaOnFilterChanged) still call fcRefresh() themselves.
 }
 
 // ── Auto scan (badge + morning toast) ──
@@ -164,9 +166,9 @@ async function gaAutoScan() {
 }
 
 // ── Event hooks ──
-function gaOnDatesSet() {
+async function gaOnDatesSet() {
   // Always refresh badge (even when panel is closed)
-  gaAutoScan();
+  gaAutoScan(); // fire-and-forget for badge
 
   if (!gaActive) return;
   const viewType = calState.fcCal?.view?.type;
@@ -178,14 +180,15 @@ function gaOnDatesSet() {
   const newDate = localDate(calState.fcCal.view.currentStart);
   if (newDate !== gaCurrentDate) {
     gaCurrentDate = null; // bust cache
-    gaLoadData();
+    await gaLoadData();
   }
 }
 
-function gaOnFilterChanged() {
+async function gaOnFilterChanged() {
   if (!gaActive) return;
   gaCurrentFilter = null; // bust cache
-  gaLoadData();
+  await gaLoadData();
+  fcRefresh();
 }
 
 // ── Panel DOM ──

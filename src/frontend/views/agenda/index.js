@@ -346,16 +346,23 @@ async function loadAgenda() {
   setTimeout(() => { if (window.gaAutoScan) window.gaAutoScan(); }, 800);
 
   // Featured mode: reload slots when week changes, deactivate on month view
-  // Debounced to avoid redundant API calls during rapid prev/next clicks
+  // Debounced to avoid redundant API calls during rapid prev/next clicks.
+  // Feature modules update their state but DON'T call fcRefresh() individually —
+  // we call it once after all modules have processed to avoid cascading re-fetches.
   let _featureDatesDebounce = null;
   calState.fcCal.on('datesSet', function (info) {
     if (info.view.type === 'dayGridMonth') { fsDeactivate(); soDeactivate(); }
     clearTimeout(_featureDatesDebounce);
-    _featureDatesDebounce = setTimeout(function () {
-      fsOnDatesSet();
-      gaOnDatesSet();
-      soOnDatesSet();
-    }, 200);
+    _featureDatesDebounce = setTimeout(async function () {
+      // Run feature modules — they set calState data but we handle the refresh
+      const fsResult = fsOnDatesSet();
+      const gaResult = gaOnDatesSet();
+      const soResult = soOnDatesSet();
+      // Wait for async modules to finish loading their data
+      await Promise.allSettled([fsResult, gaResult, soResult]);
+      // Single refresh if any module loaded new data (featured slots, gap events, etc.)
+      fcRefresh();
+    }, 250);
   });
 
   // Real-time QB slot refresh: when events change (SSE booking_update → refetch),
