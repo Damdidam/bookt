@@ -639,11 +639,6 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
   const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
 
-  // Add fallback link to deposit details page
-  if (depositUrl) {
-    bodyHTML += `<p style="font-size:12px;color:var(--text-4,#999);margin-top:8px;text-align:center"><a href="${depositUrl}" style="color:#6B6560;text-decoration:underline">Voir la page de d\u00e9tails</a></p>`;
-  }
-
   const html = buildEmailHTML({
     title: 'Acompte requis pour votre rendez-vous',
     preheader: `Acompte de ${amtStr}\u20ac requis avant votre RDV du ${dateStr}`,
