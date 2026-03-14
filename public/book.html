@@ -1431,6 +1431,7 @@ function renderSlots(){
     slots.forEach(s=>{
       if(!seen[s.start_time]){seen[s.start_time]=true;deduped.push(s);}
     });
+    deduped.sort((a,b)=>a.start_time<b.start_time?-1:a.start_time>b.start_time?1:0);
     slots=deduped;
   }
   const grid=document.createElement('div');grid.className='slots-grid';
