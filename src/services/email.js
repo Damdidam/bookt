@@ -364,7 +364,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     ctaText,
     ctaUrl,
     cancelText: hasPublicToken ? 'Annuler mon rendez-vous' : null,
-    cancelUrl: hasPublicToken ? `${baseUrl}/booking/${booking.public_token}` : null,
+    cancelUrl: hasPublicToken ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
@@ -436,7 +436,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     </div>
     <p style="font-size:13px;color:#92700C;margin-top:8px">${_ic('hourglass-amb', 16, 16)} Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
 
-  const cancelUrl = `${baseUrl}/booking/${booking.public_token}`;
+  const cancelUrl = `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking`;
 
   const html = buildEmailHTML({
     title: 'Confirmez votre rendez-vous',
@@ -610,7 +610,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, groupSer
     <p style="font-size:14px;color:#3D3832">Consultez les d\u00e9tails et les instructions de paiement en cliquant ci-dessous.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const cancelUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
+  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
 
   const html = buildEmailHTML({
     title: 'Acompte requis pour votre rendez-vous',
@@ -700,8 +700,8 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     bodyHTML,
     ctaText: manageUrl ? 'Gérer mon rendez-vous' : null,
     ctaUrl: manageUrl,
-    cancelText: manageUrl ? 'Annuler mon rendez-vous' : null,
-    cancelUrl: manageUrl,
+    cancelText: booking.public_token ? 'Annuler mon rendez-vous' : null,
+    cancelUrl: booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
