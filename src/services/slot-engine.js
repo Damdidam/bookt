@@ -463,13 +463,17 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     }
   }
 
-  // 2b. Sort services: restricted-availability services first so they occupy
-  // early positions in the chain and are most likely to fit their time windows.
-  services.sort((a, b) => {
-    const aR = a.available_schedule?.type === 'restricted' ? 0 : 1;
-    const bR = b.available_schedule?.type === 'restricted' ? 0 : 1;
-    return aR - bR;
-  });
+  // 2b. Sort services: morning-restricted first, unrestricted middle, afternoon-restricted last.
+  // This maximizes the chance each restricted service falls within its allowed window.
+  function _restrictionWeight(svc) {
+    if (svc.available_schedule?.type !== 'restricted') return 50; // middle
+    const wins = svc.available_schedule.windows || [];
+    if (wins.length === 0) return 50;
+    // Average start time across all windows — lower = morning, higher = afternoon
+    const avgStart = wins.reduce((sum, w) => sum + timeToMinutes(w.from), 0) / wins.length;
+    return avgStart < 720 ? 0 : 100; // before noon → front, after noon → back
+  }
+  services.sort((a, b) => _restrictionWeight(a) - _restrictionWeight(b));
 
   // 3. Calculate chained duration: buffer_before from FIRST, buffer_after from LAST, no buffers between
   const sumDurations = services.reduce((sum, s) => sum + s.duration_min, 0);

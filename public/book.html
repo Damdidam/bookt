@@ -1433,11 +1433,15 @@ async function loadSlots(){
   }
   let slotsUrl;
   if(multiServiceMode&&selectedServices.length>1){
-    // Sort: restricted-availability services first so they occupy early chain positions
+    // Sort: morning-restricted first, unrestricted middle, afternoon-restricted last
     selectedServices.sort(function(a,b){
-      var aR=a.available_schedule&&a.available_schedule.type==='restricted'?0:1;
-      var bR=b.available_schedule&&b.available_schedule.type==='restricted'?0:1;
-      return aR-bR;
+      function rw(s){
+        if(!s.available_schedule||s.available_schedule.type!=='restricted')return 50;
+        var wins=s.available_schedule.windows||[];if(!wins.length)return 50;
+        var avg=wins.reduce(function(sum,w){var p=w.from.split(':');return sum+parseInt(p[0])*60+parseInt(p[1]||0);},0)/wins.length;
+        return avg<720?0:100;
+      }
+      return rw(a)-rw(b);
     });
     const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),date_from:dateFrom,date_to:dateTo});
     if(selectedPractitioner)params.set('practitioner_id',selectedPractitioner.id);
