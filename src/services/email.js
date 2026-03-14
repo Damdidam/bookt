@@ -861,6 +861,28 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
 
+  // Deposit info for cancellation email
+  const hadDeposit = booking.deposit_required && booking.deposit_amount_cents > 0;
+  const depositRefunded = hadDeposit && booking.deposit_status === 'refunded';
+  const depositRetained = hadDeposit && booking.deposit_status === 'cancelled';
+  const depAmtStr = hadDeposit ? ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',') : '';
+
+  let depositHTML = '';
+  if (depositRefunded) {
+    depositHTML = `
+    <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} Acompte de ${depAmtStr} \u20ac rembours\u00e9</div>
+      <div style="font-size:13px;color:#15803D;margin-top:4px">Votre acompte vous sera restitu\u00e9 sous quelques jours ouvrables.</div>
+    </div>`;
+  } else if (depositRetained) {
+    const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+    depositHTML = `
+    <div style="background:#FEF3E2;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F59E0B">
+      <div style="font-size:14px;color:#92700C;font-weight:600">\u26a0\ufe0f Acompte de ${depAmtStr} \u20ac non rembours\u00e9</div>
+      <div style="font-size:13px;color:#92700C;margin-top:4px">L'annulation a \u00e9t\u00e9 effectu\u00e9e moins de ${cancelDeadlineH}h avant le rendez-vous. Conform\u00e9ment \u00e0 la politique d'annulation, l'acompte n'est pas restituable.</div>
+    </div>`;
+  }
+
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a \u00e9t\u00e9 annul\u00e9.</p>
@@ -870,6 +892,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
       ${serviceDetailHTML}
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
+    ${depositHTML}
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
