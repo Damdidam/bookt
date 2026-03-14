@@ -175,13 +175,17 @@ async function exchangeFacebookCode(code, redirectUri) {
     client_secret: process.env.FACEBOOK_APP_SECRET,
     redirect_uri: redirectUri
   });
-  const res = await fetch(`${FB_TOKEN_URL}?${params}`, {
-    signal: AbortSignal.timeout(15000)
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data) {
-    const msg = data?.error?.message || data?.error || JSON.stringify(data);
-    throw new Error(`Facebook token exchange failed: ${res.status} ${msg}`);
+  const url = `${FB_TOKEN_URL}?${params}`;
+  console.log('[OAUTH] Facebook token URL:', url.replace(process.env.FACEBOOK_APP_SECRET, '***'));
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  const text = await res.text();
+  console.log('[OAUTH] Facebook token response:', res.status, text.slice(0, 500));
+  let data;
+  try { data = JSON.parse(text); } catch (e) {
+    throw new Error(`Facebook response not JSON (${res.status}): ${text.slice(0, 200)}`);
+  }
+  if (!res.ok || !data?.access_token) {
+    throw new Error(`Facebook token exchange failed: ${res.status} ${data?.error?.message || JSON.stringify(data)}`);
   }
   return data;
 }
