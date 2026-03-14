@@ -15,6 +15,60 @@ const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Determine if a deposit should be required for a public booking.
+ * Returns { required: true, depCents, reason } or { required: false }.
+ *
+ * Triggers (OR logic — any one is enough):
+ *   1. Price/duration thresholds (applies to ALL clients, even new ones)
+ *   2. No-show recidivists (only if clientId exists and has history)
+ *
+ * @param {object} bizSettings - business.settings JSONB
+ * @param {number} totalPriceCents - total price of all services
+ * @param {number} totalDurationMin - total duration in minutes
+ * @param {number} noShowCount - client's no-show count (0 for new clients)
+ */
+function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, noShowCount) {
+  if (!bizSettings?.deposit_enabled) return { required: false };
+
+  // Check price/duration thresholds
+  const priceThresh = bizSettings.deposit_price_threshold_cents || 0;
+  const durThresh = bizSettings.deposit_duration_threshold_min || 0;
+  const threshMode = bizSettings.deposit_threshold_mode || 'any';
+
+  const priceHit = priceThresh > 0 && totalPriceCents >= priceThresh;
+  const durHit = durThresh > 0 && totalDurationMin >= durThresh;
+
+  // Only evaluate threshold if at least one threshold is configured
+  const hasThresholds = priceThresh > 0 || durThresh > 0;
+  const thresholdTrigger = hasThresholds && (threshMode === 'both' ? (priceHit && durHit) : (priceHit || durHit));
+
+  // Check no-show recidivist
+  const noShowThreshold = bizSettings.deposit_noshow_threshold || 2;
+  const noShowTrigger = noShowCount >= noShowThreshold;
+
+  if (!thresholdTrigger && !noShowTrigger) return { required: false };
+
+  // Calculate deposit amount
+  let depCents = 0;
+  if (bizSettings.deposit_type === 'fixed') {
+    depCents = bizSettings.deposit_fixed_cents || 2500;
+  } else {
+    depCents = Math.round(totalPriceCents * (bizSettings.deposit_percent || 50) / 100);
+  }
+
+  if (depCents <= 0) return { required: false };
+
+  const reasons = [];
+  if (thresholdTrigger) {
+    if (priceHit) reasons.push('prix');
+    if (durHit) reasons.push('durée');
+  }
+  if (noShowTrigger) reasons.push('no-show');
+
+  return { required: true, depCents, reason: reasons.join('+') };
+}
+
+/**
  * Check if a slot date falls within the last-minute promotional window.
  * @param {string} slotDate - YYYY-MM-DD
  * @param {string} todayBrussels - YYYY-MM-DD (today in Europe/Brussels)
@@ -944,63 +998,63 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           bookings.push(bk.rows[0]);
         }
 
-        // Deposit on first booking only (same pattern as bookings-creation.js)
-        if (clientId && bookings.length > 0) {
+        // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
+        if (bookings.length > 0) {
           try {
             await client.query('SAVEPOINT deposit_sp');
-            const depCheck = await client.query(
-              `SELECT c.no_show_count, biz.settings
-               FROM clients c JOIN businesses biz ON biz.id = c.business_id
-               WHERE c.id = $1 AND c.business_id = $2`,
-              [clientId, businessId]
+
+            // Get business settings
+            const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
+            const bizSettings = bizSettingsRow.rows[0]?.settings || {};
+
+            // Get total price from DB (accurate, includes variants)
+            const svcPriceResult = await client.query(
+              `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price,
+                      COALESCE(SUM(COALESCE(sv.duration_min, s.duration_min)), 0) AS total_duration
+               FROM bookings b
+               JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = ANY($1) AND b.business_id = $2`,
+              [bookings.map(b => b.id), businessId]
             );
-            const dc = depCheck.rows[0];
-            if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
-              const svcPriceResult = await client.query(
-                `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
-                 FROM bookings b
-                 JOIN services s ON s.id = b.service_id
-                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-                 WHERE b.id = ANY($1) AND b.business_id = $2`,
-                [bookings.map(b => b.id), businessId]
-              );
-              const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
-              let depCents = 0;
-              if (dc.settings.deposit_type === 'fixed') {
-                depCents = dc.settings.deposit_fixed_cents || 2500;
-              } else {
-                depCents = Math.round(totalPrice * (dc.settings.deposit_percent || 50) / 100);
-              }
-              if (depCents > 0) {
-                const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-                if (deadline > new Date()) {
-                  // Deposit amount on the first booking only
-                  // Clear confirmation_expires_at — deposit payment serves as confirmation
+            const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
+            const totalDuration = parseInt(svcPriceResult.rows[0]?.total_duration) || 0;
+
+            // Get no-show count (0 for new clients)
+            let noShowCount = 0;
+            if (clientId) {
+              const nsRow = await client.query(`SELECT no_show_count FROM clients WHERE id = $1`, [clientId]);
+              noShowCount = nsRow.rows[0]?.no_show_count || 0;
+            }
+
+            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount);
+            if (depResult.required) {
+              const dlHours = bizSettings.deposit_deadline_hours ?? 48;
+              const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+              if (deadline > new Date()) {
+                await client.query(
+                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    confirmation_expires_at = NULL
+                   WHERE id = $3 AND business_id = $4`,
+                  [depResult.depCents, deadline.toISOString(), bookings[0].id, businessId]
+                );
+                bookings[0].status = 'pending_deposit';
+                bookings[0].deposit_required = true;
+                bookings[0].deposit_amount_cents = depResult.depCents;
+                bookings[0].deposit_deadline = deadline.toISOString();
+                if (bookings.length > 1) {
+                  const otherIds = bookings.slice(1).map(b => b.id);
                   await client.query(
-                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-                      confirmation_expires_at = NULL
-                     WHERE id = $3 AND business_id = $4`,
-                    [depCents, deadline.toISOString(), bookings[0].id, businessId]
+                    `UPDATE bookings SET status = 'pending_deposit'
+                     WHERE id = ANY($1) AND business_id = $2`,
+                    [otherIds, businessId]
                   );
-                  bookings[0].status = 'pending_deposit';
-                  bookings[0].deposit_required = true;
-                  bookings[0].deposit_amount_cents = depCents;
-                  bookings[0].deposit_deadline = deadline.toISOString();
-                  // Set pending_deposit status on all other group members (no deposit amount)
-                  if (bookings.length > 1) {
-                    const otherIds = bookings.slice(1).map(b => b.id);
-                    await client.query(
-                      `UPDATE bookings SET status = 'pending_deposit'
-                       WHERE id = ANY($1) AND business_id = $2`,
-                      [otherIds, businessId]
-                    );
-                    for (let i = 1; i < bookings.length; i++) {
-                      bookings[i].status = 'pending_deposit';
-                    }
+                  for (let i = 1; i < bookings.length; i++) {
+                    bookings[i].status = 'pending_deposit';
                   }
                 }
+                console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents`);
               }
             }
           } catch (depErr) {
@@ -1354,56 +1408,55 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
          resolvedProcessingTime, resolvedProcessingStart, singleLocked, resolvedDiscountPct]
       );
 
-      // ── Deposit check (single-service — same pattern as multi-service) ──
-      if (clientId && booking.rows[0]) {
+      // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
+      if (booking.rows[0]) {
         try {
           await client.query('SAVEPOINT deposit_single_sp');
-          const depCheck = await client.query(
-            `SELECT c.no_show_count, biz.settings
-             FROM clients c JOIN businesses biz ON biz.id = c.business_id
-             WHERE c.id = $1 AND c.business_id = $2`,
-            [clientId, businessId]
-          );
-          const dc = depCheck.rows[0];
-          if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
-            // Get service price for percent calculation
-            let svcPrice = 0;
-            const svcPriceResult = await client.query(
-              `SELECT COALESCE(s.price_cents, 0) AS price
-               FROM bookings b JOIN services s ON s.id = b.service_id
-               WHERE b.id = $1 AND b.business_id = $2`,
-              [booking.rows[0].id, businessId]
-            );
-            svcPrice = parseInt(svcPriceResult.rows[0]?.price) || 0;
-            // If variant, use variant price
-            if (resolvedVariantId) {
-              const varPrice = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
-              if (varPrice.rows[0]?.price_cents != null) svcPrice = varPrice.rows[0].price_cents;
-            }
 
-            let depCents = 0;
-            if (dc.settings.deposit_type === 'fixed') {
-              depCents = dc.settings.deposit_fixed_cents || 2500;
-            } else {
-              depCents = Math.round(svcPrice * (dc.settings.deposit_percent || 50) / 100);
-            }
-            if (depCents > 0) {
-              const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-              const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-              if (deadline > new Date()) {
-                // Clear confirmation_expires_at — deposit payment serves as confirmation
-                await client.query(
-                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-                    confirmation_expires_at = NULL
-                   WHERE id = $3 AND business_id = $4`,
-                  [depCents, deadline.toISOString(), booking.rows[0].id, businessId]
-                );
-                booking.rows[0].status = 'pending_deposit';
-                booking.rows[0].deposit_required = true;
-                booking.rows[0].deposit_amount_cents = depCents;
-                booking.rows[0].deposit_deadline = deadline.toISOString();
-              }
+          // Get business settings
+          const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
+          const bizSettings = bizSettingsRow.rows[0]?.settings || {};
+
+          // Get service price + duration (use variant if applicable)
+          let svcPrice = 0, svcDuration = 0;
+          const svcInfoResult = await client.query(
+            `SELECT COALESCE(s.price_cents, 0) AS price, COALESCE(s.duration_min, 0) AS duration
+             FROM bookings b JOIN services s ON s.id = b.service_id
+             WHERE b.id = $1 AND b.business_id = $2`,
+            [booking.rows[0].id, businessId]
+          );
+          svcPrice = parseInt(svcInfoResult.rows[0]?.price) || 0;
+          svcDuration = parseInt(svcInfoResult.rows[0]?.duration) || 0;
+          if (resolvedVariantId) {
+            const varInfo = await client.query(`SELECT price_cents, duration_min FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+            if (varInfo.rows[0]?.price_cents != null) svcPrice = varInfo.rows[0].price_cents;
+            if (varInfo.rows[0]?.duration_min != null) svcDuration = varInfo.rows[0].duration_min;
+          }
+
+          // Get no-show count (0 for new clients)
+          let noShowCount = 0;
+          if (clientId) {
+            const nsRow = await client.query(`SELECT no_show_count FROM clients WHERE id = $1`, [clientId]);
+            noShowCount = nsRow.rows[0]?.no_show_count || 0;
+          }
+
+          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount);
+          if (depResult.required) {
+            const dlHours = bizSettings.deposit_deadline_hours ?? 48;
+            const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+            if (deadline > new Date()) {
+              await client.query(
+                `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                  confirmation_expires_at = NULL
+                 WHERE id = $3 AND business_id = $4`,
+                [depResult.depCents, deadline.toISOString(), booking.rows[0].id, businessId]
+              );
+              booking.rows[0].status = 'pending_deposit';
+              booking.rows[0].deposit_required = true;
+              booking.rows[0].deposit_amount_cents = depResult.depCents;
+              booking.rows[0].deposit_deadline = deadline.toISOString();
+              console.log(`[DEPOSIT] Single-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents`);
             }
           }
         } catch (depErr) {
