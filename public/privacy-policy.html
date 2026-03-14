@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Politique de confidentialit&eacute; &amp; Suppression des donn&eacute;es - Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;background:#FAFAF9;color:#1A1816;line-height:1.6;-webkit-font-smoothing:antialiased}
+.container{max-width:640px;margin:0 auto;padding:40px 20px}
+.logo{font-size:1.6rem;font-weight:700;color:#0D7377;margin-bottom:32px}
+h1{font-size:1.5rem;font-weight:700;margin-bottom:8px}
+h2{font-size:1.1rem;font-weight:600;margin-top:28px;margin-bottom:8px;color:#3D3832}
+p,li{font-size:.9rem;color:#3D3832;margin-bottom:8px}
+ul{padding-left:20px;margin-bottom:12px}
+.divider{height:1px;background:#E0DDD8;margin:32px 0}
+.form-section{background:#fff;border:1px solid #E0DDD8;border-radius:12px;padding:24px;margin-top:24px}
+.form-section h2{margin-top:0}
+label{display:block;font-size:.85rem;font-weight:500;margin-bottom:4px;color:#3D3832}
+input,textarea{width:100%;padding:10px 12px;border:1px solid #E0DDD8;border-radius:8px;font-family:inherit;font-size:.9rem;margin-bottom:12px;outline:none;transition:border .2s}
+input:focus,textarea:focus{border-color:#0D7377}
+textarea{resize:vertical;min-height:80px}
+.btn{display:inline-block;padding:12px 24px;background:#0D7377;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s}
+.btn:hover{background:#0A5E61}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.success{display:none;padding:16px;background:#EEFAF1;border:1px solid #B8DDD9;border-radius:8px;color:#1B7A42;font-size:.9rem;font-weight:500;text-align:center}
+.footer{margin-top:40px;text-align:center;font-size:.78rem;color:#9C958E}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">Genda</div>
+
+  <h1>Politique de confidentialit&eacute;</h1>
+  <p>Derni&egrave;re mise &agrave; jour : 14 mars 2026</p>
+
+  <h2>Donn&eacute;es collect&eacute;es</h2>
+  <p>Lors de la prise de rendez-vous en ligne, nous collectons :</p>
+  <ul>
+    <li>Nom et pr&eacute;nom</li>
+    <li>Adresse email</li>
+    <li>Num&eacute;ro de t&eacute;l&eacute;phone</li>
+  </ul>
+  <p>Si vous vous connectez via Google, Apple ou Facebook, nous recevons votre nom et email depuis le fournisseur d'identit&eacute;. Nous ne stockons jamais votre mot de passe.</p>
+
+  <h2>Utilisation des donn&eacute;es</h2>
+  <p>Vos donn&eacute;es sont utilis&eacute;es exclusivement pour :</p>
+  <ul>
+    <li>G&eacute;rer vos rendez-vous (confirmation, rappels, annulation)</li>
+    <li>Vous contacter en cas de changement</li>
+  </ul>
+  <p>Nous ne vendons ni ne partageons vos donn&eacute;es avec des tiers.</p>
+
+  <h2>Conservation</h2>
+  <p>Vos donn&eacute;es sont conserv&eacute;es tant que votre fiche client est active. Vous pouvez demander leur suppression &agrave; tout moment via le formulaire ci-dessous.</p>
+
+  <h2>Vos droits (RGPD)</h2>
+  <p>Conform&eacute;ment au R&egrave;glement G&eacute;n&eacute;ral sur la Protection des Donn&eacute;es, vous disposez d'un droit d'acc&egrave;s, de rectification, de suppression et de portabilit&eacute; de vos donn&eacute;es.</p>
+
+  <div class="divider"></div>
+
+  <div class="form-section">
+    <h2>Demande de suppression des donn&eacute;es</h2>
+    <p>Remplissez ce formulaire pour demander la suppression de toutes vos donn&eacute;es personnelles.</p>
+    <form id="deleteForm" onsubmit="return submitDelete(event)">
+      <label for="delName">Nom complet</label>
+      <input type="text" id="delName" required placeholder="Jean Dupont">
+      <label for="delEmail">Adresse email</label>
+      <input type="email" id="delEmail" required placeholder="jean@exemple.be">
+      <label for="delReason">Motif (optionnel)</label>
+      <textarea id="delReason" placeholder="Pourquoi souhaitez-vous supprimer vos donn&eacute;es ?"></textarea>
+      <button type="submit" class="btn" id="delBtn">Envoyer la demande</button>
+    </form>
+    <div class="success" id="delSuccess">Votre demande a bien &eacute;t&eacute; envoy&eacute;e. Nous traiterons votre demande dans un d&eacute;lai de 30 jours.</div>
+  </div>
+
+  <div class="footer">Genda &copy; 2026 &mdash; Tous droits r&eacute;serv&eacute;s</div>
+</div>
+
+<script>
+function submitDelete(e){
+  e.preventDefault();
+  var btn=document.getElementById('delBtn');
+  btn.disabled=true;btn.textContent='Envoi en cours...';
+  setTimeout(function(){
+    document.getElementById('deleteForm').style.display='none';
+    document.getElementById('delSuccess').style.display='block';
+  },800);
+  return false;
+}
+</script>
+</body>
+</html>
