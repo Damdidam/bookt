@@ -176,10 +176,8 @@ async function exchangeFacebookCode(code, redirectUri) {
     redirect_uri: redirectUri
   });
   const url = `${FB_TOKEN_URL}?${params}`;
-  console.log('[OAUTH] Facebook token URL:', url.replace(process.env.FACEBOOK_APP_SECRET, '***'));
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   const text = await res.text();
-  console.log('[OAUTH] Facebook token response:', res.status, text.slice(0, 500));
   let data;
   try { data = JSON.parse(text); } catch (e) {
     throw new Error(`Facebook response not JSON (${res.status}): ${text.slice(0, 200)}`);
