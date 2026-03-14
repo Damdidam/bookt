@@ -27,7 +27,9 @@ const oauthStates = {
   },
   async get(key) {
     const r = await query(`SELECT data FROM oauth_states WHERE state_key = $1 AND expires_at > NOW()`, [key]);
-    return r.rows.length > 0 ? JSON.parse(r.rows[0].data) : null;
+    if (r.rows.length === 0) return null;
+    const d = r.rows[0].data;
+    return typeof d === 'string' ? JSON.parse(d) : d; // JSONB columns are auto-parsed by pg
   },
   async delete(key) {
     await query(`DELETE FROM oauth_states WHERE state_key = $1`, [key]);
