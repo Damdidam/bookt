@@ -567,10 +567,60 @@ async function loadConnectStatus(){
         <button class="btn-outline btn-sm" onclick="connectStripe()">R\u00e9activer</button>
       </div>`;
     }
+    // Payment methods accepted on-site
+    html+=buildPaymentMethodsUI();
     el.innerHTML=html;
   }catch(e){
     el.innerHTML=`<div style="font-size:.82rem;color:var(--text-4);padding:10px">Impossible de charger le statut Stripe</div>`;
   }
+}
+
+const PAYMENT_METHODS=[
+  {id:'cash',label:'Espèces',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M2 10h2m16 0h2M2 14h2m16 0h2"/></svg>'},
+  {id:'card',label:'Carte bancaire',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>'},
+  {id:'bancontact',label:'Bancontact',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/><path d="M6 15h4"/></svg>'},
+  {id:'apple_pay',label:'Apple Pay',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-1.5 4.5c0 2 1 3.5 2.5 4.5-1 1.5-2 3-3.5 3-1.5 0-2-.8-3.5-.8s-2.2.8-3.5.8C1 14 0 11 0 8.5 0 4.5 3 2 5.5 2c1.5 0 2.8.8 3.5.8S11 2 12 2z"/><path d="M12 2c0-1 1-2 2.5-2"/></svg>'},
+  {id:'google_pay',label:'Google Pay',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 0-3.3 6.5"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>'},
+  {id:'payconiq',label:'Payconiq',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><path d="M21 14h-1v3h-3v1h3v3h1v-3h3v-1h-3z"/></svg>'},
+  {id:'instant_transfer',label:'Virement instantané',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'},
+  {id:'bank_transfer',label:'Virement bancaire',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M12 3l9 7H3z"/><path d="M5 10v8m4-8v8m6-8v8m4-8v8"/></svg>'}
+];
+
+function buildPaymentMethodsUI(){
+  const b=api.getBusiness();
+  const methods=(b&&b.settings&&b.settings.payment_methods)||[];
+  let h='<div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px">';
+  h+='<div style="font-size:.88rem;font-weight:600;margin-bottom:4px">Moyens de paiement acceptés sur place</div>';
+  h+='<div style="font-size:.75rem;color:var(--text-4);margin-bottom:14px">Affiché sur la page de réservation pour informer vos clients.</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="payMethodsGrid">';
+  PAYMENT_METHODS.forEach(pm=>{
+    const checked=methods.includes(pm.id);
+    h+=`<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid ${checked?'var(--primary)':'var(--border)'};border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;background:${checked?'var(--primary-lightest,#F0FDFA)':'var(--surface)'}" data-pm="${pm.id}">
+      <input type="checkbox" value="${pm.id}" ${checked?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" onchange="savePaymentMethods()">
+      <span style="display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:500;color:var(--text)">${pm.icon.replace('<svg ','<svg class="gi" style="width:16px;height:16px;flex-shrink:0" ')}${pm.label}</span>
+    </label>`;
+  });
+  h+='</div></div>';
+  return h;
+}
+
+async function savePaymentMethods(){
+  const grid=document.getElementById('payMethodsGrid');
+  if(!grid)return;
+  const checked=[...grid.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>cb.value);
+  // Update label styling
+  grid.querySelectorAll('label[data-pm]').forEach(lbl=>{
+    const isOn=checked.includes(lbl.dataset.pm);
+    lbl.style.borderColor=isOn?'var(--primary)':'var(--border)';
+    lbl.style.background=isOn?'var(--primary-lightest,#F0FDFA)':'var(--surface)';
+  });
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_payment_methods:checked})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const d=await r.json();
+    api.setBusiness(d.business);
+    GendaUI.toast('Moyens de paiement enregistrés','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 async function connectStripe(){
@@ -802,6 +852,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };

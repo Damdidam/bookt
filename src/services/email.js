@@ -375,6 +375,14 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">\u{1F4DD} <em>${safeComment}</em></p>`;
   }
 
+  // Payment methods accepted on-site
+  const pmList = business.settings?.payment_methods;
+  if (Array.isArray(pmList) && pmList.length > 0) {
+    const pmLabels = { cash: 'Espèces', card: 'Carte bancaire', bancontact: 'Bancontact', apple_pay: 'Apple Pay', google_pay: 'Google Pay', payconiq: 'Payconiq', instant_transfer: 'Virement instantané', bank_transfer: 'Virement bancaire' };
+    const badges = pmList.map(m => `<span style="display:inline-block;font-size:12px;color:#555;background:#F3F4F6;border-radius:20px;padding:3px 10px;margin:2px">${pmLabels[m] || m}</span>`).join(' ');
+    bodyHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paiements acceptés sur place</div>${badges}</div>`;
+  }
+
   const ctaText = hasPublicToken ? 'G\u00e9rer mon rendez-vous' : null;
   const ctaUrl = hasPublicToken ? `${baseUrl}/booking/${booking.public_token}` : null;
 

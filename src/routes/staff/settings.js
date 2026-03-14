@@ -82,6 +82,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_last_minute_discount_pct, settings_last_minute_min_price_cents,
       // Default calendar view
       settings_default_calendar_view,
+      // Payment methods accepted on-site
+      settings_payment_methods,
       // Sector
       sector
     } = req.body;
@@ -108,7 +110,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_featured_slots_enabled !== undefined
         || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
         || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined
-        || settings_default_calendar_view !== undefined) {
+        || settings_default_calendar_view !== undefined
+        || settings_payment_methods !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -162,6 +165,11 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_default_calendar_view !== undefined) {
         const allowed = ['day', 'week', 'month'];
         if (allowed.includes(settings_default_calendar_view)) cur.default_calendar_view = settings_default_calendar_view;
+      }
+      // Payment methods accepted on-site
+      if (settings_payment_methods !== undefined) {
+        const validMethods = ['cash', 'card', 'bancontact', 'apple_pay', 'google_pay', 'payconiq', 'instant_transfer', 'bank_transfer'];
+        cur.payment_methods = Array.isArray(settings_payment_methods) ? settings_payment_methods.filter(m => validMethods.includes(m)) : [];
       }
       mergedSettings = cur;
     }

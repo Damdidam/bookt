@@ -323,7 +323,8 @@ router.get('/:slug', async (req, res, next) => {
         practitioner_label: SECTOR_PRACTITIONER[biz.sector] || 'Praticien·ne',
         sector: biz.sector || 'autre',
         booking_auth_mode: biz.settings?.booking_auth_mode || 'soft',
-        deposit_enabled: !!biz.settings?.deposit_enabled
+        deposit_enabled: !!biz.settings?.deposit_enabled,
+        payment_methods: biz.settings?.payment_methods || []
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
