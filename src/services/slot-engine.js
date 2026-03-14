@@ -713,18 +713,17 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
         if (windows.length === 0) continue;
       }
 
-      // Multi-service time restrictions — intersect all services' schedules
-      for (const svc of services) {
-        if (svc.available_schedule?.type === 'restricted') {
-          const svcWindows = (svc.available_schedule.windows || [])
-            .filter(w => w.day === weekday)
-            .map(w => ({ start: w.from, end: w.to }));
-          if (svcWindows.length === 0) { windows = []; break; }
-          windows = intersectWindows(windows, svcWindows);
-          if (windows.length === 0) break;
+      // Pre-calculate each service's offset within the chain (for per-service restriction checks)
+      const hasRestrictions = services.some(s => s.available_schedule?.type === 'restricted');
+      let serviceChainOffsets;
+      if (hasRestrictions) {
+        serviceChainOffsets = [];
+        let chainCursor = bufferBefore;
+        for (const svc of services) {
+          serviceChainOffsets.push({ offset: chainCursor, duration: svc.duration_min });
+          chainCursor += svc.duration_min;
         }
       }
-      if (windows.length === 0) continue;
 
       const bkKey = `${pracId}-${dateStr}`;
       const dayBookings = bookingMap[bkKey] || [];
@@ -738,6 +737,23 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
           const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
 
           if (slotStart <= now) continue;
+
+          // Per-service restriction check: each restricted service's actual time slice
+          // must fall within its allowed windows (not the entire group)
+          if (hasRestrictions) {
+            let restrictionOk = true;
+            for (let si = 0; si < services.length; si++) {
+              const svc = services[si];
+              if (svc.available_schedule?.type !== 'restricted') continue;
+              const svcStartMin = startMin + serviceChainOffsets[si].offset;
+              const svcEndMin = svcStartMin + serviceChainOffsets[si].duration;
+              const svcWindows = (svc.available_schedule.windows || []).filter(w => w.day === weekday);
+              if (svcWindows.length === 0) { restrictionOk = false; break; }
+              const fits = svcWindows.some(w => svcStartMin >= timeToMinutes(w.from) && svcEndMin <= timeToMinutes(w.to));
+              if (!fits) { restrictionOk = false; break; }
+            }
+            if (!restrictionOk) continue;
+          }
 
           const overlapCount = dayBookings.filter(bk => {
             const bkStart = new Date(bk.start.getTime() - (bk.buffer_before_min || 0) * 60000);
