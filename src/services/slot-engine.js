@@ -463,6 +463,14 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     }
   }
 
+  // 2b. Sort services: restricted-availability services first so they occupy
+  // early positions in the chain and are most likely to fit their time windows.
+  services.sort((a, b) => {
+    const aR = a.available_schedule?.type === 'restricted' ? 0 : 1;
+    const bR = b.available_schedule?.type === 'restricted' ? 0 : 1;
+    return aR - bR;
+  });
+
   // 3. Calculate chained duration: buffer_before from FIRST, buffer_after from LAST, no buffers between
   const sumDurations = services.reduce((sum, s) => sum + s.duration_min, 0);
   const bufferBefore = services[0].buffer_before_min || 0;

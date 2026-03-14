@@ -1433,6 +1433,12 @@ async function loadSlots(){
   }
   let slotsUrl;
   if(multiServiceMode&&selectedServices.length>1){
+    // Sort: restricted-availability services first so they occupy early chain positions
+    selectedServices.sort(function(a,b){
+      var aR=a.available_schedule&&a.available_schedule.type==='restricted'?0:1;
+      var bR=b.available_schedule&&b.available_schedule.type==='restricted'?0:1;
+      return aR-bR;
+    });
     const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),date_from:dateFrom,date_to:dateTo});
     if(selectedPractitioner)params.set('practitioner_id',selectedPractitioner.id);
     if(selectedMode)params.set('appointment_mode',selectedMode);
