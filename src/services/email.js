@@ -734,6 +734,113 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
 }
 
 /**
+ * Send deposit REMINDER email — urgent tone, same structure as request
+ * Sent automatically 48h before deadline via cron
+ */
+async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl, groupServices }) {
+  const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
+    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
+    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+  });
+  const endTimeStr = booking.end_at
+    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+    : null;
+  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const deadlineStr = booking.deposit_deadline
+    ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
+        timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
+        hour: '2-digit', minute: '2-digit'
+      })
+    : null;
+
+  const color = safeColor(business.theme?.primary_color);
+  const safeClientName = escHtml(booking.client_name);
+  const safePracName = escHtml(booking.practitioner_name || '');
+  const safeBizName = escHtml(business.name);
+
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const safeServiceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name || 'Rendez-vous');
+
+  const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
+
+  // Calculate hours remaining until deadline
+  const hoursLeft = booking.deposit_deadline
+    ? Math.max(0, Math.round((new Date(booking.deposit_deadline).getTime() - Date.now()) / 3600000))
+    : null;
+  const timeLeftStr = hoursLeft !== null
+    ? (hoursLeft >= 24 ? Math.floor(hoursLeft / 24) + ' jour' + (Math.floor(hoursLeft / 24) > 1 ? 's' : '') : hoursLeft + 'h')
+    : '';
+
+  let serviceDetailHTML = '';
+  if (isMulti) {
+    serviceDetailHTML += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
+    groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+    });
+  } else {
+    serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
+  }
+
+  let bodyHTML = `
+    <p>Bonjour <strong>${safeClientName}</strong>,</p>
+    <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
+      <div style="font-size:14px;font-weight:700;color:#DC2626;margin-bottom:4px">\u26a0\ufe0f Rappel : votre acompte n'a pas encore \u00e9t\u00e9 r\u00e9gl\u00e9</div>
+      <div style="font-size:13px;color:#991B1B">Il vous reste <strong>${timeLeftStr}</strong> pour r\u00e9gler votre acompte.${deadlineStr ? ' <strong>Date limite : ' + deadlineStr + '.</strong>' : ''}</div>
+      <div style="font-size:13px;color:#991B1B;margin-top:4px">Sans paiement avant cette date, <strong>votre rendez-vous sera automatiquement annul\u00e9</strong>.</div>
+    </div>
+    <p style="font-size:14px;color:#44403C">Votre rendez-vous :</p>
+    <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
+      <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>
+      <div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
+      ${serviceDetailHTML}
+      ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
+    </div>
+    <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
+      <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
+      <div style="font-size:24px;font-weight:800;color:#1A1816">${amtStr} \u20ac</div>
+      ${deadlineStr ? `<div style="font-size:12px;color:#DC2626;margin-top:6px;font-weight:600">\u00c0 r\u00e9gler avant le ${deadlineStr}</div>` : ''}
+    </div>
+    <div style="background:#F0F9FF;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #60A5FA">
+      <div style="font-size:13px;color:#1E40AF;line-height:1.5">
+        ${_ic('info', 16, 16)} <strong>Bon \u00e0 savoir :</strong><br>
+        \u2022 Cet acompte sera <strong>d\u00e9duit de votre facture totale</strong> lors de votre passage.<br>
+        \u2022 Il est <strong>restituable</strong> en cas d'annulation jusqu'\u00e0 <strong>${cancelDeadlineH}h avant</strong> votre rendez-vous.
+      </div>
+    </div>`;
+
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
+  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
+
+  const html = buildEmailHTML({
+    title: 'Rappel : acompte en attente',
+    preheader: `Rappel — Acompte de ${amtStr}\u20ac \u00e0 r\u00e9gler sous ${timeLeftStr} pour votre RDV du ${dateStr}`,
+    bodyHTML,
+    ctaText: `Payer ${amtStr} \u20ac maintenant`,
+    ctaUrl: directPayUrl,
+    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
+    cancelUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `\u26a0\ufe0f Rappel acompte \u2014 ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+/**
  * Send deposit paid confirmation email to client
  */
 async function sendDepositPaidEmail({ booking, business, groupServices }) {
@@ -988,4 +1095,4 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

@@ -714,6 +714,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     const bkResult = await queryWithRLS(bid, `
       SELECT b.id, b.status, b.deposit_required, b.deposit_status,
              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
+             b.deposit_requested_at, b.deposit_request_count,
              b.start_at, b.end_at, b.practitioner_id, b.group_id,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
@@ -734,64 +735,82 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
 
     // Practitioner scope
     if (req.practitionerFilter && String(bk.practitioner_id) !== String(req.practitionerFilter)) {
-      return res.status(403).json({ error: 'Acc\u00e8s interdit' });
+      return res.status(403).json({ error: 'Accès interdit' });
     }
 
     // 2. Validate booking is pending_deposit
     if (bk.status !== 'pending_deposit' || !bk.deposit_required) {
-      return res.status(400).json({ error: 'Ce RDV ne n\u00e9cessite pas d\'acompte' });
+      return res.status(400).json({ error: 'Ce RDV ne nécessite pas d\'acompte' });
     }
     if (bk.deposit_status !== 'pending') {
       return res.status(400).json({ error: 'L\'acompte n\'est plus en attente' });
     }
 
-    // 3. Validate client contact
+    // 3. Time guard: don't allow sending if RDV is within cancel_deadline_hours
+    const cancelDeadlineH = bk.settings?.cancel_deadline_hours ?? 48;
+    const hoursUntilRdv = (new Date(bk.start_at).getTime() - Date.now()) / 3600000;
+    if (hoursUntilRdv < cancelDeadlineH) {
+      return res.status(400).json({
+        error: `Trop proche du RDV pour envoyer une demande d'acompte (moins de ${cancelDeadlineH}h avant).`
+      });
+    }
+
+    // 4. Max resend guard: max 3 manual resends
+    const currentCount = bk.deposit_request_count || 0;
+    if (currentCount >= 3) {
+      return res.status(429).json({
+        error: 'Maximum de 3 envois atteint. Contactez le client directement.'
+      });
+    }
+
+    // 5. Validate client contact
     if (channel === 'email' && !bk.client_email) {
       return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
     }
     if (channel === 'sms' && !bk.client_phone) {
-      return res.status(400).json({ error: 'Le client n\'a pas de num\u00e9ro de t\u00e9l\u00e9phone' });
+      return res.status(400).json({ error: 'Le client n\'a pas de numéro de téléphone' });
     }
 
-    // 4. Plan gating: SMS requires Pro/Premium
+    // 6. Plan gating: SMS requires Pro/Premium
     if (channel === 'sms' && !['pro', 'premium'].includes(bk.plan)) {
-      return res.status(403).json({ error: 'L\'envoi SMS n\u00e9cessite le plan Pro ou Premium' });
+      return res.status(403).json({ error: 'L\'envoi SMS nécessite le plan Pro ou Premium' });
     }
 
-    // 5. Anti-spam: min 60 min between sends
+    // 7. Anti-spam: min 30 min between sends (reduced from 60 since we have max 3 cap)
     const notifType = channel === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
     const lastSent = await queryWithRLS(bid, `
       SELECT sent_at FROM notifications
-      WHERE booking_id = $1 AND business_id = $2 AND type = $3 AND status = 'sent'
+      WHERE booking_id = $1 AND business_id = $2 AND type IN ('email_deposit_request', 'sms_deposit_request') AND status = 'sent'
       ORDER BY sent_at DESC LIMIT 1
-    `, [id, bid, notifType]);
+    `, [id, bid]);
 
+    let lastSentAt = null;
     if (lastSent.rows.length > 0) {
-      const lastAt = new Date(lastSent.rows[0].sent_at);
-      const minSince = (Date.now() - lastAt.getTime()) / 60000;
-      if (minSince < 60) {
-        const waitMin = Math.ceil(60 - minSince);
+      lastSentAt = new Date(lastSent.rows[0].sent_at);
+      const minSince = (Date.now() - lastSentAt.getTime()) / 60000;
+      if (minSince < 30) {
+        const waitMin = Math.ceil(30 - minSince);
         return res.status(429).json({
-          error: `Demande d\u00e9j\u00e0 envoy\u00e9e r\u00e9cemment. R\u00e9essayez dans ${waitMin} min.`,
-          last_sent_at: lastAt.toISOString()
+          error: `Demande déjà envoyée récemment. Réessayez dans ${waitMin} min.`,
+          last_sent_at: lastSentAt.toISOString()
         });
       }
     }
 
-    // 6. Build deposit URL
+    // 8. Build deposit URL
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
 
-    // 7. Store deposit_payment_url
-    await queryWithRLS(bid, `UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2 AND business_id = $3`, [depositUrl, id, bid]);
+    // 9. Store deposit_payment_url + increment counter
+    await queryWithRLS(bid, `UPDATE bookings SET deposit_payment_url = $1, deposit_request_count = COALESCE(deposit_request_count, 0) + 1 WHERE id = $2 AND business_id = $3`, [depositUrl, id, bid]);
 
-    // 8. Send
+    // 10. Send
     let sendResult;
     if (channel === 'email') {
       let groupServices = null;
       if (bk.group_id) {
         const grp = await queryWithRLS(bid,
-          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                   COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
@@ -818,11 +837,11 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
         timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
       });
-      const body = `${bk.business_name} \u2014 Acompte de ${amtStr}\u20ac requis pour votre RDV du ${dateStr}. D\u00e9tails : ${depositUrl}`;
+      const body = `${bk.business_name} — Acompte de ${amtStr}€ requis pour votre RDV du ${dateStr}. Détails : ${depositUrl}`;
       sendResult = await sendSMS({ to: bk.client_phone, body, businessId: bid });
     }
 
-    // 9. Log notification
+    // 11. Log notification
     const status = sendResult.success ? 'sent' : 'failed';
     const provider = channel === 'sms' ? 'twilio' : 'brevo';
     const providerId = sendResult.messageId || sendResult.sid || null;
@@ -832,10 +851,12 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, sendResult.error || null]);
 
     if (!sendResult.success) {
-      return res.status(500).json({ error: 'Envoi \u00e9chou\u00e9: ' + (sendResult.error || 'erreur inconnue') });
+      // Rollback counter on failure
+      await queryWithRLS(bid, `UPDATE bookings SET deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0) WHERE id = $1 AND business_id = $2`, [id, bid]);
+      return res.status(500).json({ error: 'Envoi échoué: ' + (sendResult.error || 'erreur inconnue') });
     }
 
-    res.json({ sent: true, channel, deposit_url: depositUrl });
+    res.json({ sent: true, channel, deposit_url: depositUrl, request_count: currentCount + 1 });
   } catch (err) { next(err); }
 });
 
@@ -876,6 +897,14 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         return { error: 400, message: 'Impossible d\'exiger un acompte pour un RDV passé' };
       }
 
+      // Time guard: don't allow if RDV is within cancel_deadline_hours
+      const bizResult = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+      const bizCancelH = bizResult.rows[0]?.settings?.cancel_deadline_hours ?? 48;
+      const rdvHoursAway = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
+      if (rdvHoursAway < bizCancelH) {
+        return { error: 400, message: `Trop proche du RDV pour exiger un acompte (moins de ${bizCancelH}h avant).` };
+      }
+
       // Calculate deadline
       const dlHours = deadline_hours || 48;
       let deadline = new Date(new Date(b.start_at).getTime() - dlHours * 3600000);
@@ -887,7 +916,9 @@ router.post('/:id/require-deposit', async (req, res, next) => {
       await client.query(
         `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
           deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-          deposit_paid_at = NULL, deposit_payment_intent_id = NULL, updated_at = NOW()
+          deposit_paid_at = NULL, deposit_payment_intent_id = NULL,
+          deposit_requested_at = NOW(), deposit_request_count = 0, deposit_reminder_sent = false,
+          updated_at = NOW()
          WHERE id = $3 AND business_id = $4`,
         [amount_cents, deadline.toISOString(), id, bid]
       );

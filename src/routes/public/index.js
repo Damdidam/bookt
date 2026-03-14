@@ -1044,6 +1044,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    deposit_requested_at = NOW(), deposit_request_count = 1,
                     confirmation_expires_at = NULL
                    WHERE id = $3 AND business_id = $4`,
                   [depResult.depCents, deadline.toISOString(), bookings[0].id, businessId]
@@ -1465,6 +1466,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                   deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                  deposit_requested_at = NOW(), deposit_request_count = 1,
                   confirmation_expires_at = NULL
                  WHERE id = $3 AND business_id = $4`,
                 [depResult.depCents, deadline.toISOString(), booking.rows[0].id, businessId]

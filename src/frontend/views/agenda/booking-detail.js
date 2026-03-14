@@ -160,6 +160,12 @@ async function fcOpenDetail(bookingId) {
       const depRefunded = b.deposit_status === 'refunded';
       const depKept = b.deposit_status === 'cancelled' && !!b.deposit_paid_at;
       const isFuture = new Date(b.start_at) > new Date();
+      const bizSettings = calState.fcBusinessSettings || {};
+      const cancelDeadlineH = bizSettings.cancel_deadline_hours ?? 48;
+      const hoursUntilRdv = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
+      const tooCloseForDeposit = hoursUntilRdv < cancelDeadlineH;
+      const reqCount = b.deposit_request_count || 0;
+      const maxResends = 3;
 
       let borderCol = '#F59E0B', bgCol = '#FEF3E2', textCol = '#B45309';
       let statusText = 'En attente';
@@ -169,19 +175,22 @@ async function fcOpenDetail(bookingId) {
         borderCol = '#60A5FA'; bgCol = '#EFF6FF'; textCol = '#1D4ED8';
         statusText = 'Remboursé';
         if (isFuture && ['confirmed', 'pending', 'modified_pending'].includes(b.status) && userRole !== 'practitioner') {
-          const s = calState.fcBusinessSettings || {};
           const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
-          let defCents = s.deposit_type === 'fixed' ? (s.deposit_fixed_cents || 2500) : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
+          let defCents = bizSettings.deposit_type === 'fixed' ? (bizSettings.deposit_fixed_cents || 2500) : Math.round(svcPrice * (bizSettings.deposit_percent || 50) / 100);
           if (defCents <= 0) defCents = b.deposit_amount_cents || 2500;
-          const defDlH = s.deposit_deadline_hours ?? 48;
-          extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" id="mReReqDepBtn" style="font-size:.72rem;padding:4px 12px;background:#EFF6FF;color:#1D4ED8;border:1px solid #93C5FD;border-radius:6px;cursor:pointer;font-weight:600" onclick="document.getElementById('mReReqDepPanel').style.display='';this.style.display='none'">Redemander l'acompte</button></div>
-            <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid #F59E0B;background:#FEF9E7">
-              <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
-                <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
-                <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
-                <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReReqDepPanel').style.display='none';document.getElementById('mReReqDepBtn').style.display=''">Annuler</button></div>
-              </div>
-            </div>`;
+          const defDlH = bizSettings.deposit_deadline_hours ?? 48;
+          if (!tooCloseForDeposit) {
+            extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" id="mReReqDepBtn" style="font-size:.72rem;padding:4px 12px;background:#EFF6FF;color:#1D4ED8;border:1px solid #93C5FD;border-radius:6px;cursor:pointer;font-weight:600" onclick="document.getElementById('mReReqDepPanel').style.display='';this.style.display='none'">Redemander l'acompte</button></div>
+              <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid #F59E0B;background:#FEF9E7">
+                <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+                  <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
+                  <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+                  <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReReqDepPanel').style.display='none';document.getElementById('mReReqDepBtn').style.display=''">Annuler</button></div>
+                </div>
+              </div>`;
+          } else {
+            extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#6B7280;font-style:italic">\u26a0\ufe0f Trop proche du RDV pour redemander (< ${cancelDeadlineH}h)</div>`;
+          }
         }
       } else if (depKept) {
         borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
@@ -194,16 +203,39 @@ async function fcOpenDetail(bookingId) {
           extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
         }
       } else {
-        if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px">Deadline : ${depDl}</div>`;
-        extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">';
-        if (b.client_email) {
-          extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#FEF3E2;color:#B45309;border:1px solid #F59E0B;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer par email</button>`;
+        // -- Pending deposit: show sent status + resend controls --
+        // Status: when was request sent
+        if (b.deposit_requested_at) {
+          const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
         }
-        if (b.client_phone) {
-          extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#FEF3E2;color:#B45309;border:1px solid #F59E0B;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('sms')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>Envoyer par SMS</button>`;
+        if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px">Deadline : ${depDl}</div>`;
+        // Auto-reminder info
+        if (b.deposit_reminder_sent) {
+          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Relance automatique envoy\u00e9e</div>`;
+        } else if (b.deposit_deadline) {
+          const reminderDate = new Date(new Date(b.deposit_deadline).getTime() - 48 * 3600000);
+          if (reminderDate > new Date()) {
+            const reminderStr = reminderDate.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            extraHtml += `<div style="font-size:.72rem;color:#6B7280;margin-top:2px;font-style:italic">Relance auto pr\u00e9vue le ${reminderStr}</div>`;
+          }
         }
-        extraHtml += '</div>';
+
+        // Time guard warning
+        if (tooCloseForDeposit) {
+          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">\u26a0\ufe0f Trop proche du RDV pour envoyer une demande (moins de ${cancelDeadlineH}h avant)</div>`;
+        } else if (reqCount >= maxResends) {
+          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">Maximum de ${maxResends} envois atteint. Contactez le client directement.</div>`;
+        } else {
+          // Resend button (single, secondary)
+          extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+          extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
+          if (reqCount > 0) extraHtml += `<span style="font-size:.68rem;color:#A8A29E">${reqCount}/${maxResends}</span>`;
+          extraHtml += '</div>';
+        }
         extraHtml += '<div id="mDepositSendStatus" style="display:none;margin-top:6px;font-size:.75rem;padding:6px 10px;border-radius:6px"></div>';
+        // Manual payment confirmation
+        extraHtml += `<div style="margin-top:6px;border-top:1px solid #E7E5E4;padding-top:6px"><button style="font-size:.7rem;padding:3px 10px;background:transparent;color:#78716C;border:none;cursor:pointer;font-weight:500;font-family:inherit;text-decoration:underline" onclick="fcMarkDepositPaid()">Marquer comme pay\u00e9 manuellement</button></div>`;
       }
 
       const depEl = document.createElement('div');
@@ -211,7 +243,7 @@ async function fcOpenDetail(bookingId) {
       depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + borderCol + ';background:' + bgCol;
       depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${textCol}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Acompte : ${depAmt} EUR \u2014 ${statusText}
+        Acompte : ${depAmt} \u20ac \u2014 ${statusText}
       </div>${extraHtml}`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
     }
@@ -220,25 +252,30 @@ async function fcOpenDetail(bookingId) {
     document.querySelectorAll('.m-require-deposit-wrap').forEach(el => el.remove());
     if (!b.deposit_required && ['pending', 'confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
       const s = calState.fcBusinessSettings || {};
-      const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
-      let defaultCents = s.deposit_type === 'fixed'
-        ? (s.deposit_fixed_cents || 2500)
-        : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
-      if (defaultCents <= 0) defaultCents = 2500;
-      const defaultDlHours = s.deposit_deadline_hours ?? 48;
+      const rdvCancelDlH = s.cancel_deadline_hours ?? 48;
+      const rdvHoursLeft = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
+      // Only show "Exiger un acompte" if RDV is far enough away
+      if (rdvHoursLeft >= rdvCancelDlH) {
+        const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+        let defaultCents = s.deposit_type === 'fixed'
+          ? (s.deposit_fixed_cents || 2500)
+          : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
+        if (defaultCents <= 0) defaultCents = 2500;
+        const defaultDlHours = s.deposit_deadline_hours ?? 48;
 
-      const wrap = document.createElement('div');
-      wrap.className = 'm-require-deposit-wrap';
-      wrap.style.cssText = 'padding:0 24px 8px';
-      wrap.innerHTML = `<button class="m-st-btn orange" id="mReqDepBtn" onclick="document.getElementById('mReqDepPanel').style.display='';this.style.display='none'"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Exiger un acompte</button>
-        <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF9E7">
-          <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
-            <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defaultCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
-            <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
-            <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReqDepPanel').style.display='none';document.getElementById('mReqDepBtn').style.display=''">Annuler</button></div>
-          </div>
-        </div>`;
-      document.getElementById('mStatusStrip').insertAdjacentElement('afterend', wrap);
+        const wrap = document.createElement('div');
+        wrap.className = 'm-require-deposit-wrap';
+        wrap.style.cssText = 'padding:0 24px 8px';
+        wrap.innerHTML = `<button class="m-st-btn orange" id="mReqDepBtn" onclick="document.getElementById('mReqDepPanel').style.display='';this.style.display='none'"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Exiger un acompte</button>
+          <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF9E7">
+            <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+              <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defaultCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
+              <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+              <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReqDepPanel').style.display='none';document.getElementById('mReqDepBtn').style.display=''">Annuler</button></div>
+            </div>
+          </div>`;
+        document.getElementById('mStatusStrip').insertAdjacentElement('afterend', wrap);
+      }
     }
 
     // -- Promo banner (last-minute discount) --

@@ -196,6 +196,105 @@ router.get('/reminders', requireCronKey, async (req, res) => {
   }
 });
 
+// ============================================================
+// GET /api/cron/deposit-reminders — auto-remind clients with pending deposits
+// Run every hour. Sends reminder when deadline is within 48h and not yet reminded.
+// ============================================================
+router.get('/deposit-reminders', requireCronKey, async (req, res) => {
+  const started = Date.now();
+  let sent = 0, skipped = 0, failed = 0;
+
+  try {
+    // Find all pending_deposit bookings where:
+    // - deposit_reminder_sent = false (or NULL)
+    // - deadline is within 48h from now (but not past)
+    // - client has email
+    const bookings = await query(`
+      SELECT b.id, b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_deadline,
+             b.public_token, b.group_id, b.business_id,
+             c.full_name AS client_name, c.email AS client_email,
+             CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+             p.display_name AS practitioner_name,
+             biz.name AS business_name, biz.email AS business_email,
+             biz.address AS business_address, biz.theme, biz.settings
+      FROM bookings b
+      LEFT JOIN clients c ON c.id = b.client_id
+      LEFT JOIN services s ON s.id = b.service_id
+      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+      JOIN practitioners p ON p.id = b.practitioner_id
+      JOIN businesses biz ON biz.id = b.business_id
+      WHERE b.status = 'pending_deposit'
+        AND b.deposit_status = 'pending'
+        AND b.deposit_required = true
+        AND (b.deposit_reminder_sent IS NULL OR b.deposit_reminder_sent = false)
+        AND b.deposit_deadline IS NOT NULL
+        AND b.deposit_deadline > NOW()
+        AND b.deposit_deadline <= NOW() + INTERVAL '48 hours'
+        AND c.email IS NOT NULL AND c.email != ''
+        AND biz.is_active = true
+    `);
+
+    for (const bk of bookings.rows) {
+      try {
+        // Fetch group services if applicable
+        let groupServices = null;
+        if (bk.group_id) {
+          const grp = await query(
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                    COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b2.end_at
+             FROM bookings b2 LEFT JOIN services s ON s.id = b2.service_id
+             LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+             WHERE b2.group_id = $1 AND b2.business_id = $2
+             ORDER BY b2.group_order, b2.start_at`,
+            [bk.group_id, bk.business_id]
+          );
+          if (grp.rows.length > 1) {
+            groupServices = grp.rows;
+            bk.end_at = grp.rows[grp.rows.length - 1].end_at;
+          }
+        }
+
+        const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+        const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
+        const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
+
+        const { sendDepositReminderEmail } = require('../../services/email');
+        const result = await sendDepositReminderEmail({
+          booking: bk,
+          business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme, settings: bk.settings },
+          depositUrl,
+          payUrl,
+          groupServices
+        });
+
+        if (result.success) {
+          // Mark as reminded
+          await query(`UPDATE bookings SET deposit_reminder_sent = true WHERE id = $1`, [bk.id]);
+          // Log notification
+          await query(`
+            INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, provider, provider_message_id, sent_at)
+            VALUES ($1, $2, 'email_deposit_reminder', $3, 'sent', 'brevo', $4, NOW())
+          `, [bk.business_id, bk.id, bk.client_email, result.messageId || null]);
+          sent++;
+        } else {
+          failed++;
+        }
+      } catch (e) {
+        console.error(`[CRON] Deposit reminder error for booking=${bk.id}:`, e.message);
+        failed++;
+      }
+    }
+
+    const elapsed = Date.now() - started;
+    console.log(`[CRON] Deposit reminders: ${sent} sent, ${skipped} skipped, ${failed} failed (${elapsed}ms)`);
+    res.json({ sent, skipped, failed, elapsed_ms: elapsed });
+  } catch (err) {
+    console.error('[CRON] Deposit reminders error:', err);
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal error' : err.message });
+  }
+});
+
 module.exports = router;
 
 // ============================================================
