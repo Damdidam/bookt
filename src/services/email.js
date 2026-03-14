@@ -615,7 +615,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
   }
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F59E0B">
