@@ -1951,6 +1951,89 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/public/booking/:token/calendar.ics
+// Generate ICS file for Apple Calendar, Outlook, etc.
+// ============================================================
+router.get('/booking/:token/calendar.ics', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.start_at, b.end_at, b.group_id, b.business_id,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              p.display_name AS practitioner_name,
+              biz.name AS business_name, biz.address AS business_address
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send('Not found');
+    const bk = result.rows[0];
+
+    // For multi-service groups, get all services and use last end_at
+    let summary = bk.service_name || 'Rendez-vous';
+    let endAt = bk.end_at;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, b.end_at
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        summary = grp.rows.map(r => r.name).join(' + ');
+        endAt = grp.rows[grp.rows.length - 1].end_at;
+      }
+    }
+
+    const fmtDt = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const uid = `booking-${token}@genda.be`;
+    const now = fmtDt(new Date());
+    const title = `${summary} — ${bk.business_name}`;
+    const desc = bk.practitioner_name ? `Avec ${bk.practitioner_name}` : '';
+    const location = bk.business_address || '';
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Genda//Booking//FR',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${fmtDt(bk.start_at)}`,
+      `DTEND:${fmtDt(endAt || bk.start_at)}`,
+      `SUMMARY:${title.replace(/[,;\\]/g, ' ')}`,
+      desc ? `DESCRIPTION:${desc.replace(/[,;\\]/g, ' ')}` : '',
+      location ? `LOCATION:${location.replace(/[,;\\]/g, ' ')}` : '',
+      'STATUS:CONFIRMED',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT1H',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Rappel rendez-vous',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].filter(Boolean).join('\r\n');
+
+    res.set({
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': `attachment; filename="rdv-${bk.business_name.replace(/[^a-zA-Z0-9]/g, '_')}.ics"`
+    });
+    res.send(ics);
+  } catch (err) {
+    console.error('[ICS] Error:', err.message);
+    next(err);
+  }
+});
+
+// ============================================================
 // POST /api/public/booking/:token/cancel
 // Client self-cancel
 // ============================================================
@@ -2780,7 +2863,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
-                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address, biz.theme AS biz_theme
+                  biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address, biz.theme AS biz_theme, biz.settings AS biz_settings
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -2807,7 +2890,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
               service_name: row.service_name, practitioner_name: row.practitioner_name,
               comment: row.comment_client
             },
-            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme },
+            business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });
         }

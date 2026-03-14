@@ -275,6 +275,7 @@ async function handleStripeWebhook(req, res) {
                         COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         p.display_name AS practitioner_name,
                         biz.name AS business_name, biz.email AS business_email,
+                        biz.phone AS business_phone,
                         biz.address AS business_address, biz.theme, biz.slug,
                         biz.settings AS business_settings
                  FROM bookings b
@@ -310,7 +311,7 @@ async function handleStripeWebhook(req, res) {
                 const { sendDepositPaidEmail } = require('../../services/email');
                 await sendDepositPaidEmail({
                   booking: d,
-                  business: { name: d.business_name, email: d.business_email, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+                  business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
                   groupServices
                 });
               }

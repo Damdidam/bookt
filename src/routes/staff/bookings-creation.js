@@ -201,7 +201,7 @@ router.post('/manual', async (req, res, next) => {
       if (bookingStatus === 'confirmed' && bookings[0].status !== 'pending_deposit' && client_email && client_id) {
         (async () => {
           try {
-            const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+            const biz = await queryWithRLS(bid, `SELECT name, email, phone, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
             const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
             if (biz.rows[0] && cl.rows[0]) {
               await sendBookingConfirmation({
@@ -483,7 +483,7 @@ router.post('/manual', async (req, res, next) => {
     if (bookingStatus === 'confirmed' && bookings[0].status !== 'pending_deposit' && client_email && client_id) {
       (async () => {
         try {
-          const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+          const biz = await queryWithRLS(bid, `SELECT name, email, phone, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
           const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
           const svc = await queryWithRLS(bid, `SELECT name FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
           const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);

@@ -124,6 +124,74 @@ async function sendEmail(opts) {
 }
 
 /**
+ * Build booking footer block for confirmation emails.
+ * Includes: address + Google Maps, contact, payment methods, calendar links.
+ * All info the client needs — no external pages required.
+ */
+function buildBookingFooter({ business, booking, serviceName, practitionerName, startAt, endAt, publicToken }) {
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const rowStyle = 'display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0';
+  const labelStyle = 'font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.4px';
+  const valStyle = 'font-size:13px;color:#1A1816;line-height:1.4';
+  const iconStyle = 'width:18px;height:18px;color:#999;flex-shrink:0;margin-top:1px';
+  let h = '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee">';
+
+  // Address + Google Maps
+  if (business.address) {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
+    h += `<div style="${rowStyle}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${iconStyle}"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <div><div style="${labelStyle}">Adresse</div><div style="${valStyle}">${escHtml(business.address)}</div>
+      <a href="${mapsUrl}" target="_blank" style="font-size:12px;color:#0D9488;text-decoration:none;font-weight:500">Ouvrir dans Google Maps \u2192</a></div>
+    </div>`;
+  }
+
+  // Contact (phone + email)
+  if (business.phone || business.email) {
+    h += `<div style="${rowStyle}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${iconStyle}"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <div><div style="${labelStyle}">Contact</div>`;
+    if (business.phone) h += `<div style="${valStyle}">${escHtml(business.phone)}</div>`;
+    if (business.email) h += `<div style="${valStyle}">${escHtml(business.email)}</div>`;
+    h += `</div></div>`;
+  }
+
+  // Payment methods
+  const pmList = business.settings?.payment_methods;
+  if (Array.isArray(pmList) && pmList.length > 0) {
+    const pmLabels = { cash: 'Espèces', card: 'Carte bancaire', bancontact: 'Bancontact', apple_pay: 'Apple Pay', google_pay: 'Google Pay', payconiq: 'Payconiq', instant_transfer: 'Virement instantané', bank_transfer: 'Virement bancaire' };
+    const badges = pmList.map(m => `<span style="display:inline-block;font-size:11px;color:#555;background:#F3F4F6;border-radius:20px;padding:3px 10px;margin:2px">${pmLabels[m] || m}</span>`).join(' ');
+    h += `<div style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+      <div style="${labelStyle};margin-bottom:6px">Paiements acceptés sur place</div>${badges}
+    </div>`;
+  }
+
+  // Calendar links
+  if (publicToken) {
+    const fmtGcal = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const gcalParams = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: serviceName + ' — ' + (business.name || ''),
+      dates: `${fmtGcal(startAt)}/${fmtGcal(endAt || startAt)}`,
+      details: practitionerName ? `Avec ${practitionerName}` : '',
+      location: business.address || ''
+    });
+    const gcalUrl = `https://calendar.google.com/calendar/render?${gcalParams.toString()}`;
+    const icsUrl = `${baseUrl}/api/public/booking/${publicToken}/calendar.ics`;
+    const btnStyle = 'display:inline-block;font-size:12px;font-weight:500;color:#555;background:#F3F4F6;border:1px solid #E5E7EB;border-radius:20px;padding:5px 14px;text-decoration:none;margin:3px';
+
+    h += `<div style="padding:12px 0;text-align:center">
+      <div style="${labelStyle};margin-bottom:8px">Ajouter \u00e0 mon calendrier</div>
+      <a href="${gcalUrl}" target="_blank" style="${btnStyle}">Google</a>
+      <a href="${icsUrl}" style="${btnStyle}">Apple / Outlook</a>
+    </div>`;
+  }
+
+  h += '</div>';
+  return h;
+}
+
+/**
  * Build a styled HTML email using Genda branding
  */
 function buildEmailHTML({ title, preheader, bodyHTML, ctaText, ctaUrl, cancelText, cancelUrl, footerText, businessName, primaryColor }) {
@@ -375,13 +443,16 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">\u{1F4DD} <em>${safeComment}</em></p>`;
   }
 
-  // Payment methods accepted on-site
-  const pmList = business.settings?.payment_methods;
-  if (Array.isArray(pmList) && pmList.length > 0) {
-    const pmLabels = { cash: 'Espèces', card: 'Carte bancaire', bancontact: 'Bancontact', apple_pay: 'Apple Pay', google_pay: 'Google Pay', payconiq: 'Payconiq', instant_transfer: 'Virement instantané', bank_transfer: 'Virement bancaire' };
-    const badges = pmList.map(m => `<span style="display:inline-block;font-size:12px;color:#555;background:#F3F4F6;border-radius:20px;padding:3px 10px;margin:2px">${pmLabels[m] || m}</span>`).join(' ');
-    bodyHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paiements acceptés sur place</div>${badges}</div>`;
-  }
+  // Footer: address, contact, payment methods, calendar links
+  const calEndAt = isMulti
+    ? new Date(new Date(booking.start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000).toISOString()
+    : (booking.end_at || booking.start_at);
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName,
+    practitionerName: booking.practitioner_name || '',
+    startAt: booking.start_at, endAt: calEndAt,
+    publicToken: hasPublicToken ? booking.public_token : null
+  });
 
   const html = buildEmailHTML({
     title: isMulti ? 'Confirmation de vos prestations' : 'Confirmation de votre rendez-vous',
@@ -718,13 +789,16 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>
     <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9.</p>`;
 
-  // Payment methods accepted on-site
-  const pmList2 = business.settings?.payment_methods;
-  if (Array.isArray(pmList2) && pmList2.length > 0) {
-    const pmLabels = { cash: 'Espèces', card: 'Carte bancaire', bancontact: 'Bancontact', apple_pay: 'Apple Pay', google_pay: 'Google Pay', payconiq: 'Payconiq', instant_transfer: 'Virement instantané', bank_transfer: 'Virement bancaire' };
-    const badges = pmList2.map(m => `<span style="display:inline-block;font-size:12px;color:#555;background:#F3F4F6;border-radius:20px;padding:3px 10px;margin:2px">${pmLabels[m] || m}</span>`).join(' ');
-    bodyHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paiements acceptés sur place</div>${badges}</div>`;
-  }
+  // Footer: address, contact, payment methods, calendar links
+  const depCalEndAt = isMulti
+    ? new Date(new Date(booking.start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000).toISOString()
+    : (booking.end_at || booking.start_at);
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName: safeServiceName,
+    practitionerName: booking.practitioner_name || '',
+    startAt: booking.start_at, endAt: depCalEndAt,
+    publicToken: booking.public_token || null
+  });
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
 
