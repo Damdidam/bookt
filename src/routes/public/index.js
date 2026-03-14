@@ -1774,7 +1774,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
     const result = await query(
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.deposit_required, b.deposit_status,
+              b.deposit_required, b.deposit_status, b.group_id,
               biz.settings AS business_settings
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
@@ -1816,6 +1816,23 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
     if (cancelResult.rowCount === 0) {
       return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
+    }
+
+    // Propagate cancellation to group siblings (multi-service bookings)
+    if (bk.group_id) {
+      try {
+        await query(
+          `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
+            deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+              ELSE deposit_status
+            END,
+            updated_at = NOW()
+           WHERE group_id = $2 AND business_id = $3 AND id != $4
+             AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
+          [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id]
+        );
+      } catch (e) { console.warn('[CANCEL] Group sibling propagation error:', e.message); }
     }
 
     // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
@@ -1884,6 +1901,17 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     try {
       waitlistResult = await processWaitlistForCancellation(bk.id, bk.business_id);
     } catch (e) { /* non-blocking */ }
+
+    // Process waitlist + calSync for group siblings
+    if (bk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        for (const sib of sibs.rows) {
+          try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, sib.id); } catch (e) { /* non-blocking */ }
+          try { await processWaitlistForCancellation(sib.id, bk.business_id); } catch (e) { /* non-blocking */ }
+        }
+      } catch (e) { /* non-blocking */ }
+    }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
     res.json({ cancelled: true, waitlist: waitlistResult });
