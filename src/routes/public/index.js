@@ -1030,8 +1030,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount);
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
-              const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-              if (deadline > new Date()) {
+              let deadline = new Date(startDate.getTime() - dlHours * 3600000);
+              // If deadline is in the past (RDV too soon), fallback to 30 min from now
+              // This ensures clients booking last-minute still pay the deposit
+              const MIN_DEPOSIT_WINDOW_MS = 30 * 60000; // 30 minutes minimum
+              if (deadline <= new Date()) {
+                deadline = new Date(Date.now() + MIN_DEPOSIT_WINDOW_MS);
+              }
+              // Only require deposit if RDV is at least 30 min away (enough time to pay)
+              if (startDate.getTime() - Date.now() >= MIN_DEPOSIT_WINDOW_MS) {
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -1054,7 +1061,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                     bookings[i].status = 'pending_deposit';
                   }
                 }
-                console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents`);
+                console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
               }
             }
           } catch (depErr) {
@@ -1443,8 +1450,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount);
           if (depResult.required) {
             const dlHours = bizSettings.deposit_deadline_hours ?? 48;
-            const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-            if (deadline > new Date()) {
+            let deadline = new Date(startDate.getTime() - dlHours * 3600000);
+            // If deadline is in the past (RDV too soon), fallback to 30 min from now
+            const MIN_DEPOSIT_WINDOW_MS = 30 * 60000;
+            if (deadline <= new Date()) {
+              deadline = new Date(Date.now() + MIN_DEPOSIT_WINDOW_MS);
+            }
+            // Only require deposit if RDV is at least 30 min away
+            if (startDate.getTime() - Date.now() >= MIN_DEPOSIT_WINDOW_MS) {
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                   deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -1456,7 +1469,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               booking.rows[0].deposit_required = true;
               booking.rows[0].deposit_amount_cents = depResult.depCents;
               booking.rows[0].deposit_deadline = deadline.toISOString();
-              console.log(`[DEPOSIT] Single-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents`);
+              console.log(`[DEPOSIT] Single-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
             }
           }
         } catch (depErr) {
@@ -1871,10 +1884,14 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
-    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    if (new Date() >= deadline) {
-      return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
+    // Skip cancellation deadline for pending_deposit — client hasn't paid yet,
+    // they should always be able to cancel (otherwise deposit-expiry cron would cancel it anyway)
+    if (bk.status !== 'pending_deposit') {
+      const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
+      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+      if (new Date() >= deadline) {
+        return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
+      }
     }
 
     // Deposit refund logic — atomic CASE WHEN to avoid race condition
@@ -2460,9 +2477,10 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
     }
 
-    // For confirmed/pending_deposit: check cancellation deadline
+    // For confirmed: check cancellation deadline
+    // Skip deadline check for pending_deposit — client hasn't paid yet, always allow cancel
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    if (bk.status === 'confirmed' || bk.status === 'pending_deposit') {
+    if (bk.status === 'confirmed') {
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
       if (new Date() >= deadline) {
         return res.send(confirmationPage('Annulation impossible', `L\u2019annulation n\u2019est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
