@@ -240,7 +240,7 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
 /**
  * Send modification notification email with Confirm/Reject buttons
  */
-async function sendModificationEmail({ booking, business }) {
+async function sendModificationEmail({ booking, business, groupServices }) {
   const oldDate = new Date(booking.old_start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
   });
@@ -256,40 +256,61 @@ async function sendModificationEmail({ booking, business }) {
   const rejectUrl = `${baseUrl}/api/public/booking/${booking.public_token}/reject`;
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
-  const safeServiceName = escHtml(booking.service_name) || 'Rendez-vous';
   const safePracName = escHtml(booking.practitioner_name);
+
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  const safeServiceName = isMulti
+    ? groupServices.map(s => escHtml(s.name)).join(' + ')
+    : escHtml(booking.service_name) || 'Rendez-vous';
+
+  let serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6">${safeServiceName}</div>`;
+  let serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600">${safeServiceName} \u00b7 ${safePracName}</div>`;
+  if (isMulti) {
+    serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6;margin-top:4px">Prestations :</div>`;
+    groupServices.forEach(s => {
+      serviceDetailOld += `<div style="font-size:12px;color:#92700C;text-decoration:line-through;opacity:.6;padding:1px 0">\u2022 ${escHtml(s.name)}</div>`;
+    });
+    serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600;margin-top:4px">Prestations :</div>`;
+    groupServices.forEach(s => {
+      serviceDetailNew += `<div style="font-size:12px;color:#15613A;padding:1px 0">\u2022 ${escHtml(s.name)}</div>`;
+    });
+    if (safePracName) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
+  }
 
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
-    <p>Votre rendez-vous a été modifié :</p>
+    <p>Votre rendez-vous a \u00e9t\u00e9 modifi\u00e9 :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
-      <div style="font-size:13px;color:#92700C;margin-bottom:4px"><strong>Avant :</strong> ${oldDate} à ${oldTime}</div>
-      <div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6">${safeServiceName}</div>
+      <div style="font-size:13px;color:#92700C;margin-bottom:4px"><strong>Avant :</strong> ${oldDate} \u00e0 ${oldTime}</div>
+      ${serviceDetailOld}
     </div>
     <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
-      <div style="font-size:13px;color:#15613A;margin-bottom:4px"><strong>Nouveau :</strong> ${newDate} à ${newTime} – ${newEndTime}</div>
-      <div style="font-size:13px;color:#15613A;font-weight:600">${safeServiceName} · ${safePracName}</div>
+      <div style="font-size:13px;color:#15613A;margin-bottom:4px"><strong>Nouveau :</strong> ${newDate} \u00e0 ${newTime} \u2013 ${newEndTime}</div>
+      ${serviceDetailNew}
     </div>
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">
-      <a href="${escHtml(confirmUrl)}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px"> Oui, ça me va</a>
+      <a href="${escHtml(confirmUrl)}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px"> Oui, \u00e7a me va</a>
       <a href="${escHtml(rejectUrl)}" style="display:inline-block;padding:14px 36px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;border:2px solid #E57373"> Non</a>
     </div>
-    <p style="font-size:12px;color:#9C958E;text-align:center">Si vous ne répondez pas, le nouveau créneau sera automatiquement confirmé.</p>`;
+    <p style="font-size:12px;color:#9C958E;text-align:center">Si vous ne r\u00e9pondez pas, le nouveau cr\u00e9neau sera automatiquement confirm\u00e9.</p>`;
 
+  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
   const html = buildEmailHTML({
-    title: 'Modification de votre rendez-vous',
-    preheader: `Nouveau créneau : ${newDate} à ${newTime}`,
+    title: isMulti ? 'Modification de vos prestations' : 'Modification de votre rendez-vous',
+    preheader: `Nouveau cr\u00e9neau : ${newDate} \u00e0 ${newTime}`,
     bodyHTML,
     businessName: business.name,
     primaryColor: color,
-    footerText: `${business.name}${business.address ? ' · ' + business.address : ''} · Via Genda.be`
+    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
+    cancelUrl,
+    footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
   return sendEmail({
     to: booking.client_email,
     toName: booking.client_name,
-    subject: `Modification de votre RDV — ${business.name}`,
+    subject: `Modification de votre RDV \u2014 ${business.name}`,
     html,
     fromName: business.name,
     replyTo: business.email

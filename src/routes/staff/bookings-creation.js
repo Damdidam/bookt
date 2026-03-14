@@ -487,10 +487,26 @@ router.post('/manual', async (req, res, next) => {
           const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
           const svc = await queryWithRLS(bid, `SELECT name FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
           const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);
+          // Query groupServices for multi-service bookings
+          let groupServices = null;
+          if (groupId) {
+            const grp = await queryWithRLS(bid,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [groupId, bid]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           if (biz.rows[0] && cl.rows[0]) {
             await sendBookingConfirmation({
-              booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
-              business: biz.rows[0]
+              booking: { ...bookings[0], end_at: groupEndAt || bookings[0].end_at, client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
+              business: biz.rows[0],
+              groupServices
             });
           }
         } catch (e) { console.warn('[EMAIL] Confirmation send error:', e.message); }

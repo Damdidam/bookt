@@ -2390,8 +2390,22 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
           );
           const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bk.business_id]);
           if (fullBk.rows[0] && bizRow.rows[0]) {
+            // Query group services for multi-service bookings
+            let groupServices = null;
+            if (fullBk.rows[0].group_id) {
+              const grp = await query(
+                `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                        COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                 FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+                [fullBk.rows[0].group_id, bk.business_id]
+              );
+              if (grp.rows.length > 1) groupServices = grp.rows;
+            }
             const { sendBookingConfirmation } = require('../../services/email');
-            await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0] });
+            await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0], groupServices });
           }
         } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
       })();
@@ -2553,10 +2567,26 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
         );
         if (fullBk.rows[0]?.client_email) {
           const row = fullBk.rows[0];
+          // Query group services for multi-service bookings
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, bk.business_id]
+            );
+            if (grp.rows.length > 1) groupServices = grp.rows;
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
-            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug }
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
+            groupServices
           });
         }
       } catch (e) { console.warn('[EMAIL] Cancel-booking email error:', e.message); }
