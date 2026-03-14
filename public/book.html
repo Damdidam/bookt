@@ -1350,10 +1350,15 @@ function buildDateRow(){
     const d=new Date(today);d.setDate(today.getDate()+i);
     const key=d.toISOString().split('T')[0];
     const slots=slotsData[key]||[];
-    const has=slots.length>0;
+    // Deduplicate count when no practitioner selected
+    let slotCount=slots.length;
+    if(!selectedPractitioner&&slots.length>0){
+      const seen={};slots.forEach(s=>{seen[s.start_time]=true;});slotCount=Object.keys(seen).length;
+    }
+    const has=slotCount>0;
     html+='<div class="date-btn '+(has?'':'empty')+' '+(selectedDate===key?'sel':'')+'" data-date="'+key+'">'
       +'<div class="dow">'+DAYS_SHORT[d.getDay()]+'</div><div class="num">'+d.getDate()+'</div><div class="month">'+MONTHS[d.getMonth()]+'</div>'
-      +(has?'<div class="slot-count">'+slots.length+'</div>':'')+'</div>';
+      +(has?'<div class="slot-count">'+slotCount+'</div>':'')+'</div>';
   }
   row.innerHTML=html;
   row.querySelectorAll('.date-btn:not(.empty)').forEach(b=>b.addEventListener('click',()=>selectDate(b.dataset.date)));
@@ -1417,8 +1422,17 @@ function selectDate(key){
   renderSlots();
 }
 function renderSlots(){
-  const slots=slotsData[selectedDate]||[];
+  let slots=slotsData[selectedDate]||[];
   if(!slots.length){document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau ce jour.</div>';return;}
+  // Deduplicate by start_time when no specific practitioner selected (any mode)
+  if(!selectedPractitioner){
+    const seen={};
+    const deduped=[];
+    slots.forEach(s=>{
+      if(!seen[s.start_time]){seen[s.start_time]=true;deduped.push(s);}
+    });
+    slots=deduped;
+  }
   const grid=document.createElement('div');grid.className='slots-grid';
   const hasLm=slots.some(s=>s.is_last_minute);
   if(hasLm)grid.classList.add('has-lm');
