@@ -351,6 +351,7 @@ router.get('/:slug', async (req, res, next) => {
         color: s.color,
         description: s.description || null,
         bookable_online: s.bookable_online !== false,
+        available_schedule: s.available_schedule || null,
         variants: (varByService[s.id] || []).map(v => ({
           id: v.id, name: v.name, description: v.description || null, duration_min: v.duration_min,
           price_cents: v.price_cents,
