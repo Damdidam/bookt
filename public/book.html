@@ -428,7 +428,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
     </div><!-- /clientFormFields -->
 
-    <label class="checkbox"><input type="checkbox" id="cConsent" checked> J'accepte les confirmations et rappels par email et SMS.</label>
+    <label class="checkbox"><input type="checkbox" id="cConsent"> J'accepte les confirmations et rappels par email et SMS.</label>
 
     <div id="bkFlexBox" style="display:none;margin:12px 0;padding:12px 14px;border-radius:8px;background:rgba(13,115,119,.06);border:1px solid rgba(13,115,119,.2)">
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:.88rem">
@@ -1210,11 +1210,16 @@ function initOauth(){
       var btn=document.querySelector('.oauth-btn.'+p);
       if(btn&&providers.indexOf(p)===-1)btn.style.display='none';
     });
-    // If no providers configured, show manual form directly
-    if(providers.length===0){
+    // If no providers configured, show manual form directly (unless required mode)
+    if(providers.length===0&&authMode!=='required'){
+      showManualForm();
+    }else if(providers.length===0&&authMode==='required'){
+      // Required but no providers: fallback to manual with warning
       showManualForm();
     }
-  }).catch(function(){showManualForm();});
+  }).catch(function(){
+    if(authMode!=='required')showManualForm();
+  });
 
   if(authMode==='optional'){
     // Show form by default, OAuth buttons above with separator
@@ -1405,8 +1410,13 @@ async function loadSlots(){
   }
   try{
     const sRes=await fetch(slotsUrl);
+    if(!sRes.ok)throw new Error('HTTP '+sRes.status);
     const sData=await sRes.json();slotsData=sData.by_date||{};
-  }catch(e){slotsData={};}
+  }catch(e){
+    slotsData={};
+    document.getElementById('slotsArea').innerHTML='<div class="no-slots" style="color:var(--red)">Erreur de chargement des créneaux. Veuillez réessayer.</div>';
+    buildDateRow();return;
+  }
   weekHasFeatured=false;
   buildDateRow();
   // Auto-select first available date
@@ -1712,6 +1722,7 @@ async function submitBooking(){
 
     if(!data.needs_confirmation && (!data.booking || data.booking.status !== 'pending_deposit')) buildCalendarButtons(selectedSlot.start_at,selectedSlot.end_at||selectedSlot.start_at,data.booking?.token);
     goToStep(5);
+    _submitting=false;
   }catch(err){
     showError(err.message);
     btn.disabled=false;btn.textContent='Confirmer le rendez-vous →';

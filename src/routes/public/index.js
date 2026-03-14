@@ -743,12 +743,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // Sort by category — same-category services are chained together
-      const _sorted = multiServices.map((svc, i) => ({ svc, vid: resolvedVariantIds[i] || null }));
-      _sorted.sort((a, b) => (a.svc.category || '').localeCompare(b.svc.category || ''));
-      multiServices = _sorted.map(p => p.svc);
-      resolvedVariantIds.splice(0);
-      _sorted.forEach(p => resolvedVariantIds.push(p.vid));
+      // Preserve frontend order (matches slot engine which uses array_position)
 
       // Mode validation
       if (appointment_mode) {
