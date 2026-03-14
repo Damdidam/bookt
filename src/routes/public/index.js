@@ -7,6 +7,9 @@ const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 
+// Mount OAuth sub-router for client booking authentication
+router.use('/auth', require('./oauth'));
+
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -264,7 +267,8 @@ router.get('/:slug', async (req, res, next) => {
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),
         practitioner_label: SECTOR_PRACTITIONER[biz.sector] || 'Praticien·ne',
-        sector: biz.sector || 'autre'
+        sector: biz.sector || 'autre',
+        booking_auth_mode: biz.settings?.booking_auth_mode || 'soft'
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
@@ -583,7 +587,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       variant_id, variant_ids,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing,
-      flexible, is_last_minute
+      flexible, is_last_minute,
+      oauth_provider, oauth_provider_id
     } = req.body;
 
     if (!practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
@@ -819,34 +824,49 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
         }
 
-        // Find or create client (same 3-step matching as single-service)
+        // Find or create client (4-step matching: OAuth > exact > phone > email)
         let clientId;
         let existingClient = null;
         let matchType = null;
 
-        const exactMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
-          [businessId, client_phone, client_email]
-        );
-        if (exactMatch.rows.length > 0) {
-          existingClient = exactMatch.rows[0];
-          matchType = 'exact';
-        } else {
-          const phoneMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-            [businessId, client_phone]
+        // Priority 1: OAuth provider match (most reliable identity)
+        if (oauth_provider && oauth_provider_id) {
+          const oauthMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3 LIMIT 1`,
+            [businessId, oauth_provider, oauth_provider_id]
           );
-          if (phoneMatch.rows.length > 0) {
-            existingClient = phoneMatch.rows[0];
-            matchType = 'phone';
+          if (oauthMatch.rows.length > 0) {
+            existingClient = oauthMatch.rows[0];
+            matchType = 'oauth';
+          }
+        }
+
+        // Priority 2-4: phone+email > phone > email
+        if (!existingClient) {
+          const exactMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+            [businessId, client_phone, client_email]
+          );
+          if (exactMatch.rows.length > 0) {
+            existingClient = exactMatch.rows[0];
+            matchType = 'exact';
           } else {
-            const emailMatch = await client.query(
-              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
-              [businessId, client_email]
+            const phoneMatch = await client.query(
+              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+              [businessId, client_phone]
             );
-            if (emailMatch.rows.length > 0) {
-              existingClient = emailMatch.rows[0];
-              matchType = 'email';
+            if (phoneMatch.rows.length > 0) {
+              existingClient = phoneMatch.rows[0];
+              matchType = 'phone';
+            } else {
+              const emailMatch = await client.query(
+                `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+                [businessId, client_email]
+              );
+              if (emailMatch.rows.length > 0) {
+                existingClient = emailMatch.rows[0];
+                matchType = 'email';
+              }
             }
           }
         }
@@ -859,7 +879,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             );
           }
           clientId = existingClient.id;
-          if (matchType === 'exact') {
+          if (matchType === 'oauth' || matchType === 'exact') {
             await client.query(
               `UPDATE clients SET
                 full_name = COALESCE(NULLIF($1, ''), full_name),
@@ -869,34 +889,38 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 consent_sms = COALESCE($5, consent_sms),
                 consent_email = COALESCE($6, consent_email),
                 consent_marketing = COALESCE($7, consent_marketing),
+                oauth_provider = COALESCE($9, oauth_provider),
+                oauth_provider_id = COALESCE($10, oauth_provider_id),
                 updated_at = NOW()
                WHERE id = $8`,
               [client_name, client_email, client_phone, client_bce,
                consent_sms === true ? true : (consent_sms === false ? false : null),
                consent_email === true ? true : (consent_email === false ? false : null),
                consent_marketing === true ? true : (consent_marketing === false ? false : null),
-               clientId]
+               clientId,
+               oauth_provider || null, oauth_provider_id || null]
             );
-          } else if (matchType === 'phone') {
+          } else if (matchType === 'phone' || matchType === 'email') {
+            // Link OAuth to existing client found by phone/email
             await client.query(
-              `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+              `UPDATE clients SET
+                full_name = COALESCE(NULLIF($2, ''), full_name),
+                oauth_provider = COALESCE($4, oauth_provider),
+                oauth_provider_id = COALESCE($5, oauth_provider_id),
+                updated_at = NOW()
                WHERE id = $1 AND business_id = $3`,
-              [clientId, client_name, businessId]
-            );
-          } else if (matchType === 'email') {
-            await client.query(
-              `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
-               WHERE id = $1 AND business_id = $3`,
-              [clientId, client_name, businessId]
+              [clientId, client_name, businessId, oauth_provider || null, oauth_provider_id || null]
             );
           }
         } else {
           const nc = await client.query(
             `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-              language_preference, consent_sms, consent_email, consent_marketing, created_from)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
+              language_preference, consent_sms, consent_email, consent_marketing, created_from,
+              oauth_provider, oauth_provider_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
             [businessId, client_name, client_phone, client_email, client_bce||null,
-             safeLang, consent_sms===true, consent_email===true, consent_marketing===true]
+             safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
+             oauth_provider || null, oauth_provider_id || null]
           );
           clientId = nc.rows[0].id;
         }
@@ -1193,43 +1217,53 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
       }
 
-      // Find or create client (3-step matching: exact → phone → email)
+      // Find or create client (4-step matching: OAuth > exact > phone > email)
       let clientId;
       let existingClient = null;
-      let matchType = null; // 'exact', 'phone', or 'email'
+      let matchType = null;
 
-      // Step 1: exact match (phone AND email)
-      const exactMatch = await client.query(
-        `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
-        [businessId, client_phone, client_email]
-      );
-      if (exactMatch.rows.length > 0) {
-        existingClient = exactMatch.rows[0];
-        matchType = 'exact';
-      } else {
-        // Step 2: match by phone
-        const phoneMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-          [businessId, client_phone]
+      // Priority 1: OAuth provider match (most reliable identity)
+      if (oauth_provider && oauth_provider_id) {
+        const oauthMatch = await client.query(
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3 LIMIT 1`,
+          [businessId, oauth_provider, oauth_provider_id]
         );
-        if (phoneMatch.rows.length > 0) {
-          existingClient = phoneMatch.rows[0];
-          matchType = 'phone';
+        if (oauthMatch.rows.length > 0) {
+          existingClient = oauthMatch.rows[0];
+          matchType = 'oauth';
+        }
+      }
+
+      if (!existingClient) {
+        const exactMatch = await client.query(
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+          [businessId, client_phone, client_email]
+        );
+        if (exactMatch.rows.length > 0) {
+          existingClient = exactMatch.rows[0];
+          matchType = 'exact';
         } else {
-          // Step 3: match by email
-          const emailMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
-            [businessId, client_email]
+          const phoneMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+            [businessId, client_phone]
           );
-          if (emailMatch.rows.length > 0) {
-            existingClient = emailMatch.rows[0];
-            matchType = 'email';
+          if (phoneMatch.rows.length > 0) {
+            existingClient = phoneMatch.rows[0];
+            matchType = 'phone';
+          } else {
+            const emailMatch = await client.query(
+              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+              [businessId, client_email]
+            );
+            if (emailMatch.rows.length > 0) {
+              existingClient = emailMatch.rows[0];
+              matchType = 'email';
+            }
           }
         }
       }
 
       if (existingClient) {
-        // Check if client is blocked
         if (existingClient.is_blocked) {
           throw Object.assign(
             new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
@@ -1237,8 +1271,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           );
         }
         clientId = existingClient.id;
-        if (matchType === 'exact') {
-          // Exact match: safe to update all fields
+        if (matchType === 'oauth' || matchType === 'exact') {
           await client.query(
             `UPDATE clients SET
               full_name = COALESCE(NULLIF($1, ''), full_name),
@@ -1248,36 +1281,37 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               consent_sms = COALESCE($5, consent_sms),
               consent_email = COALESCE($6, consent_email),
               consent_marketing = COALESCE($7, consent_marketing),
+              oauth_provider = COALESCE($9, oauth_provider),
+              oauth_provider_id = COALESCE($10, oauth_provider_id),
               updated_at = NOW()
              WHERE id = $8`,
             [client_name, client_email, client_phone, client_bce,
              consent_sms === true ? true : (consent_sms === false ? false : null),
              consent_email === true ? true : (consent_email === false ? false : null),
              consent_marketing === true ? true : (consent_marketing === false ? false : null),
-             clientId]
+             clientId,
+             oauth_provider || null, oauth_provider_id || null]
           );
-        } else if (matchType === 'phone') {
-          // Phone-only match: do NOT overwrite email (prevents malicious email takeover)
+        } else if (matchType === 'phone' || matchType === 'email') {
           await client.query(
-            `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+            `UPDATE clients SET
+              full_name = COALESCE(NULLIF($2, ''), full_name),
+              oauth_provider = COALESCE($4, oauth_provider),
+              oauth_provider_id = COALESCE($5, oauth_provider_id),
+              updated_at = NOW()
              WHERE id = $1 AND business_id = $3`,
-            [clientId, client_name, businessId]
-          );
-        } else if (matchType === 'email') {
-          // Email-only match: do NOT overwrite phone (prevents malicious phone takeover)
-          await client.query(
-            `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
-             WHERE id = $1 AND business_id = $3`,
-            [clientId, client_name, businessId]
+            [clientId, client_name, businessId, oauth_provider || null, oauth_provider_id || null]
           );
         }
       } else {
         const nc = await client.query(
           `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-            language_preference, consent_sms, consent_email, consent_marketing, created_from)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
+            language_preference, consent_sms, consent_email, consent_marketing, created_from,
+            oauth_provider, oauth_provider_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
           [businessId, client_name, client_phone, client_email, client_bce||null,
-           safeLang, consent_sms===true, consent_email===true, consent_marketing===true]
+           safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
+           oauth_provider || null, oauth_provider_id || null]
         );
         clientId = nc.rows[0].id;
       }
