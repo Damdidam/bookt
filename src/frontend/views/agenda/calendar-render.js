@@ -69,33 +69,39 @@ function buildEventContent() {
           return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
         }
         return label;
-      }).join(' · ');
+      }).join(' \u00b7 ');
       const clientDim = isPartial ? ' style="opacity:.4"' : '';
       const iconDim = isPartial ? 'opacity:.3' : 'opacity:.8';
+      const tStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+      const tEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+      const timeSpan = tStart ? '<span class="ev-time">' + tStart + (tEnd ? ' \u2013 ' + tEnd : '') + '</span>' : '';
       const grpVip = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
-      const grpLock = members.some(m => m.locked) ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
+      const grpLock = members.some(m => m.locked) ? '<span class="ev-badge-lock" title="Verrouill\u00e9">' + IC.lock + '</span>' : '';
       const grpSt = members.every(m => m.status === 'cancelled') ? 'cancelled' : members.every(m => m.status === 'no_show') ? 'no_show' : members.every(m => m.status === 'completed') ? 'completed' : (members[0].status || 'confirmed');
       const grpStC = ST_COLORS[grpSt] || ST_COLORS.confirmed;
       const grpPromo = members.some(m => m.discount_pct) ? '<span class="ev-badge-promo" title="Promo">' + IC.tag + '</span>' : '';
       const grpHasNote = members.some(m => m.internal_note || m.notes_count > 0 || m.client_notes || m.comment_client);
       const grpNote = grpHasNote ? '<span class="ev-badge-note" title="Note">' + IC.note + '</span>' : '';
-      const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
+      const grpDep = members.some(m => m.deposit_required) ? (members.some(m => m.deposit_status === 'paid') ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
       const grpStDot = '<span class="ev-badge ev-badge-st" style="background:' + grpStC + '"></span>';
-      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.68rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
+      return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client"${clientDim}>${esc(p.client_name || 'Groupe')} ${timeSpan}${grpVip}${grpLock}${grpDep}${grpPromo}${grpNote} <span style="font-size:.68rem;${iconDim}">${gi(IC.chain)}${members.length}</span></span><span class="ev-service">${svcs}</span><div class="ev-badges">${grpStDot}</div></div>` };
     }
 
     // -- Week/Day: single event --
-    const svcLabel = esc(p.variant_name ? (p.service_name||'RDV libre')+' — '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'));
+    const svcLabel = esc(p.variant_name ? (p.service_name||'RDV libre')+' \u2014 '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'));
+    const sStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+    const sEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
+    const sTimeSpan = sStart ? '<span class="ev-time">' + sStart + (sEnd ? ' \u2013 ' + sEnd : '') + '</span>' : '';
     const vipBadge = p.client_is_vip ? '<span class="ev-badge-vip" title="VIP">' + IC.crown + '</span>' : '';
-    const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte payé">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
+    const depBadge = p.deposit_required ? (p.deposit_status === 'paid' ? '<span class="ev-badge-dep paid" title="Acompte pay\u00e9">' + IC.dollar + '</span>' : '<span class="ev-badge-dep" title="Acompte en attente">' + IC.dollar + '</span>') : '';
     const promoBadge = p.discount_pct ? '<span class="ev-badge-promo" title="Promo -' + p.discount_pct + '%">' + IC.tag + '</span>' : '';
-    const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouillé">' + IC.lock + '</span>' : '';
+    const lockBadge = p.locked ? '<span class="ev-badge-lock" title="Verrouill\u00e9">' + IC.lock + '</span>' : '';
     const hasNote = p.internal_note || p.notes_count > 0 || p.client_notes || p.comment_client;
     const noteBadge = hasNote ? '<span class="ev-badge-note" title="Note">' + IC.note + '</span>' : '';
     const stColor = ST_COLORS[p.status] || ST_COLORS.confirmed;
     const stDot = '<span class="ev-badge ev-badge-st" style="background:' + stColor + '"></span>';
     const freeTag = !p.service_name ? '<span style="font-size:.68rem;opacity:.85;margin-left:3px">' + gi(IC.sparkle) + '</span>' : '';
-    return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)}${vipBadge}${freeTag}${depBadge}${promoBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
+    return { html: `<div class="ev-inner" style="color:${darkAccent}"><span class="ev-client">${esc(p.client_name || arg.event.title)} ${sTimeSpan}${vipBadge}${freeTag}${depBadge}${promoBadge}${lockBadge}${noteBadge}</span><span class="ev-service">${svcLabel}</span><div class="ev-badges">${stDot}</div></div>` };
   };
 }
 

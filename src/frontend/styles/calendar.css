@@ -162,6 +162,7 @@
 /* Event inner */
 .ev-inner{display:flex;flex-direction:column;gap:2px;overflow:hidden;position:relative}
 .ev-inner .ev-client{font-weight:700;font-size:.8rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-inner .ev-time{font-weight:500;font-size:.68rem;opacity:.55}
 .ev-inner .ev-service{font-size:.7rem;opacity:.80;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev-inner .gi{width:12px;height:12px;opacity:.85;flex-shrink:0;vertical-align:middle}
 .ev-inner .ev-badges{position:absolute;top:2px;right:2px;display:flex;gap:3px}
