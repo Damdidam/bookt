@@ -453,7 +453,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
       <div class="confirm-details" id="confirmDetails"></div>
       <div class="cal-buttons" id="calButtons"></div>
     </div>
-    <button class="btn-outline" style="margin-top:16px" id="btnBackSite">← Retour au cabinet</button>
+    <button class="btn-outline" style="margin-top:16px" id="btnBackSite">\u2190 Retour vers le site</button>
   </div>
 </div>
 
@@ -1676,47 +1676,83 @@ async function submitBooking(){
     const d=new Date(selectedSlot.start_at);
     const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
     var confirmHtml='';
+
+    // Prestations — always show all selected services
     if(multiServiceMode&&selectedServices.length>1){
+      confirmHtml+='<div class="row" style="font-weight:600;padding-bottom:2px"><span class="l">Prestations</span><span class="v"></span></div>';
       selectedServices.forEach(function(svc){
         var cv=selectedVariants[svc.id];
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
         var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
-        confirmHtml+='<div class="row"><span class="l">'+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
+        confirmHtml+='<div class="row"><span class="l" style="padding-left:8px">\u2022 '+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
     }else if(selectedService){
       var cv2=selectedVariants[selectedService.id];
       var confirmName=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
       confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+confirmName+'</span></div>';
     }
-    var confPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
-    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+escH(confPracName)+'</span></div>'
-      +'<div class="row"><span class="l">Date</span><span class="v">'+escH(dateStr)+'</span></div>'
-      +'<div class="row"><span class="l">Heure</span><span class="v">'+(selectedSlot?selectedSlot.start_time+' \u2013 '+selectedSlot.end_time:'')+'</span></div>';
-    if(selectedService)confirmHtml+='<div class="row"><span class="l">Mode</span><span class="v">'+escH(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
+
+    // Praticien
+    var confPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assign\u00e9':'Praticien assign\u00e9');
+    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+escH(confPracName)+'</span></div>';
+
+    // Date
+    confirmHtml+='<div class="row"><span class="l">Date</span><span class="v">'+escH(dateStr)+'</span></div>';
+
+    // Heure — for multi-service, compute correct end time from total duration
+    var confirmStartTime=selectedSlot?selectedSlot.start_time:'';
+    var confirmEndTime=selectedSlot?selectedSlot.end_time:'';
+    if(multiServiceMode&&selectedServices.length>1&&selectedSlot){
+      var totalMin=selectedServices.reduce(function(sum,svc){
+        var cv=selectedVariants[svc.id];
+        return sum+(cv?cv.duration_min:svc.duration_min);
+      },0);
+      var startD=new Date(selectedSlot.start_at);
+      var endD=new Date(startD.getTime()+totalMin*60000);
+      confirmEndTime=endD.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});
+    }
+    confirmHtml+='<div class="row"><span class="l">Heure</span><span class="v">'+confirmStartTime+' \u2013 '+confirmEndTime+'</span></div>';
+
+    // Réduction dernière minute
     if(data.booking&&data.booking.discount_pct){
       confirmHtml+='<div class="row"><span class="l" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="v" style="color:#f59e0b;font-weight:600">-'+data.booking.discount_pct+'%</span></div>';
     }
-    confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+escH(email)+'</span></div>'
-      +(data.booking?.token?'<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="/manage-booking/'+data.booking.token+'" style="color:var(--primary);font-weight:600">Gérer mon rendez-vous →</a></div>':'');
+
+    // Email
+    confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+escH(email)+'</span></div>';
+
+    // Annuler — one-click with confirm() dialog
+    if(data.booking&&data.booking.token){
+      confirmHtml+='<div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-3)">Besoin d\'annuler ? <a href="#" onclick="if(confirm(\'\u00cates-vous s\u00fbr de vouloir annuler ce rendez-vous ?\')){window.location.href=\'/api/public/booking/'+data.booking.token+'/cancel-booking\'};return false;" style="color:#C62828;font-weight:600">Annuler le rendez-vous</a></div>';
+    }
+
+    // Mentions légales / acompte / prestations
+    var mentions=[];
+    if(siteData.business&&siteData.business.deposit_enabled){
+      mentions.push('Selon la politique de l\u2019\u00e9tablissement, un acompte pourrait vous \u00eatre demand\u00e9 par email.');
+    }
+    mentions.push('Le rendez-vous est r\u00e9serv\u00e9 pour les prestations s\u00e9lectionn\u00e9es. Toute demande suppl\u00e9mentaire sera soumise \u00e0 la disponibilit\u00e9 et \u00e0 l\u2019accord du praticien.');
+    confirmHtml+='<div style="margin-top:14px;font-size:.72rem;color:var(--text-4);line-height:1.5">'+mentions.join('<br>')+'</div>';
+
     document.getElementById('confirmDetails').innerHTML=confirmHtml;
 
     // Update step 5 heading based on booking status
     if(data.booking && data.booking.status === 'pending_deposit'){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='Acompte requis';
-      document.querySelector('#step5 .confirm-box p').textContent='Un acompte est nécessaire pour confirmer votre rendez-vous. Consultez l\u2019email que nous venons de vous envoyer.';
+      document.querySelector('#step5 .confirm-box p').innerHTML='Un acompte est n\u00e9cessaire pour confirmer votre rendez-vous. Consultez l\u2019email que nous venons de vous envoyer.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
       document.getElementById('calButtons').style.display='none';
     }else if(data.needs_confirmation){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='V\u00e9rifiez vos emails !';
-      document.querySelector('#step5 .confirm-box p').textContent='Votre cr\u00e9neau est r\u00e9serv\u00e9. Confirmez votre RDV en cliquant sur le lien envoy\u00e9 par email/SMS.';
+      document.querySelector('#step5 .confirm-box p').innerHTML='Votre cr\u00e9neau est r\u00e9serv\u00e9. Confirmez votre RDV en cliquant sur le lien envoy\u00e9 par email/SMS.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
       document.getElementById('calButtons').style.display='none';
     }else{
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='Rendez-vous confirm\u00e9 !';
-      document.querySelector('#step5 .confirm-box p').textContent='Vous recevrez une confirmation par email et SMS.';
+      document.querySelector('#step5 .confirm-box p').innerHTML='Vous recevrez une confirmation par email et SMS.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
       document.getElementById('calButtons').style.display='';
     }
 
