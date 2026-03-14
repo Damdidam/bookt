@@ -50,9 +50,7 @@ router.get('/', async (req, res, next) => {
 
     // Exclude old cancelled/no_show bookings from calendar feed (perf: lighter rendering)
     // Keeps recent ones (< 1 day) visible so staff sees what just happened
-    if (!status) {
-      sql += ` AND NOT (b.status IN ('cancelled', 'no_show') AND b.updated_at < NOW() - INTERVAL '1 day')`;
-    }
+    sql += ` AND NOT (b.status IN ('cancelled', 'no_show') AND b.updated_at < NOW() - INTERVAL '1 day')`;
 
     if (from) {
       sql += ` AND b.start_at >= $${idx}`;
