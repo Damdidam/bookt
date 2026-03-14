@@ -1127,10 +1127,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               const depositUrl = `${baseUrl}/deposit/${multiBookings[0].public_token}`;
               await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, multiBookings[0].id]);
               const { sendDepositRequestEmail } = require('../../services/email');
+              const payUrl = `${baseUrl}/api/public/deposit/${multiBookings[0].public_token}/pay`;
               await sendDepositRequestEmail({
                 booking: emailBooking,
                 business: bizRow.rows[0],
                 depositUrl,
+                payUrl,
                 groupServices: groupSvcs
               });
               // Audit trail
@@ -1542,7 +1544,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const depositUrl = `${baseUrl}/deposit/${createdBooking.public_token}`;
             await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, createdBooking.id]);
             const { sendDepositRequestEmail } = require('../../services/email');
-            await sendDepositRequestEmail({ booking: emailBooking, business: bizRow.rows[0], depositUrl });
+            const payUrl = `${baseUrl}/api/public/deposit/${createdBooking.public_token}/pay`;
+            await sendDepositRequestEmail({ booking: emailBooking, business: bizRow.rows[0], depositUrl, payUrl });
             // Audit trail
             try {
               await query(
@@ -1774,6 +1777,95 @@ router.post('/deposit/:token/checkout', async (req, res, next) => {
   } catch (err) {
     console.error('[DEPOSIT CHECKOUT] Error:', err);
     next(err);
+  }
+});
+
+// ============================================================
+// GET /api/public/deposit/:token/pay
+// One-click payment redirect: creates Stripe Checkout Session and 302 redirects.
+// Used in deposit request emails so clients go directly to Stripe.
+// ============================================================
+router.get('/deposit/:token/pay', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const depositPageUrl = `${baseUrl}/deposit/${token}`;
+
+    const result = await query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
+              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
+              b.start_at, b.deposit_payment_intent_id,
+              c.email AS client_email,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              biz.name AS business_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.redirect(depositPageUrl + '?error=not_found');
+    const bk = result.rows[0];
+
+    // Already paid or not pending → redirect to deposit page with status
+    if (!bk.deposit_required || bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
+      return res.redirect(depositPageUrl + (bk.deposit_status === 'paid' ? '?paid=1' : ''));
+    }
+    // Deadline passed
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      return res.redirect(depositPageUrl + '?error=expired');
+    }
+
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.redirect(depositPageUrl + '?error=stripe');
+    const stripe = require('stripe')(key);
+
+    const amountCents = bk.deposit_amount_cents || 0;
+    if (amountCents < 50) return res.redirect(depositPageUrl);
+
+    const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+      timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Acompte — ${bk.service_name || 'Rendez-vous'}`,
+            description: `${bk.business_name} · ${dateStr}`
+          }
+        },
+        quantity: 1
+      }],
+      customer_email: bk.client_email || undefined,
+      metadata: {
+        type: 'deposit',
+        booking_id: bk.id,
+        business_id: bk.business_id,
+        booking_token: token
+      },
+      success_url: `${baseUrl}/deposit/${token}?paid=1`,
+      cancel_url: depositPageUrl,
+      locale: 'fr',
+      expires_at: Math.floor(Date.now() / 1000) + 1800
+    });
+
+    await query(
+      `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,
+      [session.id, bk.id]
+    );
+
+    res.redirect(session.url);
+  } catch (err) {
+    console.error('[DEPOSIT PAY REDIRECT] Error:', err);
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    res.redirect(`${baseUrl}/deposit/${req.params.token}?error=checkout`);
   }
 });
 

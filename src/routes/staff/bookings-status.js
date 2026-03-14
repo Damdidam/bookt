@@ -803,10 +803,12 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       }
       if (groupServices) bk.end_at = groupServices[groupServices.length - 1].end_at;
       const { sendDepositRequestEmail } = require('../../services/email');
+      const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
       sendResult = await sendDepositRequestEmail({
         booking: bk,
         business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme, settings: bk.settings },
         depositUrl,
+        payUrl,
         groupServices
       });
     } else {

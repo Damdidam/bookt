@@ -574,7 +574,7 @@ async function sendPasswordResetEmail({ email, name, resetUrl, businessName }) {
 /**
  * Send deposit request email to client
  */
-async function sendDepositRequestEmail({ booking, business, depositUrl, groupServices }) {
+async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
@@ -636,17 +636,23 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, groupSer
         \u2022 Il est <strong>restituable</strong> en cas d'annulation jusqu'\u00e0 <strong>${cancelDeadlineH}h avant</strong> votre rendez-vous.
       </div>
     </div>
-    <p style="font-size:14px;color:#3D3832">Consultez les d\u00e9tails et les instructions de paiement en cliquant ci-dessous.</p>`;
+    <p style="font-size:13px;color:#92700C;margin-top:12px">\u26a0\ufe0f Pass\u00e9 ce d\u00e9lai, votre rendez-vous sera automatiquement annul\u00e9.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
   const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
+
+  // Add fallback link to deposit details page
+  if (depositUrl) {
+    bodyHTML += `<p style="font-size:12px;color:var(--text-4,#999);margin-top:8px;text-align:center"><a href="${depositUrl}" style="color:#6B6560;text-decoration:underline">Voir la page de d\u00e9tails</a></p>`;
+  }
 
   const html = buildEmailHTML({
     title: 'Acompte requis pour votre rendez-vous',
     preheader: `Acompte de ${amtStr}\u20ac requis avant votre RDV du ${dateStr}`,
     bodyHTML,
-    ctaText: 'Voir les d\u00e9tails de l\u2019acompte',
-    ctaUrl: depositUrl,
+    ctaText: `Payer ${amtStr} \u20ac en ligne`,
+    ctaUrl: directPayUrl,
     cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
     cancelUrl,
     businessName: business.name,
