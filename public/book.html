@@ -348,6 +348,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
   <div class="step" data-step="3" id="step3">
     <h2 class="step-title">Choisir un créneau</h2>
     <p class="step-sub" id="slotSub">Sélectionnez une date puis un horaire.</p>
+    <div id="step3Recap" style="display:none"></div>
     <div class="mode-row" id="modeRow" style="display:none"></div>
     <div class="date-nav"><button id="prevWeek">‹</button><span class="label" id="weekLabel">—</span><button id="nextWeek">›</button></div>
     <div class="featured-banner" id="featuredBanner" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="featuredLabel"></span></div>
@@ -1268,6 +1269,30 @@ function goToStep(n){
   if(n===2){
     const showPrac=buildPractitioners();
     if(!showPrac){computeStepOrder();n=3;}
+  }
+  if(n===3){
+    // Build step 3 recap — show selected services + total duration
+    var recapEl=document.getElementById('step3Recap');
+    if(recapEl){
+      var rh='';
+      if(multiServiceMode&&selectedServices.length>1){
+        selectedServices.forEach(function(svc){
+          var cv=selectedVariants[svc.id];
+          var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
+          var cd=cv?cv.duration_min:svc.duration_min;
+          rh+='<div class="sum-row"><span class="label">\u2022 '+cn+'</span><span class="val">'+cd+' min</span></div>';
+        });
+        var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
+        rh+='<div class="sum-divider"></div><div class="sum-row"><span class="label"><strong>Dur\u00e9e totale</strong></span><span class="val"><strong>'+tMin+' min</strong></span></div>';
+      }else if(selectedService){
+        var cv2=selectedVariants[selectedService.id];
+        var sn=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
+        var sd=cv2?cv2.duration_min:selectedService.duration_min;
+        rh+='<div class="sum-row"><span class="label">'+sn+'</span><span class="val">'+sd+' min</span></div>';
+      }
+      if(rh){recapEl.className='summary';recapEl.innerHTML=rh;recapEl.style.display='';}
+      else{recapEl.style.display='none';}
+    }
   }
   if(n===3&&!vedetteMode){
     // When practitioner choice is disabled → "no preference" mode
