@@ -168,23 +168,22 @@ function getFacebookAuthUrl(state, redirectUri) {
 }
 
 async function exchangeFacebookCode(code, redirectUri) {
-  const res = await fetch(FB_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: process.env.FACEBOOK_APP_ID,
-      client_secret: process.env.FACEBOOK_APP_SECRET,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code'
-    }),
+  // Facebook token exchange uses GET with query params (not POST body)
+  const params = new URLSearchParams({
+    code,
+    client_id: process.env.FACEBOOK_APP_ID,
+    client_secret: process.env.FACEBOOK_APP_SECRET,
+    redirect_uri: redirectUri
+  });
+  const res = await fetch(`${FB_TOKEN_URL}?${params}`, {
     signal: AbortSignal.timeout(15000)
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Facebook token exchange failed: ${res.status} ${err.error?.message || ''}`);
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data) {
+    const msg = data?.error?.message || data?.error || JSON.stringify(data);
+    throw new Error(`Facebook token exchange failed: ${res.status} ${msg}`);
   }
-  return res.json();
+  return data;
 }
 
 async function getFacebookUserInfo(accessToken) {
