@@ -1597,9 +1597,8 @@ function buildSummary(){
   html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+sumPracName+'</span></div>'
     +'<div class="sum-divider"></div>'
     +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
-    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+selectedSlot.end_time+'</span></div>';
+    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+(function(){if(multiServiceMode&&selectedServices.length>1){var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);var sD=new Date(selectedSlot.start_at);var eD=new Date(sD.getTime()+tMin*60000);return eD.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});}return selectedSlot.end_time;})()+'</span></div>';
   if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
-    html+='<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
     var sv2=selectedVariants[selectedService.id];
     var sumPc=sv2&&sv2.price_cents!=null?sv2.price_cents:selectedService.price_cents;
     const price=sumPc?(sumPc/100).toFixed(0)+' \u20ac':'Gratuit';
@@ -1612,8 +1611,6 @@ function buildSummary(){
       html+='<div class="sum-divider"></div>'
         +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
     }
-  }else if(multiServiceMode&&selectedServices.length>1){
-    html+='<div class="sum-row"><span class="label">Mode</span><span class="val">'+(MODE_LABELS[selectedMode]||selectedMode)+'</span></div>';
   }
   document.getElementById('bookingSummary').innerHTML=html;
 }
