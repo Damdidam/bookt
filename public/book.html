@@ -83,6 +83,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 .sk-no-book-msg svg{width:12px;height:12px;vertical-align:-1px;margin-right:3px}
 /* Description */
 .sk-svc-desc{font-size:.72rem;color:var(--text-4);margin-top:2px}
+.sk-svc-restrict{display:inline-flex;align-items:center;gap:4px;font-size:.68rem;font-weight:600;color:#B45309;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:2px 8px;margin-top:4px}
 /* Mobile: stack columns */
 @media(max-width:640px){
   .sk-layout{flex-direction:column}
@@ -648,6 +649,9 @@ function initPage(){
     }else{
       h+='<div class="sk-svc-price">'+svcDisplayPrice(s)+'</div>';
       h+='<div class="sk-svc-dur">'+svcDurationLabel(s)+'</div>';
+    }
+    if(s.available_schedule&&s.available_schedule.type==='restricted'){
+      h+='<div class="sk-svc-restrict"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Disponibilit\u00e9 limit\u00e9e</div>';
     }
     if(s.description)h+='<div class="sk-svc-desc">'+escH(s.description)+'</div>';
     h+='</div>';
@@ -1289,6 +1293,15 @@ function goToStep(n){
         var sn=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
         var sd=cv2?cv2.duration_min:selectedService.duration_min;
         rh+='<div class="sum-row"><span class="label">'+sn+'</span><span class="val">'+sd+' min</span></div>';
+      }
+      // Add note for services with restricted availability
+      var restrictedSvcs=(multiServiceMode?selectedServices:[selectedService]).filter(function(s){return s&&s.available_schedule&&s.available_schedule.type==='restricted';});
+      if(restrictedSvcs.length>0){
+        rh+='<div style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:.75rem;color:#92400E">';
+        rh+='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+        rh+='<strong>Disponibilit\u00e9 limit\u00e9e :</strong> ';
+        rh+=restrictedSvcs.map(function(s){return escH(s.name);}).join(', ');
+        rh+=' \u2014 les cr\u00e9neaux sont ajust\u00e9s en cons\u00e9quence.</div>';
       }
       if(rh){recapEl.className='summary';recapEl.innerHTML=rh;recapEl.style.display='';}
       else{recapEl.style.display='none';}
