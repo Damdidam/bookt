@@ -383,15 +383,12 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     bodyHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paiements acceptés sur place</div>${badges}</div>`;
   }
 
-  const ctaText = hasPublicToken ? 'G\u00e9rer mon rendez-vous' : null;
-  const ctaUrl = hasPublicToken ? `${baseUrl}/booking/${booking.public_token}` : null;
-
   const html = buildEmailHTML({
     title: isMulti ? 'Confirmation de vos prestations' : 'Confirmation de votre rendez-vous',
     preheader: `${serviceName} \u2014 ${dateStr} \u00e0 ${timeStr}`,
     bodyHTML,
-    ctaText,
-    ctaUrl,
+    ctaText: null,
+    ctaUrl: null,
     cancelText: hasPublicToken ? 'Annuler mon rendez-vous' : null,
     cancelUrl: hasPublicToken ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null,
     businessName: business.name,
@@ -710,7 +707,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre acompte a bien été reçu. Votre rendez-vous est confirmé !</p>
     <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
@@ -726,15 +723,22 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>
     <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9.</p>`;
 
+  // Payment methods accepted on-site
+  const pmList2 = business.settings?.payment_methods;
+  if (Array.isArray(pmList2) && pmList2.length > 0) {
+    const pmLabels = { cash: 'Espèces', card: 'Carte bancaire', bancontact: 'Bancontact', apple_pay: 'Apple Pay', google_pay: 'Google Pay', payconiq: 'Payconiq', instant_transfer: 'Virement instantané', bank_transfer: 'Virement bancaire' };
+    const badges = pmList2.map(m => `<span style="display:inline-block;font-size:12px;color:#555;background:#F3F4F6;border-radius:20px;padding:3px 10px;margin:2px">${pmLabels[m] || m}</span>`).join(' ');
+    bodyHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee"><div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Paiements acceptés sur place</div>${badges}</div>`;
+  }
+
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
 
   const html = buildEmailHTML({
     title: 'Acompte confirmé — Rendez-vous validé',
     preheader: `Votre acompte de ${amtStr}€ a été reçu. RDV confirmé le ${dateStr}`,
     bodyHTML,
-    ctaText: manageUrl ? 'Gérer mon rendez-vous' : null,
-    ctaUrl: manageUrl,
+    ctaText: null,
+    ctaUrl: null,
     cancelText: booking.public_token ? 'Annuler mon rendez-vous' : null,
     cancelUrl: booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null,
     businessName: business.name,
