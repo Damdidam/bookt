@@ -106,7 +106,7 @@ async function fcOpenDetail(bookingId) {
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'no_show\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No-show</button>');
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'cancelled\')">Annuler</button>');
     }
-    if (b.status === 'pending_deposit') acts.push('<button class="m-st-btn green" onclick="fcMarkDepositPaid()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Marquer pay\u00e9</button>');
+    // "Confirmer sans acompte" is in the deposit banner, no need for a status strip button
     if (['completed', 'cancelled', 'no_show'].includes(b.status)) acts.push('<button class="m-st-btn" onclick="fcSetStatus(\'confirmed\')">↩ R\u00e9tablir</button>');
     if (!fcIsMobile() && !['cancelled', 'no_show', 'completed'].includes(b.status)) {
       acts.push('<button class="m-st-btn m-st-move" onclick="fcScrollToHoraire()">\u2195 D\u00e9placer</button>');
@@ -159,6 +159,7 @@ async function fcOpenDetail(bookingId) {
       const depPaid = b.deposit_status === 'paid';
       const depRefunded = b.deposit_status === 'refunded';
       const depKept = b.deposit_status === 'cancelled' && !!b.deposit_paid_at;
+      const depWaived = b.deposit_status === 'waived';
       const isFuture = new Date(b.start_at) > new Date();
       const bizSettings = calState.fcBusinessSettings || {};
       const cancelDeadlineH = bizSettings.cancel_deadline_hours ?? 48;
@@ -192,6 +193,10 @@ async function fcOpenDetail(bookingId) {
             extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#6B7280;font-style:italic">\u26a0\ufe0f Trop proche du RDV pour redemander (< ${cancelDeadlineH}h)</div>`;
           }
         }
+      } else if (depWaived) {
+        borderCol = '#A8A29E'; bgCol = '#F5F5F4'; textCol = '#78716C';
+        statusText = 'Dispens\u00e9';
+        extraHtml += `<div style="font-size:.72rem;color:#78716C;margin-top:4px">RDV confirm\u00e9 sans acompte</div>`;
       } else if (depKept) {
         borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
         statusText = 'Conserv\u00e9 (annulation tardive)';
@@ -234,8 +239,8 @@ async function fcOpenDetail(bookingId) {
           extraHtml += '</div>';
         }
         extraHtml += '<div id="mDepositSendStatus" style="display:none;margin-top:6px;font-size:.75rem;padding:6px 10px;border-radius:6px"></div>';
-        // Manual payment confirmation
-        extraHtml += `<div style="margin-top:6px;border-top:1px solid #E7E5E4;padding-top:6px"><button style="font-size:.7rem;padding:3px 10px;background:transparent;color:#78716C;border:none;cursor:pointer;font-weight:500;font-family:inherit;text-decoration:underline" onclick="fcMarkDepositPaid()">Marquer comme pay\u00e9 manuellement</button></div>`;
+        // Waive deposit: confirm without payment
+        extraHtml += `<div style="margin-top:6px;border-top:1px solid #E7E5E4;padding-top:6px"><button style="font-size:.7rem;padding:3px 10px;background:transparent;color:#78716C;border:none;cursor:pointer;font-weight:500;font-family:inherit;text-decoration:underline" onclick="fcWaiveDeposit()">Confirmer sans acompte</button></div>`;
       }
 
       const depEl = document.createElement('div');

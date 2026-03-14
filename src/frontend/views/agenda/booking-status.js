@@ -51,23 +51,22 @@ async function fcPurgeBooking() {
   finally { fcPurgeBooking._busy = false; }
 }
 
-async function fcMarkDepositPaid() {
-  if (fcMarkDepositPaid._busy) return;
-  if (!confirm('Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.')) return;
-  fcMarkDepositPaid._busy = true;
+async function fcWaiveDeposit() {
+  if (fcWaiveDeposit._busy) return;
+  if (!confirm('Confirmer le RDV sans acompte ? Le client recevra un email de confirmation classique (sans mention d\u2019acompte).')) return;
+  fcWaiveDeposit._busy = true;
   try {
-    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/waive-deposit`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ status: 'confirmed' })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
-    gToast('Acompte marqu\u00e9 comme pay\u00e9 \u2014 RDV confirm\u00e9', 'success');
+    gToast('RDV confirm\u00e9 sans acompte', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { fcMarkDepositPaid._busy = false; }
+  finally { fcWaiveDeposit._busy = false; }
 }
 
 async function fcRefundDeposit(amountCents) {
@@ -149,6 +148,6 @@ async function fcRequireDeposit() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit });
+bridge({ fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit });
 
-export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit };
+export { fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit };

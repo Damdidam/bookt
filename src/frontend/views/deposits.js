@@ -40,6 +40,7 @@ async function loadDeposits(){
         <option value="paid" ${depositFilter==='paid'?'selected':''}>Pay\u00e9s</option>
         <option value="refunded" ${depositFilter==='refunded'?'selected':''}>Rembours\u00e9s</option>
         <option value="cancelled" ${depositFilter==='cancelled'?'selected':''}>Conserv\u00e9s</option>
+        <option value="waived" ${depositFilter==='waived'?'selected':''}>Dispens\u00e9s</option>
       </select>
       <input type="date" value="${esc(depositFrom)}" onchange="depositFrom=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date d\u00e9but">
       <input type="date" value="${esc(depositTo)}" onchange="depositTo=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date fin">
@@ -64,8 +65,8 @@ async function loadDeposits(){
           <th style="padding:10px;text-align:center;font-weight:600;font-size:.72rem;text-transform:uppercase;color:var(--text-3)">Audit</th>
         </tr></thead><tbody>`;
 
-      const depStatusColors={pending:'var(--gold)',paid:'var(--green)',refunded:'#2563EB',cancelled:'var(--primary)'};
-      const depStatusLabels={pending:'En attente',paid:'Pay\u00e9',refunded:'Rembours\u00e9',cancelled:'Conserv\u00e9'};
+      const depStatusColors={pending:'var(--gold)',paid:'var(--green)',refunded:'#2563EB',cancelled:'var(--primary)',waived:'#78716C'};
+      const depStatusLabels={pending:'En attente',paid:'Pay\u00e9',refunded:'Rembours\u00e9',cancelled:'Conserv\u00e9',waived:'Dispens\u00e9'};
       const bkStatusColors={pending:'var(--gold)',confirmed:'var(--green)',cancelled:'var(--red)',completed:'var(--text-3)',no_show:'#B45309',pending_deposit:'var(--gold)',modified_pending:'var(--gold)'};
       const bkStatusLabels={pending:'En attente',confirmed:'Confirm\u00e9',cancelled:'Annul\u00e9',completed:'Termin\u00e9',no_show:'No-show',pending_deposit:'Att. acompte',modified_pending:'Modifi\u00e9'};
 

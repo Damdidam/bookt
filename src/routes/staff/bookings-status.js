@@ -694,6 +694,129 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
 });
 
 // ============================================================
+// PATCH /api/bookings/:id/waive-deposit
+// Confirm booking WITHOUT deposit — sets deposit_status='waived'
+// Sends a clean confirmation email with ZERO deposit mention
+// UI: Calendar → event detail → "Confirmer sans acompte"
+// ============================================================
+router.patch('/:id/waive-deposit', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    const txResult = await transactionWithRLS(bid, async (client) => {
+      const bk = await client.query(
+        `SELECT b.id, b.status, b.deposit_status, b.deposit_amount_cents,
+                b.start_at, b.end_at, b.group_id, b.practitioner_id, b.public_token,
+                b.comment_client, b.custom_label, b.service_variant_id,
+                c.full_name AS client_name, c.email AS client_email,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                p.display_name AS practitioner_name,
+                biz.name AS business_name, biz.email AS business_email,
+                biz.address AS business_address, biz.phone AS business_phone,
+                biz.theme, biz.settings
+         FROM bookings b
+         LEFT JOIN clients c ON c.id = b.client_id
+         LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         JOIN practitioners p ON p.id = b.practitioner_id
+         JOIN businesses biz ON biz.id = b.business_id
+         WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
+      const b = bk.rows[0];
+
+      // Practitioner scope
+      if (req.practitionerFilter && String(b.practitioner_id) !== String(req.practitionerFilter)) {
+        return { error: 403, message: 'Accès interdit' };
+      }
+
+      if (b.status !== 'pending_deposit') {
+        return { error: 400, message: 'Ce RDV n\'est pas en attente d\'acompte' };
+      }
+      if (b.deposit_status !== 'pending') {
+        return { error: 400, message: 'L\'acompte n\'est plus en attente' };
+      }
+
+      // Waive: confirm without payment
+      await client.query(
+        `UPDATE bookings SET status = 'confirmed', deposit_status = 'waived',
+          deposit_deadline = NULL, updated_at = NOW()
+         WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+
+      // Group siblings: also confirm
+      if (b.group_id) {
+        await propagateGroupStatus(client, {
+          groupId: b.group_id, bid, excludeId: id,
+          status: 'confirmed', cancelReason: null
+        });
+      }
+
+      // Audit log
+      await client.query(
+        `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, $2, 'booking', $3, 'waive_deposit', $4, $5)`,
+        [bid, req.user.id, id,
+         JSON.stringify({ status: 'pending_deposit', deposit_status: 'pending', deposit_amount_cents: b.deposit_amount_cents }),
+         JSON.stringify({ status: 'confirmed', deposit_status: 'waived' })]
+      );
+
+      return { ok: true, booking: b };
+    });
+
+    if (txResult.error) return res.status(txResult.error).json({ error: txResult.message });
+
+    broadcast(bid, 'booking_update', { action: 'waive_deposit', booking_id: id, status: 'confirmed' });
+    calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+
+    // Send clean confirmation email (ZERO deposit mention)
+    const b = txResult.booking;
+    if (b.client_email) {
+      try {
+        let groupServices = null;
+        if (b.group_id) {
+          const grp = await queryWithRLS(bid,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                    COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+             FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
+             LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+             WHERE bk.group_id = $1 AND bk.business_id = $2
+             ORDER BY bk.group_order, bk.start_at`,
+            [b.group_id, bid]
+          );
+          if (grp.rows.length > 1) {
+            groupServices = grp.rows;
+            b.end_at = grp.rows[grp.rows.length - 1].end_at;
+          }
+        }
+        const { sendBookingConfirmation } = require('../../services/email');
+        await sendBookingConfirmation({
+          booking: {
+            start_at: b.start_at, end_at: b.end_at,
+            client_name: b.client_name, client_email: b.client_email,
+            service_name: b.service_name, practitioner_name: b.practitioner_name,
+            comment: b.comment_client, custom_label: b.custom_label,
+            public_token: b.public_token
+          },
+          business: { name: b.business_name, email: b.business_email, address: b.business_address, phone: b.business_phone, theme: b.theme, settings: b.settings },
+          groupServices
+        });
+      } catch (emailErr) {
+        console.error('[WAIVE_DEPOSIT] Confirmation email error:', emailErr.message);
+      }
+    }
+
+    res.json({ updated: true, status: 'confirmed', deposit_status: 'waived' });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/bookings/:id/send-deposit-request
 // Send deposit request notification via SMS or email
 // UI: Quick-create post-creation panel + Detail modal deposit banner
