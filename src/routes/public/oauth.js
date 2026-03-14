@@ -140,13 +140,16 @@ async function handleCallback(provider, params, appleUserObj, res) {
   const { code, state, error } = params;
   let slug = '';
 
+  // Helper to build safe redirect (avoids //book protocol-relative URL when slug is empty)
+  const bookUrl = (qs) => slug ? `/${slug}/book?${qs}` : `/?${qs}`;
+
   try {
     if (error) {
       // User denied access or error from provider
       const session = state ? await oauthStates.get(state) : null;
       slug = session?.slug || '';
       if (state) await oauthStates.delete(state);
-      return res.redirect(`/${slug}/book?oauth_error=${encodeURIComponent(error)}`);
+      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent(error)}`));
     }
 
     if (!state || !code) {
@@ -164,7 +167,7 @@ async function handleCallback(provider, params, appleUserObj, res) {
 
     // Check expiration
     if (Date.now() > session.expiresAt) {
-      return res.redirect(`/${slug}/book?oauth_error=${encodeURIComponent('Session expirée, réessayez')}`);
+      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Session expirée, réessayez')}`));
     }
 
     // Exchange code for tokens
@@ -180,7 +183,7 @@ async function handleCallback(provider, params, appleUserObj, res) {
     const userInfo = await oauth.getUserInfo(provider, tokens, appleUserObj);
 
     if (!userInfo.email) {
-      return res.redirect(`/${slug}/book?oauth_error=${encodeURIComponent('Email non disponible depuis ' + provider)}`);
+      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Email non disponible depuis ' + provider)}`));
     }
 
     // Store in pickup key for frontend to fetch
@@ -197,7 +200,7 @@ async function handleCallback(provider, params, appleUserObj, res) {
     res.redirect(`/${slug}/book?oauth_pickup=${pickupKey}`);
   } catch (err) {
     console.error(`[OAUTH] ${provider} callback error:`, err.message);
-    res.redirect(`/${slug}/book?oauth_error=${encodeURIComponent('Erreur d\'authentification, réessayez')}`);
+    res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Erreur d\'authentification, réessayez')}`));
   }
 }
 
