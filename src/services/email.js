@@ -254,77 +254,6 @@ ${safePreheader ? `<span style="display:none!important;font-size:1px;color:#fff;
 }
 
 /**
- * Send pre-RDV document email to client
- */
-async function sendPreRdvEmail({ booking, template, token, business }) {
-  const appointmentDate = new Date(booking.start_at).toLocaleDateString('fr-BE', {
-    timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
-  const appointmentTime = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
-  });
-
-  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const docUrl = `${baseUrl}/docs/${token}`;
-
-  const typeLabels = {
-    info: "Informations pour votre rendez-vous",
-    form: "Formulaire à compléter avant votre rendez-vous",
-    consent: "Consentement à signer avant votre rendez-vous"
-  };
-
-  let bodyHTML = `
-    <p>Bonjour <strong>${escHtml(booking.client_name)}</strong>,</p>
-    <p>Votre rendez-vous est prévu le <strong>${appointmentDate} à ${appointmentTime}</strong>
-    pour <strong>${escHtml(booking.service_name)}</strong>.</p>
-    <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
-      <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:6px">
-        \ud83d\udccb ${typeLabels[template.type] || 'Document \u00e0 consulter'}
-      </div>
-      <div style="font-size:15px;font-weight:600;color:#1A1816">${escHtml(template.name)}</div>
-    </div>`;
-
-  if (template.type === 'info') {
-    bodyHTML += `<p>Veuillez consulter les informations ci-dessous pour bien préparer votre rendez-vous.</p>`;
-  } else if (template.type === 'form') {
-    bodyHTML += `<p>Merci de compléter le formulaire en ligne avant votre rendez-vous. Cela nous permettra de mieux vous accueillir.</p>`;
-  } else if (template.type === 'consent') {
-    bodyHTML += `<p>Veuillez lire et signer le formulaire de consentement avant votre rendez-vous.</p>`;
-  }
-
-  const ctaText = template.type === 'info' ? 'Consulter le document' : 'Compléter le formulaire';
-
-  // SVC-V11-12: Escape business name in subject (strip HTML tags for safety)
-  const safeBizNameSubject = (business.name || 'Genda').replace(/<[^>]*>/g, '');
-  const subject = template.subject || `${template.name} — ${safeBizNameSubject}`;
-
-  // Cancel button (required in all client-facing emails)
-  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
-
-  const html = buildEmailHTML({
-    title: template.name,
-    preheader: `Préparez votre rendez-vous du ${appointmentDate}`,
-    bodyHTML,
-    ctaText,
-    ctaUrl: docUrl,
-    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : undefined,
-    cancelUrl: cancelUrl || undefined,
-    businessName: business.name,
-    primaryColor: business.theme?.primary_color,
-    footerText: `${business.name} · ${business.address || ''} · Via Genda.be`
-  });
-
-  return sendEmail({
-    to: booking.client_email,
-    toName: booking.client_name,
-    subject,
-    html,
-    fromName: business.name,
-    replyTo: business.email
-  });
-}
-
-/**
  * Send modification notification email with Confirm/Reject buttons
  */
 async function sendModificationEmail({ booking, business, groupServices }) {
@@ -1099,4 +1028,4 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendPreRdvEmail, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

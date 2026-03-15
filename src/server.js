@@ -35,7 +35,6 @@ const signupRoutes = require('./routes/staff/signup');
 const practitionerRoutes = require('./routes/staff/practitioners');
 const invoiceRoutes = require('./routes/staff/invoices');
 const depositRoutes = require('./routes/staff/deposits');
-const documentRoutes = require('./routes/staff/documents');
 const calendarRoutes = require('./routes/staff/calendar');
 const waitlistRoutes = require('./routes/staff/waitlist');
 const galleryRoutes = require('./routes/staff/gallery');
@@ -44,7 +43,6 @@ const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
 const taskRoutes = require('./routes/staff/tasks');
 const businessHoursRoutes = require('./routes/staff/business-hours');
-const preRdvCron = require('./routes/cron/pre-rdv');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 const stripeRoutes = require('./routes/staff/stripe');
 const { handleStripeWebhook } = require('./routes/staff/stripe');
@@ -179,7 +177,6 @@ app.use('/api/site', siteRoutes);
 app.use('/api/practitioners', practitionerRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/deposits', depositRoutes);
-app.use('/api/documents', documentRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/gallery', galleryRoutes);
@@ -189,7 +186,6 @@ app.use('/api/planning', planningRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/business-hours', requireAuth, businessHoursRoutes);
 app.use('/api/stripe', stripeRoutes);
-app.use('/api/cron', preRdvCron);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
@@ -215,11 +211,6 @@ app.get('/:slug/book', (req, res) => {
 // /booking/:token → manage booking (cancel/reschedule)
 app.get('/booking/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/manage-booking.html'));
-});
-
-// /docs/:token → pre-RDV document / form
-app.get('/docs/:token', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/pre-rdv.html'));
 });
 
 // /deposit/:token → public deposit details page

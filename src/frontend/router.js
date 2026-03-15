@@ -21,7 +21,6 @@ const SECTION_TITLES = {
   calls: 'Appels',
   invoices: 'Facturation',
   deposits: 'Acomptes',
-  documents: 'Documents pré-RDV',
   settings: 'Paramètres',
   analytics: 'Statistiques',
   'cal-sync': 'Calendrier externe',
@@ -120,10 +119,6 @@ async function loadSection(section) {
       case 'deposits':
         mod = await import('./views/deposits.js');
         mod.loadDeposits();
-        break;
-      case 'documents':
-        mod = await import('./views/documents.js');
-        mod.loadDocuments();
         break;
       case 'analytics':
         mod = await import('./views/analytics.js');

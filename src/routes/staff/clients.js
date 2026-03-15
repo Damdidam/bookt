@@ -173,21 +173,7 @@ router.get('/:id', async (req, res, next) => {
 
     const bookings = await queryWithRLS(bid, bkSql, bkParams);
 
-    // Fetch pre-RDV documents for this client
-    const docs = await queryWithRLS(bid,
-      `SELECT prs.id, prs.template_id, prs.booking_id, prs.status, prs.sent_at,
-              prs.responded_at, prs.created_at,
-              dt.name AS template_name, dt.type AS template_type,
-              b.start_at AS booking_date
-       FROM pre_rdv_sends prs
-       JOIN document_templates dt ON dt.id = prs.template_id
-       JOIN bookings b ON b.id = prs.booking_id
-       WHERE prs.client_id = $1 AND prs.business_id = $2
-       ORDER BY prs.created_at DESC`,
-      [req.params.id, bid]
-    );
-
-    res.json({ client: client.rows[0], bookings: bookings.rows, documents: docs.rows });
+    res.json({ client: client.rows[0], bookings: bookings.rows });
   } catch (err) {
     next(err);
   }

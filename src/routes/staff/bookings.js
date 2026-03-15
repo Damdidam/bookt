@@ -199,18 +199,6 @@ router.get('/:id/detail', async (req, res, next) => {
       [id, bid]
     );
 
-    // Fetch pre-RDV documents sent for this booking
-    const docs = await queryWithRLS(bid,
-      `SELECT prs.id, prs.template_id, prs.status, prs.token, prs.sent_at,
-              prs.responded_at, prs.created_at,
-              dt.name AS template_name, dt.type AS template_type
-       FROM pre_rdv_sends prs
-       JOIN document_templates dt ON dt.id = prs.template_id
-       WHERE prs.booking_id = $1 AND prs.business_id = $2
-       ORDER BY prs.created_at DESC`,
-      [id, bid]
-    );
-
     // If part of a group, fetch siblings
     let groupSiblings = [];
     const bk = booking.rows[0];
@@ -235,7 +223,6 @@ router.get('/:id/detail', async (req, res, next) => {
       notes: notes.rows,
       todos: todos.rows,
       reminders: reminders.rows,
-      documents: docs.rows,
       group_siblings: groupSiblings
     });
   } catch (err) {
