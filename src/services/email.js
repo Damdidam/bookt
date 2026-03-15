@@ -1043,8 +1043,9 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
 
   // Deposit info for cancellation email
   const hadDeposit = booking.deposit_required && booking.deposit_amount_cents > 0;
-  const depositRefunded = hadDeposit && booking.deposit_status === 'refunded';
-  const depositRetained = hadDeposit && booking.deposit_status === 'cancelled';
+  const wasPaid = hadDeposit && !!booking.deposit_paid_at;
+  const depositRefunded = wasPaid && booking.deposit_status === 'refunded';
+  const depositRetained = wasPaid && booking.deposit_status === 'cancelled';
   const depAmtStr = hadDeposit ? ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',') : '';
 
   let depositHTML = '';
