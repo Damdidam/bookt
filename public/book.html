@@ -753,7 +753,26 @@ function initPage(){
   const phoneInput=document.getElementById('cPhone');
   phoneInput.addEventListener('input',formatPhoneInput);
   phoneInput.addEventListener('blur',validatePhoneField);
-  document.getElementById('cEmail').addEventListener('blur',validateEmailField);
+  document.getElementById('cEmail').addEventListener('blur',function(){
+    validateEmailField();
+    // Auto-fill phone (+ name) from known client
+    const em=this.value.trim();
+    if(!em||!validateEmailStrict(em))return;
+    const ph=document.getElementById('cPhone');
+    if(ph.value.trim())return; // don't overwrite
+    fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(em))
+      .then(r=>r.ok?r.json():null).then(d=>{
+        if(!d||!d.phone)return;
+        let p=d.phone;
+        if(p.startsWith('+32'))p=p.substring(3);
+        ph.value=p;
+        formatPhoneInput.call(ph);
+        ph.classList.add('valid');
+        // Also fill name if empty
+        const nm=document.getElementById('cName');
+        if(!nm.value.trim()&&d.name){nm.value=d.name;nm.classList.add('valid');}
+      }).catch(()=>{});
+  });
   document.getElementById('cName').addEventListener('blur',validateNameField);
   document.getElementById('cComment').addEventListener('input',function(){
     const c=this.value.length,el=document.getElementById('cCommentCount');

@@ -635,6 +635,31 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/public/:slug/client-phone
+// Lookup known client phone by email (for form auto-fill)
+// ============================================================
+router.get('/:slug/client-phone', slotsLimiter, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const email = (req.query.email || '').trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({});
+
+    const biz = await query(`SELECT id FROM businesses WHERE slug = $1`, [slug]);
+    if (biz.rows.length === 0) return res.json({});
+
+    const cl = await query(
+      `SELECT phone, first_name || ' ' || last_name AS full_name
+       FROM clients WHERE business_id = $1 AND LOWER(email) = $2 AND phone IS NOT NULL
+       ORDER BY updated_at DESC LIMIT 1`,
+      [biz.rows[0].id, email]
+    );
+    if (cl.rows.length === 0 || !cl.rows[0].phone) return res.json({});
+
+    res.json({ phone: cl.rows[0].phone, name: cl.rows[0].full_name });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/public/:slug/bookings
 // (unchanged from v1 — same booking creation logic)
 // ============================================================
