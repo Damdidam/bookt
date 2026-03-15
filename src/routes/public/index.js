@@ -1102,15 +1102,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
-              let deadline = new Date(startDate.getTime() - dlHours * 3600000);
-              // If deadline is in the past (RDV too soon), fallback to 30 min from now
-              // This ensures clients booking last-minute still pay the deposit
-              const MIN_DEPOSIT_WINDOW_MS = 30 * 60000; // 30 minutes minimum
-              if (deadline <= new Date()) {
-                deadline = new Date(Date.now() + MIN_DEPOSIT_WINDOW_MS);
-              }
-              // Only require deposit if RDV is at least 30 min away (enough time to pay)
-              if (startDate.getTime() - Date.now() >= MIN_DEPOSIT_WINDOW_MS) {
+              const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
+              // Skip deposit if RDV is within the deadline window — deposit makes no sense
+              // (ex: deadline=48h, RDV dans 24h → trop tard pour exiger un acompte)
+              if (hoursUntilRdv >= dlHours) {
+                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -1543,14 +1539,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
           if (depResult.required) {
             const dlHours = bizSettings.deposit_deadline_hours ?? 48;
-            let deadline = new Date(startDate.getTime() - dlHours * 3600000);
-            // If deadline is in the past (RDV too soon), fallback to 30 min from now
-            const MIN_DEPOSIT_WINDOW_MS = 30 * 60000;
-            if (deadline <= new Date()) {
-              deadline = new Date(Date.now() + MIN_DEPOSIT_WINDOW_MS);
-            }
-            // Only require deposit if RDV is at least 30 min away
-            if (startDate.getTime() - Date.now() >= MIN_DEPOSIT_WINDOW_MS) {
+            const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
+            // Skip deposit if RDV is within the deadline window
+            if (hoursUntilRdv >= dlHours) {
+              const deadline = new Date(startDate.getTime() - dlHours * 3600000);
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                   deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -3653,10 +3645,10 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       if (wlDepResult.required) {
         const dlHoursWl = wlBizSettings.deposit_deadline_hours ?? 48;
         const startWl = new Date(e.offer_booking_start);
-        let deadlineWl = new Date(startWl.getTime() - dlHoursWl * 3600000);
-        const MIN_DEP_WINDOW = 30 * 60000;
-        if (deadlineWl <= new Date()) deadlineWl = new Date(Date.now() + MIN_DEP_WINDOW);
-        if (startWl.getTime() - Date.now() >= MIN_DEP_WINDOW) {
+        const hoursUntilWlRdv = (startWl.getTime() - Date.now()) / 3600000;
+        // Skip deposit if RDV is within the deadline window
+        if (hoursUntilWlRdv >= dlHoursWl) {
+          const deadlineWl = new Date(startWl.getTime() - dlHoursWl * 3600000);
           await client.query(
             `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
               deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,

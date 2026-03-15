@@ -169,13 +169,13 @@ router.post('/manual', async (req, res, next) => {
               : (dc.settings.deposit_fixed_cents || 2500);
             if (depCents > 0) {
               const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-              // Bug M8 fix: Use realStart (actual booking start incl. buffer) instead of raw start_at
+              const hoursUntilRdv = (realStart.getTime() - Date.now()) / 3600000;
+              // Skip auto-deposit if RDV is within deadline window (unless staff forced it)
               let deadline = new Date(realStart.getTime() - dlHours * 3600000);
-              // If staff forced deposit and deadline is in the past, set minimum 2h from now
               if (force_deposit && deadline <= new Date()) {
                 deadline = new Date(Date.now() + 2 * 3600000);
               }
-              if (deadline > new Date()) {
+              if ((force_deposit || hoursUntilRdv >= dlHours) && deadline > new Date()) {
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -440,12 +440,12 @@ router.post('/manual', async (req, res, next) => {
           }
           if (depCents > 0) {
             const dlHours = dc.settings.deposit_deadline_hours ?? 48;
+            const hoursUntilRdv = (new Date(start_at).getTime() - Date.now()) / 3600000;
             let deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-            // If staff forced deposit and deadline is in the past, set minimum 2h from now
             if (force_deposit && deadline <= new Date()) {
               deadline = new Date(Date.now() + 2 * 3600000);
             }
-            if (deadline > new Date()) {
+            if ((force_deposit || hoursUntilRdv >= dlHours) && deadline > new Date()) {
               // CRT-V10-7: Deposit amount on the first booking only
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
