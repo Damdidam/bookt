@@ -1389,11 +1389,13 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           await client.query(
             `UPDATE clients SET
               full_name = COALESCE(NULLIF($2, ''), full_name),
-              oauth_provider = COALESCE($4, oauth_provider),
-              oauth_provider_id = COALESCE($5, oauth_provider_id),
+              phone = COALESCE(NULLIF($4, ''), phone),
+              email = COALESCE(NULLIF($5, ''), email),
+              oauth_provider = COALESCE($6, oauth_provider),
+              oauth_provider_id = COALESCE($7, oauth_provider_id),
               updated_at = NOW()
              WHERE id = $1 AND business_id = $3`,
-            [clientId, client_name, businessId, oauth_provider || null, oauth_provider_id || null]
+            [clientId, client_name, businessId, client_phone, client_email, oauth_provider || null, oauth_provider_id || null]
           );
         }
       } else {
@@ -2286,7 +2288,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       waitlistResult = await processWaitlistForCancellation(bk.id, bk.business_id);
     } catch (e) { /* non-blocking */ }
 
-    // Process waitlist + calSync for group siblings
+    // calSyncDelete for primary booking + group siblings
+    try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, bk.id); } catch (e) { /* non-blocking */ }
     if (bk.group_id) {
       try {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
@@ -2428,7 +2431,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(404).json({ error: 'Rendez-vous introuvable' });
     }
     const bkData = bkCheck.rows[0];
-    const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? 24;
+    const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? bkData.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bkData.start_at).getTime() - cancelWindowHours * 3600000);
     if (new Date() >= deadline) {
       if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
@@ -2504,7 +2507,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
-                  biz.theme AS biz_theme, biz.slug AS biz_slug
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -2527,7 +2530,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
             booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at },
-            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
         }
@@ -2915,7 +2918,7 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
-                  biz.theme AS biz_theme, biz.slug AS biz_slug
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -2942,11 +2945,12 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
             booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at },
-            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
         }
       } catch (e) { console.warn('[EMAIL] Cancel-booking email error:', e.message); }
+      try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, bk.id); } catch (_) {}
       try { await processWaitlistForCancellation(bk.id, bk.business_id); } catch (_) {}
       if (bk.group_id) {
         try {

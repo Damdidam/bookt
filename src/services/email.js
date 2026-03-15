@@ -270,7 +270,7 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
     timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
   });
 
-  const baseUrl = process.env.BASE_URL || 'https://genda-qgm2.onrender.com';
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const docUrl = `${baseUrl}/docs/${token}`;
 
   const typeLabels = {

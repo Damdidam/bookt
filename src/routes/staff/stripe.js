@@ -251,10 +251,11 @@ async function handleStripeWebhook(req, res) {
           if (upd.rows.length > 0) {
             const bk = upd.rows[0];
 
-            // Propagate to group siblings (pending_deposit → confirmed)
+            // Propagate to group siblings (pending_deposit → confirmed + deposit fields)
             if (bk.group_id) {
               await query(
-                `UPDATE bookings SET status = 'confirmed'
+                `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                  deposit_paid_at = NOW(), deposit_deadline = NULL, locked = true
                  WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'`,
                 [bk.group_id, businessId, bookingId]
               );

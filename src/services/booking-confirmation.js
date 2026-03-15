@@ -87,27 +87,27 @@ async function processExpiredPendingBookings() {
       }
 
       processed++;
-      cancelledBookingIds.push(bk.id);
-
-      // SSE notification to merchant dashboard
-      broadcast(bk.business_id, 'booking_update', {
-        action: 'expired_confirmation',
-        bookingId: bk.id
-      });
-
-      // Trigger waitlist processing (non-blocking, best-effort)
-      try {
-        const { processWaitlistForCancellation } = require('./waitlist');
-        await processWaitlistForCancellation(bk.id, bk.business_id);
-      } catch (wlErr) {
-        console.warn('[CONFIRM CRON] Waitlist processing error for booking', bk.id, ':', wlErr.message);
-      }
+      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id });
     }
 
     await client.query('COMMIT');
 
+    // Post-commit side effects: SSE + waitlist (must be AFTER commit for data consistency)
+    for (const cancelled of cancelledBookingIds) {
+      broadcast(cancelled.business_id, 'booking_update', {
+        action: 'expired_confirmation',
+        bookingId: cancelled.id
+      });
+      try {
+        const { processWaitlistForCancellation } = require('./waitlist');
+        await processWaitlistForCancellation(cancelled.id, cancelled.business_id);
+      } catch (wlErr) {
+        console.warn('[CONFIRM CRON] Waitlist processing error for booking', cancelled.id, ':', wlErr.message);
+      }
+    }
+
     // Send cancellation emails AFTER commit (non-blocking)
-    for (const bkId of cancelledBookingIds) {
+    for (const { id: bkId } of cancelledBookingIds) {
       try {
         const fullBk = await query(
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,

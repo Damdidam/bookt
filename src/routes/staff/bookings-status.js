@@ -149,7 +149,7 @@ router.patch('/:id/status', async (req, res, next) => {
         );
       } else {
         await client.query(
-          `UPDATE bookings SET status = $1, updated_at = NOW()${status === 'confirmed' ? ', locked = true' : ''}
+          `UPDATE bookings SET status = $1, updated_at = NOW()${status === 'confirmed' ? ', locked = true, cancel_reason = NULL' : ''}
            WHERE id = $2 AND business_id = $3`,
           [status, id, bid]
         );
@@ -336,9 +336,14 @@ router.patch('/:id/status', async (req, res, next) => {
               } catch (stripeErr) {
                 if (stripeErr.code !== 'charge_already_refunded') {
                   console.error('[DEPOSIT CANCEL REFUND] Stripe refund failed:', stripeErr.message);
-                  // Don't block cancellation — log and continue
+                  // Stripe refund failed — keep deposit as 'cancelled' (retained), not 'refunded'
+                  newDepStatus = 'cancelled';
                 }
               }
+            } else {
+              // No Stripe key — can't refund, mark as retained
+              console.warn('[DEPOSIT CANCEL REFUND] STRIPE_SECRET_KEY not set — deposit retained');
+              newDepStatus = 'cancelled';
             }
           }
           if (newDepStatus) {
@@ -549,6 +554,61 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { console.warn('[EMAIL] Deposit paid email fetch error:', e.message); }
     }
 
+    // Send booking confirmation email when staff confirms a pending booking
+    if (txResult.oldStatus === 'pending' && status === 'confirmed') {
+      try {
+        const emailData = await queryWithRLS(bid,
+          `SELECT b.start_at, b.end_at, b.group_id, b.public_token, b.comment_client, b.custom_label,
+                  c.full_name AS client_name, c.email AS client_email,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
+                  biz.name AS business_name, biz.email AS business_email,
+                  biz.phone AS business_phone,
+                  biz.address AS business_address, biz.theme, biz.settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
+          const d = emailData.rows[0];
+          let groupServices = null;
+          if (d.group_id) {
+            const grp = await queryWithRLS(bid,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+               FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
+               LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+               WHERE bk.group_id = $1 AND bk.business_id = $2
+               ORDER BY bk.group_order, bk.start_at`,
+              [d.group_id, bid]
+            );
+            if (grp.rows.length > 1) {
+              groupServices = grp.rows;
+              d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          }
+          const { sendBookingConfirmation } = require('../../services/email');
+          sendBookingConfirmation({
+            booking: {
+              start_at: d.start_at, end_at: d.end_at,
+              client_name: d.client_name, client_email: d.client_email,
+              service_name: d.service_name, practitioner_name: d.practitioner_name,
+              comment: d.comment_client, custom_label: d.custom_label,
+              public_token: d.public_token
+            },
+            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
+            groupServices
+          }).catch(e => console.warn('[EMAIL] Confirmation email error:', e.message));
+        }
+      } catch (e) { console.warn('[EMAIL] Confirmation email fetch error:', e.message); }
+    }
+
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
     // STS-10: Broadcast for each affected sibling
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {
@@ -652,10 +712,10 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
           cancelReason: 'Acompte remboursé manuellement (groupe)'
         });
 
-        // Also update sibling deposits (STS-6: use CASE for consistent status)
+        // Also update sibling deposits — mark as 'refunded' (pro explicitly refunded the deposit)
         await client.query(
           `UPDATE bookings SET
-            deposit_status = CASE WHEN deposit_status = 'paid' THEN 'cancelled' ELSE deposit_status END,
+            deposit_status = CASE WHEN deposit_status = 'paid' THEN 'refunded' ELSE deposit_status END,
             updated_at = NOW()
            WHERE group_id = $1 AND business_id = $2 AND id != $3 AND deposit_required = true
              AND deposit_status NOT IN ('refunded', 'cancelled')`,
