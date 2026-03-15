@@ -27,7 +27,7 @@ async function sendSMS(opts) {
   const masked = to.length > 4 ? '***' + to.slice(-4) : '***';
 
   if (!sid || !token) {
-    console.log(`  [SMS mock] To: ${masked}`);
+    console.log(`  [SMS mock] To: ${masked} — ${body.substring(0, 80)}`);
     return { success: true, sid: 'mock', mock: true };
   }
 

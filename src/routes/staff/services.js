@@ -134,8 +134,8 @@ router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next)
     // L6: Validate reorder items
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     for (const item of order) {
-      if (!item.id || !UUID_RE.test(item.id)) return res.status(400).json({ error: 'ID invalide dans order' });
-      if (!Number.isInteger(item.sort_order)) return res.status(400).json({ error: 'sort_order invalide' });
+      if (!item.id || !UUID_RE.test(String(item.id))) return res.status(400).json({ error: 'ID invalide dans order' });
+      if (item.sort_order !== undefined && typeof item.sort_order !== 'number') return res.status(400).json({ error: 'sort_order invalide' });
     }
     for (const item of order) {
       const sets = ['sort_order = $1'];
