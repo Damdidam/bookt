@@ -59,16 +59,10 @@ function _ic(name, w = 18, h = 18) {
 }
 
 /**
- * Compute real end time for multi-service group bookings.
- * For single-service: returns booking.end_at as-is.
- * For multi-service: start_at + sum of all service durations.
+ * Get end time for display — uses booking.end_at directly (already includes
+ * buffer for both single and multi-service bookings, consistent with calendar).
  */
-function getRealEndAt(booking, groupServices) {
-  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
-  if (isMulti) {
-    const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
-    return new Date(new Date(booking.start_at).getTime() + totalMin * 60000);
-  }
+function getRealEndAt(booking) {
   return booking.end_at ? new Date(booking.end_at) : null;
 }
 
