@@ -999,9 +999,22 @@ router.post('/:id/require-deposit', async (req, res, next) => {
     if (!amount_cents || amount_cents <= 0) return res.status(400).json({ error: 'Montant invalide' });
 
     const txResult = await transactionWithRLS(bid, async (client) => {
+      // Fetch booking + client + business info for email
       const bk = await client.query(
-        `SELECT id, status, deposit_required, start_at, group_id, practitioner_id
-         FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        `SELECT b.id, b.status, b.deposit_required, b.deposit_status, b.start_at, b.end_at,
+                b.group_id, b.practitioner_id, b.public_token, b.service_id, b.service_variant_id,
+                c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                p.display_name AS practitioner_name,
+                biz.name AS business_name, biz.email AS business_email,
+                biz.address AS business_address, biz.theme, biz.settings
+         FROM bookings b
+         LEFT JOIN clients c ON c.id = b.client_id
+         LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         JOIN practitioners p ON p.id = b.practitioner_id
+         JOIN businesses biz ON biz.id = b.business_id
+         WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
         [id, bid]
       );
       if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
@@ -1021,8 +1034,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
       }
 
       // Time guard: don't allow if RDV is within cancel_deadline_hours
-      const bizResult = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
-      const bizCancelH = bizResult.rows[0]?.settings?.cancel_deadline_hours ?? 48;
+      const bizCancelH = b.settings?.cancel_deadline_hours ?? 48;
       const rdvHoursAway = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
       if (rdvHoursAway < bizCancelH) {
         return { error: 400, message: `Trop proche du RDV pour exiger un acompte (moins de ${bizCancelH}h avant).` };
@@ -1036,14 +1048,24 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         deadline = new Date(Date.now() + 2 * 3600000);
       }
 
+      // Build deposit URL
+      const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+      const depositUrl = `${baseUrl}/deposit/${b.public_token}`;
+
+      // Determine if we can auto-send the email
+      const canSendEmail = !!b.client_email;
+
       await client.query(
         `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
           deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
           deposit_paid_at = NULL, deposit_payment_intent_id = NULL,
-          deposit_requested_at = NULL, deposit_request_count = 0, deposit_reminder_sent = false,
+          deposit_payment_url = $3,
+          deposit_requested_at = ${canSendEmail ? 'NOW()' : 'NULL'},
+          deposit_request_count = ${canSendEmail ? '1' : '0'},
+          deposit_reminder_sent = false,
           updated_at = NOW()
-         WHERE id = $3 AND business_id = $4`,
-        [amount_cents, deadline.toISOString(), id, bid]
+         WHERE id = $4 AND business_id = $5`,
+        [amount_cents, deadline.toISOString(), depositUrl, id, bid]
       );
 
       // Group siblings: also set pending_deposit status (no amount)
@@ -1066,15 +1088,71 @@ router.post('/:id/require-deposit', async (req, res, next) => {
          JSON.stringify({ status: 'pending_deposit', deposit_required: true, deposit_amount_cents: amount_cents, deposit_deadline: deadline.toISOString() })]
       );
 
-      return { ok: true };
+      return { ok: true, booking: b, depositUrl, deadline, canSendEmail };
     });
 
     if (txResult.error) return res.status(txResult.error).json({ error: txResult.message });
 
+    // Auto-send deposit request email after transaction commits
+    let emailSent = false;
+    if (txResult.canSendEmail) {
+      try {
+        const b = txResult.booking;
+        const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+        const payUrl = `${baseUrl}/api/public/deposit/${b.public_token}/pay`;
+
+        // Fetch group services if applicable
+        let groupServices = null;
+        if (b.group_id) {
+          const grp = await queryWithRLS(bid,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                    COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b2.end_at
+             FROM bookings b2 LEFT JOIN services s ON s.id = b2.service_id
+             LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+             WHERE b2.group_id = $1 AND b2.business_id = $2
+             ORDER BY b2.group_order, b2.start_at`,
+            [b.group_id, bid]
+          );
+          if (grp.rows.length > 1) groupServices = grp.rows;
+        }
+
+        // Override end_at for group bookings
+        const bookingForEmail = { ...b, deposit_amount_cents: amount_cents, deposit_deadline: txResult.deadline.toISOString() };
+        if (groupServices) bookingForEmail.end_at = groupServices[groupServices.length - 1].end_at;
+
+        const { sendDepositRequestEmail } = require('../../services/email');
+        const sendResult = await sendDepositRequestEmail({
+          booking: bookingForEmail,
+          business: { name: b.business_name, email: b.business_email, address: b.business_address, theme: b.theme, settings: b.settings },
+          depositUrl: txResult.depositUrl,
+          payUrl,
+          groupServices
+        });
+
+        if (sendResult.success) {
+          emailSent = true;
+          // Log notification
+          await queryWithRLS(bid, `
+            INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, provider, provider_message_id, sent_at)
+            VALUES ($1, $2, 'email_deposit_request', $3, 'sent', 'brevo', $4, NOW())
+          `, [bid, id, b.client_email, sendResult.messageId || null]);
+        } else {
+          console.warn(`[REQUIRE_DEPOSIT] Auto-send email failed for booking ${id}:`, sendResult.error);
+          // Rollback counter since email failed
+          await queryWithRLS(bid, `UPDATE bookings SET deposit_requested_at = NULL, deposit_request_count = 0 WHERE id = $1 AND business_id = $2`, [id, bid]);
+        }
+      } catch (emailErr) {
+        console.warn(`[REQUIRE_DEPOSIT] Auto-send email error for booking ${id}:`, emailErr.message);
+        // Rollback counter since email failed
+        await queryWithRLS(bid, `UPDATE bookings SET deposit_requested_at = NULL, deposit_request_count = 0 WHERE id = $1 AND business_id = $2`, [id, bid]);
+      }
+    }
+
     broadcast(bid, 'booking_update', { action: 'require_deposit', booking_id: id, status: 'pending_deposit' });
     calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
 
-    res.json({ updated: true, status: 'pending_deposit' });
+    res.json({ updated: true, status: 'pending_deposit', email_sent: emailSent });
   } catch (err) { next(err); }
 });
 

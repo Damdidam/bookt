@@ -140,7 +140,12 @@ async function fcRequireDeposit() {
       body: JSON.stringify({ amount_cents: amountCents, deadline_hours: deadlineHours })
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
-    gToast('Acompte exig\u00e9 — envoyez la demande par email ou SMS', 'success');
+    const result = await r.json();
+    if (result.email_sent) {
+      gToast('Acompte exigé — demande envoyée par email', 'success');
+    } else {
+      gToast('Acompte exigé — ajoutez un email au client pour envoyer la demande', 'warning');
+    }
     // Refresh the detail modal to show the deposit banner
     fcOpenDetail(calState.fcCurrentEventId);
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
