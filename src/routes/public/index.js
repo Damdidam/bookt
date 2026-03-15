@@ -648,7 +648,7 @@ router.get('/:slug/client-phone', slotsLimiter, async (req, res, next) => {
     if (biz.rows.length === 0) return res.json({});
 
     const cl = await query(
-      `SELECT phone, first_name || ' ' || last_name AS full_name
+      `SELECT phone, full_name
        FROM clients WHERE business_id = $1 AND LOWER(email) = $2 AND phone IS NOT NULL
        ORDER BY updated_at DESC LIMIT 1`,
       [biz.rows[0].id, email]
