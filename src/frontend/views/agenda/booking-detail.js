@@ -209,16 +209,19 @@ async function fcOpenDetail(bookingId) {
         }
       } else {
         // -- Pending deposit: show sent status + resend controls --
-        // Status: when was request sent
+        const neverSent = !b.deposit_requested_at && reqCount === 0;
+
         if (b.deposit_requested_at) {
           const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
           extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
+        } else if (neverSent) {
+          extraHtml += `<div style="font-size:.72rem;color:#DC2626;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Demande non envoy\u00e9e</div>`;
         }
         if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px">Deadline : ${depDl}</div>`;
         // Auto-reminder info
         if (b.deposit_reminder_sent) {
           extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Relance automatique envoy\u00e9e</div>`;
-        } else if (b.deposit_deadline) {
+        } else if (b.deposit_deadline && !neverSent) {
           const reminderDate = new Date(new Date(b.deposit_deadline).getTime() - 48 * 3600000);
           if (reminderDate > new Date()) {
             const reminderStr = reminderDate.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -232,10 +235,15 @@ async function fcOpenDetail(bookingId) {
         } else if (reqCount >= maxResends) {
           extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">Maximum de ${maxResends} envois atteint. Contactez le client directement.</div>`;
         } else {
-          // Resend button (single, secondary)
           extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-          extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
-          if (reqCount > 0) extraHtml += `<span style="font-size:.68rem;color:#A8A29E">${reqCount}/${maxResends}</span>`;
+          if (neverSent) {
+            // Primary send button (first time — never sent)
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 14px;background:#F59E0B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer la demande</button>`;
+          } else {
+            // Resend button (secondary — already sent at least once)
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
+            extraHtml += `<span style="font-size:.68rem;color:#A8A29E">${reqCount}/${maxResends}</span>`;
+          }
           extraHtml += '</div>';
         }
         extraHtml += '<div id="mDepositSendStatus" style="display:none;margin-top:6px;font-size:.75rem;padding:6px 10px;border-radius:6px"></div>';

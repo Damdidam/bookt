@@ -924,8 +924,8 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
 
-    // 9. Store deposit_payment_url + increment counter
-    await queryWithRLS(bid, `UPDATE bookings SET deposit_payment_url = $1, deposit_request_count = COALESCE(deposit_request_count, 0) + 1 WHERE id = $2 AND business_id = $3`, [depositUrl, id, bid]);
+    // 9. Store deposit_payment_url + increment counter + set deposit_requested_at on first send
+    await queryWithRLS(bid, `UPDATE bookings SET deposit_payment_url = $1, deposit_request_count = COALESCE(deposit_request_count, 0) + 1, deposit_requested_at = COALESCE(deposit_requested_at, NOW()) WHERE id = $2 AND business_id = $3`, [depositUrl, id, bid]);
 
     // 10. Send
     let sendResult;
@@ -1040,7 +1040,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
           deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
           deposit_paid_at = NULL, deposit_payment_intent_id = NULL,
-          deposit_requested_at = NOW(), deposit_request_count = 0, deposit_reminder_sent = false,
+          deposit_requested_at = NULL, deposit_request_count = 0, deposit_reminder_sent = false,
           updated_at = NOW()
          WHERE id = $3 AND business_id = $4`,
         [amount_cents, deadline.toISOString(), id, bid]
