@@ -26,9 +26,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * @param {number} totalPriceCents - total price of all services
  * @param {number} totalDurationMin - total duration in minutes
  * @param {number} noShowCount - client's no-show count (0 for new clients)
+ * @param {boolean} [isVip=false] - VIP clients are exempt from deposits
  */
-function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, noShowCount) {
+function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, noShowCount, isVip) {
   if (!bizSettings?.deposit_enabled) return { required: false };
+  if (isVip) return { required: false };
 
   // Check price/duration thresholds
   const priceThresh = bizSettings.deposit_price_threshold_cents || 0;
@@ -1022,14 +1024,16 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
             const totalDuration = parseInt(svcPriceResult.rows[0]?.total_duration) || 0;
 
-            // Get no-show count (0 for new clients)
+            // Get no-show count + VIP status (0/false for new clients)
             let noShowCount = 0;
+            let clientIsVip = false;
             if (clientId) {
-              const nsRow = await client.query(`SELECT no_show_count FROM clients WHERE id = $1`, [clientId]);
+              const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
               noShowCount = nsRow.rows[0]?.no_show_count || 0;
+              clientIsVip = !!nsRow.rows[0]?.is_vip;
             }
 
-            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount);
+            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
               let deadline = new Date(startDate.getTime() - dlHours * 3600000);
@@ -1445,14 +1449,16 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (varInfo.rows[0]?.duration_min != null) svcDuration = varInfo.rows[0].duration_min;
           }
 
-          // Get no-show count (0 for new clients)
+          // Get no-show count + VIP status (0/false for new clients)
           let noShowCount = 0;
+          let clientIsVip = false;
           if (clientId) {
-            const nsRow = await client.query(`SELECT no_show_count FROM clients WHERE id = $1`, [clientId]);
+            const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
             noShowCount = nsRow.rows[0]?.no_show_count || 0;
+            clientIsVip = !!nsRow.rows[0]?.is_vip;
           }
 
-          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount);
+          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
           if (depResult.required) {
             const dlHours = bizSettings.deposit_deadline_hours ?? 48;
             let deadline = new Date(startDate.getTime() - dlHours * 3600000);
