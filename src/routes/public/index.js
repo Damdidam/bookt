@@ -2968,7 +2968,8 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     const { token } = req.params;
 
     const result = await query(
-      `SELECT b.id, b.status, b.start_at, b.business_id, b.group_id,
+      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id, b.group_id,
+              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               biz.name AS business_name, biz.theme, biz.settings AS business_settings
        FROM bookings b LEFT JOIN services s ON s.id = b.service_id
@@ -3020,12 +3021,31 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
       }
     }
 
+    // Deposit refund message
+    let depositMsg = '';
+    if (bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents) {
+      const amt = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',') + ' €';
+      const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
+      const startMs = new Date(bk.start_at).getTime();
+      const createdMs = new Date(bk.created_at).getTime();
+      const nowMs = Date.now();
+      const withinCancelWindow = (startMs - cancelWindowHours * 3600000) > nowMs;
+      const withinGrace = (nowMs - createdMs) <= graceMin * 60000;
+      if (withinCancelWindow || withinGrace) {
+        depositMsg = `<br><br><span style="color:#2E7D32;font-size:13px">✓ Votre acompte de <strong>${amt}</strong> sera remboursé.</span>`;
+      } else {
+        depositMsg = `<br><br><span style="color:#C62828;font-size:13px">⚠ Votre acompte de <strong>${amt}</strong> ne sera pas remboursé (annulation tardive).</span>`;
+      }
+    } else if (bk.deposit_required && bk.deposit_status === 'pending') {
+      depositMsg = `<br><br><span style="color:#6B6560;font-size:13px">L'acompte en attente sera annulé.</span>`;
+    }
+
     // Show intermediate confirmation page with POST form
     const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
     const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     return res.send(actionPage(
       'Annuler votre rendez-vous ?',
-      `${serviceLabel}<br>${dt} à ${tm}`,
+      `${serviceLabel}<br>${dt} à ${tm}${depositMsg}`,
       '#C62828', bk.business_name, token, 'cancel-booking',
       'Confirmer l\u2019annulation'
     ));
