@@ -1175,6 +1175,24 @@ async function handleOauthPickup(pickupKey){
     if(data.name)document.getElementById('cName').value=data.name;
     if(data.email){document.getElementById('cEmail').value=data.email;document.getElementById('cEmail').readOnly=true;document.getElementById('cEmail').style.opacity='0.7';}
 
+    // Auto-fill phone from known client (OAuth doesn't provide phone)
+    if(data.email){
+      try{
+        var phRes=await fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(data.email));
+        if(phRes.ok){
+          var phData=await phRes.json();
+          if(phData&&phData.phone){
+            var ph=document.getElementById('cPhone');
+            var p=phData.phone;
+            if(p.startsWith('+32'))p=p.substring(3);
+            ph.value=p;
+            formatPhoneInput.call(ph);
+            ph.classList.add('valid');
+          }
+        }
+      }catch(e){}
+    }
+
     // Show badge, hide OAuth buttons, show form
     document.getElementById('oauthArea').style.display='none';
     document.getElementById('oauthBadge').style.display='flex';
