@@ -131,18 +131,19 @@ router.post('/manual', async (req, res, next) => {
           }
         }
 
+        const confirmExpiresAt = bookingStatus === 'pending' ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null;
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked,
             confirmation_expires_at)
-           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, $7, $8, $9, $10, $11,
-            ${bookingStatus === 'pending' ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
+           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, $7, $8, $9, $10, $11, $12)
            RETURNING *`,
           [bid, practitioner_id, client_id || null,
            appointment_mode || 'cabinet',
            realStart.toISOString(), realEnd.toISOString(),
            bookingStatus,
-           comment || null, custom_label || null, safeColor, bookingStatus === 'confirmed' ? true : !!locked]
+           comment || null, custom_label || null, safeColor, bookingStatus === 'confirmed' ? true : !!locked,
+           confirmExpiresAt]
         );
 
         await client.query(
@@ -384,13 +385,13 @@ router.post('/manual', async (req, res, next) => {
         // CRT-6: By design, group bookings do not support individual color/custom_label.
         // These fields are omitted intentionally — group members share the same visual style
         // derived from their service. Per-member customization may be added in a future iteration.
+        const confirmExpiresAtNormal = bookingStatus === 'pending' ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null;
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
             group_id, group_order, processing_time, processing_start, locked,
             confirmation_expires_at)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-            ${bookingStatus === 'pending' ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'})
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
            RETURNING *`,
           [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
@@ -398,7 +399,8 @@ router.post('/manual', async (req, res, next) => {
            bookingStatus,
            comment || null,
            groupId, slot.group_order,
-           slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : !!locked]
+           slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : !!locked,
+           confirmExpiresAtNormal]
         );
         results.push(result.rows[0]);
 

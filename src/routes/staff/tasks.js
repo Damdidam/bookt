@@ -4,7 +4,7 @@
  */
 const crypto = require('crypto');
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 const { broadcast } = require('../../services/sse');
 
@@ -88,6 +88,15 @@ router.post('/', async (req, res, next) => {
     if (new Date(end_at) <= new Date(start_at)) return res.status(400).json({ error: 'Fin doit être après début' });
     if (color && !HEX_RE.test(color)) return res.status(400).json({ error: 'Couleur invalide' });
 
+    // Validate all practitioner IDs belong to this business
+    const pracValidation = await queryWithRLS(bid,
+      `SELECT id FROM practitioners WHERE id = ANY($1::uuid[]) AND business_id = $2`,
+      [pracIds, bid]
+    );
+    if (pracValidation.rows.length !== pracIds.length) {
+      return res.status(400).json({ error: 'Un ou plusieurs praticiens sont invalides' });
+    }
+
     // ── Conflict check: reject if any practitioner has an active booking ──
     const conflicts = await _checkBookingConflicts(bid, pracIds, start_at, end_at);
     if (conflicts.length > 0) {
@@ -107,18 +116,21 @@ router.post('/', async (req, res, next) => {
       return res.status(201).json(result.rows[0]);
     }
 
-    // Multiple practitioners — shared group_id
+    // Multiple practitioners — shared group_id (atomic transaction)
     const groupId = crypto.randomUUID();
-    const tasks = [];
-    for (const pid of pracIds) {
-      const result = await queryWithRLS(bid,
-        `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, created_by, group_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING *`,
-        [bid, pid, title.trim(), start_at, end_at, color || null, note || null, req.userId, groupId]
-      );
-      tasks.push(result.rows[0]);
-    }
+    const tasks = await transactionWithRLS(bid, async (txClient) => {
+      const results = [];
+      for (const pid of pracIds) {
+        const result = await txClient.query(
+          `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, created_by, group_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING *`,
+          [bid, pid, title.trim(), start_at, end_at, color || null, note || null, req.userId, groupId]
+        );
+        results.push(result.rows[0]);
+      }
+      return results;
+    });
     broadcast(bid, 'booking_update', { action: 'task_created' });
     res.status(201).json({ tasks, group_id: groupId });
   } catch (err) { next(err); }

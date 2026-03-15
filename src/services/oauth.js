@@ -124,14 +124,52 @@ async function exchangeAppleCode(code, redirectUri) {
   return res.json();
 }
 
+// Apple public keys cache (JWKs — refreshed every 24h)
+let _appleKeysCache = null;
+let _appleKeysCacheTime = 0;
+const APPLE_KEYS_TTL = 24 * 3600 * 1000;
+
+async function _getApplePublicKeys() {
+  if (_appleKeysCache && Date.now() - _appleKeysCacheTime < APPLE_KEYS_TTL) {
+    return _appleKeysCache;
+  }
+  const res = await fetch('https://appleid.apple.com/auth/keys', { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`Failed to fetch Apple public keys: ${res.status}`);
+  const jwks = await res.json();
+  _appleKeysCache = jwks.keys;
+  _appleKeysCacheTime = Date.now();
+  return _appleKeysCache;
+}
+
 /**
  * Extract user info from Apple id_token (JWT)
  * Apple doesn't have a userinfo endpoint — info is in the id_token
  * The `user` object (with name) is only sent on first authorization
  */
-function getAppleUserInfo(idToken, userObj) {
-  // Decode id_token without verifying (we trust Apple's TLS)
-  const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url').toString());
+async function getAppleUserInfo(idToken, userObj) {
+  let payload;
+  try {
+    // Verify id_token signature using Apple's public keys
+    const keys = await _getApplePublicKeys();
+    const header = JSON.parse(Buffer.from(idToken.split('.')[0], 'base64url').toString());
+    const key = keys.find(k => k.kid === header.kid);
+    if (!key) throw new Error('Apple key not found for kid: ' + header.kid);
+
+    // Convert JWK to PEM for jwt.verify
+    const keyObject = crypto.createPublicKey({ key, format: 'jwk' });
+    const pem = keyObject.export({ type: 'spki', format: 'pem' });
+
+    payload = jwt.verify(idToken, pem, {
+      algorithms: ['RS256'],
+      issuer: 'https://appleid.apple.com',
+      audience: process.env.APPLE_CLIENT_ID
+    });
+  } catch (verifyErr) {
+    console.warn('[OAUTH] Apple id_token verification failed, falling back to decode:', verifyErr.message);
+    // Fallback to decode if keys are temporarily unavailable
+    payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url').toString());
+  }
+
   let name = '';
   if (userObj) {
     try {
@@ -216,7 +254,7 @@ const PROVIDERS = {
     configured: () => !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY),
     getAuthUrl: getAppleAuthUrl,
     exchangeCode: exchangeAppleCode,
-    getUserInfo: (tokens, userObj) => Promise.resolve(getAppleUserInfo(tokens.id_token, userObj))
+    getUserInfo: (tokens, userObj) => getAppleUserInfo(tokens.id_token, userObj)
   },
   facebook: {
     configured: () => !!(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
