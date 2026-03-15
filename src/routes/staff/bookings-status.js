@@ -498,6 +498,57 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { console.warn('[EMAIL] Deposit refund email fetch error:', e.message); }
     }
 
+    // Send deposit paid confirmation email when staff manually confirms a pending_deposit booking
+    if (txResult.oldStatus === 'pending_deposit' && status === 'confirmed') {
+      try {
+        const emailData = await queryWithRLS(bid,
+          `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                  c.full_name AS client_name, c.email AS client_email,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  p.display_name AS practitioner_name,
+                  biz.name AS business_name, biz.email AS business_email,
+                  biz.phone AS business_phone,
+                  biz.address AS business_address, biz.theme, biz.slug,
+                  biz.settings AS business_settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
+          const d = emailData.rows[0];
+          let groupServices = null;
+          if (d.group_id) {
+            const grp = await queryWithRLS(bid,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+               FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
+               LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+               WHERE bk.group_id = $1 AND bk.business_id = $2
+               ORDER BY bk.group_order, bk.start_at`,
+              [d.group_id, bid]
+            );
+            if (grp.rows.length > 1) {
+              groupServices = grp.rows;
+              d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          }
+          const { sendDepositPaidEmail } = require('../../services/email');
+          sendDepositPaidEmail({
+            booking: d,
+            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+            groupServices
+          }).catch(e => console.warn('[EMAIL] Deposit paid email error:', e.message));
+        }
+      } catch (e) { console.warn('[EMAIL] Deposit paid email fetch error:', e.message); }
+    }
+
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
     // STS-10: Broadcast for each affected sibling
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {

@@ -1978,6 +1978,57 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         const { broadcast } = require('../../services/sse');
         broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id });
       } catch (e) { /* SSE optional */ }
+
+      // Send deposit paid confirmation email (mirrors Stripe webhook behavior)
+      try {
+        const bkData = await query(
+          `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                  c.full_name AS client_name, c.email AS client_email,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  p.display_name AS practitioner_name,
+                  biz.name AS business_name, biz.email AS business_email,
+                  biz.phone AS business_phone,
+                  biz.address AS business_address, biz.theme, biz.slug,
+                  biz.settings AS business_settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`,
+          [bk.id]
+        );
+        if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
+          const d = bkData.rows[0];
+          let groupServices = null;
+          if (d.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.group_id = $1 AND b.business_id = $2
+               ORDER BY b.group_order, b.start_at`,
+              [d.group_id, bk.business_id]
+            );
+            if (grp.rows.length > 1) {
+              groupServices = grp.rows;
+              d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          }
+          const { sendDepositPaidEmail } = require('../../services/email');
+          sendDepositPaidEmail({
+            booking: d,
+            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+            groupServices
+          }).catch(e => console.warn('[DEPOSIT VERIFY] Email error:', e.message));
+        }
+      } catch (emailErr) {
+        console.warn('[DEPOSIT VERIFY] Email fetch error:', emailErr.message);
+      }
     }
 
     res.json({ status: 'paid', updated: true });
@@ -2099,10 +2150,12 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
+    // Cancel deadline (declared at function scope for both deadline check and deposit refund SQL)
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
+
     // Skip cancellation deadline for pending_deposit — client hasn't paid yet,
     // they should always be able to cancel (otherwise deposit-expiry cron would cancel it anyway)
     if (bk.status !== 'pending_deposit') {
-      const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
       if (new Date() >= deadline) {
         return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
@@ -2131,6 +2184,22 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
     if (cancelResult.rowCount === 0) {
       return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
+    }
+
+    // Stripe refund if deposit was refunded
+    const postCancelBk = cancelResult.rows[0];
+    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id && postCancelBk.deposit_payment_intent_id.startsWith('pi_')) {
+      try {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (key) {
+          const stripe = require('stripe')(key);
+          await stripe.refunds.create({ payment_intent: postCancelBk.deposit_payment_intent_id });
+        }
+      } catch (stripeErr) {
+        if (stripeErr.code !== 'charge_already_refunded') {
+          console.error('[POST CANCEL] Stripe refund failed:', stripeErr.message);
+        }
+      }
     }
 
     // Propagate cancellation to group siblings (multi-service bookings)
