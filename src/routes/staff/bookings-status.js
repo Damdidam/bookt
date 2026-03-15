@@ -1061,8 +1061,20 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
 
-    // 9. Store deposit_payment_url + increment counter + set deposit_requested_at on first send
-    await queryWithRLS(bid, `UPDATE bookings SET deposit_payment_url = $1, deposit_request_count = COALESCE(deposit_request_count, 0) + 1, deposit_requested_at = COALESCE(deposit_requested_at, NOW()) WHERE id = $2 AND business_id = $3`, [depositUrl, id, bid]);
+    // 9. Store deposit_payment_url + increment counter atomically (with race guard on max 3)
+    const incResult = await queryWithRLS(bid,
+      `UPDATE bookings SET deposit_payment_url = $1,
+        deposit_request_count = COALESCE(deposit_request_count, 0) + 1,
+        deposit_requested_at = COALESCE(deposit_requested_at, NOW())
+       WHERE id = $2 AND business_id = $3
+         AND status = 'pending_deposit' AND deposit_required = true AND deposit_status = 'pending'
+         AND COALESCE(deposit_request_count, 0) < 3
+       RETURNING deposit_request_count`,
+      [depositUrl, id, bid]
+    );
+    if (incResult.rows.length === 0) {
+      return res.status(429).json({ error: 'Maximum de 3 envois atteint ou le statut a changé. Actualisez la page.' });
+    }
 
     // 10. Send
     let sendResult;
@@ -1111,12 +1123,18 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, sendResult.error || null]);
 
     if (!sendResult.success) {
-      // Rollback counter on failure
-      await queryWithRLS(bid, `UPDATE bookings SET deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0) WHERE id = $1 AND business_id = $2`, [id, bid]);
+      // Rollback counter + deposit_requested_at atomically on failure
+      await queryWithRLS(bid,
+        `UPDATE bookings SET
+          deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0),
+          deposit_requested_at = CASE WHEN COALESCE(deposit_request_count, 1) <= 1 THEN NULL ELSE deposit_requested_at END
+         WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
       return res.status(500).json({ error: 'Envoi échoué: ' + (sendResult.error || 'erreur inconnue') });
     }
 
-    res.json({ sent: true, channel, deposit_url: depositUrl, request_count: currentCount + 1 });
+    res.json({ sent: true, channel, deposit_url: depositUrl, request_count: incResult.rows[0].deposit_request_count });
   } catch (err) { next(err); }
 });
 

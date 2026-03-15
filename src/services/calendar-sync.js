@@ -202,7 +202,7 @@ async function getValidToken(connection, queryFn) {
 
       // Re-read the connection from DB with FOR UPDATE to prevent concurrent refresh races
       const freshConn = await client.query(
-        `SELECT access_token, token_expires_at FROM calendar_connections WHERE id = $1 FOR UPDATE`,
+        `SELECT access_token, token_expires_at, refresh_token FROM calendar_connections WHERE id = $1 FOR UPDATE`,
         [connection.id]
       );
       if (freshConn.rows.length > 0) {
@@ -214,11 +214,13 @@ async function getValidToken(connection, queryFn) {
         }
       }
 
+      // Use the freshest refresh_token from DB (may have been rotated by another process)
+      const freshRefreshToken = freshConn.rows[0]?.refresh_token || connection.refresh_token;
       let tokenData;
       if (connection.provider === 'google') {
-        tokenData = await refreshGoogleToken(connection.refresh_token);
+        tokenData = await refreshGoogleToken(freshRefreshToken);
       } else {
-        tokenData = await refreshOutlookToken(connection.refresh_token);
+        tokenData = await refreshOutlookToken(freshRefreshToken);
       }
 
       // Update stored tokens
@@ -336,6 +338,7 @@ async function deleteCalendarEvent(connection, bookingId, queryFn) {
   if (existing.rows.length === 0) return;
 
   const ext = existing.rows[0];
+  let apiDeleteOk = false;
   try {
     const accessToken = await getValidToken(connection, queryFn);
     if (connection.provider === 'google') {
@@ -347,11 +350,18 @@ async function deleteCalendarEvent(connection, bookingId, queryFn) {
     } else {
       await outlookApiCall(accessToken, `/me/events/${encodeURIComponent(ext.external_event_id)}`, 'DELETE');
     }
+    apiDeleteOk = true;
   } catch (err) {
     console.warn('[CAL-SYNC] Delete event failed:', err.message);
+    // 404/410 = event already gone → safe to delete DB record
+    if (err.message && (err.message.includes('404') || err.message.includes('410'))) {
+      apiDeleteOk = true;
+    }
   }
 
-  await queryFn(`DELETE FROM calendar_events WHERE id = $1`, [ext.id]);
+  if (apiDeleteOk) {
+    await queryFn(`DELETE FROM calendar_events WHERE id = $1`, [ext.id]);
+  }
 }
 
 function buildCalendarEvent(booking, provider) {

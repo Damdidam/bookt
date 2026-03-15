@@ -15,6 +15,33 @@ const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Attempt Stripe refund for a deposit. Handles both pi_ (PaymentIntent) and cs_ (Checkout Session) IDs.
+ * @param {string} depositPaymentIntentId - stored ID (may be cs_ or pi_)
+ * @param {string} label - log label for error messages
+ */
+async function stripeRefundDeposit(depositPaymentIntentId, label) {
+  if (!depositPaymentIntentId) return;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return;
+  try {
+    const stripe = require('stripe')(key);
+    let piId = depositPaymentIntentId;
+    if (piId.startsWith('cs_')) {
+      const session = await stripe.checkout.sessions.retrieve(piId);
+      piId = session.payment_intent;
+      if (!piId) return; // session not yet paid
+    }
+    if (piId && piId.startsWith('pi_')) {
+      await stripe.refunds.create({ payment_intent: piId });
+    }
+  } catch (stripeErr) {
+    if (stripeErr.code !== 'charge_already_refunded') {
+      console.error(`[${label}] Stripe refund failed:`, stripeErr.message);
+    }
+  }
+}
+
+/**
  * Determine if a deposit should be required for a public booking.
  * Returns { required: true, depCents, reason } or { required: false }.
  *
@@ -1087,9 +1114,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 if (bookings.length > 1) {
                   const otherIds = bookings.slice(1).map(b => b.id);
                   await client.query(
-                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending'
+                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
+                      deposit_amount_cents = $3, deposit_deadline = $4
                      WHERE id = ANY($1) AND business_id = $2`,
-                    [otherIds, businessId]
+                    [otherIds, businessId, depResult.depCents, deadline.toISOString()]
                   );
                   for (let i = 1; i < bookings.length; i++) {
                     bookings[i].status = 'pending_deposit';
@@ -2209,20 +2237,10 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
     }
 
-    // Stripe refund if deposit was refunded
+    // Stripe refund if deposit was refunded (handles both pi_ and cs_ IDs)
     const postCancelBk = cancelResult.rows[0];
-    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id && postCancelBk.deposit_payment_intent_id.startsWith('pi_')) {
-      try {
-        const key = process.env.STRIPE_SECRET_KEY;
-        if (key) {
-          const stripe = require('stripe')(key);
-          await stripe.refunds.create({ payment_intent: postCancelBk.deposit_payment_intent_id });
-        }
-      } catch (stripeErr) {
-        if (stripeErr.code !== 'charge_already_refunded') {
-          console.error('[POST CANCEL] Stripe refund failed:', stripeErr.message);
-        }
-      }
+    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
     }
 
     // Propagate cancellation to group siblings (multi-service bookings)
@@ -2471,7 +2489,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
         END,
         updated_at = NOW()
        WHERE public_token = $1 AND status = 'modified_pending'
-       RETURNING id, status, start_at, end_at, business_id,
+       RETURNING id, status, start_at, end_at, business_id, group_id,
                  deposit_required, deposit_status, deposit_payment_intent_id`,
       [token]
     );
@@ -2494,18 +2512,25 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Stripe refund if deposit was paid (client rejected staff modification → always refund)
     const rejBk = result.rows[0];
-    if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id && rejBk.deposit_payment_intent_id.startsWith('pi_')) {
+
+    // L1: Cancel group siblings if multi-service booking
+    if (rejBk.group_id) {
       try {
-        const key = process.env.STRIPE_SECRET_KEY;
-        if (key) {
-          const stripe = require('stripe')(key);
-          await stripe.refunds.create({ payment_intent: rejBk.deposit_payment_intent_id });
-        }
-      } catch (stripeErr) {
-        if (stripeErr.code !== 'charge_already_refunded') {
-          console.error('[REJECT] Stripe refund failed:', stripeErr.message);
-        }
-      }
+        await query(
+          `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
+            deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+              ELSE deposit_status
+            END,
+            updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != $3
+             AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
+          [rejBk.group_id, rejBk.business_id, rejBk.id]
+        );
+      } catch (e) { console.warn('[REJECT] Group sibling propagation error:', e.message); }
+    }
+    if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
     }
 
     // Notify practitioner
@@ -2941,20 +2966,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       return res.send(confirmationPage('D\u00e9j\u00e0 modifi\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 modifi\u00e9 ou annul\u00e9.', '#A68B3C', bk.business_name));
     }
 
-    // Stripe refund if deposit was refunded
+    // Stripe refund if deposit was refunded (handles both pi_ and cs_ IDs)
     const cancelledBk = cancelResult.rows[0];
-    if (cancelledBk.deposit_status === 'refunded' && bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('pi_')) {
-      try {
-        const key = process.env.STRIPE_SECRET_KEY;
-        if (key) {
-          const stripe = require('stripe')(key);
-          await stripe.refunds.create({ payment_intent: bk.deposit_payment_intent_id });
-        }
-      } catch (stripeErr) {
-        if (stripeErr.code !== 'charge_already_refunded') {
-          console.error('[CANCEL-BOOKING] Stripe refund failed:', stripeErr.message);
-        }
-      }
+    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
     }
 
     // Cancel group siblings
@@ -3589,8 +3604,8 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Create booking
       const bk = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-          channel, start_at, end_at, status, locked)
-         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed', true)
+          channel, start_at, end_at, status, locked, appointment_mode)
+         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed', true, 'cabinet')
          RETURNING id, public_token, start_at, end_at, status`,
         [e.business_id, e.practitioner_id, e.service_id, clientId,
          e.offer_booking_start, e.offer_booking_end]
@@ -3607,8 +3622,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         throw Object.assign(new Error('Cette offre a déjà été utilisée ou a expiré'), { type: 'expired', status: 410 });
       }
 
-      // Queue confirmation notification
-      // NOTE: notification types may need a DB migration to add to the CHECK constraint
+      // Queue confirmation notification + pro notification
       try {
         await client.query('SAVEPOINT notif_sp1');
         await client.query(
@@ -3619,6 +3633,17 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       } catch (notifErr) {
         await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
         console.error('Notification insert failed:', notifErr.message);
+      }
+      // M2: Pro notification for waitlist-accepted booking
+      try {
+        await client.query('SAVEPOINT notif_sp2');
+        await client.query(
+          `INSERT INTO notifications (business_id, booking_id, type, status)
+           VALUES ($1, $2, 'email_new_booking_pro', 'queued')`,
+          [e.business_id, bk.rows[0].id]
+        );
+      } catch (notifErr) {
+        await client.query('ROLLBACK TO SAVEPOINT notif_sp2');
       }
 
       return bk.rows[0];

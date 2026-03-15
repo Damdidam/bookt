@@ -266,7 +266,32 @@ async function handleStripeWebhook(req, res) {
             try {
               const { broadcast } = require('../../services/sse');
               broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: bookingId });
+              // SSE for group siblings too
+              if (bk.group_id) {
+                const sibs = await query(
+                  `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
+                  [bk.group_id, businessId, bookingId]
+                );
+                for (const sib of sibs.rows) {
+                  broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: sib.id });
+                }
+              }
             } catch (e) { /* SSE optional */ }
+
+            // CalSync push for primary + siblings
+            try {
+              const { calSyncPush } = require('../staff/bookings-helpers');
+              calSyncPush(businessId, bookingId);
+              if (bk.group_id) {
+                const sibsForSync = await query(
+                  `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
+                  [bk.group_id, businessId, bookingId]
+                );
+                for (const sib of sibsForSync.rows) {
+                  calSyncPush(businessId, sib.id);
+                }
+              }
+            } catch (_) {}
 
             // Send confirmation email to client
             try {
@@ -329,6 +354,25 @@ async function handleStripeWebhook(req, res) {
                 [businessId, bookingId]
               );
             } catch (logErr) { /* non-critical */ }
+          } else {
+            // Race condition: deposit-expiry cron may have cancelled the booking while Stripe processed payment
+            const stale = await query(
+              `SELECT id, status, deposit_status FROM bookings WHERE id = $1 AND business_id = $2`,
+              [bookingId, businessId]
+            );
+            if (stale.rows.length > 0 && stale.rows[0].status === 'cancelled') {
+              console.warn(`[STRIPE WH] Race: booking ${bookingId} was cancelled while deposit was paid. Attempting auto-refund.`);
+              if (piId && piId.startsWith('pi_')) {
+                try {
+                  await stripe.refunds.create({ payment_intent: piId });
+                  console.log(`[STRIPE WH] Auto-refunded PI ${piId} for cancelled booking ${bookingId}`);
+                } catch (refundErr) {
+                  if (refundErr.code !== 'charge_already_refunded') {
+                    console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
+                  }
+                }
+              }
+            }
           }
           break;
         }
