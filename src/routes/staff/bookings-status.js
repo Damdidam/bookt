@@ -43,7 +43,7 @@ async function propagateGroupStatus(client, { groupId, bid, excludeId, status, c
     );
   } else {
     result = await client.query(
-      `UPDATE bookings SET status = $1, updated_at = NOW()${status === 'confirmed' ? ', locked = true' : ''}
+      `UPDATE bookings SET status = $1, updated_at = NOW()${status === 'confirmed' ? ', locked = true, cancel_reason = NULL' : ''}
        WHERE group_id = $2 AND business_id = $3 AND id != $4 AND status = ANY($5)
        RETURNING id`,
       [status, groupId, bid, excludeId, validSources]
@@ -185,6 +185,14 @@ router.patch('/:id/status', async (req, res, next) => {
            WHERE id = $1 AND business_id = $2`,
           [id, bid]
         );
+        // H2: Also update group siblings' deposit fields
+        if (old.rows[0].group_id) {
+          await client.query(
+            `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+             WHERE group_id = $1 AND business_id = $2 AND id != $3 AND deposit_required = true AND deposit_status = 'pending'`,
+            [old.rows[0].group_id, bid, id]
+          );
+        }
       }
 
       // ===== NO-SHOW STRIKE SYSTEM (guard: only increment if not already no_show) =====
@@ -1207,14 +1215,14 @@ router.post('/:id/require-deposit', async (req, res, next) => {
           status: 'pending_deposit',
           cancelReason: null
         });
-        // M5: propagate deposit fields to siblings (H5: include amount_cents)
+        // Propagate deposit fields to affected siblings only
         if (affectedSiblingIds.length > 0) {
           await client.query(
             `UPDATE bookings SET deposit_required = true, deposit_status = 'pending',
-              deposit_deadline = $1, deposit_amount_cents = $5,
+              deposit_deadline = $1, deposit_amount_cents = $2,
               deposit_paid_at = NULL, deposit_payment_intent_id = NULL, deposit_reminder_sent = false
-             WHERE group_id = $2 AND business_id = $3 AND id != $4`,
-            [deadline.toISOString(), b.group_id, bid, id, amount_cents]
+             WHERE id = ANY($3::uuid[]) AND business_id = $4`,
+            [deadline.toISOString(), amount_cents, affectedSiblingIds, bid]
           );
         }
       }

@@ -438,10 +438,11 @@ async function handleStripeWebhook(req, res) {
       case 'invoice.paid': {
         const invoice = event.data.object;
         const subId = invoice.subscription;
-        if (subId) {
+        // M6: Don't overwrite 'trialing' on $0 trial invoices
+        if (subId && invoice.billing_reason !== 'subscription_create') {
           await query(
             `UPDATE businesses SET subscription_status = 'active', updated_at = NOW()
-             WHERE stripe_subscription_id = $1`,
+             WHERE stripe_subscription_id = $1 AND subscription_status != 'trialing'`,
             [subId]
           );
           console.log(`[STRIPE WH] Payment received for subscription ${subId}`);

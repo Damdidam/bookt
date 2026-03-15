@@ -18,7 +18,7 @@ const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.events https://w
 function getGoogleAuthUrl(state) {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: `${process.env.BASE_URL}/api/calendar/google/callback`,
+    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/google/callback`,
     response_type: 'code',
     scope: GOOGLE_SCOPES,
     access_type: 'offline',
@@ -36,7 +36,7 @@ async function exchangeGoogleCode(code) {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${process.env.BASE_URL}/api/calendar/google/callback`,
+      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/google/callback`,
       grant_type: 'authorization_code'
     }),
     signal: AbortSignal.timeout(15000)
@@ -106,7 +106,7 @@ const MS_SCOPES = 'Calendars.ReadWrite User.Read offline_access';
 function getOutlookAuthUrl(state) {
   const params = new URLSearchParams({
     client_id: process.env.OUTLOOK_CLIENT_ID,
-    redirect_uri: `${process.env.BASE_URL}/api/calendar/outlook/callback`,
+    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/outlook/callback`,
     response_type: 'code',
     scope: MS_SCOPES,
     state
@@ -122,7 +122,7 @@ async function exchangeOutlookCode(code) {
       code,
       client_id: process.env.OUTLOOK_CLIENT_ID,
       client_secret: process.env.OUTLOOK_CLIENT_SECRET,
-      redirect_uri: `${process.env.BASE_URL}/api/calendar/outlook/callback`,
+      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/outlook/callback`,
       grant_type: 'authorization_code'
     }),
     signal: AbortSignal.timeout(15000)
@@ -362,7 +362,7 @@ function buildCalendarEvent(booking, provider) {
     booking.service_name,
     booking.client_phone ? ` ${booking.client_phone}` : null,
     booking.client_email ? ` ${booking.client_email}` : null,
-    booking.notes ? `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${booking.notes}` : null,
+    booking.notes ? `📝 ${booking.notes}` : null,
     '—\nGéré via Genda.be'
   ].filter(Boolean).join('\n');
 

@@ -1233,11 +1233,17 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     if (effectiveServiceId) {
       const svcResult = await query(
-        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, flexibility_enabled
+        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, flexibility_enabled, mode_options
          FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
         [effectiveServiceId, businessId]
       );
       if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+      // M7: Validate appointment mode against service's allowed modes
+      if (appointment_mode && svcResult.rows[0].mode_options && Array.isArray(svcResult.rows[0].mode_options) && svcResult.rows[0].mode_options.length > 0) {
+        if (!svcResult.rows[0].mode_options.includes(appointment_mode)) {
+          return res.status(400).json({ error: `Mode "${appointment_mode}" non disponible pour cette prestation` });
+        }
+      }
       const service = svcResult.rows[0];
 
       // Override duration from variant if provided
@@ -1333,7 +1339,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       if (!existingClient) {
         const exactMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
           [businessId, client_phone, client_email]
         );
         if (exactMatch.rows.length > 0) {
@@ -1349,7 +1355,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             matchType = 'phone';
           } else {
             const emailMatch = await client.query(
-              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
               [businessId, client_email]
             );
             if (emailMatch.rows.length > 0) {
@@ -1972,13 +1978,17 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
     );
 
     if (upd.rows.length > 0) {
-      // Propagate to group siblings
+      // Propagate to group siblings (H1: include deposit fields)
+      let sibIds = [];
       if (bk.group_id) {
-        await query(
-          `UPDATE bookings SET status = 'confirmed', locked = true
-           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'`,
+        const sibResult = await query(
+          `UPDATE bookings SET status = 'confirmed', locked = true,
+            deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
+           RETURNING id`,
           [bk.group_id, bk.business_id, bk.id]
         );
+        sibIds = sibResult.rows.map(r => r.id);
       }
 
       // SSE broadcast
@@ -1986,8 +1996,11 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         const { broadcast } = require('../../services/sse');
         broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id });
       } catch (e) { /* SSE optional */ }
-      // H2: calSyncPush on deposit verify
+      // calSyncPush on deposit verify (primary + siblings)
       try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, bk.id); } catch (_) {}
+      for (const sibId of sibIds) {
+        try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, sibId); } catch (_) {}
+      }
 
       // Send deposit paid confirmation email (mirrors Stripe webhook behavior)
       try {
@@ -2388,6 +2401,8 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     }
 
     broadcast(result.rows[0].business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+    // M3: calSyncPush on modified_pending → confirmed
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(result.rows[0].business_id, result.rows[0].id); } catch (_) {}
 
     if (isForm && displayData) {
       return res.send(confirmationPage('Rendez-vous confirmé ✅', `${escHtml(displayData.service_name) || 'Votre rendez-vous'} le <strong>${escHtml(displayData._dt)} à ${escHtml(displayData._tm)}</strong> est confirmé. Merci !`, displayData._color, displayData.business_name));
@@ -3091,17 +3106,21 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
     const bk = result.rows[0];
 
     // Also confirm group siblings if any
-    await query(
+    const sibConfirmed = await query(
       `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
        WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
-         AND id != $1 AND status = 'pending'`,
+         AND id != $1 AND status = 'pending'
+       RETURNING id`,
       [bk.id]
     );
 
     // SSE notification
     broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
-    // H2: calSyncPush on confirm-booking
+    // calSyncPush for primary + siblings
     try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, bk.id); } catch (_) {}
+    for (const sib of (sibConfirmed?.rows || [])) {
+      try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, sib.id); } catch (_) {}
+    }
 
     // Send the actual confirmation email (non-blocking)
     (async () => {
@@ -3518,7 +3537,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Step 1: exact match (phone AND email)
       if (e.client_phone && e.client_email) {
         const exactMatch = await client.query(
-          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
           [e.business_id, e.client_phone, e.client_email]
         );
         if (exactMatch.rows.length > 0) existingWlClient = exactMatch.rows[0];
@@ -3534,7 +3553,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Step 3: match by email
       if (!existingWlClient && e.client_email) {
         const emailMatch = await client.query(
-          `SELECT id FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+          `SELECT id FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
           [e.business_id, e.client_email]
         );
         if (emailMatch.rows.length > 0) existingWlClient = emailMatch.rows[0];
