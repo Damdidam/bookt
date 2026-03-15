@@ -72,7 +72,7 @@ async function processExpiredDeposits() {
       );
 
       processed++;
-      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id });
+      cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id });
     }
 
     await client.query('COMMIT');
@@ -133,6 +133,39 @@ async function processExpiredDeposits() {
       } catch (emailErr) {
         console.warn('[DEPOSIT CRON] Cancellation email error for booking', bkId, ':', emailErr.message);
       }
+    }
+
+    // Email sibling clients (different client_id on same group) who were also cancelled
+    for (const cancelled of cancelledBookingIds) {
+      if (!cancelled.group_id) continue;
+      try {
+        const siblings = await query(
+          `SELECT b.id, b.start_at, b.end_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+           FROM bookings b LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
+             AND b.client_id IS NOT NULL AND b.client_id != COALESCE($4, '00000000-0000-0000-0000-000000000000')
+             AND c.email IS NOT NULL`,
+          [cancelled.group_id, cancelled.business_id, cancelled.id, cancelled.client_id]
+        );
+        for (const sib of siblings.rows) {
+          try {
+            const { sendCancellationEmail } = require('./email');
+            await sendCancellationEmail({
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at },
+              business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
+            });
+          } catch (e) { console.warn('[DEPOSIT CRON] Sibling email error:', e.message); }
+        }
+      } catch (e) { console.warn('[DEPOSIT CRON] Sibling query error:', e.message); }
     }
 
     return { processed };

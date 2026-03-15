@@ -2148,7 +2148,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
-    if (!['confirmed', 'pending_deposit'].includes(bk.status)) {
+    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
@@ -2179,7 +2179,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           ELSE deposit_status
         END,
         updated_at = NOW()
-       WHERE id = $2 AND status IN ('confirmed', 'pending_deposit')
+       WHERE id = $2 AND status IN ('pending', 'confirmed', 'pending_deposit')
        RETURNING *`,
       [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
     );
@@ -2693,128 +2693,76 @@ h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400
 // BOOKING CONFIRMATION (pending → confirmed) — for booking_confirmation_required setting
 // ============================================================
 
-// GET /api/public/booking/:token/confirm-booking — one-click confirm from email
+// GET /api/public/booking/:token/confirm-booking — intermediate confirmation page (safe from email preview)
 router.get('/booking/:token/confirm-booking', async (req, res, next) => {
   try {
     const { token } = req.params;
 
-    // Attempt direct confirmation (pending → confirmed)
-    const result = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
-       WHERE public_token = $1 AND status = 'pending'
-         AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
-       RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
-      [token]
-    );
-
-    if (result.rows.length > 0) {
-      const bk = result.rows[0];
-
-      // Also confirm group siblings
-      await query(
-        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
-         WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
-           AND id != $1 AND status = 'pending'`,
-        [bk.id]
-      );
-
-      broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
-
-      // Send confirmation email (non-blocking) — reuse same logic as POST
-      (async () => {
-        try {
-          const fullBk = await query(
-            `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
-                    p.display_name AS practitioner_name, c.full_name AS client_name, c.email AS client_email
-             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-             JOIN practitioners p ON p.id = b.practitioner_id
-             LEFT JOIN clients c ON c.id = b.client_id
-             WHERE b.id = $1`, [bk.id]
-          );
-          const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bk.business_id]);
-          if (fullBk.rows[0] && bizRow.rows[0]) {
-            // Query group services for multi-service bookings
-            let groupServices = null;
-            if (fullBk.rows[0].group_id) {
-              const grp = await query(
-                `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
-                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                        COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
-                 FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-                 WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
-                [fullBk.rows[0].group_id, bk.business_id]
-              );
-              if (grp.rows.length > 1) groupServices = grp.rows;
-            }
-            const { sendBookingConfirmation } = require('../../services/email');
-            await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0], groupServices });
-          }
-        } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
-      })();
-
-      // Queue notification audit
-      try {
-        const clientRow = await query(`SELECT email FROM clients WHERE id = $1`, [bk.client_id]);
-        await query(
-          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
-           VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
-          [bk.business_id, bk.id, clientRow.rows[0]?.email]
-        );
-      } catch (_) { /* best-effort audit */ }
-
-      const info = await query(
-        `SELECT b.start_at, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
-                biz.name AS business_name, biz.theme
-         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-         JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
-      );
-      const i = info.rows[0] || {};
-      const color = i.theme?.primary_color || '#0D7377';
-      const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
-      const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-      return res.send(confirmationPage('Rendez-vous confirm\u00e9 \u2705', `Votre rendez-vous <strong>${escHtml(i.service_name || '')}</strong> du <strong>${dt} \u00e0 ${tm}</strong> est confirm\u00e9.`, color, i.business_name));
-    }
-
-    // Confirmation failed — check why
+    // Check booking state without mutating
     const check = await query(
-      `SELECT b.status, b.start_at, b.confirmation_expires_at,
+      `SELECT b.id, b.status, b.start_at, b.confirmation_expires_at, b.group_id,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               biz.name AS business_name, biz.theme
-       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
     if (check.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
 
-    const bk2 = check.rows[0];
-    const color2 = bk2.theme?.primary_color || '#0D7377';
+    const bk = check.rows[0];
+    const color = bk.theme?.primary_color || '#0D7377';
 
-    if (bk2.status === 'confirmed' || bk2.status === 'completed') {
-      const dt2 = new Date(bk2.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
-      const tm2 = new Date(bk2.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-      return res.send(confirmationPage('D\u00e9j\u00e0 confirm\u00e9 \u2705', `Votre rendez-vous du <strong>${dt2} \u00e0 ${tm2}</strong> est confirm\u00e9.`, color2, bk2.business_name));
+    if (bk.status === 'confirmed' || bk.status === 'completed') {
+      const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
     }
-    if (bk2.status === 'cancelled') {
-      return res.send(confirmationPage('Rendez-vous annul\u00e9', 'Ce rendez-vous a \u00e9t\u00e9 annul\u00e9 car le d\u00e9lai de confirmation a expir\u00e9.', '#C62828', bk2.business_name));
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('Rendez-vous annulé', 'Ce rendez-vous a été annulé car le délai de confirmation a expiré.', '#C62828', bk.business_name));
     }
-    return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre confirm\u00e9.', '#A68B3C', bk2.business_name));
+    if (bk.status !== 'pending') {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk.business_name));
+    }
+    if (bk.confirmation_expires_at && new Date(bk.confirmation_expires_at) <= new Date()) {
+      return res.send(confirmationPage('Délai expiré', 'Le délai de confirmation a expiré.', '#C62828', bk.business_name));
+    }
+
+    // Show intermediate confirmation page with POST form
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+    return res.send(actionPage(
+      'Confirmer votre rendez-vous',
+      `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong><br>${dt} à ${tm}`,
+      'Confirmer mon rendez-vous',
+      `/api/public/booking/${token}/confirm-booking`,
+      color, bk.business_name
+    ));
   } catch (err) { next(err); }
 });
 
+// (POST confirm-booking handler defined further below — handles both JSON and HTML form)
+// (GET above shows an intermediate page that POSTs to the same endpoint)
+
 // ============================================================
-// GET /api/public/booking/:token/cancel-booking — one-click cancel from email
-// Cancels pending/confirmed bookings directly (no intermediate page)
+// NOT-USED-MARKER — removed duplicate POST confirm-booking
+// The existing POST handler further below handles the actual confirmation
+// ============================================================
+
+// ============================================================
+// GET /api/public/booking/:token/cancel-booking — intermediate confirmation page (safe from email preview)
 // ============================================================
 router.get('/booking/:token/cancel-booking', async (req, res, next) => {
   try {
     const { token } = req.params;
 
     const result = await query(
-      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
+      `SELECT b.id, b.status, b.start_at, b.business_id,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               biz.name AS business_name, biz.theme, biz.settings AS business_settings
-       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`,
       [token]
     );
@@ -2837,6 +2785,55 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
 
     // For confirmed: check cancellation deadline
     // Skip deadline check for pending_deposit — client hasn't paid yet, always allow cancel
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
+    if (bk.status === 'confirmed') {
+      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+      if (new Date() >= deadline) {
+        return res.send(confirmationPage('Annulation impossible', `L\u2019annulation n\u2019est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
+      }
+    }
+
+    // Show intermediate confirmation page with POST form
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+    return res.send(actionPage(
+      'Annuler votre rendez-vous ?',
+      `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong><br>${dt} \u00e0 ${tm}`,
+      'Confirmer l\u2019annulation',
+      `/api/public/booking/${token}/cancel-booking`,
+      '#C62828', bk.business_name
+    ));
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/booking/:token/cancel-booking — actual cancellation (POST = safe from email preview)
+// ============================================================
+router.post('/booking/:token/cancel-booking', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
+              b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
+              biz.name AS business_name, biz.theme, biz.settings AS business_settings
+       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+    }
+
+    const bk = result.rows[0];
+
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('D\u00e9j\u00e0 annul\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 annul\u00e9.', '#C62828', bk.business_name));
+    }
+    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
+    }
+
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     if (bk.status === 'confirmed') {
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
@@ -3548,6 +3545,28 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       throw err;
     }
 
+    // Post-transaction: SSE broadcast + confirmation email (non-blocking)
+    broadcast(e.business_id, 'booking_update', { action: 'waitlist_accepted', booking_id: booking.id });
+
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name, c.full_name AS client_name, c.email AS client_email
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           WHERE b.id = $1`, [booking.id]
+        );
+        const bizRow = await query(`SELECT name, email, address, phone, theme, settings FROM businesses WHERE id = $1`, [e.business_id]);
+        if (fullBk.rows[0]?.client_email && bizRow.rows[0]) {
+          const { sendBookingConfirmation } = require('../../services/email');
+          await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0] });
+        }
+      } catch (emailErr) { console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message); }
+    })();
+
     res.status(201).json({
       booked: true,
       booking: {
@@ -3555,7 +3574,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         token: booking.public_token,
         start_at: booking.start_at,
         end_at: booking.end_at,
-        manage_url: `${process.env.BASE_URL || process.env.APP_BASE_URL}/booking/${booking.public_token}`
+        manage_url: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${booking.public_token}`
       }
     });
   } catch (err) { next(err); }

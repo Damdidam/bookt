@@ -860,12 +860,21 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
         [id, bid]
       );
 
-      // Group siblings: also confirm
+      // Group siblings: also confirm + waive deposit fields
+      let affectedSiblingIds = [];
       if (b.group_id) {
-        await propagateGroupStatus(client, {
+        affectedSiblingIds = await propagateGroupStatus(client, {
           groupId: b.group_id, bid, excludeId: id,
           status: 'confirmed', cancelReason: null
         });
+        // M5: propagate deposit field changes to siblings
+        if (affectedSiblingIds.length > 0) {
+          await client.query(
+            `UPDATE bookings SET deposit_status = 'waived', deposit_deadline = NULL
+             WHERE group_id = $1 AND business_id = $2 AND id != $3`,
+            [b.group_id, bid, id]
+          );
+        }
       }
 
       // Audit log
@@ -877,13 +886,19 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
          JSON.stringify({ status: 'confirmed', deposit_status: 'waived' })]
       );
 
-      return { ok: true, booking: b };
+      return { ok: true, booking: b, affectedSiblingIds };
     });
 
     if (txResult.error) return res.status(txResult.error).json({ error: txResult.message });
 
     broadcast(bid, 'booking_update', { action: 'waive_deposit', booking_id: id, status: 'confirmed' });
     calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+
+    // M6: SSE + calSync for affected siblings
+    for (const sibId of (txResult.affectedSiblingIds || [])) {
+      broadcast(bid, 'booking_update', { action: 'waive_deposit', booking_id: sibId, status: 'confirmed' });
+      calSyncPush(bid, sibId).catch(e => console.warn('[CAL_SYNC] Sibling push error:', e.message));
+    }
 
     // Send clean confirmation email (ZERO deposit mention)
     const b = txResult.booking;
@@ -1179,15 +1194,25 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         [amount_cents, deadline.toISOString(), depositUrl, id, bid]
       );
 
-      // Group siblings: also set pending_deposit status (no amount)
+      // Group siblings: also set pending_deposit status + deposit fields
+      let affectedSiblingIds = [];
       if (b.group_id) {
-        await propagateGroupStatus(client, {
+        affectedSiblingIds = await propagateGroupStatus(client, {
           groupId: b.group_id,
           bid,
           excludeId: id,
           status: 'pending_deposit',
           cancelReason: null
         });
+        // M5: propagate deposit fields to siblings
+        if (affectedSiblingIds.length > 0) {
+          await client.query(
+            `UPDATE bookings SET deposit_required = true, deposit_status = 'pending',
+              deposit_deadline = $1
+             WHERE group_id = $2 AND business_id = $3 AND id != $4`,
+            [deadline.toISOString(), b.group_id, bid, id]
+          );
+        }
       }
 
       // Audit log
@@ -1199,7 +1224,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
          JSON.stringify({ status: 'pending_deposit', deposit_required: true, deposit_amount_cents: amount_cents, deposit_deadline: deadline.toISOString() })]
       );
 
-      return { ok: true, booking: b, depositUrl, deadline, canSendEmail };
+      return { ok: true, booking: b, depositUrl, deadline, canSendEmail, affectedSiblingIds };
     });
 
     if (txResult.error) return res.status(txResult.error).json({ error: txResult.message });
@@ -1262,6 +1287,12 @@ router.post('/:id/require-deposit', async (req, res, next) => {
 
     broadcast(bid, 'booking_update', { action: 'require_deposit', booking_id: id, status: 'pending_deposit' });
     calSyncPush(bid, id).catch(e => console.warn('[CAL_SYNC] Push error:', e.message));
+
+    // M6: SSE + calSync for affected siblings
+    for (const sibId of (txResult.affectedSiblingIds || [])) {
+      broadcast(bid, 'booking_update', { action: 'require_deposit', booking_id: sibId, status: 'pending_deposit' });
+      calSyncPush(bid, sibId).catch(e => console.warn('[CAL_SYNC] Sibling push error:', e.message));
+    }
 
     res.json({ updated: true, status: 'pending_deposit', email_sent: emailSent });
   } catch (err) { next(err); }
