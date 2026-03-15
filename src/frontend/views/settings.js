@@ -334,6 +334,27 @@ async function loadSettings(){
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveDepositSettings()">Enregistrer la politique d'acompte</button></div></div>`;
 
+    // 3c-bis. Déplacement des rendez-vous
+    const moveOn=!!(b.settings?.move_restriction_enabled);
+    const moveDeadline=b.settings?.move_deadline_hours||48;
+    const moveGrace=b.settings?.move_grace_hours||0;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 12H3"/><path d="m7 8-4 4 4 4"/><path d="M21 12h-8"/><path d="m15 16 4-4-4-4"/></svg> Déplacement des rendez-vous</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Restreignez la possibilité de déplacer les rendez-vous sur le calendrier. Les RDV avec acompte sont toujours verrouillés.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Restreindre le déplacement</div><div style="font-size:.75rem;color:var(--text-4)">Empêche le déplacement des RDV trop proches de l'échéance</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_move_enabled" ${moveOn?'checked':''} onchange="document.getElementById('moveOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${moveOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${moveOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="moveOptions" style="display:${moveOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Délai avant le RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Ne plus déplacer si le RDV est dans moins de</span><input type="number" id="s_move_deadline" value="${moveDeadline}" min="1" max="720" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures</span></div></div>`;
+    h+=`<div class="field"><label>Période de grâce après la prise de RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Autoriser le déplacement dans les</span><input type="number" id="s_move_grace" value="${moveGrace}" min="0" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures suivant la prise de RDV</span></div><div class="hint">0 = pas de période de grâce</div></div>`;
+    h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les RDV avec acompte sont toujours verrouillés, indépendamment de ces paramètres.</div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveMoveSettings()">Enregistrer</button></div></div>`;
+
     // 3b. Confirmation de réservation en ligne
     const confOn=!!b.settings?.booking_confirmation_required;
     const confTimeout=b.settings?.booking_confirmation_timeout_min||30;
@@ -730,6 +751,30 @@ async function saveDepositSettings(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveMoveSettings(){
+  try{
+    const data={
+      settings_move_restriction_enabled:document.getElementById('s_move_enabled').checked,
+      settings_move_deadline_hours:parseInt(document.getElementById('s_move_deadline')?.value)||48,
+      settings_move_grace_hours:parseInt(document.getElementById('s_move_grace')?.value)||0
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.move_restriction_enabled=data.settings_move_restriction_enabled;
+    freshBiz.settings.move_deadline_hours=data.settings_move_deadline_hours;
+    freshBiz.settings.move_grace_hours=data.settings_move_grace_hours;
+    api.setBusiness(freshBiz);
+    if(calState.fcBusinessSettings){
+      calState.fcBusinessSettings.move_restriction_enabled=data.settings_move_restriction_enabled;
+      calState.fcBusinessSettings.move_deadline_hours=data.settings_move_deadline_hours;
+      calState.fcBusinessSettings.move_grace_hours=data.settings_move_grace_hours;
+    }
+    GendaUI.toast('Paramètres de déplacement enregistrés','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveBookingConfirmSettings(){
   try{
     const data={
@@ -852,6 +897,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };

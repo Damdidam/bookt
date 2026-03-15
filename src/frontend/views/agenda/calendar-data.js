@@ -11,6 +11,23 @@ import { gaBuildBackgroundEvents } from './gap-analyzer.js';
 
 const DEFAULT_ACCENT = '#0D7377';
 
+// ── Move restriction helper ──
+
+function isEventLocked(b) {
+  if (b.locked) return true;
+  if (b.deposit_required) return true;
+  const settings = calState.fcBusinessSettings || {};
+  if (!settings.move_restriction_enabled) return false;
+  const now = Date.now();
+  const start = new Date(b.start_at).getTime();
+  const created = new Date(b.created_at).getTime();
+  const deadlineMs = (settings.move_deadline_hours ?? 48) * 3600000;
+  const graceMs = (settings.move_grace_hours ?? 0) * 3600000;
+  if (graceMs > 0 && (now - created) <= graceMs) return false;
+  if ((start - now) < deadlineMs) return true;
+  return false;
+}
+
 // ── Pure helpers ──
 
 function accentFor(b) {
@@ -141,9 +158,9 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       start: b.start_at, end: b.end_at,
       backgroundColor: fcHexAlpha(accent, 0.22),
       borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
-      editable: !frozen && !b.locked && !calState.fcLocked,
-      startEditable: !frozen && !b.locked && !calState.fcLocked,
-      durationEditable: !frozen && !b.locked && !calState.fcLocked,
+      editable: !frozen && !isEventLocked(b) && !calState.fcLocked,
+      startEditable: !frozen && !isEventLocked(b) && !calState.fcLocked,
+      durationEditable: !frozen && !isEventLocked(b) && !calState.fcLocked,
       extendedProps: props
     };
     return ev;
@@ -157,7 +174,7 @@ export function buildGroupEvents(grouped) {
     const first = members[0];
     const accent = accentFor(first);
     const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
-    const anyLocked = members.some(m => m.locked);
+    const anyLocked = members.some(m => isEventLocked(m));
     const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
     const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
     // Proportional border segments for multi-color groups

@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
              b.group_id, b.group_order, b.custom_label,
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
              b.deposit_paid_at, b.deposit_requested_at, b.deposit_request_count, b.deposit_reminder_sent,
-             b.locked,
+             b.locked, b.created_at,
              b.discount_pct,
              b.confirmation_expires_at, b.deposit_deadline,
              b.processing_time, b.processing_start,
