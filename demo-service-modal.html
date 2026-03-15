@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo — Modal Service</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F8F9FA;--white:#FFF;--surface:#F2F4F6;--surface-2:#E8EBEE;--border:#D8DDE3;--border-light:#E8ECF0;
+  --text:#1A2332;--text-2:#3A4555;--text-3:#6B7A8D;--text-4:#A0AAB6;
+  --primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EDF8F7;--primary-soft:#CCEBE8;
+  --green:#1B7A42;--green-bg:#EEFAF1;--red:#C62828;--red-bg:#FEF2F2;
+  --serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;
+  --shadow-lg:0 8px 32px rgba(0,0,0,.1);
+  --radius:14px;--radius-sm:10px;--radius-xs:6px;
+  --transition:all .2s cubic-bezier(.4,0,.2,1)
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5;padding:30px;display:flex;gap:30px;align-items:flex-start;justify-content:center;flex-wrap:wrap;min-height:100vh}
+
+.modal{background:var(--white);border-radius:16px;width:100%;max-width:540px;box-shadow:var(--shadow-lg)}
+.modal-h{padding:18px 22px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
+.modal-h h3{font-size:.95rem;font-weight:700}
+.modal-h .close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-4);padding:4px 6px;border-radius:6px}
+.modal-body{padding:0}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);border-radius:0 0 16px 16px}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.85rem;background:var(--white);outline:none;transition:var(--transition)}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.08)}
+.field textarea{resize:vertical;min-height:52px}
+
+/* SVC Modal */
+.svc-modal{max-width:620px;display:flex;flex-direction:column}
+.svc-modal .modal-h{background:linear-gradient(135deg,#0D7377 0%,#0A5E61 100%);color:#fff;border-bottom:none;border-radius:16px 16px 0 0}
+.svc-modal .modal-h h3{color:#fff}
+.svc-modal .modal-h .close{color:rgba(255,255,255,.6)}
+.svc-modal .modal-h .close:hover{background:rgba(255,255,255,.15);color:#fff}
+.svc-modal .modal-body{flex:1;overflow-y:auto;min-height:0;padding:0}
+.svc-section{padding:20px 24px;border-bottom:1px solid var(--border-light)}
+.svc-section:last-child{border-bottom:none}
+.svc-section-head{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.svc-section-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-4);white-space:nowrap}
+.svc-section-line{flex:1;height:1px;background:var(--border-light)}
+
+/* Form row */
+.svc-form-row{display:flex;gap:12px;align-items:flex-end}
+.svc-form-row .field{flex:1;margin-bottom:0}
+.svc-form-row .field-color{flex:0 0 auto;margin-bottom:0;display:flex;flex-direction:column;gap:5px}
+.svc-form-row .field-color label{font-size:.78rem;font-weight:600;color:var(--text-3)}
+
+/* Variant cards */
+.svc-var-row{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.svc-var-row .svc-var-top-row{display:flex;gap:8px;align-items:flex-end;grid-column:1/-1}
+.svc-var-row .svc-var-name{flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem;background:var(--white);font-family:var(--sans);outline:none}
+.svc-var-field{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+.svc-var-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-4)}
+.svc-var-field input[type="number"]{width:72px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.82rem;background:var(--white);font-family:var(--sans);outline:none}
+.svc-var-row .svc-var-desc{grid-column:1;padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem;color:var(--text-3);background:var(--white);font-family:var(--sans);outline:none}
+.svc-var-x{width:28px;height:28px;border-radius:8px;background:none;border:1.5px solid var(--border);cursor:pointer;color:var(--text-4);display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
+.svc-var-x:hover{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+
+.svc-var-add{display:flex;align-items:center;gap:5px;background:none;border:1.5px dashed var(--border);border-radius:10px;padding:8px 14px;color:var(--primary);font-size:.78rem;font-weight:600;cursor:pointer;transition:.15s;width:100%;justify-content:center;margin-top:4px;font-family:var(--sans)}
+.svc-var-add:hover{border-color:var(--primary);background:rgba(13,115,119,.03)}
+
+/* Switch — FIXED: bigger track, no overlap */
+.svc-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:.82rem;font-weight:500;position:relative}
+.svc-switch input{display:none}
+.svc-switch-track{display:inline-block;width:38px;min-width:38px;height:22px;border-radius:11px;background:var(--border);position:relative;transition:.2s;flex-shrink:0;vertical-align:middle}
+.svc-switch-track::after{content:'';width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.svc-switch input:checked+.svc-switch-track{background:var(--primary)}
+.svc-switch input:checked+.svc-switch-track::after{left:19px}
+
+/* Color swatch */
+.color-swatch{width:32px;height:32px;border-radius:8px;border:2px solid rgba(0,0,0,.08);cursor:pointer}
+
+/* Practitioner chip */
+.pract-chip{font-size:.82rem;display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:.15s}
+.pract-chip:hover{border-color:var(--primary-soft)}
+.pract-chip.checked{background:var(--primary-light);border-color:var(--primary-soft);color:var(--primary)}
+.pract-chip input{accent-color:var(--primary)}
+
+/* Buttons */
+.btn-primary{padding:9px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;transition:var(--transition)}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-outline{padding:9px 18px;background:var(--white);color:var(--text-2);border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer}
+.btn-outline:hover{background:var(--surface)}
+
+/* Demo labels */
+.demo-tag{display:inline-block;background:var(--primary);color:#fff;padding:6px 16px;border-radius:100px;font-size:.72rem;font-weight:700;letter-spacing:.3px;margin-bottom:12px}
+.demo-tag.alt{background:var(--text-3)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- MODAL 1: AVEC VARIANTES               -->
+<!-- ═══════════════════════════════════════ -->
+<div>
+<div class="demo-tag">AVEC VARIANTES</div>
+<div class="modal svc-modal">
+  <div class="modal-h">
+    <h3>Nouveau service</h3>
+    <button class="close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="modal-body">
+
+    <!-- INFORMATIONS -->
+    <div class="svc-section">
+      <div class="svc-section-head"><span class="svc-section-title">Informations</span><span class="svc-section-line"></span></div>
+      <div class="svc-form-row" style="margin-bottom:12px">
+        <div class="field"><label>Catégorie</label><select><option>Soins visage</option><option>Soins corps</option><option>Massages</option></select></div>
+        <div class="field-color"><label>Couleur</label><div class="color-swatch" style="background:#0D7377"></div></div>
+      </div>
+      <div class="field"><label>Nom *</label><input value="Soin hydratant visage" placeholder="Ex: Consultation initiale"></div>
+      <div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea rows="2" placeholder="Décrivez cette prestation...">Un soin profond qui restaure l'hydratation de la peau.</textarea></div>
+    </div>
+
+    <!-- TARIFICATION — variantes visibles, prix principal masqué -->
+    <div class="svc-section">
+      <div class="svc-section-head"><span class="svc-section-title">Tarification</span><span class="svc-section-line"></span></div>
+      <div>
+        <label style="display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:8px">Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label>
+        <div class="svc-var-row">
+          <div class="svc-var-top-row">
+            <input class="svc-var-name" value="Express 30 min">
+            <div class="svc-var-field"><span class="svc-var-label">Durée</span><input type="number" style="width:72px" value="30" placeholder="min"></div>
+            <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" style="width:72px" value="35" placeholder="€"></div>
+            <button type="button" class="svc-var-x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <input class="svc-var-desc" value="Version courte pour un coup d'éclat rapide" placeholder="Description (optionnel)">
+        </div>
+        <div class="svc-var-row">
+          <div class="svc-var-top-row">
+            <input class="svc-var-name" value="Complet 60 min">
+            <div class="svc-var-field"><span class="svc-var-label">Durée</span><input type="number" style="width:72px" value="60" placeholder="min"></div>
+            <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" style="width:72px" value="65" placeholder="€"></div>
+            <button type="button" class="svc-var-x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <input class="svc-var-desc" value="Soin complet avec nettoyage, sérum et masque" placeholder="Description (optionnel)">
+        </div>
+        <div class="svc-var-row">
+          <div class="svc-var-top-row">
+            <input class="svc-var-name" value="Premium 90 min">
+            <div class="svc-var-field"><span class="svc-var-label">Durée</span><input type="number" style="width:72px" value="90" placeholder="min"></div>
+            <div class="svc-var-field"><span class="svc-var-label">Prix</span><input type="number" style="width:72px" value="95" placeholder="€"></div>
+            <button type="button" class="svc-var-x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <input class="svc-var-desc" value="" placeholder="Description (optionnel)">
+        </div>
+        <button type="button" class="svc-var-add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une variante</button>
+      </div>
+    </div>
+
+    <!-- PLANIFICATION — buffers toujours visibles, même avec variantes -->
+    <div class="svc-section">
+      <div class="svc-section-head"><span class="svc-section-title">Planification</span><span class="svc-section-line"></span></div>
+      <div class="svc-form-row" style="margin-bottom:14px">
+        <div class="field"><label>Buffer avant (min)</label><input type="number" value="5" min="0"></div>
+        <div class="field"><label>Buffer après (min)</label><input type="number" value="10" min="0"></div>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label class="svc-switch"><input type="checkbox"><span class="svc-switch-track"></span> Restreindre les horaires</label>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="svc-switch"><input type="checkbox" checked><span class="svc-switch-track"></span> Réservable en ligne</label>
+      </div>
+    </div>
+
+    <!-- AFFECTATION -->
+    <div class="svc-section" style="border-bottom:none">
+      <div class="svc-section-head"><span class="svc-section-title">Affectation</span><span class="svc-section-line"></span></div>
+      <div class="field" style="margin-bottom:0">
+        <label>Praticiens assignés</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          <label class="pract-chip checked"><input type="checkbox" checked> Sophie Martin</label>
+          <label class="pract-chip"><input type="checkbox"> Julie Dupont</label>
+          <label class="pract-chip checked"><input type="checkbox" checked> Marie Lefèvre</label>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-4);margin-top:5px">Si aucun coché → disponible pour tous</div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn-outline">Annuler</button><button class="btn-primary">Créer</button></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- MODAL 2: SANS VARIANTES               -->
+<!-- ═══════════════════════════════════════ -->
+<div>
+<div class="demo-tag alt">SANS VARIANTES</div>
+<div class="modal svc-modal">
+  <div class="modal-h">
+    <h3>Modifier le service</h3>
+    <button class="close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="modal-body">
+
+    <!-- INFORMATIONS -->
+    <div class="svc-section">
+      <div class="svc-section-head"><span class="svc-section-title">Informations</span><span class="svc-section-line"></span></div>
+      <div class="svc-form-row" style="margin-bottom:12px">
+        <div class="field"><label>Catégorie</label><select><option>Épilation</option><option>Soins visage</option></select></div>
+        <div class="field-color"><label>Couleur</label><div class="color-swatch" style="background:#E67E22"></div></div>
+      </div>
+      <div class="field"><label>Nom *</label><input value="Épilation jambes complètes" placeholder="Ex: Consultation initiale"></div>
+      <div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea rows="2" placeholder="Décrivez cette prestation..."></textarea></div>
+    </div>
+
+    <!-- TARIFICATION — pas de variantes, prix principal visible -->
+    <div class="svc-section">
+      <div class="svc-section-head"><span class="svc-section-title">Tarification</span><span class="svc-section-line"></span></div>
+      <div class="svc-form-row" style="margin-bottom:12px">
+        <div class="field"><label>Durée (min) *</label><input type="number" value="45" min="5" step="5"></div>
+        <div class="field"><label>Prix (€)</label><input type="number" value="38" step="0.01" placeholder="Gratuit si vide"></div>
+        <div class="field"><label>Label prix</label><input value="" placeholder="Sur devis..."></div>
+      </div>
+      <div style="margin-top:14px">
+        <label style="display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:8px">Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label>
+        <!-- Pas de variante, juste le bouton d'ajout -->
+        <button type="button" class="svc-var-add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une variante</button>
+      </div>
+    </div>
+
+    <!-- PLANIFICATION — pas de cabinet/visio/tel pour esthétique -->
+    <div class="svc-section">
+      <div class="svc-section-head"><span class="svc-section-title">Planification</span><span class="svc-section-line"></span></div>
+      <div class="svc-form-row" style="margin-bottom:14px">
+        <div class="field"><label>Buffer avant (min)</label><input type="number" value="0" min="0"></div>
+        <div class="field"><label>Buffer après (min)</label><input type="number" value="5" min="0"></div>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label class="svc-switch"><input type="checkbox"><span class="svc-switch-track"></span> Restreindre les horaires</label>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label class="svc-switch"><input type="checkbox" checked><span class="svc-switch-track"></span> Réservable en ligne</label>
+      </div>
+    </div>
+
+    <!-- AFFECTATION -->
+    <div class="svc-section" style="border-bottom:none">
+      <div class="svc-section-head"><span class="svc-section-title">Affectation</span><span class="svc-section-line"></span></div>
+      <div class="field" style="margin-bottom:0">
+        <label>Praticiens assignés</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          <label class="pract-chip"><input type="checkbox"> Sophie Martin</label>
+          <label class="pract-chip checked"><input type="checkbox" checked> Julie Dupont</label>
+          <label class="pract-chip"><input type="checkbox"> Marie Lefèvre</label>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-4);margin-top:5px">Si aucun coché → disponible pour tous</div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn-outline">Annuler</button><button class="btn-primary">Enregistrer</button></div>
+</div>
+</div>
+
+<script>
+document.querySelectorAll('.pract-chip input').forEach(cb=>{
+  cb.addEventListener('change',()=>cb.closest('.pract-chip').classList.toggle('checked',cb.checked));
+});
+</script>
+</body>
+</html>

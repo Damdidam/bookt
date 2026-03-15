@@ -14,11 +14,9 @@ let teamEditSchedule = {}; // mutable copy of schedule for editing (weekday -> [
 let teamEditPracId = null; // practitioner id being edited
 let teamEditServiceIds = new Set(); // service IDs assigned to this practitioner
 
-const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
-
 let teamAllServices = []; // all active services fetched from API
 
-function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 function escH(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 const ICONS = {
