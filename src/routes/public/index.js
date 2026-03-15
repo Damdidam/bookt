@@ -2693,61 +2693,113 @@ h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400
 // BOOKING CONFIRMATION (pending → confirmed) — for booking_confirmation_required setting
 // ============================================================
 
-// GET /api/public/booking/:token/confirm-booking — intermediate confirmation page (safe from email preview)
+// GET /api/public/booking/:token/confirm-booking — one-click confirm from email
 router.get('/booking/:token/confirm-booking', async (req, res, next) => {
   try {
     const { token } = req.params;
 
-    // Check booking state without mutating
+    // Attempt direct confirmation (pending → confirmed)
+    const result = await query(
+      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+       WHERE public_token = $1 AND status = 'pending'
+         AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
+       RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
+      [token]
+    );
+
+    if (result.rows.length > 0) {
+      const bk = result.rows[0];
+
+      // Also confirm group siblings
+      await query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+           AND id != $1 AND status = 'pending'`,
+        [bk.id]
+      );
+
+      broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+
+      // Send confirmation email (non-blocking)
+      (async () => {
+        try {
+          const fullBk = await query(
+            `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                    p.display_name AS practitioner_name, c.full_name AS client_name, c.email AS client_email
+             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             JOIN practitioners p ON p.id = b.practitioner_id
+             LEFT JOIN clients c ON c.id = b.client_id
+             WHERE b.id = $1`, [bk.id]
+          );
+          const bizRow = await query(`SELECT name, email, address, phone, theme, settings FROM businesses WHERE id = $1`, [bk.business_id]);
+          if (fullBk.rows[0] && bizRow.rows[0]) {
+            let groupServices = null;
+            if (fullBk.rows[0].group_id) {
+              const grp = await query(
+                `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                        COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                 FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+                [fullBk.rows[0].group_id, bk.business_id]
+              );
+              if (grp.rows.length > 1) groupServices = grp.rows;
+            }
+            const { sendBookingConfirmation } = require('../../services/email');
+            await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0], groupServices });
+          }
+        } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
+      })();
+
+      // Queue notification audit
+      try {
+        const clientRow = await query(`SELECT email FROM clients WHERE id = $1`, [bk.client_id]);
+        await query(
+          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
+           VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
+          [bk.business_id, bk.id, clientRow.rows[0]?.email]
+        );
+      } catch (_) { /* best-effort audit */ }
+
+      const info = await query(
+        `SELECT b.start_at, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                biz.name AS business_name, biz.theme
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
+      );
+      const i = info.rows[0] || {};
+      const color = i.theme?.primary_color || '#0D7377';
+      const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      return res.send(confirmationPage('Rendez-vous confirmé ✅', `Votre rendez-vous <strong>${escHtml(i.service_name || '')}</strong> du <strong>${dt} à ${tm}</strong> est confirmé.`, color, i.business_name));
+    }
+
+    // Confirmation failed — check why
     const check = await query(
-      `SELECT b.id, b.status, b.start_at, b.confirmation_expires_at, b.group_id,
-              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+      `SELECT b.status, b.start_at, b.confirmation_expires_at,
               biz.name AS business_name, biz.theme
-       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-       JOIN businesses biz ON biz.id = b.business_id
+       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
     if (check.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
 
-    const bk = check.rows[0];
-    const color = bk.theme?.primary_color || '#0D7377';
+    const bk2 = check.rows[0];
+    const color2 = bk2.theme?.primary_color || '#0D7377';
 
-    if (bk.status === 'confirmed' || bk.status === 'completed') {
-      const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
-      const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, bk.business_name));
+    if (bk2.status === 'confirmed' || bk2.status === 'completed') {
+      const dt2 = new Date(bk2.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const tm2 = new Date(bk2.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt2} à ${tm2}</strong> est confirmé.`, color2, bk2.business_name));
     }
-    if (bk.status === 'cancelled') {
-      return res.send(confirmationPage('Rendez-vous annulé', 'Ce rendez-vous a été annulé car le délai de confirmation a expiré.', '#C62828', bk.business_name));
+    if (bk2.status === 'cancelled') {
+      return res.send(confirmationPage('Rendez-vous annulé', 'Ce rendez-vous a été annulé car le délai de confirmation a expiré.', '#C62828', bk2.business_name));
     }
-    if (bk.status !== 'pending') {
-      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk.business_name));
-    }
-    if (bk.confirmation_expires_at && new Date(bk.confirmation_expires_at) <= new Date()) {
-      return res.send(confirmationPage('Délai expiré', 'Le délai de confirmation a expiré.', '#C62828', bk.business_name));
-    }
-
-    // Show intermediate confirmation page with POST form
-    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
-    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-    return res.send(actionPage(
-      'Confirmer votre rendez-vous',
-      `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong><br>${dt} à ${tm}`,
-      'Confirmer mon rendez-vous',
-      `/api/public/booking/${token}/confirm-booking`,
-      color, bk.business_name
-    ));
+    return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk2.business_name));
   } catch (err) { next(err); }
 });
-
-// (POST confirm-booking handler defined further below — handles both JSON and HTML form)
-// (GET above shows an intermediate page that POSTs to the same endpoint)
-
-// ============================================================
-// NOT-USED-MARKER — removed duplicate POST confirm-booking
-// The existing POST handler further below handles the actual confirmation
-// ============================================================
 
 // ============================================================
 // GET /api/public/booking/:token/cancel-booking — intermediate confirmation page (safe from email preview)
