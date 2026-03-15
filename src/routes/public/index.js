@@ -2208,7 +2208,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     const { token } = req.params;
     const { reason } = req.body;
 
-    // Bug B2 fix: length limit on cancel reason
+    // M3: typeof check + Bug B2 fix: length limit on cancel reason
+    if (reason !== undefined && typeof reason !== 'string') return res.status(400).json({ error: 'Raison invalide' });
     if (reason && reason.length > 2000) return res.status(400).json({ error: 'Raison trop longue (max 2000)' });
 
     const result = await query(
@@ -3719,6 +3720,39 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         [e.business_id, e.practitioner_id, e.service_id, clientId,
          e.offer_booking_start, e.offer_booking_end]
       );
+
+      // H10: Check deposit requirement (same as normal booking flow)
+      const bizSettingsWl = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [e.business_id]);
+      const wlBizSettings = bizSettingsWl.rows[0]?.settings || {};
+      const svcPriceWl = await client.query(
+        `SELECT COALESCE(price_cents, 0) AS price, COALESCE(duration_min, 0) AS duration FROM services WHERE id = $1`, [e.service_id]
+      );
+      const wlPrice = parseInt(svcPriceWl.rows[0]?.price) || 0;
+      const wlDuration = parseInt(svcPriceWl.rows[0]?.duration) || 0;
+      let wlNoShow = 0, wlIsVip = false;
+      if (clientId) {
+        const nsWl = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+        wlNoShow = nsWl.rows[0]?.no_show_count || 0;
+        wlIsVip = !!nsWl.rows[0]?.is_vip;
+      }
+      const wlDepResult = shouldRequireDeposit(wlBizSettings, wlPrice, wlDuration, wlNoShow, wlIsVip);
+      if (wlDepResult.required) {
+        const dlHoursWl = wlBizSettings.deposit_deadline_hours ?? 48;
+        const startWl = new Date(e.offer_booking_start);
+        let deadlineWl = new Date(startWl.getTime() - dlHoursWl * 3600000);
+        const MIN_DEP_WINDOW = 30 * 60000;
+        if (deadlineWl <= new Date()) deadlineWl = new Date(Date.now() + MIN_DEP_WINDOW);
+        if (startWl.getTime() - Date.now() >= MIN_DEP_WINDOW) {
+          await client.query(
+            `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+              deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+              deposit_requested_at = NOW(), deposit_request_count = 1
+             WHERE id = $3 AND business_id = $4`,
+            [wlDepResult.depCents, deadlineWl.toISOString(), bk.rows[0].id, e.business_id]
+          );
+          bk.rows[0].status = 'pending_deposit';
+        }
+      }
 
       // Update waitlist entry (TOCTOU fix: require status = 'offered' to prevent double-accept)
       const wlUpdate = await client.query(

@@ -108,7 +108,7 @@ async function loadDocument() {
   } catch (e) {
     card.innerHTML = `<div class="error">
       <p style="font-size:2rem;margin-bottom:10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></p>
-      <p><strong>${e.message}</strong></p>
+      <p><strong>${esc(e.message)}</strong></p>
       <p style="margin-top:8px;color:var(--text4)">Ce lien n'est plus valide ou le document est introuvable.</p>
     </div>`;
   }
@@ -162,7 +162,17 @@ function render() {
 
   // Content
   if (template.content_html) {
-    h += `<div class="doc-content">${template.content_html}</div>`;
+    // Sanitize content_html: strip script tags, event handlers, javascript: URIs, dangerous elements
+    const sanitizeHtml = html => html
+      .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/<(iframe|object|embed|form|input|textarea|button|select|link|meta|base|applet)[\s\S]*?(?:<\/\1\s*>|\/?>)/gi, '')
+      .replace(/<foreignObject[\s\S]*?<\/foreignObject\s*>/gi, '')
+      .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
+      .replace(/\bon\w+\s*=\s*\S+/gi, '')
+      .replace(/javascript\s*:/gi, '')
+      .replace(/data\s*:\s*text\/html/gi, '')
+      .replace(/vbscript\s*:/gi, '');
+    h += `<div class="doc-content">${sanitizeHtml(template.content_html)}</div>`;
   }
 
   // Form fields

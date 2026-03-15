@@ -344,9 +344,9 @@ function applyTheme(p,c){const t=THEMES[p]||THEMES.classique;const r=document.do
 
 const DAYS_FR=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const MODE_LABELS={cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone',domicile:'À domicile'};
-const esc=s=>s?s.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';
-// Sanitize SVG: strip event handlers, script tags, data URIs, xlink:href with js
-const sanitizeSvg=s=>{if(!s||typeof s!=='string')return '';const t=s.trim();if(!t.match(/^<svg[\s>]/i))return esc(s);return t.replace(/<script[\s\S]*?<\/script\s*>/gi,'').replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'').replace(/\bon\w+\s*=\s*\S+/gi,'').replace(/javascript\s*:/gi,'').replace(/data\s*:\s*text\/html/gi,'');};
+const esc=s=>s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+// Sanitize SVG: strip event handlers, script tags, data URIs, dangerous elements
+const sanitizeSvg=s=>{if(!s||typeof s!=='string')return '';const t=s.trim();if(!t.match(/^<svg[\s>]/i))return esc(s);return t.replace(/<script[\s\S]*?<\/script\s*>/gi,'').replace(/<foreignObject[\s\S]*?<\/foreignObject\s*>/gi,'').replace(/<style[\s\S]*?<\/style\s*>/gi,'').replace(/<use[\s\S]*?(?:<\/use\s*>|\/?>) */gi,'').replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'').replace(/\bon\w+\s*=\s*\S+/gi,'').replace(/javascript\s*:/gi,'').replace(/data\s*:\s*text\/html/gi,'').replace(/vbscript\s*:/gi,'');};
 // Validate CSS class name (alphanumeric + hyphens only)
 const safeClass=s=>(s&&/^[a-zA-Z0-9_-]+$/.test(s))?s:'teal';
 // Sanitize color value (hex or CSS variable only)
@@ -543,7 +543,7 @@ function render(d){
   // Nav
   const init=b.name.split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
   const nL=document.getElementById('navLogo');
-  if(b.logo_url)nL.innerHTML='<img src="'+b.logo_url+'" alt="">';else nL.textContent=init;
+  if(b.logo_url)nL.innerHTML='<img src="'+esc(b.logo_url)+'" alt="">';else nL.textContent=init;
   document.getElementById('navName').textContent=b.name;
   let nav=[];
   if(sec.about!==false)nav.push('<a class="nav-link" href="#about">À propos</a>');
@@ -767,7 +767,7 @@ function render(d){
   // Contact cards
   const cc=[];
   if(b.phone)cc.push('<a class="c-card" href="tel:'+safeTel(b.phone)+'"><div class="c-ico">'+ICO.phone+'</div><div><div class="c-lbl">Téléphone</div><div class="c-val">'+esc(b.phone)+'</div></div></a>');
-  if(b.email)cc.push('<a class="c-card" href="mailto:'+b.email+'"><div class="c-ico">'+ICO.mail+'</div><div><div class="c-lbl">Email</div><div class="c-val">'+esc(b.email)+'</div></div></a>');
+  if(b.email)cc.push('<a class="c-card" href="mailto:'+encodeURIComponent(b.email)+'"><div class="c-ico">'+ICO.mail+'</div><div><div class="c-lbl">Email</div><div class="c-val">'+esc(b.email)+'</div></div></a>');
   if(b.address)cc.push('<a class="c-card" href="https://maps.google.com/?q='+encodeURIComponent(b.address)+'" target="_blank" rel="noopener"><div class="c-ico">'+ICO.pin+'</div><div><div class="c-lbl">Adresse</div><div class="c-val">'+esc(b.address)+'</div></div></a>');
   document.getElementById('contactCards').innerHTML=cc.join('');
 
@@ -781,12 +781,13 @@ function render(d){
     mapEl.style.display='none';
   }
 
-  // Socials
+  // Socials — validate URL scheme (block javascript: etc)
+  const safeUrl=u=>{if(!u||typeof u!=='string')return '';try{const p=new URL(u);return['http:','https:'].includes(p.protocol)?esc(u):'';}catch(_){return /^https?:\/\//i.test(u)?esc(u):'';}};
   const sl=b.social_links||{};const sh=[];
-  if(sl.facebook)sh.push('<a href="'+sl.facebook+'" target="_blank" rel="noopener">'+ICO.fb+'</a>');
-  if(sl.instagram)sh.push('<a href="'+sl.instagram+'" target="_blank" rel="noopener">'+ICO.ig+'</a>');
-  if(sl.linkedin)sh.push('<a href="'+sl.linkedin+'" target="_blank" rel="noopener">'+ICO.li+'</a>');
-  if(sl.website)sh.push('<a href="'+sl.website+'" target="_blank" rel="noopener">'+ICO.web+'</a>');
+  if(sl.facebook&&safeUrl(sl.facebook))sh.push('<a href="'+safeUrl(sl.facebook)+'" target="_blank" rel="noopener">'+ICO.fb+'</a>');
+  if(sl.instagram&&safeUrl(sl.instagram))sh.push('<a href="'+safeUrl(sl.instagram)+'" target="_blank" rel="noopener">'+ICO.ig+'</a>');
+  if(sl.linkedin&&safeUrl(sl.linkedin))sh.push('<a href="'+safeUrl(sl.linkedin)+'" target="_blank" rel="noopener">'+ICO.li+'</a>');
+  if(sl.website&&safeUrl(sl.website))sh.push('<a href="'+safeUrl(sl.website)+'" target="_blank" rel="noopener">'+ICO.web+'</a>');
   if(sh.length){const se=document.getElementById('socials');se.style.display='flex';se.innerHTML=sh.join('');}
 
   // CTA

@@ -83,7 +83,9 @@ router.get('/:provider', authLimiter, async (req, res) => {
   } catch (err) {
     console.error(`[OAUTH] ${req.params.provider} connect error:`, err.message);
     const slug = req.query.slug || '';
-    res.redirect(`/${slug}/book?oauth_error=${encodeURIComponent(err.message)}`);
+    // M2: Validate slug to prevent open redirect (only allow alphanumeric + hyphens)
+    const safeSlug = /^[a-zA-Z0-9_-]+$/.test(slug) ? slug : '';
+    res.redirect(safeSlug ? `/${safeSlug}/book?oauth_error=${encodeURIComponent(err.message)}` : `/?oauth_error=${encodeURIComponent(err.message)}`);
   }
 });
 
@@ -115,13 +117,18 @@ router.post('/apple/callback', async (req, res) => {
 // ============================================================
 router.get('/pickup/:key', async (req, res) => {
   try {
-    const data = await oauthStates.get(req.params.key);
+    // M1: Atomic pickup — DELETE ... RETURNING in one query to prevent TOCTOU
+    const r = await query(
+      `DELETE FROM oauth_states WHERE state_key = $1 AND expires_at > NOW() RETURNING data`,
+      [req.params.key]
+    );
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
+    }
+    const data = typeof r.rows[0].data === 'string' ? JSON.parse(r.rows[0].data) : r.rows[0].data;
     if (!data || data.type !== 'pickup') {
       return res.status(404).json({ error: 'Lien expiré ou déjà utilisé' });
     }
-
-    // Delete after read (one-time use)
-    await oauthStates.delete(req.params.key);
 
     res.json({
       name: data.name || '',
@@ -142,6 +149,8 @@ async function handleCallback(provider, params, appleUserObj, res) {
   const { code, state, error } = params;
   let slug = '';
 
+  // M2: validate slug to prevent open redirect — only alphanumeric + hyphens allowed
+  const sanitizeSlug = (s) => (s && /^[a-zA-Z0-9_-]+$/.test(s)) ? s : '';
   // Helper to build safe redirect (avoids //book protocol-relative URL when slug is empty)
   const bookUrl = (qs) => slug ? `/${slug}/book?${qs}` : `/?${qs}`;
 
@@ -149,7 +158,7 @@ async function handleCallback(provider, params, appleUserObj, res) {
     if (error) {
       // User denied access or error from provider
       const session = state ? await oauthStates.get(state) : null;
-      slug = session?.slug || '';
+      slug = sanitizeSlug(session?.slug);
       if (state) await oauthStates.delete(state);
       return res.redirect(bookUrl(`oauth_error=${encodeURIComponent(error)}`));
     }
@@ -164,7 +173,7 @@ async function handleCallback(provider, params, appleUserObj, res) {
       return res.redirect(`/?oauth_error=${encodeURIComponent('Session expirée, réessayez')}`);
     }
 
-    slug = session.slug;
+    slug = sanitizeSlug(session.slug);
     await oauthStates.delete(state);
 
     // Check expiration

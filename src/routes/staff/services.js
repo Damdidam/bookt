@@ -373,38 +373,53 @@ router.patch('/category-toggle', requireRole('owner', 'manager'), async (req, re
 });
 
 // DELETE /api/services/:id — permanent delete (blocked only if active bookings exist)
+// M7: Wrapped in transaction to prevent TOCTOU race (booking created between check & delete)
 router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
 
-    // Only block on active bookings (pending, confirmed, modified_pending)
-    const active = await queryWithRLS(bid,
-      `SELECT COUNT(*)::int AS cnt FROM bookings
-       WHERE service_id = $1 AND business_id = $2
-       AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
-      [id, bid]
-    );
-    if (active.rows[0].cnt > 0) {
+    const result = await transactionWithRLS(bid, async (txClient) => {
+      // Lock the service row first to prevent concurrent modifications
+      const svcLock = await txClient.query(
+        `SELECT id FROM services WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (svcLock.rows.length === 0) return { notFound: true };
+
+      // Only block on active bookings (pending, confirmed, modified_pending)
+      const active = await txClient.query(
+        `SELECT COUNT(*)::int AS cnt FROM bookings
+         WHERE service_id = $1 AND business_id = $2
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+        [id, bid]
+      );
+      if (active.rows[0].cnt > 0) {
+        return { conflict: true, count: active.rows[0].cnt };
+      }
+
+      // Remove terminal bookings (cancelled, completed, no_show) that would block FK
+      await txClient.query(
+        `DELETE FROM bookings
+         WHERE service_id = $1 AND business_id = $2
+         AND status IN ('cancelled', 'completed', 'no_show')`,
+        [id, bid]
+      );
+
+      // Safe to hard delete (variants + practitioner_services cascade)
+      await txClient.query(
+        `DELETE FROM services WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      return { deleted: true };
+    });
+
+    if (result.notFound) return res.status(404).json({ error: 'Prestation introuvable' });
+    if (result.conflict) {
       return res.status(409).json({
-        error: `Impossible de supprimer : ${active.rows[0].cnt} réservation(s) active(s). Annulez-les d'abord ou désactivez la prestation.`
+        error: `Impossible de supprimer : ${result.count} réservation(s) active(s). Annulez-les d'abord ou désactivez la prestation.`
       });
     }
-
-    // Remove terminal bookings (cancelled, completed, no_show) that would block FK
-    await queryWithRLS(bid,
-      `DELETE FROM bookings
-       WHERE service_id = $1 AND business_id = $2
-       AND status IN ('cancelled', 'completed', 'no_show')`,
-      [id, bid]
-    );
-
-    // Safe to hard delete (variants + practitioner_services cascade)
-    const result = await queryWithRLS(bid,
-      `DELETE FROM services WHERE id = $1 AND business_id = $2 RETURNING id`,
-      [id, bid]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
 
     res.json({ deleted: true });
   } catch (err) {
