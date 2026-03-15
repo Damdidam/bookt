@@ -16,6 +16,7 @@ const { broadcast } = require('./sse');
  */
 async function processExpiredDeposits() {
   const client = await pool.connect();
+  const cancelledBookingIds = [];
   try {
     await client.query('BEGIN');
 
@@ -34,7 +35,7 @@ async function processExpiredDeposits() {
     let processed = 0;
 
     for (const bk of expired.rows) {
-      // Cancel the booking + mark deposit as cancelled (kept by merchant)
+      // Cancel the booking + mark deposit as cancelled (never paid)
       const upd = await client.query(
         `UPDATE bookings
          SET status = 'cancelled',
@@ -71,6 +72,7 @@ async function processExpiredDeposits() {
       );
 
       processed++;
+      cancelledBookingIds.push(bk.id);
 
       // SSE notification to merchant dashboard
       broadcast(bk.business_id, 'booking_update', {
@@ -88,6 +90,51 @@ async function processExpiredDeposits() {
     }
 
     await client.query('COMMIT');
+
+    // Send cancellation emails AFTER commit (non-blocking)
+    for (const bkId of cancelledBookingIds) {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [bkId]
+        );
+        if (!fullBk.rows[0]?.client_email) continue;
+        const row = fullBk.rows[0];
+        let groupServices = null;
+        if (row.group_id) {
+          const grp = await query(
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                    COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+            [row.group_id, row.business_id]
+          );
+          if (grp.rows.length > 1) groupServices = grp.rows;
+        }
+        const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+        const { sendCancellationEmail } = require('./email');
+        await sendCancellationEmail({
+          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at },
+          business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+          groupServices
+        });
+      } catch (emailErr) {
+        console.warn('[DEPOSIT CRON] Cancellation email error for booking', bkId, ':', emailErr.message);
+      }
+    }
+
     return { processed };
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
