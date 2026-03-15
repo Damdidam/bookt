@@ -723,7 +723,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN practitioners p ON p.id = b.practitioner_id
          JOIN businesses biz ON biz.id = b.business_id
-         WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE`,
+         WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
         [id, bid]
       );
       if (bk.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
