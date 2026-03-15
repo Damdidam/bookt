@@ -903,21 +903,32 @@ async function calCreateBooking() {
         ? `${clientName} \u2014 ${count} ${categoryLabels.services.toLowerCase()} cr\u00e9\u00e9es !${extraStr}`
         : `${clientName} \u2014 RDV cr\u00e9\u00e9 !${extraStr}`;
 
-    // Check if deposit is required — show deposit notification panel
-    const mainBooking = result.booking || result.bookings?.[0];
     // Signal to Quick Booking that a booking was created (not just modal closed)
+    const mainBooking = result.booking || result.bookings?.[0];
     document.getElementById('calCreateModal')._soBooked = true;
-    if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
-      gToast(toastMsg, 'success');
-      fcRefresh();
-      _showDepositRequestPanel(mainBooking, clientName, clientEmail, clientPhone);
-      return;
-    }
 
     gToast(toastMsg, 'success');
     document.getElementById('calCreateModal')._dirtyGuard?.markClean();
     closeCalModal('calCreateModal');
     fcRefresh();
+
+    // Auto-send deposit request in background (no intermediate panel)
+    if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
+      const channel = clientEmail ? 'email' : (clientPhone ? 'sms' : null);
+      if (channel) {
+        try {
+          const dr = await fetch(`/api/bookings/${mainBooking.id}/send-deposit-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+            body: JSON.stringify({ channel })
+          });
+          if (dr.ok) {
+            const label = channel === 'sms' ? 'SMS' : 'email';
+            gToast(`Demande d\u2019acompte envoy\u00e9e par ${label}`, 'success');
+          }
+        } catch (_) { /* silent — booking already created */ }
+      }
+    }
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
   finally { calCreateBooking._busy = false; }
 }
