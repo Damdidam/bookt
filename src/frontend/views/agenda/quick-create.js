@@ -116,7 +116,7 @@ function fcOpenQuickCreate(startStr, endStr, resourceId) {
   const ttl = document.getElementById('qcTaskTitle'); if (ttl) ttl.value = '';
   const tn = document.getElementById('qcTaskNote'); if (tn) tn.value = '';
 
-  // Reset deposit toggle
+  // Reset deposit toggle + channels
   const depToggle = document.getElementById('qcDepositToggle');
   const depCheck = document.getElementById('qcDepositCheck');
   if (depToggle) depToggle.style.display = 'none';
@@ -125,6 +125,12 @@ function fcOpenQuickCreate(startStr, endStr, resourceId) {
   if (depAmtRow) depAmtRow.style.display = 'none';
   const depAmtInp = document.getElementById('qcDepositAmount');
   if (depAmtInp) depAmtInp.value = '';
+  const depChannels = document.getElementById('qcDepositChannels');
+  if (depChannels) depChannels.style.display = 'none';
+  const depEmailCb = document.getElementById('qcDepEmail');
+  const depSmsCb = document.getElementById('qcDepSms');
+  if (depEmailCb) depEmailCb.checked = true;
+  if (depSmsCb) depSmsCb.checked = false;
 
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
@@ -536,6 +542,7 @@ function qcCheckDepositSuggestion() {
     check.checked = true;
     _qcUpdateDepositVisual(true);
     _qcUpdateDepositAmountRow();
+    _qcUpdateDepositChannels(true);
     const reasons = [];
     if (priceHit) reasons.push((totalPrice / 100).toFixed(0) + '€');
     if (durHit) reasons.push(totalDur + ' min');
@@ -549,6 +556,7 @@ function qcDepositUserToggle(el) {
   el.dataset.userOverride = 'true';
   _qcUpdateDepositVisual(el.checked);
   _qcUpdateDepositAmountRow();
+  _qcUpdateDepositChannels(el.checked);
 }
 
 function _qcUpdateDepositVisual(on) {
@@ -556,6 +564,20 @@ function _qcUpdateDepositVisual(on) {
   const thumb = document.getElementById('qcDepositThumb');
   if (track) track.style.background = on ? '#D97706' : 'var(--border)';
   if (thumb) thumb.style.left = on ? '20px' : '2px';
+}
+
+function _qcUpdateDepositChannels(on) {
+  const row = document.getElementById('qcDepositChannels');
+  if (!row) return;
+  row.style.display = on ? 'flex' : 'none';
+  // Pre-check based on available client contact
+  const emailInput = document.getElementById('qcClient');
+  const phoneField = document.querySelector('#qcPhone input, #qcPhone');
+  // Default: email checked, SMS unchecked
+  const emailCb = document.getElementById('qcDepEmail');
+  const smsCb = document.getElementById('qcDepSms');
+  if (emailCb) emailCb.checked = true;
+  if (smsCb) smsCb.checked = false;
 }
 
 /** Show/hide the deposit amount input — only visible in freestyle mode + deposit ON */
@@ -912,10 +934,16 @@ async function calCreateBooking() {
     closeCalModal('calCreateModal');
     fcRefresh();
 
-    // Auto-send deposit request in background (no intermediate panel)
+    // Auto-send deposit request in background using selected channels
     if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
-      const channel = clientEmail ? 'email' : (clientPhone ? 'sms' : null);
-      if (channel) {
+      const wantEmail = document.getElementById('qcDepEmail')?.checked;
+      const wantSms = document.getElementById('qcDepSms')?.checked;
+      const channels = [];
+      if (wantEmail && clientEmail) channels.push('email');
+      if (wantSms && clientPhone) channels.push('sms');
+      // Fallback: if nothing selected but contact exists, send email
+      if (!channels.length && clientEmail) channels.push('email');
+      for (const channel of channels) {
         try {
           const dr = await fetch(`/api/bookings/${mainBooking.id}/send-deposit-request`, {
             method: 'POST',

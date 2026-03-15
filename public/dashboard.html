@@ -420,6 +420,14 @@
           <span id="qcDepositThumb" style="position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
         </label>
       </div>
+      <div id="qcDepositChannels" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #F5D08B;display:flex;gap:8px">
+        <label id="qcDepChannelEmail" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;border:1px solid #F59E0B;background:#FEF3E2;cursor:pointer;font-size:.75rem;font-weight:600;color:#92400E">
+          <input type="checkbox" id="qcDepEmail" checked style="accent-color:#D97706;width:14px;height:14px"> Email
+        </label>
+        <label id="qcDepChannelSms" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;border:1px solid #F5D08B;background:transparent;cursor:pointer;font-size:.75rem;font-weight:600;color:#92400E">
+          <input type="checkbox" id="qcDepSms" style="accent-color:#D97706;width:14px;height:14px"> SMS
+        </label>
+      </div>
     </div>
     <div class="m-bottom">
       <button class="m-btn m-btn-primary" id="qcBtnCreate" onclick="calCreateBooking()">Créer le RDV</button>
