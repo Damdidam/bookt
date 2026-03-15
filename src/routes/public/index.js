@@ -2732,7 +2732,7 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     }
 
     // Show confirmation landing page with a form button (no mutation on GET)
-    res.send(actionPage('Confirmer le rendez-vous', `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅'));
+    res.send(actionPage('Confirmer le rendez-vous', `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅', true));
   } catch (err) { next(err); }
 });
 
@@ -2810,7 +2810,7 @@ h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400
 }
 
 // Helper: build a standalone HTML action page (form with POST button)
-function actionPage(title, message, color, businessName, token, action, btnLabel) {
+function actionPage(title, message, color, businessName, token, action, btnLabel, autoSubmit) {
   const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2836,9 +2836,10 @@ h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400
   </div>
   <h1>${escHtml(title)}</h1>
   <p class="msg">${message}</p>
-  <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}">
+  <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}" id="af">
     <button type="submit" class="action-btn">${escHtml(btnLabel)}</button>
   </form>
+  ${autoSubmit ? '<script>document.getElementById("af").submit();</script>' : ''}
   ${businessName ? `<div class="divider"></div><p class="biz">${escHtml(businessName)}</p>` : ''}
 </div></body></html>`;
 }
