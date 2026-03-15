@@ -306,7 +306,7 @@ async function loadSiteSection(){
     }else{
       valueItems.forEach(v=>{
         h+=`<div class="news-item" data-id="${v.id}">
-          <div class="news-date" style="font-size:1.4rem">${esc(v.icon)||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}</div>
+          <div class="news-date" style="font-size:1.4rem">${v.icon||(v.icon===''?'':'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>')}</div>
           <div class="news-body">
             <div class="news-title-row"><span class="news-title">${esc(v.title||'')}</span></div>
             <div class="news-excerpt">${esc(v.description||'')}</div>
@@ -355,6 +355,29 @@ async function loadSiteSection(){
       </label>`;
     });
     h+=`</div></div></div>`;
+
+    // -- AVIS CLIENTS (Reviews) --
+    const revOn=!!(b.settings?.reviews_enabled);
+    const revDelay=b.settings?.review_delay_hours||24;
+    h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Avis clients</h3></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Recueillez les avis de vos clients après leur rendez-vous. Les avis sont publiés automatiquement sur votre mini-site.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+          <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les avis clients</div><div style="font-size:.75rem;color:var(--text-4)">Un email est envoyé au client après son rendez-vous</div></div>
+          <label style="position:relative;width:44px;height:24px;cursor:pointer">
+            <input type="checkbox" id="s_reviews_enabled" ${revOn?'checked':''} onchange="document.getElementById('reviewOptions').style.display=this.checked?'block':'none'" style="display:none">
+            <span style="position:absolute;inset:0;background:${revOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+            <span style="position:absolute;left:${revOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+          </label>
+        </div>
+        <div id="reviewOptions" style="display:${revOn?'block':'none'}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:.82rem;color:var(--text-3)">Envoyer la demande d'avis</span><input type="number" id="s_review_delay" value="${revDelay}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après le RDV</span></div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-bottom:10px">Recommandé : 24h (laisse le temps au client de profiter du service)</div>
+          <div style="padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les avis sont publiés automatiquement. Vous pouvez masquer les avis abusifs depuis la section "Avis clients" du dashboard. 1 seul avis par rendez-vous.</div>
+        </div>
+      </div>
+      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveReviewSettings()">Enregistrer</button></div>
+    </div>`;
 
     c.innerHTML=h;
     // Init branding color swatches
@@ -727,13 +750,26 @@ async function deleteValue(id){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveReviewSettings(){
+  try{
+    const data={
+      settings_reviews_enabled:document.getElementById('s_reviews_enabled').checked,
+      settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(data.settings_reviews_enabled?'Avis clients activés':'Avis clients désactivés','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 bridge({
   loadSiteSection, selectTheme, saveCustomColor,
   openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem,
   openNewsModal, saveNewsItem, editNewsItem, toggleNewsItem, deleteNewsItem,
   toggleSiteSection, saveSiteContent, saveSocialLinks, saveSEO,
   openTestimonialModal, saveTestimonial, editTestimonial, deleteTestimonial,
-  openValueModal, saveValue, editValue, deleteValue
+  openValueModal, saveValue, editValue, deleteValue,
+  saveReviewSettings
 });
 
 export { loadSiteSection };

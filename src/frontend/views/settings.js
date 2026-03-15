@@ -384,25 +384,6 @@ async function loadSettings(){
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveBookingConfirmSettings()">Enregistrer</button></div></div>`;
 
-    // 3d. Avis clients (Reviews)
-    const revOn=!!(b.settings?.reviews_enabled);
-    const revDelay=b.settings?.review_delay_hours||24;
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Avis clients</h3></div><div class="sc-body">`;
-    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Recueillez les avis de vos clients après leur rendez-vous. Les avis sont publiés automatiquement sur votre mini-site.</p>`;
-    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
-      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les avis clients</div><div style="font-size:.75rem;color:var(--text-4)">Un email est envoyé au client après son rendez-vous</div></div>
-      <label style="position:relative;width:44px;height:24px;cursor:pointer">
-        <input type="checkbox" id="s_reviews_enabled" ${revOn?'checked':''} onchange="document.getElementById('reviewOptions').style.display=this.checked?'block':'none'" style="display:none">
-        <span style="position:absolute;inset:0;background:${revOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
-        <span style="position:absolute;left:${revOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
-      </label>
-    </div>`;
-    h+=`<div id="reviewOptions" style="display:${revOn?'block':'none'}">`;
-    h+=`<div class="field"><label>Délai d'envoi de l'email</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Envoyer la demande d'avis</span><input type="number" id="s_review_delay" value="${revDelay}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après le RDV</span></div><div class="hint">Recommandé : 24h (laisse le temps au client de profiter du service)</div></div>`;
-    h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les avis sont publiés automatiquement. Vous pouvez masquer les avis abusifs depuis la section "Avis clients" du dashboard. 1 seul avis par rendez-vous.</div>`;
-    h+=`</div>`;
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveReviewSettings()">Enregistrer</button></div></div>`;
-
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
       <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</button></div></div>
@@ -916,19 +897,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-// ===== Reviews settings =====
-async function saveReviewSettings(){
-  try{
-    const data={
-      settings_reviews_enabled:document.getElementById('s_reviews_enabled').checked,
-      settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24
-    };
-    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
-    if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast(data.settings_reviews_enabled?'Avis clients activés':'Avis clients désactivés','success');window._settingsGuard?.markClean();
-  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
-}
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods, saveReviewSettings });
-
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods, saveReviewSettings };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
