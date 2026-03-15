@@ -43,7 +43,7 @@ async function propagateGroupStatus(client, { groupId, bid, excludeId, status, c
     );
   } else {
     result = await client.query(
-      `UPDATE bookings SET status = $1, updated_at = NOW()
+      `UPDATE bookings SET status = $1, updated_at = NOW()${status === 'confirmed' ? ', locked = true' : ''}
        WHERE group_id = $2 AND business_id = $3 AND id != $4 AND status = ANY($5)
        RETURNING id`,
       [status, groupId, bid, excludeId, validSources]
@@ -149,7 +149,7 @@ router.patch('/:id/status', async (req, res, next) => {
         );
       } else {
         await client.query(
-          `UPDATE bookings SET status = $1, updated_at = NOW()
+          `UPDATE bookings SET status = $1, updated_at = NOW()${status === 'confirmed' ? ', locked = true' : ''}
            WHERE id = $2 AND business_id = $3`,
           [status, id, bid]
         );
@@ -744,7 +744,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
       // Waive: confirm without payment
       await client.query(
         `UPDATE bookings SET status = 'confirmed', deposit_status = 'waived',
-          deposit_deadline = NULL, updated_at = NOW()
+          deposit_deadline = NULL, locked = true, updated_at = NOW()
          WHERE id = $1 AND business_id = $2`,
         [id, bid]
       );

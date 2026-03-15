@@ -997,7 +997,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
-             slot.processing_time || 0, slot.processing_start || 0, multiLocked]
+             slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked]
           );
           bookings.push(bk.rows[0]);
         }
@@ -1421,7 +1421,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
          RETURNING id, public_token, start_at, end_at, status, discount_pct`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
-         resolvedProcessingTime, resolvedProcessingStart, singleLocked, resolvedDiscountPct]
+         resolvedProcessingTime, resolvedProcessingStart, bookingStatus === 'confirmed' ? true : singleLocked, resolvedDiscountPct]
       );
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
@@ -1929,7 +1929,8 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         deposit_status = 'paid',
         deposit_paid_at = NOW(),
         deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
-        deposit_deadline = NULL
+        deposit_deadline = NULL,
+        locked = true
        WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
        RETURNING id`,
       [piId, bk.id, bk.business_id]
@@ -1939,7 +1940,7 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
       // Propagate to group siblings
       if (bk.group_id) {
         await query(
-          `UPDATE bookings SET status = 'confirmed'
+          `UPDATE bookings SET status = 'confirmed', locked = true
            WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'`,
           [bk.group_id, bk.business_id, bk.id]
         );
@@ -2245,7 +2246,7 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     }
 
     const result = await query(
-      `UPDATE bookings SET status = 'confirmed', updated_at = NOW()
+      `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
        WHERE public_token = $1 AND status = 'modified_pending'
        RETURNING id, status, start_at, end_at, business_id`,
       [token]
@@ -2543,7 +2544,7 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
 
     // Attempt direct confirmation (pending → confirmed)
     const result = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
+      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
        WHERE public_token = $1 AND status = 'pending'
          AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
        RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
@@ -2555,7 +2556,7 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
 
       // Also confirm group siblings
       await query(
-        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
          WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
            AND id != $1 AND status = 'pending'`,
         [bk.id]
@@ -2827,7 +2828,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
 
     // Confirm the booking (pending → confirmed, only if not expired)
     const result = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
+      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
        WHERE public_token = $1 AND status = 'pending'
          AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
        RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
@@ -2857,7 +2858,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
 
     // Also confirm group siblings if any
     await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
+      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
        WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
          AND id != $1 AND status = 'pending'`,
       [bk.id]
@@ -3333,8 +3334,8 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Create booking
       const bk = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-          channel, start_at, end_at, status)
-         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed')
+          channel, start_at, end_at, status, locked)
+         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed', true)
          RETURNING id, public_token, start_at, end_at, status`,
         [e.business_id, e.practitioner_id, e.service_id, clientId,
          e.offer_booking_start, e.offer_booking_end]

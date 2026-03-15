@@ -142,7 +142,7 @@ router.post('/manual', async (req, res, next) => {
            appointment_mode || 'cabinet',
            realStart.toISOString(), realEnd.toISOString(),
            bookingStatus,
-           comment || null, custom_label || null, safeColor, !!locked]
+           comment || null, custom_label || null, safeColor, bookingStatus === 'confirmed' ? true : !!locked]
         );
 
         await client.query(
@@ -398,7 +398,7 @@ router.post('/manual', async (req, res, next) => {
            bookingStatus,
            comment || null,
            groupId, slot.group_order,
-           slot.processing_time || 0, slot.processing_start || 0, !!locked]
+           slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : !!locked]
         );
         results.push(result.rows[0]);
 
