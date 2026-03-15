@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "dev:client": "vite --config vite.config.js",
+    "build": "vite build --config vite.config.js",
     "build:client": "vite build --config vite.config.js",
     "preview:client": "vite preview --config vite.config.js",
     "db:init": "node src/utils/db-init.js",
