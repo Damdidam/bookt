@@ -154,12 +154,14 @@ router.patch('/:id/move', async (req, res, next) => {
 
     // ── GROUP MOVE: recalculate all slots from the first booking's new start ──
     if (draggedBooking.group_id) {
-      // Fetch all group members with their service durations, ordered
+      // Fetch all group members with their service/variant durations, ordered
       const groupRes = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.practitioner_id,
-                s.duration_min, s.buffer_before_min, s.buffer_after_min
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                s.buffer_before_min, s.buffer_after_min
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          WHERE b.group_id = $1 AND b.business_id = $2
          ORDER BY b.group_order`,
         [draggedBooking.group_id, bid]
