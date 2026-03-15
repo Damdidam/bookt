@@ -2366,10 +2366,18 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(400).json({ error: 'Délai de modification dépassé' });
     }
 
+    // Cancel + handle deposit refund (client rejected staff's modification → always refund)
     const result = await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification', updated_at = NOW()
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
+        deposit_status = CASE
+          WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+          ELSE deposit_status
+        END,
+        updated_at = NOW()
        WHERE public_token = $1 AND status = 'modified_pending'
-       RETURNING id, status, start_at, end_at, business_id`,
+       RETURNING id, status, start_at, end_at, business_id,
+                 deposit_required, deposit_status, deposit_payment_intent_id`,
       [token]
     );
 
@@ -2389,30 +2397,43 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être refusé dans son état actuel' });
     }
 
+    // Stripe refund if deposit was paid (client rejected staff modification → always refund)
+    const rejBk = result.rows[0];
+    if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id && rejBk.deposit_payment_intent_id.startsWith('pi_')) {
+      try {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (key) {
+          const stripe = require('stripe')(key);
+          await stripe.refunds.create({ payment_intent: rejBk.deposit_payment_intent_id });
+        }
+      } catch (stripeErr) {
+        if (stripeErr.code !== 'charge_already_refunded') {
+          console.error('[REJECT] Stripe refund failed:', stripeErr.message);
+        }
+      }
+    }
+
     // Notify practitioner
     // NOTE: notification types may need a DB migration to add to the CHECK constraint
     try {
       await query(
         `INSERT INTO notifications (business_id, booking_id, type, status)
          VALUES ($1, $2, 'email_modification_rejected', 'queued')`,
-        [result.rows[0].business_id, result.rows[0].id]
+        [rejBk.business_id, rejBk.id]
       );
     } catch (notifErr) {
       console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
     }
 
-    broadcast(result.rows[0].business_id, 'booking_update', { action: 'rejected', source: 'public' });
+    broadcast(rejBk.business_id, 'booking_update', { action: 'rejected', source: 'public' });
 
     // Send cancellation confirmation email to client (non-blocking)
     (async () => {
       try {
-        const bkId = result.rows[0].id;
-        const bizId = result.rows[0].business_id;
         const fullBk = await query(
-          `SELECT b.start_at, b.end_at, b.group_id, b.business_id,
-                  c.full_name AS client_name, c.email AS client_email,
-                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
                   biz.theme AS biz_theme, biz.slug AS biz_slug
            FROM bookings b
@@ -2421,7 +2442,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
            JOIN businesses biz ON biz.id = b.business_id
-           WHERE b.id = $1`, [bkId]
+           WHERE b.id = $1`, [rejBk.id]
         );
         if (fullBk.rows[0]?.client_email) {
           const row = fullBk.rows[0];
@@ -2719,7 +2740,7 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
 
     const result = await query(
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.deposit_required, b.deposit_status, b.group_id,
+              b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
               biz.name AS business_name, biz.theme, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`,
@@ -2772,6 +2793,22 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
 
     if (cancelResult.rowCount === 0) {
       return res.send(confirmationPage('D\u00e9j\u00e0 modifi\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 modifi\u00e9 ou annul\u00e9.', '#A68B3C', bk.business_name));
+    }
+
+    // Stripe refund if deposit was refunded
+    const cancelledBk = cancelResult.rows[0];
+    if (cancelledBk.deposit_status === 'refunded' && bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('pi_')) {
+      try {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (key) {
+          const stripe = require('stripe')(key);
+          await stripe.refunds.create({ payment_intent: bk.deposit_payment_intent_id });
+        }
+      } catch (stripeErr) {
+        if (stripeErr.code !== 'charge_already_refunded') {
+          console.error('[CANCEL-BOOKING] Stripe refund failed:', stripeErr.message);
+        }
+      }
     }
 
     // Cancel group siblings
