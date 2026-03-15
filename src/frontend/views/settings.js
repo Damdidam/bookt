@@ -384,6 +384,79 @@ async function loadSettings(){
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveBookingConfirmSettings()">Enregistrer</button></div></div>`;
 
+    // 3d. Avis clients (Reviews)
+    const revOn=!!(b.settings?.reviews_enabled);
+    const revDelay=b.settings?.review_delay_hours||24;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Avis clients</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Recueillez les avis de vos clients après leur rendez-vous. Les avis sont publiés automatiquement sur votre mini-site.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les avis clients</div><div style="font-size:.75rem;color:var(--text-4)">Un email est envoyé au client après son rendez-vous</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_reviews_enabled" ${revOn?'checked':''} onchange="document.getElementById('reviewOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${revOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${revOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="reviewOptions" style="display:${revOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Délai d'envoi de l'email</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Envoyer la demande d'avis</span><input type="number" id="s_review_delay" value="${revDelay}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après le RDV</span></div><div class="hint">Recommandé : 24h (laisse le temps au client de profiter du service)</div></div>`;
+    h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les avis sont publiés automatiquement. Vous pouvez masquer les avis abusifs depuis la section "Avis clients" du dashboard. 1 seul avis par rendez-vous.</div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveReviewSettings()">Enregistrer</button></div></div>`;
+
+    // 3e. Mini-site — Template, thème et sections
+    const curPreset=b.theme?.preset||'classique';
+    const curColor=b.theme?.primary_color||'';
+    const sec=b.page_sections||{};
+    const THEME_LABELS={classique:'Classique',prestige:'Prestige',zen:'Zen',moderne:'Moderne',chaleureux:'Chaleureux',ocean:'Océan',funky:'Funky',epure_nude:'Nude',epure_sauge:'Sauge',epure_blush:'Blush',bold_nuit:'Nuit',bold_foret:'Forêt',bold_bordeaux:'Bordeaux',bold_electrique:'Électrique'};
+    const THEME_COLORS={classique:'#0D7377',prestige:'#1E3A5F',zen:'#6B7F5E',moderne:'#111',chaleureux:'#8B4513',ocean:'#1565C0',funky:'#E8694A',epure_nude:'#B8977E',epure_sauge:'#7D8B75',epure_blush:'#C4898A',bold_nuit:'#D4AF37',bold_foret:'#A8C5A0',bold_bordeaux:'#E8A0BF',bold_electrique:'#4ECDC4'};
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> Mini-site</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Personnalisez l'apparence de votre page publique et choisissez les sections à afficher.</p>`;
+
+    // Theme selector
+    h+=`<div class="field"><label>Thème</label><div id="themeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">`;
+    Object.keys(THEME_LABELS).forEach(tid=>{
+      const active=curPreset===tid;
+      const color=THEME_COLORS[tid]||'#666';
+      const isDark=['bold_nuit','bold_foret','bold_bordeaux','bold_electrique'].includes(tid);
+      h+=`<div data-theme="${tid}" onclick="selectTheme('${tid}')" style="padding:10px;border:2px solid ${active?'var(--primary)':'var(--border)'};border-radius:10px;cursor:pointer;text-align:center;transition:all .15s;background:${isDark?'#1a1a2e':'var(--surface)'}">
+        <div style="width:28px;height:28px;border-radius:50%;background:${color};margin:0 auto 6px;border:2px solid ${isDark?'rgba(255,255,255,.2)':'rgba(0,0,0,.08)'}"></div>
+        <div style="font-size:.72rem;font-weight:600;color:${isDark?'#e0e0e0':'var(--text)'};line-height:1.2">${THEME_LABELS[tid]}</div>
+      </div>`;
+    });
+    h+=`</div></div>`;
+
+    // Custom primary color
+    h+=`<div class="field" style="margin-top:8px"><label>Couleur principale personnalisée (optionnel)</label><div style="display:flex;align-items:center;gap:10px"><input type="color" id="s_custom_color" value="${curColor||THEME_COLORS[curPreset]||'#0D7377'}" oninput="document.getElementById('s_custom_color_hex').value=this.value" style="width:40px;height:34px;border:1.5px solid var(--border);border-radius:8px;padding:2px;cursor:pointer"><input type="text" id="s_custom_color_hex" value="${esc(curColor)}" placeholder="Ex: #E8694A" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))document.getElementById('s_custom_color').value=this.value" style="width:120px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace"><button class="btn-outline btn-sm" onclick="document.getElementById('s_custom_color_hex').value=''" style="font-size:.72rem">Reset</button></div><div class="hint">Laissez vide pour utiliser la couleur par défaut du thème</div></div>`;
+
+    // Custom color — onchange inline (no script tag needed)
+    // Color picker syncs to hex via oninput on the color input itself
+
+    // Section toggles
+    h+=`<div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px">`;
+    h+=`<div style="font-size:.88rem;font-weight:600;margin-bottom:4px">Sections visibles</div>`;
+    h+=`<div style="font-size:.75rem;color:var(--text-4);margin-bottom:14px">Choisissez les sections à afficher sur votre mini-site.</div>`;
+    const SECTIONS=[
+      {id:'services',label:'Prestations',desc:'Liste de vos services avec tarifs',default:true},
+      {id:'about',label:'À propos',desc:'Présentation du cabinet',default:true},
+      {id:'team',label:'Équipe',desc:'Praticiens et collaborateurs',default:true},
+      {id:'gallery',label:'Galerie',desc:'Photos et réalisations',default:true},
+      {id:'specializations',label:'Spécialisations',desc:'Domaines d\'expertise',default:true},
+      {id:'testimonials',label:'Témoignages',desc:'Avis statiques (manuels)',default:true},
+      {id:'reviews',label:'Avis clients',desc:'Avis automatiques après RDV',default:true},
+      {id:'news',label:'Actualités',desc:'Articles et nouvelles',default:true}
+    ];
+    h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="sectionToggles">`;
+    SECTIONS.forEach(s=>{
+      const on=sec[s.id]!==false&&(sec[s.id]||s.default);
+      h+=`<label style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid ${on?'var(--primary)':'var(--border)'};border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;background:${on?'var(--primary-lightest,#F0FDFA)':'var(--surface)'}" data-sec="${s.id}">
+        <input type="checkbox" value="${s.id}" ${on?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" onchange="updateSectionStyle(this)">
+        <div><div style="font-size:.82rem;font-weight:500;color:var(--text)">${s.label}</div><div style="font-size:.72rem;color:var(--text-4)">${s.desc}</div></div>
+      </label>`;
+    });
+    h+=`</div></div>`;
+
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveMinisiteSettings()">Enregistrer</button></div></div>`;
+
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
       <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</button></div></div>
@@ -897,6 +970,70 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+// ===== Reviews settings =====
+async function saveReviewSettings(){
+  try{
+    const data={
+      settings_reviews_enabled:document.getElementById('s_reviews_enabled').checked,
+      settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(data.settings_reviews_enabled?'Avis clients activés':'Avis clients désactivés','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
+// ===== Minisite settings =====
+const THEME_COLORS_MAP={classique:'#0D7377',prestige:'#1E3A5F',zen:'#6B7F5E',moderne:'#111',chaleureux:'#8B4513',ocean:'#1565C0',funky:'#E8694A',epure_nude:'#B8977E',epure_sauge:'#7D8B75',epure_blush:'#C4898A',bold_nuit:'#D4AF37',bold_foret:'#A8C5A0',bold_bordeaux:'#E8A0BF',bold_electrique:'#4ECDC4'};
+window.THEME_COLORS_MAP=THEME_COLORS_MAP;
+
+function selectTheme(tid){
+  const grid=document.getElementById('themeGrid');
+  if(!grid)return;
+  grid.querySelectorAll('[data-theme]').forEach(el=>{
+    const isActive=el.dataset.theme===tid;
+    el.style.borderColor=isActive?'var(--primary)':'var(--border)';
+  });
+  // Update color picker to theme default
+  const col=THEME_COLORS_MAP[tid]||'#0D7377';
+  const hexInput=document.getElementById('s_custom_color_hex');
+  if(hexInput&&!hexInput.value)document.getElementById('s_custom_color').value=col;
+}
+
+function updateSectionStyle(cb){
+  const lbl=cb.closest('label[data-sec]');
+  if(!lbl)return;
+  lbl.style.borderColor=cb.checked?'var(--primary)':'var(--border)';
+  lbl.style.background=cb.checked?'var(--primary-lightest,#F0FDFA)':'var(--surface)';
+}
+
+async function saveMinisiteSettings(){
+  try{
+    // Get selected theme
+    const grid=document.getElementById('themeGrid');
+    let preset='classique';
+    if(grid){
+      const active=grid.querySelector('[data-theme][style*="var(--primary)"]');
+      if(active)preset=active.dataset.theme;
+    }
+    const customColor=document.getElementById('s_custom_color_hex')?.value||'';
+    const theme={preset,primary_color:(/^#[0-9a-fA-F]{6}$/.test(customColor)?customColor:'')};
+
+    // Get section toggles
+    const sectionGrid=document.getElementById('sectionToggles');
+    const page_sections={};
+    if(sectionGrid){
+      sectionGrid.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+        page_sections[cb.value]=cb.checked;
+      });
+    }
+
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({theme,page_sections})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Mini-site enregistré','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods, saveReviewSettings, selectTheme, updateSectionStyle, saveMinisiteSettings });
+
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods, saveReviewSettings, selectTheme, updateSectionStyle, saveMinisiteSettings };

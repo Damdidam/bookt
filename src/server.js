@@ -43,6 +43,7 @@ const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
 const taskRoutes = require('./routes/staff/tasks');
 const businessHoursRoutes = require('./routes/staff/business-hours');
+const reviewRoutes = require('./routes/staff/reviews');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 const stripeRoutes = require('./routes/staff/stripe');
 const { handleStripeWebhook } = require('./routes/staff/stripe');
@@ -181,6 +182,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/featured-slots', featuredSlotsRoutes);
 app.use('/api/planning', planningRoutes);
 app.use('/api/tasks', taskRoutes);
@@ -216,6 +218,11 @@ app.get('/booking/:token', (req, res) => {
 // /deposit/:token → public deposit details page
 app.get('/deposit/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/deposit.html'));
+});
+
+// /review/:token → public review submission page
+app.get('/review/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/review.html'));
 });
 
 // /waitlist/:token → waitlist offer page

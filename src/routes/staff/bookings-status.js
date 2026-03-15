@@ -620,6 +620,55 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { console.warn('[EMAIL] Confirmation email fetch error:', e.message); }
     }
 
+    // ===== Schedule review request email when booking is completed =====
+    if (status === 'completed') {
+      try {
+        const reviewData = await queryWithRLS(bid,
+          `SELECT b.id, b.client_id, b.review_token,
+                  c.full_name AS client_name, c.email AS client_email, c.first_name,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  p.display_name AS practitioner_name,
+                  biz.name AS business_name, biz.email AS business_email,
+                  biz.address, biz.theme, biz.settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        if (reviewData.rows.length > 0 && reviewData.rows[0].client_email) {
+          const rd = reviewData.rows[0];
+          const settings = rd.settings || {};
+          if (settings.reviews_enabled) {
+            const delayHours = settings.review_delay_hours ?? 24;
+            // Generate review token if not already set
+            let reviewToken = rd.review_token;
+            if (!reviewToken) {
+              const crypto = require('crypto');
+              reviewToken = crypto.randomBytes(20).toString('hex');
+              await queryWithRLS(bid,
+                `UPDATE bookings SET review_token = $1 WHERE id = $2 AND business_id = $3`,
+                [reviewToken, id, bid]
+              );
+            }
+            // Schedule email after delay (use setTimeout for simplicity)
+            const delayMs = delayHours * 3600000;
+            const { sendReviewRequestEmail } = require('../../services/email');
+            setTimeout(() => {
+              sendReviewRequestEmail({
+                booking: { client_name: rd.client_name, client_email: rd.client_email, first_name: rd.first_name, service_name: rd.service_name, practitioner_name: rd.practitioner_name, review_token: reviewToken },
+                business: { name: rd.business_name, email: rd.business_email, address: rd.address, theme: rd.theme, settings }
+              }).catch(e => console.warn('[EMAIL] Review request email error:', e.message));
+            }, delayMs);
+            console.log(`[REVIEW] Review email scheduled for booking ${id} in ${delayHours}h`);
+          }
+        }
+      } catch (e) { console.warn('[REVIEW] Review scheduling error:', e.message); }
+    }
+
     broadcast(bid, 'booking_update', { action: 'status_changed', booking_id: id, status, old_status: txResult.oldStatus });
     // STS-10: Broadcast for each affected sibling
     if (txResult.affectedSiblingIds && txResult.affectedSiblingIds.length > 0) {

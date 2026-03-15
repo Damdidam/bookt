@@ -1028,4 +1028,51 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send review request email — sent X hours after appointment completion
+ */
+async function sendReviewRequestEmail({ booking, business }) {
+  const color = safeColor(business.theme?.primary_color);
+  const firstName = escHtml(booking.first_name || booking.client_name?.split(' ')[0] || 'Client');
+  const serviceName = escHtml(booking.service_name || 'votre rendez-vous');
+  const practitioner = booking.practitioner_name ? ` avec ${escHtml(booking.practitioner_name)}` : '';
+  const safeBizName = escHtml(business.name);
+
+  const reviewUrl = `${process.env.BASE_URL || 'https://genda.be'}/review/${booking.review_token}`;
+
+  // Star rating buttons (1-5)
+  const starsHTML = [1, 2, 3, 4, 5].map(n => {
+    const stars = '★'.repeat(n) + '☆'.repeat(5 - n);
+    return `<a href="${reviewUrl}?r=${n}" style="display:inline-block;padding:8px 12px;margin:0 4px;background:${n >= 4 ? color : '#F5F4F1'};color:${n >= 4 ? '#fff' : '#6B5E54'};text-decoration:none;border-radius:8px;font-size:16px">${stars}</a>`;
+  }).join('');
+
+  const bodyHTML = `
+    <p>Bonjour ${firstName},</p>
+    <p>Merci d'avoir choisi <strong>${safeBizName}</strong> pour ${serviceName}${practitioner}. Nous espérons que vous avez passé un agréable moment !</p>
+    <p style="margin:20px 0 8px;font-weight:600">Comment évalueriez-vous votre expérience ?</p>
+    <div style="text-align:center;margin:16px 0">${starsHTML}</div>
+    <p style="color:#9C958E;font-size:13px;text-align:center">Cliquez sur les étoiles ou sur le bouton ci-dessous pour donner votre avis.</p>
+  `;
+
+  const html = buildEmailHTML({
+    title: 'Votre avis compte !',
+    preheader: `Comment s'est passé votre RDV chez ${safeBizName} ?`,
+    bodyHTML,
+    ctaText: 'Donner mon avis',
+    ctaUrl: reviewUrl,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Votre avis compte — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

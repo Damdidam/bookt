@@ -3921,4 +3921,136 @@ router.get('/booking/:token/ics', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── Review submission page ─────────────────────────────────────────
+router.get('/review/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    // Check if review already exists
+    const existing = await query(
+      `SELECT r.id, r.rating, r.comment, r.created_at, r.updated_at,
+              b.business_id, biz.name as business_name, biz.settings,
+              s.name as service_name, sv.name as variant_name,
+              p.display_name as practitioner_name
+       FROM reviews r
+       JOIN bookings b ON b.id = r.booking_id
+       JOIN businesses biz ON biz.id = r.business_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       WHERE r.token = $1`,
+      [token]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      return res.json({
+        already_submitted: true,
+        review: { rating: row.rating, comment: row.comment, created_at: row.created_at, updated_at: row.updated_at },
+        business_name: row.business_name,
+        service_name: row.variant_name ? `${row.service_name} — ${row.variant_name}` : row.service_name,
+        practitioner_name: row.practitioner_name,
+        primary_color: row.settings?.theme?.primary_color || '#6B5E54'
+      });
+    }
+    // No review yet — find the booking via review_token
+    const bk = await query(
+      `SELECT b.id, b.business_id, b.service_id, b.service_variant_id, b.practitioner_id, b.client_id,
+              b.start_at, b.review_token,
+              biz.name as business_name, biz.settings,
+              s.name as service_name, sv.name as variant_name,
+              p.display_name as practitioner_name,
+              c.first_name as client_first_name
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.review_token = $1 AND b.status = 'completed'`,
+      [token]
+    );
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    const b = bk.rows[0];
+    res.json({
+      already_submitted: false,
+      business_name: b.business_name,
+      service_name: b.variant_name ? `${b.service_name} — ${b.variant_name}` : b.service_name,
+      practitioner_name: b.practitioner_name,
+      client_first_name: b.client_first_name,
+      appointment_date: b.start_at,
+      primary_color: b.settings?.theme?.primary_color || '#6B5E54'
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── Submit a review ────────────────────────────────────────────────
+router.post('/review/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { rating, comment } = req.body;
+    // Validate
+    const r = parseInt(rating);
+    if (!r || r < 1 || r > 5) return res.status(400).json({ error: 'Note invalide (1-5)' });
+    const safeComment = (comment || '').replace(/<[^>]*>/g, '').trim().substring(0, 1000);
+    // Find booking
+    const bk = await query(
+      `SELECT id, business_id, client_id, practitioner_id, review_token
+       FROM bookings WHERE review_token = $1 AND status = 'completed'`,
+      [token]
+    );
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    const b = bk.rows[0];
+    // Check if review already exists for this booking
+    const dup = await query(`SELECT id FROM reviews WHERE booking_id = $1`, [b.id]);
+    if (dup.rows.length > 0) {
+      // Update existing review
+      const upd = await query(
+        `UPDATE reviews SET rating = $1, comment = $2, updated_at = NOW() WHERE booking_id = $3 RETURNING *`,
+        [r, safeComment, b.id]
+      );
+      return res.json({ review: upd.rows[0], updated: true });
+    }
+    // Insert new review (reuse booking's review_token)
+    const result = await query(
+      `INSERT INTO reviews (business_id, booking_id, client_id, practitioner_id, rating, comment, token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [b.business_id, b.id, b.client_id, b.practitioner_id, r, safeComment, token]
+    );
+    res.json({ review: result.rows[0], created: true });
+  } catch (err) { next(err); }
+});
+
+// ─── Public reviews for minisite ────────────────────────────────────
+router.get('/:slug/reviews', async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    // Find business
+    const biz = await query(`SELECT id FROM businesses WHERE slug = $1`, [slug]);
+    if (biz.rows.length === 0) return res.status(404).json({ error: 'Établissement introuvable' });
+    const bid = biz.rows[0].id;
+    // Get published reviews
+    const reviews = await query(
+      `SELECT r.rating, r.comment, r.owner_reply, r.owner_reply_at, r.created_at,
+              c.first_name, LEFT(c.last_name, 1) as last_initial,
+              p.display_name as practitioner_name
+       FROM reviews r
+       LEFT JOIN clients c ON c.id = r.client_id
+       LEFT JOIN practitioners p ON p.id = r.practitioner_id
+       WHERE r.business_id = $1 AND r.status = 'published'
+       ORDER BY r.created_at DESC
+       LIMIT 50`,
+      [bid]
+    );
+    // Stats
+    const stats = await query(
+      `SELECT COUNT(*)::int as total, ROUND(AVG(rating)::numeric, 1)::float as average
+       FROM reviews WHERE business_id = $1 AND status = 'published'`,
+      [bid]
+    );
+    res.json({
+      reviews: reviews.rows,
+      stats: stats.rows[0] || { total: 0, average: 0 }
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

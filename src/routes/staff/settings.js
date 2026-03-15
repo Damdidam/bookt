@@ -86,6 +86,10 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_payment_methods,
       // Move restriction settings
       settings_move_restriction_enabled, settings_move_deadline_hours, settings_move_grace_hours,
+      // Reviews settings
+      settings_reviews_enabled, settings_review_delay_hours, settings_review_auto_publish,
+      // Minisite template
+      settings_minisite_template,
       // Sector
       sector
     } = req.body;
@@ -113,7 +117,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
         || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined
         || settings_default_calendar_view !== undefined
-        || settings_payment_methods !== undefined) {
+        || settings_payment_methods !== undefined
+        || settings_reviews_enabled !== undefined || settings_review_delay_hours !== undefined || settings_review_auto_publish !== undefined
+        || settings_minisite_template !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -176,6 +182,15 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_payment_methods !== undefined) {
         const validMethods = ['cash', 'card', 'bancontact', 'apple_pay', 'google_pay', 'payconiq', 'instant_transfer', 'bank_transfer'];
         cur.payment_methods = Array.isArray(settings_payment_methods) ? settings_payment_methods.filter(m => validMethods.includes(m)) : [];
+      }
+      // Reviews
+      if (settings_reviews_enabled !== undefined) cur.reviews_enabled = !!settings_reviews_enabled;
+      if (settings_review_delay_hours !== undefined) { const _v = parseInt(settings_review_delay_hours); cur.review_delay_hours = (_v >= 1 && _v <= 168) ? _v : 24; }
+      if (settings_review_auto_publish !== undefined) cur.review_auto_publish = !!settings_review_auto_publish;
+      // Minisite template
+      if (settings_minisite_template !== undefined) {
+        const validTemplates = ['funky', 'epure', 'bold'];
+        cur.minisite_template = validTemplates.includes(settings_minisite_template) ? settings_minisite_template : 'funky';
       }
       mergedSettings = cur;
     }
