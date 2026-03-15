@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { query, queryWithRLS } = require('../../services/db');
 const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
-const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
+const { bookingLimiter, slotsLimiter, clientPhoneLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
@@ -665,7 +665,7 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 // GET /api/public/:slug/client-phone
 // Lookup known client phone by email (for form auto-fill)
 // ============================================================
-router.get('/:slug/client-phone', slotsLimiter, async (req, res, next) => {
+router.get('/:slug/client-phone', clientPhoneLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const email = (req.query.email || '').trim().toLowerCase();
@@ -713,6 +713,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     }
     if (client_phone && typeof client_phone !== 'string') {
       return res.status(400).json({ error: 'Les champs client doivent être des chaînes de caractères' });
+    }
+
+    // M4: Validate oauth_provider if provided
+    const VALID_OAUTH_PROVIDERS = ['google', 'facebook', 'apple', 'microsoft'];
+    if (oauth_provider && (!VALID_OAUTH_PROVIDERS.includes(oauth_provider) || typeof oauth_provider !== 'string')) {
+      return res.status(400).json({ error: 'oauth_provider invalide' });
+    }
+    if (oauth_provider_id && (typeof oauth_provider_id !== 'string' || oauth_provider_id.length > 500)) {
+      return res.status(400).json({ error: 'oauth_provider_id invalide' });
     }
 
     if (!UUID_RE.test(practitioner_id)) {
@@ -1044,13 +1053,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
               group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked)
-             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,
-              ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-              $13,$14,$15)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
             [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
+             needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
              slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked]
           );
           bookings.push(bk.rows[0]);
@@ -1482,12 +1490,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
           processing_time, processing_start, locked, discount_pct)
-         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,
-          ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-          $11,$12,$13,$14)
+         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          RETURNING id, public_token, start_at, end_at, status, discount_pct`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
+         needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
          resolvedProcessingTime, resolvedProcessingStart, bookingStatus === 'confirmed' ? true : singleLocked, resolvedDiscountPct]
       );
 
@@ -1992,24 +1999,24 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
     const piId = session.payment_intent || null;
     console.log(`[DEPOSIT VERIFY] Payment confirmed for booking ${bk.id} (PI: ${piId}, CS: ${csId})`);
 
-    const upd = await query(
-      `UPDATE bookings SET
-        status = 'confirmed',
-        deposit_status = 'paid',
-        deposit_paid_at = NOW(),
-        deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
-        deposit_deadline = NULL,
-        locked = true
-       WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
-       RETURNING id`,
-      [piId, bk.id, bk.business_id]
-    );
-
-    if (upd.rows.length > 0) {
-      // Propagate to group siblings (H1: include deposit fields)
+    // M3: Wrap primary + siblings update in transaction for atomicity
+    const { transactionWithRLS: txRLS } = require('../../services/db');
+    const txResult = await txRLS(bk.business_id, async (txClient) => {
+      const upd = await txClient.query(
+        `UPDATE bookings SET
+          status = 'confirmed',
+          deposit_status = 'paid',
+          deposit_paid_at = NOW(),
+          deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
+          deposit_deadline = NULL,
+          locked = true
+         WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
+         RETURNING id`,
+        [piId, bk.id, bk.business_id]
+      );
       let sibIds = [];
-      if (bk.group_id) {
-        const sibResult = await query(
+      if (upd.rows.length > 0 && bk.group_id) {
+        const sibResult = await txClient.query(
           `UPDATE bookings SET status = 'confirmed', locked = true,
             deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
            WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
@@ -2018,6 +2025,13 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         );
         sibIds = sibResult.rows.map(r => r.id);
       }
+      return { upd, sibIds };
+    });
+
+    const upd = txResult.upd;
+    const sibIds = txResult.sibIds || [];
+
+    if (upd.rows.length > 0) {
 
       // SSE broadcast
       try {
@@ -2164,7 +2178,7 @@ router.get('/booking/:token/calendar.ics', async (req, res, next) => {
 
     res.set({
       'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': `attachment; filename="rdv-${bk.business_name.replace(/[^a-zA-Z0-9]/g, '_')}.ics"`
+      'Content-Disposition': `attachment; filename="rdv-${(bk.business_name || 'genda').replace(/[^a-zA-Z0-9]/g, '_')}.ics"`
     });
     res.send(ics);
   } catch (err) {
@@ -2249,6 +2263,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
         await query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
             deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
               WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
               ELSE deposit_status
             END,
@@ -2406,21 +2421,41 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être confirmé dans son état actuel' });
     }
 
+    // M1: Propagate to group siblings (multi-service bookings)
+    const confirmedBk = result.rows[0];
+    if (confirmedBk.id) {
+      const grpCheck = await query(`SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL`, [confirmedBk.id]);
+      if (grpCheck.rows.length > 0) {
+        try {
+          const sibResult = await query(
+            `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
+             WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'modified_pending'
+             RETURNING id`,
+            [grpCheck.rows[0].group_id, confirmedBk.business_id, confirmedBk.id]
+          );
+          // calSyncPush for siblings
+          for (const sib of sibResult.rows) {
+            try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(confirmedBk.business_id, sib.id); } catch (_) {}
+          }
+        } catch (e) { console.warn('[CONFIRM] Group sibling propagation error:', e.message); }
+      }
+    }
+
     // Queue notification to practitioner
     // NOTE: notification types may need a DB migration to add to the CHECK constraint
     try {
       await query(
         `INSERT INTO notifications (business_id, booking_id, type, status)
          VALUES ($1, $2, 'email_modification_confirmed', 'queued')`,
-        [result.rows[0].business_id, result.rows[0].id]
+        [confirmedBk.business_id, confirmedBk.id]
       );
     } catch (notifErr) {
       console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
     }
 
-    broadcast(result.rows[0].business_id, 'booking_update', { action: 'confirmed', source: 'public' });
-    // M3: calSyncPush on modified_pending → confirmed
-    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(result.rows[0].business_id, result.rows[0].id); } catch (_) {}
+    broadcast(confirmedBk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+    // calSyncPush on modified_pending → confirmed
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(confirmedBk.business_id, confirmedBk.id); } catch (_) {}
 
     if (isForm && displayData) {
       return res.send(confirmationPage('Rendez-vous confirmé ✅', `${escHtml(displayData.service_name) || 'Votre rendez-vous'} le <strong>${escHtml(displayData._dt)} à ${escHtml(displayData._tm)}</strong> est confirmé. Merci !`, displayData._color, displayData.business_name));
@@ -2519,6 +2554,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
         await query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
             deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
               WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
               ELSE deposit_status
             END,
@@ -2977,7 +3013,11 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       try {
         await query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Annul\u00e9 par le client (email)',
-            deposit_status = CASE WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled' ELSE deposit_status END,
+            deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+              ELSE deposit_status
+            END,
             updated_at = NOW()
            WHERE group_id = $1 AND business_id = $2 AND id != $3
              AND status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')`,

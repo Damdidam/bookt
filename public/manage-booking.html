@@ -78,6 +78,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 </div>
 
 <script>
+function escH(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 const token = window.location.pathname.split('/').pop();
 if (!token) { showError('Lien invalide'); }
 else { loadBooking(); }
@@ -110,7 +111,7 @@ function render(d) {
     <div class="card-header">
       <div class="status ${bk.status}">${statusLabels[bk.status] || bk.status}</div>
       <h1>Votre rendez-vous</h1>
-      <div class="biz">${biz.name}</div>
+      <div class="biz">${escH(biz.name)}</div>
     </div>
     <div class="details">
       <div class="detail-row">
@@ -119,15 +120,15 @@ function render(d) {
       </div>
       <div class="detail-row">
         <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
-        <div class="info"><div class="label">Prestation</div><div class="value">${bk.service.name}</div><div class="sub">${bk.service.duration_min} min · ${price}${modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : ''}</div></div>
+        <div class="info"><div class="label">Prestation</div><div class="value">${escH(bk.service.name)}</div><div class="sub">${bk.service.duration_min} min · ${price}${modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : ''}</div></div>
       </div>
       <div class="detail-row">
         <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-        <div class="info"><div class="label">Praticien</div><div class="value">${bk.practitioner.name}</div>${bk.practitioner.title ? `<div class="sub">${bk.practitioner.title}</div>` : ''}</div>
+        <div class="info"><div class="label">Praticien</div><div class="value">${escH(bk.practitioner.name)}</div>${bk.practitioner.title ? `<div class="sub">${escH(bk.practitioner.title)}</div>` : ''}</div>
       </div>
-      ${biz.address ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
-      ${biz.phone ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="info"><div class="label">Contact</div><div class="value">${biz.phone}</div>${biz.email ? `<div class="sub">${biz.email}</div>` : ''}</div></div>` : ''}
-      ${bk.comment ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="info"><div class="label">Votre remarque</div><div class="sub">${bk.comment}</div></div></div>` : ''}
+      ${biz.address ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="info"><div class="label">Adresse</div><div class="value">${escH(biz.address)}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
+      ${biz.phone ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="info"><div class="label">Contact</div><div class="value">${escH(biz.phone)}</div>${biz.email ? `<div class="sub">${escH(biz.email)}</div>` : ''}</div></div>` : ''}
+      ${bk.comment ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="info"><div class="label">Votre remarque</div><div class="sub">${escH(bk.comment)}</div></div></div>` : ''}
     </div>
   `;
 
@@ -251,7 +252,7 @@ async function cancelBooking() {
 }
 
 function showError(msg) {
-  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><h2 style="font-family:var(--serif);font-size:1.3rem">${msg}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><h2 style="font-family:var(--serif);font-size:1.3rem">${escH(msg)}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
 }
 
 function buildGCalUrl(start, end, title, location, bizName) {

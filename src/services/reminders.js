@@ -24,6 +24,12 @@ const PLANS_WITH_SMS = ['pro', 'premium'];
 async function processReminders() {
   const stats = { email_24h: 0, sms_24h: 0, email_2h: 0, sms_2h: 0, skipped: 0, errors: 0 };
 
+  // Advisory lock to prevent concurrent execution (double reminders = wasted SMS credits)
+  const lockResult = await query(`SELECT pg_try_advisory_lock(hashtext('reminder_cron'))`);
+  if (!lockResult.rows[0]?.pg_try_advisory_lock) {
+    return { ...stats, skipped: 1, reason: 'concurrent_execution' };
+  }
+
   try {
     // ===== 24H REMINDERS =====
     await process24hReminders(stats);
@@ -34,6 +40,8 @@ async function processReminders() {
   } catch (err) {
     console.error('[REMINDERS] Fatal error:', err);
     stats.errors++;
+  } finally {
+    await query(`SELECT pg_advisory_unlock(hashtext('reminder_cron'))`).catch(() => {});
   }
 
   return stats;
@@ -128,6 +136,8 @@ async function process24hReminders(stats) {
 
       // EMAIL 24h
       if (reminderEmailEnabled && bk.client_email) {
+        const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+        const cancelUrl = `${baseUrl}/api/public/booking/${bk.public_token}/cancel-booking`;
         const html = buildEmailHTML({
           title: 'Rappel de votre rendez-vous',
           preheader: `RDV ${startLocal} chez ${bk.business_name}`,
@@ -146,6 +156,8 @@ async function process24hReminders(stats) {
           `,
           ctaText: 'Gérer mon rendez-vous',
           ctaUrl: manageUrl,
+          cancelText: 'Annuler mon rendez-vous',
+          cancelUrl,
           footerText: `${bk.business_name} — Rendez-vous géré via Genda.be`
         });
 
@@ -270,6 +282,9 @@ async function process2hReminders(stats) {
 
       // Email 2h (optional)
       if (emailEnabled && bk.client_email) {
+        const baseUrl2h = process.env.APP_BASE_URL || 'https://genda.be';
+        const manageUrl2h = `${baseUrl2h}/booking/${bk.public_token}`;
+        const cancelUrl2h = `${baseUrl2h}/api/public/booking/${bk.public_token}/cancel-booking`;
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
@@ -278,7 +293,11 @@ async function process2hReminders(stats) {
             title: 'Votre rendez-vous approche',
             preheader: `RDV à ${timeShort} chez ${bk.business_name}`,
             businessName: bk.business_name,
-            bodyHTML: `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p>À bientôt !</p>`
+            bodyHTML: `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p>À bientôt !</p>`,
+            ctaText: 'Gérer mon rendez-vous',
+            ctaUrl: manageUrl2h,
+            cancelText: 'Annuler mon rendez-vous',
+            cancelUrl: cancelUrl2h
           }),
           fromName: bk.business_name
         });

@@ -333,7 +333,7 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
     if (connResult.rows.length === 0) return res.status(404).json({ error: 'Connexion introuvable' });
 
     const conn = connResult.rows[0];
-    const qFn = (sql, params) => query(sql, params);
+    const qFn = (sql, params) => queryWithRLS(req.businessId, sql, params);
 
     // Pull busy times (next 60 days)
     const now = new Date();
@@ -397,7 +397,7 @@ router.get('/busy', requireAuth, async (req, res, next) => {
     if (!business_id || !start || !end) {
       return res.status(400).json({ error: 'business_id, start, end required' });
     }
-    const qFn = (sql, params) => query(sql, params);
+    const qFn = (sql, params) => queryWithRLS(business_id, sql, params);
     const blocks = await cal.getBusyBlocks(qFn, business_id, practitioner_id || null,
       new Date(start), new Date(end));
     res.json({ busy: blocks });
@@ -428,7 +428,7 @@ router.get('/ical/:token', async (req, res) => {
     if (!businessId || !UUID_RE.test(businessId) || !secret) return res.status(400).send('Invalid token');
 
     // Verify token
-    const conn = await query(
+    const conn = await queryWithRLS(businessId,
       `SELECT cc.*, b.name AS business_name
        FROM calendar_connections cc
        JOIN businesses b ON b.id = cc.business_id
@@ -461,7 +461,7 @@ router.get('/ical/:token', async (req, res) => {
     }
     bkSql += ' ORDER BY b.start_at';
 
-    const bookings = await query(bkSql, bkParams);
+    const bookings = await queryWithRLS(businessId, bkSql, bkParams);
     const bizName = conn.rows[0].business_name || 'Genda';
 
     // Build iCal

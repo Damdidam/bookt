@@ -79,12 +79,12 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     // Just flag that there are matches — the pro will see in dashboard
     // Queue a notification for the pro
     try {
-      await query(
+      await queryWithRLS(bk.business_id,
         `INSERT INTO notifications (business_id, booking_id, type, status)
          VALUES ($1, $2, 'waitlist_match', 'queued')`,
         [bk.business_id, bookingId]
       );
-    } catch (e) { /* notification type might not exist in CHECK constraint yet */ }
+    } catch (e) { console.warn('[WAITLIST] Notification insert error:', e.message); }
 
     broadcast(bk.business_id, 'waitlist_match', {
       mode: 'manual',
@@ -124,7 +124,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     const token = crypto.randomBytes(20).toString('hex');
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h timer
 
-    const offerResult = await query(
+    const offerResult = await queryWithRLS(businessId,
       `UPDATE waitlist_entries SET
         status = 'offered',
         offer_token = $1,

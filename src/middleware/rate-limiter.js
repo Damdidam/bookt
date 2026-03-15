@@ -38,4 +38,16 @@ const authLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter };
+/**
+ * Rate limiter for client-phone PII lookup.
+ * Strict: 5 requests per 10 minutes per IP to prevent enumeration.
+ */
+const clientPhoneLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5,
+  message: { error: 'Trop de tentatives. Réessayez plus tard.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter };
