@@ -59,6 +59,26 @@ function _ic(name, w = 18, h = 18) {
 }
 
 /**
+ * Compute real end time for multi-service group bookings.
+ * For single-service: returns booking.end_at as-is.
+ * For multi-service: start_at + sum of all service durations.
+ */
+function getRealEndAt(booking, groupServices) {
+  const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+  if (isMulti) {
+    const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    return new Date(new Date(booking.start_at).getTime() + totalMin * 60000);
+  }
+  return booking.end_at ? new Date(booking.end_at) : null;
+}
+
+/** Format a Date to "HH:MM" in Brussels timezone */
+function fmtTimeBrussels(d) {
+  if (!d) return null;
+  return new Date(d).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+}
+
+/**
  * Send a transactional email via Brevo
  * @param {Object} opts
  * @param {string} opts.to - recipient email
@@ -316,8 +336,13 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   const newDate = new Date(booking.new_start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long'
   });
-  const newTime = new Date(booking.new_start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
-  const newEndTime = new Date(booking.new_end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+  const newTime = fmtTimeBrussels(booking.new_start_at);
+  // For multi-service: compute real end from start + total duration
+  const isMultiMod = Array.isArray(groupServices) && groupServices.length > 1;
+  const realNewEnd = isMultiMod
+    ? new Date(new Date(booking.new_start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000)
+    : new Date(booking.new_end_at);
+  const newEndTime = fmtTimeBrussels(realNewEnd);
 
   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
   const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm`;
@@ -396,10 +421,9 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
 
   const color = safeColor(business.theme?.primary_color);
   const practitionerName = escHtml(booking.practitioner_name || '');
@@ -444,9 +468,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   }
 
   // Footer: address, contact, payment methods, calendar links
-  const calEndAt = isMulti
-    ? new Date(new Date(booking.start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000).toISOString()
-    : (booking.end_at || booking.start_at);
+  const calEndAt = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
   bodyHTML += buildBookingFooter({
     business, booking, serviceName,
     practitionerName: booking.practitioner_name || '',
@@ -490,10 +512,9 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
 
   const color = safeColor(business.theme?.primary_color);
   const practitionerName = escHtml(booking.practitioner_name || '');
@@ -646,12 +667,9 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
-  });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
   const deadlineStr = booking.deposit_deadline
     ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
@@ -741,12 +759,9 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
-  });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
   const deadlineStr = booking.deposit_deadline
     ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
@@ -847,12 +862,9 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
-  });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
 
   const color = safeColor(business.theme?.primary_color);
@@ -897,9 +909,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9.</p>`;
 
   // Footer: address, contact, payment methods, calendar links
-  const depCalEndAt = isMulti
-    ? new Date(new Date(booking.start_at).getTime() + groupServices.reduce((s, sv) => s + (sv.duration_min || 0), 0) * 60000).toISOString()
-    : (booking.end_at || booking.start_at);
+  const depCalEndAt = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
   bodyHTML += buildBookingFooter({
     business, booking, serviceName: safeServiceName,
     practitionerName: booking.practitioner_name || '',
@@ -939,12 +949,9 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
-  });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
   const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
 
   const color = safeColor(business.theme?.primary_color);
@@ -1011,12 +1018,9 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const dateStr = new Date(booking.start_at).toLocaleDateString('fr-BE', {
     timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
-  const timeStr = new Date(booking.start_at).toLocaleTimeString('fr-BE', {
-    timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
-  });
-  const endTimeStr = booking.end_at
-    ? new Date(booking.end_at).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const timeStr = fmtTimeBrussels(booking.start_at);
+  const realEnd = getRealEndAt(booking, groupServices);
+  const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
