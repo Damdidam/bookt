@@ -242,7 +242,8 @@ async function handleStripeWebhook(req, res) {
               deposit_status = 'paid',
               deposit_paid_at = NOW(),
               deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
-              deposit_deadline = NULL
+              deposit_deadline = NULL,
+              locked = true
              WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
              RETURNING id, business_id, group_id, client_id`,
             [piId, bookingId, businessId]

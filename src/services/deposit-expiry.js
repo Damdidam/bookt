@@ -71,6 +71,31 @@ async function processExpiredDeposits() {
          JSON.stringify({ status: 'cancelled', deposit_status: 'cancelled', reason: 'deposit_deadline_exceeded', amount_cents: bk.deposit_amount_cents })]
       );
 
+      // M9: Increment expired_pending_count strike (mirrors booking-confirmation.js)
+      if (bk.client_id) {
+        await client.query(
+          `UPDATE clients SET expired_pending_count = expired_pending_count + 1,
+            last_expired_pending_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND business_id = $2`,
+          [bk.client_id, bk.business_id]
+        );
+      }
+      if (bk.group_id) {
+        const sibClients = await client.query(
+          `SELECT DISTINCT client_id FROM bookings
+           WHERE group_id = $1 AND id != $2 AND client_id IS NOT NULL AND client_id != $3`,
+          [bk.group_id, bk.id, bk.client_id || '00000000-0000-0000-0000-000000000000']
+        );
+        for (const sib of sibClients.rows) {
+          await client.query(
+            `UPDATE clients SET expired_pending_count = expired_pending_count + 1,
+              last_expired_pending_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [sib.client_id, bk.business_id]
+          );
+        }
+      }
+
       processed++;
       cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id });
     }

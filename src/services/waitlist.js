@@ -225,8 +225,8 @@ async function processExpiredOffers() {
         );
 
         if (next.rows.length > 0) {
-          // Skip if the slot is less than 1 hour away — too late to offer
-          if (new Date(entry.offer_booking_start) < new Date(Date.now() + 60 * 60 * 1000)) continue;
+          // Skip if the slot is less than 2 hours away — too late to offer (matches initial offer threshold)
+          if (new Date(entry.offer_booking_start) < new Date(Date.now() + 2 * 60 * 60 * 1000)) continue;
 
           const token = crypto.randomBytes(20).toString('hex');
           const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);

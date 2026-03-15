@@ -298,12 +298,17 @@ async function sendPreRdvEmail({ booking, template, token, business }) {
   const safeBizNameSubject = (business.name || 'Genda').replace(/<[^>]*>/g, '');
   const subject = template.subject || `${template.name} — ${safeBizNameSubject}`;
 
+  // Cancel button (required in all client-facing emails)
+  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
+
   const html = buildEmailHTML({
     title: template.name,
     preheader: `Préparez votre rendez-vous du ${appointmentDate}`,
     bodyHTML,
     ctaText,
     ctaUrl: docUrl,
+    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : undefined,
+    cancelUrl: cancelUrl || undefined,
     businessName: business.name,
     primaryColor: business.theme?.primary_color,
     footerText: `${business.name} · ${business.address || ''} · Via Genda.be`
@@ -338,7 +343,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     : new Date(booking.new_end_at);
   const newEndTime = fmtTimeBrussels(realNewEnd);
 
-  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm`;
   const rejectUrl = `${baseUrl}/api/public/booking/${booking.public_token}/reject`;
   const color = safeColor(business.theme?.primary_color);
@@ -447,7 +452,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   }
   if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">${_ic('user-grn')} ${practitionerName}</div>`;
 
-  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const hasPublicToken = booking.public_token;
 
   let bodyHTML = `
@@ -533,7 +538,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
   }
   if (practitionerName) detailLines += `<div style="font-size:14px;color:#92700C">${_ic('user-amb')} ${practitionerName}</div>`;
 
-  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm-booking`;
 
   const delayLabel = timeoutMin >= 60

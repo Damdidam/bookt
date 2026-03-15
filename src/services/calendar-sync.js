@@ -521,5 +521,7 @@ module.exports = {
   getValidToken, pushBookingToCalendar, deleteCalendarEvent,
   pullBusyTimes, getBusyBlocks,
   // Helpers
-  buildCalendarEvent
+  buildCalendarEvent,
+  // Low-level API (used by DELETE booking for post-commit cleanup)
+  googleApiCall, outlookApiCall
 };

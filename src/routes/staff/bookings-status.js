@@ -353,11 +353,14 @@ router.patch('/:id/status', async (req, res, next) => {
             );
             if (newDepStatus === 'refunded') depositRefunded = true;
 
-            // Bug H6 + B4 fix: Update sibling deposits, differentiating by actual deposit_status
+            // Bug H6 + B4 + M7 fix: Update sibling deposits, handle both paid and pending
             if (old.rows[0].group_id) {
               await client.query(
                 `UPDATE bookings SET
-                  deposit_status = CASE WHEN deposit_status = 'paid' THEN $1 ELSE deposit_status END,
+                  deposit_status = CASE
+                    WHEN deposit_status = 'paid' THEN $1
+                    WHEN deposit_status = 'pending' THEN 'cancelled'
+                    ELSE deposit_status END,
                   updated_at = NOW()
                  WHERE group_id = $2 AND business_id = $3 AND id != $4 AND deposit_required = true`,
                 [newDepStatus, old.rows[0].group_id, bid, id]
@@ -554,8 +557,8 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { console.warn('[EMAIL] Deposit paid email fetch error:', e.message); }
     }
 
-    // Send booking confirmation email when staff confirms a pending booking
-    if (txResult.oldStatus === 'pending' && status === 'confirmed') {
+    // Send booking confirmation email when staff confirms/restores a booking
+    if (['pending', 'modified_pending', 'cancelled', 'no_show'].includes(txResult.oldStatus) && status === 'confirmed') {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.group_id, b.public_token, b.comment_client, b.custom_label,
@@ -867,12 +870,12 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
           groupId: b.group_id, bid, excludeId: id,
           status: 'confirmed', cancelReason: null
         });
-        // M5: propagate deposit field changes to siblings
+        // M5+M8: propagate deposit field changes to affected siblings only
         if (affectedSiblingIds.length > 0) {
           await client.query(
             `UPDATE bookings SET deposit_status = 'waived', deposit_deadline = NULL
-             WHERE group_id = $1 AND business_id = $2 AND id != $3`,
-            [b.group_id, bid, id]
+             WHERE id = ANY($1::uuid[]) AND business_id = $2`,
+            [affectedSiblingIds, bid]
           );
         }
       }
@@ -1204,13 +1207,14 @@ router.post('/:id/require-deposit', async (req, res, next) => {
           status: 'pending_deposit',
           cancelReason: null
         });
-        // M5: propagate deposit fields to siblings
+        // M5: propagate deposit fields to siblings (H5: include amount_cents)
         if (affectedSiblingIds.length > 0) {
           await client.query(
             `UPDATE bookings SET deposit_required = true, deposit_status = 'pending',
-              deposit_deadline = $1
+              deposit_deadline = $1, deposit_amount_cents = $5,
+              deposit_paid_at = NULL, deposit_payment_intent_id = NULL, deposit_reminder_sent = false
              WHERE group_id = $2 AND business_id = $3 AND id != $4`,
-            [deadline.toISOString(), b.group_id, bid, id]
+            [deadline.toISOString(), b.group_id, bid, id, amount_cents]
           );
         }
       }
@@ -1425,13 +1429,26 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     // Post-transaction side effects
-    // BK-V13-004: Call calSyncDelete AFTER transaction commits so that if the
-    // transaction rolls back, external calendar events are not permanently deleted.
-    // We collected the calendar event info inside the transaction while rows still existed.
+    // H7: Use pre-collected calEventsToDelete to delete external calendar events
+    // (booking rows are already deleted, so calSyncDelete can't look them up)
     const deletedIds = txResult.bookingIds;
-    for (const bId of deletedIds) {
-      try { await calSyncDelete(bid, bId); }
-      catch (e) { console.warn('[CAL_SYNC] Post-delete sync error:', e.message); }
+    for (const calEvt of (txResult.calEventsToDelete || [])) {
+      try {
+        const conn = await queryWithRLS(bid,
+          `SELECT * FROM calendar_connections WHERE id = $1 AND business_id = $2 AND status = 'active'`,
+          [calEvt.connection_id, bid]
+        );
+        if (conn.rows.length > 0) {
+          const { getValidToken, googleApiCall, outlookApiCall } = require('../../services/calendar-sync');
+          const accessToken = await getValidToken(conn.rows[0], (sql, params) => queryWithRLS(bid, sql, params));
+          if (conn.rows[0].provider === 'google') {
+            const calId = conn.rows[0].calendar_id || 'primary';
+            await googleApiCall(accessToken, `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(calEvt.external_event_id)}`, 'DELETE');
+          } else {
+            await outlookApiCall(accessToken, `/me/events/${encodeURIComponent(calEvt.external_event_id)}`, 'DELETE');
+          }
+        }
+      } catch (e) { console.warn('[CAL_SYNC] Post-delete external event cleanup error:', e.message); }
     }
     // STS-V12-004 fix: Broadcast for ALL deleted IDs, not just the primary
     for (const bId of deletedIds) {

@@ -923,7 +923,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         // Priority 2-4: phone+email > phone > email
         if (!existingClient) {
           const exactMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
             [businessId, client_phone, client_email]
           );
           if (exactMatch.rows.length > 0) {
@@ -939,7 +939,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               matchType = 'phone';
             } else {
               const emailMatch = await client.query(
-                `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+                `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
                 [businessId, client_email]
               );
               if (emailMatch.rows.length > 0) {
@@ -1087,7 +1087,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 if (bookings.length > 1) {
                   const otherIds = bookings.slice(1).map(b => b.id);
                   await client.query(
-                    `UPDATE bookings SET status = 'pending_deposit'
+                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending'
                      WHERE id = ANY($1) AND business_id = $2`,
                     [otherIds, businessId]
                   );
@@ -1136,6 +1136,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel } = multiResult;
 
       broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+      // H1: calSyncPush for each created booking
+      for (const mb of multiBookings) {
+        try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, mb.id); } catch (_) {}
+      }
 
       // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
       (async () => {
@@ -1551,6 +1555,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel } = result;
 
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+    // H1: calSyncPush for created booking
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, createdBooking.id); } catch (_) {}
 
     // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
     (async () => {
@@ -1687,7 +1693,7 @@ router.get('/booking/:token', async (req, res, next) => {
 
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = (bk.status === 'confirmed' || bk.status === 'pending_deposit') && new Date() < deadline;
+    const canCancel = bk.status === 'pending' || ((['confirmed', 'pending_deposit'].includes(bk.status)) && new Date() < deadline);
 
     // Build service info: use group members if available, otherwise single service
     const serviceInfo = groupServices
@@ -1980,6 +1986,8 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         const { broadcast } = require('../../services/sse');
         broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id });
       } catch (e) { /* SSE optional */ }
+      // H2: calSyncPush on deposit verify
+      try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, bk.id); } catch (_) {}
 
       // Send deposit paid confirmation email (mirrors Stripe webhook behavior)
       try {
@@ -2535,6 +2543,9 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           });
         }
       } catch (e) { console.warn('[EMAIL] Rejection cancellation email error:', e.message); }
+      // M1: calSyncDelete + waitlist on reject
+      try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(rejBk.business_id, rejBk.id); } catch (_) {}
+      try { await processWaitlistForCancellation(rejBk.id, rejBk.business_id); } catch (_) {}
     })();
 
     if (isForm && displayData) {
@@ -2851,9 +2862,8 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     return res.send(actionPage(
       'Annuler votre rendez-vous ?',
       `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong><br>${dt} \u00e0 ${tm}`,
-      'Confirmer l\u2019annulation',
-      `/api/public/booking/${token}/cancel-booking`,
-      '#C62828', bk.business_name
+      '#C62828', bk.business_name, token, 'cancel-booking',
+      'Confirmer l\u2019annulation'
     ));
   } catch (err) { next(err); }
 });
@@ -2958,6 +2968,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     } catch (_) { /* non-critical */ }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
+    // H3: Notify pro about client cancellation
+    try { await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [bk.business_id, bk.id]); } catch (_) {}
 
     // Send cancellation email + waitlist (non-blocking)
     (async () => {
@@ -3088,6 +3100,8 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
 
     // SSE notification
     broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+    // H2: calSyncPush on confirm-booking
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, bk.id); } catch (_) {}
 
     // Send the actual confirmation email (non-blocking)
     (async () => {
@@ -3599,6 +3613,8 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
 
     // Post-transaction: SSE broadcast + confirmation email (non-blocking)
     broadcast(e.business_id, 'booking_update', { action: 'waitlist_accepted', booking_id: booking.id });
+    // H4: calSyncPush for waitlist-accepted booking
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(e.business_id, booking.id); } catch (_) {}
 
     (async () => {
       try {
