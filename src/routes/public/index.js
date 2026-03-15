@@ -2968,7 +2968,7 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     const { token } = req.params;
 
     const result = await query(
-      `SELECT b.id, b.status, b.start_at, b.business_id,
+      `SELECT b.id, b.status, b.start_at, b.business_id, b.group_id,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               biz.name AS business_name, biz.theme, biz.settings AS business_settings
        FROM bookings b LEFT JOIN services s ON s.id = b.service_id
@@ -2986,12 +2986,12 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
 
     // Already cancelled
     if (bk.status === 'cancelled') {
-      return res.send(confirmationPage('D\u00e9j\u00e0 annul\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 annul\u00e9.', '#C62828', bk.business_name));
+      return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a déjà été annulé.', '#C62828', bk.business_name));
     }
 
     // Completed or other non-cancellable status
     if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
-      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être annulé.', '#A68B3C', bk.business_name));
     }
 
     // For confirmed: check cancellation deadline
@@ -3000,7 +3000,23 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     if (bk.status === 'confirmed') {
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
       if (new Date() >= deadline) {
-        return res.send(confirmationPage('Annulation impossible', `L\u2019annulation n\u2019est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
+        return res.send(confirmationPage('Annulation impossible', `L'annulation n'est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
+      }
+    }
+
+    // Fetch group services if multi-service booking
+    let serviceLabel = `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong>`;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         WHERE b.group_id = $1 AND b.business_id = $2 AND b.status IN ('pending','confirmed','pending_deposit','modified_pending')
+         ORDER BY b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        serviceLabel = grp.rows.map(r => `<strong>${escHtml(r.service_name)}</strong>`).join('<br>');
       }
     }
 
@@ -3009,7 +3025,7 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     return res.send(actionPage(
       'Annuler votre rendez-vous ?',
-      `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong><br>${dt} \u00e0 ${tm}`,
+      `${serviceLabel}<br>${dt} à ${tm}`,
       '#C62828', bk.business_name, token, 'cancel-booking',
       'Confirmer l\u2019annulation'
     ));
