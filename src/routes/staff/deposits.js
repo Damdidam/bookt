@@ -21,11 +21,13 @@ router.get('/', async (req, res, next) => {
              b.cancel_reason, b.created_at,
              c.id AS client_id, c.full_name AS client_name, c.email AS client_email,
              c.phone AS client_phone, c.no_show_count,
-             s.name AS service_name, s.price_cents AS service_price_cents,
+             CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+             COALESCE(sv.price_cents, s.price_cents) AS service_price_cents,
              p.display_name AS practitioner_name
       FROM bookings b
       JOIN clients c ON c.id = b.client_id
       JOIN services s ON s.id = b.service_id
+      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
       JOIN practitioners p ON p.id = b.practitioner_id
       WHERE b.business_id = $1 AND b.deposit_required = true`;
     const params = [bid];
@@ -114,11 +116,13 @@ router.get('/export', async (req, res, next) => {
              b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
              b.deposit_payment_intent_id, b.deposit_deadline, b.cancel_reason,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
-             s.name AS service_name, s.price_cents AS service_price_cents,
+             CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+             COALESCE(sv.price_cents, s.price_cents) AS service_price_cents,
              p.display_name AS practitioner_name
       FROM bookings b
       JOIN clients c ON c.id = b.client_id
       JOIN services s ON s.id = b.service_id
+      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
       JOIN practitioners p ON p.id = b.practitioner_id
       WHERE b.business_id = $1 AND b.deposit_required = true`;
     const params = [bid];

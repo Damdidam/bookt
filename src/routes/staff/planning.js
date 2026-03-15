@@ -906,11 +906,13 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       `SELECT b.id, b.start_at, b.end_at, b.status, b.public_token,
               c.full_name AS client_name, c.phone AS client_phone,
               c.email AS client_email, c.consent_sms,
-              s.name AS service_name, s.duration_min,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               p.display_name AS practitioner_name
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        LEFT JOIN practitioners p ON p.id = b.practitioner_id
        WHERE b.business_id = $1 AND b.practitioner_id = $2
          AND b.start_at::date >= $3::date AND b.start_at::date <= $4::date

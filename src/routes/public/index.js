@@ -1637,6 +1637,7 @@ router.get('/booking/:token', async (req, res, next) => {
 
     // Fetch group members if this is a grouped booking
     let groupServices = null;
+    let groupEndAt = null;
     if (bk.group_id) {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
@@ -1651,6 +1652,7 @@ router.get('/booking/:token', async (req, res, next) => {
       );
       if (grp.rows.length > 1) {
         groupServices = grp.rows.map(r => ({ name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color }));
+        groupEndAt = grp.rows[grp.rows.length - 1].end_at;
       }
     }
 
@@ -1666,7 +1668,7 @@ router.get('/booking/:token', async (req, res, next) => {
     res.json({
       booking: {
         id: bk.id, token: bk.public_token,
-        start_at: bk.start_at, end_at: bk.end_at, status: bk.status,
+        start_at: bk.start_at, end_at: groupEndAt || bk.end_at, status: bk.status,
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
@@ -3473,7 +3475,7 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
 router.get('/booking/:token/ics', async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT b.id, b.start_at, b.end_at, b.appointment_mode,
+      `SELECT b.id, b.start_at, b.end_at, b.appointment_mode, b.group_id, b.business_id,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               c.full_name AS client_name,
@@ -3491,9 +3493,27 @@ router.get('/booking/:token/ics', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).send('Rendez-vous introuvable');
 
     const bk = result.rows[0];
+    // Override end_at and summary for group bookings
+    let endAt = bk.end_at;
+    let serviceName = bk.service_name || 'Rendez-vous';
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, b2.end_at
+         FROM bookings b2
+         LEFT JOIN services s ON s.id = b2.service_id
+         LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+         WHERE b2.group_id = $1 AND b2.business_id = $2
+         ORDER BY b2.group_order, b2.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        endAt = grp.rows[grp.rows.length - 1].end_at;
+        serviceName = grp.rows.map(r => r.name).join(' + ');
+      }
+    }
     const start = new Date(bk.start_at);
-    const end = new Date(bk.end_at);
-    const summary = `${bk.service_name || 'Rendez-vous'} — ${bk.practitioner_name || ''}`;
+    const end = new Date(endAt);
+    const summary = `${serviceName} — ${bk.practitioner_name || ''}`;
     const loc = bk.appointment_mode === 'visio' ? 'Visioconférence' : bk.appointment_mode === 'phone' ? 'Téléphone' : (bk.business_address || bk.business_name);
     const desc = [bk.service_name || 'Rendez-vous', bk.practitioner_name ? `Avec ${bk.practitioner_name}` : '', bk.business_name].filter(Boolean).join('\\n');
 

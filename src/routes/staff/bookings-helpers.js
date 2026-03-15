@@ -18,8 +18,13 @@ async function calSyncPush(businessId, bookingId) {
     );
     if (conns.rows.length === 0) return;
     const bk = await queryWithRLS(businessId,
-      `SELECT b.*, s.name AS service_name, s.duration_min, c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
-       FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN clients c ON c.id = b.client_id
+      `SELECT b.*,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN clients c ON c.id = b.client_id
        WHERE b.id = $1 AND b.business_id = $2`, [bookingId, businessId]
     );
     if (bk.rows.length === 0) return;

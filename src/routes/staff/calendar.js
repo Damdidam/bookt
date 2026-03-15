@@ -348,10 +348,14 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
     // Push unsynced bookings
     let pushed = 0;
     if (conn.sync_direction === 'push' || conn.sync_direction === 'both') {
-      let pushSql = `SELECT b.*, s.name AS service_name, s.duration_min, s.color AS service_color,
+      let pushSql = `SELECT b.*,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                s.color AS service_color,
                 c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
          FROM bookings b
          JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN clients c ON c.id = b.client_id
          LEFT JOIN calendar_events ce ON ce.booking_id = b.id AND ce.connection_id = $1
          WHERE b.business_id = $2
@@ -438,11 +442,13 @@ router.get('/ical/:token', async (req, res) => {
     const endRange = new Date(Date.now() + 90 * 86400000);
 
     let bkSql = `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
-                        s.name AS service_name, s.duration_min,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         c.full_name AS client_name, c.phone AS client_phone,
                         p.display_name AS practitioner_name
                  FROM bookings b
                  JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                  JOIN clients c ON c.id = b.client_id
                  JOIN practitioners p ON p.id = b.practitioner_id
                  WHERE b.business_id = $1 AND b.status IN ('confirmed','pending','modified_pending','completed','pending_deposit')
