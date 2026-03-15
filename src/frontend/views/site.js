@@ -158,10 +158,12 @@ async function loadSiteSection(){
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSocialLinks()">Enregistrer</button></div>
     </div>`;
 
-    h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge ${businessPlan==='free'?'badge-teal':'badge-teal'}">${businessPlan==='free'?'Plan Gratuit — 1 thème':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
+    const freeCount=Object.values(THEMES).filter(t=>t.free).length;
+    const proCount=Object.values(THEMES).filter(t=>!t.free).length;
+    h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge badge-teal">${businessPlan==='free'?'Plan Gratuit — '+freeCount+' thèmes':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
     <div style="padding:18px">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:4px">Choisissez l'identité visuelle de votre site. Chaque thème inclut typographie, palette et mise en page uniques.</p>
-      ${businessPlan==='free'?'<p style="font-size:.78rem;color:var(--gold);margin-bottom:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Passez au plan Pro pour débloquer les 5 thèmes premium + couleur personnalisée.</p>':''}
+      ${businessPlan==='free'?'<p style="font-size:.78rem;color:var(--gold);margin-bottom:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Passez au plan Pro pour débloquer '+proCount+' thèmes premium + couleur personnalisée.</p>':''}
       <div class="theme-grid">`;
 
     Object.entries(THEMES).forEach(([key,t])=>{
