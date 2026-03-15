@@ -215,7 +215,7 @@ async function acceptModification() {
     const res = await fetch(`/api/public/booking/${token}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>Nouvel horaire confirmé</h2><p>Votre rendez-vous est confirmé au nouvel horaire. À bientôt !</p></div>`;
-  } catch (e) { btn.disabled = false; btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ça me convient'; alert('Erreur: ' + e.message); }
+  } catch (e) { btn.disabled = false; btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ça me convient'; alert('Erreur: ' + e.message); }
 }
 
 async function refuseModification() {
@@ -226,7 +226,7 @@ async function refuseModification() {
     const res = await fetch(`/api/public/booking/${token}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Client a refusé la modification d\'horaire' }) });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
-  } catch (e) { btn.disabled = false; btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; alert('Erreur: ' + e.message); }
+  } catch (e) { btn.disabled = false; btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; alert('Erreur: ' + e.message); }
 }
 
 async function cancelBooking() {

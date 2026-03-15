@@ -38,7 +38,6 @@ const depositRoutes = require('./routes/staff/deposits');
 const documentRoutes = require('./routes/staff/documents');
 const calendarRoutes = require('./routes/staff/calendar');
 const waitlistRoutes = require('./routes/staff/waitlist');
-const whiteboardRoutes = require('./routes/staff/whiteboards');
 const galleryRoutes = require('./routes/staff/gallery');
 const newsRoutes = require('./routes/staff/news');
 const featuredSlotsRoutes = require('./routes/staff/featured-slots');
@@ -183,7 +182,6 @@ app.use('/api/deposits', depositRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
-app.use('/api/whiteboards', whiteboardRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/featured-slots', featuredSlotsRoutes);
@@ -227,16 +225,6 @@ app.get('/docs/:token', (req, res) => {
 // /deposit/:token → public deposit details page
 app.get('/deposit/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/deposit.html'));
-});
-
-// /whiteboard/:id → staff whiteboard editor
-app.get('/whiteboard/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/whiteboard.html'));
-});
-
-// /wb/:token → public shared whiteboard view (read-only)
-app.get('/wb/:token', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/wb-view.html'));
 });
 
 // /waitlist/:token → waitlist offer page

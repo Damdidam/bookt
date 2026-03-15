@@ -2853,25 +2853,37 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
   try {
     const { token } = req.params;
 
-    // Attempt direct confirmation (pending → confirmed)
-    const result = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
-       WHERE public_token = $1 AND status = 'pending'
-         AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
-       RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
-      [token]
-    );
+    // Attempt direct confirmation (pending → confirmed) — atomic with group siblings
+    const client = await pool.connect();
+    let result;
+    try {
+      await client.query('BEGIN');
+      result = await client.query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE public_token = $1 AND status = 'pending'
+           AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
+         RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
+        [token]
+      );
+      if (result.rows.length > 0) {
+        // Also confirm group siblings in same transaction
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+           WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+             AND id != $1 AND status = 'pending'`,
+          [result.rows[0].id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     if (result.rows.length > 0) {
       const bk = result.rows[0];
-
-      // Also confirm group siblings
-      await query(
-        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
-         WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
-           AND id != $1 AND status = 'pending'`,
-        [bk.id]
-      );
 
       broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
 
@@ -4001,50 +4013,6 @@ router.get('/booking/:token/ics', async (req, res, next) => {
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="rdv-genda.ics"`);
     res.send(ical);
-  } catch (err) { next(err); }
-});
-
-// ============================================================
-// GET /api/public/wb/:token — view shared whiteboard (no auth)
-// ============================================================
-router.get('/wb/:token', async (req, res, next) => {
-  try {
-    const { token } = req.params;
-    const link = await query(
-      `SELECT wl.*, w.canvas_data, w.text_layers, w.title, w.bg_type,
-              biz.name AS business_name,
-              c.full_name AS client_name
-       FROM whiteboard_links wl
-       JOIN whiteboards w ON w.id = wl.whiteboard_id AND w.deleted_at IS NULL
-       JOIN businesses biz ON biz.id = w.business_id
-       LEFT JOIN clients c ON c.id = w.client_id
-       WHERE wl.token = $1`,
-      [token]
-    );
-
-    if (link.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
-
-    const row = link.rows[0];
-    if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Ce lien a expiré' });
-
-    // Atomic increment: only bumps if still under limit (prevents TOCTOU race)
-    const upd = await query(
-      `UPDATE whiteboard_links SET accessed_count = accessed_count + 1
-       WHERE id = $1 AND accessed_count < max_accesses
-       RETURNING accessed_count`,
-      [row.id]
-    );
-    if (upd.rows.length === 0) return res.status(410).json({ error: 'Nombre maximum d\'accès atteint' });
-
-    res.json({
-      title: row.title,
-      business_name: row.business_name,
-      client_name: row.client_name,
-      canvas_data: row.canvas_data,
-      text_layers: row.text_layers,
-      bg_type: row.bg_type,
-      expires_at: row.expires_at
-    });
   } catch (err) { next(err); }
 });
 
