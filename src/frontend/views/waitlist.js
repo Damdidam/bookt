@@ -86,7 +86,7 @@ async function loadWaitlist(){
     }
     h+=`</div>`;
     c.innerHTML=h;
-  }catch(e){c.innerHTML=`<div class="empty">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty">Erreur: ${esc(e.message)}</div>`;}
 }
 
 // -- Add to waitlist modal --

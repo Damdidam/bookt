@@ -97,9 +97,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   try {
     await api.login(email, password);
 
-    // Redirect
+    // C1: Validate redirect — only allow relative paths (prevent open redirect)
     const redirect = new URLSearchParams(window.location.search).get('redirect');
-    window.location.href = redirect || '/dashboard.html';
+    if (redirect && /^\/[^\/\\]/.test(redirect)) {
+      window.location.href = redirect;
+    } else {
+      window.location.href = '/dashboard.html';
+    }
 
   } catch (err) {
     errorEl.textContent = err.message || 'Erreur de connexion';

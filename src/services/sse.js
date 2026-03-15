@@ -60,7 +60,9 @@ function broadcast(businessId, event, data = {}) {
   const clients = connections.get(businessId);
   if (!clients || clients.size === 0) return;
 
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  // M14: Sanitize event name — strip newlines to prevent SSE injection
+  const safeEvent = String(event).replace(/[\r\n]/g, '');
+  const payload = `event: ${safeEvent}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of clients) {
     try {
       res.write(payload);

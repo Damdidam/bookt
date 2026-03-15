@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { query, queryWithRLS, pool } = require('../../services/db');
 const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
-const { bookingLimiter, slotsLimiter, clientPhoneLimiter } = require('../../middleware/rate-limiter');
+const { bookingLimiter, slotsLimiter, clientPhoneLimiter, depositLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
@@ -1787,7 +1787,7 @@ router.get('/booking/:token', async (req, res, next) => {
 // POST /api/public/deposit/:token/checkout
 // Create Stripe Checkout Session for deposit payment
 // ============================================================
-router.post('/deposit/:token/checkout', async (req, res, next) => {
+router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
 
@@ -1830,6 +1830,16 @@ router.post('/deposit/:token/checkout', async (req, res, next) => {
 
     const amountCents = bk.deposit_amount_cents || 0;
     if (amountCents < 50) return res.status(400).json({ error: 'Montant trop faible' });
+
+    // M13: Reuse existing Stripe session if still open
+    if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('cs_')) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(bk.deposit_payment_intent_id);
+        if (existingSession.status === 'open' && existingSession.url) {
+          return res.json({ url: existingSession.url, session_id: existingSession.id });
+        }
+      } catch (e) { /* expired or invalid — create new */ }
+    }
 
     // 5. Create Checkout Session
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
@@ -1883,7 +1893,7 @@ router.post('/deposit/:token/checkout', async (req, res, next) => {
 // One-click payment redirect: creates Stripe Checkout Session and 302 redirects.
 // Used in deposit request emails so clients go directly to Stripe.
 // ============================================================
-router.get('/deposit/:token/pay', async (req, res, next) => {
+router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
@@ -1922,6 +1932,16 @@ router.get('/deposit/:token/pay', async (req, res, next) => {
 
     const amountCents = bk.deposit_amount_cents || 0;
     if (amountCents < 50) return res.redirect(depositPageUrl);
+
+    // M13: Reuse existing Stripe session if still open
+    if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('cs_')) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(bk.deposit_payment_intent_id);
+        if (existingSession.status === 'open' && existingSession.url) {
+          return res.redirect(existingSession.url);
+        }
+      } catch (e) { /* expired or invalid — create new */ }
+    }
 
     const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
       timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
@@ -3467,6 +3487,10 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       }
     }
 
+    // L9: Typeof check — reject non-string note
+    if (note !== undefined && typeof note !== 'string') {
+      return res.status(400).json({ error: 'note invalide' });
+    }
     if (note && note.length > 300) {
       return res.status(400).json({ error: 'Note trop longue (max 300)' });
     }

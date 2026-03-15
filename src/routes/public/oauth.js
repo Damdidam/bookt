@@ -85,7 +85,7 @@ router.get('/:provider', authLimiter, async (req, res) => {
     const slug = req.query.slug || '';
     // M2: Validate slug to prevent open redirect (only allow alphanumeric + hyphens)
     const safeSlug = /^[a-zA-Z0-9_-]+$/.test(slug) ? slug : '';
-    res.redirect(safeSlug ? `/${safeSlug}/book?oauth_error=${encodeURIComponent(err.message)}` : `/?oauth_error=${encodeURIComponent(err.message)}`);
+    res.redirect(safeSlug ? `/${safeSlug}/book?oauth_error=auth_failed` : `/?oauth_error=auth_failed`);
   }
 });
 

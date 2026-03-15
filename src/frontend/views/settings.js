@@ -450,7 +450,7 @@ async function loadSettings(){
 
     // Draw QR code
     setTimeout(()=>drawQR(lk.qr_data||lk.booking_url||''),50);
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 async function savePractitionerChoiceSetting(){

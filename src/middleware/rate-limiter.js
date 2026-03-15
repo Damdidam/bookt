@@ -50,4 +50,16 @@ const clientPhoneLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter };
+/**
+ * Rate limiter for deposit checkout/pay.
+ * 10 requests per 15 minutes per IP to prevent abuse.
+ */
+const depositLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: { error: 'Trop de tentatives de paiement. Réessayez plus tard.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter };

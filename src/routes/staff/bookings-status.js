@@ -701,7 +701,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
           // If already refunded on Stripe, continue (idempotent)
           if (stripeErr.code !== 'charge_already_refunded') {
             console.error('[DEPOSIT REFUND] Stripe refund failed:', stripeErr.message);
-            return { error: 500, message: 'Erreur Stripe: ' + stripeErr.message };
+            return { error: 500, message: 'Erreur Stripe lors du remboursement' };
           }
         }
       }

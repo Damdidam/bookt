@@ -152,7 +152,7 @@ async function renderPlanning() {
     c.innerHTML = buildHTML();
   } catch (err) {
     console.error('Planning load error:', err);
-    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur de chargement: ${err.message}</div>`;
+    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur de chargement: ${esc(err.message)}</div>`;
   }
 }
 
@@ -1192,7 +1192,7 @@ async function planLoadLogs(absId) {
       h += `<div class="plan-log-item"><div class="plan-log-dot ${log.action}"></div><div class="plan-log-info"><div class="plan-log-action">${actionLabels[log.action] || log.action}</div><div class="plan-log-meta">${dateStr} à ${timeStr}${log.actor_name ? ' · ' + esc(log.actor_name) : ''}</div>${detailStr ? `<div class="plan-log-detail">${detailStr}</div>` : ''}</div></div>`;
     });
     container.innerHTML = h;
-  } catch (e) { container.innerHTML = `<div style="color:var(--red);font-size:.82rem;padding:20px">Erreur: ${e.message}</div>`; }
+  } catch (e) { container.innerHTML = `<div style="color:var(--red);font-size:.82rem;padding:20px">Erreur: ${esc(e.message)}</div>`; }
 }
 
 // ── Bridge ──

@@ -45,7 +45,7 @@ async function loadClients(){
     }
     h+=`</div>`;
     c.innerHTML=h;
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 // ── Live autocomplete for client search (3+ chars) ──

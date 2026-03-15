@@ -280,7 +280,15 @@ router.get('/connections', requireAuth, async (req, res, next) => {
  */
 router.patch('/connections/:id', requireAuth, async (req, res, next) => {
   try {
-    const { sync_direction, sync_enabled, practitioner_id } = req.body;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const { sync_direction, sync_enabled } = req.body;
+    let { practitioner_id } = req.body;
+
+    // M9: UUID validation on practitioner_id
+    if (practitioner_id && !UUID_RE.test(practitioner_id)) {
+      return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+
     await queryWithRLS(req.businessId,
       `UPDATE calendar_connections SET
         sync_direction = COALESCE($1, sync_direction),

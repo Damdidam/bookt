@@ -13,6 +13,9 @@ let teamLeaveYear = new Date().getFullYear();
 let teamEditSchedule = {}; // mutable copy of schedule for editing (weekday -> [{start_time,end_time}])
 let teamEditPracId = null; // practitioner id being edited
 let teamEditServiceIds = new Set(); // service IDs assigned to this practitioner
+
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+
 let teamAllServices = []; // all active services fetched from API
 
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -177,7 +180,7 @@ async function loadTeam() {
       h += `</div>`;
     }
     c.innerHTML = h;
-  } catch (e) { c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`; }
+  } catch (e) { c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`; }
 }
 
 // ============================================================
@@ -526,7 +529,7 @@ async function teamLoadSchedule(pracId) {
     document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
   } catch (e) {
     document.getElementById('tm_schedule_editor').innerHTML =
-      `<div style="color:var(--red);font-size:.82rem">Erreur: ${e.message}</div>`;
+      `<div style="color:var(--red);font-size:.82rem">Erreur: ${esc(e.message)}</div>`;
   }
 }
 
@@ -663,7 +666,7 @@ async function teamLoadLeave(pracId, year) {
       absEl.innerHTML = '<div style="padding:8px 0">Aucune absence enregistrée</div>';
     }
   } catch (e) {
-    document.getElementById('tm_leave_table').innerHTML = `<div style="color:var(--red);font-size:.82rem">Erreur: ${e.message}</div>`;
+    document.getElementById('tm_leave_table').innerHTML = `<div style="color:var(--red);font-size:.82rem">Erreur: ${esc(e.message)}</div>`;
   }
 }
 

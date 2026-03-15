@@ -1419,7 +1419,8 @@ function buildModeSelector(){
   selectedMode=modes[0];
   const row=document.getElementById('modeRow');
   row.style.display='flex';
-  row.innerHTML=modes.map(m=>'<div class="mode-btn '+(m===selectedMode?'sel':'')+'" data-mode="'+m+'"><span class="ico">'+(MODE_ICONS[m]||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>')+'</span>'+(MODE_LABELS[m]||m)+'</div>').join('');
+  const escM=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  row.innerHTML=modes.map(m=>'<div class="mode-btn '+(m===selectedMode?'sel':'')+'" data-mode="'+escM(m)+'"><span class="ico">'+(MODE_ICONS[m]||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>')+'</span>'+(MODE_LABELS[m]||escM(m))+'</div>').join('');
   row.querySelectorAll('.mode-btn').forEach(b=>b.addEventListener('click',()=>{
     selectedMode=b.dataset.mode;
     row.querySelectorAll('.mode-btn').forEach(x=>x.classList.toggle('sel',x.dataset.mode===b.dataset.mode));

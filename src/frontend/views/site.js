@@ -6,6 +6,10 @@ import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 import { guardModal } from '../utils/dirty-guard.js';
 
+// XSS-safe HTML escaping for admin views
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+const escAttr=s=>(s||'').replace(/"/g,'&quot;');
+
 const THEMES={
   classique:{name:'Classique',desc:'Épuré et professionnel. Teal + typographie éditoriale.',free:true,
     colors:{bg:'#FAFAF9',nav:'#FAFAF9',navText:'#1A1816',primary:'#0D7377',text:'#1A1816',card:'#FFF',cardBorder:'#ECEAE6',heroBg:'#FAFAF9'},
@@ -79,14 +83,14 @@ async function loadSiteSection(){
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Contenu du site</h3></div>
       <div style="padding:18px">
         <div class="fg"><label class="fl">Slogan / Tagline</label><input class="fi" id="siteTagline" value="${(b.tagline||'').replace(/"/g,'&quot;')}" placeholder="Ex: Votre santé, notre priorité depuis 2018"></div>
-        <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${b.description||''}</textarea></div>
+        <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${esc(b.description||'')}</textarea></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="fg"><label class="fl">Logo (URL)</label><input class="fi" id="siteLogo" value="${b.logo_url||''}" placeholder="https://..."></div>
-          <div class="fg"><label class="fl">Image de couverture (URL)</label><input class="fi" id="siteCover" value="${b.cover_image_url||''}" placeholder="https://..."></div>
+          <div class="fg"><label class="fl">Logo (URL)</label><input class="fi" id="siteLogo" value="${escAttr(b.logo_url)}" placeholder="https://..."></div>
+          <div class="fg"><label class="fl">Image de couverture (URL)</label><input class="fi" id="siteCover" value="${escAttr(b.cover_image_url)}" placeholder="https://..."></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:4px">
-          ${b.logo_url?'<div style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+b.logo_url+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
-          ${b.cover_image_url?'<div style="flex:1;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+b.cover_image_url+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
+          ${b.logo_url?'<div style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+esc(b.logo_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
+          ${b.cover_image_url?'<div style="flex:1;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+esc(b.cover_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
         </div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSiteContent()">Enregistrer</button></div>
@@ -97,10 +101,10 @@ async function loadSiteSection(){
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Réseaux sociaux</h3></div>
       <div style="padding:18px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="fg"><label class="fl">Facebook</label><input class="fi" id="socialFb" value="${sl.facebook||''}" placeholder="https://facebook.com/..."></div>
-          <div class="fg"><label class="fl">Instagram</label><input class="fi" id="socialIg" value="${sl.instagram||''}" placeholder="https://instagram.com/..."></div>
-          <div class="fg"><label class="fl">LinkedIn</label><input class="fi" id="socialLi" value="${sl.linkedin||''}" placeholder="https://linkedin.com/in/..."></div>
-          <div class="fg"><label class="fl">Site web</label><input class="fi" id="socialWeb" value="${sl.website||''}" placeholder="https://..."></div>
+          <div class="fg"><label class="fl">Facebook</label><input class="fi" id="socialFb" value="${escAttr(sl.facebook)}" placeholder="https://facebook.com/..."></div>
+          <div class="fg"><label class="fl">Instagram</label><input class="fi" id="socialIg" value="${escAttr(sl.instagram)}" placeholder="https://instagram.com/..."></div>
+          <div class="fg"><label class="fl">LinkedIn</label><input class="fi" id="socialLi" value="${escAttr(sl.linkedin)}" placeholder="https://linkedin.com/in/..."></div>
+          <div class="fg"><label class="fl">Site web</label><input class="fi" id="socialWeb" value="${escAttr(sl.website)}" placeholder="https://..."></div>
         </div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSocialLinks()">Enregistrer</button></div>
@@ -173,10 +177,10 @@ async function loadSiteSection(){
     }else{
       galleryItems.forEach((img,i)=>{
         h+=`<div class="gal-item${img.is_active?'':' inactive'}" data-id="${img.id}">
-          <div class="gal-img"><img src="${img.image_url}" alt="${img.title||''}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23eee%22 width=%22200%22 height=%22150%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>Erreur</text></svg>'"></div>
+          <div class="gal-img"><img src="${esc(img.image_url)}" alt="${esc(img.title||'')}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23eee%22 width=%22200%22 height=%22150%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>Erreur</text></svg>'"></div>
           <div class="gal-info">
-            <div class="gal-title">${img.title||'<em style="color:var(--text-4)">Sans titre</em>'}</div>
-            ${img.caption?'<div class="gal-caption">'+img.caption+'</div>':''}
+            <div class="gal-title">${esc(img.title)||'<em style="color:var(--text-4)">Sans titre</em>'}</div>
+            ${img.caption?'<div class="gal-caption">'+esc(img.caption)+'</div>':''}
           </div>
           <div class="gal-actions">
             <button onclick="editGalleryItem('${img.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -203,10 +207,10 @@ async function loadSiteSection(){
           <div class="news-date">${date}</div>
           <div class="news-body">
             <div class="news-title-row">
-              <span class="news-title">${n.title}</span>
-              ${n.tag?'<span class="news-tag" style="background:'+((tagColors[n.tag_type]||'var(--text-4)')+'22')+';color:'+(tagColors[n.tag_type]||'var(--text-4)')+'">'+n.tag+'</span>':''}
+              <span class="news-title">${esc(n.title)}</span>
+              ${n.tag?'<span class="news-tag" style="background:'+((tagColors[n.tag_type]||'var(--text-4)')+'22')+';color:'+(tagColors[n.tag_type]||'var(--text-4)')+'">'+esc(n.tag)+'</span>':''}
             </div>
-            <div class="news-excerpt">${(n.content||'').substring(0,120)}${(n.content||'').length>120?'…':''}</div>
+            <div class="news-excerpt">${esc((n.content||'').substring(0,120))}${(n.content||'').length>120?'…':''}</div>
           </div>
           <div class="news-actions">
             <button onclick="editNewsItem('${n.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -230,8 +234,8 @@ async function loadSiteSection(){
         h+=`<div class="news-item${t.is_active!==false?'':' inactive'}" data-id="${t.id}">
           <div class="news-date" style="font-size:1.2rem">${t.rating?Array.from({length:t.rating},()=>'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg>').join(''):'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg>'}</div>
           <div class="news-body">
-            <div class="news-title-row"><span class="news-title">${t.author_name||'Anonyme'}</span>${t.author_role?'<span class="news-tag" style="background:var(--primary-light);color:var(--primary)">'+t.author_role+'</span>':''}</div>
-            <div class="news-excerpt">${(t.content||'').substring(0,120)}${(t.content||'').length>120?'…':''}</div>
+            <div class="news-title-row"><span class="news-title">${esc(t.author_name||'Anonyme')}</span>${t.author_role?'<span class="news-tag" style="background:var(--primary-light);color:var(--primary)">'+esc(t.author_role)+'</span>':''}</div>
+            <div class="news-excerpt">${esc((t.content||'').substring(0,120))}${(t.content||'').length>120?'…':''}</div>
           </div>
           <div class="news-actions">
             <button onclick="editTestimonial('${t.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -252,10 +256,10 @@ async function loadSiteSection(){
     }else{
       valueItems.forEach(v=>{
         h+=`<div class="news-item" data-id="${v.id}">
-          <div class="news-date" style="font-size:1.4rem">${v.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}</div>
+          <div class="news-date" style="font-size:1.4rem">${esc(v.icon)||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}</div>
           <div class="news-body">
-            <div class="news-title-row"><span class="news-title">${v.title||''}</span></div>
-            <div class="news-excerpt">${v.description||''}</div>
+            <div class="news-title-row"><span class="news-title">${esc(v.title||'')}</span></div>
+            <div class="news-excerpt">${esc(v.description||'')}</div>
           </div>
           <div class="news-actions">
             <button onclick="editValue('${v.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -271,7 +275,7 @@ async function loadSiteSection(){
       <div style="padding:18px">
         <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Optimisez votre référencement sur Google.</p>
         <div class="fg"><label class="fl">Titre SEO</label><input class="fi" id="seoTitle" value="${(b.seo_title||'').replace(/"/g,'&quot;')}" placeholder="${b.name||'Mon cabinet'} — ${b.tagline||'Prise de rendez-vous en ligne'}"></div>
-        <div class="fg"><label class="fl">Description SEO</label><textarea class="fi" id="seoDesc" style="min-height:60px;resize:vertical" placeholder="Description qui apparaîtra dans les résultats Google (max 160 caractères)...">${b.seo_description||''}</textarea></div>
+        <div class="fg"><label class="fl">Description SEO</label><textarea class="fi" id="seoDesc" style="min-height:60px;resize:vertical" placeholder="Description qui apparaîtra dans les résultats Google (max 160 caractères)...">${esc(b.seo_description||'')}</textarea></div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSEO()">Enregistrer</button></div>
     </div>`;
@@ -308,7 +312,7 @@ async function loadSiteSection(){
       cwWrap.innerHTML=cswHTML('customColor',curColor,false);
       if(businessPlan==='free'){cwWrap.style.opacity='.4';cwWrap.style.pointerEvents='none';}
     }
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 async function selectTheme(preset){

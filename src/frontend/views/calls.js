@@ -100,7 +100,7 @@ async function loadCalls(){
     else if(viewState.callTab==='usage') h+=renderCallUsage(usage,logs);
 
     c.innerHTML=h;
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 function renderCallLogs(logs){

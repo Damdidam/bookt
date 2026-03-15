@@ -158,7 +158,7 @@ async function loadServices(){
     c.innerHTML=h;
     restoreCollapsedState();
     initSvcTouchDnD();
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 function renderServiceRow(s,sortIdx){

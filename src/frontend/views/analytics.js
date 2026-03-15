@@ -4,6 +4,8 @@
 import { api } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+
 let analyticsPeriod='30d';
 
 async function loadAnalytics(period){
@@ -14,7 +16,7 @@ async function loadAnalytics(period){
     const r=await fetch(`/api/dashboard/analytics?period=${analyticsPeriod}`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     const d=await r.json();
     renderAnalytics(d);
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 function renderAnalytics(d){

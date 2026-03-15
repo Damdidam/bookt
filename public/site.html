@@ -410,7 +410,7 @@ const slug=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/').pop();
 const isDemo=(!slug||slug===''||slug.endsWith('.html')||window.location.protocol==='file:');
 const urlDemo=new URLSearchParams(window.location.search).has('demo');
 
-if(isDemo||urlDemo){ try{ loadDemo(); }catch(e){ console.error('Demo error:',e); document.getElementById('loadingState').innerHTML='<div style="color:red;padding:20px;font-family:monospace"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Erreur demo: '+e.message+'</div>'; }}
+if(isDemo||urlDemo){ try{ loadDemo(); }catch(e){ console.error('Demo error:',e); document.getElementById('loadingState').innerHTML='<div style="color:red;padding:20px;font-family:monospace"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Erreur demo: '+esc(e.message)+'</div>'; }}
 else loadSite(slug);
 
 function loadDemo(){
@@ -484,7 +484,7 @@ function loadDemo(){
   document.querySelector('.hero').style.paddingTop='136px';
 }
 
-async function loadSite(slug){try{const r=await fetch('/api/public/'+slug);if(!r.ok){document.getElementById('loadingState').style.display='none';document.getElementById('errorState').style.display='flex';return;}const data=await r.json();try{render(data);}catch(re){console.error('Render error:',re);document.getElementById('loadingState').innerHTML='<div style="color:red;padding:20px;font-family:monospace;text-align:center"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Erreur render: '+re.message+'</div>';}}catch(e){console.error('Load error:',e);document.getElementById('loadingState').style.display='none';document.getElementById('errorState').style.display='flex';}}
+async function loadSite(slug){try{const r=await fetch('/api/public/'+slug);if(!r.ok){document.getElementById('loadingState').style.display='none';document.getElementById('errorState').style.display='flex';return;}const data=await r.json();try{render(data);}catch(re){console.error('Render error:',re);document.getElementById('loadingState').innerHTML='<div style="color:red;padding:20px;font-family:monospace;text-align:center"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Erreur render: '+esc(re.message)+'</div>';}}catch(e){console.error('Load error:',e);document.getElementById('loadingState').style.display='none';document.getElementById('errorState').style.display='flex';}}
 
 function render(d){
   const b=d.business,sec=b.page_sections||{},bookUrl='/'+b.slug+'/book';
@@ -683,7 +683,7 @@ function render(d){
       document.getElementById('aboutBlock').style.display='grid';
       document.getElementById('aboutTextSimple').style.display='none';
       const ph=document.getElementById('aboutPhoto');
-      if(mp.photo_url)ph.innerHTML='<img src="'+mp.photo_url+'" alt="'+esc(mp.display_name)+'">';
+      if(mp.photo_url)ph.innerHTML='<img src="'+esc(mp.photo_url)+'" alt="'+esc(mp.display_name)+'">';
       else document.getElementById('aboutInit').textContent=mp.display_name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
       document.getElementById('aboutTitle').textContent=mp.display_name;
       let ah='';
@@ -742,7 +742,7 @@ function render(d){
   // Gallery
   if(sec.gallery===false||!d.gallery?.length){document.getElementById('gallerySection').style.display='none';document.getElementById('galleryDivider').style.display='none';}
   else{document.getElementById('gallerySection').style.display='block';document.getElementById('galleryDivider').style.display='block';
-    document.getElementById('galleryGrid').innerHTML=d.gallery.map(g=>'<div class="gallery-item"><img src="'+g.image_url+'" alt="'+esc(g.title||'')+'" loading="lazy">'+(g.title?'<div class="g-overlay"><span class="g-title">'+esc(g.title)+'</span></div>':'<div class="g-overlay"></div>')+'</div>').join('');}
+    document.getElementById('galleryGrid').innerHTML=d.gallery.map(g=>'<div class="gallery-item"><img src="'+esc(g.image_url)+'" alt="'+esc(g.title||'')+'" loading="lazy">'+(g.title?'<div class="g-overlay"><span class="g-title">'+esc(g.title)+'</span></div>':'<div class="g-overlay"></div>')+'</div>').join('');}
 
   // Specializations
   if(sec.specializations===false||!d.specializations?.length){document.getElementById('specializations').style.display='none';document.getElementById('specsDivider').style.display='none';}

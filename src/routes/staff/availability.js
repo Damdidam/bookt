@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
-const { requireAuth } = require('../../middleware/auth');
+const { requireAuth, requireRole } = require('../../middleware/auth');
 
 router.use(requireAuth);
 
@@ -249,8 +249,8 @@ router.get('/holidays', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/availabilities/holidays — add a single holiday
-router.post('/holidays', async (req, res, next) => {
+// POST /api/availabilities/holidays — add a single holiday (L8: owner/manager only)
+router.post('/holidays', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { date, name } = req.body;
@@ -267,8 +267,8 @@ router.post('/holidays', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/availabilities/holidays/:id
-router.delete('/holidays/:id', async (req, res, next) => {
+// DELETE /api/availabilities/holidays/:id (L8: owner/manager only)
+router.delete('/holidays/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     await queryWithRLS(req.businessId,
       `DELETE FROM business_holidays WHERE id = $1 AND business_id = $2`,
@@ -278,8 +278,8 @@ router.delete('/holidays/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/availabilities/holidays/prefill — prefill Belgian legal holidays
-router.post('/holidays/prefill', async (req, res, next) => {
+// POST /api/availabilities/holidays/prefill — prefill Belgian legal holidays (L8: owner/manager only)
+router.post('/holidays/prefill', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const year = parseInt(req.body.year) || new Date().getFullYear();

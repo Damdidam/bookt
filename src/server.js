@@ -57,9 +57,21 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy (Render, Railway, etc.)
 app.set('trust proxy', 1);
 
-// TODO: Enable CSP when frontend is ready
+// H1: CSP enabled — restrict script/style sources
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https://api.stripe.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      frameSrc: ["https://js.stripe.com", "https://maps.google.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"]
+    }
+  },
   crossOriginEmbedderPolicy: false
 }));
 app.use(cors({
