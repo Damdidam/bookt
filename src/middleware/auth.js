@@ -9,9 +9,9 @@ const { query } = require('../services/db');
 async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
-    // M6: Only accept ?token= for specific PDF/export download routes to avoid leaking JWT in logs/Referer
-    const isPdfRoute = /\/(pdf|export|download|print)(\/|$)/i.test(req.path);
-    const queryToken = isPdfRoute ? req.query.token : null;
+    // M6: Only accept ?token= for PDF/export routes + SSE stream (EventSource cannot send headers)
+    const allowQueryToken = /\/(pdf|export|download|print)(\/|$)/i.test(req.path) || /\/events\/stream$/.test(req.path);
+    const queryToken = allowQueryToken ? req.query.token : null;
     if (!authHeader && !queryToken) {
       return res.status(401).json({ error: 'Token manquant' });
     }
