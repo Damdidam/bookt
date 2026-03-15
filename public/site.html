@@ -344,7 +344,15 @@ function applyTheme(p,c){const t=THEMES[p]||THEMES.classique;const r=document.do
 
 const DAYS_FR=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const MODE_LABELS={cabinet:'Au cabinet',visio:'Visio',phone:'Téléphone',domicile:'À domicile'};
-const esc=s=>s?s.replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
+const esc=s=>s?s.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';
+// Sanitize SVG: strip event handlers, script tags, data URIs, xlink:href with js
+const sanitizeSvg=s=>{if(!s||typeof s!=='string')return '';const t=s.trim();if(!t.match(/^<svg[\s>]/i))return esc(s);return t.replace(/<script[\s\S]*?<\/script\s*>/gi,'').replace(/\bon\w+\s*=\s*["'][^"']*["']/gi,'').replace(/\bon\w+\s*=\s*\S+/gi,'').replace(/javascript\s*:/gi,'').replace(/data\s*:\s*text\/html/gi,'');};
+// Validate CSS class name (alphanumeric + hyphens only)
+const safeClass=s=>(s&&/^[a-zA-Z0-9_-]+$/.test(s))?s:'teal';
+// Sanitize color value (hex or CSS variable only)
+const safeColor=s=>{if(!s||typeof s!=='string')return 'var(--primary)';if(/^#[0-9a-fA-F]{3,8}$/.test(s))return s;if(/^var\(--[a-zA-Z0-9-]+\)$/.test(s))return s;return 'var(--primary)';};
+// Sanitize tel: href (digits, +, -, spaces only)
+const safeTel=s=>(s&&typeof s==='string')?s.replace(/[^\d+\-\s().]/g,''):'';
 function fmtDate(d){return new Date(d).toLocaleDateString('fr-BE',{day:'numeric',month:'long',year:'numeric'});}
 function fmtNext(iso){if(!iso)return null;const d=new Date(iso),now=new Date(),h=(d-now)/36e5;if(h<0)return null;const t=d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});if(h<24)return"Aujourd'hui, "+t;if(h<48)return'Demain, '+t;return d.toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'short'})+', '+t;}
 const ICO={phone:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',mail:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z"/><path d="M22 6l-10 7L2 6"/></svg>',pin:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>',cal:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',arrow:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',fb:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z"/></svg>',ig:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><path d="M17.5 6.5h.01"/></svg>',li:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6ZM2 9h4v12H2Z"/><circle cx="4" cy="4" r="2"/></svg>',web:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>'};
@@ -583,21 +591,21 @@ function render(d){
     let svcHtml = '';
     catKeys.forEach(cat => {
       if (catKeys.length > 1) {
-        svcHtml += '<div class="svc-cat-label">' + (catIconMap[cat] || '') + ' ' + esc(cat) + '</div>';
+        svcHtml += '<div class="svc-cat-label">' + (catIconMap[cat] ? sanitizeSvg(catIconMap[cat]) : '') + ' ' + esc(cat) + '</div>';
       }
       grouped[cat].forEach(s => {
         const price = s.price_cents ? (s.price_cents/100).toFixed(0) + ' \u20ac' : (s.price_label || '');
         const modes = (s.mode_options || []).map(m => '<span class="svc-mode">' + (MODE_LABELS[m]||m) + '</span>').join('');
         if (multiEnabled) {
           svcHtml += '<div class="svc-row" data-svc-id="' + s.id + '" onclick="toggleMultiSvc(\'' + s.id + '\')">' +
-            '<div class="svc-dot" style="background:' + (s.color||'var(--primary)') + '"></div>' +
+            '<div class="svc-dot" style="background:' + safeColor(s.color) + '"></div>' +
             '<div class="svc-info"><h4>' + esc(s.name) + '</h4><div class="meta">' + (s.duration_min||0) + ' min \u00b7 ' + modes + '</div></div>' +
             (price ? '<div class="svc-price">' + price + '</div>' : '') +
             '<div class="svc-add-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>' +
             '</div>';
         } else {
           svcHtml += '<a class="svc-row" href="' + bookUrl + '?service=' + s.id + '">' +
-            '<div class="svc-dot" style="background:' + (s.color||'var(--primary)') + '"></div>' +
+            '<div class="svc-dot" style="background:' + safeColor(s.color) + '"></div>' +
             '<div class="svc-info"><h4>' + esc(s.name) + '</h4><div class="meta">' + (s.duration_min||0) + ' min \u00b7 ' + modes + '</div></div>' +
             (price ? '<div class="svc-price">' + price + '</div>' : '') +
             '<div class="svc-arrow">' + ICO.arrow + '</div></a>';
@@ -619,7 +627,7 @@ function render(d){
       tabsHtml += ' Toutes</div>';
       activeCats.forEach(c => {
         tabsHtml += '<div class="cat-tab" data-cat="' + esc(c.label) + '">';
-        if (c.icon_svg) tabsHtml += c.icon_svg;
+        if (c.icon_svg) tabsHtml += sanitizeSvg(c.icon_svg);
         tabsHtml += ' ' + esc(c.label) + '</div>';
       });
       // Add tabs for custom categories (not in catalog but used by services)
@@ -701,7 +709,7 @@ function render(d){
       document.getElementById('aboutTextSimple').style.display='block';
       document.getElementById('aboutTextSimple').textContent=b.description||'';
     }
-    if(d.values?.length)document.getElementById('valuesGrid').innerHTML=d.values.map(v=>'<div class="value-card"><div class="value-icon '+(v.icon_style||'teal')+'">'+v.icon+'</div><div><h4>'+esc(v.title)+'</h4><p>'+esc(v.description)+'</p></div></div>').join('');
+    if(d.values?.length)document.getElementById('valuesGrid').innerHTML=d.values.map(v=>'<div class="value-card"><div class="value-icon '+safeClass(v.icon_style)+'">'+sanitizeSvg(v.icon)+'</div><div><h4>'+esc(v.title)+'</h4><p>'+esc(v.description)+'</p></div></div>').join('');
     else{
       // Auto-generate values for minimal data scenarios
       const autoValues=[
@@ -728,7 +736,7 @@ function render(d){
       const specs=(p.specializations||[]).map(s=>'<span class="tm-tag">'+esc(s)+'</span>').join('');
       const photo=p.photo_url?'<img src="'+p.photo_url+'" alt="'+esc(p.display_name)+'">':'<span class="tm-init">'+pi+'</span>';
       const av=p.waitlist_mode==='off'?'on':'off';
-      return '<div class="team-card"><div class="tm-photo" style="background:'+(p.color||'var(--surface)')+'">'+photo+'<div class="tm-avail '+av+'"></div></div><div class="tm-body"><h4>'+esc(p.display_name)+'</h4><div class="tm-role">'+esc(p.title||'')+(p.years_experience?' · '+p.years_experience+" ans d'exp.":'')+'</div>'+(p.bio?'<div class="tm-bio">'+esc(p.bio)+'</div>':'')+'<div class="tm-tags">'+specs+'</div><a class="tm-book" href="'+bookUrl+'?practitioner='+p.id+'">'+ICO.cal+' Réserver avec '+esc(p.display_name.split(' ')[0])+'</a></div></div>';
+      return '<div class="team-card"><div class="tm-photo" style="background:'+safeColor(p.color||'var(--surface)')+'">'+photo+'<div class="tm-avail '+av+'"></div></div><div class="tm-body"><h4>'+esc(p.display_name)+'</h4><div class="tm-role">'+esc(p.title||'')+(p.years_experience?' · '+p.years_experience+" ans d'exp.":'')+'</div>'+(p.bio?'<div class="tm-bio">'+esc(p.bio)+'</div>':'')+'<div class="tm-tags">'+specs+'</div><a class="tm-book" href="'+bookUrl+'?practitioner='+p.id+'">'+ICO.cal+' Réserver avec '+esc(p.display_name.split(' ')[0])+'</a></div></div>';
     }).join('');}
 
   // Gallery
@@ -739,7 +747,7 @@ function render(d){
   // Specializations
   if(sec.specializations===false||!d.specializations?.length){document.getElementById('specializations').style.display='none';document.getElementById('specsDivider').style.display='none';}
   else{document.getElementById('specializations').style.display='block';document.getElementById('specsDivider').style.display='block';
-    document.getElementById('specsGrid').innerHTML=d.specializations.map(s=>'<div class="spec-card"><span class="ico">'+(s.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>')+'</span><div><h4>'+esc(s.name)+'</h4><p>'+esc(s.description||'')+'</p></div></div>').join('');}
+    document.getElementById('specsGrid').innerHTML=d.specializations.map(s=>'<div class="spec-card"><span class="ico">'+(s.icon?sanitizeSvg(s.icon):'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>')+'</span><div><h4>'+esc(s.name)+'</h4><p>'+esc(s.description||'')+'</p></div></div>').join('');}
 
   // Testimonials
   if(sec.testimonials===false||!d.testimonials?.length){document.getElementById('testimonials').style.display='none';document.getElementById('testDivider').style.display='none';}
@@ -749,7 +757,7 @@ function render(d){
   // News
   if(sec.news===false||!d.news?.length){document.getElementById('newsSection').style.display='none';document.getElementById('newsDivider').style.display='none';}
   else{document.getElementById('newsSection').style.display='block';document.getElementById('newsDivider').style.display='block';
-    document.getElementById('newsList').innerHTML=d.news.map(n=>'<div class="news-card"><div class="news-date">'+fmtDate(n.published_at)+'</div><h3>'+esc(n.title)+'</h3><p>'+esc(n.content)+'</p>'+(n.tag?'<span class="news-tag '+(n.tag_type||'info')+'">'+esc(n.tag)+'</span>':'')+'</div>').join('');}
+    document.getElementById('newsList').innerHTML=d.news.map(n=>'<div class="news-card"><div class="news-date">'+fmtDate(n.published_at)+'</div><h3>'+esc(n.title)+'</h3><p>'+esc(n.content)+'</p>'+(n.tag?'<span class="news-tag '+safeClass(n.tag_type||'info')+'">'+esc(n.tag)+'</span>':'')+'</div>').join('');}
 
   // Hours
   const todayIdx=(new Date().getDay()+6)%7;
@@ -758,7 +766,7 @@ function render(d){
 
   // Contact cards
   const cc=[];
-  if(b.phone)cc.push('<a class="c-card" href="tel:'+b.phone+'"><div class="c-ico">'+ICO.phone+'</div><div><div class="c-lbl">Téléphone</div><div class="c-val">'+esc(b.phone)+'</div></div></a>');
+  if(b.phone)cc.push('<a class="c-card" href="tel:'+safeTel(b.phone)+'"><div class="c-ico">'+ICO.phone+'</div><div><div class="c-lbl">Téléphone</div><div class="c-val">'+esc(b.phone)+'</div></div></a>');
   if(b.email)cc.push('<a class="c-card" href="mailto:'+b.email+'"><div class="c-ico">'+ICO.mail+'</div><div><div class="c-lbl">Email</div><div class="c-val">'+esc(b.email)+'</div></div></a>');
   if(b.address)cc.push('<a class="c-card" href="https://maps.google.com/?q='+encodeURIComponent(b.address)+'" target="_blank" rel="noopener"><div class="c-ico">'+ICO.pin+'</div><div><div class="c-lbl">Adresse</div><div class="c-val">'+esc(b.address)+'</div></div></a>');
   document.getElementById('contactCards').innerHTML=cc.join('');

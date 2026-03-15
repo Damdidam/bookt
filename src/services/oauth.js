@@ -165,9 +165,8 @@ async function getAppleUserInfo(idToken, userObj) {
       audience: process.env.APPLE_CLIENT_ID
     });
   } catch (verifyErr) {
-    console.warn('[OAUTH] Apple id_token verification failed, falling back to decode:', verifyErr.message);
-    // Fallback to decode if keys are temporarily unavailable
-    payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url').toString());
+    console.error('[OAUTH] Apple id_token verification failed:', verifyErr.message);
+    throw new Error('Authentification Apple échouée — veuillez réessayer');
   }
 
   let name = '';

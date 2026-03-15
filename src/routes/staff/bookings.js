@@ -125,6 +125,14 @@ router.get('/:id/history', async (req, res, next) => {
     const bid = req.businessId;
     const { id } = req.params;
 
+    // Practitioner scope: verify booking belongs to this practitioner
+    if (req.practitionerFilter) {
+      const check = await queryWithRLS(bid,
+        `SELECT id FROM bookings WHERE id = $1 AND business_id = $2 AND practitioner_id = $3`,
+        [id, bid, req.practitionerFilter]);
+      if (check.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    }
+
     const result = await queryWithRLS(bid,
       `SELECT al.action, al.old_data, al.new_data, al.created_at,
               COALESCE(p.display_name, u.email, 'Système') AS actor_name
@@ -162,8 +170,9 @@ router.get('/:id/detail', async (req, res, next) => {
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
-       WHERE b.id = $1 AND b.business_id = $2`,
-      [id, bid]
+       WHERE b.id = $1 AND b.business_id = $2
+         AND ($3::uuid IS NULL OR b.practitioner_id = $3)`,
+      [id, bid, req.practitionerFilter || null]
     );
     if (booking.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 

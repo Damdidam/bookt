@@ -135,7 +135,11 @@ app.get('/api/events/stream', requireAuth, (req, res) => {
   });
   res.write(':\n\n'); // Initial ping
 
-  addClient(req.businessId, res);
+  const accepted = addClient(req.businessId, res);
+  if (!accepted) {
+    res.write('event: error\ndata: {"error":"too_many_connections"}\n\n');
+    return res.end();
+  }
 
   // Heartbeat every 30s to keep connection alive through proxies
   const hb = setInterval(() => { try { res.write(':\n\n'); } catch(e) { clearInterval(hb); } }, 30000);

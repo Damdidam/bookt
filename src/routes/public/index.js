@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { query, queryWithRLS } = require('../../services/db');
+const { query, queryWithRLS, pool } = require('../../services/db');
 const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter, clientPhoneLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
@@ -522,6 +522,10 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
 
     const ids = service_ids.split(',').map(s => s.trim()).filter(Boolean);
     const vids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
+    // UUID-validate non-null variant_ids
+    if (vids.some(v => v && !UUID_RE.test(v))) {
+      return res.status(400).json({ error: 'variant_ids invalide(s)' });
+    }
     if (ids.length < 2) {
       return res.status(400).json({ error: 'Au moins 2 service_ids requis' });
     }
@@ -767,8 +771,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Mode de rendez-vous invalide' });
     }
 
-    if (client_comment && client_comment.length > 500) {
-      return res.status(400).json({ error: 'Commentaire trop long (max 500)' });
+    if (client_comment && (typeof client_comment !== 'string' || client_comment.length > 500)) {
+      return res.status(400).json({ error: 'Commentaire invalide (max 500 caractères)' });
     }
 
     if (client_bce && (typeof client_bce !== 'string' || client_bce.length > 30)) {
@@ -828,7 +832,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Fetch all services, preserving order
       const multiSvcResult = await query(
         `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents, processing_time, processing_start, flexibility_enabled
-         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
+         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true AND bookable_online = true
          ORDER BY array_position($1, id)`,
         [service_ids, businessId]
       );
@@ -1137,6 +1141,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           } catch (depErr) {
             await client.query('ROLLBACK TO SAVEPOINT deposit_sp');
             console.error('Deposit check failed:', depErr.message);
+            // If deposit is enabled, abort the booking — don't let it slip through without deposit
+            if (bizSettings.deposit_enabled) {
+              throw new Error('Impossible de vérifier l\'acompte. Veuillez réessayer.');
+            }
           }
         }
 
@@ -1270,10 +1278,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (effectiveServiceId) {
       const svcResult = await query(
         `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, flexibility_enabled, mode_options
-         FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
+         FROM services WHERE id = $1 AND business_id = $2 AND is_active = true AND bookable_online = true`,
         [effectiveServiceId, businessId]
       );
-      if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+      if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable ou non disponible en ligne' });
       // M7: Validate appointment mode against service's allowed modes
       if (appointment_mode && svcResult.rows[0].mode_options && Array.isArray(svcResult.rows[0].mode_options) && svcResult.rows[0].mode_options.length > 0) {
         if (!svcResult.rows[0].mode_options.includes(appointment_mode)) {
@@ -1561,6 +1569,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         } catch (depErr) {
           await client.query('ROLLBACK TO SAVEPOINT deposit_single_sp');
           console.error('Single-service deposit check failed:', depErr.message);
+          // If deposit is enabled, abort the booking — don't let it slip through without deposit
+          if (bizSettings.deposit_enabled) {
+            throw new Error('Impossible de vérifier l\'acompte. Veuillez réessayer.');
+          }
         }
       }
 
@@ -2231,36 +2243,35 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // between SELECT and UPDATE (a payment webhook could change deposit_status in between)
     const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
 
-    const cancelResult = await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
-        deposit_status = CASE
-          WHEN deposit_required = true AND deposit_status = 'paid' THEN
-            CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
-                   OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
-                 THEN 'refunded' ELSE 'cancelled' END
-          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
-          ELSE deposit_status
-        END,
-        updated_at = NOW()
-       WHERE id = $2 AND status IN ('pending', 'confirmed', 'pending_deposit')
-       RETURNING *`,
-      [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
-    );
+    // Atomic: primary cancel + sibling propagation in one transaction
+    const txClient = await pool.connect();
+    let cancelResult;
+    try {
+      await txClient.query('BEGIN');
+      cancelResult = await txClient.query(
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
+          deposit_status = CASE
+            WHEN deposit_required = true AND deposit_status = 'paid' THEN
+              CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
+                     OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
+                   THEN 'refunded' ELSE 'cancelled' END
+            WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+            ELSE deposit_status
+          END,
+          updated_at = NOW()
+         WHERE id = $2 AND status IN ('pending', 'confirmed', 'pending_deposit')
+         RETURNING *`,
+        [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
+      );
 
-    if (cancelResult.rowCount === 0) {
-      return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
-    }
+      if (cancelResult.rowCount === 0) {
+        await txClient.query('ROLLBACK');
+        return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
+      }
 
-    // Stripe refund if deposit was refunded (handles both pi_ and cs_ IDs)
-    const postCancelBk = cancelResult.rows[0];
-    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
-    }
-
-    // Propagate cancellation to group siblings (multi-service bookings)
-    if (bk.group_id) {
-      try {
-        await query(
+      // Propagate cancellation to group siblings (multi-service bookings)
+      if (bk.group_id) {
+        await txClient.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
             deposit_status = CASE
               WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
@@ -2272,7 +2283,19 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
              AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
           [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id]
         );
-      } catch (e) { console.warn('[CANCEL] Group sibling propagation error:', e.message); }
+      }
+      await txClient.query('COMMIT');
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      txClient.release();
+    }
+
+    // Stripe refund if deposit was refunded (handles both pi_ and cs_ IDs)
+    const postCancelBk = cancelResult.rows[0];
+    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
     }
 
     // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
@@ -2398,47 +2421,58 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       }
     }
 
-    const result = await query(
-      `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
-       WHERE public_token = $1 AND status = 'modified_pending'
-       RETURNING id, status, start_at, end_at, business_id`,
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      const check = await query(
-        `SELECT status FROM bookings WHERE public_token = $1`, [token]
+    // Atomic: primary confirm + sibling propagation in one transaction
+    const txClient = await pool.connect();
+    let result, sibResult = { rows: [] };
+    try {
+      await txClient.query('BEGIN');
+      result = await txClient.query(
+        `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
+         WHERE public_token = $1 AND status = 'modified_pending'
+         RETURNING id, status, start_at, end_at, business_id`,
+        [token]
       );
-      if (check.rows.length === 0) {
-        if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
-        return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+      if (result.rows.length === 0) {
+        await txClient.query('ROLLBACK');
+        const check = await query(
+          `SELECT status FROM bookings WHERE public_token = $1`, [token]
+        );
+        if (check.rows.length === 0) {
+          if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+          return res.status(404).json({ error: 'Rendez-vous introuvable' });
+        }
+        if (check.rows[0].status === 'confirmed') {
+          if (isForm) return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous est confirmé.`, displayData?._color || '#0D7377', displayData?.business_name));
+          return res.json({ confirmed: true, already: true });
+        }
+        if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', displayData?.business_name));
+        return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être confirmé dans son état actuel' });
       }
-      if (check.rows[0].status === 'confirmed') {
-        if (isForm) return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous est confirmé.`, displayData?._color || '#0D7377', displayData?.business_name));
-        return res.json({ confirmed: true, already: true });
+
+      // Propagate to group siblings (multi-service bookings)
+      const confirmedBk = result.rows[0];
+      const grpCheck = await txClient.query(`SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL`, [confirmedBk.id]);
+      if (grpCheck.rows.length > 0) {
+        sibResult = await txClient.query(
+          `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'modified_pending'
+           RETURNING id`,
+          [grpCheck.rows[0].group_id, confirmedBk.business_id, confirmedBk.id]
+        );
       }
-      if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', displayData?.business_name));
-      return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être confirmé dans son état actuel' });
+      await txClient.query('COMMIT');
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      txClient.release();
     }
 
-    // M1: Propagate to group siblings (multi-service bookings)
     const confirmedBk = result.rows[0];
-    if (confirmedBk.id) {
-      const grpCheck = await query(`SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL`, [confirmedBk.id]);
-      if (grpCheck.rows.length > 0) {
-        try {
-          const sibResult = await query(
-            `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
-             WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'modified_pending'
-             RETURNING id`,
-            [grpCheck.rows[0].group_id, confirmedBk.business_id, confirmedBk.id]
-          );
-          // calSyncPush for siblings
-          for (const sib of sibResult.rows) {
-            try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(confirmedBk.business_id, sib.id); } catch (_) {}
-          }
-        } catch (e) { console.warn('[CONFIRM] Group sibling propagation error:', e.message); }
-      }
+    // calSyncPush for siblings
+    for (const sib of sibResult.rows) {
+      try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(confirmedBk.business_id, sib.id); } catch (_) {}
     }
 
     // Queue notification to practitioner
@@ -2514,44 +2548,47 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(400).json({ error: 'Délai de modification dépassé' });
     }
 
-    // Cancel + handle deposit refund (client rejected staff's modification → always refund)
-    const result = await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
-        deposit_status = CASE
-          WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
-          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
-          ELSE deposit_status
-        END,
-        updated_at = NOW()
-       WHERE public_token = $1 AND status = 'modified_pending'
-       RETURNING id, status, start_at, end_at, business_id, group_id,
-                 deposit_required, deposit_status, deposit_payment_intent_id`,
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      const check = await query(
-        `SELECT status FROM bookings WHERE public_token = $1`, [token]
+    // Atomic: primary reject + sibling cancellation in one transaction
+    const txClient = await pool.connect();
+    let result;
+    try {
+      await txClient.query('BEGIN');
+      result = await txClient.query(
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
+          deposit_status = CASE
+            WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+            WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+            ELSE deposit_status
+          END,
+          updated_at = NOW()
+         WHERE public_token = $1 AND status = 'modified_pending'
+         RETURNING id, status, start_at, end_at, business_id, group_id,
+                   deposit_required, deposit_status, deposit_payment_intent_id`,
+        [token]
       );
-      if (check.rows.length === 0) {
-        if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
-        return res.status(404).json({ error: 'Rendez-vous introuvable' });
-      }
-      if (check.rows[0].status === 'cancelled') {
-        if (isForm) return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a été annulé.', '#C62828', displayData?.business_name));
-        return res.json({ rejected: true, already: true });
-      }
-      if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', displayData?.business_name));
-      return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être refusé dans son état actuel' });
-    }
 
-    // Stripe refund if deposit was paid (client rejected staff modification → always refund)
-    const rejBk = result.rows[0];
+      if (result.rows.length === 0) {
+        await txClient.query('ROLLBACK');
+        const check = await query(
+          `SELECT status FROM bookings WHERE public_token = $1`, [token]
+        );
+        if (check.rows.length === 0) {
+          if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+          return res.status(404).json({ error: 'Rendez-vous introuvable' });
+        }
+        if (check.rows[0].status === 'cancelled') {
+          if (isForm) return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a été annulé.', '#C62828', displayData?.business_name));
+          return res.json({ rejected: true, already: true });
+        }
+        if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', displayData?.business_name));
+        return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être refusé dans son état actuel' });
+      }
 
-    // L1: Cancel group siblings if multi-service booking
-    if (rejBk.group_id) {
-      try {
-        await query(
+      const rejBk = result.rows[0];
+
+      // Cancel group siblings if multi-service booking
+      if (rejBk.group_id) {
+        await txClient.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
             deposit_status = CASE
               WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
@@ -2563,8 +2600,17 @@ router.post('/booking/:token/reject', async (req, res, next) => {
              AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
           [rejBk.group_id, rejBk.business_id, rejBk.id]
         );
-      } catch (e) { console.warn('[REJECT] Group sibling propagation error:', e.message); }
+      }
+      await txClient.query('COMMIT');
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      txClient.release();
     }
+
+    // Stripe refund AFTER transaction commits (external call)
+    const rejBk = result.rows[0];
     if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
     }
@@ -2980,9 +3026,13 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       }
     }
 
-    // Cancel the booking
+    // Atomic: primary cancel + sibling propagation in one transaction
     const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
-    const cancelResult = await query(
+    const txClient2 = await pool.connect();
+    let cancelResult;
+    try {
+      await txClient2.query('BEGIN');
+      cancelResult = await txClient2.query(
       `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Annul\u00e9 par le client (email)',
         deposit_status = CASE
           WHEN deposit_required = true AND deposit_status = 'paid' THEN
@@ -2999,19 +3049,13 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     );
 
     if (cancelResult.rowCount === 0) {
+      await txClient2.query('ROLLBACK');
       return res.send(confirmationPage('D\u00e9j\u00e0 modifi\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 modifi\u00e9 ou annul\u00e9.', '#A68B3C', bk.business_name));
     }
 
-    // Stripe refund if deposit was refunded (handles both pi_ and cs_ IDs)
-    const cancelledBk = cancelResult.rows[0];
-    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
-    }
-
-    // Cancel group siblings
+    // Cancel group siblings (inside same transaction)
     if (bk.group_id) {
-      try {
-        await query(
+        await txClient2.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Annul\u00e9 par le client (email)',
             deposit_status = CASE
               WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
@@ -3023,7 +3067,19 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
              AND status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')`,
           [bk.group_id, bk.business_id, bk.id]
         );
-      } catch (e) { console.warn('[CANCEL] Group sibling propagation error:', e.message); }
+    }
+      await txClient2.query('COMMIT');
+    } catch (txErr2) {
+      await txClient2.query('ROLLBACK').catch(() => {});
+      throw txErr2;
+    } finally {
+      txClient2.release();
+    }
+
+    // Stripe refund AFTER transaction commits (external call)
+    const cancelledBk = cancelResult.rows[0];
+    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
     }
 
     // Audit log
@@ -3130,19 +3186,24 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
       }
     }
 
-    // Confirm the booking (pending → confirmed, only if not expired)
-    const result = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
-       WHERE public_token = $1 AND status = 'pending'
-         AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
-       RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
-      [token]
-    );
+    // Atomic: primary confirm + sibling propagation in one transaction
+    const txClient3 = await pool.connect();
+    let result, sibConfirmed = { rows: [] };
+    try {
+      await txClient3.query('BEGIN');
+      result = await txClient3.query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE public_token = $1 AND status = 'pending'
+           AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
+         RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
+        [token]
+      );
 
-    if (result.rows.length === 0) {
-      // Check why it failed
-      const check = await query(`SELECT status, confirmation_expires_at FROM bookings WHERE public_token = $1`, [token]);
-      if (check.rows.length === 0) {
+      if (result.rows.length === 0) {
+        await txClient3.query('ROLLBACK');
+        // Check why it failed
+        const check = await query(`SELECT status, confirmation_expires_at FROM bookings WHERE public_token = $1`, [token]);
+        if (check.rows.length === 0) {
         if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
         return res.status(404).json({ error: 'Rendez-vous introuvable' });
       }
@@ -3158,16 +3219,24 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
       return res.status(400).json({ error: 'Booking not in pending status' });
     }
 
-    const bk = result.rows[0];
+      // Confirm group siblings inside same transaction
+      const bkInner = result.rows[0];
+      sibConfirmed = await txClient3.query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+           AND id != $1 AND status = 'pending'
+         RETURNING id`,
+        [bkInner.id]
+      );
+      await txClient3.query('COMMIT');
+    } catch (txErr3) {
+      await txClient3.query('ROLLBACK').catch(() => {});
+      throw txErr3;
+    } finally {
+      txClient3.release();
+    }
 
-    // Also confirm group siblings if any
-    const sibConfirmed = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
-       WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
-         AND id != $1 AND status = 'pending'
-       RETURNING id`,
-      [bk.id]
-    );
+    const bk = result.rows[0];
 
     // SSE notification
     broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });

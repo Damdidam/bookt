@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
@@ -183,17 +183,15 @@ async function splitOverlappingAbsences(bid, pracId, newFrom, newTo, newPeriod, 
     [bid, pracId, newFrom, newTo]
   );
 
-  let splitCount = 0;
-
+  // Pre-compute which absences have conflicts (pure logic, no DB)
+  const toProcess = [];
   for (const abs of existing.rows) {
     if (excludeId && abs.id === excludeId) continue;
-
     const exFrom = new Date(abs.date_from).toISOString().slice(0, 10);
     const exTo = new Date(abs.date_to).toISOString().slice(0, 10);
     const overlapStart = exFrom > newFrom ? exFrom : newFrom;
     const overlapEnd = exTo < newTo ? exTo : newTo;
 
-    // Check if any overlapping day actually has a period conflict
     let hasConflict = false;
     for (let d = new Date(overlapStart + 'T12:00:00Z');
          d.toISOString().slice(0, 10) <= overlapEnd;
@@ -203,69 +201,70 @@ async function splitOverlappingAbsences(bid, pracId, newFrom, newTo, newPeriod, 
       const newP = effectivePeriodStr(ds, newFrom, newTo, newPeriod, newPeriodEnd);
       if (periodsConflict(exP, newP)) { hasConflict = true; break; }
     }
-    if (!hasConflict) continue;
-
-    // ── Before leftover: [exFrom, day before overlapStart] ──
-    const dayBefore = shiftDate(overlapStart, -1);
-    if (exFrom <= dayBefore) {
-      await queryWithRLS(bid,
-        `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [bid, pracId, exFrom, dayBefore, abs.type, abs.note, abs.period || 'full', 'full']
-      );
-    }
-
-    // ── After leftover: [day after overlapEnd, exTo] ──
-    const dayAfter = shiftDate(overlapEnd, 1);
-    if (dayAfter <= exTo) {
-      await queryWithRLS(bid,
-        `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [bid, pracId, dayAfter, exTo, abs.type, abs.note, 'full', abs.period_end || 'full']
-      );
-    }
-
-    // ── Half-day leftovers on boundary days ──
-    // overlapStart: if new is half-day but existing covers full → keep the other half
-    const exPStart = effectivePeriodStr(overlapStart, exFrom, exTo, abs.period, abs.period_end);
-    const newPStart = effectivePeriodStr(overlapStart, newFrom, newTo, newPeriod, newPeriodEnd);
-    if (exPStart === 'full' && (newPStart === 'am' || newPStart === 'pm')) {
-      const keep = newPStart === 'am' ? 'pm' : 'am';
-      await queryWithRLS(bid,
-        `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [bid, pracId, overlapStart, overlapStart, abs.type, abs.note, keep, keep]
-      );
-    }
-    // overlapEnd (if different day): same logic
-    if (overlapEnd !== overlapStart) {
-      const exPEnd = effectivePeriodStr(overlapEnd, exFrom, exTo, abs.period, abs.period_end);
-      const newPEnd = effectivePeriodStr(overlapEnd, newFrom, newTo, newPeriod, newPeriodEnd);
-      if (exPEnd === 'full' && (newPEnd === 'am' || newPEnd === 'pm')) {
-        const keep = newPEnd === 'am' ? 'pm' : 'am';
-        await queryWithRLS(bid,
-          `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [bid, pracId, overlapEnd, overlapEnd, abs.type, abs.note, keep, keep]
-        );
-      }
-    }
-
-    // Log and delete the original
-    await logAbsence(bid, abs.id, 'auto_split', {
-      reason: 'Découpé automatiquement pour nouvelle absence',
-      original: { date_from: exFrom, date_to: exTo, type: abs.type, period: abs.period, period_end: abs.period_end },
-      new_absence: { date_from: newFrom, date_to: newTo }
-    }, actorName);
-
-    await queryWithRLS(bid,
-      `DELETE FROM staff_absences WHERE id = $1 AND business_id = $2`,
-      [abs.id, bid]
-    );
-    splitCount++;
+    if (hasConflict) toProcess.push({ abs, exFrom, exTo, overlapStart, overlapEnd });
   }
 
-  return splitCount;
+  if (toProcess.length === 0) return 0;
+
+  // Atomic: all splits + deletes in one transaction
+  return await transactionWithRLS(bid, async (txClient) => {
+    let splitCount = 0;
+    for (const { abs, exFrom, exTo, overlapStart, overlapEnd } of toProcess) {
+      // Before leftover
+      const dayBefore = shiftDate(overlapStart, -1);
+      if (exFrom <= dayBefore) {
+        await txClient.query(
+          `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [bid, pracId, exFrom, dayBefore, abs.type, abs.note, abs.period || 'full', 'full']
+        );
+      }
+      // After leftover
+      const dayAfter = shiftDate(overlapEnd, 1);
+      if (dayAfter <= exTo) {
+        await txClient.query(
+          `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [bid, pracId, dayAfter, exTo, abs.type, abs.note, 'full', abs.period_end || 'full']
+        );
+      }
+      // Half-day leftovers
+      const exPStart = effectivePeriodStr(overlapStart, exFrom, exTo, abs.period, abs.period_end);
+      const newPStart = effectivePeriodStr(overlapStart, newFrom, newTo, newPeriod, newPeriodEnd);
+      if (exPStart === 'full' && (newPStart === 'am' || newPStart === 'pm')) {
+        const keep = newPStart === 'am' ? 'pm' : 'am';
+        await txClient.query(
+          `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [bid, pracId, overlapStart, overlapStart, abs.type, abs.note, keep, keep]
+        );
+      }
+      if (overlapEnd !== overlapStart) {
+        const exPEnd = effectivePeriodStr(overlapEnd, exFrom, exTo, abs.period, abs.period_end);
+        const newPEnd = effectivePeriodStr(overlapEnd, newFrom, newTo, newPeriod, newPeriodEnd);
+        if (exPEnd === 'full' && (newPEnd === 'am' || newPEnd === 'pm')) {
+          const keep = newPEnd === 'am' ? 'pm' : 'am';
+          await txClient.query(
+            `INSERT INTO staff_absences (business_id, practitioner_id, date_from, date_to, type, note, period, period_end)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [bid, pracId, overlapEnd, overlapEnd, abs.type, abs.note, keep, keep]
+          );
+        }
+      }
+      // Log and delete the original
+      await logAbsence(bid, abs.id, 'auto_split', {
+        reason: 'Découpé automatiquement pour nouvelle absence',
+        original: { date_from: exFrom, date_to: exTo, type: abs.type, period: abs.period, period_end: abs.period_end },
+        new_absence: { date_from: newFrom, date_to: newTo }
+      }, actorName);
+      await txClient.query(
+        `DELETE FROM staff_absences WHERE id = $1 AND business_id = $2`,
+        [abs.id, bid]
+      );
+      splitCount++;
+    }
+    return splitCount;
+  });
 }
 
 /**

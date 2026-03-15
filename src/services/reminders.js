@@ -11,7 +11,7 @@
  *   - External cron: GET /api/cron/reminders?key=CRON_SECRET
  */
 
-const { query, queryWithRLS } = require('../services/db');
+const { query, queryWithRLS, pool } = require('../services/db');
 const { sendEmail, buildEmailHTML, escHtml } = require('../services/email');
 const { sendSMS } = require('../services/sms');
 
@@ -25,12 +25,15 @@ async function processReminders() {
   const stats = { email_24h: 0, sms_24h: 0, email_2h: 0, sms_2h: 0, skipped: 0, errors: 0 };
 
   // Advisory lock to prevent concurrent execution (double reminders = wasted SMS credits)
-  const lockResult = await query(`SELECT pg_try_advisory_lock(hashtext('reminder_cron'))`);
-  if (!lockResult.rows[0]?.pg_try_advisory_lock) {
-    return { ...stats, skipped: 1, reason: 'concurrent_execution' };
-  }
-
+  // Use a dedicated connection so lock and unlock happen on the same connection
+  const lockClient = await pool.connect();
   try {
+    const lockResult = await lockClient.query(`SELECT pg_try_advisory_lock(hashtext('reminder_cron'))`);
+    if (!lockResult.rows[0]?.pg_try_advisory_lock) {
+      lockClient.release();
+      return { ...stats, skipped: 1, reason: 'concurrent_execution' };
+    }
+
     // ===== 24H REMINDERS =====
     await process24hReminders(stats);
 
@@ -41,7 +44,8 @@ async function processReminders() {
     console.error('[REMINDERS] Fatal error:', err);
     stats.errors++;
   } finally {
-    await query(`SELECT pg_advisory_unlock(hashtext('reminder_cron'))`).catch(() => {});
+    await lockClient.query(`SELECT pg_advisory_unlock(hashtext('reminder_cron'))`).catch(() => {});
+    lockClient.release();
   }
 
   return stats;

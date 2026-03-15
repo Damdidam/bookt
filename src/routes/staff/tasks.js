@@ -180,63 +180,65 @@ async function _syncGroupPractitioners(bid, taskId, currentGroupId, newPracIds, 
   const uniquePracIds = [...new Set(newPracIds)];
   if (uniquePracIds.length === 0) throw new Error('Au moins un praticien requis');
 
-  // Fetch source task to copy shared fields
-  const source = await queryWithRLS(bid,
-    `SELECT * FROM internal_tasks WHERE id = $1 AND business_id = $2`, [taskId, bid]);
-  if (source.rows.length === 0) throw new Error('Tâche introuvable');
-  const src = source.rows[0];
+  await transactionWithRLS(bid, async (txClient) => {
+    // Fetch source task to copy shared fields
+    const source = await txClient.query(
+      `SELECT * FROM internal_tasks WHERE id = $1 AND business_id = $2`, [taskId, bid]);
+    if (source.rows.length === 0) throw new Error('Tâche introuvable');
+    const src = source.rows[0];
 
-  if (currentGroupId) {
-    // Already a group — diff current vs desired
-    const members = await queryWithRLS(bid,
-      `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
-      [currentGroupId, bid]);
-    const currentPracIds = members.rows.map(r => r.practitioner_id);
-
-    const toAdd = uniquePracIds.filter(id => !currentPracIds.includes(id));
-    const toRemove = currentPracIds.filter(id => !uniquePracIds.includes(id));
-
-    for (const pid of toAdd) {
-      await queryWithRLS(bid,
-        `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, status, created_by, group_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [bid, pid, src.title, src.start_at, src.end_at, src.color, src.note, src.status, userId, currentGroupId]);
-    }
-    for (const pid of toRemove) {
-      await queryWithRLS(bid,
-        `DELETE FROM internal_tasks WHERE group_id = $1 AND practitioner_id = $2 AND business_id = $3`,
-        [currentGroupId, pid, bid]);
-    }
-
-    // If only 1 remains, downgrade to single (remove group_id)
-    if (uniquePracIds.length === 1) {
-      await queryWithRLS(bid,
-        `UPDATE internal_tasks SET group_id = NULL, updated_at = now() WHERE group_id = $1 AND business_id = $2`,
+    if (currentGroupId) {
+      // Already a group — diff current vs desired
+      const members = await txClient.query(
+        `SELECT practitioner_id FROM internal_tasks WHERE group_id = $1 AND business_id = $2`,
         [currentGroupId, bid]);
-    }
-  } else {
-    // Single task → upgrading to group
-    if (uniquePracIds.length > 1) {
-      const groupId = crypto.randomUUID();
-      // Tag existing row with group_id
-      await queryWithRLS(bid,
-        `UPDATE internal_tasks SET group_id = $1, updated_at = now() WHERE id = $2 AND business_id = $3`,
-        [groupId, taskId, bid]);
-      // Insert new rows for additional practitioners
-      const toAdd = uniquePracIds.filter(id => id !== src.practitioner_id);
+      const currentPracIds = members.rows.map(r => r.practitioner_id);
+
+      const toAdd = uniquePracIds.filter(id => !currentPracIds.includes(id));
+      const toRemove = currentPracIds.filter(id => !uniquePracIds.includes(id));
+
       for (const pid of toAdd) {
-        await queryWithRLS(bid,
+        await txClient.query(
           `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, status, created_by, group_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [bid, pid, src.title, src.start_at, src.end_at, src.color, src.note, src.status, userId, groupId]);
+          [bid, pid, src.title, src.start_at, src.end_at, src.color, src.note, src.status, userId, currentGroupId]);
       }
-    } else if (uniquePracIds[0] !== src.practitioner_id) {
-      // Single prac change (no group needed)
-      await queryWithRLS(bid,
-        `UPDATE internal_tasks SET practitioner_id = $1, updated_at = now() WHERE id = $2 AND business_id = $3`,
-        [uniquePracIds[0], taskId, bid]);
+      for (const pid of toRemove) {
+        await txClient.query(
+          `DELETE FROM internal_tasks WHERE group_id = $1 AND practitioner_id = $2 AND business_id = $3`,
+          [currentGroupId, pid, bid]);
+      }
+
+      // If only 1 remains, downgrade to single (remove group_id)
+      if (uniquePracIds.length === 1) {
+        await txClient.query(
+          `UPDATE internal_tasks SET group_id = NULL, updated_at = now() WHERE group_id = $1 AND business_id = $2`,
+          [currentGroupId, bid]);
+      }
+    } else {
+      // Single task → upgrading to group
+      if (uniquePracIds.length > 1) {
+        const groupId = crypto.randomUUID();
+        // Tag existing row with group_id
+        await txClient.query(
+          `UPDATE internal_tasks SET group_id = $1, updated_at = now() WHERE id = $2 AND business_id = $3`,
+          [groupId, taskId, bid]);
+        // Insert new rows for additional practitioners
+        const toAdd = uniquePracIds.filter(id => id !== src.practitioner_id);
+        for (const pid of toAdd) {
+          await txClient.query(
+            `INSERT INTO internal_tasks (business_id, practitioner_id, title, start_at, end_at, color, note, status, created_by, group_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [bid, pid, src.title, src.start_at, src.end_at, src.color, src.note, src.status, userId, groupId]);
+        }
+      } else if (uniquePracIds[0] !== src.practitioner_id) {
+        // Single prac change (no group needed)
+        await txClient.query(
+          `UPDATE internal_tasks SET practitioner_id = $1, updated_at = now() WHERE id = $2 AND business_id = $3`,
+          [uniquePracIds[0], taskId, bid]);
+      }
     }
-  }
+  });
 }
 
 // ============================================================
@@ -253,6 +255,11 @@ router.patch('/:id', async (req, res, next) => {
       `SELECT * FROM internal_tasks WHERE id = $1 AND business_id = $2`, [id, bid]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
     const task = existing.rows[0];
+
+    // Practitioner scope: verify task belongs to this practitioner
+    if (req.practitionerFilter && task.practitioner_id !== req.practitionerFilter) {
+      return res.status(404).json({ error: 'Tâche introuvable' });
+    }
 
     // Handle practitioner_ids sync (add/remove practitioners)
     if (Array.isArray(req.body.practitioner_ids)) {
@@ -357,6 +364,11 @@ router.patch('/:id/move', async (req, res, next) => {
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
     const task = existing.rows[0];
 
+    // Practitioner scope: verify task belongs to this practitioner
+    if (req.practitionerFilter && task.practitioner_id !== req.practitionerFilter) {
+      return res.status(404).json({ error: 'Tâche introuvable' });
+    }
+
     // ── Conflict check before move ──
     if (task.group_id) {
       const members = await queryWithRLS(bid,
@@ -425,8 +437,13 @@ router.delete('/:id', async (req, res, next) => {
 
     // Check for group_id
     const existing = await queryWithRLS(bid,
-      `SELECT group_id FROM internal_tasks WHERE id = $1 AND business_id = $2`, [id, bid]);
+      `SELECT group_id, practitioner_id FROM internal_tasks WHERE id = $1 AND business_id = $2`, [id, bid]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Tâche introuvable' });
+
+    // Practitioner scope: verify task belongs to this practitioner
+    if (req.practitionerFilter && existing.rows[0].practitioner_id !== req.practitionerFilter) {
+      return res.status(404).json({ error: 'Tâche introuvable' });
+    }
 
     if (existing.rows[0].group_id) {
       // Delete ALL group members
