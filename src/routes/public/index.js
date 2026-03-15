@@ -980,15 +980,17 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                oauth_provider || null, oauth_provider_id || null]
             );
           } else if (matchType === 'phone' || matchType === 'email') {
-            // Link OAuth to existing client found by phone/email
+            // Soft merge: update name, phone, email + link OAuth
             await client.query(
               `UPDATE clients SET
                 full_name = COALESCE(NULLIF($2, ''), full_name),
-                oauth_provider = COALESCE($4, oauth_provider),
-                oauth_provider_id = COALESCE($5, oauth_provider_id),
+                phone = COALESCE(NULLIF($4, ''), phone),
+                email = COALESCE(NULLIF($5, ''), email),
+                oauth_provider = COALESCE($6, oauth_provider),
+                oauth_provider_id = COALESCE($7, oauth_provider_id),
                 updated_at = NOW()
                WHERE id = $1 AND business_id = $3`,
-              [clientId, client_name, businessId, oauth_provider || null, oauth_provider_id || null]
+              [clientId, client_name, businessId, client_phone || null, client_email || null, oauth_provider || null, oauth_provider_id || null]
             );
           }
         } else {
