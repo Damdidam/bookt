@@ -2525,17 +2525,40 @@ function confirmationPage(title, message, color, businessName) {
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
   const safeTitle = escHtml(title);
   const safeBiz = escHtml(businessName);
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${safeTitle} — ${safeBiz || 'Genda'}</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
-<div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-  <div style="width:56px;height:56px;border-radius:50%;background:${safeColor}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">${(title||'').includes('\u2705') ? '\u2705' : (title||'').includes('refus') || (title||'').includes('annul') ? '\u274C' : '\u2139\uFE0F'}</div>
-  </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${safeTitle}</h1>
-  <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0">${message}</p>
-  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${safeBiz} · Via Genda</p>` : ''}
+  // Determine type: success / error / warning / info
+  const rawTitle = (title || '').toLowerCase();
+  const isSuccess = rawTitle.includes('confirm') && !rawTitle.includes('impossible');
+  const isError = rawTitle.includes('annul') || rawTitle.includes('refus') || rawTitle.includes('introuvable') || rawTitle.includes('expir');
+  const isWarning = rawTitle.includes('impossible') || rawTitle.includes('dépassé') || rawTitle.includes('déjà');
+  const iconSvg = isSuccess
+    ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+    : isError
+    ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`
+    : isWarning
+    ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+    : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+  // Clean title — remove emojis
+  const cleanTitle = (title || '').replace(/[\u2705\u274C\u2753\u2139\uFE0F]/g, '').trim();
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(cleanTitle)} — ${safeBiz || 'Genda'}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:#FAFAF9;font-family:'Plus Jakarta Sans',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#FFF;border-radius:16px;padding:48px 36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.06)}
+.icon-wrap{width:64px;height:64px;border-radius:50%;background:${safeColor}12;display:flex;align-items:center;justify-content:center;margin:0 auto 24px}
+h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400;color:#1A1816;margin:0 0 12px;line-height:1.3}
+.msg{font-size:.88rem;color:#6B6560;line-height:1.7;margin:0}
+.msg strong{color:#3D3832;font-weight:600}
+.divider{width:40px;height:1px;background:#E0DDD8;margin:24px auto}
+.biz{font-size:.72rem;color:#9C958E;letter-spacing:.3px}
+@media(max-width:480px){.card{padding:40px 24px 32px;border-radius:12px}h1{font-size:1.35rem}}
+</style></head><body>
+<div class="card">
+  <div class="icon-wrap">${iconSvg}</div>
+  <h1>${escHtml(cleanTitle)}</h1>
+  <p class="msg">${message}</p>
+  ${businessName ? `<div class="divider"></div><p class="biz">${safeBiz}</p>` : ''}
 </div></body></html>`;
 }
 
@@ -2543,20 +2566,33 @@ function confirmationPage(title, message, color, businessName) {
 function actionPage(title, message, color, businessName, token, action, btnLabel) {
   const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escHtml(title)} — ${escHtml(businessName) || 'Genda'}</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
-<div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-  <div style="width:56px;height:56px;border-radius:50%;background:${safeColor}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">\u2753</div>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:#FAFAF9;font-family:'Plus Jakarta Sans',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#FFF;border-radius:16px;padding:48px 36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.06)}
+.icon-wrap{width:64px;height:64px;border-radius:50%;background:${safeColor}12;display:flex;align-items:center;justify-content:center;margin:0 auto 24px}
+h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400;color:#1A1816;margin:0 0 12px;line-height:1.3}
+.msg{font-size:.88rem;color:#6B6560;line-height:1.7;margin:0 0 28px}
+.msg strong{color:#3D3832;font-weight:600}
+.action-btn{display:inline-block;background:${safeColor};color:#fff;border:none;border-radius:10px;padding:14px 36px;font-size:.92rem;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.2px;transition:opacity .15s}
+.action-btn:hover{opacity:.9}
+.divider{width:40px;height:1px;background:#E0DDD8;margin:24px auto}
+.biz{font-size:.72rem;color:#9C958E;letter-spacing:.3px}
+@media(max-width:480px){.card{padding:40px 24px 32px;border-radius:12px}h1{font-size:1.35rem}}
+</style></head><body>
+<div class="card">
+  <div class="icon-wrap">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
   </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${escHtml(title)}</h1>
-  <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0 0 24px">${message}</p>
+  <h1>${escHtml(title)}</h1>
+  <p class="msg">${message}</p>
   <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}">
-    <button type="submit" style="background:${safeColor};color:#fff;border:none;border-radius:10px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px">${escHtml(btnLabel)}</button>
+    <button type="submit" class="action-btn">${escHtml(btnLabel)}</button>
   </form>
-  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${escHtml(businessName)} · Via Genda</p>` : ''}
+  ${businessName ? `<div class="divider"></div><p class="biz">${escHtml(businessName)}</p>` : ''}
 </div></body></html>`;
 }
 
