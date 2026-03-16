@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/booking-engine.css">
 <style>
 /* ───── CSS Variables (Nuit default) ───── */
 :root {
@@ -977,6 +978,7 @@ ul { list-style: none; }
       On fait du <span class="accent serif-italic">wow.</span>
     </h2>
     <div id="servicesContainer"></div>
+    <div id="bookingEngineMount" style="display:none"></div>
   </div>
 </section>
 
@@ -1131,6 +1133,7 @@ ul { list-style: none; }
   /* ───── Multi-service cart ───── */
   var _siteServices = [];
   var _siteSlug = '';
+  var _fullSiteData = null;
   var _multiSvcSelected = [];
   var _MAX_MULTI = 5;
 
@@ -1164,7 +1167,8 @@ ul { list-style: none; }
     var priceStr = totalPrice > 0 ? (totalPrice / 100).toFixed(0) + ' \u20ac' : 'Gratuit';
     document.getElementById('cartCount').textContent = n + ' prestation' + (n > 1 ? 's' : '');
     document.getElementById('cartMeta').textContent = durStr + ' \u00b7 ' + priceStr;
-    document.getElementById('cartCta').href = '/' + _siteSlug + '/book?services=' + _multiSvcSelected.join(',');
+    document.getElementById('cartCta').onclick = function(e) { e.preventDefault(); startInlineBookingMulti(); };
+    document.getElementById('cartCta').href = '#';
   }
 
   /* ───── Load site data ───── */
@@ -1201,9 +1205,10 @@ ul { list-style: none; }
     var variant = getVariant(b.theme && b.theme.preset ? b.theme.preset : 'bold_nuit');
     applyVariant(variant);
 
-    // Store for cart
+    // Store for cart & booking engine
     _siteServices = d.services || [];
     _siteSlug = b.slug;
+    _fullSiteData = d;
 
     // ── SEO ──
     var title = b.seo_title || b.name + ' \u2014 ' + (b.tagline || 'Prenez rendez-vous en ligne');
@@ -1218,7 +1223,7 @@ ul { list-style: none; }
     document.getElementById('navBold').textContent = (b.name || '').toUpperCase();
     var subtitle = b.subtitle || b.sector_label || b.sector || '';
     document.getElementById('navItalic').textContent = subtitle.toLowerCase();
-    document.getElementById('navBookBtn').href = bookUrl;
+    document.getElementById('navBookBtn').href = '#services';
 
     // ── Hero ──
     var city = b.address ? b.address.split(',').pop().trim() : '';
@@ -1241,7 +1246,7 @@ ul { list-style: none; }
     document.getElementById('heroHeading').innerHTML = headingHtml;
 
     document.getElementById('heroSubtitle').textContent = b.tagline || '';
-    document.getElementById('heroBookBtn').href = bookUrl;
+    document.getElementById('heroBookBtn').href = '#services';
 
     // ── Stats ──
     var practCount = d.practitioner_count || (d.practitioners ? d.practitioners.length : 0);
@@ -1281,7 +1286,7 @@ ul { list-style: none; }
           if (multiEnabled) {
             svcHtml += '<div class="service-row" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="toggleMultiSvc(\'' + s.id + '\')">';
           } else {
-            svcHtml += '<div class="service-row" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="window.location.href=\'' + bookUrl + '?service=' + s.id + '\'">';
+            svcHtml += '<div class="service-row" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="startInlineBooking(\'' + s.id + '\')">';
           }
           svcHtml += '<div class="service-info">';
           svcHtml += '<span class="service-name">' + esc(s.name) + '</span>';
@@ -1416,7 +1421,7 @@ ul { list-style: none; }
     // ── Final CTA ──
     document.getElementById('finalCtaHeading').innerHTML = 'Pr\u00eat\u00b7e pour <span class="italic">votre moment</span> ?';
     document.getElementById('finalCtaSubtitle').textContent = 'R\u00e9servez chez ' + b.name + ' en quelques clics.';
-    document.getElementById('finalCtaBtn').href = bookUrl;
+    document.getElementById('finalCtaBtn').href = '#services';
 
     // ── Footer ──
     var footerParts = [esc(b.name)];
@@ -1432,6 +1437,12 @@ ul { list-style: none; }
     // ── Show content, hide loading ──
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('siteContent').style.display = 'block';
+
+    // Auto-launch booking if returning from OAuth
+    var _urlParams = new URLSearchParams(window.location.search);
+    if (_urlParams.get('oauth_pickup') || _urlParams.get('oauth_error')) {
+      setTimeout(function() { startInlineBooking(null); }, 100);
+    }
 
     // ── Today highlight ──
     var today = new Date().getDay();
@@ -1483,8 +1494,71 @@ ul { list-style: none; }
     });
   }
 
+  // ── Inline Booking Engine ──
+  window.startInlineBooking = function(serviceId) {
+    var svcSection = document.getElementById('services');
+    var svcHeader = svcSection ? svcSection.querySelector('.section-label, .section-heading') : null;
+    var svcHeading = svcSection ? svcSection.querySelector('.section-heading') : null;
+    var svcLabel = svcSection ? svcSection.querySelector('.section-label') : null;
+    var svcList = document.getElementById('servicesContainer');
+    var cartBar = document.getElementById('cartBar');
+    var mount = document.getElementById('bookingEngineMount');
+    if (svcLabel) svcLabel.style.display = 'none';
+    if (svcHeading) svcHeading.style.display = 'none';
+    if (svcList) svcList.style.display = 'none';
+    if (cartBar) cartBar.style.transform = 'translateY(100%)';
+    mount.style.display = 'block';
+    svcSection.scrollIntoView({ behavior: 'smooth' });
+    // Map bold dark CSS vars to booking engine vars
+    var root = document.documentElement;
+    var cs = getComputedStyle(root);
+    root.style.setProperty('--bg', cs.getPropertyValue('--bg-dark').trim());
+    root.style.setProperty('--white', cs.getPropertyValue('--bg-card').trim());
+    root.style.setProperty('--surface', cs.getPropertyValue('--bg-card').trim());
+    root.style.setProperty('--surface-2', cs.getPropertyValue('--border').trim());
+    root.style.setProperty('--border-light', cs.getPropertyValue('--border').trim());
+    root.style.setProperty('--text-2', cs.getPropertyValue('--text').trim());
+    root.style.setProperty('--text-3', cs.getPropertyValue('--text-muted').trim());
+    root.style.setProperty('--text-4', cs.getPropertyValue('--text-muted').trim());
+    root.style.setProperty('--primary', cs.getPropertyValue('--accent').trim());
+    root.style.setProperty('--primary-hover', cs.getPropertyValue('--accent').trim());
+    root.style.setProperty('--primary-light', cs.getPropertyValue('--border').trim());
+    root.style.setProperty('--primary-soft', cs.getPropertyValue('--border').trim());
+    root.style.setProperty('--primary-border', cs.getPropertyValue('--border').trim());
+    root.style.setProperty('--green', '#4ADE80');
+    root.style.setProperty('--green-bg', 'rgba(74,222,128,.1)');
+    root.style.setProperty('--red', '#F87171');
+    root.style.setProperty('--red-bg', 'rgba(248,113,113,.1)');
+    root.style.setProperty('--serif', "'Instrument Serif', serif");
+    root.style.setProperty('--sans', "'Space Grotesk', sans-serif");
+    root.style.setProperty('--shadow', '0 2px 8px rgba(0,0,0,.2)');
+    root.style.setProperty('--radius', '8px');
+    root.style.setProperty('--radius-sm', '6px');
+    root.style.setProperty('--radius-xs', '4px');
+    BookingEngine.init({
+      container: mount,
+      slug: _siteSlug,
+      siteData: _fullSiteData,
+      preSelectedServiceId: serviceId || null,
+      isDark: true,
+      onBack: function() {
+        mount.style.display = 'none';
+        BookingEngine.destroy();
+        if (svcLabel) svcLabel.style.display = '';
+        if (svcHeading) svcHeading.style.display = '';
+        if (svcList) svcList.style.display = '';
+      },
+      returnMode: 'inline'
+    });
+  };
+
+  window.startInlineBookingMulti = function() {
+    startInlineBooking(null);
+  };
+
 })();
 </script>
+<script src="/js/booking-engine.js"></script>
 
 </body>
 </html>

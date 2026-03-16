@@ -11,6 +11,7 @@
 <meta property="og:image" id="ogImage" content="">
 <meta property="og:url" id="ogUrl" content="">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/booking-engine.css">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -309,6 +310,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     <p class="section-sub">Cliquez sur une prestation pour réserver en ligne.</p>
   </div>
   <div id="servicesContainer"></div>
+  <div id="bookingEngineMount" style="display:none"></div>
 </section>
 
 <!-- ═══════ TEAM ═══════ -->
@@ -418,6 +420,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
   /* ── multi-service cart ── */
   let _siteServices = [];
   let _siteSlug = '';
+  let _fullSiteData = null;
   let _multiSvcSelected = [];
   const _MAX_MULTI = 5;
 
@@ -446,7 +449,8 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     const durStr = h > 0 ? h + 'h' + (m > 0 ? String(m).padStart(2, '0') : '') : totalMin + ' min';
     document.getElementById('cartCount').textContent = n + ' prestation' + (n > 1 ? 's' : '');
     document.getElementById('cartMeta').textContent = durStr + ' · ' + (totalPrice > 0 ? (totalPrice / 100).toFixed(0) + ' €' : 'Gratuit');
-    document.getElementById('cartCta').href = '/' + _siteSlug + '/book?services=' + _multiSvcSelected.join(',');
+    document.getElementById('cartCta').onclick = function(e) { e.preventDefault(); startInlineBookingMulti(); };
+    document.getElementById('cartCta').href = '#';
   }
 
   /* ── scroll handler ── */
@@ -486,6 +490,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     const multiService = biz.multi_service_enabled || data.multi_service_enabled || false;
 
     _siteServices = services;
+    _fullSiteData = data;
 
     const name = biz.name || '';
     const nameParts = name.split(' ');
@@ -524,7 +529,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     logoEl.querySelector('span').textContent = nameFirst;
     logoEl.childNodes[logoEl.childNodes.length - 1].textContent = nameRest ? ' ' + nameRest : '';
 
-    document.querySelector('.nav-cta').href = bookUrl;
+    document.querySelector('.nav-cta').href = '#services';
     document.querySelector('.nav-brand').href = '/' + slug;
 
     // dynamic nav links based on visible sections
@@ -556,7 +561,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 
     document.querySelector('.hero-desc').textContent = biz.description || tagline || '';
 
-    document.querySelector('.hero-btn').href = bookUrl;
+    document.querySelector('.hero-btn').href = '#services';
 
     const secBtn = document.querySelector('.hero-btn-sec');
     if (biz.phone) {
@@ -629,7 +634,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
         if (multiService) {
           svcHtml += '<div class="svc-card ' + colorClass + '" data-svc-id="' + s.id + '" onclick="toggleMultiSvc(\'' + s.id + '\')" style="cursor:pointer">';
         } else {
-          svcHtml += '<div class="svc-card ' + colorClass + '" onclick="location.href=\'' + bookUrl + '?service=' + s.id + '\'" style="cursor:pointer">';
+          svcHtml += '<div class="svc-card ' + colorClass + '" onclick="startInlineBooking(\'' + s.id + '\')" style="cursor:pointer">';
         }
         svcHtml += '<div class="svc-icon ' + iconClass + '">' + emoji + '</div>';
         svcHtml += '<div class="svc-info"><h4>' + esc(s.name) + '</h4><div class="meta">' + meta + '</div></div>';
@@ -760,7 +765,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     socialsContainer.innerHTML = socHtml;
 
     /* ── CTA ── */
-    document.getElementById('ctaBtn').href = bookUrl;
+    document.getElementById('ctaBtn').href = '#services';
 
     /* ── FOOTER ── */
     let footerText = esc(name);
@@ -786,9 +791,60 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     /* ── SHOW CONTENT ── */
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('siteContent').style.display = 'block';
+
+    // Auto-launch booking if returning from OAuth
+    var _urlParams = new URLSearchParams(window.location.search);
+    if (_urlParams.get('oauth_pickup') || _urlParams.get('oauth_error')) {
+      setTimeout(function() { startInlineBooking(null); }, 100);
+    }
   }
+
+  // ── Inline Booking Engine ──
+  window.startInlineBooking = function(serviceId) {
+    var svcHeader = document.querySelector('#services .section-header');
+    var svcList = document.getElementById('servicesContainer');
+    var cartBar = document.getElementById('cartBar');
+    var mount = document.getElementById('bookingEngineMount');
+    if (svcHeader) svcHeader.style.display = 'none';
+    if (svcList) svcList.style.display = 'none';
+    if (cartBar) cartBar.style.transform = 'translateY(100%)';
+    mount.style.display = 'block';
+    document.getElementById('services').scrollIntoView({ behavior: 'smooth' });
+    // Funky vars already match booking engine naming (--primary, --surface, etc.)
+    // Just need to set missing vars the booking engine expects
+    var root = document.documentElement;
+    root.style.setProperty('--text-2', getComputedStyle(root).getPropertyValue('--text-2').trim() || '#3D2E28');
+    root.style.setProperty('--text-3', getComputedStyle(root).getPropertyValue('--text-3').trim() || '#8A7068');
+    root.style.setProperty('--text-4', getComputedStyle(root).getPropertyValue('--text-4').trim() || '#B8A49A');
+    root.style.setProperty('--serif', getComputedStyle(root).getPropertyValue('--serif').trim());
+    root.style.setProperty('--sans', getComputedStyle(root).getPropertyValue('--sans').trim());
+    root.style.setProperty('--green', '#5CB85C');
+    root.style.setProperty('--green-bg', '#EEFAF1');
+    root.style.setProperty('--red', '#DC2626');
+    root.style.setProperty('--red-bg', '#FEF2F2');
+    BookingEngine.init({
+      container: mount,
+      slug: _siteSlug,
+      siteData: _fullSiteData,
+      preSelectedServiceId: serviceId || null,
+      isDark: false,
+      onBack: function() {
+        mount.style.display = 'none';
+        BookingEngine.destroy();
+        if (svcHeader) svcHeader.style.display = '';
+        if (svcList) svcList.style.display = '';
+      },
+      returnMode: 'inline'
+    });
+  };
+
+  window.startInlineBookingMulti = function() {
+    startInlineBooking(null);
+  };
 
 })();
 </script>
+<script src="/js/booking-engine.js"></script>
+
 </body>
 </html>

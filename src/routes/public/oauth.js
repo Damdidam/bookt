@@ -51,7 +51,7 @@ router.get('/providers', (req, res) => {
 router.get('/:provider', authLimiter, async (req, res) => {
   try {
     const { provider } = req.params;
-    const { slug } = req.query;
+    const { slug, return_to } = req.query;
 
     if (!slug) {
       return res.status(400).json({ error: 'slug requis' });
@@ -69,6 +69,7 @@ router.get('/:provider', authLimiter, async (req, res) => {
     await oauthStates.set(state, {
       slug,
       provider,
+      returnTo: return_to === 'site' ? 'site' : 'book',
       expiresAt: Date.now() + 10 * 60000 // 10 min
     });
 
@@ -151,16 +152,20 @@ async function handleCallback(provider, params, appleUserObj, res) {
 
   // M2: validate slug to prevent open redirect — only alphanumeric + hyphens allowed
   const sanitizeSlug = (s) => (s && /^[a-zA-Z0-9_-]+$/.test(s)) ? s : '';
+  let returnTo = 'book';
   // Helper to build safe redirect (avoids //book protocol-relative URL when slug is empty)
   const bookUrl = (qs) => slug ? `/${slug}/book?${qs}` : `/?${qs}`;
+  const siteUrl = (qs) => slug ? `/${slug}?${qs}` : `/?${qs}`;
+  const redirectUrl = (qs) => returnTo === 'site' ? siteUrl(qs) : bookUrl(qs);
 
   try {
     if (error) {
       // User denied access or error from provider
       const session = state ? await oauthStates.get(state) : null;
       slug = sanitizeSlug(session?.slug);
+      returnTo = session?.returnTo || 'book';
       if (state) await oauthStates.delete(state);
-      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent(error)}`));
+      return res.redirect(redirectUrl(`oauth_error=${encodeURIComponent(error)}`));
     }
 
     if (!state || !code) {
@@ -174,11 +179,12 @@ async function handleCallback(provider, params, appleUserObj, res) {
     }
 
     slug = sanitizeSlug(session.slug);
+    returnTo = session.returnTo || 'book';
     await oauthStates.delete(state);
 
     // Check expiration
     if (Date.now() > session.expiresAt) {
-      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Session expirée, réessayez')}`));
+      return res.redirect(redirectUrl(`oauth_error=${encodeURIComponent('Session expirée, réessayez')}`));
     }
 
     // Exchange code for tokens
@@ -194,7 +200,7 @@ async function handleCallback(provider, params, appleUserObj, res) {
     const userInfo = await oauth.getUserInfo(provider, tokens, appleUserObj);
 
     if (!userInfo.email) {
-      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Email non disponible depuis ' + provider)}`));
+      return res.redirect(redirectUrl(`oauth_error=${encodeURIComponent('Email non disponible depuis ' + provider)}`));
     }
 
     // Store in pickup key for frontend to fetch
@@ -208,10 +214,10 @@ async function handleCallback(provider, params, appleUserObj, res) {
       expiresAt: Date.now() + 5 * 60000 // 5 min
     });
 
-    res.redirect(`/${slug}/book?oauth_pickup=${pickupKey}`);
+    res.redirect(redirectUrl(`oauth_pickup=${pickupKey}`));
   } catch (err) {
     console.error(`[OAUTH] ${provider} callback error:`, err.message);
-    res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Erreur d\'authentification, réessayez')}`));
+    res.redirect(redirectUrl(`oauth_error=${encodeURIComponent('Erreur d\'authentification, réessayez')}`));
   }
 }
 
