@@ -1087,12 +1087,12 @@ img {
   <div class="container">
     <a href="#" class="navbar-brand">—</a>
     <ul class="navbar-links">
-      <li><a href="#team">L'equipe</a></li>
+      <li><a href="#team">L'équipe</a></li>
       <li><a href="#services">Soins</a></li>
       <li><a href="#gallery">Galerie</a></li>
       <li><a href="#info">Contact</a></li>
       <li><a href="#news" id="navNews" style="display:none">Actus</a></li>
-      <li><a href="#" class="btn-outline">Reserver</a></li>
+      <li><a href="#" class="btn-outline">Réserver</a></li>
     </ul>
   </div>
 </nav>
@@ -1116,7 +1116,7 @@ img {
       <div class="about-image"></div>
       <div class="about-content">
         <p class="section-label">Notre philosophie</p>
-        <h2 class="section-heading">Chaque detail <span class="serif">compte</span></h2>
+        <h2 class="section-heading">Chaque détail <span class="serif">compte</span></h2>
         <p class="about-text">—</p>
       </div>
     </div>
@@ -1153,7 +1153,7 @@ img {
     <div class="services-header text-center">
       <p class="section-label">Nos soins</p>
       <h2 class="section-heading">La carte des <span class="serif">soins</span></h2>
-      <p class="section-subtitle">Selectionnez une prestation pour reserver en ligne.</p>
+      <p class="section-subtitle">Sélectionnez une prestation pour réserver en ligne.</p>
     </div>
     <div id="servicesList"></div>
   </div>
@@ -1165,8 +1165,8 @@ img {
 <section class="team" id="team">
   <div class="container">
     <div class="team-header text-center">
-      <p class="section-label">L'equipe</p>
-      <h2 class="section-heading">Nos <span class="serif">specialistes</span></h2>
+      <p class="section-label">L'équipe</p>
+      <h2 class="section-heading">Nos <span class="serif">spécialistes</span></h2>
     </div>
     <div class="team-grid" id="teamGrid"></div>
   </div>
@@ -1179,7 +1179,7 @@ img {
   <div class="container">
     <div class="gallery-header text-center">
       <p class="section-label">Galerie</p>
-      <h2 class="section-heading">Nos <span class="serif">realisations</span></h2>
+      <h2 class="section-heading">Nos <span class="serif">réalisations</span></h2>
     </div>
     <div class="gallery-grid" id="galleryGrid"></div>
   </div>
@@ -1205,7 +1205,7 @@ img {
 <section class="news" id="news" style="display:none">
   <div class="container">
     <div class="news-header text-center">
-      <p class="section-label">Actualites</p>
+      <p class="section-label">Actualités</p>
       <h2 class="section-heading">Nos <span class="serif">nouvelles</span></h2>
     </div>
     <div class="news-grid" id="newsGrid"></div>
@@ -1242,8 +1242,8 @@ img {
 <section class="final-cta" id="finalCta">
   <div class="container text-center">
     <h2 class="section-heading">Envie d'un moment pour <span class="serif">vous</span> ?</h2>
-    <p class="section-subtitle">Reservez votre creneau en quelques clics.</p>
-    <a href="#" class="btn-solid" id="ctaBtn">Reserver maintenant &rarr;</a>
+    <p class="section-subtitle">Réservez votre créneau en quelques clics.</p>
+    <a href="#" class="btn-solid" id="ctaBtn">Réserver maintenant &rarr;</a>
   </div>
 </section>
 
@@ -1252,7 +1252,7 @@ img {
   <div class="container">
     <p class="footer-text" id="footerInfo">—</p>
     <p class="footer-text">
-      Propulse par <a href="#" class="brand-link">BOOKT</a>
+      Propulsé par <a href="#" class="brand-link">BOOKT</a>
     </p>
   </div>
 </footer>
@@ -1274,7 +1274,7 @@ img {
 
 <!-- Sticky mobile CTA -->
 <div class="sticky-cta" id="stickyCta">
-  <a href="#" class="btn-solid sticky-cta-btn" id="stickyCtaBtn">Reserver</a>
+  <a href="#" class="btn-solid sticky-cta-btn" id="stickyCtaBtn">Réserver</a>
 </div>
 
 </div><!-- /siteContent -->
@@ -1503,12 +1503,12 @@ img {
     if (d.next_available) {
       var nextTxt = fmtNext(d.next_available);
       if (nextTxt) {
-        statsHtml += '<div class="stat-item"><div class="stat-number">' + esc(nextTxt) + '</div><div class="stat-label">Prochain creneau</div></div>';
+        statsHtml += '<div class="stat-item"><div class="stat-number">' + esc(nextTxt) + '</div><div class="stat-label">Prochain créneau</div></div>';
       }
     }
     if (b.founded_year) {
       var years = new Date().getFullYear() - b.founded_year;
-      statsHtml += '<div class="stat-item"><div class="stat-number">' + years + ' ans</div><div class="stat-label">D\'experience</div></div>';
+      statsHtml += '<div class="stat-item"><div class="stat-number">' + years + ' ans</div><div class="stat-label">D\'expérience</div></div>';
     }
     if (statsHtml) {
       document.getElementById('statsGrid').innerHTML = statsHtml;

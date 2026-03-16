@@ -1029,14 +1029,9 @@ ul { list-style: none; }
   <div class="hero-circle-2"></div>
   <div class="container">
     <div class="hero-content">
-      <div class="hero-label" id="heroLabel">BEAUTY STUDIO &mdash; BRUXELLES</div>
-      <h1 class="hero-heading" id="heroHeading">
-        Votre style.<br>
-        <span class="accent">Notre obsession.</span>
-      </h1>
-      <p class="hero-subtitle" id="heroSubtitle">
-        Coiffure, soins visage, onglerie &mdash; le meilleur de la beaut&eacute; urbaine.
-      </p>
+      <div class="hero-label" id="heroLabel">&mdash;</div>
+      <h1 class="hero-heading" id="heroHeading">&mdash;</h1>
+      <p class="hero-subtitle" id="heroSubtitle">&mdash;</p>
       <div class="hero-ctas">
         <a href="#" class="btn btn-primary" id="heroBookBtn">R&eacute;server maintenant</a>
         <a href="#services" class="btn btn-outline">D&eacute;couvrir</a>
@@ -1050,22 +1045,7 @@ ul { list-style: none; }
 <section class="stats" id="statsSection">
   <div class="container">
     <div class="stats-grid" id="statsGrid">
-      <div class="stat-item">
-        <div class="stat-number" id="statClients">500+</div>
-        <div class="stat-label">Clientes</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number" id="statRating">4.9&#x2605;</div>
-        <div class="stat-label">Note Google</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number" id="statTeam">3</div>
-        <div class="stat-label" id="statTeamLabel">Artistes</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number" id="statExp">6 ans</div>
-        <div class="stat-label">D'exp&eacute;rience</div>
-      </div>
+      <!-- Stats populated dynamically -->
     </div>
   </div>
 </section>
@@ -1075,7 +1055,7 @@ ul { list-style: none; }
   <div class="container">
     <div class="section-label">&#x2726; &Agrave; PROPOS</div>
     <h2 class="section-heading">
-      Ce qui nous rend <span class="accent serif-italic">uniques</span>
+      Notre <span class="accent serif-italic">approche</span> beauté
     </h2>
     <p class="about-desc" id="aboutDesc"></p>
     <div class="values-grid" id="valuesGrid"></div>
@@ -1087,8 +1067,7 @@ ul { list-style: none; }
   <div class="container">
     <div class="section-label">&#x2726; NOS SOINS</div>
     <h2 class="section-heading">
-      On ne fait pas du beau.<br>
-      On fait du <span class="accent serif-italic">wow.</span>
+      Nos <span class="accent serif-italic">prestations</span>
     </h2>
     <div id="servicesContainer"></div>
   </div>
@@ -1099,7 +1078,7 @@ ul { list-style: none; }
   <div class="container">
     <div class="section-label">&#x2726; L'&Eacute;QUIPE</div>
     <h2 class="section-heading">
-      Les <span class="accent serif-italic">talents</span> du studio
+      Nos <span class="accent serif-italic">experts</span> beauté
     </h2>
     <div class="team-grid" id="teamGrid"></div>
   </div>
@@ -1189,7 +1168,7 @@ ul { list-style: none; }
 <!-- ═══════ FOOTER ═══════ -->
 <footer class="footer">
   <div class="container">
-    <p class="footer-line" id="footerLine">GLOW Studio &middot; Rue de la Loi 42, 1000 Bruxelles &middot; BCE 0123.456.789</p>
+    <p class="footer-line" id="footerLine">&mdash;</p>
     <p class="footer-line">Propuls&eacute; par <span class="footer-brand">BOOKT</span></p>
   </div>
 </footer>
@@ -1388,16 +1367,30 @@ ul { list-style: none; }
     document.getElementById('heroSubtitle').textContent = b.tagline || '';
     document.getElementById('heroBookBtn').href = bookUrl;
 
-    // ── Stats ──
+    // ── Stats (dynamic) ──
     var practCount = d.practitioner_count || (d.practitioners ? d.practitioners.length : 0);
     var svcCount = d.services ? d.services.length : 0;
-    document.getElementById('statClients').textContent = '500+';
-    document.getElementById('statRating').textContent = '4.9\u2605';
-    document.getElementById('statTeam').textContent = String(practCount);
-    document.getElementById('statTeamLabel').textContent = practCount > 1 ? 'Artistes' : 'Artiste';
+    var statsHtml = '';
+    if (practCount > 0) {
+      statsHtml += '<div class="stat-item"><div class="stat-number">' + practCount + '</div><div class="stat-label">' + (practCount > 1 ? 'Artistes' : 'Artiste') + '</div></div>';
+    }
+    if (svcCount > 0) {
+      statsHtml += '<div class="stat-item"><div class="stat-number">' + svcCount + '</div><div class="stat-label">Prestations</div></div>';
+    }
+    if (d.next_available) {
+      var nextTxt = fmtNext(d.next_available);
+      if (nextTxt) {
+        statsHtml += '<div class="stat-item"><div class="stat-number">' + esc(nextTxt) + '</div><div class="stat-label">Prochain créneau</div></div>';
+      }
+    }
     if (b.founded_year) {
       var years = new Date().getFullYear() - b.founded_year;
-      document.getElementById('statExp').textContent = years + ' ans';
+      statsHtml += '<div class="stat-item"><div class="stat-number">' + years + ' ans</div><div class="stat-label">D\'expérience</div></div>';
+    }
+    if (statsHtml) {
+      document.getElementById('statsGrid').innerHTML = statsHtml;
+    } else {
+      document.getElementById('statsSection').style.display = 'none';
     }
 
     // ── About / Values ──
