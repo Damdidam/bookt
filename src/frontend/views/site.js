@@ -10,94 +10,49 @@ import { guardModal } from '../utils/dirty-guard.js';
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 const escAttr=s=>(s||'').replace(/"/g,'&quot;');
 
+// Only 3 template families remain: Funky, Épuré, Bold
 const THEMES={
-  classique:{name:'Classique',desc:'Épuré et professionnel. Teal + typographie éditoriale.',free:true,
-    colors:{bg:'#FAFAF9',nav:'#FAFAF9',navText:'#1A1816',primary:'#0D7377',text:'#1A1816',card:'#FFF',cardBorder:'#ECEAE6',heroBg:'#FAFAF9'},
-    heroStyle:'light',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&family=Instrument+Serif&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Plus Jakarta Sans',sans-serif",
-    fontLabel:'Jakarta Sans + Instrument Serif'},
-  prestige:{name:'Prestige',desc:'Bleu nuit + or. Idéal avocats, notaires, consultants.',free:false,
-    colors:{bg:'#F8F7F4',nav:'#1B1B1B',navText:'#FFF',primary:'#1E3A5F',text:'#1B1B1B',card:'#FFF',cardBorder:'#E0DDD8',heroBg:'#1B1B1B'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@500;600&display=swap',
-    serif:"'DM Serif Display',Georgia,serif",sans:"'Inter',sans-serif",
-    fontLabel:'Inter + DM Serif Display'},
-  zen:{name:'Zen',desc:'Vert sauge + beige. Parfait bien-être, thérapeutes, coachs.',free:false,
-    colors:{bg:'#F7F5F0',nav:'#F7F5F0',navText:'#2C2820',primary:'#6B7F5E',text:'#2C2820',card:'#FFFDF9',cardBorder:'#E5E0D6',heroBg:'#EDE9E0'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Nunito+Sans:wght@500;600&display=swap',
-    serif:"'Cormorant Garamond',Georgia,serif",sans:"'Nunito Sans',sans-serif",
-    fontLabel:'Nunito Sans + Cormorant Garamond'},
-  moderne:{name:'Moderne',desc:'Noir + blanc. Géométrique, tech-forward, minimaliste.',free:false,
-    colors:{bg:'#FAFAFA',nav:'#FAFAFA',navText:'#111',primary:'#111',text:'#111',card:'#FFF',cardBorder:'#E8E8E8',heroBg:'#FAFAFA'},
-    heroStyle:'light',layout:'left',accentCards:true,
-    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Instrument+Serif&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
-    fontLabel:'Space Grotesk + Instrument Serif'},
-  chaleureux:{name:'Chaleureux',desc:'Terracotta + crème. Accueillant, personnel, artisanal.',free:false,
-    colors:{bg:'#FAF6F2',nav:'#FAF6F2',navText:'#2E1F14',primary:'#8B4513',text:'#2E1F14',card:'#FFFCF8',cardBorder:'#E8E0D6',heroBg:'#F0EAE2'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@500;600&display=swap',
-    serif:"'Libre Baskerville',Georgia,serif",sans:"'Source Sans 3',sans-serif",
-    fontLabel:'Source Sans 3 + Libre Baskerville'},
-  ocean:{name:'Océan',desc:'Bleu profond + ciel. Frais, ouvert, médical.',free:false,
-    colors:{bg:'#F5F8FA',nav:'#0F2440',navText:'#FFF',primary:'#1565C0',text:'#0F2440',card:'#FFF',cardBorder:'#DCE5ED',heroBg:'#0F2440'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Lato:wght@400;700&display=swap',
-    serif:"'Playfair Display',Georgia,serif",sans:"'Lato',sans-serif",
-    fontLabel:'Lato + Playfair Display'},
-  funky:{name:'Funky',desc:'Corail + gradients. Punchy, fun, salons beauté.',free:true,
-    colors:{bg:'#FFF5F0',nav:'#FFF5F0',navText:'#2D1810',primary:'#E8694A',text:'#2D1810',card:'#FFF',cardBorder:'#F0D0C0',heroBg:'#FFF5F0'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap',
-    serif:"'Playfair Display',Georgia,serif",sans:"'Sora',sans-serif",
-    fontLabel:'Sora + Playfair Display'},
-  epure_nude:{name:'Épuré Nude',desc:'Beige + typographie élégante. Minimaliste, raffiné.',free:true,
-    colors:{bg:'#FEFDFB',nav:'#FEFDFB',navText:'#2C2C2C',primary:'#B8977E',text:'#2C2C2C',card:'#FFF',cardBorder:'#E8E0D8',heroBg:'#F5F0EB'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&display=swap',
-    serif:"'Cormorant Garamond',Georgia,serif",sans:"'DM Sans',sans-serif",
-    fontLabel:'DM Sans + Cormorant Garamond'},
-  epure_sauge:{name:'Épuré Sauge',desc:'Vert doux + minimalisme. Nature, sérénité.',free:true,
-    colors:{bg:'#FAFCF9',nav:'#FAFCF9',navText:'#2C2C2C',primary:'#7D8B75',text:'#2C2C2C',card:'#FFF',cardBorder:'#D8E0D4',heroBg:'#F0F4ED'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&display=swap',
-    serif:"'Cormorant Garamond',Georgia,serif",sans:"'DM Sans',sans-serif",
-    fontLabel:'DM Sans + Cormorant Garamond'},
-  epure_blush:{name:'Épuré Blush',desc:'Rose poudré + lignes fines. Doux, féminin.',free:true,
-    colors:{bg:'#FFFBFB',nav:'#FFFBFB',navText:'#2C2C2C',primary:'#C4898A',text:'#2C2C2C',card:'#FFF',cardBorder:'#F0D8D8',heroBg:'#FBF0F0'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&display=swap',
-    serif:"'Cormorant Garamond',Georgia,serif",sans:"'DM Sans',sans-serif",
-    fontLabel:'DM Sans + Cormorant Garamond'},
-  bold_nuit:{name:'Bold Nuit',desc:'Noir + or. Luxueux, dark mode, premium.',free:true,
-    colors:{bg:'#111827',nav:'#111827',navText:'#F9FAFB',primary:'#D4AF37',text:'#F9FAFB',card:'#1F2937',cardBorder:'#374151',heroBg:'#111827'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Serif:ital@0;1&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
-    fontLabel:'Space Grotesk + Instrument Serif'},
-  bold_foret:{name:'Bold Forêt',desc:'Vert foncé + sauge. Nature profonde, organique.',free:true,
-    colors:{bg:'#0F1D1A',nav:'#0F1D1A',navText:'#F0F4ED',primary:'#A8C5A0',text:'#F0F4ED',card:'#1A2E28',cardBorder:'#2D4A3E',heroBg:'#0F1D1A'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Serif:ital@0;1&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
-    fontLabel:'Space Grotesk + Instrument Serif'},
-  bold_bordeaux:{name:'Bold Bordeaux',desc:'Pourpre foncé + rose. Élégant, audacieux.',free:true,
-    colors:{bg:'#1A0F18',nav:'#1A0F18',navText:'#FBF0F5',primary:'#E8A0BF',text:'#FBF0F5',card:'#2D1B2E',cardBorder:'#4A2D45',heroBg:'#1A0F18'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Serif:ital@0;1&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
-    fontLabel:'Space Grotesk + Instrument Serif'},
-  bold_electrique:{name:'Bold Électrique',desc:'Bleu nuit + turquoise. Moderne, tech, dynamique.',free:true,
-    colors:{bg:'#0F1419',nav:'#0F1419',navText:'#F0F8F7',primary:'#4ECDC4',text:'#F0F8F7',card:'#1A2332',cardBorder:'#2D4A55',heroBg:'#0F1419'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Serif:ital@0;1&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
-    fontLabel:'Space Grotesk + Instrument Serif'}
+  funky:{name:'Funky',family:'funky'},
+  epure_nude:{name:'Épuré Nude',family:'epure'},
+  epure_sauge:{name:'Épuré Sauge',family:'epure'},
+  epure_blush:{name:'Épuré Blush',family:'epure'},
+  epure_charbon:{name:'Épuré Charbon',family:'epure'},
+  bold_nuit:{name:'Bold Nuit',family:'bold'},
+  bold_foret:{name:'Bold Forêt',family:'bold'},
+  bold_bordeaux:{name:'Bold Bordeaux',family:'bold'},
+  bold_electrique:{name:'Bold Électrique',family:'bold'}
 };
 
-let currentThemePreset='classique';
+// Map legacy presets to new ones
+function resolvePreset(p){
+  if(THEMES[p])return p;
+  // Legacy presets → default to epure_nude
+  return 'epure_nude';
+}
+
+const FAMILIES=[
+  {key:'funky',label:'Funky',desc:'Corail + gradients. Punchy, fun, salons beauté.',
+   fonts:'Sora + Playfair Display',
+   presets:[{key:'funky',label:'Corail',color:'#E8694A'}]},
+  {key:'epure',label:'Épuré',desc:'Minimaliste, élégant. Typographie raffinée, sections épurées.',
+   fonts:'DM Sans + Cormorant Garamond',
+   presets:[
+     {key:'epure_nude',label:'Nude',color:'#B8977E'},
+     {key:'epure_sauge',label:'Sauge',color:'#7D8B75'},
+     {key:'epure_blush',label:'Blush',color:'#C4898A'},
+     {key:'epure_charbon',label:'Charbon',color:'#555'}
+   ]},
+  {key:'bold',label:'Bold',desc:'Dark mode, audacieux. Premium, moderne, impact.',
+   fonts:'Space Grotesk + Instrument Serif',
+   presets:[
+     {key:'bold_nuit',label:'Nuit',color:'#D4AF37'},
+     {key:'bold_foret',label:'Forêt',color:'#A8C5A0'},
+     {key:'bold_bordeaux',label:'Bordeaux',color:'#E8A0BF'},
+     {key:'bold_electrique',label:'Électrique',color:'#4ECDC4'}
+   ]}
+];
+
+let currentThemePreset='epure_nude';
 let businessPlan='free';
 let _galleryCache=[];
 let _testimonialCache=[];
@@ -121,7 +76,7 @@ async function loadSiteSection(){
     const testimonialItems=testData.testimonials||[];
     const valueItems=valData.values||[];
     const b=d.business;
-    currentThemePreset=b.theme?.preset||'classique';
+    currentThemePreset=resolvePreset(b.theme?.preset||'epure_nude');
     businessPlan=b.plan||'free';
     const slug=b.slug||'';
 
@@ -158,54 +113,116 @@ async function loadSiteSection(){
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSocialLinks()">Enregistrer</button></div>
     </div>`;
 
-    const freeCount=Object.values(THEMES).filter(t=>t.free).length;
-    const proCount=Object.values(THEMES).filter(t=>!t.free).length;
-    h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge badge-teal">${businessPlan==='free'?'Plan Gratuit — '+freeCount+' thèmes':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
+    // Determine which family is active
+    const activeFamily=currentThemePreset==='funky'?'funky':currentThemePreset.startsWith('bold')?'bold':'epure';
+
+    h+=`<div class="card"><div class="card-h"><h3>Template du mini-site</h3><span class="badge badge-teal">3 templates</span></div>
     <div style="padding:18px">
-      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:4px">Choisissez l'identité visuelle de votre site. Chaque thème inclut typographie, palette et mise en page uniques.</p>
-      ${businessPlan==='free'?'<p style="font-size:.78rem;color:var(--gold);margin-bottom:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Passez au plan Pro pour débloquer '+proCount+' thèmes premium + couleur personnalisée.</p>':''}
-      <div class="theme-grid">`;
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Choisissez le template de votre site. Chaque template a sa propre identité visuelle.</p>
+      <div class="theme-grid" style="grid-template-columns:repeat(3,1fr)">`;
 
-    Object.entries(THEMES).forEach(([key,t])=>{
-      const isActive=key===currentThemePreset;
-      const isPro=!t.free;
-      const isLocked=isPro&&businessPlan==='free';
-      const cls=`theme-card${isActive?' active':''}${isLocked?' locked':''}`;
-      const co=t.colors;
-      const heroAlign=t.layout==='center'?'center':'left';
+    // ── FUNKY miniature ──
+    const funkyActive=activeFamily==='funky';
+    h+=`<div class="theme-card${funkyActive?' active':''}" onclick="selectTheme('funky')">
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="theme-preview" style="background:#FFFAF7;overflow:hidden;position:relative">
+        <div class="tp-nav" style="background:rgba(255,250,247,.95);backdrop-filter:blur(8px)">
+          <div class="dot" style="background:linear-gradient(135deg,#E8694A,#F15BB5)">G</div>
+          <span class="tp-name" style="color:#1E1210;font-family:'Sora',sans-serif;font-weight:800;font-size:7px">GLOW</span>
+          <span class="tp-cta" style="background:#E8694A;font-family:'Sora',sans-serif;border-radius:100px;font-size:6px">Réserver ✨</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:6px;padding:6px 8px 4px;align-items:center">
+          <div style="text-align:left">
+            <div style="display:inline-block;padding:1px 6px;border-radius:20px;background:#FFF3ED;font-size:4px;color:#E8694A;font-weight:700;margin-bottom:3px">● Dispo</div>
+            <div style="font-family:'Sora',sans-serif;font-size:8px;font-weight:800;color:#1E1210;line-height:1.1;letter-spacing:-.3px">Votre moment<br><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:400">beauté</span></div>
+            <div style="margin-top:3px"><span style="display:inline-block;padding:2px 8px;background:#E8694A;color:#fff;border-radius:20px;font-size:4px;font-weight:700;font-family:'Sora',sans-serif">Réserver</span></div>
+          </div>
+          <div style="aspect-ratio:1;border-radius:40% 60% 55% 45%/55% 40% 60% 45%;background:linear-gradient(135deg,#FFF3ED,#FFE8DA,#FFEAF5);display:flex;align-items:center;justify-content:center"><span style="font-family:'Playfair Display',serif;font-size:14px;color:#E8694A;opacity:.15;font-style:italic">glow</span></div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:16px;padding:3px 8px;border-top:1px solid #F5E6DB;border-bottom:1px solid #F5E6DB">
+          <div style="text-align:center"><span style="font-size:7px;font-weight:800;background:linear-gradient(135deg,#E8694A,#F15BB5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">500+</span><div style="font-size:3px;color:#B8A49A">Clientes</div></div>
+          <div style="text-align:center"><span style="font-size:7px;font-weight:800;background:linear-gradient(135deg,#E8694A,#F15BB5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">4.9★</span><div style="font-size:3px;color:#B8A49A">Avis</div></div>
+        </div>
+      </div>
+      <div class="theme-info">
+        <h4>Funky</h4>
+        <p>Corail + gradients. Punchy, fun, salons beauté.</p>
+        <p style="font-size:.6rem;color:var(--text-4);margin-top:3px">Sora + Playfair Display</p>
+      </div>
+    </div>`;
 
-      h+=`<div class="${cls}" onclick="${isLocked?'':'selectTheme(\''+key+'\')'}">
-        <link rel="stylesheet" href="${t.fontUrl}">
-        <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-        ${isLocked?'<div class="lock-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>':''}
-        <div class="theme-preview" style="background:${co.heroBg}">
-          <div class="tp-nav" style="background:${co.nav}">
-            <div class="dot" style="background:${co.primary}">G</div>
-            <span class="tp-name" style="color:${co.navText};font-family:${t.sans}">Cabinet</span>
-            <span class="tp-cta" style="background:${co.primary};font-family:${t.sans}">RDV</span>
-          </div>
-          <div class="tp-hero" style="color:${t.heroStyle==='dark'?'#fff':co.text};text-align:${heroAlign}">
-            <h3 style="font-family:${t.serif}">Cabinet Dupont</h3>
-            <p style="font-family:${t.sans}">Votre santé, notre priorité</p>
-          </div>
-          <div class="tp-cards">
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
-          </div>
+    // ── ÉPURÉ miniature ──
+    const epureActive=activeFamily==='epure';
+    const epurePreset=epureActive?currentThemePreset:'epure_nude';
+    const epureColors={epure_nude:{accent:'#B8977E',bg:'#FEFDFB',border:'#E8E0D8',subtle:'#F5F0EB'},epure_sauge:{accent:'#7D8B75',bg:'#FAFCF9',border:'#D8E0D4',subtle:'#F0F4ED'},epure_blush:{accent:'#C4898A',bg:'#FFFBFB',border:'#F0D8D8',subtle:'#FBF0F0'},epure_charbon:{accent:'#555',bg:'#FEFEFE',border:'#E0E0E0',subtle:'#F5F5F5'}};
+    const ec=epureColors[epurePreset]||epureColors.epure_nude;
+
+    h+=`<div class="theme-card${epureActive?' active':''}" onclick="selectTheme('${epurePreset}')">
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="theme-preview" style="background:${ec.bg};overflow:hidden">
+        <div class="tp-nav" style="background:${ec.bg};border-bottom:1px solid ${ec.border}">
+          <span class="tp-name" style="color:#2C2C2C;font-family:'DM Sans',sans-serif;font-weight:600;font-size:7px;letter-spacing:1px;text-transform:uppercase">GLOW studio</span>
+          <span class="tp-cta" style="background:transparent;color:${ec.accent};border:1px solid ${ec.accent};font-family:'DM Sans',sans-serif;border-radius:2px;font-size:5px;padding:2px 6px">Réserver</span>
         </div>
-        <div class="theme-info">
-          <h4>${t.name} <span class="th-badge ${t.free?'th-free':'th-pro'}">${t.free?'Gratuit':'Pro'}</span></h4>
-          <p>${t.desc}</p>
-          <p style="font-size:.6rem;color:var(--text-4);margin-top:3px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> ${t.fontLabel}${t.layout==='center'?' · <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="15" y1="17" x2="3" y2="17"/></svg> Centré':''}${t.accentCards?' · <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="18" height="4" rx="1" fill="currentColor"/></svg> Accents':''}</p>
+        <div style="text-align:center;padding:12px 8px 8px">
+          <div style="font-size:3.5px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:4px;font-family:'DM Sans',sans-serif">INSTITUT — BRUXELLES</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;color:#2C2C2C;line-height:1.2">L'art du soin,<br><span style="font-family:'Cormorant Garamond',serif;font-style:italic">sublime</span></div>
+          <div style="margin-top:5px"><span style="display:inline-block;padding:2px 8px;border:1px solid ${ec.accent};color:${ec.accent};font-family:'DM Sans',sans-serif;font-size:4px;border-radius:1px">Prendre rendez-vous</span></div>
         </div>
-      </div>`;
-    });
+        <div style="border-top:1px solid ${ec.border};margin:0 8px"></div>
+        <div style="padding:4px 8px">
+          <div style="font-size:3px;color:#888;border-bottom:1px solid ${ec.border};padding:2px 0;font-family:'DM Sans',sans-serif">Coiffure</div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid ${ec.border}"><span style="font-size:3.5px;font-family:'DM Sans',sans-serif;color:#2C2C2C">Coupe femme</span><span style="font-size:3.5px;color:${ec.accent};font-weight:600">35€</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid ${ec.border}"><span style="font-size:3.5px;font-family:'DM Sans',sans-serif;color:#2C2C2C">Brushing</span><span style="font-size:3.5px;color:${ec.accent};font-weight:600">25€</span></div>
+        </div>
+      </div>
+      <div class="theme-info">
+        <h4>Épuré</h4>
+        <p>Minimaliste, élégant, raffiné.</p>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+          ${FAMILIES[1].presets.map(v=>`<div onclick="event.stopPropagation();selectTheme('${v.key}')" style="width:18px;height:18px;border-radius:50%;background:${v.color};cursor:pointer;border:2px solid ${v.key===currentThemePreset?'var(--text)':'transparent'};transition:all .2s;box-shadow:${v.key===currentThemePreset?'0 0 0 2px var(--bg), 0 0 0 4px var(--text)':'none'}" title="${v.label}"></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+    // ── BOLD miniature ──
+    const boldActive=activeFamily==='bold';
+    const boldPreset=boldActive?currentThemePreset:'bold_nuit';
+    const boldColors={bold_nuit:{bg:'#111827',card:'#1F2937',accent:'#D4AF37',text:'#F9FAFB',muted:'#9CA3AF',border:'#374151'},bold_foret:{bg:'#0F1D1A',card:'#1A2E28',accent:'#A8C5A0',text:'#F0F4ED',muted:'#8A9E85',border:'#2D4A3E'},bold_bordeaux:{bg:'#1A0F18',card:'#2D1B2E',accent:'#E8A0BF',text:'#FBF0F5',muted:'#B08A9E',border:'#4A2D45'},bold_electrique:{bg:'#0F1419',card:'#1A2332',accent:'#4ECDC4',text:'#F0F8F7',muted:'#7BA8A3',border:'#2D4A55'}};
+    const bc=boldColors[boldPreset]||boldColors.bold_nuit;
+
+    h+=`<div class="theme-card${boldActive?' active':''}" onclick="selectTheme('${boldPreset}')">
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="theme-preview" style="background:${bc.bg};overflow:hidden;position:relative">
+        <div style="position:absolute;width:60px;height:60px;border:1px solid ${bc.accent};border-radius:50%;opacity:.12;right:-15px;top:50%;transform:translateY(-50%)"></div>
+        <div class="tp-nav" style="background:${bc.bg};border-bottom:1px solid ${bc.border}">
+          <span class="tp-name" style="color:${bc.text};font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:7px;letter-spacing:1px;text-transform:uppercase">GLOW <span style="font-family:'Instrument Serif',serif;font-style:italic;text-transform:none;font-weight:400;font-size:6px">studio</span></span>
+          <span class="tp-cta" style="background:${bc.accent};color:${bc.bg};font-family:'Space Grotesk',sans-serif;border-radius:4px;font-size:5px;padding:2px 6px;font-weight:600">Réserver</span>
+        </div>
+        <div style="padding:10px 8px 6px;position:relative;z-index:1">
+          <div style="font-size:3.5px;letter-spacing:2px;text-transform:uppercase;color:${bc.accent};margin-bottom:4px;font-weight:700;font-family:'Space Grotesk',sans-serif">BEAUTY — BRUXELLES</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;color:${bc.text};line-height:1.1">Votre style.<br><span style="font-family:'Instrument Serif',serif;font-style:italic;color:${bc.accent}">Notre obsession.</span></div>
+          <div style="display:flex;gap:4px;margin-top:5px">
+            <span style="display:inline-block;padding:2px 7px;background:${bc.accent};color:${bc.bg};font-size:4px;font-weight:600;border-radius:3px;font-family:'Space Grotesk',sans-serif">Réserver</span>
+            <span style="display:inline-block;padding:2px 7px;border:1px solid ${bc.accent};color:${bc.accent};font-size:4px;border-radius:3px;font-family:'Space Grotesk',sans-serif">Découvrir</span>
+          </div>
+          <div style="width:20px;height:2px;background:${bc.accent};border-radius:1px;margin-top:5px"></div>
+        </div>
+      </div>
+      <div class="theme-info">
+        <h4>Bold</h4>
+        <p>Dark mode, audacieux, premium.</p>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+          ${FAMILIES[2].presets.map(v=>`<div onclick="event.stopPropagation();selectTheme('${v.key}')" style="width:18px;height:18px;border-radius:50%;background:${v.color};cursor:pointer;border:2px solid ${v.key===currentThemePreset?'var(--text)':'transparent'};transition:all .2s;box-shadow:${v.key===currentThemePreset?'0 0 0 2px var(--bg), 0 0 0 4px var(--text)':'none'}" title="${v.label}"></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
 
     h+=`</div></div></div>`;
 
     // Custom color (Pro only)
-    const curColor=b.theme?.primary_color||THEMES[currentThemePreset]?.colors?.primary||'#0D7377';
+    const defaultColor=FAMILIES.flatMap(f=>f.presets).find(p=>p.key===currentThemePreset)?.color||'#0D7377';
+    const curColor=b.theme?.primary_color||defaultColor;
     h+=`<div class="card"><div class="card-h"><h3>Couleur personnalisée</h3>${businessPlan==='free'?'<span class="th-badge th-pro">Pro</span>':''}</div>
       <div style="padding:18px">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
@@ -393,7 +410,7 @@ async function selectTheme(preset){
   if(preset===currentThemePreset)return;
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({theme:{preset,primary_color:THEMES[preset]?.colors?.primary}})});
+      body:JSON.stringify({theme:{preset}})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     currentThemePreset=preset;
     GendaUI.toast(`Thème "${THEMES[preset].name}" appliqué !`,'success');
