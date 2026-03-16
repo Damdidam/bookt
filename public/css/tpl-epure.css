@@ -180,6 +180,22 @@ body.hero-centered .hero{text-align:center;display:flex;flex-direction:column;al
 body.hero-centered .hero-tagline{margin-left:auto;margin-right:auto}
 body.hero-centered .hero-badges{justify-content:center}
 
+body.dark-nav .nav{background:color-mix(in srgb,var(--text) 94%,transparent);border-bottom-color:rgba(255,255,255,.08)}
+body.dark-nav .nav-name{color:#fff}
+body.dark-nav .nav-link{color:rgba(255,255,255,.5)}body.dark-nav .nav-link:hover{color:#fff;background:rgba(255,255,255,.08)}
+
+body.hero-dark .hero{background:var(--text);color:#fff;max-width:100%;padding:60px calc((100% - var(--max-w))/2 + 24px) 80px;margin:0}
+body.hero-dark .hero h1{color:#fff}body.hero-dark .hero h1 em{color:var(--primary-soft)}
+body.hero-dark .hero-tagline{color:rgba(255,255,255,.6)}
+body.hero-dark .hero-cta{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+body.hero-dark .hero-cta:hover{background:var(--primary-hover);color:#fff}
+body.hero-dark .badge-teal{background:rgba(255,255,255,.1);color:var(--primary-soft);border-color:rgba(255,255,255,.15)}
+body.hero-dark .badge-gold{background:rgba(255,255,255,.1);color:#E8DCBA;border-color:rgba(255,255,255,.15)}
+body.hero-dark .badge-green{background:rgba(255,255,255,.1);color:#B8E6C4;border-color:rgba(255,255,255,.15)}
+
+body.warm-bg{background:var(--surface)}body.warm-bg .nav{background:color-mix(in srgb,var(--surface) 90%,transparent)}
+body.accent-cards .value-card,body.accent-cards .team-card,body.accent-cards .spec-card,body.accent-cards .svc-row,body.accent-cards .test-card{border-top:3px solid var(--primary)}
+
 /* ═══════ RESPONSIVE ═══════ */
 @media(max-width:640px){
   .hero h1{font-size:2.2rem}
