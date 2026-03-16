@@ -325,6 +325,39 @@ ul { list-style: none; }
   padding: 100px 0;
 }
 
+.svc-nav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 40px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.svc-nav::-webkit-scrollbar { display: none; }
+.svc-nav-pill {
+  padding: 10px 22px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  transition: all var(--transition);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.svc-nav-pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.svc-nav-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
 .service-category {
   margin-bottom: 48px;
 }
@@ -1272,8 +1305,19 @@ ul { list-style: none; }
       });
       var multiEnabled = b.multi_service_enabled;
       var svcHtml = '';
+
+      /* category navbar */
+      if (catKeys.length > 1) {
+        svcHtml += '<div class="svc-nav">';
+        svcHtml += '<div class="svc-nav-pill active" data-cat="all" onclick="filterSvcCat(\'all\')">Tous</div>';
+        catKeys.forEach(function(cat) {
+          svcHtml += '<div class="svc-nav-pill" data-cat="' + esc(cat) + '" onclick="filterSvcCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')">' + esc(cat) + '</div>';
+        });
+        svcHtml += '</div>';
+      }
+
       catKeys.forEach(function(cat) {
-        svcHtml += '<div class="service-category">';
+        svcHtml += '<div class="service-category" data-cat="' + esc(cat) + '">';
         svcHtml += '<div class="category-label">' + esc(cat.toUpperCase()) + '</div>';
         grouped[cat].forEach(function(s) {
           var price = s.price_cents ? (s.price_cents / 100).toFixed(0) + '\u20ac' : (s.price_label || '');
@@ -1293,6 +1337,19 @@ ul { list-style: none; }
         svcHtml += '</div>';
       });
       document.getElementById('servicesContainer').innerHTML = svcHtml;
+
+      /* category filter */
+      window.filterSvcCat = function(cat) {
+        var pills = document.querySelectorAll('.svc-nav-pill');
+        for (var i = 0; i < pills.length; i++) {
+          if (pills[i].dataset.cat === cat) pills[i].classList.add('active');
+          else pills[i].classList.remove('active');
+        }
+        var groups = document.querySelectorAll('.service-category');
+        for (var j = 0; j < groups.length; j++) {
+          groups[j].style.display = (cat === 'all' || groups[j].dataset.cat === cat) ? '' : 'none';
+        }
+      };
     }
 
     // ── Team ──
