@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "minisite-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/tmp/mock-server.js"],
+      "port": 5557
+    },
+    {
       "name": "mockup",
       "runtimeExecutable": "node",
       "runtimeArgs": ["_preview-server.js"],

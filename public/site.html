@@ -125,18 +125,43 @@ img { max-width: 100%; display: block; }
 .navbar-links .btn-outline { padding: 8px 20px; font-size: 13px; }
 
 /* ════════════════════════════════════════
-   HERO — centered text + decorative circles (from bold)
+   HERO — centered text + animated blobs
    ════════════════════════════════════════ */
 .hero {
   position: relative; padding: 100px 0 80px; text-align: center; overflow: hidden;
 }
-.hero::before, .hero::after {
-  content: ''; position: absolute; border-radius: 50%;
-  border: 2px solid var(--accent); opacity: 0.12; pointer-events: none;
-  transition: border-color var(--transition);
+.hero-blobs { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.hero-blob {
+  position: absolute; border-radius: 50%; filter: blur(60px);
+  background: var(--accent); opacity: 0.10; will-change: transform;
 }
-.hero::before { width: 340px; height: 340px; right: -80px; top: 50%; transform: translateY(-50%); }
-.hero::after { width: 180px; height: 180px; left: 3%; bottom: 8%; border-width: 1px; opacity: 0.08; }
+.hero-blob-1 {
+  width: 380px; height: 380px; right: -60px; top: -40px;
+  animation: blobFloat1 18s ease-in-out infinite;
+}
+.hero-blob-2 {
+  width: 260px; height: 260px; left: -30px; bottom: -20px;
+  animation: blobFloat2 22s ease-in-out infinite;
+}
+.hero-blob-3 {
+  width: 180px; height: 180px; right: 20%; bottom: 10%;
+  opacity: 0.07; animation: blobFloat3 15s ease-in-out infinite;
+}
+@keyframes blobFloat1 {
+  0%, 100% { transform: translate(0,0) scale(1); border-radius: 50%; }
+  33% { transform: translate(30px,-20px) scale(1.08); border-radius: 42% 58% 55% 45%; }
+  66% { transform: translate(-15px,25px) scale(0.95); border-radius: 55% 45% 48% 52%; }
+}
+@keyframes blobFloat2 {
+  0%, 100% { transform: translate(0,0) scale(1); border-radius: 50%; }
+  33% { transform: translate(-20px,15px) scale(1.06); border-radius: 48% 52% 58% 42%; }
+  66% { transform: translate(25px,-10px) scale(0.97); border-radius: 45% 55% 42% 58%; }
+}
+@keyframes blobFloat3 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(15px,-20px) scale(1.12); }
+}
+.hero .container { position: relative; z-index: 1; }
 
 .hero-label {
   font-size: 11px; font-weight: 600; letter-spacing: 3.5px;
@@ -175,23 +200,14 @@ img { max-width: 100%; display: block; }
 }
 
 /* ════════════════════════════════════════
-   VALUES
+   SERVICES NOTE (merchant custom text)
    ════════════════════════════════════════ */
-.values { padding: var(--section-gap); }
-.values-header { margin-bottom: 56px; }
-.values-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 24px; }
-.value-card {
-  padding: 32px; border: 1px solid var(--border); border-radius: var(--radius);
-  transition: border-color 0.3s, box-shadow 0.3s;
+.services-note {
+  font-size: 14px; color: var(--text-light); line-height: 1.7;
+  padding: 16px 20px; border-left: 3px solid var(--accent);
+  background: var(--subtle); border-radius: 0 var(--radius) var(--radius) 0;
+  margin-bottom: 32px; transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
-.value-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.value-icon { font-size: 1.6rem; margin-bottom: 16px; color: var(--accent); }
-.value-icon svg { width: 28px; height: 28px; }
-.value-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
-.value-desc { font-size: 14px; color: var(--text-light); line-height: 1.7; }
 
 /* ════════════════════════════════════════
    STATS — divider pattern (from bold)
@@ -218,7 +234,7 @@ img { max-width: 100%; display: block; }
    SERVICES
    ════════════════════════════════════════ */
 .services { padding: var(--section-gap); }
-.services-header { margin-bottom: 56px; }
+.services-header { margin-bottom: 40px; }
 
 .svc-nav {
   display: flex; gap: 6px; overflow-x: auto; margin-bottom: 40px;
@@ -241,7 +257,7 @@ img { max-width: 100%; display: block; }
   margin-left: auto; margin-right: auto; transition: color var(--transition);
 }
 
-.service-category { margin-bottom: 48px; }
+.service-category { margin-bottom: 32px; }
 .service-category:last-child { margin-bottom: 0; }
 
 .category-label {
@@ -253,7 +269,7 @@ img { max-width: 100%; display: block; }
 
 .service-item {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: 18px 12px; border-bottom: 1px solid var(--border);
+  padding: 12px 10px; border-bottom: 1px solid var(--border);
   border-radius: var(--radius); cursor: pointer;
   transition: border-color var(--transition), background 0.2s, box-shadow 0.3s;
 }
@@ -332,28 +348,39 @@ img { max-width: 100%; display: block; }
    ════════════════════════════════════════ */
 .reviews { padding: var(--section-gap); }
 .reviews-header { margin-bottom: 56px; }
-.reviews-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+.reviews-list { max-width: 640px; margin: 0 auto; }
 
-.review-card {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 32px 28px; transition: border-color 0.3s;
+.review-item {
+  padding: 24px 0; border-bottom: 1px solid var(--border);
+  transition: border-color var(--transition);
 }
-.review-card:hover { border-color: var(--accent); }
+.review-item:first-child { padding-top: 0; }
+.review-item:last-child { border-bottom: none; }
 
-.review-quote {
-  font-family: var(--font-serif); font-size: 48px; line-height: 1;
-  color: var(--accent); opacity: 0.4; margin-bottom: 8px;
+.review-meta {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
 }
+.review-author { font-size: 14px; font-weight: 600; }
 .review-stars {
-  margin-bottom: 16px; color: var(--accent);
-  font-size: 14px; letter-spacing: 2px; transition: color var(--transition);
+  color: var(--accent); font-size: 13px; letter-spacing: 1px;
+  transition: color var(--transition);
 }
+.review-date { font-size: 12px; color: var(--text-light); }
 .review-text {
   font-size: 14px; line-height: 1.7; color: var(--text);
-  margin-bottom: 20px; font-style: italic; transition: color var(--transition);
+  transition: color var(--transition);
 }
-.review-author { font-size: 14px; font-weight: 500; }
-.review-author-subtitle { font-size: 12px; color: var(--text-light); transition: color var(--transition); }
+.review-reply {
+  margin-top: 12px; padding: 12px 16px; margin-left: 16px;
+  border-left: 2px solid var(--accent); background: var(--subtle);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  transition: background var(--transition), border-color var(--transition);
+}
+.review-reply-label {
+  font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.review-reply-text { font-size: 13px; color: var(--text-light); line-height: 1.6; }
 
 /* Review stats bar */
 .review-stats { margin-bottom: 40px; text-align: center; }
@@ -511,8 +538,9 @@ img { max-width: 100%; display: block; }
   .navbar-links { gap: 0; }
 
   .hero { padding: 64px 0 56px; }
-  .hero::before { width: 200px; height: 200px; right: -40px; }
-  .hero::after { width: 100px; height: 100px; }
+  .hero-blob-1 { width: 220px; height: 220px; }
+  .hero-blob-2 { width: 160px; height: 160px; }
+  .hero-blob-3 { display: none; }
   .hero-heading { font-size: 34px; }
   .hero-subtitle { font-size: 15px; }
 
@@ -525,9 +553,8 @@ img { max-width: 100%; display: block; }
 
   .team-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto; gap: 32px; }
   .gallery-grid { grid-template-columns: repeat(2,1fr); }
-  .reviews-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+  .reviews-list { max-width: 100%; }
   .info-grid, .info-grid.has-map { grid-template-columns: 1fr; gap: 24px; }
-  .values-grid { grid-template-columns: 1fr; }
   .news-grid { grid-template-columns: 1fr; }
 
   .section-heading { font-size: 28px; }
@@ -549,7 +576,8 @@ img { max-width: 100%; display: block; }
 @media (max-width: 480px) {
   .hero-heading { font-size: 28px; }
   .container { padding: 0 16px; }
-  .review-card { padding: 24px 20px; }
+  .review-item { padding: 20px 0; }
+  .review-reply { margin-left: 8px; }
   .info-card { padding: 24px 16px; }
 }
 
@@ -580,7 +608,7 @@ img { max-width: 100%; display: block; }
   <div class="container">
     <a href="#" class="navbar-brand" id="navBrand">&mdash;</a>
     <ul class="navbar-links">
-      <li><a href="#services">Soins</a></li>
+      <li><a href="#services">Prestations</a></li>
       <li><a href="#team">L'&eacute;quipe</a></li>
       <li><a href="#gallery">Galerie</a></li>
       <li><a href="#info">Contact</a></li>
@@ -592,6 +620,11 @@ img { max-width: 100%; display: block; }
 
 <!-- HERO -->
 <section class="hero">
+  <div class="hero-blobs">
+    <div class="hero-blob hero-blob-1"></div>
+    <div class="hero-blob hero-blob-2"></div>
+    <div class="hero-blob hero-blob-3"></div>
+  </div>
   <div class="container">
     <p class="hero-label" id="heroLabel">&mdash;</p>
     <h1 class="hero-heading" id="heroHeading">&mdash;</h1>
@@ -616,16 +649,6 @@ img { max-width: 100%; display: block; }
   </div>
 </section>
 
-<!-- VALUES -->
-<section class="values" id="values" style="display:none">
-  <div class="container">
-    <div class="values-header text-center">
-      <p class="section-label">Nos engagements</p>
-      <h2 class="section-heading">Ce qui nous <span class="serif">distingue</span></h2>
-    </div>
-    <div class="values-grid" id="valuesGrid"></div>
-  </div>
-</section>
 
 <!-- STATS -->
 <section class="stats" id="stats" style="display:none">
@@ -640,10 +663,11 @@ img { max-width: 100%; display: block; }
 <section class="services" id="services" style="display:none">
   <div class="container">
     <div class="services-header text-center">
-      <p class="section-label">Nos soins</p>
-      <h2 class="section-heading">La carte des <span class="serif">soins</span></h2>
-      <p class="section-subtitle">S&eacute;lectionnez une prestation pour r&eacute;server en ligne.</p>
+      <p class="section-label">Nos prestations</p>
+      <h2 class="section-heading">La carte des <span class="serif">prestations</span></h2>
+      <p class="section-subtitle">R&eacute;servez</p>
     </div>
+    <div class="services-note" id="servicesNote" style="display:none"></div>
     <div id="servicesList"></div>
   </div>
 </section>
@@ -654,8 +678,8 @@ img { max-width: 100%; display: block; }
 <section class="team" id="team" style="display:none">
   <div class="container">
     <div class="team-header text-center">
-      <p class="section-label">L'&eacute;quipe</p>
-      <h2 class="section-heading">Nos <span class="serif">sp&eacute;cialistes</span></h2>
+      <p class="section-label" id="teamLabel">L'&eacute;quipe</p>
+      <h2 class="section-heading" id="teamHeading">L'<span class="serif">&eacute;quipe</span></h2>
     </div>
     <div class="team-grid" id="teamGrid"></div>
   </div>
@@ -668,9 +692,10 @@ img { max-width: 100%; display: block; }
   <div class="container">
     <div class="gallery-header text-center">
       <p class="section-label">Galerie</p>
-      <h2 class="section-heading">Nos <span class="serif">r&eacute;alisations</span></h2>
+      <h2 class="section-heading">En <span class="serif">images</span></h2>
     </div>
     <div class="gallery-grid" id="galleryGrid"></div>
+    <div id="galleryIgLink" style="display:none;text-align:center;margin-top:28px"></div>
   </div>
 </section>
 
@@ -684,7 +709,7 @@ img { max-width: 100%; display: block; }
       <h2 class="section-heading">Ce qu'ils en <span class="serif">pensent</span></h2>
     </div>
     <div class="review-stats" id="reviewStats" style="display:none"></div>
-    <div class="reviews-grid" id="reviewsGrid"></div>
+    <div class="reviews-list" id="reviewsList"></div>
   </div>
 </section>
 
@@ -695,7 +720,7 @@ img { max-width: 100%; display: block; }
   <div class="container">
     <div class="news-header text-center">
       <p class="section-label">Actualit&eacute;s</p>
-      <h2 class="section-heading">Nos <span class="serif">nouvelles</span></h2>
+      <h2 class="section-heading">Quoi de <span class="serif">neuf</span></h2>
     </div>
     <div class="news-grid" id="newsGrid"></div>
   </div>
@@ -741,7 +766,7 @@ img { max-width: 100%; display: block; }
 <footer class="footer">
   <div class="container">
     <p class="footer-text" id="footerInfo">&mdash;</p>
-    <p class="footer-text">Propuls&eacute; par <a href="https://bookt.be" class="brand-link" target="_blank" rel="noopener">BOOKT</a></p>
+    <p class="footer-text">Propuls&eacute; par <a href="https://bookt.be" class="brand-link" target="_blank" rel="noopener">Genda</a></p>
   </div>
 </footer>
 
@@ -825,6 +850,20 @@ img { max-width: 100%; display: block; }
   function todayIdx() {
     var d = new Date().getDay();
     return d === 0 ? 6 : d - 1; // JS Sunday=0 → our Monday=0
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var diff = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (diff < 60) return "à l'instant";
+    if (diff < 3600) return Math.floor(diff / 60) + ' min';
+    if (diff < 86400) return 'il y a ' + Math.floor(diff / 3600) + 'h';
+    var days = Math.floor(diff / 86400);
+    if (days === 1) return 'hier';
+    if (days < 7) return 'il y a ' + days + ' jours';
+    if (days < 30) return 'il y a ' + Math.floor(days / 7) + ' sem.';
+    if (days < 365) return 'il y a ' + Math.floor(days / 30) + ' mois';
+    return 'il y a ' + Math.floor(days / 365) + ' an' + (Math.floor(days / 365) > 1 ? 's' : '');
   }
 
   /* ════════════════════════════════════════
@@ -990,24 +1029,9 @@ img { max-width: 100%; display: block; }
       }
     }
 
-    // Values
-    if (sec.about !== false && d.values && d.values.length > 0) {
-      document.getElementById('values').style.display = '';
-      var valH = '';
-      d.values.forEach(function(v) {
-        var icon = v.icon || '\u2014';
-        valH += '<div class="value-card">';
-        valH += '<div class="value-icon">' + (icon.trim().indexOf('<') === 0 ? icon : esc(icon)) + '</div>';
-        valH += '<div class="value-title">' + esc(v.title) + '</div>';
-        valH += '<div class="value-desc">' + esc(v.description || '') + '</div>';
-        valH += '</div>';
-      });
-      document.getElementById('valuesGrid').innerHTML = valH;
-    }
-
     // Stats
     var stH = '';
-    if (d.practitioner_count) stH += '<div class="stat-item"><div class="stat-number">' + d.practitioner_count + '</div><div class="stat-label">Sp\u00e9cialistes</div></div>';
+    if (d.practitioner_count) stH += '<div class="stat-item"><div class="stat-number">' + d.practitioner_count + '</div><div class="stat-label">Professionnels</div></div>';
     if (d.services && d.services.length) stH += '<div class="stat-item"><div class="stat-number">' + d.services.length + '</div><div class="stat-label">Prestations</div></div>';
     var nextTxt = fmtNext(d.next_available);
     if (nextTxt) stH += '<div class="stat-item"><div class="stat-number">' + esc(nextTxt) + '</div><div class="stat-label">Prochain cr\u00e9neau</div></div>';
@@ -1024,6 +1048,13 @@ img { max-width: 100%; display: block; }
     _services = d.services || [];
     _slug = b.slug;
     var multi = b.multi_service_enabled;
+
+    // Services note (merchant custom text)
+    if (sec.services_note) {
+      var noteEl = document.getElementById('servicesNote');
+      noteEl.textContent = sec.services_note;
+      noteEl.style.display = '';
+    }
 
     if (sec.services !== false && d.services && d.services.length) {
       document.getElementById('services').style.display = '';
@@ -1082,6 +1113,10 @@ img { max-width: 100%; display: block; }
     // Team
     if (sec.team !== false && d.practitioners && d.practitioners.length) {
       document.getElementById('team').style.display = '';
+      var isSolo = d.practitioners.length === 1;
+      document.getElementById('teamLabel').textContent = isSolo ? '\u00c0 votre service' : "L'\u00e9quipe";
+      document.getElementById('teamHeading').innerHTML = isSolo ? 'Votre <span class="serif">pro</span>' : "L'<span class=\"serif\">\u00e9quipe</span>";
+      var canChoosePractitioner = b.practitioner_choice_enabled;
       var tH = '';
       d.practitioners.forEach(function(p) {
         tH += '<div class="team-card">';
@@ -1098,7 +1133,9 @@ img { max-width: 100%; display: block; }
           p.specializations.forEach(function(sp) { tH += '<span class="team-tag">' + esc(sp) + '</span>'; });
           tH += '</div>';
         }
-        tH += '<a href="/' + esc(b.slug) + '/book?practitioner=' + p.id + '" class="team-link">R\u00e9server \u2192</a>';
+        if (canChoosePractitioner) {
+          tH += '<a href="/' + esc(b.slug) + '/book?practitioner=' + p.id + '" class="team-link">R\u00e9server \u2192</a>';
+        }
         tH += '</div></div>';
       });
       var tg = document.getElementById('teamGrid');
@@ -1119,46 +1156,96 @@ img { max-width: 100%; display: block; }
       });
       document.getElementById('galleryGrid').innerHTML = gH;
       window._galleryImages = d.gallery;
+      // Instagram link
+      if (b.social_links && b.social_links.instagram) {
+        var igLink = document.getElementById('galleryIgLink');
+        igLink.innerHTML = '<a href="' + esc(b.social_links.instagram) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg> Suivez-nous sur Instagram \u2192</a>';
+        igLink.style.display = '';
+      }
     }
 
-    // Reviews
-    if (sec.testimonials !== false && d.testimonials && d.testimonials.length) {
-      document.getElementById('reviews').style.display = '';
-      var rH = '';
-      d.testimonials.forEach(function(t) {
-        rH += '<div class="review-card">';
-        rH += '<div class="review-quote">\u201C</div>';
-        var stars = '';
-        for (var s = 0; s < (t.rating || 5); s++) stars += '\u2605';
-        rH += '<div class="review-stars">' + stars + '</div>';
-        rH += '<p class="review-text">\u00ab ' + esc(t.content) + ' \u00bb</p>';
-        rH += '<p class="review-author">' + esc(t.author_name) + '</p>';
-        if (t.author_role) rH += '<p class="review-author-subtitle">' + esc(t.author_role) + '</p>';
-        rH += '</div>';
-      });
-      var rg = document.getElementById('reviewsGrid');
-      rg.innerHTML = rH;
-      if (d.testimonials.length === 1) rg.style.gridTemplateColumns = '1fr';
-      else if (d.testimonials.length === 2) rg.style.gridTemplateColumns = 'repeat(2,1fr)';
-
-      // Review stats (async)
+    // Reviews — fetch real reviews, fallback to testimonials
+    if (sec.testimonials !== false) {
       fetch('/api/public/' + b.slug + '/reviews')
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(rd) {
-          if (!rd || !rd.stats || !rd.stats.total) return;
-          var el = document.getElementById('reviewStats');
-          var avg = rd.stats.average || 0;
-          var full = Math.floor(avg);
-          var sH = '';
-          for (var i = 0; i < 5; i++) sH += '<span style="color:' + (i < full ? 'var(--accent)' : 'var(--border)') + '">\u2605</span>';
-          el.innerHTML = '<div class="review-stats-inner">' +
-            '<span class="review-avg">' + avg.toFixed(1) + '</span>' +
-            '<span class="review-stars-display">' + sH + '</span>' +
-            '<span class="review-total">' + rd.stats.total + ' avis</span>' +
-            (b.google_reviews_url ? '<a href="' + esc(b.google_reviews_url) + '" target="_blank" rel="noopener" class="review-google-link">Voir sur Google \u2192</a>' : '') +
-            '</div>';
-          el.style.display = '';
-        }).catch(function() {});
+          var hasRealReviews = rd && rd.reviews && rd.reviews.length > 0;
+
+          if (hasRealReviews) {
+            document.getElementById('reviews').style.display = '';
+            // Stats bar
+            if (rd.stats && rd.stats.total) {
+              var el = document.getElementById('reviewStats');
+              var avg = rd.stats.average || 0;
+              var full = Math.floor(avg);
+              var sH = '';
+              for (var i = 0; i < 5; i++) sH += '<span style="color:' + (i < full ? 'var(--accent)' : 'var(--border)') + '">\u2605</span>';
+              el.innerHTML = '<div class="review-stats-inner">' +
+                '<span class="review-avg">' + avg.toFixed(1) + '</span>' +
+                '<span class="review-stars-display">' + sH + '</span>' +
+                '<span class="review-total">' + rd.stats.total + ' avis</span>' +
+                (b.google_reviews_url ? '<a href="' + esc(b.google_reviews_url) + '" target="_blank" rel="noopener" class="review-google-link">Voir sur Google \u2192</a>' : '') +
+                '</div>';
+              el.style.display = '';
+            }
+            // Review list
+            var rH = '';
+            rd.reviews.forEach(function(rv) {
+              rH += '<div class="review-item">';
+              rH += '<div class="review-meta">';
+              var name = rv.first_name ? esc(rv.first_name) + (rv.last_initial ? ' ' + esc(rv.last_initial) + '.' : '') : 'Client';
+              rH += '<span class="review-author">' + name + '</span>';
+              var stars = '';
+              for (var s = 0; s < (rv.rating || 5); s++) stars += '\u2605';
+              rH += '<span class="review-stars">' + stars + '</span>';
+              rH += '<span class="review-date">' + timeAgo(rv.created_at) + '</span>';
+              rH += '</div>';
+              if (rv.comment) rH += '<p class="review-text">\u00ab ' + esc(rv.comment) + ' \u00bb</p>';
+              if (rv.owner_reply) {
+                rH += '<div class="review-reply">';
+                rH += '<div class="review-reply-label">\u21b3 R\u00e9ponse du salon' + (rv.owner_reply_at ? ' \u2014 ' + timeAgo(rv.owner_reply_at) : '') + '</div>';
+                rH += '<p class="review-reply-text">' + esc(rv.owner_reply) + '</p>';
+                rH += '</div>';
+              }
+              rH += '</div>';
+            });
+            document.getElementById('reviewsList').innerHTML = rH;
+          } else if (d.testimonials && d.testimonials.length) {
+            // Fallback to manual testimonials
+            document.getElementById('reviews').style.display = '';
+            var tH = '';
+            d.testimonials.forEach(function(t) {
+              tH += '<div class="review-item">';
+              tH += '<div class="review-meta">';
+              tH += '<span class="review-author">' + esc(t.author_name) + '</span>';
+              var stars = '';
+              for (var s = 0; s < (t.rating || 5); s++) stars += '\u2605';
+              tH += '<span class="review-stars">' + stars + '</span>';
+              tH += '</div>';
+              tH += '<p class="review-text">\u00ab ' + esc(t.content) + ' \u00bb</p>';
+              tH += '</div>';
+            });
+            document.getElementById('reviewsList').innerHTML = tH;
+          }
+        }).catch(function() {
+          // On error, show testimonials if available
+          if (d.testimonials && d.testimonials.length) {
+            document.getElementById('reviews').style.display = '';
+            var tH = '';
+            d.testimonials.forEach(function(t) {
+              tH += '<div class="review-item">';
+              tH += '<div class="review-meta">';
+              tH += '<span class="review-author">' + esc(t.author_name) + '</span>';
+              var stars = '';
+              for (var s = 0; s < (t.rating || 5); s++) stars += '\u2605';
+              tH += '<span class="review-stars">' + stars + '</span>';
+              tH += '</div>';
+              tH += '<p class="review-text">\u00ab ' + esc(t.content) + ' \u00bb</p>';
+              tH += '</div>';
+            });
+            document.getElementById('reviewsList').innerHTML = tH;
+          }
+        });
     }
 
     // News
@@ -1267,7 +1354,7 @@ img { max-width: 100%; display: block; }
       });
     }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
-    document.querySelectorAll('.service-item,.team-card,.gallery-item,.review-card,.stat-item,.value-card,.news-card').forEach(function(el) {
+    document.querySelectorAll('.service-item,.team-card,.gallery-item,.review-item,.stat-item,.news-card').forEach(function(el) {
       el.style.opacity = '0';
       el.style.transform = 'translateY(16px)';
       el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
