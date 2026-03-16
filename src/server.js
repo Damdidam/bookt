@@ -204,7 +204,7 @@ app.get('/:slug', async (req, res, next) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT theme->>'preset' as preset FROM businesses WHERE slug = $1 AND active = true LIMIT 1`,
+      `SELECT theme->>'preset' as preset FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
 
@@ -216,9 +216,11 @@ app.get('/:slug', async (req, res, next) => {
       else family = 'epure';
     }
 
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, `../public/site-${family}.html`));
   } catch (err) {
     console.error('Slug route error:', err);
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, '../public/site-epure.html'));
   }
 });
