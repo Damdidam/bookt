@@ -865,9 +865,10 @@ function initPage(){
     document.getElementById('btnStep1').style.display='none';
   }
 
-  // Build category icon lookup from sector_categories
+  // Build category icon + description lookup from sector_categories
   const catIconMap={};
-  (siteData.sector_categories||[]).forEach(c=>{if(c.icon_svg)catIconMap[c.label]=c.icon_svg;});
+  const catDescMap={};
+  (siteData.sector_categories||[]).forEach(c=>{if(c.icon_svg)catIconMap[c.label]=c.icon_svg;if(c.description)catDescMap[c.label]=c.description;});
 
   // ── Salonkee-style two-column service layout ──
   const list=document.getElementById('svcList');
@@ -944,7 +945,8 @@ function initPage(){
     const items=cats.get(catName)||[];
     const panel=document.getElementById('skServices');
     if(!panel)return;
-    let h='<div style="font-size:.72rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">'+catName+'</div>';
+    let h='<div style="font-size:.72rem;font-weight:700;color:var(--text-4);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">'+catName+'</div>';
+    if(catDescMap[catName]) h+='<div style="font-size:.82rem;color:var(--text-3);line-height:1.6;margin-bottom:12px">'+escH(catDescMap[catName])+'</div>';
     items.forEach(s=>{ h+=buildSkRow(s); });
     panel.innerHTML=h;
     wireSkButtons(panel);

@@ -309,11 +309,21 @@ router.get('/:slug', async (req, res, next) => {
       hours[row.weekday] = { opens: row.opens, closes: row.closes };
     }
 
-    // Sector categories catalog
+    // Sector categories catalog (merged with business overrides for descriptions/colors)
     const sectorCatsResult = await query(
-      `SELECT label, icon_svg, sort_order FROM sector_categories
-       WHERE sector = $1 AND is_active = true ORDER BY sort_order`,
-      [biz.sector || 'autre']
+      `SELECT sc.label, COALESCE(bc.icon_svg, sc.icon_svg) AS icon_svg,
+              COALESCE(bc.sort_order, sc.sort_order) AS sort_order,
+              bc.description, bc.color
+       FROM sector_categories sc
+       LEFT JOIN business_categories bc ON bc.label = sc.label AND bc.business_id = $2
+       WHERE sc.sector = $1 AND sc.is_active = true
+       UNION
+       SELECT bc2.label, bc2.icon_svg, bc2.sort_order, bc2.description, bc2.color
+       FROM business_categories bc2
+       WHERE bc2.business_id = $2
+         AND NOT EXISTS (SELECT 1 FROM sector_categories sc2 WHERE sc2.label = bc2.label AND sc2.sector = $1 AND sc2.is_active = true)
+       ORDER BY sort_order`,
+      [biz.sector || 'autre', biz.id]
     );
 
     // ===== RESPONSE =====

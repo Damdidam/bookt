@@ -357,6 +357,13 @@ ul { list-style: none; }
   border-color: var(--accent);
   color: var(--bg);
 }
+.svc-cat-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-bottom: 32px;
+  transition: color var(--transition);
+}
 
 .service-category {
   margin-bottom: 48px;
@@ -1304,6 +1311,11 @@ ul { list-style: none; }
         return a.localeCompare(bk);
       });
       var multiEnabled = b.multi_service_enabled;
+
+      /* build category description map from API */
+      var catDescMap = {};
+      (d.sector_categories || []).forEach(function(c) { if (c.description) catDescMap[c.label] = c.description; });
+
       var svcHtml = '';
 
       /* category navbar */
@@ -1314,6 +1326,7 @@ ul { list-style: none; }
           svcHtml += '<div class="svc-nav-pill" data-cat="' + esc(cat) + '" onclick="filterSvcCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')">' + esc(cat) + '</div>';
         });
         svcHtml += '</div>';
+        svcHtml += '<div class="svc-cat-desc" id="svcCatDesc" style="display:none"></div>';
       }
 
       catKeys.forEach(function(cat) {
@@ -1348,6 +1361,12 @@ ul { list-style: none; }
         var groups = document.querySelectorAll('.service-category');
         for (var j = 0; j < groups.length; j++) {
           groups[j].style.display = (cat === 'all' || groups[j].dataset.cat === cat) ? '' : 'none';
+        }
+        var descEl = document.getElementById('svcCatDesc');
+        if (descEl) {
+          var desc = (cat !== 'all' && catDescMap[cat]) ? catDescMap[cat] : '';
+          descEl.textContent = desc;
+          descEl.style.display = desc ? '' : 'none';
         }
       };
     }
