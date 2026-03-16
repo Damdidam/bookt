@@ -10,6 +10,8 @@
 <meta property="og:type" content="website">
 <meta property="og:image" id="ogImage" content="">
 <meta property="og:url" id="ogUrl" content="">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#E8694A">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -190,6 +192,8 @@ ul { list-style: none; }
   position: relative;
   padding: 180px 0 120px;
   overflow: hidden;
+  background: var(--bg-dark);
+  color: var(--text);
 }
 
 .hero-circle {
@@ -882,6 +886,60 @@ ul { list-style: none; }
   transition: color var(--transition);
 }
 
+/* ───── ABOUT / VALUES ───── */
+.about { padding: 80px 0; }
+.about-desc { font-size: 16px; color: var(--text-muted); max-width: 600px; margin: 0 auto 48px; text-align: center; line-height: 1.8; transition: color var(--transition); }
+.values-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.value-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; transition: all var(--transition); }
+.value-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.value-icon { font-size: 2rem; margin-bottom: 16px; }
+.value-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); transition: color var(--transition); }
+.value-desc { font-size: 14px; color: var(--text-muted); line-height: 1.7; transition: color var(--transition); }
+
+/* ───── NEWS ───── */
+.news { padding: 80px 0; }
+.news-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.news-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: all var(--transition); }
+.news-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.news-img { width: 100%; height: 180px; object-fit: cover; }
+.news-body { padding: 24px; }
+.news-tag { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; margin-bottom: 12px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+.news-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text); transition: color var(--transition); }
+.news-excerpt { font-size: 14px; color: var(--text-muted); line-height: 1.7; transition: color var(--transition); }
+.news-date { font-size: 12px; color: var(--text-muted); margin-top: 12px; opacity: 0.7; }
+
+.gallery-item { position: relative; cursor: pointer; }
+.gallery-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; z-index: 2; }
+.gallery-item:hover .gallery-overlay { opacity: 1; }
+
+/* Lightbox */
+.lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.lightbox.active { opacity: 1; pointer-events: all; }
+.lightbox img { max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 8px; }
+.lightbox-close { position: absolute; top: 20px; right: 24px; color: white; font-size: 32px; cursor: pointer; z-index: 1001; background: none; border: none; opacity: 0.7; transition: opacity 0.2s; }
+.lightbox-close:hover { opacity: 1; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); color: white; font-size: 36px; cursor: pointer; background: rgba(255,255,255,0.1); border: none; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.2s; }
+.lightbox-nav:hover { opacity: 1; background: rgba(255,255,255,0.2); }
+.lightbox-prev { left: 20px; }
+.lightbox-next { right: 20px; }
+.lightbox-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 14px; opacity: 0.7; }
+
+/* Review stats */
+.review-stats { margin-bottom: 40px; text-align: center; }
+.review-stats-inner { display: inline-flex; align-items: center; gap: 12px; padding: 16px 32px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 100px; transition: all var(--transition); }
+.review-avg { font-size: 28px; font-weight: 700; color: var(--accent); transition: color var(--transition); }
+.review-stars-display { font-size: 20px; letter-spacing: 2px; }
+.review-total { font-size: 14px; color: var(--text-muted); transition: color var(--transition); }
+.review-google-link { font-size: 13px; color: var(--accent); font-weight: 600; margin-left: 8px; transition: color var(--transition); }
+.review-google-link:hover { text-decoration: underline; }
+
+/* Sticky CTA mobile */
+.sticky-cta { display: none; }
+@media (max-width: 768px) {
+  .sticky-cta { display: block; position: fixed; bottom: 0; left: 0; right: 0; z-index: 150; padding: 12px 20px; background: var(--bg-dark); border-top: 1px solid var(--border); transition: all var(--transition); }
+  .sticky-cta-btn { display: block; width: 100%; text-align: center; padding: 14px; font-size: 15px; }
+}
+
 /* ───── RESPONSIVE ───── */
 @media (max-width: 768px) {
   .nav-links a:not(.btn) { display: none; }
@@ -919,6 +977,9 @@ ul { list-style: none; }
   .reviews-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
 
   .info-grid { grid-template-columns: 1fr; }
+
+  .values-grid { grid-template-columns: 1fr; }
+  .news-grid { grid-template-columns: 1fr; }
 
   .final-cta-heading { font-size: 32px; }
   .final-cta { padding: 60px 0; }
@@ -1008,6 +1069,18 @@ ul { list-style: none; }
   </div>
 </section>
 
+<!-- ═══════ ABOUT / VALUES ═══════ -->
+<section class="about" id="about" style="display:none">
+  <div class="container">
+    <div class="section-label">&#x2726; &Agrave; PROPOS</div>
+    <h2 class="section-heading">
+      Ce qui nous rend <span class="accent serif-italic">uniques</span>
+    </h2>
+    <p class="about-desc" id="aboutDesc"></p>
+    <div class="values-grid" id="valuesGrid"></div>
+  </div>
+</section>
+
 <!-- ═══════ SERVICES ═══════ -->
 <section class="services" id="services">
   <div class="container">
@@ -1047,7 +1120,19 @@ ul { list-style: none; }
     <h2 class="section-heading">
       La parole &agrave; nos <span class="accent serif-italic">clientes</span>
     </h2>
+    <div class="review-stats" id="reviewStats" style="display:none"></div>
     <div class="reviews-grid" id="reviewsGrid"></div>
+  </div>
+</section>
+
+<!-- ═══════ NEWS ═══════ -->
+<section class="news" id="news" style="display:none">
+  <div class="container">
+    <div class="section-label">&#x2726; ACTUALIT&Eacute;S</div>
+    <h2 class="section-heading">
+      Quoi de <span class="accent serif-italic">neuf</span> ?
+    </h2>
+    <div class="news-grid" id="newsGrid"></div>
   </div>
 </section>
 
@@ -1075,6 +1160,9 @@ ul { list-style: none; }
         </div>
         <div class="contact-list" id="contactList"></div>
         <div class="social-links" id="socialLinks"></div>
+        <div class="map-container" id="mapContainer" style="display:none">
+          <iframe id="mapFrame" width="100%" height="250" style="border:0;border-radius:var(--radius);margin-top:20px" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
       </div>
 
     </div>
@@ -1109,6 +1197,20 @@ ul { list-style: none; }
 <div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg-card);border-top:2px solid var(--accent);padding:12px 24px;transform:translateY(100%);transition:transform .3s ease,background .3s ease,border-color .3s ease;display:flex;align-items:center;justify-content:center;gap:16px;max-width:1200px;margin:0 auto">
   <div style="flex:1"><div id="cartCount" style="font-weight:700;font-size:.85rem;color:var(--text)">0 prestations</div><div id="cartMeta" style="font-size:.75rem;color:var(--text-muted)">0 min &middot; 0 &euro;</div></div>
   <a id="cartCta" href="#" class="btn btn-primary" style="padding:10px 28px;font-size:.82rem">Continuer &rarr;</a>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <button class="lightbox-nav lightbox-prev" onclick="navLightbox(-1)">&#8249;</button>
+  <img id="lightboxImg" src="" alt="">
+  <button class="lightbox-nav lightbox-next" onclick="navLightbox(1)">&#8250;</button>
+  <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<!-- Sticky mobile CTA -->
+<div class="sticky-cta" id="stickyCta">
+  <a href="#" class="btn btn-primary sticky-cta-btn" id="stickyCtaBtn">R&eacute;server</a>
 </div>
 
 </div><!-- /siteContent -->
@@ -1295,6 +1397,21 @@ ul { list-style: none; }
       document.getElementById('statExp').textContent = years + ' ans';
     }
 
+    // ── About / Values ──
+    if (d.values && d.values.length > 0) {
+      document.getElementById('about').style.display = '';
+      if (b.description) document.getElementById('aboutDesc').textContent = b.description;
+      var valHtml = '';
+      d.values.forEach(function(v) {
+        valHtml += '<div class="value-card">';
+        valHtml += '<div class="value-icon">' + esc(v.icon || '\u2726') + '</div>';
+        valHtml += '<div class="value-title">' + esc(v.title) + '</div>';
+        valHtml += '<div class="value-desc">' + esc(v.description || '') + '</div>';
+        valHtml += '</div>';
+      });
+      document.getElementById('valuesGrid').innerHTML = valHtml;
+    }
+
     // ── Services ──
     if (sec.services === false || !d.services || !d.services.length) {
       document.getElementById('services').style.display = 'none';
@@ -1335,11 +1452,8 @@ ul { list-style: none; }
         grouped[cat].forEach(function(s) {
           var price = s.price_cents ? (s.price_cents / 100).toFixed(0) + '\u20ac' : (s.price_label || '');
           var desc = s.description ? ' \u00b7 ' + esc(s.description) : '';
-          if (multiEnabled) {
-            svcHtml += '<div class="service-row" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="toggleMultiSvc(\'' + s.id + '\')">';
-          } else {
-            svcHtml += '<div class="service-row" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="window.location.href=\'' + bookUrl + '?service=' + s.id + '\'">';
-          }
+          var rowClick = multiEnabled ? 'toggleMultiSvc(\'' + s.id + '\')' : 'window.location.href=\'' + bookUrl + '?service=' + s.id + '\'';
+          svcHtml += '<div class="service-row" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="' + rowClick + '">';
           svcHtml += '<div class="service-info">';
           svcHtml += '<span class="service-name">' + esc(s.name) + '</span>';
           svcHtml += '<span class="service-meta">' + (s.duration_min || 0) + ' min' + desc + '</span>';
@@ -1382,7 +1496,7 @@ ul { list-style: none; }
         teamHtml += '<div class="team-card">';
         teamHtml += '<div class="team-photo">';
         if (p.photo_url) {
-          teamHtml += '<img src="' + esc(p.photo_url) + '" style="width:100%;height:100%;object-fit:cover">';
+          teamHtml += '<img src="' + esc(p.photo_url) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover">';
         } else {
           teamHtml += '<span class="team-photo-placeholder">' + emoji + '</span>';
         }
@@ -1408,17 +1522,42 @@ ul { list-style: none; }
       document.getElementById('gallery').style.display = 'none';
     } else {
       var galHtml = '';
-      d.gallery.forEach(function(g) {
-        galHtml += '<div class="gallery-item">';
+      d.gallery.forEach(function(g, idx) {
+        galHtml += '<div class="gallery-item" onclick="openLightbox(' + idx + ')">';
         if (g.image_url) {
-          galHtml += '<img src="' + esc(g.image_url) + '" style="position:relative;z-index:1;width:100%;height:100%;object-fit:cover" alt="' + esc(g.title || '') + '">';
+          galHtml += '<img src="' + esc(g.image_url) + '" loading="lazy" style="position:relative;z-index:1;width:100%;height:100%;object-fit:cover" alt="' + esc(g.title || '') + '">';
         } else {
           galHtml += '<span class="placeholder-icon">\uD83D\uDCF8</span>';
         }
+        galHtml += '<div class="gallery-overlay"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>';
         galHtml += '</div>';
       });
       document.getElementById('galleryGrid').innerHTML = galHtml;
+
+      // Store gallery data for lightbox
+      window._galleryImages = d.gallery;
     }
+
+    // Fetch review stats
+    fetch('/api/public/' + b.slug + '/reviews')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(revData) {
+        if (!revData || !revData.stats) return;
+        var statsEl = document.getElementById('reviewStats');
+        if (statsEl && revData.stats.total > 0) {
+          var avg = revData.stats.average || 0;
+          var fullStars = Math.floor(avg);
+          var starsHtml = '';
+          for (var s = 0; s < 5; s++) starsHtml += '<span style="color:' + (s < fullStars ? 'var(--accent)' : 'var(--border)') + '">\u2605</span>';
+          statsEl.innerHTML = '<div class="review-stats-inner">' +
+            '<span class="review-avg">' + avg.toFixed(1) + '</span>' +
+            '<span class="review-stars-display">' + starsHtml + '</span>' +
+            '<span class="review-total">' + revData.stats.total + ' avis</span>' +
+            (b.google_reviews_url ? '<a href="' + esc(b.google_reviews_url) + '" target="_blank" rel="noopener" class="review-google-link">Voir sur Google \u2192</a>' : '') +
+            '</div>';
+          statsEl.style.display = '';
+        }
+      }).catch(function() {});
 
     // ── Reviews ──
     if (sec.testimonials === false || !d.testimonials || !d.testimonials.length) {
@@ -1438,6 +1577,26 @@ ul { list-style: none; }
         revHtml += '</div></div>';
       });
       document.getElementById('reviewsGrid').innerHTML = revHtml;
+    }
+
+    // ── News ──
+    if (d.news && d.news.length > 0) {
+      document.getElementById('news').style.display = '';
+      var newsHtml = '';
+      d.news.forEach(function(n) {
+        newsHtml += '<div class="news-card">';
+        if (n.image_url) newsHtml += '<img class="news-img" src="' + esc(n.image_url) + '" alt="' + esc(n.title) + '" loading="lazy">';
+        newsHtml += '<div class="news-body">';
+        if (n.tag) newsHtml += '<span class="news-tag">' + esc(n.tag) + '</span>';
+        newsHtml += '<div class="news-title">' + esc(n.title) + '</div>';
+        newsHtml += '<div class="news-excerpt">' + esc((n.content || '').slice(0, 120)) + (n.content && n.content.length > 120 ? '\u2026' : '') + '</div>';
+        if (n.published_at) {
+          var pd = new Date(n.published_at);
+          newsHtml += '<div class="news-date">' + pd.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' }) + '</div>';
+        }
+        newsHtml += '</div></div>';
+      });
+      document.getElementById('newsGrid').innerHTML = newsHtml;
     }
 
     // ── Info: Hours ──
@@ -1489,10 +1648,21 @@ ul { list-style: none; }
     if (socials.website) socialHtml += '<a href="' + esc(socials.website) + '" class="social-link" title="Site web" target="_blank" rel="noopener">www</a>';
     document.getElementById('socialLinks').innerHTML = socialHtml;
 
+    // Map
+    if (b.address) {
+      var mapContainer = document.getElementById('mapContainer');
+      var mapFrame = document.getElementById('mapFrame');
+      if (mapContainer && mapFrame) {
+        mapFrame.src = 'https://maps.google.com/maps?q=' + encodeURIComponent(b.address) + '&output=embed&z=15';
+        mapContainer.style.display = '';
+      }
+    }
+
     // ── Final CTA ──
     document.getElementById('finalCtaHeading').innerHTML = 'Pr\u00eat\u00b7e pour <span class="italic">votre moment</span> ?';
     document.getElementById('finalCtaSubtitle').textContent = 'R\u00e9servez chez ' + b.name + ' en quelques clics.';
     document.getElementById('finalCtaBtn').href = bookUrl;
+    document.getElementById('stickyCtaBtn').href = bookUrl;
 
     // ── Footer ──
     var footerParts = [esc(b.name)];
@@ -1551,7 +1721,7 @@ ul { list-style: none; }
       });
     }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
-    document.querySelectorAll('.service-category, .team-card, .gallery-item, .review-card, .info-card, .stat-item').forEach(function(el) {
+    document.querySelectorAll('.service-category, .team-card, .gallery-item, .review-card, .info-card, .stat-item, .value-card, .news-card').forEach(function(el) {
       el.style.opacity = '0';
       el.style.transform = 'translateY(24px)';
       el.style.transition = 'opacity 0.6s ease, transform 0.6s ease, border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease';
@@ -1559,8 +1729,42 @@ ul { list-style: none; }
     });
   }
 
+  // Lightbox
+  var _lightboxIdx = 0;
+  window.openLightbox = function(idx) {
+    if (!window._galleryImages || !window._galleryImages.length) return;
+    _lightboxIdx = idx;
+    var img = window._galleryImages[idx];
+    if (!img || !img.image_url) return;
+    document.getElementById('lightboxImg').src = img.image_url;
+    document.getElementById('lightboxCounter').textContent = (idx + 1) + ' / ' + window._galleryImages.length;
+    document.getElementById('lightbox').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+  window.closeLightbox = function() {
+    document.getElementById('lightbox').classList.remove('active');
+    document.body.style.overflow = '';
+  };
+  window.navLightbox = function(dir) {
+    if (!window._galleryImages) return;
+    _lightboxIdx = (_lightboxIdx + dir + window._galleryImages.length) % window._galleryImages.length;
+    var img = window._galleryImages[_lightboxIdx];
+    if (img && img.image_url) {
+      document.getElementById('lightboxImg').src = img.image_url;
+      document.getElementById('lightboxCounter').textContent = (_lightboxIdx + 1) + ' / ' + window._galleryImages.length;
+    }
+  };
+  document.addEventListener('keydown', function(e) {
+    var lb = document.getElementById('lightbox');
+    if (!lb || !lb.classList.contains('active')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') navLightbox(-1);
+    if (e.key === 'ArrowRight') navLightbox(1);
+  });
+
 })();
 </script>
 
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(function(){})</script>
 </body>
 </html>

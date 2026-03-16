@@ -10,6 +10,8 @@
 <meta property="og:type" content="website">
 <meta property="og:image" id="ogImage" content="">
 <meta property="og:url" id="ogUrl" content="">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#E8694A">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -228,6 +230,61 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 .powered{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px}
 .powered span{font-size:.6rem;color:var(--text-4)}.powered .genda{font-weight:800;background:linear-gradient(135deg,var(--primary),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.8px}
 
+/* ═══════ VALUES ═══════ */
+.about-desc{font-size:.88rem;color:var(--text-3);max-width:500px;line-height:1.8;margin-bottom:32px;font-weight:300}
+.values-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.value-card{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius);padding:24px;transition:all .25s;position:relative;overflow:hidden}
+.value-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--primary-soft)}
+.value-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--primary),var(--accent));border-radius:0 3px 3px 0;opacity:0;transition:opacity .2s}
+.value-card:hover::before{opacity:1}
+.value-icon{font-size:1.8rem;margin-bottom:12px}
+.value-title{font-size:.88rem;font-weight:700;margin-bottom:6px}
+.value-desc{font-size:.78rem;color:var(--text-3);line-height:1.7;font-weight:300}
+
+/* ═══════ NEWS ═══════ */
+.news-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.news-card{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius);overflow:hidden;transition:all .25s}
+.news-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.news-img{width:100%;height:160px;object-fit:cover}
+.news-body{padding:20px}
+.news-tag{display:inline-block;padding:3px 10px;border-radius:100px;font-size:.6rem;font-weight:700;margin-bottom:10px;background:var(--purple-light);color:var(--purple)}
+.news-tag[data-type="alert"]{background:var(--pink-light);color:var(--pink)}
+.news-tag[data-type="promo"]{background:var(--surface);color:var(--primary)}
+.news-tag[data-type="new"]{background:var(--mint-light);color:var(--mint)}
+.news-title{font-size:.85rem;font-weight:700;margin-bottom:6px}
+.news-excerpt{font-size:.75rem;color:var(--text-3);line-height:1.7;font-weight:300}
+.news-date{font-size:.65rem;color:var(--text-4);margin-top:10px}
+
+/* Gallery overlay + lightbox */
+.gallery-item{position:relative;cursor:pointer}
+.gallery-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;border-radius:0;z-index:2}
+.gallery-item:hover .gallery-overlay{opacity:1}
+.lightbox{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+.lightbox.active{opacity:1;pointer-events:all}
+.lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:12px}
+.lightbox-close{position:absolute;top:20px;right:24px;color:#fff;font-size:32px;cursor:pointer;z-index:1001;background:none;border:none;opacity:.7;transition:opacity .2s}
+.lightbox-close:hover{opacity:1}
+.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);color:#fff;font-size:36px;cursor:pointer;background:rgba(255,255,255,.1);border:none;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:.7;transition:opacity .2s}
+.lightbox-nav:hover{opacity:1;background:rgba(255,255,255,.2)}
+.lightbox-prev{left:20px}.lightbox-next{right:20px}
+.lightbox-counter{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;font-size:14px;opacity:.7;font-family:var(--sans)}
+
+/* Review stats */
+.review-stats{margin-bottom:24px}
+.review-stats-inner{display:inline-flex;align-items:center;gap:10px;padding:12px 24px;background:var(--white);border:1.5px solid var(--border-light);border-radius:100px}
+.review-avg{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.review-stars-display{font-size:1.1rem;letter-spacing:2px}
+.review-total{font-size:.75rem;color:var(--text-4);font-weight:500}
+.review-google-link{font-size:.72rem;color:var(--primary);font-weight:700;margin-left:4px}
+.review-google-link:hover{text-decoration:underline}
+
+/* Sticky CTA mobile */
+.sticky-cta{display:none}
+@media(max-width:768px){
+  .sticky-cta{display:block;position:fixed;bottom:0;left:0;right:0;z-index:150;padding:12px 20px;background:var(--bg);border-top:1.5px solid var(--border-light)}
+  .sticky-cta-btn{display:block;width:100%;text-align:center;padding:14px;background:var(--primary);color:#fff;border-radius:100px;font-family:var(--sans);font-size:.88rem;font-weight:700;transition:all .2s;box-shadow:0 -4px 20px rgba(232,105,74,.15)}
+}
+
 /* ═══════ RESPONSIVE ═══════ */
 @media(max-width:768px){
   .hero-inner{grid-template-columns:1fr;text-align:center}
@@ -244,6 +301,8 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
   .hours-block{grid-template-columns:1fr}
   .nav-links{display:none}
   .section{padding:48px 20px}
+  .values-grid{grid-template-columns:1fr}
+  .news-grid{grid-template-columns:1fr}
 }
 
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -307,6 +366,16 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
   </div>
 </div>
 
+<!-- ═══════ ABOUT / VALUES ═══════ -->
+<section class="section" id="about" style="display:none">
+  <div class="section-header">
+    <div class="section-tag warm">✦ À PROPOS</div>
+    <h2 class="section-title">Ce qui nous rend <span class="script">uniques</span></h2>
+  </div>
+  <p class="about-desc" id="aboutDesc"></p>
+  <div class="values-grid" id="valuesGrid"></div>
+</section>
+
 <!-- ═══════ SERVICES ═══════ -->
 <section class="section" id="services">
   <div class="section-header">
@@ -344,8 +413,18 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     <div class="section-tag mint">💬 AVIS</div>
     <h2 class="section-title">Elles en parlent <span class="script">mieux que nous</span></h2>
   </div>
+  <div class="review-stats" id="reviewStats" style="display:none"></div>
   <div class="test-grid" id="testimonialsContainer">
   </div>
+</section>
+
+<!-- ═══════ NEWS ═══════ -->
+<section class="section" id="news" style="display:none">
+  <div class="section-header">
+    <div class="section-tag purple">📰 ACTUS</div>
+    <h2 class="section-title">Quoi de <span class="script">neuf</span> ?</h2>
+  </div>
+  <div class="news-grid" id="newsGrid"></div>
 </section>
 
 <!-- ═══════ HOURS & CONTACT ═══════ -->
@@ -364,6 +443,10 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
       <div class="h-card-title">💌 Contact</div>
       <div id="contactItems"></div>
       <div class="socials" id="socialsContainer"></div>
+    </div>
+    <div class="h-card" id="mapCard" style="display:none">
+      <div class="h-card-title">🗺️ Nous trouver</div>
+      <iframe id="mapFrame" width="100%" height="220" style="border:0;border-radius:var(--radius-sm)" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
     </div>
   </div>
 </section>
@@ -387,6 +470,20 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 <div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--white);border-top:2px solid var(--primary);padding:12px 24px;transform:translateY(100%);transition:transform .3s;display:flex;align-items:center;justify-content:center;gap:16px;max-width:var(--max-w);margin:0 auto">
   <div style="flex:1"><div id="cartCount" style="font-weight:700;font-size:.85rem">0 prestations</div><div id="cartMeta" style="font-size:.75rem;color:var(--text-3)">0 min · 0 €</div></div>
   <a id="cartCta" href="#" style="padding:12px 28px;background:var(--primary);color:#fff;border-radius:100px;font-family:var(--sans);font-size:.82rem;font-weight:700;transition:all .2s">Continuer →</a>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <button class="lightbox-nav lightbox-prev" onclick="navLightbox(-1)">&#8249;</button>
+  <img id="lightboxImg" src="" alt="">
+  <button class="lightbox-nav lightbox-next" onclick="navLightbox(1)">&#8250;</button>
+  <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<!-- Sticky mobile CTA -->
+<div class="sticky-cta" id="stickyCta">
+  <a href="#" class="sticky-cta-btn" id="stickyCtaBtn">Réserver ✨</a>
 </div>
 
 </div><!-- /siteContent -->
@@ -608,6 +705,21 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 
     statsInner.innerHTML = statsHtml;
 
+    /* ── ABOUT / VALUES ── */
+    if (data.values && data.values.length > 0) {
+      document.getElementById('about').style.display = '';
+      if (biz.description) document.getElementById('aboutDesc').textContent = biz.description;
+      var valHtml = '';
+      data.values.forEach(function(v) {
+        valHtml += '<div class="value-card">';
+        valHtml += '<div class="value-icon">' + esc(v.icon || '✦') + '</div>';
+        valHtml += '<div class="value-title">' + esc(v.title) + '</div>';
+        valHtml += '<div class="value-desc">' + esc(v.description || '') + '</div>';
+        valHtml += '</div>';
+      });
+      document.getElementById('valuesGrid').innerHTML = valHtml;
+    }
+
     /* ── SERVICES ── */
     const svcContainer = document.getElementById('servicesContainer');
     const grouped = {};
@@ -648,11 +760,8 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
         const price = s.price_cents != null ? (s.price_cents / 100).toFixed(0) : '0';
         const dur = s.duration_min || 0;
         const meta = dur + ' min' + (s.description ? ' · ' + esc(s.description) : '');
-        if (multiService) {
-          svcHtml += '<div class="svc-card ' + colorClass + '" data-svc-id="' + s.id + '" onclick="toggleMultiSvc(\'' + s.id + '\')" style="cursor:pointer">';
-        } else {
-          svcHtml += '<div class="svc-card ' + colorClass + '" onclick="location.href=\'' + bookUrl + '?service=' + s.id + '\'" style="cursor:pointer">';
-        }
+        const cardClick = multiService ? 'toggleMultiSvc(\'' + s.id + '\')' : 'location.href=\'' + bookUrl + '?service=' + s.id + '\'';
+        svcHtml += '<div class="svc-card ' + colorClass + '"' + (multiService ? ' data-svc-id="' + s.id + '"' : '') + ' onclick="' + cardClick + '" style="cursor:pointer">';
         svcHtml += '<div class="svc-icon ' + iconClass + '">' + emoji + '</div>';
         svcHtml += '<div class="svc-info"><h4>' + esc(s.name) + '</h4><div class="meta">' + meta + '</div></div>';
         svcHtml += '<div class="svc-price">' + price + '€</div>';
@@ -688,7 +797,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
       teamHtml += '<div class="team-card">';
       teamHtml += '<div class="tm-photo ' + gClass + '">';
       if (p.photo_url) {
-        teamHtml += '<img src="' + esc(p.photo_url) + '" style="width:100%;height:100%;object-fit:cover">';
+        teamHtml += '<img src="' + esc(p.photo_url) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover">';
       } else {
         teamHtml += '<span class="tm-init">' + esc(initial) + '</span>';
       }
@@ -717,15 +826,16 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     let galHtml = '';
     gallery.forEach((g, i) => {
       const gClass = galleryGradients[i % 6];
+      galHtml += '<div class="gallery-item' + (g.image_url ? '' : ' ' + gClass) + '" onclick="openLightbox(' + i + ')">';
       if (g.image_url) {
-        galHtml += '<div class="gallery-item" style="background-image:url(' + esc(g.image_url) + ');background-size:cover;background-position:center">';
-      } else {
-        galHtml += '<div class="gallery-item ' + gClass + '">';
+        galHtml += '<img src="' + esc(g.image_url) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover" alt="' + esc(g.title || '') + '">';
       }
       galHtml += '<div class="g-label">' + esc(g.title || '') + '</div>';
+      galHtml += '<div class="gallery-overlay"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>';
       galHtml += '</div>';
     });
     galleryContainer.innerHTML = galHtml;
+    window._galleryImages = gallery;
 
     /* ── TESTIMONIALS ── */
     const testContainer = document.getElementById('testimonialsContainer');
@@ -746,6 +856,26 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
       testHtml += '</div></div>';
     });
     testContainer.innerHTML = testHtml;
+
+    // Review stats
+    fetch('/api/public/' + slug + '/reviews')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(revData) {
+        if (!revData || !revData.stats || !revData.stats.total) return;
+        var statsEl = document.getElementById('reviewStats');
+        if (!statsEl) return;
+        var avg = revData.stats.average || 0;
+        var fullStars = Math.floor(avg);
+        var starsHtml = '';
+        for (var s = 0; s < 5; s++) starsHtml += '<span style="color:' + (s < fullStars ? 'var(--gold)' : 'var(--border-light)') + '">★</span>';
+        statsEl.innerHTML = '<div class="review-stats-inner">' +
+          '<span class="review-avg">' + avg.toFixed(1) + '</span>' +
+          '<span class="review-stars-display">' + starsHtml + '</span>' +
+          '<span class="review-total">' + revData.stats.total + ' avis</span>' +
+          (biz.google_reviews_url ? '<a href="' + esc(biz.google_reviews_url) + '" target="_blank" rel="noopener" class="review-google-link">Voir sur Google →</a>' : '') +
+          '</div>';
+        statsEl.style.display = '';
+      }).catch(function() {});
 
     /* ── HOURS ── */
     const hoursRows = document.getElementById('hoursRows');
@@ -795,8 +925,39 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     if (socials.website || socials.tiktok) socHtml += '<a href="' + esc(socials.website || socials.tiktok) + '" target="_blank" rel="noopener">🔗</a>';
     socialsContainer.innerHTML = socHtml;
 
+    // Map
+    if (biz.address) {
+      var mapCard = document.getElementById('mapCard');
+      var mapFrame = document.getElementById('mapFrame');
+      if (mapCard && mapFrame) {
+        mapFrame.src = 'https://maps.google.com/maps?q=' + encodeURIComponent(biz.address) + '&output=embed&z=15';
+        mapCard.style.display = '';
+      }
+    }
+
+    /* ── NEWS ── */
+    if (data.news && data.news.length > 0) {
+      document.getElementById('news').style.display = '';
+      var newsHtml = '';
+      data.news.forEach(function(n) {
+        newsHtml += '<div class="news-card">';
+        if (n.image_url) newsHtml += '<img class="news-img" src="' + esc(n.image_url) + '" alt="' + esc(n.title) + '" loading="lazy">';
+        newsHtml += '<div class="news-body">';
+        if (n.tag) newsHtml += '<span class="news-tag" data-type="' + esc(n.tag_type || 'info') + '">' + esc(n.tag) + '</span>';
+        newsHtml += '<div class="news-title">' + esc(n.title) + '</div>';
+        newsHtml += '<div class="news-excerpt">' + esc((n.content || '').slice(0, 120)) + (n.content && n.content.length > 120 ? '…' : '') + '</div>';
+        if (n.published_at) {
+          var pd = new Date(n.published_at);
+          newsHtml += '<div class="news-date">' + pd.toLocaleDateString('fr-BE', {day:'numeric',month:'long',year:'numeric'}) + '</div>';
+        }
+        newsHtml += '</div></div>';
+      });
+      document.getElementById('newsGrid').innerHTML = newsHtml;
+    }
+
     /* ── CTA ── */
     document.getElementById('ctaBtn').href = bookUrl;
+    document.getElementById('stickyCtaBtn').href = bookUrl;
 
     /* ── FOOTER ── */
     let footerText = esc(name);
@@ -824,7 +985,57 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     document.getElementById('siteContent').style.display = 'block';
   }
 
+  // Lightbox
+  var _lightboxIdx = 0;
+  window.openLightbox = function(idx) {
+    if (!window._galleryImages || !window._galleryImages.length) return;
+    _lightboxIdx = idx;
+    var img = window._galleryImages[idx];
+    if (!img || !img.image_url) return;
+    document.getElementById('lightboxImg').src = img.image_url;
+    document.getElementById('lightboxCounter').textContent = (idx + 1) + ' / ' + window._galleryImages.length;
+    document.getElementById('lightbox').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+  window.closeLightbox = function() {
+    document.getElementById('lightbox').classList.remove('active');
+    document.body.style.overflow = '';
+  };
+  window.navLightbox = function(dir) {
+    if (!window._galleryImages) return;
+    _lightboxIdx = (_lightboxIdx + dir + window._galleryImages.length) % window._galleryImages.length;
+    var img = window._galleryImages[_lightboxIdx];
+    if (img && img.image_url) {
+      document.getElementById('lightboxImg').src = img.image_url;
+      document.getElementById('lightboxCounter').textContent = (_lightboxIdx + 1) + ' / ' + window._galleryImages.length;
+    }
+  };
+  document.addEventListener('keydown', function(e) {
+    var lb = document.getElementById('lightbox');
+    if (!lb || !lb.classList.contains('active')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') navLightbox(-1);
+    if (e.key === 'ArrowRight') navLightbox(1);
+  });
+
+  // Fade-in on scroll
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.svc-card, .team-card, .gallery-item, .test-card, .h-card, .value-card, .news-card, .stat').forEach(function(el) {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease, border-color 0.3s, box-shadow 0.3s, background 0.3s';
+    observer.observe(el);
+  });
+
 })();
 </script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(function(){})</script>
 </body>
 </html>

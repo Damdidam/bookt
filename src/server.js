@@ -195,6 +195,12 @@ app.use('/webhooks/twilio', twilioWebhooks);
 // ===== PUBLIC MINI-SITE =====
 // Catch-all for /:slug → DB lookup → serve the right template
 // Must be AFTER all API and static routes
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 app.get('/:slug', async (req, res, next) => {
   // Skip if it looks like a file request
   if (req.params.slug.includes('.')) return next();
@@ -204,20 +210,41 @@ app.get('/:slug', async (req, res, next) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT theme->>'preset' as preset FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      `SELECT name, tagline, description, logo_url, cover_image_url, seo_title, seo_description, theme->>'preset' as preset FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
 
-    let family = 'epure'; // default
-    if (rows.length > 0 && rows[0].preset) {
-      const preset = rows[0].preset;
+    let family = 'epure';
+    let biz = null;
+    if (rows.length > 0) {
+      biz = rows[0];
+      const preset = biz.preset || '';
       if (preset === 'funky') family = 'funky';
       else if (preset.startsWith('bold')) family = 'bold';
       else family = 'epure';
     }
 
+    const filePath = path.join(__dirname, `../public/site-${family}.html`);
+    let html = fs.readFileSync(filePath, 'utf8');
+
+    if (biz) {
+      const title = biz.seo_title || biz.name + ' — ' + (biz.tagline || 'Prenez rendez-vous en ligne');
+      const desc = biz.seo_description || biz.description || biz.tagline || '';
+      const image = biz.cover_image_url || biz.logo_url || '';
+      const url = req.protocol + '://' + req.get('host') + '/' + req.params.slug;
+
+      // Replace meta tags
+      html = html.replace('<title id="pageTitle">Chargement...</title>', '<title id="pageTitle">' + escapeHtml(title) + '</title>');
+      html = html.replace('id="pageMeta" content=""', 'id="pageMeta" content="' + escapeHtml(desc) + '"');
+      html = html.replace('id="ogTitle" content=""', 'id="ogTitle" content="' + escapeHtml(title) + '"');
+      html = html.replace('id="ogDesc" content=""', 'id="ogDesc" content="' + escapeHtml(desc) + '"');
+      html = html.replace('id="ogImage" content=""', 'id="ogImage" content="' + escapeHtml(image) + '"');
+      html = html.replace('id="ogUrl" content=""', 'id="ogUrl" content="' + escapeHtml(url) + '"');
+    }
+
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, `../public/site-${family}.html`));
+    res.set('Content-Type', 'text/html');
+    res.send(html);
   } catch (err) {
     console.error('Slug route error:', err);
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');

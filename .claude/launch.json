@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "mockup",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5555"],
-      "port": 5555
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["_preview-server.js"],
+      "port": 5555,
+      "autoPort": false
     },
     {
       "name": "vite-dev",
