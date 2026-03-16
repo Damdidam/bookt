@@ -11,7 +11,7 @@
 <meta property="og:image" id="ogImage" content="">
 <meta property="og:url" id="ogUrl" content="">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#E8694A">
+<meta name="theme-color" id="themeColor" content="#E8694A">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -93,7 +93,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 
 /* ═══════ STATS BAR ═══════ */
 .stats-bar{max-width:var(--max-w);margin:0 auto;padding:0 28px}
-.stats-inner{display:flex;justify-content:center;gap:48px;padding:32px 0;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light)}
+.stats-inner{display:flex;justify-content:center;flex-wrap:wrap;gap:48px;padding:32px 0;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light)}
 .stat{text-align:center}
 .stat-val{font-family:var(--sans);font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .stat-label{font-size:.68rem;color:var(--text-4);font-weight:500;letter-spacing:.3px;margin-top:2px}
@@ -191,6 +191,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 
 /* ═══════ HOURS ═══════ */
 .hours-block{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+.hours-block.has-map{grid-template-columns:1fr 1fr 1fr}
 .h-card{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius);padding:28px;overflow:hidden}
 .h-card-title{font-size:.9rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .h-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-light)}
@@ -256,7 +257,6 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 .news-date{font-size:.65rem;color:var(--text-4);margin-top:10px}
 
 /* Gallery overlay + lightbox */
-.gallery-item{position:relative;cursor:pointer}
 .gallery-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;border-radius:0;z-index:2}
 .gallery-item:hover .gallery-overlay{opacity:1}
 .lightbox{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -281,8 +281,10 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 /* Sticky CTA mobile */
 .sticky-cta{display:none}
 @media(max-width:768px){
-  .sticky-cta{display:block;position:fixed;bottom:0;left:0;right:0;z-index:150;padding:12px 20px;background:var(--bg);border-top:1.5px solid var(--border-light)}
+  .sticky-cta{display:block;position:fixed;bottom:0;left:0;right:0;z-index:150;padding:12px 20px;background:var(--bg);border-top:1.5px solid var(--border-light);transition:transform .3s}
+  .sticky-cta.hidden{transform:translateY(100%)}
   .sticky-cta-btn{display:block;width:100%;text-align:center;padding:14px;background:var(--primary);color:#fff;border-radius:100px;font-family:var(--sans);font-size:.88rem;font-weight:700;transition:all .2s;box-shadow:0 -4px 20px rgba(232,105,74,.15)}
+  body{padding-bottom:70px}
 }
 
 /* ═══════ RESPONSIVE ═══════ */
@@ -298,8 +300,9 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
   .team-scroll{grid-template-columns:1fr 1fr}
   .gallery-grid{grid-template-columns:1fr 1fr}
   .test-grid{grid-template-columns:1fr}
-  .hours-block{grid-template-columns:1fr}
-  .nav-links{display:none}
+  .hours-block,.hours-block.has-map{grid-template-columns:1fr}
+  .nav-links a:not(.nav-cta){display:none}
+  .nav-links{gap:0}
   .section{padding:48px 20px}
   .values-grid{grid-template-columns:1fr}
   .news-grid{grid-template-columns:1fr}
@@ -311,7 +314,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 <body>
 
 <div class="loading-state" id="loadingState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px"><div style="width:32px;height:32px;border:3px solid var(--border-light);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite"></div><span style="color:var(--text-3);font-size:.85rem;font-family:var(--sans)">Chargement...</span></div>
-<div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:var(--sans)"><div style="font-size:3rem">🔍</div><h2 style="font-size:1.6rem">Page introuvable</h2><p style="color:var(--text-3)">Ce commerce n'existe pas ou n'est pas encore publié.</p><a href="/" style="color:var(--primary);font-weight:600">← Retour</a></div>
+<div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:var(--sans)"><div style="font-size:3rem">🔍</div><h2 style="font-size:1.6rem">Page introuvable</h2><p style="color:var(--text-3)">Ce salon n'existe pas ou n'est pas encore publié.</p><a href="/" style="color:var(--primary);font-weight:600">← Retour</a></div>
 
 <div id="siteContent" style="display:none">
 
@@ -463,11 +466,11 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
 <!-- ═══════ FOOTER ═══════ -->
 <footer class="site-footer">
   <div class="footer-legal" id="footerLegal"></div>
-  <div class="powered"><span>Propulsé par</span><span class="genda">GENDA</span></div>
+  <div class="powered"><span>Propulsé par</span><span class="genda">BOOKT</span></div>
 </footer>
 
 <!-- ═══════ CART BAR (multi-service) ═══════ -->
-<div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--white);border-top:2px solid var(--primary);padding:12px 24px;transform:translateY(100%);transition:transform .3s;display:flex;align-items:center;justify-content:center;gap:16px;max-width:var(--max-w);margin:0 auto">
+<div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--white);border-top:2px solid var(--primary);padding:12px 24px;transform:translateY(100%);transition:transform .3s;display:flex;align-items:center;justify-content:center;gap:16px">
   <div style="flex:1"><div id="cartCount" style="font-weight:700;font-size:.85rem">0 prestations</div><div id="cartMeta" style="font-size:.75rem;color:var(--text-3)">0 min · 0 €</div></div>
   <a id="cartCta" href="#" style="padding:12px 28px;background:var(--primary);color:#fff;border-radius:100px;font-family:var(--sans);font-size:.82rem;font-weight:700;transition:all .2s">Continuer →</a>
 </div>
@@ -514,7 +517,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     if (c.includes('massage')) return '💆';
     if (c.includes('epilation') || c.includes('épilation')) return '🌿';
     if (c.includes('maquillage')) return '💄';
-    if (c.includes('consultation') || c.includes('osteo') || c.includes('kiné')) return '🩺';
+    if (c.includes('cils') || c.includes('sourcil') || c.includes('regard')) return '👁️';
     return '✨';
   }
 
@@ -541,6 +544,8 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     const bar = document.getElementById('cartBar');
     const n = _multiSvcSelected.length;
     bar.style.transform = n > 0 ? 'translateY(0)' : 'translateY(100%)';
+    const sticky = document.getElementById('stickyCta');
+    if (sticky) sticky.classList.toggle('hidden', n > 0);
     if (n === 0) return;
     const svcs = _multiSvcSelected.map(id => _siteServices.find(s => String(s.id) === String(id))).filter(Boolean);
     const totalMin = svcs.reduce((sum, s) => sum + (s.duration_min || 0), 0);
@@ -687,7 +692,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
     const statsInner = document.getElementById('statsInner');
     let statsHtml = '';
     const practCount = practitioners.length || biz.practitioner_count || 0;
-    statsHtml += '<div class="stat"><div class="stat-val">' + practCount + '</div><div class="stat-label">Praticien' + (practCount > 1 ? 's' : '') + '</div></div>';
+    statsHtml += '<div class="stat"><div class="stat-val">' + practCount + '</div><div class="stat-label">Expert' + (practCount > 1 ? 's' : '') + ' beaut\u00e9</div></div>';
 
     if (nextAvail) {
       statsHtml += '<div class="stat"><div class="stat-val">Dispo</div><div class="stat-label">' + esc(nextAvail) + '</div></div>';
@@ -801,7 +806,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
       } else {
         teamHtml += '<span class="tm-init">' + esc(initial) + '</span>';
       }
-      teamHtml += '<div class="tm-badge">✨ ' + esc(p.title || p.role || 'Praticien') + '</div>';
+      teamHtml += '<div class="tm-badge">\u2728 ' + esc(p.title || p.role || 'Styliste') + '</div>';
       teamHtml += '</div>';
       teamHtml += '<div class="tm-body">';
       teamHtml += '<h4>' + esc(p.display_name || p.first_name || '') + '</h4>';
@@ -932,6 +937,7 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
       if (mapCard && mapFrame) {
         mapFrame.src = 'https://maps.google.com/maps?q=' + encodeURIComponent(biz.address) + '&output=embed&z=15';
         mapCard.style.display = '';
+        mapCard.closest('.hours-block').classList.add('has-map');
       }
     }
 
@@ -1030,7 +1036,8 @@ img{display:block;max-width:100%}a{text-decoration:none;color:inherit}
   document.querySelectorAll('.svc-card, .team-card, .gallery-item, .test-card, .h-card, .value-card, .news-card, .stat').forEach(function(el) {
     el.style.opacity = '0';
     el.style.transform = 'translateY(20px)';
-    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease, border-color 0.3s, box-shadow 0.3s, background 0.3s';
+    var existing = getComputedStyle(el).transition;
+    el.style.transition = existing + ', opacity 0.5s ease, transform 0.5s ease';
     observer.observe(el);
   });
 

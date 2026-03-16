@@ -11,7 +11,7 @@
 <meta property="og:image" id="ogImage" content="">
 <meta property="og:url" id="ogUrl" content="">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#E8694A">
+<meta name="theme-color" id="themeColor" content="#111827">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@ ul { list-style: none; }
 .svc-nav-pill.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--bg);
+  color: var(--bg-dark);
 }
 .svc-cat-desc {
   font-size: 14px;
@@ -908,7 +908,6 @@ ul { list-style: none; }
 .news-excerpt { font-size: 14px; color: var(--text-muted); line-height: 1.7; transition: color var(--transition); }
 .news-date { font-size: 12px; color: var(--text-muted); margin-top: 12px; opacity: 0.7; }
 
-.gallery-item { position: relative; cursor: pointer; }
 .gallery-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; z-index: 2; }
 .gallery-item:hover .gallery-overlay { opacity: 1; }
 
@@ -937,13 +936,15 @@ ul { list-style: none; }
 .sticky-cta { display: none; }
 @media (max-width: 768px) {
   .sticky-cta { display: block; position: fixed; bottom: 0; left: 0; right: 0; z-index: 150; padding: 12px 20px; background: var(--bg-dark); border-top: 1px solid var(--border); transition: all var(--transition); }
+  .sticky-cta.hidden { transform: translateY(100%); }
   .sticky-cta-btn { display: block; width: 100%; text-align: center; padding: 14px; font-size: 15px; }
+  body { padding-bottom: 70px; }
 }
 
 /* ───── RESPONSIVE ───── */
 @media (max-width: 768px) {
   .nav-links a:not(.btn) { display: none; }
-  .nav-links { gap: 0; }
+  .nav-links { gap: 8px; }
 
   .hero { padding: 130px 0 80px; }
   .hero-heading { font-size: 36px; }
@@ -1000,7 +1001,7 @@ ul { list-style: none; }
 <body>
 
 <div class="loading-state" id="loadingState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;background:var(--bg-dark)"><div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite"></div><span style="color:var(--text-muted);font-size:.85rem;font-family:'Space Grotesk',sans-serif">Chargement...</span></div>
-<div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:'Space Grotesk',sans-serif;background:var(--bg-dark)"><div style="font-size:3rem">&#x1F50D;</div><h2 style="font-size:1.6rem;color:var(--text)">Page introuvable</h2><p style="color:var(--text-muted)">Ce commerce n'existe pas ou n'est pas encore publi&eacute;.</p><a href="/" style="color:var(--accent);font-weight:600">&larr; Retour</a></div>
+<div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:'Space Grotesk',sans-serif;background:var(--bg-dark)"><div style="font-size:3rem">&#x1F50D;</div><h2 style="font-size:1.6rem;color:var(--text)">Page introuvable</h2><p style="color:var(--text-muted)">Ce salon n'existe pas ou n'est pas encore publi&eacute;.</p><a href="/" style="color:var(--accent);font-weight:600">&larr; Retour</a></div>
 
 <div id="siteContent" style="display:none">
 
@@ -1189,12 +1190,12 @@ ul { list-style: none; }
 <footer class="footer">
   <div class="container">
     <p class="footer-line" id="footerLine">GLOW Studio &middot; Rue de la Loi 42, 1000 Bruxelles &middot; BCE 0123.456.789</p>
-    <p class="footer-line">Propuls&eacute; par <span class="footer-brand">GENDA</span></p>
+    <p class="footer-line">Propuls&eacute; par <span class="footer-brand">BOOKT</span></p>
   </div>
 </footer>
 
 <!-- ═══════ CART BAR ═══════ -->
-<div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg-card);border-top:2px solid var(--accent);padding:12px 24px;transform:translateY(100%);transition:transform .3s ease,background .3s ease,border-color .3s ease;display:flex;align-items:center;justify-content:center;gap:16px;max-width:1200px;margin:0 auto">
+<div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg-card);border-top:2px solid var(--accent);padding:12px 24px;transform:translateY(100%);transition:transform .3s ease,background .3s ease,border-color .3s ease;display:flex;align-items:center;justify-content:center;gap:16px">
   <div style="flex:1"><div id="cartCount" style="font-weight:700;font-size:.85rem;color:var(--text)">0 prestations</div><div id="cartMeta" style="font-size:.75rem;color:var(--text-muted)">0 min &middot; 0 &euro;</div></div>
   <a id="cartCta" href="#" class="btn btn-primary" style="padding:10px 28px;font-size:.82rem">Continuer &rarr;</a>
 </div>
@@ -1296,6 +1297,8 @@ ul { list-style: none; }
     if (!bar) return;
     var n = _multiSvcSelected.length;
     bar.style.transform = n > 0 ? 'translateY(0)' : 'translateY(100%)';
+    var sticky = document.getElementById('stickyCta');
+    if (sticky) sticky.classList.toggle('hidden', n > 0);
     if (n === 0) return;
     var svcs = _multiSvcSelected.map(function(id) { return _siteServices.find(function(s) { return String(s.id) === String(id); }); }).filter(Boolean);
     var totalMin = svcs.reduce(function(sum, s) { return sum + (s.duration_min || 0); }, 0);

@@ -11,7 +11,7 @@
 <meta property="og:image" id="ogImage" content="">
 <meta property="og:url" id="ogUrl" content="">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#E8694A">
+<meta name="theme-color" id="themeColor" content="#B8977E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -394,6 +394,15 @@ img {
   transition: border-color 0.4s ease;
 }
 
+.service-item.selected {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+}
+.service-item.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .service-info {
   flex: 1;
 }
@@ -502,15 +511,18 @@ img {
   aspect-ratio: 1;
   border: 1px solid var(--border);
   border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
   transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
 .gallery-item:nth-child(1) { background-color: var(--subtle); }
-.gallery-item:nth-child(2) { background-color: var(--border); opacity: 0.6; }
+.gallery-item:nth-child(2) { background-color: var(--border); }
 .gallery-item:nth-child(3) { background-color: var(--subtle); }
-.gallery-item:nth-child(4) { background-color: var(--border); opacity: 0.6; }
+.gallery-item:nth-child(4) { background-color: var(--border); }
 .gallery-item:nth-child(5) { background-color: var(--subtle); }
-.gallery-item:nth-child(6) { background-color: var(--border); opacity: 0.6; }
+.gallery-item:nth-child(6) { background-color: var(--border); }
 
 /* ========================================
    REVIEWS
@@ -579,6 +591,9 @@ img {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 60px;
+}
+.info-grid.has-map {
+  grid-template-columns: 1fr 1fr 1fr;
 }
 
 .info-section-title {
@@ -717,6 +732,9 @@ img {
 .values {
   padding: var(--section-padding);
 }
+.values-header {
+  margin-bottom: 56px;
+}
 .values-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -808,11 +826,6 @@ img {
 }
 
 /* Gallery overlay + Lightbox */
-.gallery-item {
-  position: relative;
-  cursor: pointer;
-  overflow: hidden;
-}
 .gallery-overlay {
   position: absolute;
   inset: 0;
@@ -944,7 +957,9 @@ img {
     padding: 12px 20px;
     background: var(--bg);
     border-top: 1px solid var(--border);
+    transition: transform 0.3s ease;
   }
+  .sticky-cta.hidden { transform: translateY(100%); }
   .sticky-cta-btn {
     display: block;
     width: 100%;
@@ -952,6 +967,7 @@ img {
     padding: 14px;
     font-size: 14px;
   }
+  body { padding-bottom: 70px; }
 }
 
 /* ========================================
@@ -962,8 +978,11 @@ img {
     --section-padding: 64px 0;
   }
 
-  .navbar-links {
+  .navbar-links li:not(:last-child) {
     display: none;
+  }
+  .navbar-links {
+    gap: 0;
   }
 
   .hero {
@@ -1017,7 +1036,8 @@ img {
     margin: 0 auto;
   }
 
-  .info-grid {
+  .info-grid,
+  .info-grid.has-map {
     grid-template-columns: 1fr;
     gap: 48px;
   }
@@ -1058,7 +1078,7 @@ img {
 <body>
 
 <div class="loading-state" id="loadingState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px"><div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite"></div><span style="color:var(--text-light);font-size:.85rem;font-family:var(--font-primary)">Chargement...</span></div>
-<div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:var(--font-primary)"><div style="font-size:3rem">&#128269;</div><h2 style="font-size:1.6rem">Page introuvable</h2><p style="color:var(--text-light)">Ce commerce n'existe pas ou n'est pas encore publi&eacute;.</p><a href="/" style="color:var(--accent);font-weight:600">&larr; Retour</a></div>
+<div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:var(--font-primary)"><div style="font-size:3rem">&#128269;</div><h2 style="font-size:1.6rem">Page introuvable</h2><p style="color:var(--text-light)">Ce salon n'existe pas ou n'est pas encore publi&eacute;.</p><a href="/" style="color:var(--accent);font-weight:600">&larr; Retour</a></div>
 
 <div id="siteContent" style="display:none">
 
@@ -1232,13 +1252,13 @@ img {
   <div class="container">
     <p class="footer-text" id="footerInfo">—</p>
     <p class="footer-text">
-      Propulse par <a href="#" class="brand-link">GENDA</a>
+      Propulse par <a href="#" class="brand-link">BOOKT</a>
     </p>
   </div>
 </footer>
 
 <!-- ============ CART BAR ============ -->
-<div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg);border-top:2px solid var(--accent);padding:12px 24px;transform:translateY(100%);transition:transform .3s ease,background-color .4s ease,border-color .4s ease;display:flex;align-items:center;justify-content:center;gap:16px;max-width:var(--max-width);margin:0 auto">
+<div class="cart-bar" id="cartBar" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg);border-top:2px solid var(--accent);padding:12px 24px;transform:translateY(100%);transition:transform .3s ease,background-color .4s ease,border-color .4s ease;display:flex;align-items:center;justify-content:center;gap:16px">
   <div style="flex:1"><div id="cartCount" style="font-weight:600;font-size:.85rem">0 prestations</div><div id="cartMeta" style="font-size:.75rem;color:var(--text-light)">0 min &middot; 0 &euro;</div></div>
   <a id="cartCta" href="#" class="btn-solid" style="padding:10px 28px;font-size:.82rem">Continuer &rarr;</a>
 </div>
@@ -1353,11 +1373,9 @@ img {
     var bar = document.getElementById('cartBar');
     if (!bar) return;
     var n = _multiSvcSelected.length;
-    if (n > 0) {
-      bar.style.transform = 'translateY(0)';
-    } else {
-      bar.style.transform = 'translateY(100%)';
-    }
+    bar.style.transform = n > 0 ? 'translateY(0)' : 'translateY(100%)';
+    var sticky = document.getElementById('stickyCta');
+    if (sticky) sticky.classList.toggle('hidden', n > 0);
     if (n === 0) return;
     var svcs = _multiSvcSelected.map(function(id) {
       return _siteServices.find(function(s) { return String(s.id) === String(id); });
@@ -1733,6 +1751,8 @@ img {
       if (mapContainer && mapFrame) {
         mapFrame.src = 'https://maps.google.com/maps?q=' + encodeURIComponent(b.address) + '&output=embed&z=15';
         mapContainer.style.display = '';
+        var infoGrid = mapContainer.closest('.info-grid');
+        if (infoGrid) infoGrid.classList.add('has-map');
       }
     }
 
