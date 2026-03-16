@@ -301,18 +301,18 @@ INSERT INTO testimonials (business_id, author_name, author_role, author_initials
 
 -- Value propositions
 INSERT INTO value_propositions (business_id, title, description, icon, icon_style, sort_order) VALUES
-  ('a0000000-0000-0000-0000-000000000001', 'Approche personnalisée',
-   'Chaque dossier est unique. Nous adaptons nos conseils à votre situation, votre secteur et vos objectifs.',
-   '🎯', 'teal', 1),
-  ('a0000000-0000-0000-0000-000000000001', 'Réactivité garantie',
-   'Réponse sous 24h, suivi proactif des échéances, et consultations flexibles en cabinet, visio ou téléphone.',
-   '⚡', 'gold', 2),
-  ('a0000000-0000-0000-0000-000000000001', 'Conformité & rigueur',
-   'Agréés ITAA, nous appliquons les normes les plus strictes en matière de déontologie et de confidentialité.',
-   '🔒', 'green', 3),
-  ('a0000000-0000-0000-0000-000000000001', 'Conseils proactifs',
-   'Nous ne nous contentons pas du minimum légal. Optimisation fiscale, planification et anticipation font partie de notre ADN.',
-   '💡', 'neutral', 4);
+  ('a0000000-0000-0000-0000-000000000001', 'Écoute & conseil',
+   'Chaque client est unique. Nous prenons le temps de comprendre vos envies pour un résultat sur mesure.',
+   '💜', 'teal', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'Produits premium',
+   'Nous travaillons exclusivement avec des marques professionnelles haut de gamme pour des soins d''exception.',
+   '⭐', 'gold', 2),
+  ('a0000000-0000-0000-0000-000000000001', 'Hygiène irréprochable',
+   'Protocoles stricts de désinfection et matériel stérilisé pour votre sécurité et votre confort.',
+   '🛡️', 'green', 3),
+  ('a0000000-0000-0000-0000-000000000001', 'Détente & bien-être',
+   'Un espace pensé pour votre relaxation, où chaque visite devient un moment rien qu''à vous.',
+   '✨', 'neutral', 4);
 
 -- Onboarding progress (demo: 80% complete)
 INSERT INTO onboarding_progress (business_id, steps_completed, completion_percent)
