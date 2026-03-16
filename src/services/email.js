@@ -154,7 +154,7 @@ function buildBookingFooter({ business, booking, serviceName, practitionerName, 
   if (business.address) {
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
     h += `<div style="${rowStyle}">
-      <span style="${iconStyle};font-size:18px;line-height:18px">\ud83d\udccd</span>
+      ${_ic('pin-dk')}
       <div><div style="${labelStyle}">Adresse</div><div style="${valStyle}">${escHtml(business.address)}</div>
       <a href="${mapsUrl}" target="_blank" style="font-size:12px;color:#0D9488;text-decoration:none;font-weight:500">Ouvrir dans Google Maps \u2192</a></div>
     </div>`;
@@ -163,7 +163,7 @@ function buildBookingFooter({ business, booking, serviceName, practitionerName, 
   // Contact (phone + email)
   if (business.phone || business.email) {
     h += `<div style="${rowStyle}">
-      <span style="${iconStyle};font-size:18px;line-height:18px">\ud83d\udcde</span>
+      ${_ic('phone-dk')}
       <div><div style="${labelStyle}">Contact</div>`;
     if (business.phone) h += `<div style="${valStyle}">${escHtml(business.phone)}</div>`;
     if (business.email) h += `<div style="${valStyle}">${escHtml(business.email)}</div>`;
@@ -392,7 +392,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     </div>`;
 
   if (booking.comment) {
-    bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">\u{1F4DD} <em>${safeComment}</em></p>`;
+    bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">${_ic('note-dk')} <em>${safeComment}</em></p>`;
   }
 
   // Footer: address, contact, payment methods, calendar links

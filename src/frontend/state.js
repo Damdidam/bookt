@@ -100,7 +100,7 @@ export const viewState = {
   invoiceFilter: 'all',
   invoiceType: 'all',
   scheduleData: {},
-  currentThemePreset: 'classique',
+  currentThemePreset: 'epure_nude',
   businessPlan: biz?.plan || 'free',
   callTab: 'logs',
   wlFilter: 'waiting',
