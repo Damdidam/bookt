@@ -1484,7 +1484,8 @@ img {
       var valHtml = '';
       d.values.forEach(function(v) {
         valHtml += '<div class="value-card">';
-        valHtml += '<div class="value-icon">' + esc(v.icon || '—') + '</div>';
+        var iconStr = v.icon || '—';
+        valHtml += '<div class="value-icon">' + (iconStr.trim().indexOf('<') === 0 ? iconStr : esc(iconStr)) + '</div>';
         valHtml += '<div class="value-title">' + esc(v.title) + '</div>';
         valHtml += '<div class="value-desc">' + esc(v.description || '') + '</div>';
         valHtml += '</div>';
@@ -1495,7 +1496,7 @@ img {
     // Stats
     var statsHtml = '';
     if (d.practitioner_count) {
-      statsHtml += '<div class="stat-item"><div class="stat-number">' + d.practitioner_count + '</div><div class="stat-label">Specialistes</div></div>';
+      statsHtml += '<div class="stat-item"><div class="stat-number">' + d.practitioner_count + '</div><div class="stat-label">Spécialistes</div></div>';
     }
     if (d.services && d.services.length) {
       statsHtml += '<div class="stat-item"><div class="stat-number">' + d.services.length + '</div><div class="stat-label">Prestations</div></div>';

@@ -1400,7 +1400,8 @@ ul { list-style: none; }
       var valHtml = '';
       d.values.forEach(function(v) {
         valHtml += '<div class="value-card">';
-        valHtml += '<div class="value-icon">' + esc(v.icon || '\u2726') + '</div>';
+        var iconStr = v.icon || '\u2726';
+        valHtml += '<div class="value-icon">' + (iconStr.trim().indexOf('<') === 0 ? iconStr : esc(iconStr)) + '</div>';
         valHtml += '<div class="value-title">' + esc(v.title) + '</div>';
         valHtml += '<div class="value-desc">' + esc(v.description || '') + '</div>';
         valHtml += '</div>';
