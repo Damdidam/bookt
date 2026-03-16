@@ -175,6 +175,37 @@ img { max-width: 100%; display: block; }
 .hero-heading .serif {
   font-family: var(--font-serif); font-style: italic; font-weight: 500;
 }
+/* Ornamental frame around salon name */
+.hero-name-wrap {
+  position: relative; display: inline-block; padding: 16px 48px; margin-bottom: 8px;
+}
+.hero-name-wrap::before, .hero-name-wrap::after {
+  content: ''; position: absolute; width: 60px; height: 60px;
+  border-color: var(--accent); border-style: solid; opacity: 0.35;
+  transition: border-color var(--transition), opacity var(--transition);
+}
+.hero-name-wrap::before {
+  top: 0; left: 0; border-width: 1.5px 0 0 1.5px; border-radius: 4px 0 0 0;
+}
+.hero-name-wrap::after {
+  bottom: 0; right: 0; border-width: 0 1.5px 1.5px 0; border-radius: 0 0 4px 0;
+}
+.hero-name-inner {
+  font-size: 52px; font-weight: 500; line-height: 1.15;
+  color: var(--text); transition: color var(--transition);
+}
+.hero-name-inner .serif {
+  font-family: var(--font-serif); font-style: italic; font-weight: 500;
+}
+.hero-ornament {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin: 12px 0 8px; color: var(--accent); opacity: 0.4;
+}
+.hero-ornament::before, .hero-ornament::after {
+  content: ''; flex: 0 0 40px; height: 1px; background: var(--accent);
+}
+.hero-ornament svg { flex-shrink: 0; }
+
 .hero-subtitle {
   font-size: 16px; color: var(--text-light); margin-bottom: 40px;
   line-height: 1.6; transition: color var(--transition);
@@ -257,19 +288,23 @@ img { max-width: 100%; display: block; }
   margin-left: auto; margin-right: auto; transition: color var(--transition);
 }
 
-.service-category { margin-bottom: 32px; }
+.service-category { margin-bottom: 24px; }
 .service-category:last-child { margin-bottom: 0; }
 
 .category-label {
   font-size: 11px; font-weight: 600; letter-spacing: 3px;
   text-transform: uppercase; color: var(--text-light);
-  padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
   margin-bottom: 0; transition: color var(--transition), border-color var(--transition);
+}
+.category-desc {
+  font-size: 13px; color: var(--text-light); line-height: 1.5;
+  padding: 8px 0 4px; opacity: 0.8;
 }
 
 .service-item {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: 12px 10px; border-bottom: 1px solid var(--border);
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
   border-radius: var(--radius); cursor: pointer;
   transition: border-color var(--transition), background 0.2s, box-shadow 0.3s;
 }
@@ -284,8 +319,8 @@ img { max-width: 100%; display: block; }
 .service-item.disabled { opacity: 0.45; pointer-events: none; }
 
 .service-info { flex: 1; }
-.service-name { font-size: 15px; font-weight: 500; margin-bottom: 3px; }
-.service-detail { font-size: 13px; color: var(--text-light); transition: color var(--transition); }
+.service-name { font-size: 14px; font-weight: 500; margin-bottom: 1px; }
+.service-detail { font-size: 12px; color: var(--text-light); transition: color var(--transition); }
 .service-price {
   font-size: 15px; font-weight: 600; color: var(--accent);
   margin-left: 24px; white-space: nowrap; transition: color var(--transition);
@@ -542,6 +577,9 @@ img { max-width: 100%; display: block; }
   .hero-blob-2 { width: 160px; height: 160px; }
   .hero-blob-3 { display: none; }
   .hero-heading { font-size: 34px; }
+  .hero-name-wrap { padding: 12px 32px; }
+  .hero-name-wrap::before, .hero-name-wrap::after { width: 40px; height: 40px; }
+  .hero-name-inner { font-size: 34px; }
   .hero-subtitle { font-size: 15px; }
 
   .about-grid { grid-template-columns: 1fr; gap: 40px; }
@@ -579,6 +617,57 @@ img { max-width: 100%; display: block; }
   .review-item { padding: 20px 0; }
   .review-reply { margin-left: 8px; }
   .info-card { padding: 24px 16px; }
+}
+
+/* ════════════════════════════════════════
+   CART BAR — detailed selection
+   ════════════════════════════════════════ */
+.cart-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  background: var(--bg); border-top: 2px solid var(--accent);
+  transform: translateY(100%); transition: transform .3s ease, background .4s, border-color .4s;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+}
+.cart-inner { max-width: var(--max-width); margin: 0 auto; padding: 12px 24px; }
+.cart-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.cart-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--accent); border-radius: 100px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent);
+  transition: all 0.2s;
+}
+.cart-chip-x {
+  cursor: pointer; font-size: 14px; line-height: 1; opacity: 0.6;
+  transition: opacity 0.2s; background: none; border: none; color: var(--accent);
+  font-family: var(--font-primary); padding: 0;
+}
+.cart-chip-x:hover { opacity: 1; }
+.cart-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cart-summary { font-size: 13px; color: var(--text-light); }
+.cart-summary strong { color: var(--text); font-weight: 600; }
+.cart-actions { display: flex; align-items: center; gap: 12px; }
+.cart-clear {
+  font-size: 12px; color: var(--text-light); cursor: pointer;
+  background: none; border: none; font-family: var(--font-primary);
+  text-decoration: underline; transition: color 0.2s;
+}
+.cart-clear:hover { color: var(--accent); }
+
+/* ════════════════════════════════════════
+   PAYMENT METHODS
+   ════════════════════════════════════════ */
+.payment-methods { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.payment-methods-title {
+  font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text); margin-bottom: 10px;
+}
+.payment-methods-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.payment-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; font-size: 11px; font-weight: 500;
+  border: 1px solid var(--border); border-radius: 100px;
+  color: var(--text-light); background: var(--subtle);
+  transition: all var(--transition);
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -627,7 +716,10 @@ img { max-width: 100%; display: block; }
   </div>
   <div class="container">
     <p class="hero-label" id="heroLabel">&mdash;</p>
-    <h1 class="hero-heading" id="heroHeading">&mdash;</h1>
+    <div class="hero-name-wrap">
+      <h1 class="hero-name-inner" id="heroHeading">&mdash;</h1>
+    </div>
+    <div class="hero-ornament"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 0L7.5 4.5L12 6L7.5 7.5L6 12L4.5 7.5L0 6L4.5 4.5Z"/></svg></div>
     <p class="hero-subtitle" id="heroSubtitle">&mdash;</p>
     <a href="#" class="btn-outline" id="heroBookBtn">Prendre rendez-vous</a>
   </div>
@@ -744,6 +836,10 @@ img { max-width: 100%; display: block; }
         <p class="info-card-title">Contact</p>
         <ul class="contact-list" id="contactList"></ul>
         <div class="social-links" id="socialLinks" style="display:none"></div>
+        <div class="payment-methods" id="paymentMethods" style="display:none">
+          <p class="payment-methods-title">Moyens de paiement</p>
+          <div class="payment-methods-list" id="paymentMethodsList"></div>
+        </div>
       </div>
       <div class="info-card" id="mapContainer" style="display:none">
         <p class="info-card-title">Nous trouver</p>
@@ -766,16 +862,24 @@ img { max-width: 100%; display: block; }
 <footer class="footer">
   <div class="container">
     <p class="footer-text" id="footerInfo">&mdash;</p>
-    <p class="footer-text">Propuls&eacute; par <a href="https://bookt.be" class="brand-link" target="_blank" rel="noopener">Genda</a></p>
+    <p class="footer-text">Propuls&eacute; par <a href="https://genda.be" class="brand-link" target="_blank" rel="noopener">Genda</a></p>
   </div>
 </footer>
 
 </div><!-- /siteContent -->
 
 <!-- CART BAR -->
-<div class="cart-bar" id="cartBar" role="status" aria-live="polite" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg);border-top:2px solid var(--accent);padding:12px 24px;transform:translateY(100%);transition:transform .3s ease,background .4s,border-color .4s;display:flex;align-items:center;justify-content:center;gap:16px">
-  <div style="flex:1"><div id="cartCount" style="font-weight:600;font-size:.85rem">0 prestations</div><div id="cartMeta" style="font-size:.75rem;color:var(--text-light)">0 min &middot; 0&nbsp;&euro;</div></div>
-  <a id="cartCta" href="#" class="btn-solid" style="padding:10px 28px;font-size:.82rem">Continuer &rarr;</a>
+<div class="cart-bar" id="cartBar" role="status" aria-live="polite">
+  <div class="cart-inner">
+    <div class="cart-items" id="cartItems"></div>
+    <div class="cart-bottom">
+      <div class="cart-summary" id="cartSummary"></div>
+      <div class="cart-actions">
+        <button class="cart-clear" id="cartClear" onclick="clearCart()">Tout effacer</button>
+        <a id="cartCta" href="#" class="btn-solid" style="padding:10px 28px;font-size:.82rem">Continuer &rarr;</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- LIGHTBOX -->
@@ -888,6 +992,27 @@ img { max-width: 100%; display: block; }
     updateCart();
   };
 
+  window.removeSvc = function(id) {
+    var idx = _selected.indexOf(String(id));
+    if (idx >= 0) _selected.splice(idx, 1);
+    var rows = document.querySelectorAll('.service-item[data-svc-id]');
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i], sel = _selected.indexOf(r.dataset.svcId) >= 0;
+      r.classList.toggle('selected', sel);
+      r.classList.toggle('disabled', _selected.length >= _MAX && !sel);
+    }
+    updateCart();
+  };
+
+  window.clearCart = function() {
+    _selected = [];
+    var rows = document.querySelectorAll('.service-item[data-svc-id]');
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].classList.remove('selected', 'disabled');
+    }
+    updateCart();
+  };
+
   function updateCart() {
     var bar = document.getElementById('cartBar');
     if (!bar) return;
@@ -895,20 +1020,32 @@ img { max-width: 100%; display: block; }
     bar.style.transform = n > 0 ? 'translateY(0)' : 'translateY(100%)';
     var sticky = document.getElementById('stickyCta');
     if (sticky) sticky.classList.toggle('hidden', n > 0);
-    if (!n) return;
+
+    if (!n) {
+      document.getElementById('cartItems').innerHTML = '';
+      document.getElementById('cartSummary').innerHTML = '';
+      return;
+    }
 
     var svcs = _selected.map(function(id) {
       return _services.find(function(s) { return String(s.id) === String(id); });
     }).filter(Boolean);
 
+    // Chips
+    var chipsH = '';
+    svcs.forEach(function(s) {
+      chipsH += '<span class="cart-chip">' + esc(s.name) + '<button class="cart-chip-x" onclick="removeSvc(\'' + s.id + '\')" aria-label="Retirer">&times;</button></span>';
+    });
+    document.getElementById('cartItems').innerHTML = chipsH;
+
+    // Summary
     var totalMin = svcs.reduce(function(s, v) { return s + (v.duration_min || 0); }, 0);
     var totalCents = svcs.reduce(function(s, v) { return s + (v.price_cents || 0); }, 0);
     var hours = Math.floor(totalMin / 60), mins = totalMin % 60;
     var dur = hours > 0 ? hours + 'h' + (mins > 0 ? String(mins).padStart(2,'0') : '') : totalMin + ' min';
     var price = totalCents > 0 ? (totalCents / 100).toFixed(0) + ' \u20ac' : 'Gratuit';
 
-    document.getElementById('cartCount').textContent = n + ' prestation' + (n > 1 ? 's' : '');
-    document.getElementById('cartMeta').textContent = dur + ' \u00b7 ' + price;
+    document.getElementById('cartSummary').innerHTML = '<strong>' + n + ' prestation' + (n > 1 ? 's' : '') + '</strong> \u00b7 ' + dur + ' \u00b7 ' + price;
     document.getElementById('cartCta').href = '/' + _slug + '/book?services=' + _selected.join(',');
   }
 
@@ -1084,6 +1221,7 @@ img { max-width: 100%; display: block; }
       cats.forEach(function(cat) {
         sH += '<div class="service-category" data-cat="' + esc(cat) + '">';
         sH += '<p class="category-label">' + esc(cat) + '</p>';
+        if (catDescMap[cat]) sH += '<p class="category-desc">' + esc(catDescMap[cat]) + '</p>';
         grouped[cat].forEach(function(s) {
           var price = s.price_label || (s.price_cents ? (s.price_cents / 100).toFixed(0) + '\u20ac' : '');
           var detail = (s.duration_min || 0) + ' min' + (s.description ? ' \u00b7 ' + esc(s.description) : '');
@@ -1313,10 +1451,28 @@ img { max-width: 100%; display: block; }
       }
     }
 
+    // Payment methods
+    var pmLabels = {
+      cash: 'Espèces', card: 'Carte bancaire', bancontact: 'Bancontact',
+      apple_pay: 'Apple Pay', google_pay: 'Google Pay', payconiq: 'Payconiq',
+      instant_transfer: 'Virement instant', bank_transfer: 'Virement'
+    };
+    if (b.payment_methods && b.payment_methods.length) {
+      var pmH = '';
+      b.payment_methods.forEach(function(pm) {
+        pmH += '<span class="payment-badge">' + esc(pmLabels[pm] || pm) + '</span>';
+      });
+      var pmEl = document.getElementById('paymentMethodsList');
+      pmEl.innerHTML = pmH;
+      document.getElementById('paymentMethods').style.display = '';
+    }
+
     // Map
     if (b.address) {
       var mc = document.getElementById('mapContainer');
-      document.getElementById('mapFrame').src = 'https://maps.google.com/maps?q=' + encodeURIComponent(b.address) + '&output=embed&z=15';
+      var mapQ = encodeURIComponent(b.address);
+      var mf = document.getElementById('mapFrame');
+      mf.src = 'https://www.google.com/maps?q=' + mapQ + '&output=embed&z=15';
       mc.style.display = '';
       document.getElementById('infoGrid').classList.add('has-map');
     }
