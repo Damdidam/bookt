@@ -2409,7 +2409,7 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     let displayData = null;
     if (isForm) {
       const info = await query(
-        `SELECT b.status, b.start_at,
+        `SELECT b.id, b.status, b.start_at, b.group_id, b.business_id,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                 biz.name AS business_name, biz.theme
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
@@ -2425,6 +2425,20 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       displayData._color = color;
       displayData._dt = dt;
       displayData._tm = tm;
+
+      // Fetch all group services for multi-service bookings
+      if (displayData.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [displayData.group_id, displayData.business_id]
+        );
+        if (grp.rows.length > 1) {
+          displayData.service_name = grp.rows.map(r => r.name).join(', ');
+        }
+      }
 
       if (displayData.status === 'confirmed') {
         return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, displayData.business_name));
@@ -2923,7 +2937,7 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
       } catch (_) { /* best-effort audit */ }
 
       const info = await query(
-        `SELECT b.start_at, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+        `SELECT b.start_at, b.group_id, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                 biz.name AS business_name, biz.theme
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -2933,7 +2947,23 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
       const color = i.theme?.primary_color || '#0D7377';
       const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
       const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-      return res.send(confirmationPage('Rendez-vous confirmé ✅', `Votre rendez-vous <strong>${escHtml(i.service_name || '')}</strong> du <strong>${dt} à ${tm}</strong> est confirmé.`, color, i.business_name));
+
+      // Fetch all group services for multi-service bookings
+      let serviceLabel = escHtml(i.service_name || '');
+      if (i.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [i.group_id, bk.business_id]
+        );
+        if (grp.rows.length > 1) {
+          serviceLabel = grp.rows.map(r => escHtml(r.name)).join(', ');
+        }
+      }
+
+      return res.send(confirmationPage('Rendez-vous confirmé ✅', `Votre rendez-vous <strong>${serviceLabel}</strong> du <strong>${dt} à ${tm}</strong> est confirmé.`, color, i.business_name));
     }
 
     // Confirmation failed — check why
