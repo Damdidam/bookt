@@ -13,7 +13,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/booking-engine.css">
 <style>
 /* ========================================
    CSS RESET & VARIABLES
@@ -826,7 +825,6 @@ img {
       <p class="section-subtitle">Selectionnez une prestation pour reserver en ligne.</p>
     </div>
     <div id="servicesList"></div>
-    <div id="bookingEngineMount" style="display:none"></div>
   </div>
 </section>
 
@@ -1029,8 +1027,7 @@ img {
     var priceStr = totalPrice > 0 ? (totalPrice / 100).toFixed(0) + ' \u20ac' : 'Gratuit';
     document.getElementById('cartCount').textContent = n + ' prestation' + (n > 1 ? 's' : '');
     document.getElementById('cartMeta').textContent = durStr + ' \u00b7 ' + priceStr;
-    document.getElementById('cartCta').href = '#';
-    document.getElementById('cartCta').onclick = function(e) { e.preventDefault(); startInlineBookingMulti(); };
+    document.getElementById('cartCta').href = '/' + _siteSlug + '/book?services=' + _multiSvcSelected.join(',');
   }
 
   /* ========================================
@@ -1095,7 +1092,7 @@ img {
     // Navbar
     document.querySelector('.navbar-brand').textContent = b.name;
     var navBookBtns = document.querySelectorAll('.navbar-links .btn-outline');
-    for (var nb = 0; nb < navBookBtns.length; nb++) navBookBtns[nb].href = '#services';
+    for (var nb = 0; nb < navBookBtns.length; nb++) navBookBtns[nb].href = bookUrl;
 
     // Hero
     var city = b.address ? b.address.split(',').pop().trim() : '';
@@ -1104,7 +1101,7 @@ img {
     document.querySelector('.hero-label').textContent = heroLabelText;
     document.querySelector('.hero-heading').innerHTML = esc(b.name).replace(/(\S+)$/, '<span class="serif">$1</span>');
     document.querySelector('.hero-subtitle').textContent = b.tagline || '';
-    document.querySelector('.hero .btn-outline').href = '#services';
+    document.querySelector('.hero .btn-outline').href = bookUrl;
 
     // About
     if (sec.about === false) {
@@ -1147,7 +1144,6 @@ img {
     // Services
     _siteServices = d.services || [];
     _siteSlug = b.slug;
-    _fullSiteData = d;
     var multiEnabled = b.multi_service_enabled;
 
     if (sec.services === false || !d.services || !d.services.length) {
@@ -1175,7 +1171,7 @@ img {
           if (multiEnabled) {
             svcHtml += '<div class="service-item" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="toggleMultiSvc(\'' + s.id + '\')">';
           } else {
-            svcHtml += '<div class="service-item" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="startInlineBooking(\'' + s.id + '\')">';
+            svcHtml += '<div class="service-item" data-svc-id="' + s.id + '" style="cursor:pointer" onclick="window.location.href=\'' + bookUrl + '?service=' + s.id + '\'">';
           }
           svcHtml += '<div class="service-info">';
           svcHtml += '<div class="service-name">' + esc(s.name) + '</div>';
@@ -1298,7 +1294,7 @@ img {
     document.getElementById('contactList').innerHTML = contactHtml;
 
     // Final CTA
-    document.getElementById('ctaBtn').href = '#services';
+    document.getElementById('ctaBtn').href = bookUrl;
 
     // Footer
     var footerParts = [esc(b.name)];
@@ -1328,12 +1324,6 @@ img {
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('siteContent').style.display = 'block';
 
-    // Auto-launch booking if returning from OAuth
-    var _urlParams = new URLSearchParams(window.location.search);
-    if (_urlParams.get('oauth_pickup') || _urlParams.get('oauth_error')) {
-      setTimeout(function() { startInlineBooking(null); }, 100);
-    }
-
     // Smooth scroll for anchor links
     var links = document.querySelectorAll('a[href^="#"]');
     for (var j = 0; j < links.length; j++) {
@@ -1350,66 +1340,8 @@ img {
     }
   }
 
-  // ── Inline Booking Engine ──
-  var _fullSiteData = null;
-
-  window.startInlineBooking = function(serviceId) {
-    var svcHeader = document.querySelector('#services .services-header');
-    var svcList = document.getElementById('servicesList');
-    var cartBar = document.getElementById('cartBar');
-    var mount = document.getElementById('bookingEngineMount');
-    if (svcHeader) svcHeader.style.display = 'none';
-    if (svcList) svcList.style.display = 'none';
-    if (cartBar) cartBar.style.transform = 'translateY(100%)';
-    mount.style.display = 'block';
-    document.getElementById('services').scrollIntoView({ behavior: 'smooth' });
-    // Map CSS vars for booking engine
-    var root = document.documentElement;
-    root.style.setProperty('--white', '#FFF');
-    root.style.setProperty('--surface-2', getComputedStyle(root).getPropertyValue('--subtle').trim() || '#EDE5DC');
-    root.style.setProperty('--border-light', getComputedStyle(root).getPropertyValue('--border').trim() || '#E8E0D8');
-    root.style.setProperty('--text-2', getComputedStyle(root).getPropertyValue('--text').trim() || '#444');
-    root.style.setProperty('--text-3', getComputedStyle(root).getPropertyValue('--text-light').trim() || '#888');
-    root.style.setProperty('--text-4', '#AAA');
-    root.style.setProperty('--primary', getComputedStyle(root).getPropertyValue('--accent').trim());
-    root.style.setProperty('--primary-hover', getComputedStyle(root).getPropertyValue('--accent').trim());
-    root.style.setProperty('--primary-light', getComputedStyle(root).getPropertyValue('--subtle').trim());
-    root.style.setProperty('--primary-soft', getComputedStyle(root).getPropertyValue('--subtle').trim());
-    root.style.setProperty('--primary-border', getComputedStyle(root).getPropertyValue('--border').trim());
-    root.style.setProperty('--surface', getComputedStyle(root).getPropertyValue('--subtle').trim());
-    root.style.setProperty('--green', '#1B7A42');
-    root.style.setProperty('--green-bg', '#EEFAF1');
-    root.style.setProperty('--red', '#DC2626');
-    root.style.setProperty('--red-bg', '#FEF2F2');
-    root.style.setProperty('--serif', getComputedStyle(root).getPropertyValue('--font-serif').trim());
-    root.style.setProperty('--sans', getComputedStyle(root).getPropertyValue('--font-primary').trim());
-    root.style.setProperty('--shadow', '0 2px 8px rgba(0,0,0,.04)');
-    root.style.setProperty('--radius', '12px');
-    root.style.setProperty('--radius-sm', '8px');
-    root.style.setProperty('--radius-xs', '6px');
-    BookingEngine.init({
-      container: mount,
-      slug: _siteSlug,
-      siteData: _fullSiteData,
-      preSelectedServiceId: serviceId || null,
-      isDark: false,
-      onBack: function() {
-        mount.style.display = 'none';
-        BookingEngine.destroy();
-        if (svcHeader) svcHeader.style.display = '';
-        if (svcList) svcList.style.display = '';
-      },
-      returnMode: 'inline'
-    });
-  };
-
-  window.startInlineBookingMulti = function() {
-    startInlineBooking(null);
-  };
-
 })();
 </script>
-<script src="/js/booking-engine.js"></script>
 
 </body>
 </html>
