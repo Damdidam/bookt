@@ -379,6 +379,50 @@ img { max-width: 100%; display: block; }
 .gallery-item:hover .gallery-overlay { opacity: 1; }
 
 /* ════════════════════════════════════════
+   RÉALISATIONS
+   ════════════════════════════════════════ */
+.realisations { padding: var(--section-gap); }
+.realisations-header { margin-bottom: 56px; }
+.realisations-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px;
+}
+.realisation-card {
+  border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); background: var(--bg);
+  transition: border-color var(--transition), box-shadow 0.3s;
+}
+.realisation-card:hover { border-color: var(--accent); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+.realisation-images {
+  display: grid; grid-template-columns: 1fr 1fr; position: relative;
+}
+.realisation-images img {
+  width: 100%; height: 180px; object-fit: cover; cursor: pointer;
+}
+.realisation-divider {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 28px; height: 28px; border-radius: 50%; background: var(--bg);
+  border: 2px solid var(--accent); display: flex; align-items: center;
+  justify-content: center; z-index: 2;
+}
+.realisation-divider svg { width: 14px; height: 14px; color: var(--accent); }
+.realisation-single img {
+  width: 100%; height: 220px; object-fit: cover; cursor: pointer;
+}
+.realisation-body { padding: 14px 16px; }
+.realisation-body h4 {
+  font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text);
+}
+.realisation-body p {
+  font-size: 12.5px; color: var(--text-light); line-height: 1.5;
+}
+.realisation-tag {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  padding: 3px 8px; border-radius: 3px; margin-bottom: 6px;
+}
+
+/* ════════════════════════════════════════
    REVIEWS
    ════════════════════════════════════════ */
 .reviews { padding: var(--section-gap); }
@@ -591,6 +635,8 @@ img { max-width: 100%; display: block; }
 
   .team-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto; gap: 32px; }
   .gallery-grid { grid-template-columns: repeat(2,1fr); }
+  .realisations-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
+  .realisation-images img { height: 150px; }
   .reviews-list { max-width: 100%; }
   .info-grid, .info-grid.has-map { grid-template-columns: 1fr; gap: 24px; }
   .news-grid { grid-template-columns: 1fr; }
@@ -647,11 +693,13 @@ img { max-width: 100%; display: block; }
 .cart-summary strong { color: var(--text); font-weight: 600; }
 .cart-actions { display: flex; align-items: center; gap: 12px; }
 .cart-clear {
-  font-size: 12px; color: var(--text-light); cursor: pointer;
-  background: none; border: none; font-family: var(--font-primary);
-  text-decoration: underline; transition: color 0.2s;
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  color: var(--text-light); cursor: pointer;
+  background: var(--subtle); border: none; transition: color 0.2s, background 0.2s;
 }
-.cart-clear:hover { color: var(--accent); }
+.cart-clear:hover { color: #C62828; background: #fdecea; }
+.cart-clear svg { width: 16px; height: 16px; }
 
 /* ════════════════════════════════════════
    PAYMENT METHODS
@@ -700,6 +748,7 @@ img { max-width: 100%; display: block; }
       <li><a href="#services">Prestations</a></li>
       <li><a href="#team">L'&eacute;quipe</a></li>
       <li><a href="#gallery">Galerie</a></li>
+      <li><a href="#realisations" id="navRealisations" style="display:none">Réalisations</a></li>
       <li><a href="#info">Contact</a></li>
       <li><a href="#news" id="navNews" style="display:none">Actus</a></li>
       <li><a href="#" class="btn-outline" id="navBookBtn">R&eacute;server</a></li>
@@ -793,6 +842,19 @@ img { max-width: 100%; display: block; }
 
 <div class="section-border container"></div>
 
+<!-- RÉALISATIONS -->
+<section class="realisations" id="realisations" style="display:none">
+  <div class="container">
+    <div class="realisations-header text-center">
+      <p class="section-label">Portfolio</p>
+      <h2 class="section-heading">Nos <span class="serif">réalisations</span></h2>
+    </div>
+    <div class="realisations-grid" id="realisationsGrid"></div>
+  </div>
+</section>
+
+<div class="section-border container"></div>
+
 <!-- REVIEWS -->
 <section class="reviews" id="reviews" style="display:none">
   <div class="container">
@@ -875,7 +937,7 @@ img { max-width: 100%; display: block; }
     <div class="cart-bottom">
       <div class="cart-summary" id="cartSummary"></div>
       <div class="cart-actions">
-        <button class="cart-clear" id="cartClear" onclick="clearCart()">Tout effacer</button>
+        <button class="cart-clear" id="cartClear" onclick="clearCart()" aria-label="Tout effacer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
         <a id="cartCta" href="#" class="btn-solid" style="padding:10px 28px;font-size:.82rem">Continuer &rarr;</a>
       </div>
     </div>
@@ -1055,7 +1117,7 @@ img { max-width: 100%; display: block; }
   var _lbIdx = 0;
   window.openLightbox = function(idx) {
     if (!window._galleryImages || !window._galleryImages.length) return;
-    _lbIdx = idx;
+    _lbSource = 'gallery'; _lbIdx = idx;
     var img = window._galleryImages[idx];
     if (!img || !img.image_url) return;
     document.getElementById('lightboxImg').src = img.image_url;
@@ -1076,6 +1138,32 @@ img { max-width: 100%; display: block; }
       document.getElementById('lightboxCounter').textContent = (_lbIdx + 1) + ' / ' + window._galleryImages.length;
     }
   };
+  var _lbSource = 'gallery';
+  window.openReaLightbox = function(idx) {
+    if (!window._reaImages || !window._reaImages.length) return;
+    _lbSource = 'rea'; _lbIdx = idx;
+    var img = window._reaImages[idx];
+    if (!img || !img.image_url) return;
+    document.getElementById('lightboxImg').src = img.image_url;
+    document.getElementById('lightboxCounter').textContent = (idx + 1) + ' / ' + window._reaImages.length;
+    document.getElementById('lightbox').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+  // Patch nav to respect source
+  var _origNav = window.navLightbox;
+  window.navLightbox = function(dir) {
+    var src = _lbSource === 'rea' ? window._reaImages : window._galleryImages;
+    if (!src) return;
+    _lbIdx = (_lbIdx + dir + src.length) % src.length;
+    var img = src[_lbIdx];
+    if (img && img.image_url) {
+      document.getElementById('lightboxImg').src = img.image_url;
+      document.getElementById('lightboxCounter').textContent = (_lbIdx + 1) + ' / ' + src.length;
+    }
+  };
+  // Reset source on close
+  var _origClose = window.closeLightbox;
+  window.closeLightbox = function() { _lbSource = 'gallery'; _origClose(); };
   document.addEventListener('keydown', function(e) {
     if (!document.getElementById('lightbox').classList.contains('active')) return;
     if (e.key === 'Escape') closeLightbox();
@@ -1302,6 +1390,40 @@ img { max-width: 100%; display: block; }
       }
     }
 
+    // Réalisations
+    if (d.realisations && d.realisations.length) {
+      document.getElementById('realisations').style.display = '';
+      var navR = document.getElementById('navRealisations');
+      if (navR) navR.style.display = '';
+      var allReaImages = [];
+      var rH = '';
+      d.realisations.forEach(function(r) {
+        rH += '<div class="realisation-card">';
+        if (r.before_url && r.after_url) {
+          var idxB = allReaImages.length;
+          allReaImages.push({ image_url: r.before_url, title: (r.title || '') + ' (avant)' });
+          var idxA = allReaImages.length;
+          allReaImages.push({ image_url: r.after_url, title: (r.title || '') + ' (après)' });
+          rH += '<div class="realisation-images">';
+          rH += '<img src="' + esc(r.before_url) + '" loading="lazy" alt="Avant" onclick="openReaLightbox(' + idxB + ')">';
+          rH += '<img src="' + esc(r.after_url) + '" loading="lazy" alt="Après" onclick="openReaLightbox(' + idxA + ')">';
+          rH += '<div class="realisation-divider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>';
+          rH += '</div>';
+        } else if (r.image_url) {
+          var idxS = allReaImages.length;
+          allReaImages.push({ image_url: r.image_url, title: r.title || '' });
+          rH += '<div class="realisation-single"><img src="' + esc(r.image_url) + '" loading="lazy" alt="' + esc(r.title || '') + '" onclick="openReaLightbox(' + idxS + ')"></div>';
+        }
+        rH += '<div class="realisation-body">';
+        if (r.category) rH += '<span class="realisation-tag">' + esc(r.category) + '</span>';
+        if (r.title) rH += '<h4>' + esc(r.title) + '</h4>';
+        if (r.description) rH += '<p>' + esc(r.description) + '</p>';
+        rH += '</div></div>';
+      });
+      document.getElementById('realisationsGrid').innerHTML = rH;
+      window._reaImages = allReaImages;
+    }
+
     // Reviews — fetch real reviews, fallback to testimonials
     if (sec.testimonials !== false) {
       fetch('/api/public/' + b.slug + '/reviews')
@@ -1510,7 +1632,7 @@ img { max-width: 100%; display: block; }
       });
     }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
-    document.querySelectorAll('.service-item,.team-card,.gallery-item,.review-item,.stat-item,.news-card').forEach(function(el) {
+    document.querySelectorAll('.service-item,.team-card,.gallery-item,.realisation-card,.review-item,.stat-item,.news-card').forEach(function(el) {
       el.style.opacity = '0';
       el.style.transform = 'translateY(16px)';
       el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
