@@ -9,6 +9,7 @@ import { guardModal } from '../utils/dirty-guard.js';
 // XSS-safe HTML escaping for admin views
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 const escAttr=s=>(s||'').replace(/"/g,'&quot;');
+const GRIP_SVG='<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
 
 // Only 3 template families remain: Funky, Épuré, Bold
 const THEMES={
@@ -237,13 +238,14 @@ async function loadSiteSection(){
     // -- GALLERY MANAGEMENT --
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Galerie photos</h3><button class="btn-primary" onclick="openGalleryModal()">+ Ajouter</button></div>
       <div style="padding:18px">
-        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Photos affichées sur votre mini-site. Glissez pour réordonner. URL d'image directe requise (Imgur, Cloudinary, etc.).</p>
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Photos affichées sur votre mini-site. Glissez pour réordonner.</p>
         <div id="galleryGrid" class="gallery-admin-grid">`;
     if(galleryItems.length===0){
       h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune photo. Ajoutez votre première image !</div>`;
     }else{
       galleryItems.forEach((img,i)=>{
-        h+=`<div class="gal-item${img.is_active?'':' inactive'}" data-id="${img.id}">
+        h+=`<div class="gal-item${img.is_active?'':' inactive'}" data-id="${img.id}" draggable="true" ondragstart="galDragStart(event)" ondragover="galDragOver(event)" ondragleave="galDragLeave(event)" ondrop="galDrop(event)">
+          <span class="drag-handle" onclick="event.stopPropagation()">${GRIP_SVG}</span>
           <div class="gal-img"><img src="${esc(img.image_url)}" alt="${esc(img.title||'')}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23eee%22 width=%22200%22 height=%22150%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>Erreur</text></svg>'"></div>
           <div class="gal-info">
             <div class="gal-title">${esc(img.title)||'<em style="color:var(--text-4)">Sans titre</em>'}</div>
@@ -429,17 +431,30 @@ async function saveCustomColor(){
 }
 
 // Gallery CRUD
+let galPendingPhoto=null;
+
 function openGalleryModal(item){
   const isEdit=!!item;
+  galPendingPhoto=null;
   const ov=document.createElement('div');ov.className='m-overlay open';ov.id='galModal';
   ov.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple"><h3>${isEdit?'Modifier la photo':'Ajouter une photo'}</h3><button class="m-close" onclick="closeModal('galModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="m-body">
-      <div><label class="m-field-label">URL de l'image *</label><input class="m-input" id="galUrl" value="${item?.image_url||''}" placeholder="https://i.imgur.com/...jpg">
-        <p style="font-size:.68rem;color:var(--text-4);margin-top:3px">Hébergez vos images sur <a href="https://imgur.com" target="_blank" style="color:var(--primary)">Imgur</a>, <a href="https://cloudinary.com" target="_blank" style="color:var(--primary)">Cloudinary</a> ou similaire.</p>
+      <div>
+        <label class="m-field-label">Image</label>
+        <div id="galDropZone" style="border:2px dashed var(--border-light);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s">
+          <input type="file" id="galFileInput" accept="image/jpeg,image/png,image/webp" style="display:none">
+          <p style="font-size:.85rem;font-weight:500;color:var(--text-2)">Cliquez ou glissez une image ici</p>
+          <p style="font-size:.7rem;color:var(--text-4);margin-top:4px">JPEG, PNG ou WebP — max 2 Mo</p>
+        </div>
       </div>
-      <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'}">
+      <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'};position:relative">
         <img id="galPreviewImg" src="${item?.image_url||''}" style="width:100%;height:auto;max-height:200px;object-fit:cover">
+        <button id="galClearFile" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;line-height:1" onclick="clearGalFile()">×</button>
+      </div>
+      <div style="border-top:1px solid var(--border-light);padding-top:12px;margin-top:4px">
+        <label class="m-field-label" style="font-size:.72rem;color:var(--text-4)">Ou collez une URL</label>
+        <input class="m-input" id="galUrl" value="${isEdit?item?.image_url||'':''}" placeholder="https://i.imgur.com/...jpg" style="font-size:.82rem">
       </div>
       <div><label class="m-field-label">Titre</label><input class="m-input" id="galTitle" value="${item?.title||''}" placeholder="Ex: Notre cabinet"></div>
       <div><label class="m-field-label">Légende</label><input class="m-input" id="galCaption" value="${item?.caption||''}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
@@ -448,9 +463,20 @@ function openGalleryModal(item){
   </div>`;
   document.body.appendChild(ov);
   guardModal(document.getElementById('galModal'));
-  // Live preview
+
+  // File input + drop zone
+  const dropZone=document.getElementById('galDropZone');
+  const fileInput=document.getElementById('galFileInput');
+  dropZone.addEventListener('click',()=>fileInput.click());
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.style.borderColor='var(--primary)';dropZone.style.background='rgba(13,115,119,.04)';});
+  dropZone.addEventListener('dragleave',()=>{dropZone.style.borderColor='';dropZone.style.background='';});
+  dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.style.borderColor='';dropZone.style.background='';if(e.dataTransfer.files.length)handleGalFile(e.dataTransfer.files[0]);});
+  fileInput.addEventListener('change',()=>{if(fileInput.files.length)handleGalFile(fileInput.files[0]);});
+
+  // URL input live preview (fallback)
   const urlInput=document.getElementById('galUrl');
   urlInput.addEventListener('input',()=>{
+    if(galPendingPhoto)return; // file takes priority
     const url=urlInput.value.trim();
     const preview=document.getElementById('galPreview');
     const img=document.getElementById('galPreviewImg');
@@ -458,21 +484,60 @@ function openGalleryModal(item){
       img.src=url;preview.style.display='block';
     }else{preview.style.display='none';}
   });
-  urlInput.focus();
+}
+
+function handleGalFile(file){
+  if(!file.type.match(/^image\/(jpeg|png|webp)$/)){GendaUI.toast('Format invalide (JPEG, PNG ou WebP)','error');return;}
+  if(file.size>2*1024*1024){GendaUI.toast('Image trop lourde (max 2 Mo)','error');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    galPendingPhoto=e.target.result;
+    document.getElementById('galPreviewImg').src=galPendingPhoto;
+    document.getElementById('galPreview').style.display='block';
+    document.getElementById('galClearFile').style.display='block';
+    document.getElementById('galDropZone').innerHTML='<p style="font-size:.85rem;font-weight:500;color:var(--primary)">✓ Image sélectionnée</p><p style="font-size:.7rem;color:var(--text-4);margin-top:4px">Cliquez pour changer</p>';
+    document.getElementById('galUrl').value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearGalFile(){
+  galPendingPhoto=null;
+  document.getElementById('galPreview').style.display='none';
+  document.getElementById('galClearFile').style.display='none';
+  document.getElementById('galDropZone').innerHTML='<input type="file" id="galFileInput" accept="image/jpeg,image/png,image/webp" style="display:none"><p style="font-size:.85rem;font-weight:500;color:var(--text-2)">Cliquez ou glissez une image ici</p><p style="font-size:.7rem;color:var(--text-4);margin-top:4px">JPEG, PNG ou WebP — max 2 Mo</p>';
+  const fi=document.getElementById('galFileInput');
+  const dz=document.getElementById('galDropZone');
+  dz.addEventListener('click',()=>fi.click());
+  fi.addEventListener('change',()=>{if(fi.files.length)handleGalFile(fi.files[0]);});
 }
 
 async function saveGalleryItem(id){
   const url=document.getElementById('galUrl').value.trim();
   const title=document.getElementById('galTitle').value.trim();
   const caption=document.getElementById('galCaption').value.trim();
-  if(!url){GendaUI.toast('URL de l\'image requise','error');return;}
+
+  if(!galPendingPhoto&&!url){GendaUI.toast('Sélectionnez une image ou collez une URL','error');return;}
+
   const btn=document.getElementById('galSaveBtn');btn.disabled=true;btn.textContent='Enregistrement...';
   try{
-    const method=id?'PUT':'POST';
-    const endpoint=id?'/api/gallery/'+id:'/api/gallery';
-    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({image_url:url,title:title||null,caption:caption||null})});
+    let r;
+    if(galPendingPhoto&&!id){
+      // Upload file (new only)
+      r=await fetch('/api/gallery/upload',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({photo:galPendingPhoto,title:title||null,caption:caption||null})});
+    }else{
+      // URL-based (create or edit)
+      const imgUrl=galPendingPhoto?undefined:url;
+      if(!id&&!imgUrl){GendaUI.toast('URL requise','error');btn.disabled=false;btn.textContent='Ajouter';return;}
+      const method=id?'PUT':'POST';
+      const endpoint=id?'/api/gallery/'+id:'/api/gallery';
+      const body=id?{title:title||null,caption:caption||null}:{image_url:imgUrl,title:title||null,caption:caption||null};
+      if(id&&url)body.image_url=url;
+      r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    }
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    galPendingPhoto=null;
     document.getElementById('galModal')._dirtyGuard?.markClean();
     closeModal('galModal');
     GendaUI.toast(id?'Photo modifiée':'Photo ajoutée','success');
@@ -779,9 +844,66 @@ async function saveReviewSettings(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+// ── Gallery drag-and-drop ──
+let galDragEl=null, galDragFromHandle=false;
+
+document.addEventListener('mousedown',e=>{
+  if(e.target.closest('.gal-item .drag-handle'))galDragFromHandle=true;
+});
+document.addEventListener('mouseup',()=>{galDragFromHandle=false;});
+
+function galDragStart(e){
+  if(!galDragFromHandle){e.preventDefault();return;}
+  const item=e.target.closest('.gal-item');
+  if(!item){e.preventDefault();return;}
+  galDragEl=item;
+  item.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain','');
+}
+function galDragOver(e){
+  if(!galDragEl)return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  const target=e.target.closest('.gal-item');
+  if(target&&target!==galDragEl)target.classList.add('drag-over');
+}
+function galDragLeave(e){
+  const target=e.target.closest('.gal-item');
+  if(target)target.classList.remove('drag-over');
+}
+function galDrop(e){
+  e.preventDefault();
+  const target=e.target.closest('.gal-item');
+  if(!target||!galDragEl||target===galDragEl){cleanupGalDrag();return;}
+  target.classList.remove('drag-over');
+  const parent=galDragEl.parentNode;
+  const items=[...parent.querySelectorAll('.gal-item')];
+  const fromIdx=items.indexOf(galDragEl),toIdx=items.indexOf(target);
+  if(fromIdx<toIdx)target.after(galDragEl);else target.before(galDragEl);
+  cleanupGalDrag();
+  persistGalleryOrder();
+}
+function cleanupGalDrag(){
+  if(galDragEl)galDragEl.classList.remove('dragging');
+  document.querySelectorAll('.gal-item.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  galDragEl=null;galDragFromHandle=false;
+}
+document.addEventListener('dragend',()=>{if(galDragEl)cleanupGalDrag();});
+
+async function persistGalleryOrder(){
+  const items=[...document.querySelectorAll('#galleryGrid .gal-item')];
+  const order=items.map((el,i)=>({id:el.dataset.id,sort_order:i}));
+  if(!order.length)return;
+  try{
+    await fetch('/api/gallery/reorder',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({order})});
+  }catch(e){console.warn('Gallery reorder failed:',e);}
+}
+
 bridge({
   loadSiteSection, selectTheme, saveCustomColor,
-  openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem,
+  openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem, clearGalFile,
+  galDragStart, galDragOver, galDragLeave, galDrop,
   openNewsModal, saveNewsItem, editNewsItem, toggleNewsItem, deleteNewsItem,
   toggleSiteSection, saveSiteContent, saveSocialLinks, saveSEO,
   openTestimonialModal, saveTestimonial, editTestimonial, deleteTestimonial,
