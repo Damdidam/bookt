@@ -214,17 +214,9 @@ app.get('/:slug', async (req, res, next) => {
       [req.params.slug]
     );
 
-    let family = 'epure';
-    let biz = null;
-    if (rows.length > 0) {
-      biz = rows[0];
-      const preset = biz.preset || '';
-      if (preset === 'funky') family = 'funky';
-      else if (preset.startsWith('bold')) family = 'bold';
-      else family = 'epure';
-    }
+    let biz = rows.length > 0 ? rows[0] : null;
 
-    const filePath = path.join(__dirname, `../public/site-${family}.html`);
+    const filePath = path.join(__dirname, '../public/site.html');
     let html = fs.readFileSync(filePath, 'utf8');
 
     if (biz) {
@@ -248,7 +240,7 @@ app.get('/:slug', async (req, res, next) => {
   } catch (err) {
     console.error('Slug route error:', err);
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, '../public/site-epure.html'));
+    res.sendFile(path.join(__dirname, '../public/site.html'));
   }
 });
 
