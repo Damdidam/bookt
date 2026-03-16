@@ -193,16 +193,34 @@ app.use('/api/stripe', stripeRoutes);
 app.use('/webhooks/twilio', twilioWebhooks);
 
 // ===== PUBLIC MINI-SITE =====
-// Catch-all for /:slug → serve site.html (the dynamic mini-site page)
+// Catch-all for /:slug → DB lookup → serve the right template
 // Must be AFTER all API and static routes
-app.get('/:slug', (req, res, next) => {
+app.get('/:slug', async (req, res, next) => {
   // Skip if it looks like a file request
   if (req.params.slug.includes('.')) return next();
   // Skip known paths
   const reserved = ['api', 'webhooks', 'health', 'login', 'signup', 'dashboard'];
   if (reserved.includes(req.params.slug)) return next();
-  // Serve the dynamic mini-site page
-  res.sendFile(path.join(__dirname, '../public/site.html'));
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT theme->>'preset' as preset FROM businesses WHERE slug = $1 AND active = true LIMIT 1`,
+      [req.params.slug]
+    );
+
+    let family = 'epure'; // default
+    if (rows.length > 0 && rows[0].preset) {
+      const preset = rows[0].preset;
+      if (preset === 'funky') family = 'funky';
+      else if (preset.startsWith('bold')) family = 'bold';
+      else family = 'epure';
+    }
+
+    res.sendFile(path.join(__dirname, `../public/site-${family}.html`));
+  } catch (err) {
+    console.error('Slug route error:', err);
+    res.sendFile(path.join(__dirname, '../public/site-epure.html'));
+  }
 });
 
 // /:slug/book → booking flow
