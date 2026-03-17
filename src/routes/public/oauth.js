@@ -208,11 +208,28 @@ async function handleCallback(provider, params, appleUserObj, req, res) {
       return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Email non disponible depuis ' + provider)}`));
     }
 
+    // Apple only sends name on first authorization — fallback to existing client record
+    let userName = userInfo.name;
+    if (!userName && userInfo.email && slug) {
+      try {
+        const bizR = await query(`SELECT id FROM businesses WHERE slug = $1 AND is_active = true`, [slug]);
+        if (bizR.rows.length) {
+          const clR = await query(
+            `SELECT full_name FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
+            [bizR.rows[0].id, userInfo.email]
+          );
+          if (clR.rows.length && clR.rows[0].full_name) {
+            userName = clR.rows[0].full_name;
+          }
+        }
+      } catch (e) { console.error('[OAUTH] Client name lookup failed:', e.message); }
+    }
+
     // Store in pickup key for frontend to fetch
     const pickupKey = crypto.randomBytes(16).toString('hex');
     await oauthStates.set(pickupKey, {
       type: 'pickup',
-      name: userInfo.name,
+      name: userName,
       email: userInfo.email,
       provider,
       providerId: userInfo.providerId,
