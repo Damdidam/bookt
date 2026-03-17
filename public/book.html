@@ -986,11 +986,16 @@ function initPage(){
     wireSkButtons(list);
   }
 
-  // Update cart bar if pre-selected services
+  // Update cart bar if pre-selected services — auto-skip step 1 if coming from minisite
   if(multiServiceMode&&selectedServices.length>0){
     updateCartBar();
     document.getElementById('btnStep1').disabled=selectedServices.length===0;
     selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
+    // Auto-advance past step 1 since services are already selected from minisite
+    if(urlParams.get('services')){
+      computeStepOrder();
+      setTimeout(()=>goToStep(stepOrder[1]||2),100);
+    }
   }
 
   document.getElementById('btnStep1').addEventListener('click',()=>goNext());
