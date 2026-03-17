@@ -367,7 +367,8 @@ router.get('/:slug', async (req, res, next) => {
         sector: biz.sector || 'autre',
         booking_auth_mode: biz.settings?.booking_auth_mode || 'soft',
         deposit_enabled: !!biz.settings?.deposit_enabled,
-        payment_methods: biz.settings?.payment_methods || []
+        payment_methods: biz.settings?.payment_methods || [],
+        about_image_url: biz.settings?.about_image_url || null
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,

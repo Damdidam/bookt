@@ -1275,12 +1275,13 @@ img { max-width: 100%; display: block; }
     }
 
     // About
-    if (sec.about !== false && (b.description || b.cover_image_url)) {
+    var aboutImg = b.about_image_url || b.cover_image_url;
+    if (sec.about !== false && (b.description || aboutImg)) {
       document.getElementById('about').style.display = '';
       if (b.description) document.getElementById('aboutText').textContent = b.description;
-      if (b.cover_image_url) {
+      if (aboutImg) {
         var ai = document.getElementById('aboutImage');
-        ai.style.backgroundImage = 'url(' + esc(b.cover_image_url) + ')';
+        ai.style.backgroundImage = 'url(' + esc(aboutImg) + ')';
         ai.style.backgroundSize = 'cover';
         ai.style.backgroundPosition = 'center';
       }

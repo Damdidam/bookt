@@ -322,7 +322,7 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
   try {
     const { photo, type } = req.body; // type: 'logo' | 'cover'
     if (!photo) return res.status(400).json({ error: 'Photo requise' });
-    if (!['logo', 'cover'].includes(type)) return res.status(400).json({ error: 'Type invalide (logo ou cover)' });
+    if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide (logo, cover ou about)' });
 
     const match = photo.match(/^data:image\/(jpeg|jpg|png|webp|svg\+xml);base64,(.+)$/);
     if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG, WebP ou SVG)' });
@@ -343,19 +343,34 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
     fs.mkdirSync(uploadDir, { recursive: true });
 
     // Delete old file if local
-    const field = type === 'logo' ? 'logo_url' : 'cover_image_url';
-    const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
-    if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
-      const oldPath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
-      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-      if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+    const field = type === 'about' ? null : (type === 'logo' ? 'logo_url' : 'cover_image_url');
+    if (field) {
+      const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+      if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
+        const oldPath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      }
+    } else {
+      // about image — stored in settings JSONB
+      const existing = await queryWithRLS(req.businessId, `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
+      const oldUrl = existing.rows[0]?.settings?.about_image_url;
+      if (oldUrl?.startsWith('/uploads/branding/')) {
+        const oldPath = path.resolve(__dirname, '../../../public', oldUrl.split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      }
     }
 
     const filename = `${req.businessId}_${type}.${ext}`;
     fs.writeFileSync(path.join(uploadDir, filename), buffer);
     const imageUrl = `/uploads/branding/${filename}?t=${Date.now()}`;
 
-    await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = $2 WHERE id = $1`, [req.businessId, imageUrl]);
+    if (field) {
+      await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = $2 WHERE id = $1`, [req.businessId, imageUrl]);
+    } else {
+      await queryWithRLS(req.businessId, `UPDATE businesses SET settings = jsonb_set(COALESCE(settings, '{}'), '{about_image_url}', to_jsonb($2::text)) WHERE id = $1`, [req.businessId, imageUrl]);
+    }
 
     res.json({ url: imageUrl });
   } catch (err) { next(err); }
@@ -367,20 +382,30 @@ router.post('/upload-image', requireOwner, async (req, res, next) => {
 router.delete('/delete-image/:type', requireOwner, async (req, res, next) => {
   try {
     const { type } = req.params;
-    if (!['logo', 'cover'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
+    if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
 
-    const field = type === 'logo' ? 'logo_url' : 'cover_image_url';
-    const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+    const field = type === 'about' ? null : (type === 'logo' ? 'logo_url' : 'cover_image_url');
+    const fs = require('fs');
+    const path = require('path');
 
-    if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
-      const fs = require('fs');
-      const path = require('path');
-      const filePath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
-      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
-      if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+    if (field) {
+      const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+      if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
+        const filePath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+      await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = NULL WHERE id = $1`, [req.businessId]);
+    } else {
+      const existing = await queryWithRLS(req.businessId, `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
+      const oldUrl = existing.rows[0]?.settings?.about_image_url;
+      if (oldUrl?.startsWith('/uploads/branding/')) {
+        const filePath = path.resolve(__dirname, '../../../public', oldUrl.split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+      await queryWithRLS(req.businessId, `UPDATE businesses SET settings = settings - 'about_image_url' WHERE id = $1`, [req.businessId]);
     }
-
-    await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = NULL WHERE id = $1`, [req.businessId]);
     res.json({ deleted: true });
   } catch (err) { next(err); }
 });
