@@ -44,76 +44,62 @@ function _hideDragTooltip() {
 }
 
 /**
- * Resolve target date + time from the dragged event's mirror element.
- * FullCalendar positions the mirror (ghost) at the snap position.
+ * Resolve target date + time from cursor position using elementsFromPoint.
+ * Finds the FC timegrid column (date) and slot row (time) under the cursor.
  */
-function _resolveSlotFromMirror() {
-  const mirror = document.querySelector('.fc-event.fc-event-mirror');
-  if (!mirror) return null;
-  const harness = mirror.closest('.fc-timegrid-event-harness, .fc-timegrid-event-harness-inset');
-  if (!harness) return null;
+function _resolveSlotFromCursor(x, y) {
+  // Temporarily hide drag tooltip so it doesn't block elementsFromPoint
+  if (_dragTT) _dragTT.style.display = 'none';
+  const els = document.elementsFromPoint(x, y);
+  if (_dragTT) _dragTT.style.display = '';
 
-  // Get the slot lane (column) the mirror is in
-  const col = harness.closest('.fc-timegrid-col');
-  if (!col) return null;
-  const dateStr = col.getAttribute('data-date'); // YYYY-MM-DD
+  // Find date from column
+  let dateStr = null;
+  for (const el of els) {
+    const col = el.closest('.fc-timegrid-col[data-date]');
+    if (col) { dateStr = col.getAttribute('data-date'); break; }
+  }
+  if (!dateStr) return null;
 
-  // Compute time from the harness top position (inset or style.top)
-  // FC positions harness with top in percentage of the timegrid body
-  const body = col.closest('.fc-timegrid-body');
-  if (!body) return null;
-  const slotsEl = body.querySelector('.fc-timegrid-slots');
+  // Find time from slot lane — get the slot row under cursor
+  // FC slots: <tr data-time="HH:MM:SS"> inside .fc-timegrid-slots
+  const slotsEl = document.querySelector('.fc-timegrid-slots');
   if (!slotsEl) return null;
-
-  // Read all slot labels to build time map
   const slots = slotsEl.querySelectorAll('tr[data-time]');
   if (!slots.length) return null;
 
-  // Get harness bounding rect and first slot's top
-  const hRect = harness.getBoundingClientRect();
-  const slotsRect = slotsEl.getBoundingClientRect();
-  const relTop = hRect.top - slotsRect.top;
-  const totalH = slotsRect.height;
-
-  // Find slot: iterate slots and find which one the harness top falls into
-  let bestTime = null;
+  let bestTime = null, slotTop = 0, slotHeight = 0;
   for (const slot of slots) {
     const sr = slot.getBoundingClientRect();
-    const slotRelTop = sr.top - slotsRect.top;
-    if (slotRelTop <= relTop + 2) {
-      bestTime = slot.getAttribute('data-time'); // HH:MM:SS
-    }
-  }
-
-  if (!bestTime || !dateStr) return null;
-
-  // Refine: compute sub-slot offset (snap = 5min)
-  // Find the slot this falls into and compute offset within it
-  let slotTop = 0, slotHeight = 0, slotTime = bestTime;
-  for (const slot of slots) {
-    const sr = slot.getBoundingClientRect();
-    const srt = sr.top - slotsRect.top;
-    if (srt <= relTop + 2) {
-      slotTop = srt;
+    if (sr.top <= y && sr.bottom >= y) {
+      bestTime = slot.getAttribute('data-time');
+      slotTop = sr.top;
       slotHeight = sr.height;
-      slotTime = slot.getAttribute('data-time');
+      break;
+    }
+    // Track last slot above cursor (for edge cases)
+    if (sr.top <= y) {
+      bestTime = slot.getAttribute('data-time');
+      slotTop = sr.top;
+      slotHeight = sr.height;
     }
   }
+  if (!bestTime) return null;
 
-  // Parse slot time
-  const parts = slotTime.split(':');
+  // Parse slot time and refine with sub-slot offset (snap = 5min)
+  const parts = bestTime.split(':');
   let h = parseInt(parts[0]), m = parseInt(parts[1]);
 
   if (slotHeight > 0) {
     // Determine slot duration from adjacent slots
     const allTimes = Array.from(slots).map(s => s.getAttribute('data-time'));
-    const idx = allTimes.indexOf(slotTime);
-    let slotMinutes = 30; // default
+    const idx = allTimes.indexOf(bestTime);
+    let slotMinutes = 30;
     if (idx >= 0 && idx < allTimes.length - 1) {
       const next = allTimes[idx + 1].split(':');
       slotMinutes = (parseInt(next[0]) * 60 + parseInt(next[1])) - (h * 60 + m);
     }
-    const offsetRatio = Math.max(0, (relTop - slotTop) / slotHeight);
+    const offsetRatio = Math.max(0, Math.min(1, (y - slotTop) / slotHeight));
     const snapMin = 5;
     const offsetMin = Math.round((offsetRatio * slotMinutes) / snapMin) * snapMin;
     m += offsetMin;
@@ -128,16 +114,13 @@ function _resolveSlotFromMirror() {
 function buildEventDragStart() {
   return function (info) {
     fcHideTooltip(); // hide normal tooltip
-    // Start tracking mouse for drag tooltip
     _dragMoveHandler = function (e) {
-      const slot = _resolveSlotFromMirror();
+      const slot = _resolveSlotFromCursor(e.clientX, e.clientY);
       if (slot) {
         _showDragTooltip(e.clientX, e.clientY, '→ ' + slot.label);
       }
     };
     document.addEventListener('mousemove', _dragMoveHandler);
-    // Also show initial position after a tick (mirror not yet positioned)
-    setTimeout(() => { if (_dragMoveHandler) _dragMoveHandler({ clientX: 0, clientY: 0 }); }, 50);
   };
 }
 
