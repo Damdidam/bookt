@@ -305,6 +305,7 @@ async function handleStripeWebhook(req, res) {
                 `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
                         c.full_name AS client_name, c.email AS client_email,
                         CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                        s.category AS service_category,
                         COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         p.display_name AS practitioner_name,
                         biz.name AS business_name, biz.email AS business_email,
@@ -328,7 +329,7 @@ async function handleStripeWebhook(req, res) {
                 const allLinkedIds = [bookingId, ...linkedIds];
                 if (allLinkedIds.length > 1) {
                   const grp = await query(
-                    `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                    `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                             COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                             COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
                      FROM bookings b
@@ -343,7 +344,7 @@ async function handleStripeWebhook(req, res) {
                   }
                 } else if (d.group_id) {
                   const grp = await query(
-                    `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                    `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                             COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                             COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
                      FROM bookings b

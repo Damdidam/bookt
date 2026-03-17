@@ -487,13 +487,13 @@ router.post('/manual', async (req, res, next) => {
         try {
           const biz = await queryWithRLS(bid, `SELECT name, email, phone, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
           const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
-          const svc = await queryWithRLS(bid, `SELECT name FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
+          const svc = await queryWithRLS(bid, `SELECT name, category FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
           const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);
           // Query groupServices for multi-service bookings
           let groupServices = null;
           if (groupId) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
@@ -506,7 +506,7 @@ router.post('/manual', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           if (biz.rows[0] && cl.rows[0]) {
             await sendBookingConfirmation({
-              booking: { ...bookings[0], end_at: groupEndAt || bookings[0].end_at, client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
+              booking: { ...bookings[0], end_at: groupEndAt || bookings[0].end_at, client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', service_category: svc.rows[0]?.category || '', practitioner_name: prac.rows[0]?.display_name || '' },
               business: biz.rows[0],
               groupServices
             });

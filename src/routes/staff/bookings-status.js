@@ -443,6 +443,7 @@ router.patch('/:id/status', async (req, res, next) => {
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                   p.display_name AS practitioner_name,
                   biz.name AS biz_name, biz.slug, biz.email AS biz_email,
                   biz.address, biz.theme, biz.settings AS biz_settings
@@ -460,7 +461,7 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [d.group_id, bid]
             );
             if (grp.rows.length > 1) groupServices = grp.rows;
@@ -468,7 +469,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -483,6 +484,7 @@ router.patch('/:id/status', async (req, res, next) => {
           `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.client_id, b.group_id,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                   biz.name AS biz_name, biz.slug, biz.email AS biz_email,
                   biz.address, biz.settings, biz.theme
            FROM bookings b
@@ -498,7 +500,7 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [d.group_id, bid]
             );
             if (grp.rows.length > 1) groupServices = grp.rows;
@@ -506,7 +508,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendDepositRefundEmail } = require('../../services/email');
           sendDepositRefundEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
@@ -520,7 +522,8 @@ router.patch('/:id/status', async (req, res, next) => {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
                   c.full_name AS client_name, c.email AS client_email,
-                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                   p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email,
@@ -541,7 +544,7 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
@@ -572,6 +575,7 @@ router.patch('/:id/status', async (req, res, next) => {
           `SELECT b.start_at, b.end_at, b.group_id, b.public_token, b.comment_client, b.custom_label,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                   p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email,
                   biz.phone AS business_phone,
@@ -590,7 +594,7 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
@@ -609,7 +613,7 @@ router.patch('/:id/status', async (req, res, next) => {
             booking: {
               start_at: d.start_at, end_at: d.end_at,
               client_name: d.client_name, client_email: d.client_email,
-              service_name: d.service_name, practitioner_name: d.practitioner_name,
+              service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name,
               comment: d.comment_client, custom_label: d.custom_label,
               public_token: d.public_token
             },
@@ -627,6 +631,7 @@ router.patch('/:id/status', async (req, res, next) => {
           `SELECT b.id, b.client_id, b.review_token,
                   c.full_name AS client_name, c.email AS client_email, c.first_name,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                   p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email,
                   biz.address, biz.theme, biz.settings
@@ -659,7 +664,7 @@ router.patch('/:id/status', async (req, res, next) => {
             const { sendReviewRequestEmail } = require('../../services/email');
             setTimeout(() => {
               sendReviewRequestEmail({
-                booking: { client_name: rd.client_name, client_email: rd.client_email, first_name: rd.first_name, service_name: rd.service_name, practitioner_name: rd.practitioner_name, review_token: reviewToken },
+                booking: { client_name: rd.client_name, client_email: rd.client_email, first_name: rd.first_name, service_name: rd.service_name, service_category: rd.service_category, practitioner_name: rd.practitioner_name, review_token: reviewToken },
                 business: { name: rd.business_name, email: rd.business_email, address: rd.address, theme: rd.theme, settings }
               }).catch(e => console.warn('[EMAIL] Review request email error:', e.message));
             }, delayMs);
@@ -814,7 +819,8 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
       const emailData = await queryWithRLS(bid,
         `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.client_id, b.group_id,
                 c.full_name AS client_name, c.email AS client_email,
-                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                s.category AS service_category,
                 biz.name AS biz_name, biz.slug, biz.email AS biz_email,
                 biz.address, biz.settings, biz.theme
          FROM bookings b
@@ -830,7 +836,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         let groupServices = null;
         if (d.group_id) {
           const grp = await queryWithRLS(bid,
-            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
             [d.group_id, bid]
           );
           if (grp.rows.length > 1) groupServices = grp.rows;
@@ -838,7 +844,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
-          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name },
+          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
           business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
@@ -884,6 +890,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
                 b.comment_client, b.custom_label, b.service_variant_id,
                 c.full_name AS client_name, c.email AS client_email,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                 p.display_name AS practitioner_name,
                 biz.name AS business_name, biz.email AS business_email,
                 biz.address AS business_address, biz.phone AS business_phone,
@@ -967,7 +974,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
         let groupServices = null;
         if (b.group_id) {
           const grp = await queryWithRLS(bid,
-            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                     COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
              FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
@@ -1027,6 +1034,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
              b.start_at, b.end_at, b.practitioner_id, b.group_id,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
              p.display_name AS practitioner_name,
              biz.name AS business_name, biz.email AS business_email,
              biz.address AS business_address, biz.theme, biz.plan, biz.settings
@@ -1131,7 +1139,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       let groupServices = null;
       if (bk.group_id) {
         const grp = await queryWithRLS(bid,
-          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                   COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
@@ -1209,6 +1217,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
                 b.group_id, b.practitioner_id, b.public_token, b.service_id, b.service_variant_id,
                 c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
                 p.display_name AS practitioner_name,
                 biz.name AS business_name, biz.email AS business_email,
                 biz.address AS business_address, biz.theme, biz.settings
@@ -1320,7 +1329,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         let groupServices = null;
         if (b.group_id) {
           const grp = await queryWithRLS(bid,
-            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                     COALESCE(sv.price_cents, s.price_cents) AS price_cents, b2.end_at
              FROM bookings b2 LEFT JOIN services s ON s.id = b2.service_id

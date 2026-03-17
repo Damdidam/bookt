@@ -3,6 +3,7 @@
  * Extracted from calendar-events.js for separation of concerns.
  */
 import { esc } from '../../utils/dom.js';
+import { fmtSvcLabel } from './calendar-render.js';
 
 // ── Locale maps ──
 const STATUS_FR = { confirmed: 'Confirmé', pending: 'En attente', completed: 'Terminé', cancelled: 'Annulé', no_show: 'Absent', modified_pending: 'Modifié', pending_deposit: 'Acompte requis' };
@@ -83,7 +84,7 @@ function fcShowTooltip(event, x, y) {
   if (p._isGroup && p._members) {
     html += `<div class="tt-section">`;
     p._members.forEach(m => {
-      const svc = esc(m.variant_name ? (m.service_name || 'RDV') + ' — ' + m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
+      const svc = esc(fmtSvcLabel(m.service_category, m.service_name, m.variant_name, m.custom_label));
       const mDur = m.variant_duration_min || m.duration_min;
       const durTag = mDur ? ' <span class="tt-dim">' + fmtDur(mDur) + '</span>' : '';
       const mSt = m.status && m.status !== 'confirmed' ? ' <span class="tt-st-dot tt-st-' + esc(m.status) + '"></span>' : '';
@@ -91,7 +92,7 @@ function fcShowTooltip(event, x, y) {
     });
     html += `</div>`;
   } else {
-    const svc = esc(p.variant_name ? (p.service_name || 'RDV libre') + ' — ' + p.variant_name : (p.service_name || p.custom_label || 'RDV libre'));
+    const svc = esc(fmtSvcLabel(p.service_category, p.service_name, p.variant_name, p.custom_label));
     const svcDur = p.variant_duration_min || p.duration_min;
     const durTag = svcDur ? ' <span class="tt-dim">' + fmtDur(svcDur) + '</span>' : '';
     html += `<div class="tt-section"><div class="tt-svc">${svc}${durTag}</div></div>`;

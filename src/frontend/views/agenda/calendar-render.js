@@ -8,6 +8,14 @@ import { calState } from '../../state.js';
 import { esc, safeId } from '../../utils/dom.js';
 import { fcDarkenHex } from './calendar-init.js';
 
+/** Build display label: "Category - Service — Variant" or fallback */
+export function fmtSvcLabel(category, serviceName, variantName, customLabel) {
+  if (!serviceName) return customLabel || 'RDV libre';
+  let label = category ? category + ' - ' + serviceName : serviceName;
+  if (variantName) label += ' — ' + variantName;
+  return label;
+}
+
 const DEFAULT_ACCENT = '#0D7377';
 const ST_COLORS = { confirmed:'#15803D', pending:'#EAB308', modified_pending:'#D97706', pending_deposit:'#D97706', completed:'#374151', no_show:'#DC2626', cancelled:'#DC2626' };
 
@@ -63,7 +71,7 @@ function buildEventContent() {
       const hasFilter = calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0;
       const isPartial = hasFilter && members.some(m => calState.fcHiddenCategories.has(m.service_category || ''));
       const svcs = members.map(m => {
-        const label = esc(m.variant_name ? (m.service_name||'RDV libre')+' — '+m.variant_name : (m.service_name || m.custom_label || 'RDV libre'));
+        const label = esc(fmtSvcLabel(m.service_category, m.service_name, m.variant_name, m.custom_label));
         if (hasFilter) {
           const catMatch = !calState.fcHiddenCategories.has(m.service_category || '');
           return catMatch ? '<strong>' + label + '</strong>' : '<span style="opacity:.3">' + label + '</span>';
@@ -88,7 +96,7 @@ function buildEventContent() {
     }
 
     // -- Week/Day: single event --
-    const svcLabel = esc(p.variant_name ? (p.service_name||'RDV libre')+' \u2014 '+p.variant_name : (p.service_name || p.custom_label || 'RDV libre'));
+    const svcLabel = esc(fmtSvcLabel(p.service_category, p.service_name, p.variant_name, p.custom_label));
     const sStart = arg.event.start ? arg.event.start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
     const sEnd = arg.event.end ? arg.event.end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : '';
     const sTimeSpan = sStart ? '<span class="ev-time">' + sStart + (sEnd ? ' \u2013 ' + sEnd : '') + '</span>' : '';

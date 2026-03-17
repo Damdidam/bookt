@@ -11,6 +11,14 @@ function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/** Build "Category - Service — Variant" label (server-side mirror of frontend fmtSvcLabel) */
+function fmtSvcLabel(category, serviceName, variantName, customLabel) {
+  if (!serviceName) return customLabel || 'Rendez-vous';
+  let label = category ? category + ' - ' + serviceName : serviceName;
+  if (variantName) label += ' \u2014 ' + variantName;
+  return label;
+}
+
 /**
  * Sanitize rich text HTML — strip dangerous tags, event handlers, and protocol URLs
  * while keeping safe formatting (b, i, u, br, p, span, strong, em, ul, ol, li, a).
@@ -282,7 +290,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name) || 'Rendez-vous';
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
 
   let serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6">${safeServiceName}</div>`;
   let serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600">${safeServiceName} \u00b7 ${safePracName}</div>`;
@@ -361,7 +369,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const serviceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">${_ic('calendar-grn')} ${dateStr}</div>`;
   detailLines += `<div style="font-size:14px;color:#15613A">${_ic('clock-grn')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
@@ -451,7 +459,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const serviceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || booking.custom_label || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let detailLines = `<div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>`;
   detailLines += `<div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
@@ -614,7 +622,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
 
   const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
 
@@ -706,7 +714,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
 
   const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
 
@@ -803,7 +811,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
 
   let serviceDetailHTML = '';
   if (isMulti) {
@@ -889,7 +897,7 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
 
   let serviceDetailHTML = '';
   if (isMulti) {
@@ -958,7 +966,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(booking.service_name || 'Rendez-vous');
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
 
   let serviceDetailHTML = '';
   if (isMulti) {
@@ -1034,7 +1042,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
 async function sendReviewRequestEmail({ booking, business }) {
   const color = safeColor(business.theme?.primary_color);
   const firstName = escHtml(booking.first_name || booking.client_name?.split(' ')[0] || 'Client');
-  const serviceName = escHtml(booking.service_name || 'votre rendez-vous');
+  const serviceName = escHtml(fmtSvcLabel(booking.service_category, booking.service_name) || 'votre rendez-vous');
   const practitioner = booking.practitioner_name ? ` avec ${escHtml(booking.practitioner_name)}` : '';
   const safeBizName = escHtml(business.name);
 

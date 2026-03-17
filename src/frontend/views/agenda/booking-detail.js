@@ -8,6 +8,7 @@ import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict, calResetSlotCheck } from './booking-edit.js';
+import { fmtSvcLabel } from './calendar-render.js';
 import { fcRefresh } from './calendar-init.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 import { IC } from '../../utils/icons.js';
@@ -346,7 +347,7 @@ async function fcOpenDetail(bookingId) {
       const groupEnd = new Date(siblings[siblings.length - 1].end_at);
       const totalDur = Math.round((groupEnd - groupStart) / 60000);
       const totalPrice = siblings.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
-      const svcNames = siblings.map(sib => { const nm = sib.service_name || 'RDV libre'; return esc(sib.variant_name ? nm + ' \u2014 ' + sib.variant_name : nm); }).join(' + ');
+      const svcNames = siblings.map(sib => esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name))).join(' + ');
       svcCard.innerHTML = `
         <div style="flex:1;min-width:0">
           <div class="m-svc-name">${svcNames}</div>
@@ -361,7 +362,7 @@ async function fcOpenDetail(bookingId) {
       svcCard.style.borderLeftColor = accentColor;
       const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
       const displayPrice = b.variant_price_cents ?? b.price_cents;
-      const svcDisplayName = b.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : b.service_name;
+      const svcDisplayName = fmtSvcLabel(b.service_category, b.service_name, b.variant_name);
       let priceHtml = '';
       if (displayPrice) {
         if (b.discount_pct) {
@@ -422,7 +423,7 @@ async function fcOpenDetail(bookingId) {
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
         gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}"${canDrag ? ' data-draggable="true"' : ''}>
           <span class="g-dot" style="background:${safeSibColor}"></span>
-          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.variant_name ? (sib.service_name||'RDV libre')+' \u2014 '+sib.variant_name : (sib.service_name || 'RDV libre'))}</span>
+          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name))}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
           ${detachBtn}${deleteBtn}
         </div>`;
@@ -845,7 +846,7 @@ function fcStartConvert(action) {
     if (freeCard) freeCard.style.display = 'flex';
     if (bufSec) bufSec.style.display = '';
     const b = calState.fcCurrentBooking;
-    const svcName = b?.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : (b?.service_name || '');
+    const svcName = fmtSvcLabel(b?.service_category, b?.service_name, b?.variant_name);
     document.getElementById('uFreeLabel').value = svcName;
     document.getElementById('uBufBefore').value = 0;
     document.getElementById('uBufAfter').value = 0;

@@ -806,7 +806,8 @@ router.patch('/:id/modify', async (req, res, next) => {
     // Fetch old booking for audit + notification context
     const old = await queryWithRLS(bid,
       `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
-              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+              s.category AS service_category,
               COALESCE(s.buffer_before_min, 0) AS svc_buffer_before,
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
@@ -931,6 +932,7 @@ router.patch('/:id/modify', async (req, res, next) => {
             client_email: oldBooking.client_email,
             public_token: oldBooking.public_token,
             service_name: oldBooking.service_name,
+            service_category: oldBooking.service_category,
             practitioner_name: oldBooking.practitioner_name,
             old_start_at: oldBooking.start_at,
             old_end_at: oldBooking.end_at,
