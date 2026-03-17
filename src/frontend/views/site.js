@@ -631,7 +631,7 @@ function openNewsModal(item){
         </select></div>
       </div>
       <div><label class="m-field-label">Image (URL, optionnel)</label><input class="m-input" id="newsImage" value="${item?.image_url||''}" placeholder="https://..."></div>
-      <div><label class="m-field-label">Date de publication</label><input class="m-input" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toISOString().split('T')[0]}"></div>
+      <div><label class="m-field-label">Date de publication</label><input class="m-input" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toLocaleDateString('en-CA')}"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newsModal')">Annuler</button><button class="m-btn m-btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
   </div>`;

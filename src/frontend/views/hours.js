@@ -366,7 +366,7 @@ async function saveBusinessSchedule() {
 // ============================================================
 
 function openClosureModal() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const m = `<div class="m-overlay open" id="closureModal"><div class="m-dialog m-sm">
     <div class="m-header-simple"><h3>Nouvelle fermeture</h3><button class="m-close" onclick="closeModal('closureModal')">${ICON_X}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><label class="m-field-label">Du</label><input type="date" class="m-input" id="cl_from" value="${today}"></div><div><label class="m-field-label">Au</label><input type="date" class="m-input" id="cl_to" value="${today}"></div></div>
@@ -414,7 +414,7 @@ async function deleteClosure(id) {
 function openHolidayModal() {
   const m = `<div class="m-overlay open" id="holidayModal"><div class="m-dialog m-sm">
     <div class="m-header-simple"><h3>Nouveau jour férié</h3><button class="m-close" onclick="closeModal('holidayModal')">${ICON_X}</button></div><div class="m-body">
-    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toLocaleDateString('en-CA')}"></div>
     <div><label class="m-field-label">Nom</label><input class="m-input" id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('holidayModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);

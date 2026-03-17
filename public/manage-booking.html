@@ -281,7 +281,8 @@ function showRescheduleUI() {
 function renderSlotPicker() {
   const bk = _data.booking, resch = _data.reschedule;
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-  const maxDate = new Date(new Date(today).getTime() + resch.window_days * 86400000).toISOString().slice(0, 10);
+  const _mx = new Date(new Date(today + 'T12:00:00').getTime() + resch.window_days * 86400000);
+  const maxDate = _mx.getFullYear()+'-'+String(_mx.getMonth()+1).padStart(2,'0')+'-'+String(_mx.getDate()).padStart(2,'0');
   const isPrevDisabled = _currentDate <= today;
   const isNextDisabled = _currentDate >= maxDate;
 
