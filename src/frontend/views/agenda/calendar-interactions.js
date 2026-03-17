@@ -28,13 +28,14 @@ function _showDragTooltip(x, y, text) {
   if (!_dragTT) {
     _dragTT = document.createElement('div');
     _dragTT.id = 'fcDragTT';
-    _dragTT.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;background:#1A2332;color:#fff;font-size:.78rem;font-weight:600;padding:4px 10px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);transition:opacity .12s';
+    _dragTT.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;background:#1A2332;color:#fff;font-size:.78rem;font-weight:600;padding:6px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.3);letter-spacing:.02em';
     document.body.appendChild(_dragTT);
   }
   _dragTT.textContent = text;
-  let left = x + 16, top = y - 36;
-  if (left + 180 > window.innerWidth) left = x - 180;
-  if (top < 4) top = y + 20;
+  const ttW = _dragTT.offsetWidth || 150;
+  let left = x + 18, top = y - 40;
+  if (left + ttW + 8 > window.innerWidth) left = x - ttW - 8;
+  if (top < 4) top = y + 24;
   _dragTT.style.left = left + 'px';
   _dragTT.style.top = top + 'px';
 }
@@ -61,10 +62,10 @@ function _resolveSlotFromCursor(x, y) {
   }
   if (!dateStr) return null;
 
-  // Find time: scan slot rows by bounding rect
+  // Find time: scan slot lane cells (td[data-time]) by bounding rect
   const slotsEl = document.querySelector('.fc-timegrid-slots');
   if (!slotsEl) return null;
-  const slots = slotsEl.querySelectorAll('tr[data-time]');
+  const slots = slotsEl.querySelectorAll('td.fc-timegrid-slot-lane[data-time]');
   if (!slots.length) return null;
 
   let bestTime = null, slotTop = 0, slotHeight = 0;
@@ -91,7 +92,7 @@ function _resolveSlotFromCursor(x, y) {
   if (slotHeight > 0) {
     const allTimes = Array.from(slots).map(s => s.getAttribute('data-time'));
     const idx = allTimes.indexOf(bestTime);
-    let slotMinutes = 30;
+    let slotMinutes = 15; // default to slotDuration
     if (idx >= 0 && idx < allTimes.length - 1) {
       const next = allTimes[idx + 1].split(':');
       slotMinutes = (parseInt(next[0]) * 60 + parseInt(next[1])) - (h * 60 + m);
@@ -112,12 +113,15 @@ function buildEventDragStart() {
   return function (info) {
     fcHideTooltip(); // hide normal tooltip
     _dragMoveHandler = function (e) {
-      const slot = _resolveSlotFromCursor(e.clientX, e.clientY);
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      const slot = _resolveSlotFromCursor(cx, cy);
       if (slot) {
-        _showDragTooltip(e.clientX, e.clientY, '→ ' + slot.label);
+        _showDragTooltip(cx, cy, '→ ' + slot.label);
       }
     };
     document.addEventListener('mousemove', _dragMoveHandler);
+    document.addEventListener('touchmove', _dragMoveHandler, { passive: true });
   };
 }
 
@@ -125,6 +129,7 @@ function buildEventDragStop() {
   return function () {
     if (_dragMoveHandler) {
       document.removeEventListener('mousemove', _dragMoveHandler);
+      document.removeEventListener('touchmove', _dragMoveHandler);
       _dragMoveHandler = null;
     }
     _hideDragTooltip();
