@@ -294,17 +294,19 @@ router.get('/:slug', async (req, res, next) => {
     let nextSlot = null;
     if (svcResult.rows.length > 0) {
       try {
-        const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-        const tomorrow = new Date(brusselsToday + 'T12:00:00Z');
-        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-        const weekOut = new Date(tomorrow.getTime() + 7 * 86400000);
+        const now = new Date();
+        const brusselsToday = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const weekOut = new Date(now.getTime() + 8 * 86400000);
         const slots = await getAvailableSlots({
           businessId: bid,
           serviceId: svcResult.rows[0].id,
-          dateFrom: tomorrow.toLocaleDateString('en-CA', { timeZone: 'UTC' }),
+          dateFrom: brusselsToday,
           dateTo: weekOut.toLocaleDateString('en-CA', { timeZone: 'UTC' })
         });
-        if (slots.length > 0) nextSlot = slots[0].start_at;
+        // Filter out slots in the past (Brussels time)
+        const nowMs = now.getTime();
+        const futureSlots = slots.filter(s => new Date(s.start_at).getTime() > nowMs);
+        if (futureSlots.length > 0) nextSlot = futureSlots[0].start_at;
       } catch (e) { /* non-critical */ }
     }
 
