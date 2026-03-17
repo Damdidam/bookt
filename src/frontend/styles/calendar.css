@@ -172,9 +172,9 @@
 .ev-inner .ev-badge-st{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
 /* Event status — accent border preserved, status shown via dot */
-.ev-pending{}
+.ev-pending{opacity:.5}
 .ev-confirmed{}
-.ev-modified_pending{background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.06) 4px,rgba(217,119,6,.06) 8px)!important}
+.ev-modified_pending{opacity:.6;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.1) 4px,rgba(217,119,6,.1) 8px)!important}
 .ev-completed{opacity:.5;filter:grayscale(.3)}
 .ev-no_show{opacity:.45;filter:grayscale(.2)}
 .ev-cancelled{opacity:.25;text-decoration:line-through}
@@ -198,7 +198,7 @@
 .td-st-btn.active{background:var(--st-color);color:#fff;border-color:var(--st-color)}
 /* Partial category match — group contains services from hidden categories */
 .fc .fc-event.ev-partial-match{background-color:transparent!important;border-left-style:dashed!important;border-left-width:2px!important}
-.ev-pending_deposit,.ev-pending{background-image:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(245,158,11,.12) 6px,rgba(245,158,11,.12) 12px)!important}
+.ev-pending_deposit{opacity:.5;background-image:repeating-linear-gradient(135deg,transparent,transparent 5px,rgba(245,158,11,.18) 5px,rgba(245,158,11,.18) 10px)!important}
 /* VIP badge on event */
 .ev-badge-vip{display:inline-flex;align-items:center;margin-left:3px;opacity:.9}.ev-badge-vip svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Deposit badge on event */
