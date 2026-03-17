@@ -492,6 +492,21 @@ async function loadSettings(){
     window._settingsGuard?.destroy();
     window._settingsGuard = guardModal(c);
 
+    // Global toggle visual sync — updates track color + knob on any checkbox change
+    c.addEventListener('change', e=>{
+      const cb=e.target;
+      if(cb.type!=='checkbox')return;
+      const label=cb.closest('label');
+      if(!label)return;
+      const track=label.querySelector('span:nth-child(2)');
+      const knob=label.querySelector('span:nth-child(3)');
+      if(track&&knob){
+        const on=cb.checked;
+        track.style.background=on?'var(--primary)':'var(--border)';
+        knob.style.left=on?'22px':'2px';
+      }
+    });
+
     // Draw QR code
     setTimeout(()=>drawQR(lk.qr_data||lk.booking_url||''),50);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
@@ -941,6 +956,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveRescheduleSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, saveRescheduleSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
