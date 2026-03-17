@@ -252,44 +252,50 @@ async function handleStripeWebhook(req, res) {
           if (upd.rows.length > 0) {
             const bk = upd.rows[0];
 
-            // Propagate to group siblings (pending_deposit → confirmed + deposit fields)
+            // Propagate to group siblings AND ungrouped bookings sharing same deposit
+            // (handles case where bookings were ungrouped/reassigned after deposit request)
+            const linkedIds = [];
+
+            // 1. Group siblings (still in same group)
             if (bk.group_id) {
-              await query(
+              const grpUpd = await query(
                 `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
                   deposit_paid_at = NOW(), deposit_deadline = NULL, locked = true
-                 WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'`,
+                 WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
+                 RETURNING id`,
                 [bk.group_id, businessId, bookingId]
               );
+              grpUpd.rows.forEach(r => linkedIds.push(r.id));
+            }
+
+            // 2. Ungrouped bookings sharing same deposit_payment_intent_id (detached after deposit request)
+            if (piId) {
+              const detachedUpd = await query(
+                `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                  deposit_paid_at = NOW(), deposit_deadline = NULL, locked = true
+                 WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
+                   AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
+                 RETURNING id`,
+                [piId, businessId, bookingId, bk.group_id]
+              );
+              detachedUpd.rows.forEach(r => linkedIds.push(r.id));
             }
 
             // SSE broadcast to update calendar in real-time
             try {
               const { broadcast } = require('../../services/sse');
               broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: bookingId });
-              // SSE for group siblings too
-              if (bk.group_id) {
-                const sibs = await query(
-                  `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
-                  [bk.group_id, businessId, bookingId]
-                );
-                for (const sib of sibs.rows) {
-                  broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: sib.id });
-                }
+              for (const lid of linkedIds) {
+                broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: lid });
               }
             } catch (e) { /* SSE optional */ }
 
-            // CalSync push for primary + siblings
+            // CalSync push for primary + all linked
             try {
               const { calSyncPush } = require('../staff/bookings-helpers');
               calSyncPush(businessId, bookingId);
-              if (bk.group_id) {
-                const sibsForSync = await query(
-                  `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
-                  [bk.group_id, businessId, bookingId]
-                );
-                for (const sib of sibsForSync.rows) {
-                  calSyncPush(businessId, sib.id);
-                }
+              for (const lid of linkedIds) {
+                calSyncPush(businessId, lid);
               }
             } catch (_) {}
 
@@ -318,7 +324,24 @@ async function handleStripeWebhook(req, res) {
                 const d = bkData.rows[0];
                 // Fetch group services for multi-service bookings
                 let groupServices = null;
-                if (d.group_id) {
+                // Collect all linked services: group siblings + detached bookings with same deposit
+                const allLinkedIds = [bookingId, ...linkedIds];
+                if (allLinkedIds.length > 1) {
+                  const grp = await query(
+                    `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                            COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                     FROM bookings b
+                     LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                     WHERE b.id = ANY($1) AND b.business_id = $2
+                     ORDER BY b.start_at`,
+                    [allLinkedIds, businessId]
+                  );
+                  if (grp.rows.length > 1) {
+                    groupServices = grp.rows;
+                  }
+                } else if (d.group_id) {
                   const grp = await query(
                     `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
                             COALESCE(sv.duration_min, s.duration_min) AS duration_min,

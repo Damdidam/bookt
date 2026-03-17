@@ -2057,15 +2057,30 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         [piId, bk.id, bk.business_id]
       );
       let sibIds = [];
-      if (upd.rows.length > 0 && bk.group_id) {
-        const sibResult = await txClient.query(
-          `UPDATE bookings SET status = 'confirmed', locked = true,
-            deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
-           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
-           RETURNING id`,
-          [bk.group_id, bk.business_id, bk.id]
-        );
-        sibIds = sibResult.rows.map(r => r.id);
+      if (upd.rows.length > 0) {
+        // 1. Group siblings
+        if (bk.group_id) {
+          const sibResult = await txClient.query(
+            `UPDATE bookings SET status = 'confirmed', locked = true,
+              deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+             WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
+             RETURNING id`,
+            [bk.group_id, bk.business_id, bk.id]
+          );
+          sibIds = sibResult.rows.map(r => r.id);
+        }
+        // 2. Detached bookings sharing same deposit_payment_intent_id
+        if (piId) {
+          const detached = await txClient.query(
+            `UPDATE bookings SET status = 'confirmed', locked = true,
+              deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+             WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
+               AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
+             RETURNING id`,
+            [piId, bk.business_id, bk.id, bk.group_id]
+          );
+          sibIds = sibIds.concat(detached.rows.map(r => r.id));
+        }
       }
       return { upd, sibIds };
     });
@@ -2110,7 +2125,23 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
           const d = bkData.rows[0];
           let groupServices = null;
-          if (d.group_id) {
+          const allLinkedIds = [bk.id, ...sibIds];
+          if (allLinkedIds.length > 1) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = ANY($1) AND b.business_id = $2
+               ORDER BY b.start_at`,
+              [allLinkedIds, bk.business_id]
+            );
+            if (grp.rows.length > 1) {
+              groupServices = grp.rows;
+              d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          } else if (d.group_id) {
             const grp = await query(
               `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
