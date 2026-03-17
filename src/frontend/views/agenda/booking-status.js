@@ -19,12 +19,18 @@ async function fcSetStatus(newStatus) {
       body: JSON.stringify({ status: newStatus })
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
-    // Store undo (only for reversible status changes)
-    if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
+    const result = await r.json().catch(() => ({}));
+    // Deposit-aware restore: show specific toast
+    if (result.deposit_restore === 'redeposit') {
+      gToast('RDV rétabli — nouvel acompte demandé au client', 'success');
+    } else if (result.deposit_restore === 'repaid') {
+      gToast('RDV rétabli — acompte retenu, RDV confirmé', 'success');
+    } else if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
+      // Store undo (only for reversible status changes)
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
-      gToast('Statut mis \u00e0 jour', 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
+      gToast('Statut mis à jour', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
     } else {
-      gToast('Statut mis \u00e0 jour', 'success');
+      gToast('Statut mis à jour', 'success');
     }
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');

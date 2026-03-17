@@ -14,7 +14,7 @@ const TRANSITIONS = {
   pending_deposit:  ['confirmed', 'cancelled'],
   completed:        ['confirmed'],  // ré-ouvrir si erreur
   no_show:          ['confirmed', 'cancelled'],
-  cancelled:        ['confirmed']  // rétablir un RDV annulé
+  cancelled:        ['confirmed', 'pending_deposit']  // rétablir un RDV annulé (pending_deposit si acompte remboursé)
 };
 
 // ===== Helper: propagate status to group siblings respecting state machine =====
@@ -124,7 +124,11 @@ router.patch('/:id/status', async (req, res, next) => {
     const txResult = await transactionWithRLS(bid, async (client) => {
       // Lock the booking row to prevent concurrent modifications
       const old = await client.query(
-        `SELECT status, client_id, deposit_required, deposit_status, deposit_amount_cents, group_id, practitioner_id FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        `SELECT b.status, b.client_id, b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+                b.group_id, b.practitioner_id, b.start_at, b.public_token,
+                biz.settings
+         FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+         WHERE b.id = $1 AND b.business_id = $2 FOR UPDATE OF b`,
         [id, bid]
       );
       if (old.rows.length === 0) return { error: 404, message: 'RDV introuvable' };
@@ -140,12 +144,65 @@ router.patch('/:id/status', async (req, res, next) => {
         return { error: 400, message: `Transition ${old.rows[0].status} → ${status} non autorisée` };
       }
 
+      // ===== DEPOSIT-AWARE RESTORE: cancelled → confirmed with deposit =====
+      // If deposit was refunded → re-request deposit (pending_deposit)
+      // If deposit was retained (cancelled) → mark as paid, confirm normally
+      let depositRestore = null; // null | 'redeposit' | 'repaid'
+      if (old.rows[0].status === 'cancelled' && status === 'confirmed' && old.rows[0].deposit_required) {
+        const depSt = old.rows[0].deposit_status;
+        if (depSt === 'refunded') {
+          // Deposit was refunded → re-request deposit instead of confirming
+          depositRestore = 'redeposit';
+          status = 'pending_deposit'; // override target status
+        } else if (depSt === 'cancelled') {
+          // Deposit was retained → client already paid, restore as paid
+          depositRestore = 'repaid';
+        }
+        // If deposit_status is 'paid' → normal confirm (shouldn't happen but safe)
+        // If deposit_status is 'pending' → re-request
+        if (depSt === 'pending') {
+          depositRestore = 'redeposit';
+          status = 'pending_deposit';
+        }
+      }
+
       // Update booking status
       if (status === 'cancelled') {
         await client.query(
           `UPDATE bookings SET status = $1, cancel_reason = $2, updated_at = NOW()
            WHERE id = $3 AND business_id = $4`,
           [status, cancel_reason || null, id, bid]
+        );
+      } else if (depositRestore === 'redeposit') {
+        // Re-request deposit: set pending_deposit + new deadline + reset deposit fields
+        const settings = old.rows[0].settings || {};
+        const dlHours = settings.deposit_deadline_hours || 48;
+        let deadline = new Date(new Date(old.rows[0].start_at).getTime() - dlHours * 3600000);
+        // If deadline already past, give at least 2h from now (tight deadline)
+        if (deadline <= new Date()) {
+          deadline = new Date(Date.now() + 2 * 3600000);
+        }
+        // Ensure deadline doesn't exceed booking start
+        if (deadline >= new Date(old.rows[0].start_at)) {
+          deadline = new Date(new Date(old.rows[0].start_at).getTime() - 1 * 3600000);
+        }
+        const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+        const depositUrl = `${baseUrl}/deposit/${old.rows[0].public_token}`;
+        await client.query(
+          `UPDATE bookings SET status = 'pending_deposit', deposit_status = 'pending',
+            deposit_deadline = $1, deposit_paid_at = NULL, deposit_payment_intent_id = NULL,
+            deposit_payment_url = $2, deposit_requested_at = NOW(), deposit_request_count = COALESCE(deposit_request_count, 0) + 1,
+            deposit_reminder_sent = false, cancel_reason = NULL, locked = true, updated_at = NOW()
+           WHERE id = $3 AND business_id = $4`,
+          [deadline.toISOString(), depositUrl, id, bid]
+        );
+      } else if (depositRestore === 'repaid') {
+        // Deposit was retained → mark as paid again
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
+            deposit_deadline = NULL, cancel_reason = NULL, locked = true, updated_at = NOW()
+           WHERE id = $1 AND business_id = $2`,
+          [id, bid]
         );
       } else {
         await client.query(
@@ -175,6 +232,30 @@ router.patch('/:id/status', async (req, res, next) => {
           status,
           cancelReason: cancel_reason
         });
+      }
+
+      // ===== DEPOSIT RESTORE: propagate deposit fields to group siblings =====
+      if (depositRestore === 'redeposit' && old.rows[0].group_id && affectedSiblingIds.length > 0) {
+        // Read back the deadline we just set on the main booking
+        const mainDep = await client.query(
+          `SELECT deposit_deadline, deposit_payment_url FROM bookings WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+        if (mainDep.rows.length > 0) {
+          await client.query(
+            `UPDATE bookings SET deposit_required = true, deposit_status = 'pending',
+              deposit_deadline = $1, deposit_paid_at = NULL, deposit_payment_intent_id = NULL,
+              deposit_reminder_sent = false
+             WHERE id = ANY($2::uuid[]) AND business_id = $3`,
+            [mainDep.rows[0].deposit_deadline, affectedSiblingIds, bid]
+          );
+        }
+      } else if (depositRestore === 'repaid' && old.rows[0].group_id && affectedSiblingIds.length > 0) {
+        await client.query(
+          `UPDATE bookings SET deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+           WHERE id = ANY($1::uuid[]) AND business_id = $2 AND deposit_required = true`,
+          [affectedSiblingIds, bid]
+        );
       }
 
       // ===== DEPOSIT: mark as paid when pending_deposit → confirmed =====
@@ -405,7 +486,7 @@ router.patch('/:id/status', async (req, res, next) => {
          JSON.stringify(newAudit)]
       );
 
-      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded };
+      return { oldStatus: old.rows[0].status, affectedSiblingIds, depositRefunded, depositRestore, booking: old.rows[0] };
     });
 
     // Handle early returns from transaction
@@ -568,8 +649,57 @@ router.patch('/:id/status', async (req, res, next) => {
       } catch (e) { console.warn('[EMAIL] Deposit paid email fetch error:', e.message); }
     }
 
+    // Send deposit re-request email when restoring a cancelled booking with refunded deposit
+    if (txResult.depositRestore === 'redeposit') {
+      try {
+        const emailData = await queryWithRLS(bid,
+          `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_deadline, b.public_token, b.group_id,
+                  c.full_name AS client_name, c.email AS client_email,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  biz.name AS business_name, biz.email AS business_email, biz.address AS business_address,
+                  biz.theme, biz.settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        if (emailData.rows.length > 0 && emailData.rows[0].client_email) {
+          const d = emailData.rows[0];
+          const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+          const payUrl = `${baseUrl}/api/public/deposit/${d.public_token}/pay`;
+          const depositUrl = `${baseUrl}/deposit/${d.public_token}`;
+          let groupServices = null;
+          if (d.group_id) {
+            const grp = await queryWithRLS(bid,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+               FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
+               LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+               WHERE bk.group_id = $1 AND bk.business_id = $2
+               ORDER BY bk.group_order, bk.start_at`,
+              [d.group_id, bid]
+            );
+            if (grp.rows.length > 1) { groupServices = grp.rows; d.end_at = grp.rows[grp.rows.length - 1].end_at; }
+          }
+          const { sendDepositRequestEmail } = require('../../services/email');
+          sendDepositRequestEmail({
+            booking: { ...d, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
+            business: { name: d.business_name, email: d.business_email, address: d.business_address, theme: d.theme, settings: d.settings },
+            depositUrl,
+            payUrl,
+            groupServices
+          }).catch(e => console.warn('[EMAIL] Deposit re-request email error:', e.message));
+        }
+      } catch (e) { console.warn('[EMAIL] Deposit re-request email fetch error:', e.message); }
+    }
+
     // Send booking confirmation email when staff confirms/restores a booking
-    if (['pending', 'modified_pending', 'cancelled', 'no_show'].includes(txResult.oldStatus) && status === 'confirmed') {
+    if (['pending', 'modified_pending', 'cancelled', 'no_show'].includes(txResult.oldStatus) && status === 'confirmed' && !txResult.depositRestore) {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.group_id, b.public_token, b.comment_client, b.custom_label,
@@ -703,7 +833,7 @@ router.patch('/:id/status', async (req, res, next) => {
       }
     }
 
-    res.json({ updated: true, status });
+    res.json({ updated: true, status, deposit_restore: txResult.depositRestore || null });
   } catch (err) {
     next(err);
   }
