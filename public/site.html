@@ -1387,11 +1387,6 @@ img { max-width: 100%; display: block; }
         tH += '<div class="team-body">';
         tH += '<p class="team-name">' + esc(p.display_name) + '</p>';
         tH += '<p class="team-role">' + esc(p.title || '') + '</p>';
-        if (p.specializations && p.specializations.length) {
-          tH += '<div class="team-tags">';
-          p.specializations.forEach(function(sp) { tH += '<span class="team-tag">' + esc(sp) + '</span>'; });
-          tH += '</div>';
-        }
         if (canChoosePractitioner) {
           tH += '<a href="/' + esc(b.slug) + '/book?practitioner=' + p.id + '" class="team-link">R\u00e9server \u2192</a>';
         }
