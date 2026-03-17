@@ -344,6 +344,11 @@ img { max-width: 100%; display: block; }
   font-size: 15px; font-weight: 600; color: var(--accent);
   margin-left: 24px; white-space: nowrap; transition: color var(--transition);
 }
+/* Variant styles */
+.service-has-variants { cursor: default; pointer-events: none; border-bottom: none; padding-bottom: 2px; }
+.service-has-variants .service-name { font-weight: 600; font-size: 15px; }
+.service-variant-row { padding-left: 22px; }
+.service-variant-row .variant-name { font-weight: 400; font-size: 13px; color: var(--text-light); }
 
 /* ════════════════════════════════════════
    TEAM — card layout
@@ -1124,25 +1129,34 @@ img { max-width: 100%; display: block; }
       return;
     }
 
-    var svcs = _selected.map(function(id) {
-      return _services.find(function(s) { return String(s.id) === String(id); });
+    // Resolve selected items (plain serviceId or compositeId serviceId:variantId)
+    var items = _selected.map(function(key) {
+      var parts = String(key).split(':');
+      var svc = _services.find(function(s) { return String(s.id) === parts[0]; });
+      if (!svc) return null;
+      if (parts.length > 1 && svc.variants) {
+        var v = svc.variants.find(function(vr) { return String(vr.id) === parts[1]; });
+        if (v) return { key: key, name: svc.name + ' — ' + v.name, duration_min: v.duration_min || 0, price_cents: v.price_cents || 0 };
+      }
+      return { key: key, name: svc.name, duration_min: svc.duration_min || 0, price_cents: svc.price_cents || 0 };
     }).filter(Boolean);
 
     // Chips
     var chipsH = '';
-    svcs.forEach(function(s) {
-      chipsH += '<span class="cart-chip">' + esc(s.name) + '<button class="cart-chip-x" onclick="removeSvc(\'' + s.id + '\')" aria-label="Retirer">&times;</button></span>';
+    items.forEach(function(it) {
+      chipsH += '<span class="cart-chip">' + esc(it.name) + '<button class="cart-chip-x" onclick="removeSvc(\'' + it.key + '\')" aria-label="Retirer">&times;</button></span>';
     });
     document.getElementById('cartItems').innerHTML = chipsH;
 
     // Summary
-    var totalMin = svcs.reduce(function(s, v) { return s + (v.duration_min || 0); }, 0);
-    var totalCents = svcs.reduce(function(s, v) { return s + (v.price_cents || 0); }, 0);
+    var totalMin = items.reduce(function(s, v) { return s + v.duration_min; }, 0);
+    var totalCents = items.reduce(function(s, v) { return s + v.price_cents; }, 0);
     var hours = Math.floor(totalMin / 60), mins = totalMin % 60;
     var dur = hours > 0 ? hours + 'h' + (mins > 0 ? String(mins).padStart(2,'0') : '') : totalMin + ' min';
     var price = totalCents > 0 ? (totalCents / 100).toFixed(0) + ' \u20ac' : 'Gratuit';
 
     document.getElementById('cartSummary').innerHTML = '<strong>' + n + ' prestation' + (n > 1 ? 's' : '') + '</strong> \u00b7 ' + dur + ' \u00b7 ' + price;
+    // Build services param: "svcId:varId,svcId2" format
     document.getElementById('cartCta').href = '/' + _slug + '/book?services=' + _selected.join(',');
   }
 
@@ -1375,13 +1389,33 @@ img { max-width: 100%; display: block; }
         sH += '<p class="category-label">' + esc(cat) + '</p>';
         if (catDescMap[cat]) sH += '<p class="category-desc">' + esc(catDescMap[cat]) + '</p>';
         grouped[cat].forEach(function(s) {
-          var price = s.price_label || (s.price_cents ? (s.price_cents / 100).toFixed(0) + '\u20ac' : '');
-          var detail = (s.duration_min || 0) + ' min' + (s.description ? ' \u00b7 ' + esc(s.description) : '');
-          var click = multi ? 'toggleMultiSvc(\'' + s.id + '\')' : 'window.location.href=\'' + bookUrl + '?service=' + s.id + '\'';
-          sH += '<div class="service-item" data-svc-id="' + s.id + '" onclick="' + click + '">';
-          sH += '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-detail">' + detail + '</div></div>';
-          if (price) sH += '<div class="service-price">' + esc(price) + '</div>';
-          sH += '</div>';
+          var hasVars = s.variants && s.variants.length > 0;
+          if (hasVars) {
+            // Service with variants: show service name as header, then each variant as a sub-row
+            sH += '<div class="service-item service-has-variants">';
+            sH += '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>';
+            if (s.description) sH += '<div class="service-detail">' + esc(s.description) + '</div>';
+            sH += '</div></div>';
+            s.variants.forEach(function(v) {
+              var vPrice = v.price_cents ? (v.price_cents / 100).toFixed(0) + '\u20ac' : '';
+              var vDetail = (v.duration_min || 0) + ' min';
+              var compositeId = s.id + ':' + v.id;
+              var vClick = multi ? 'toggleMultiSvc(\'' + compositeId + '\')' : 'window.location.href=\'' + bookUrl + '?service=' + s.id + '&variant=' + v.id + '\'';
+              sH += '<div class="service-item service-variant-row" data-svc-id="' + compositeId + '" onclick="' + vClick + '">';
+              sH += '<div class="service-info"><div class="service-name variant-name">' + esc(v.name) + '</div><div class="service-detail">' + vDetail + '</div></div>';
+              if (vPrice) sH += '<div class="service-price">' + esc(vPrice) + '</div>';
+              sH += '</div>';
+            });
+          } else {
+            // Service without variants: show as before
+            var price = s.price_label || (s.price_cents ? (s.price_cents / 100).toFixed(0) + '\u20ac' : '');
+            var detail = (s.duration_min || 0) + ' min' + (s.description ? ' \u00b7 ' + esc(s.description) : '');
+            var click = multi ? 'toggleMultiSvc(\'' + s.id + '\')' : 'window.location.href=\'' + bookUrl + '?service=' + s.id + '\'';
+            sH += '<div class="service-item" data-svc-id="' + s.id + '" onclick="' + click + '">';
+            sH += '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-detail">' + detail + '</div></div>';
+            if (price) sH += '<div class="service-price">' + esc(price) + '</div>';
+            sH += '</div>';
+          }
         });
         sH += '</div>';
       });

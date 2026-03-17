@@ -851,8 +851,19 @@ function initPage(){
   const multiParam=urlParams.get('services');
   if(multiParam&&siteData.business.multi_service_enabled){
     multiServiceMode=true;
-    const ids=multiParam.split(',').filter(id=>UUID_RE.test(id)).slice(0,5);
-    selectedServices=siteData.services.filter(s=>ids.includes(s.id));
+    const entries=multiParam.split(',').slice(0,5);
+    entries.forEach(function(entry){
+      var parts=entry.split(':');
+      var svcId=parts[0], varId=parts[1]||null;
+      if(!UUID_RE.test(svcId))return;
+      var svc=siteData.services.find(function(s){return s.id===svcId;});
+      if(!svc)return;
+      selectedServices.push(svc);
+      if(varId&&svc.variants){
+        var v=svc.variants.find(function(vr){return vr.id===varId;});
+        if(v)selectedVariants[svcId]=v;
+      }
+    });
   }else if(siteData.business.multi_service_enabled){
     multiServiceMode=true;
   }
