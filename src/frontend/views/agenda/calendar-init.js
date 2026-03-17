@@ -11,7 +11,7 @@ import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import { buildEventsCallback } from './calendar-data.js';
 import { buildEventContent, buildEventClassNames } from './calendar-render.js';
 import { buildEventDidMount, buildEventWillUnmount } from './calendar-hooks.js';
-import { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow } from './calendar-interactions.js';
+import { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow, buildEventDragStart, buildEventDragStop } from './calendar-interactions.js';
 import { fcHideTooltip } from './tooltip-renderer.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { atUpdateTitle } from './calendar-toolbar.js';
@@ -256,6 +256,8 @@ function initCalendar(initView, initSlotDur) {
     eventDidMount: buildEventDidMount(),
     eventWillUnmount: buildEventWillUnmount(),
     dateClick: buildDateClick(),
+    eventDragStart: buildEventDragStart(),
+    eventDragStop: buildEventDragStop(),
     eventDrop: buildEventDrop(),
     eventResize: buildEventResize()
   };

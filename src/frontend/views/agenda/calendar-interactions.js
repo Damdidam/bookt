@@ -11,6 +11,145 @@ import { fcOpenQuickCreate } from './quick-create.js';
 import { atView } from './calendar-toolbar.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { storeUndoAction } from './booking-undo.js';
+import { fcHideTooltip } from './tooltip-renderer.js';
+
+// ── Drag tooltip: shows target date + time while dragging ──
+let _dragTT = null;
+let _dragMoveHandler = null;
+
+const DAY_FR = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+const MONTH_FR = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+function _fmtDateFR(d) {
+  return DAY_FR[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FR[d.getMonth()];
+}
+
+function _showDragTooltip(x, y, text) {
+  if (!_dragTT) {
+    _dragTT = document.createElement('div');
+    _dragTT.id = 'fcDragTT';
+    _dragTT.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;background:#1A2332;color:#fff;font-size:.78rem;font-weight:600;padding:4px 10px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);transition:opacity .12s';
+    document.body.appendChild(_dragTT);
+  }
+  _dragTT.textContent = text;
+  let left = x + 16, top = y - 36;
+  if (left + 180 > window.innerWidth) left = x - 180;
+  if (top < 4) top = y + 20;
+  _dragTT.style.left = left + 'px';
+  _dragTT.style.top = top + 'px';
+}
+
+function _hideDragTooltip() {
+  if (_dragTT) { _dragTT.remove(); _dragTT = null; }
+}
+
+/**
+ * Resolve target date + time from the dragged event's mirror element.
+ * FullCalendar positions the mirror (ghost) at the snap position.
+ */
+function _resolveSlotFromMirror() {
+  const mirror = document.querySelector('.fc-event.fc-event-mirror');
+  if (!mirror) return null;
+  const harness = mirror.closest('.fc-timegrid-event-harness, .fc-timegrid-event-harness-inset');
+  if (!harness) return null;
+
+  // Get the slot lane (column) the mirror is in
+  const col = harness.closest('.fc-timegrid-col');
+  if (!col) return null;
+  const dateStr = col.getAttribute('data-date'); // YYYY-MM-DD
+
+  // Compute time from the harness top position (inset or style.top)
+  // FC positions harness with top in percentage of the timegrid body
+  const body = col.closest('.fc-timegrid-body');
+  if (!body) return null;
+  const slotsEl = body.querySelector('.fc-timegrid-slots');
+  if (!slotsEl) return null;
+
+  // Read all slot labels to build time map
+  const slots = slotsEl.querySelectorAll('tr[data-time]');
+  if (!slots.length) return null;
+
+  // Get harness bounding rect and first slot's top
+  const hRect = harness.getBoundingClientRect();
+  const slotsRect = slotsEl.getBoundingClientRect();
+  const relTop = hRect.top - slotsRect.top;
+  const totalH = slotsRect.height;
+
+  // Find slot: iterate slots and find which one the harness top falls into
+  let bestTime = null;
+  for (const slot of slots) {
+    const sr = slot.getBoundingClientRect();
+    const slotRelTop = sr.top - slotsRect.top;
+    if (slotRelTop <= relTop + 2) {
+      bestTime = slot.getAttribute('data-time'); // HH:MM:SS
+    }
+  }
+
+  if (!bestTime || !dateStr) return null;
+
+  // Refine: compute sub-slot offset (snap = 5min)
+  // Find the slot this falls into and compute offset within it
+  let slotTop = 0, slotHeight = 0, slotTime = bestTime;
+  for (const slot of slots) {
+    const sr = slot.getBoundingClientRect();
+    const srt = sr.top - slotsRect.top;
+    if (srt <= relTop + 2) {
+      slotTop = srt;
+      slotHeight = sr.height;
+      slotTime = slot.getAttribute('data-time');
+    }
+  }
+
+  // Parse slot time
+  const parts = slotTime.split(':');
+  let h = parseInt(parts[0]), m = parseInt(parts[1]);
+
+  if (slotHeight > 0) {
+    // Determine slot duration from adjacent slots
+    const allTimes = Array.from(slots).map(s => s.getAttribute('data-time'));
+    const idx = allTimes.indexOf(slotTime);
+    let slotMinutes = 30; // default
+    if (idx >= 0 && idx < allTimes.length - 1) {
+      const next = allTimes[idx + 1].split(':');
+      slotMinutes = (parseInt(next[0]) * 60 + parseInt(next[1])) - (h * 60 + m);
+    }
+    const offsetRatio = Math.max(0, (relTop - slotTop) / slotHeight);
+    const snapMin = 5;
+    const offsetMin = Math.round((offsetRatio * slotMinutes) / snapMin) * snapMin;
+    m += offsetMin;
+    if (m >= 60) { h += Math.floor(m / 60); m = m % 60; }
+  }
+
+  const date = new Date(dateStr + 'T12:00:00');
+  const timeStr = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  return { date, dateStr, timeStr, label: _fmtDateFR(date) + ' · ' + timeStr };
+}
+
+function buildEventDragStart() {
+  return function (info) {
+    fcHideTooltip(); // hide normal tooltip
+    // Start tracking mouse for drag tooltip
+    _dragMoveHandler = function (e) {
+      const slot = _resolveSlotFromMirror();
+      if (slot) {
+        _showDragTooltip(e.clientX, e.clientY, '→ ' + slot.label);
+      }
+    };
+    document.addEventListener('mousemove', _dragMoveHandler);
+    // Also show initial position after a tick (mirror not yet positioned)
+    setTimeout(() => { if (_dragMoveHandler) _dragMoveHandler({ clientX: 0, clientY: 0 }); }, 50);
+  };
+}
+
+function buildEventDragStop() {
+  return function () {
+    if (_dragMoveHandler) {
+      document.removeEventListener('mousemove', _dragMoveHandler);
+      _dragMoveHandler = null;
+    }
+    _hideDragTooltip();
+  };
+}
 
 /** Convert a JS Date to Brussels-timezone ISO string for API calls */
 function dateToBrusselsISO(d) {
@@ -263,4 +402,4 @@ function buildEventAllow() {
   };
 }
 
-export { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow };
+export { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow, buildEventDragStart, buildEventDragStop };
