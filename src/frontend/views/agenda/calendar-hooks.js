@@ -33,6 +33,7 @@ function scheduleRedistribute() {
 // ── Delegated tooltip hover (set up once on container, avoids 240 listeners) ──
 let _hoverReady = false;
 let _hoveredEl = null;
+let _hideTimer = null;
 
 function findEventEl(target) {
   if (!target || !target.closest) return null;
@@ -56,7 +57,8 @@ function setupHoverDelegation() {
   container.addEventListener('mouseover', function (e) {
     if (fsIsActive()) return;
     var el = findEventEl(e.target);
-    if (el === _hoveredEl) return;
+    if (el === _hoveredEl) { clearTimeout(_hideTimer); return; }
+    if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
     if (_hoveredEl) fcHideTooltip();
     _hoveredEl = el;
     if (!el) return;
@@ -73,8 +75,11 @@ function setupHoverDelegation() {
     if (!_hoveredEl) return;
     var related = findEventEl(e.relatedTarget);
     if (related === _hoveredEl) return;
-    _hoveredEl = null;
-    fcHideTooltip();
+    _hideTimer = setTimeout(function () {
+      _hoveredEl = null;
+      fcHideTooltip();
+      _hideTimer = null;
+    }, 50);
   });
 }
 
