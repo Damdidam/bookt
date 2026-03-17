@@ -7,8 +7,17 @@ const fs = require('fs');
 const path = require('path');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireRole } = require('../../middleware/auth');
+const { checkQuota, getBusinessUsage, QUOTA_BYTES, formatBytes } = require('../../services/storage-quota');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Storage quota
+router.get('/quota', requireAuth, async (req, res, next) => {
+  try {
+    const used = await getBusinessUsage(req.businessId, queryWithRLS);
+    res.json({ used, quota: QUOTA_BYTES, remaining: QUOTA_BYTES - used, used_formatted: formatBytes(used), quota_formatted: formatBytes(QUOTA_BYTES), remaining_formatted: formatBytes(QUOTA_BYTES - used), percent: Math.round((used / QUOTA_BYTES) * 100) });
+  } catch (err) { next(err); }
+});
 
 // List gallery images
 router.get('/', requireAuth, async (req, res, next) => {
@@ -80,6 +89,10 @@ router.post('/upload', requireAuth, requireRole('owner','manager'), async (req, 
     if (buffer.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
     }
+
+    // Check storage quota
+    const quota = await checkQuota(req.businessId, buffer.length, queryWithRLS);
+    if (!quota.allowed) return res.status(413).json({ error: quota.message });
 
     const uploadDir = path.join(__dirname, '../../../public/uploads/gallery');
     fs.mkdirSync(uploadDir, { recursive: true });

@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { queryWithRLS } = require('../../services/db');
 const { requireAuth, requireRole } = require('../../middleware/auth');
+const { checkQuota } = require('../../services/storage-quota');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -82,6 +83,10 @@ router.post('/upload', requireAuth, requireRole('owner', 'manager'), async (req,
     if (buffer.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
     }
+
+    // Check storage quota
+    const quota = await checkQuota(req.businessId, buffer.length, queryWithRLS);
+    if (!quota.allowed) return res.status(413).json({ error: quota.message });
 
     const uploadDir = path.join(__dirname, '../../../public/uploads/realisations');
     fs.mkdirSync(uploadDir, { recursive: true });

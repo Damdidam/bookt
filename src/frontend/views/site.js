@@ -238,6 +238,10 @@ async function loadSiteSection(){
     // -- GALLERY MANAGEMENT --
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Galerie photos</h3><button class="btn-primary" onclick="openGalleryModal()">+ Ajouter</button></div>
       <div style="padding:18px">
+        <div id="storageQuota" style="margin-bottom:14px;padding:10px 14px;background:var(--bg-2);border-radius:8px;font-size:.82rem;color:var(--text-3)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Stockage</span><span id="quotaText">Chargement...</span></div>
+          <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div id="quotaBar" style="height:100%;background:var(--primary);border-radius:3px;width:0%;transition:width .3s"></div></div>
+        </div>
         <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Photos affichées sur votre mini-site. Glissez pour réordonner.</p>
         <div id="galleryGrid" class="gallery-admin-grid">`;
     if(galleryItems.length===0){
@@ -399,6 +403,8 @@ async function loadSiteSection(){
     </div>`;
 
     c.innerHTML=h;
+    // Load storage quota
+    loadStorageQuota();
     // Init branding color swatches
     const cwWrap=document.getElementById('customColor_wrap');
     if(cwWrap){
@@ -406,6 +412,22 @@ async function loadSiteSection(){
       if(businessPlan==='free'){cwWrap.style.opacity='.4';cwWrap.style.pointerEvents='none';}
     }
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
+}
+
+async function loadStorageQuota(){
+  try{
+    const r=await fetch('/api/gallery/quota',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)return;
+    const q=await r.json();
+    const el=document.getElementById('quotaText');
+    const bar=document.getElementById('quotaBar');
+    if(el)el.textContent=q.used_formatted+' / '+q.quota_formatted+' utilisés';
+    if(bar){
+      bar.style.width=Math.min(q.percent,100)+'%';
+      if(q.percent>80)bar.style.background='var(--orange,#e67e22)';
+      if(q.percent>95)bar.style.background='var(--red,#e74c3c)';
+    }
+  }catch(e){console.warn('Quota load error:',e);}
 }
 
 async function selectTheme(preset){
