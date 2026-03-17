@@ -78,6 +78,8 @@ router.get('/:provider', authLimiter, async (req, res) => {
       : `/api/public/auth/${provider}/callback`;
     const redirectUri = `${baseUrl}${callbackPath}`;
 
+    // Store slug in cookie as fallback in case state lookup fails on callback
+    res.setHeader('Set-Cookie', `oauth_slug=${encodeURIComponent(slug)}; Max-Age=900; Path=/api/public/auth; HttpOnly; SameSite=None; Secure`);
     const url = oauth.getAuthUrl(provider, state, redirectUri);
     res.redirect(url);
   } catch (err) {
@@ -93,14 +95,14 @@ router.get('/:provider', authLimiter, async (req, res) => {
 // GET /api/public/auth/google/callback
 // ============================================================
 router.get('/google/callback', async (req, res) => {
-  await handleCallback('google', req.query, null, res);
+  await handleCallback('google', req.query, null, req, res);
 });
 
 // ============================================================
 // GET /api/public/auth/facebook/callback
 // ============================================================
 router.get('/facebook/callback', async (req, res) => {
-  await handleCallback('facebook', req.query, null, res);
+  await handleCallback('facebook', req.query, null, req, res);
 });
 
 // ============================================================
@@ -108,7 +110,7 @@ router.get('/facebook/callback', async (req, res) => {
 // ============================================================
 router.post('/apple/callback', async (req, res) => {
   // Apple sends code, state, id_token, and optionally user (JSON string) in body
-  await handleCallback('apple', req.body, req.body.user, res);
+  await handleCallback('apple', req.body, req.body.user, req, res);
 });
 
 // ============================================================
@@ -145,14 +147,23 @@ router.get('/pickup/:key', async (req, res) => {
 // ============================================================
 // Shared callback handler
 // ============================================================
-async function handleCallback(provider, params, appleUserObj, res) {
+async function handleCallback(provider, params, appleUserObj, req, res) {
   const { code, state, error } = params;
   let slug = '';
 
   // M2: validate slug to prevent open redirect — only alphanumeric + hyphens allowed
   const sanitizeSlug = (s) => (s && /^[a-zA-Z0-9_-]+$/.test(s)) ? s : '';
+  // Fallback slug from cookie (set before redirect to provider)
+  const parseCookie = (name) => {
+    const match = (req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : '';
+  };
+  const cookieSlug = sanitizeSlug(parseCookie('oauth_slug'));
   // Helper to build safe redirect (avoids //book protocol-relative URL when slug is empty)
-  const bookUrl = (qs) => slug ? `/${slug}/book?${qs}` : `/?${qs}`;
+  const bookUrl = (qs) => {
+    const s = slug || cookieSlug;
+    return s ? `/${s}/book?${qs}` : `/?${qs}`;
+  };
 
   try {
     if (error) {
@@ -164,13 +175,13 @@ async function handleCallback(provider, params, appleUserObj, res) {
     }
 
     if (!state || !code) {
-      return res.redirect(`/?oauth_error=${encodeURIComponent('Paramètres manquants')}`);
+      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Paramètres manquants')}`));
     }
 
     // Validate state
     const session = await oauthStates.get(state);
     if (!session) {
-      return res.redirect(`/?oauth_error=${encodeURIComponent('Session expirée, réessayez')}`);
+      return res.redirect(bookUrl(`oauth_error=${encodeURIComponent('Session expirée, réessayez')}`));
     }
 
     slug = sanitizeSlug(session.slug);
