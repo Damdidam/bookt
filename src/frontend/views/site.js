@@ -88,13 +88,23 @@ async function loadSiteSection(){
       <div style="padding:18px">
         <div class="fg"><label class="fl">Slogan / Tagline</label><input class="fi" id="siteTagline" value="${(b.tagline||'').replace(/"/g,'&quot;')}" placeholder="Ex: Votre santé, notre priorité depuis 2018"></div>
         <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${esc(b.description||'')}</textarea></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="fg"><label class="fl">Logo (URL)</label><input class="fi" id="siteLogo" value="${escAttr(b.logo_url)}" placeholder="https://..."></div>
-          <div class="fg"><label class="fl">Image de couverture (URL)</label><input class="fi" id="siteCover" value="${escAttr(b.cover_image_url)}" placeholder="https://..."></div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:4px">
-          ${b.logo_url?'<div style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+esc(b.logo_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
-          ${b.cover_image_url?'<div style="flex:1;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+esc(b.cover_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-top:8px">
+          <div>
+            <label class="fl" style="margin-bottom:8px;display:block">Logo</label>
+            <div id="logoDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'logo')" onclick="document.getElementById('logoFileInput').click()" style="width:100%;aspect-ratio:1;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
+              ${b.logo_url?'<img src="'+esc(b.logo_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Logo</div>'}
+              ${b.logo_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'logo\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+            </div>
+            <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp,image/svg+xml" style="display:none" onchange="handleBrandingFile(this.files[0],'logo')">
+          </div>
+          <div>
+            <label class="fl" style="margin-bottom:8px;display:block">Bannière / Couverture</label>
+            <div id="coverDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'cover')" onclick="document.getElementById('coverFileInput').click()" style="width:100%;aspect-ratio:16/6;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
+              ${b.cover_image_url?'<img src="'+esc(b.cover_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Bannière (recommandé 1200×400)</div>'}
+              ${b.cover_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'cover\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+            </div>
+            <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'cover')">
+          </div>
         </div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSiteContent()">Enregistrer</button></div>
@@ -693,14 +703,45 @@ async function saveSiteContent(){
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({
         tagline:document.getElementById('siteTagline').value.trim()||null,
-        description:document.getElementById('siteDescription').value.trim()||null,
-        logo_url:document.getElementById('siteLogo').value.trim()||null,
-        cover_image_url:document.getElementById('siteCover').value.trim()||null
+        description:document.getElementById('siteDescription').value.trim()||null
       })});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     GendaUI.toast('Contenu mis à jour','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
+
+async function handleBrandingFile(file,type){
+  if(!file)return;
+  const validTypes=type==='logo'?['image/jpeg','image/png','image/webp','image/svg+xml']:['image/jpeg','image/png','image/webp'];
+  if(!validTypes.includes(file.type)){GendaUI.toast('Format invalide','error');return;}
+  const maxSize=type==='logo'?1*1024*1024:2*1024*1024;
+  if(file.size>maxSize){GendaUI.toast(`Image trop lourde (max ${type==='logo'?'1':'2'} Mo)`,'error');return;}
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const zone=document.getElementById(type==='logo'?'logoDropZone':'coverDropZone');
+    zone.innerHTML='<div class="spinner" style="width:24px;height:24px"></div>';
+    try{
+      const r=await fetch('/api/business/upload-image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({photo:e.target.result,type})});
+      if(!r.ok){const d=await r.json();throw new Error(d.error);}
+      const d=await r.json();
+      GendaUI.toast(type==='logo'?'Logo mis à jour':'Bannière mise à jour','success');
+      loadSiteSection();
+    }catch(err){GendaUI.toast('Erreur: '+err.message,'error');loadSiteSection();}
+  };
+  reader.readAsDataURL(file);
+}
+window.handleBrandingFile=handleBrandingFile;
+
+async function deleteBrandingImage(type){
+  if(!confirm('Supprimer cette image ?'))return;
+  try{
+    const r=await fetch('/api/business/delete-image/'+type,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Image supprimée','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+window.deleteBrandingImage=deleteBrandingImage;
 
 async function saveSocialLinks(){
   try{

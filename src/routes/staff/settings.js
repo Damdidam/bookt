@@ -316,6 +316,76 @@ router.get('/public-link', async (req, res, next) => {
 });
 
 // ============================================================
+// POST /api/business/upload-image — Upload logo or cover image
+// ============================================================
+router.post('/upload-image', requireOwner, async (req, res, next) => {
+  try {
+    const { photo, type } = req.body; // type: 'logo' | 'cover'
+    if (!photo) return res.status(400).json({ error: 'Photo requise' });
+    if (!['logo', 'cover'].includes(type)) return res.status(400).json({ error: 'Type invalide (logo ou cover)' });
+
+    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp|svg\+xml);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG, WebP ou SVG)' });
+
+    const ext = match[1] === 'jpg' ? 'jpeg' : match[1] === 'svg+xml' ? 'svg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    const maxSize = type === 'logo' ? 1 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (buffer.length > maxSize) return res.status(400).json({ error: `Image trop lourde (max ${type === 'logo' ? '1' : '2'} Mo)` });
+
+    // Check quota
+    const { checkQuota } = require('../../services/storage-quota');
+    const quota = await checkQuota(req.businessId, buffer.length, queryWithRLS);
+    if (!quota.allowed) return res.status(413).json({ error: quota.message });
+
+    const fs = require('fs');
+    const path = require('path');
+    const uploadDir = path.join(__dirname, '../../../public/uploads/branding');
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    // Delete old file if local
+    const field = type === 'logo' ? 'logo_url' : 'cover_image_url';
+    const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+    if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
+      const oldPath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
+      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+      if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+    }
+
+    const filename = `${req.businessId}_${type}.${ext}`;
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+    const imageUrl = `/uploads/branding/${filename}?t=${Date.now()}`;
+
+    await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = $2 WHERE id = $1`, [req.businessId, imageUrl]);
+
+    res.json({ url: imageUrl });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// DELETE /api/business/delete-image — Remove logo or cover image
+// ============================================================
+router.delete('/delete-image/:type', requireOwner, async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    if (!['logo', 'cover'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
+
+    const field = type === 'logo' ? 'logo_url' : 'cover_image_url';
+    const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+
+    if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
+      const fs = require('fs');
+      const path = require('path');
+      const filePath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
+      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+      if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+    }
+
+    await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = NULL WHERE id = $1`, [req.businessId]);
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // PATCH /api/business/dev/plan — DEV ONLY: change plan for testing
 // ============================================================
 router.patch('/dev/plan', requireOwner, async (req, res, next) => {

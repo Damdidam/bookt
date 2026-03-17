@@ -206,6 +206,23 @@ img { max-width: 100%; display: block; }
 }
 .hero-ornament svg { flex-shrink: 0; }
 
+.hero-cover {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+  opacity: 0; transition: opacity .5s;
+}
+.hero-cover.active { opacity: .18; }
+.hero-cover::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, var(--bg));
+}
+
+.hero-logo {
+  width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 16px;
+  overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.1);
+  border: 3px solid rgba(255,255,255,.3);
+}
+.hero-logo img { width: 100%; height: 100%; object-fit: cover; }
+
 .hero-subtitle {
   font-size: 16px; color: var(--text-light); margin-bottom: 40px;
   line-height: 1.6; transition: color var(--transition);
@@ -763,7 +780,9 @@ img { max-width: 100%; display: block; }
     <div class="hero-blob hero-blob-2"></div>
     <div class="hero-blob hero-blob-3"></div>
   </div>
+  <div class="hero-cover" id="heroCover"></div>
   <div class="container">
+    <div class="hero-logo" id="heroLogo" style="display:none"></div>
     <p class="hero-label" id="heroLabel">&mdash;</p>
     <div class="hero-name-wrap">
       <h1 class="hero-name-inner" id="heroHeading">&mdash;</h1>
@@ -1241,6 +1260,19 @@ img { max-width: 100%; display: block; }
     document.getElementById('heroHeading').innerHTML = esc(b.name).replace(/(\S+)$/, '<span class="serif">$1</span>');
     document.getElementById('heroSubtitle').textContent = b.tagline || '';
     document.getElementById('heroBookBtn').href = bookUrl;
+
+    // Logo
+    if (b.logo_url) {
+      var logoEl = document.getElementById('heroLogo');
+      logoEl.innerHTML = '<img src="' + esc(b.logo_url) + '" alt="' + esc(b.name) + '">';
+      logoEl.style.display = '';
+    }
+    // Cover banner
+    if (b.cover_image_url) {
+      var coverEl = document.getElementById('heroCover');
+      coverEl.style.backgroundImage = 'url(' + esc(b.cover_image_url) + ')';
+      coverEl.classList.add('active');
+    }
 
     // About
     if (sec.about !== false && (b.description || b.cover_image_url)) {
