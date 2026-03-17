@@ -42,7 +42,7 @@ async function fcOpenDetail(bookingId) {
     const r = await fetch(`/api/bookings/${bookingId}/detail`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     if (!r.ok) throw new Error('RDV introuvable');
     const d = await r.json();
-    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [] };
+    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [], group_siblings: d.group_siblings || [] };
     const b = d.booking;
     calState.fcCurrentBooking = b;
     const isFreestyle = !b.service_name;
@@ -112,7 +112,9 @@ async function fcOpenDetail(bookingId) {
       acts.push('<button class="m-st-btn m-st-move" onclick="fcScrollToHoraire()">\u2195 D\u00e9placer</button>');
     }
     if (!['cancelled', 'no_show'].includes(b.status)) {
-      const isLocked = !!b.locked;
+      // For grouped bookings, check lock on ANY sibling (calendar shows lock if any member is locked)
+      const siblings = d.group_siblings || [];
+      const isLocked = !!b.locked || siblings.some(s => s.locked);
       acts.push(`<button class="m-st-btn m-st-lock${isLocked ? ' active' : ''}" onclick="fcToggleLockFromStrip()" id="mStripLockBtn" title="${isLocked ? 'Déverrouiller' : 'Verrouiller'}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>`);
     }
     document.getElementById('mStatusStrip').innerHTML = `
@@ -442,7 +444,9 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
-    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', custom_label: b.custom_label || '', color: b.color || '', _swatchColor: bookingColor, client_phone: b.client_phone || '', client_email: b.client_email || '', locked: !!b.locked };
+    const _grpSibs = calState.fcDetailData?.group_siblings || [];
+    const _effectiveLocked = !!b.locked || _grpSibs.some(s => s.locked);
+    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', custom_label: b.custom_label || '', color: b.color || '', _swatchColor: bookingColor, client_phone: b.client_phone || '', client_email: b.client_email || '', locked: _effectiveLocked };
     const dm = Math.round((groupEndDate - s) / 60000);
     document.querySelectorAll('.m-chip').forEach(c => c.classList.toggle('active', parseInt(c.textContent) === dm || ({ '1h': 60, '1h30': 90, '2h': 120 }[c.textContent.trim()] === dm)));
     document.getElementById('calEditDiff').style.display = 'none';
@@ -489,11 +493,14 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('uComment').value = b.comment_client || '';
 
     // -- Lock toggle (hidden input + bottom bar button) --
-    document.getElementById('calLocked').value = b.locked ? 'true' : 'false';
+    // For groups: locked if ANY sibling is locked (matches calendar badge logic)
+    const groupSiblings = calState.fcDetailData?.group_siblings || d.group_siblings || [];
+    const effectiveLocked = !!b.locked || groupSiblings.some(s => s.locked);
+    document.getElementById('calLocked').value = effectiveLocked ? 'true' : 'false';
     const lockBtn = document.getElementById('mBtnLock');
     if (lockBtn) {
-      lockBtn.classList.toggle('active', !!b.locked);
-      lockBtn.title = b.locked ? 'D\u00e9verrouiller' : 'Verrouiller';
+      lockBtn.classList.toggle('active', effectiveLocked);
+      lockBtn.title = effectiveLocked ? 'Déverrouiller' : 'Verrouiller';
       lockBtn.style.display = isFrozen ? 'none' : '';
     }
 
@@ -1131,19 +1138,28 @@ async function _toggleLockAndSave() {
   const bookingId = calState.fcCurrentEventId;
   if (!bookingId) return null;
   try {
+    // Lock/unlock this booking
     const r = await fetch(`/api/bookings/${bookingId}/edit`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ locked })
     });
     if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
+    // For grouped bookings, lock/unlock ALL siblings too
+    const siblings = calState.fcDetailData?.group_siblings || [];
+    for (const sib of siblings) {
+      if (sib.id === bookingId) continue;
+      await fetch(`/api/bookings/${sib.id}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ locked })
+      }).catch(() => {});
+    }
     if (hidden) hidden.value = locked ? 'true' : 'false';
-    // Update original so save won't re-send this field
     if (calState.fcEditOriginal) calState.fcEditOriginal.locked = locked;
-    // Update current booking data
     if (calState.fcCurrentBooking) calState.fcCurrentBooking.locked = locked;
     gToast(locked ? 'RDV verrouillé' : 'RDV déverrouillé', 'success');
-    fcRefresh(); // refresh calendar so editable flag updates
+    fcRefresh();
     return locked;
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
