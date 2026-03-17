@@ -114,6 +114,7 @@ async function openClientDetail(id){
     </div>`;
     m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Nom</label><input class="m-input" id="cl_name" value="${esc(cl.full_name||'')}"></div><div><label class="m-field-label">Téléphone</label><input class="m-input" id="cl_phone" value="${esc(cl.phone||'')}"></div></div>`;
     m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Email</label><input class="m-input" id="cl_email" value="${esc(cl.email||'')}"></div><div><label class="m-field-label">N° BCE</label><input class="m-input" id="cl_bce" value="${esc(cl.bce_number||'')}"></div></div>`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Anniversaire</label><input class="m-input" type="date" id="cl_birthday" value="${cl.birthday?cl.birthday.substring(0,10):''}"></div><div></div></div>`;
     m+=`<div><label class="m-field-label">Notes</label><textarea class="m-input" id="cl_notes">${esc(cl.notes||'')}</textarea></div>`;
 
     // ── Notes internes (from bookings) ──
@@ -161,28 +162,17 @@ async function openClientDetail(id){
     }
     m+=`</div>`;
 
-    // ── Session notes section ──
-    const sessionBookings = (d.bookings || []).filter(b => b.session_notes && b.session_notes.trim() && b.session_notes.trim() !== '<br>');
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes de séance${sessionBookings.length > 0 ? ' (' + sessionBookings.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
-    if (sessionBookings.length > 0) {
-      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
-      sessionBookings.forEach((sb, i) => {
-        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
-        const dt = new Date(sb.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
-        const sent = sb.session_notes_sent_at;
-        const badge = sent
-          ? '<span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:#1B7A42;background:#1B7A4212">Envoyé</span>'
-          : '<span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:#9C958E;background:#9C958E12">Brouillon</span>';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem;cursor:pointer" onclick="fcOpenDetail('${sb.id}')">
-          <span style="color:var(--text)">${sb.service_name || 'RDV'} du ${dt} · ${sb.practitioner_name || ''}</span>
-          ${badge}
-        </div>`;
-      });
-      m+=`</div>`;
-    } else {
-      m+=`<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--text-4)">Aucune note de séance</div>`;
-    }
-    m+=`</div>`;
+    // ── Remarques (rich text for staff) ──
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Remarques</span><span class="m-sec-line"></span></div>`;
+    m+=`<div style="border:1px solid var(--border-light);border-radius:8px;overflow:hidden">
+      <div id="cl_remarks_toolbar" style="display:flex;gap:2px;padding:4px 6px;background:var(--surface);border-bottom:1px solid var(--border-light)">
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-weight:700;font-size:.8rem" onclick="document.execCommand('bold')"><b>G</b></button>
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-style:italic;font-size:.8rem" onclick="document.execCommand('italic')"><i>I</i></button>
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.8rem" onclick="document.execCommand('underline')"><u>S</u></button>
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.8rem" onclick="document.execCommand('insertUnorderedList')">• Liste</button>
+      </div>
+      <div id="cl_remarks" contenteditable="true" style="min-height:80px;max-height:200px;overflow-y:auto;padding:8px 12px;font-size:.82rem;line-height:1.5;outline:none">${cl.remarks||''}</div>
+    </div></div>`;
 
     // ── Danger zone (subtle, bottom of m-body) ──
     if(!cl.is_blocked&&cl.no_show_count===0){
@@ -198,7 +188,10 @@ async function openClientDetail(id){
 
 async function saveClient(id){
   try{
-    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,is_vip:document.getElementById('cl_vip')?.checked||false})});
+    const remarkEl=document.getElementById('cl_remarks');
+    const remarksHtml=remarkEl?remarkEl.innerHTML.trim():'';
+    const bdayVal=document.getElementById('cl_birthday')?.value||null;
+    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,remarks:remarksHtml,birthday:bdayVal||null,is_vip:document.getElementById('cl_vip')?.checked||false})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' mis·e à jour','success');loadClients();

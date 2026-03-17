@@ -135,7 +135,7 @@ router.get('/:id', async (req, res, next) => {
     const bid = req.businessId;
 
     const client = await queryWithRLS(bid,
-      `SELECT id, business_id, full_name, phone, email, bce_number, notes,
+      `SELECT id, business_id, full_name, phone, email, bce_number, notes, remarks, birthday,
               consent_sms, consent_marketing, no_show_count, is_blocked,
               blocked_at, blocked_reason, last_no_show_at, is_vip,
               expired_pending_count, last_expired_pending_at,
@@ -189,8 +189,8 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
     let idx = 1;
 
     const fieldMap = { full_name: 'full_name', phone: 'phone', email: 'email',
-      bce_number: 'bce_number', notes: 'notes', consent_sms: 'consent_sms',
-      consent_marketing: 'consent_marketing', is_vip: 'is_vip' };
+      bce_number: 'bce_number', notes: 'notes', remarks: 'remarks', birthday: 'birthday',
+      consent_sms: 'consent_sms', consent_marketing: 'consent_marketing', is_vip: 'is_vip' };
     for (const [bodyKey, col] of Object.entries(fieldMap)) {
       if (bodyKey in req.body) {
         sets.push(`${col} = $${idx}`);
