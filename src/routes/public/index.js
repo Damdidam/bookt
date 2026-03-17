@@ -189,7 +189,7 @@ router.get('/:slug', async (req, res, next) => {
     const sections = biz.page_sections || {};
 
     // ===== PARALLEL QUERIES — all independent, run concurrently =====
-    const [pracResult, svcResult, specResult, testResult, valResult, galResult, newsResult, domainResult, hoursResult] = await Promise.all([
+    const [pracResult, svcResult, specResult, testResult, valResult, galResult, newsResult, reaResult, domainResult, hoursResult] = await Promise.all([
       // Practitioners + specializations
       query(
         `SELECT p.id, p.display_name, p.title, p.bio, p.photo_url, p.color,
@@ -241,6 +241,9 @@ router.get('/:slug', async (req, res, next) => {
       sections.news !== false
         ? query(`SELECT id, title, content, tag, tag_type, image_url, published_at FROM news_posts WHERE business_id = $1 AND is_active = true ORDER BY published_at DESC LIMIT 6`, [bid])
         : { rows: [] },
+      // Realisations
+      query(`SELECT id, title, description, category, image_url, before_url, after_url FROM realisations WHERE business_id = $1 AND is_active = true ORDER BY sort_order LIMIT 20`, [bid])
+        .catch(() => ({ rows: [] })),
       // Custom domain
       query(`SELECT domain, verification_status FROM custom_domains WHERE business_id = $1 AND verification_status = 'ssl_active'`, [bid]),
       // Hours: prefer business_schedule (salon-level), fallback to practitioner availabilities
@@ -285,6 +288,7 @@ router.get('/:slug', async (req, res, next) => {
     const values = valResult.rows;
     const gallery = galResult.rows;
     const news = newsResult.rows;
+    const realisations = reaResult.rows;
 
     // ===== NEXT AVAILABLE SLOT (depends on svcResult) =====
     let nextSlot = null;
@@ -402,6 +406,7 @@ router.get('/:slug', async (req, res, next) => {
       testimonials,
       values,
       gallery,
+      realisations,
       news,
       hours,
       sector_categories: sectorCatsResult.rows,

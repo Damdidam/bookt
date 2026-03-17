@@ -38,6 +38,7 @@ const depositRoutes = require('./routes/staff/deposits');
 const calendarRoutes = require('./routes/staff/calendar');
 const waitlistRoutes = require('./routes/staff/waitlist');
 const galleryRoutes = require('./routes/staff/gallery');
+const realisationsRoutes = require('./routes/staff/realisations');
 const newsRoutes = require('./routes/staff/news');
 const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
@@ -66,7 +67,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "https://api.stripe.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      frameSrc: ["https://js.stripe.com", "https://maps.google.com"],
+      frameSrc: ["https://js.stripe.com", "https://maps.google.com", "https://www.google.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"]
     }
@@ -181,6 +182,7 @@ app.use('/api/deposits', depositRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/gallery', galleryRoutes);
+app.use('/api/realisations', realisationsRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/featured-slots', featuredSlotsRoutes);
@@ -281,8 +283,25 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n  Genda server running on port ${PORT}`);
+
+  // Auto-migrate: ensure new tables exist
+  try {
+    const { query: dbQuery } = require('./services/db');
+    await dbQuery(`CREATE TABLE IF NOT EXISTS realisations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+      title TEXT, description TEXT, category TEXT,
+      image_url TEXT, before_url TEXT, after_url TEXT,
+      sort_order INT DEFAULT 0, is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await dbQuery(`CREATE INDEX IF NOT EXISTS idx_realisations_biz ON realisations (business_id, sort_order)`);
+    console.log('  ✓ Auto-migrate: realisations table ready');
+  } catch (e) {
+    console.warn('  ⚠ Auto-migrate warning:', e.message);
+  }
   console.log(`  <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Dashboard: http://localhost:${PORT}`);
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
