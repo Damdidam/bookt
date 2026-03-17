@@ -14,7 +14,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * Lock is visual-only (cadenas in booking modal).
  * Staff can always move/resize bookings — kept for API compat.
  */
-function isBookingLocked() {
+function isBookingLocked(booking) {
+  if (booking.locked) return { locked: true, reason: 'RDV verrouillé — déverrouillez-le d\'abord via la fiche' };
   return { locked: false };
 }
 

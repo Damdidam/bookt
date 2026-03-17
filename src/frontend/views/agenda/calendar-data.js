@@ -13,9 +13,9 @@ const DEFAULT_ACCENT = '#0D7377';
 
 // ── Move restriction helper ──
 
-function isEventLocked() {
-  // Lock is visual-only (cadenas in booking modal) — never blocks drag/resize
-  return false;
+function isEventLocked(b) {
+  // Locked bookings block drag/resize — staff must unlock via modal first
+  return !!b.locked;
 }
 
 // ── Pure helpers ──
