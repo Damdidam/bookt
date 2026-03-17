@@ -1087,19 +1087,17 @@ function fcScrollToHoraire() {
   }, 400);
 }
 
-function fcToggleLockFromStrip() {
-  const hidden = document.getElementById('calLocked');
-  const wasLocked = hidden?.value === 'true';
-  if (hidden) hidden.value = wasLocked ? 'false' : 'true';
-  const locked = !wasLocked;
+async function fcToggleLockFromStrip() {
+  const locked = await _toggleLockAndSave();
+  if (locked === null) return;
   const btn = document.getElementById('mStripLockBtn');
   if (btn) {
     btn.classList.toggle('active', locked);
-    btn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller';
+    btn.title = locked ? 'Déverrouiller' : 'Verrouiller';
     btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 ${locked ? '10 0v4' : '9.9 0 1 1 2.1 1.4'}"/></svg>`;
   }
   const bottomBtn = document.getElementById('mBtnLock');
-  if (bottomBtn) { bottomBtn.classList.toggle('active', locked); bottomBtn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller'; }
+  if (bottomBtn) { bottomBtn.classList.toggle('active', locked); bottomBtn.title = locked ? 'Déverrouiller' : 'Verrouiller'; }
 }
 
 // ── Accordion toggle ──
@@ -1109,18 +1107,47 @@ function fcToggleAccordion(id) {
 }
 
 // ── Lock toggle from bottom bar ──
-function fcToggleLockFromBottom() {
-  const hidden = document.getElementById('calLocked');
-  const wasLocked = hidden?.value === 'true';
-  if (hidden) hidden.value = wasLocked ? 'false' : 'true';
-  const locked = !wasLocked;
+async function fcToggleLockFromBottom() {
+  const locked = await _toggleLockAndSave();
+  if (locked === null) return;
   const btn = document.getElementById('mBtnLock');
-  if (btn) { btn.classList.toggle('active', locked); btn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller'; }
+  if (btn) { btn.classList.toggle('active', locked); btn.title = locked ? 'Déverrouiller' : 'Verrouiller'; }
   const stripBtn = document.getElementById('mStripLockBtn');
   if (stripBtn) {
     stripBtn.classList.toggle('active', locked);
-    stripBtn.title = locked ? 'D\u00e9verrouiller' : 'Verrouiller';
+    stripBtn.title = locked ? 'Déverrouiller' : 'Verrouiller';
     stripBtn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 ${locked ? '10 0v4' : '9.9 0 1 1 2.1 1.4'}"/></svg>`;
+  }
+}
+
+/**
+ * Shared lock toggle: PATCH to API immediately + refresh calendar.
+ * Returns the new locked state, or null on error.
+ */
+async function _toggleLockAndSave() {
+  const hidden = document.getElementById('calLocked');
+  const wasLocked = hidden?.value === 'true';
+  const locked = !wasLocked;
+  const bookingId = calState.fcCurrentEventId;
+  if (!bookingId) return null;
+  try {
+    const r = await fetch(`/api/bookings/${bookingId}/edit`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ locked })
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
+    if (hidden) hidden.value = locked ? 'true' : 'false';
+    // Update original so save won't re-send this field
+    if (calState.fcEditOriginal) calState.fcEditOriginal.locked = locked;
+    // Update current booking data
+    if (calState.fcCurrentBooking) calState.fcCurrentBooking.locked = locked;
+    gToast(locked ? 'RDV verrouillé' : 'RDV déverrouillé', 'success');
+    fcRefresh(); // refresh calendar so editable flag updates
+    return locked;
+  } catch (e) {
+    gToast('Erreur: ' + e.message, 'error');
+    return null;
   }
 }
 
