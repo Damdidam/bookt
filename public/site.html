@@ -309,10 +309,12 @@ img { max-width: 100%; display: block; }
 .service-category:last-child { margin-bottom: 0; }
 
 .category-label {
-  font-size: 11px; font-weight: 600; letter-spacing: 3px;
-  text-transform: uppercase; color: var(--text-light);
-  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  font-size: 12px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--accent);
+  padding: 10px 14px; border-bottom: 2px solid var(--accent);
   margin-bottom: 0; transition: color var(--transition), border-color var(--transition);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
+  border-radius: 8px 8px 0 0;
 }
 .category-desc {
   font-size: 13px; color: var(--text-light); line-height: 1.5;
