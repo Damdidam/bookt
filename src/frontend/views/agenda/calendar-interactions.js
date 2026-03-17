@@ -44,25 +44,24 @@ function _hideDragTooltip() {
 }
 
 /**
- * Resolve target date + time from cursor position using elementsFromPoint.
- * Finds the FC timegrid column (date) and slot row (time) under the cursor.
+ * Resolve target date + time from cursor position.
+ * Scans all FC timegrid columns (by bounding rect) for date,
+ * and all slot rows for time — no elementsFromPoint needed.
  */
 function _resolveSlotFromCursor(x, y) {
-  // Temporarily hide drag tooltip so it doesn't block elementsFromPoint
-  if (_dragTT) _dragTT.style.display = 'none';
-  const els = document.elementsFromPoint(x, y);
-  if (_dragTT) _dragTT.style.display = '';
-
-  // Find date from column
+  // Find date: scan all visible timegrid columns by their bounding rect
   let dateStr = null;
-  for (const el of els) {
-    const col = el.closest('.fc-timegrid-col[data-date]');
-    if (col) { dateStr = col.getAttribute('data-date'); break; }
+  const cols = document.querySelectorAll('.fc-timegrid-col[data-date]');
+  for (const col of cols) {
+    const cr = col.getBoundingClientRect();
+    if (x >= cr.left && x <= cr.right) {
+      dateStr = col.getAttribute('data-date');
+      break;
+    }
   }
   if (!dateStr) return null;
 
-  // Find time from slot lane — get the slot row under cursor
-  // FC slots: <tr data-time="HH:MM:SS"> inside .fc-timegrid-slots
+  // Find time: scan slot rows by bounding rect
   const slotsEl = document.querySelector('.fc-timegrid-slots');
   if (!slotsEl) return null;
   const slots = slotsEl.querySelectorAll('tr[data-time]');
@@ -71,13 +70,12 @@ function _resolveSlotFromCursor(x, y) {
   let bestTime = null, slotTop = 0, slotHeight = 0;
   for (const slot of slots) {
     const sr = slot.getBoundingClientRect();
-    if (sr.top <= y && sr.bottom >= y) {
+    if (y >= sr.top && y <= sr.bottom) {
       bestTime = slot.getAttribute('data-time');
       slotTop = sr.top;
       slotHeight = sr.height;
       break;
     }
-    // Track last slot above cursor (for edge cases)
     if (sr.top <= y) {
       bestTime = slot.getAttribute('data-time');
       slotTop = sr.top;
@@ -91,7 +89,6 @@ function _resolveSlotFromCursor(x, y) {
   let h = parseInt(parts[0]), m = parseInt(parts[1]);
 
   if (slotHeight > 0) {
-    // Determine slot duration from adjacent slots
     const allTimes = Array.from(slots).map(s => s.getAttribute('data-time'));
     const idx = allTimes.indexOf(bestTime);
     let slotMinutes = 30;
