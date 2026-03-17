@@ -974,6 +974,20 @@ img { max-width: 100%; display: block; }
   <div class="lightbox-counter" id="lightboxCounter"></div>
 </div>
 
+<!-- NEWS MODAL -->
+<div id="newsModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);padding:24px;overflow-y:auto" onclick="if(event.target===this)closeNewsModal()">
+  <div style="max-width:680px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;position:relative;box-shadow:0 24px 48px rgba(0,0,0,.15)">
+    <button onclick="closeNewsModal()" style="position:absolute;top:12px;right:12px;z-index:1;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">&times;</button>
+    <img id="newsModalImg" src="" style="width:100%;max-height:300px;object-fit:cover;display:none">
+    <div style="padding:32px">
+      <div id="newsModalTag" style="display:none;margin-bottom:12px"></div>
+      <h2 id="newsModalTitle" style="font-size:22px;font-weight:700;margin-bottom:8px"></h2>
+      <p id="newsModalDate" style="font-size:13px;color:var(--text-light);margin-bottom:24px;opacity:.7"></p>
+      <div id="newsModalContent" style="font-size:15px;line-height:1.8;color:var(--text-dark);white-space:pre-line"></div>
+    </div>
+  </div>
+</div>
+
 <!-- STICKY CTA (mobile) -->
 <div class="sticky-cta" id="stickyCta">
   <a href="#" class="btn-solid sticky-cta-btn" id="stickyCtaBtn">R&eacute;server</a>
@@ -1149,6 +1163,21 @@ img { max-width: 100%; display: block; }
   window.closeLightbox = function() {
     document.getElementById('lightbox').classList.remove('active');
     document.body.style.overflow = '';
+  };
+  window.openNews = function(idx) {
+    var n = window._newsData && window._newsData[idx]; if (!n) return;
+    var m = document.getElementById('newsModal');
+    var img = document.getElementById('newsModalImg');
+    if (n.image_url) { img.src = n.image_url; img.style.display = ''; } else { img.style.display = 'none'; }
+    var tag = document.getElementById('newsModalTag');
+    if (n.tag) { tag.innerHTML = '<span class="news-tag">' + esc(n.tag) + '</span>'; tag.style.display = ''; } else { tag.style.display = 'none'; }
+    document.getElementById('newsModalTitle').textContent = n.title || '';
+    document.getElementById('newsModalDate').textContent = n.published_at ? new Date(n.published_at).toLocaleDateString('fr-BE', {day:'numeric', month:'long', year:'numeric'}) : '';
+    document.getElementById('newsModalContent').textContent = n.content || '';
+    m.style.display = ''; document.body.style.overflow = 'hidden';
+  };
+  window.closeNewsModal = function() {
+    document.getElementById('newsModal').style.display = 'none'; document.body.style.overflow = '';
   };
   window.navLightbox = function(dir) {
     if (!window._galleryImages) return;
@@ -1542,8 +1571,9 @@ img { max-width: 100%; display: block; }
     if (d.news && d.news.length > 0) {
       document.getElementById('news').style.display = '';
       var nH = '';
-      d.news.forEach(function(n) {
-        nH += '<div class="news-card">';
+      window._newsData = d.news;
+      d.news.forEach(function(n, idx) {
+        nH += '<div class="news-card" style="cursor:pointer" onclick="openNews(' + idx + ')">';
         if (n.image_url) nH += '<img class="news-img" src="' + esc(n.image_url) + '" alt="' + esc(n.title) + '" loading="lazy">';
         nH += '<div class="news-body">';
         if (n.tag) nH += '<span class="news-tag">' + esc(n.tag) + '</span>';
@@ -1552,6 +1582,7 @@ img { max-width: 100%; display: block; }
         if (n.published_at) {
           nH += '<div class="news-date">' + new Date(n.published_at).toLocaleDateString('fr-BE', {day:'numeric', month:'long', year:'numeric'}) + '</div>';
         }
+        if (n.content && n.content.length > 120) nH += '<div style="margin-top:12px;font-size:13px;color:var(--accent);font-weight:600">Lire la suite &rarr;</div>';
         nH += '</div></div>';
       });
       document.getElementById('newsGrid').innerHTML = nH;
