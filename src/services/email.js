@@ -247,7 +247,7 @@ ${safePreheader ? `<span style="display:none!important;font-size:1px;color:#fff;
   </div>` : ''}
   ${cancelText && cancelUrl ? `
   <div style="text-align:center;margin:${safeCta ? '0' : '28px'} 0 8px">
-    <a href="${escHtml(cancelUrl)}" style="display:inline-block;padding:12px 28px;background:#fff;color:#C62828;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;border:2px solid #E57373">${escHtml(cancelText)}</a>
+    <a href="${escHtml(cancelUrl)}" style="display:inline-block;padding:12px 28px;background:#fff;color:#3D3832;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;border:2px solid #D0CDC8">${escHtml(cancelText)}</a>
   </div>` : ''}
 </td></tr>
 
@@ -324,15 +324,15 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     </div>
     <p style="font-size:12px;color:#9C958E;text-align:center">Si vous ne r\u00e9pondez pas, le nouveau cr\u00e9neau sera automatiquement confirm\u00e9.</p>`;
 
-  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
   const html = buildEmailHTML({
     title: isMulti ? 'Modification de vos prestations' : 'Modification de votre rendez-vous',
     preheader: `Nouveau cr\u00e9neau : ${newDate} \u00e0 ${newTime}`,
     bodyHTML,
     businessName: business.name,
     primaryColor: color,
-    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
-    cancelUrl,
+    cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
+    cancelUrl: manageUrl,
     footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
   });
 
@@ -418,8 +418,8 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     bodyHTML,
     ctaText: null,
     ctaUrl: null,
-    cancelText: hasPublicToken ? 'Annuler mon rendez-vous' : null,
-    cancelUrl: hasPublicToken ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null,
+    cancelText: hasPublicToken ? 'Gérer mon rendez-vous' : null,
+    cancelUrl: hasPublicToken ? `${baseUrl}/booking/${booking.public_token}` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
@@ -490,7 +490,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     </div>
     <p style="font-size:13px;color:#92700C;margin-top:8px">${_ic('hourglass-amb', 16, 16)} Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
 
-  const cancelUrl = `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking`;
+  const manageUrl = `${baseUrl}/booking/${booking.public_token}`;
 
   const html = buildEmailHTML({
     title: 'Confirmez votre rendez-vous',
@@ -498,8 +498,8 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     bodyHTML,
     ctaText: 'Confirmer mon rendez-vous',
     ctaUrl: confirmUrl,
-    cancelText: 'Annuler mon rendez-vous',
-    cancelUrl,
+    cancelText: 'Gérer mon rendez-vous',
+    cancelUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${business.name}${business.address ? ' \u00b7 ' + business.address : ''} \u00b7 Via Genda.be`
@@ -662,7 +662,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
-  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
 
   const html = buildEmailHTML({
     title: 'Acompte requis pour votre rendez-vous',
@@ -670,8 +670,8 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     bodyHTML,
     ctaText: `Payer ${amtStr} \u20ac en ligne`,
     ctaUrl: directPayUrl,
-    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
-    cancelUrl,
+    cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
+    cancelUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
@@ -766,7 +766,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
-  const cancelUrl = booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null;
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
 
   const html = buildEmailHTML({
     title: 'Rappel : acompte en attente',
@@ -774,8 +774,8 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     bodyHTML,
     ctaText: `Payer ${amtStr} \u20ac maintenant`,
     ctaUrl: directPayUrl,
-    cancelText: cancelUrl ? 'Annuler mon rendez-vous' : null,
-    cancelUrl,
+    cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
+    cancelUrl: manageUrl,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' \u00b7 ' + escHtml(business.address) : ''} \u00b7 Via Genda.be`
@@ -861,8 +861,8 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     bodyHTML,
     ctaText: null,
     ctaUrl: null,
-    cancelText: booking.public_token ? 'Annuler mon rendez-vous' : null,
-    cancelUrl: booking.public_token ? `${baseUrl}/api/public/booking/${booking.public_token}/cancel-booking` : null,
+    cancelText: booking.public_token ? 'Gérer mon rendez-vous' : null,
+    cancelUrl: booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null,
     businessName: business.name,
     primaryColor: color,
     footerText: `${safeBizName}${business.address ? ' · ' + escHtml(business.address) : ''} · Via Genda.be`
@@ -1083,4 +1083,63 @@ async function sendReviewRequestEmail({ booking, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send reschedule confirmation email to client (after self-reschedule).
+ * Shows old vs new time.
+ */
+async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, oldEndAt }) {
+  if (!booking.client_email) return;
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const color = safeColor(business.settings?.theme?.primary_color || business.settings?.primaryColor);
+  const serviceName = booking.service_name || 'Prestation';
+  const pracName = booking.practitioner_name || '';
+
+  const fmtDate = (iso) => new Date(iso).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+
+  const oldDate = fmtDate(oldStartAt);
+  const oldTime = fmtTime(oldStartAt);
+  const oldEndTime = fmtTime(oldEndAt);
+  const newDate = fmtDate(booking.start_at);
+  const newTime = fmtTime(booking.start_at);
+  const newEndTime = fmtTime(booking.end_at);
+
+  const bodyHTML = `
+    <p>Bonjour ${escHtml(booking.client_name || '')},</p>
+    <p>Votre rendez-vous a bien été déplacé.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0">
+      <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#9C958E;font-size:13px;text-transform:uppercase;letter-spacing:.4px">Ancien créneau</td></tr>
+      <tr><td style="padding:4px 0;color:#9C958E;text-decoration:line-through">${oldDate}</td><td style="padding:4px 0;color:#9C958E;text-decoration:line-through">${oldTime} – ${oldEndTime}</td></tr>
+      <tr><td colspan="2" style="padding:12px 0 8px;font-weight:600;color:${color};font-size:13px;text-transform:uppercase;letter-spacing:.4px">Nouveau créneau</td></tr>
+      <tr><td style="padding:4px 0;font-weight:600">${newDate}</td><td style="padding:4px 0;font-weight:600">${newTime} – ${newEndTime}</td></tr>
+    </table>
+    <div style="background:#F5F4F1;border-radius:8px;padding:12px 16px;margin:16px 0">
+      <table style="width:100%;border-collapse:collapse">
+        <tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>
+        <tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>
+      </table>
+    </div>`;
+
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
+  const html = buildEmailHTML({
+    title: 'Rendez-vous déplacé',
+    preheader: `Votre RDV a été déplacé au ${newDate} à ${newTime}`,
+    bodyHTML,
+    businessName: business.name,
+    primaryColor: color,
+    cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
+    cancelUrl: manageUrl,
+    footerText: `${business.name} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: booking.client_email,
+    toName: booking.client_name,
+    subject: `Rendez-vous déplacé — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, sendRescheduleConfirmationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

@@ -355,6 +355,29 @@ async function loadSettings(){
     h+=`</div>`;
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveMoveSettings()">Enregistrer</button></div></div>`;
 
+    // 3c-ter. Modification par le client (reschedule)
+    const reschOn=!!(b.settings?.reschedule_enabled);
+    const reschDeadline=b.settings?.reschedule_deadline_hours||24;
+    const reschMax=b.settings?.reschedule_max_count||1;
+    const reschWindow=b.settings?.reschedule_window_days||30;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M14 14l2 2-2 2"/></svg> Modification par le client</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Permettez à vos clients de déplacer eux-mêmes leur rendez-vous via le lien dans l'email de confirmation.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Autoriser la modification</div><div style="font-size:.75rem;color:var(--text-4)">Le client peut changer la date/heure de son RDV depuis son email</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_reschedule_enabled" ${reschOn?'checked':''} onchange="document.getElementById('rescheduleOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${reschOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${reschOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="rescheduleOptions" style="display:${reschOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Délai minimum avant le RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Modification possible jusqu'à</span><input type="number" id="s_reschedule_deadline" value="${reschDeadline}" min="1" max="720" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures avant le RDV</span></div><div class="hint">Passé ce délai, le client ne pourra plus modifier</div></div>`;
+    h+=`<div class="field"><label>Nombre max de modifications</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Le client peut modifier</span><input type="number" id="s_reschedule_max" value="${reschMax}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">fois maximum</span></div></div>`;
+    h+=`<div class="field"><label>Fenêtre de choix</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Le client peut choisir un créneau dans les</span><input type="number" id="s_reschedule_window" value="${reschWindow}" min="7" max="90" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">jours à venir</span></div></div>`;
+    h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les RDV verrouillés ne peuvent pas être modifiés par le client. Les acomptes restent attachés au RDV déplacé.</div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveRescheduleSettings()">Enregistrer</button></div></div>`;
+
     // 3b. Confirmation de réservation en ligne
     const confOn=!!b.settings?.booking_confirmation_required;
     const confTimeout=b.settings?.booking_confirmation_timeout_min||30;
@@ -772,6 +795,27 @@ async function saveMoveSettings(){
       calState.fcBusinessSettings.move_grace_hours=data.settings_move_grace_hours;
     }
     GendaUI.toast('Paramètres de déplacement enregistrés','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveRescheduleSettings(){
+  try{
+    const data={
+      settings_reschedule_enabled:document.getElementById('s_reschedule_enabled').checked,
+      settings_reschedule_deadline_hours:parseInt(document.getElementById('s_reschedule_deadline')?.value)||24,
+      settings_reschedule_max_count:parseInt(document.getElementById('s_reschedule_max')?.value)||1,
+      settings_reschedule_window_days:parseInt(document.getElementById('s_reschedule_window')?.value)||30
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.reschedule_enabled=data.settings_reschedule_enabled;
+    freshBiz.settings.reschedule_deadline_hours=data.settings_reschedule_deadline_hours;
+    freshBiz.settings.reschedule_max_count=data.settings_reschedule_max_count;
+    freshBiz.settings.reschedule_window_days=data.settings_reschedule_window_days;
+    api.setBusiness(freshBiz);
+    GendaUI.toast('Paramètres de modification client enregistrés','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 

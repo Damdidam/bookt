@@ -141,7 +141,7 @@ async function process24hReminders(stats) {
       // EMAIL 24h
       if (reminderEmailEnabled && bk.client_email) {
         const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
-        const cancelUrl = `${baseUrl}/api/public/booking/${bk.public_token}/cancel-booking`;
+        const manageUrl24 = `${baseUrl}/booking/${bk.public_token}`;
         const html = buildEmailHTML({
           title: 'Rappel de votre rendez-vous',
           preheader: `RDV ${startLocal} chez ${bk.business_name}`,
@@ -159,9 +159,9 @@ async function process24hReminders(stats) {
             <p style="font-size:13px;color:#9C958E;margin-top:16px">Besoin de modifier ou annuler ? Utilisez le bouton ci-dessous.</p>
           `,
           ctaText: 'Gérer mon rendez-vous',
-          ctaUrl: manageUrl,
-          cancelText: 'Annuler mon rendez-vous',
-          cancelUrl,
+          ctaUrl: manageUrl24,
+          cancelText: null,
+          cancelUrl: null,
           footerText: `${bk.business_name} — Rendez-vous géré via Genda.be`
         });
 
@@ -288,7 +288,6 @@ async function process2hReminders(stats) {
       if (emailEnabled && bk.client_email) {
         const baseUrl2h = process.env.APP_BASE_URL || 'https://genda.be';
         const manageUrl2h = `${baseUrl2h}/booking/${bk.public_token}`;
-        const cancelUrl2h = `${baseUrl2h}/api/public/booking/${bk.public_token}/cancel-booking`;
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
@@ -300,8 +299,8 @@ async function process2hReminders(stats) {
             bodyHTML: `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p>À bientôt !</p>`,
             ctaText: 'Gérer mon rendez-vous',
             ctaUrl: manageUrl2h,
-            cancelText: 'Annuler mon rendez-vous',
-            cancelUrl: cancelUrl2h
+            cancelText: null,
+            cancelUrl: null
           }),
           fromName: bk.business_name
         });

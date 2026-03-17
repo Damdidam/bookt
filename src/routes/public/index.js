@@ -1798,6 +1798,410 @@ router.get('/booking/:token', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/public/manage/:token
+// Booking details + reschedule eligibility
+// ============================================================
+router.get('/manage/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+              b.comment_client, b.public_token, b.created_at, b.group_id,
+              b.locked, b.reschedule_count, b.business_id,
+              b.service_id, b.service_variant_id, b.practitioner_id,
+              b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              s.category AS service_category,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+              s.color AS service_color,
+              p.display_name AS practitioner_name, p.title AS practitioner_title,
+              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
+              biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
+              biz.email AS business_email, biz.address AS business_address,
+              biz.settings AS business_settings, biz.theme AS business_theme,
+              biz.category AS business_category, biz.sector AS business_sector
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+    const bk = result.rows[0];
+    const settings = bk.business_settings || {};
+
+    // Cancellation (same logic as GET /booking/:token)
+    const cancelWindowHours = settings.cancel_deadline_hours ?? settings.cancellation_window_hours ?? 24;
+    const cancelDeadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+    const canCancel = bk.status === 'pending' || ((['confirmed', 'pending_deposit'].includes(bk.status)) && new Date() < cancelDeadline);
+
+    // Reschedule eligibility
+    const reschEnabled = !!settings.reschedule_enabled;
+    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
+    const reschMaxCount = settings.reschedule_max_count ?? 1;
+    const reschWindowDays = settings.reschedule_window_days ?? 30;
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+    const now = new Date();
+
+    let reschAllowed = true;
+    let reschReason = null;
+    if (!reschEnabled) { reschAllowed = false; reschReason = null; } // feature off — hide section
+    else if (!['confirmed', 'pending_deposit'].includes(bk.status)) { reschAllowed = false; reschReason = 'Le rendez-vous ne peut pas être modifié dans son état actuel.'; }
+    else if (bk.locked) { reschAllowed = false; reschReason = 'Ce rendez-vous est verrouillé. Contactez le salon.'; }
+    else if ((bk.reschedule_count || 0) >= reschMaxCount) { reschAllowed = false; reschReason = 'Nombre maximum de modifications atteint. Contactez le salon.'; }
+    else if (now >= reschDeadline) { reschAllowed = false; reschReason = `Le délai de modification (${reschDeadlineHours}h avant) est dépassé.`; }
+    else if (new Date(bk.start_at) <= now) { reschAllowed = false; reschReason = 'Ce rendez-vous est déjà passé.'; }
+
+    // Group members
+    let groupServices = null;
+    let groupEndAt = null;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at
+         FROM bookings b
+         LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        groupServices = grp.rows.map(r => ({ name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color }));
+        groupEndAt = grp.rows[grp.rows.length - 1].end_at;
+      }
+    }
+
+    const serviceInfo = groupServices
+      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
+      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
+
+    res.json({
+      booking: {
+        id: bk.id, token: bk.public_token,
+        start_at: bk.start_at, end_at: groupEndAt || bk.end_at, status: bk.status,
+        appointment_mode: bk.appointment_mode, comment: bk.comment_client,
+        created_at: bk.created_at,
+        deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
+        deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
+        service: serviceInfo,
+        practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
+        client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
+      },
+      business: {
+        name: bk.business_name, slug: bk.business_slug,
+        phone: bk.business_phone, email: bk.business_email,
+        address: bk.business_address, theme: bk.business_theme,
+        category_labels: getCategoryLabels(bk.business_category),
+        practitioner_label: SECTOR_PRACTITIONER[bk.business_sector] || 'Praticien·ne'
+      },
+      cancellation: {
+        allowed: canCancel,
+        deadline: cancelDeadline.toISOString(),
+        window_hours: cancelWindowHours,
+        policy_text: settings.cancel_policy_text || null,
+        reason: !canCancel && ['confirmed', 'pending_deposit'].includes(bk.status) ? 'Délai d\'annulation dépassé' : null
+      },
+      reschedule: {
+        enabled: reschEnabled,
+        allowed: reschAllowed,
+        reason: reschReason,
+        count: bk.reschedule_count || 0,
+        max_count: reschMaxCount,
+        deadline: reschDeadline.toISOString(),
+        window_days: reschWindowDays,
+        service_id: bk.service_id,
+        practitioner_id: bk.practitioner_id,
+        variant_id: bk.service_variant_id,
+        duration_min: bk.duration_min,
+        appointment_mode: bk.appointment_mode
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/public/manage/:token/slots?date=YYYY-MM-DD
+// Available slots for client reschedule
+// ============================================================
+router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { date } = req.query;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Paramètre date requis (YYYY-MM-DD)' });
+
+    // Lookup booking
+    const result = await query(
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.locked, b.reschedule_count,
+              b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
+              b.appointment_mode,
+              biz.settings AS business_settings
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+    const bk = result.rows[0];
+    const settings = bk.business_settings || {};
+
+    // Re-check eligibility
+    const reschEnabled = !!settings.reschedule_enabled;
+    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
+    const reschMaxCount = settings.reschedule_max_count ?? 1;
+    const reschWindowDays = settings.reschedule_window_days ?? 30;
+    const now = new Date();
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+
+    if (!reschEnabled) return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' });
+    if (!['confirmed', 'pending_deposit'].includes(bk.status)) return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' });
+    if (bk.locked) return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' });
+    if ((bk.reschedule_count || 0) >= reschMaxCount) return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' });
+    if (now >= reschDeadline) return res.status(403).json({ error: 'Le délai de modification est dépassé.' });
+
+    // Validate date range
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000).toISOString().slice(0, 10);
+    if (date < today || date > maxDate) return res.status(400).json({ error: `Date hors de la fenêtre autorisée (${reschWindowDays} jours).` });
+
+    // Fetch available slots using existing slot engine
+    const slots = await getAvailableSlots({
+      businessId: bk.business_id,
+      serviceId: bk.service_id,
+      practitionerId: bk.practitioner_id,
+      dateFrom: date,
+      dateTo: date,
+      appointmentMode: bk.appointment_mode,
+      variantId: bk.service_variant_id || undefined
+    });
+
+    // Filter out the booking's current slot (so client doesn't see it)
+    const bkStart = new Date(bk.start_at).toISOString();
+    const filtered = slots.filter(s => s.start_at !== bkStart);
+
+    res.json({
+      date,
+      slots: filtered.map(s => ({
+        start_time: s.start_time,
+        end_time: s.end_time,
+        start_at: s.start_at,
+        end_at: s.end_at
+      }))
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/public/manage/:token/reschedule
+// Client self-reschedule — move booking to new time
+// ============================================================
+router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { token } = req.params;
+    const { start_at, end_at } = req.body;
+    if (!start_at || !end_at) return res.status(400).json({ error: 'start_at et end_at requis' });
+
+    const newStart = new Date(start_at);
+    const newEnd = new Date(end_at);
+    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) return res.status(400).json({ error: 'Dates invalides' });
+    if (newEnd <= newStart) return res.status(400).json({ error: 'end_at doit être après start_at' });
+    if (newStart <= new Date()) return res.status(400).json({ error: 'Le créneau doit être dans le futur' });
+
+    await client.query('BEGIN');
+
+    // Lock booking
+    const result = await client.query(
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.locked, b.reschedule_count,
+              b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
+              b.group_id, b.client_id, b.appointment_mode, b.public_token,
+              b.deposit_status, b.deposit_deadline,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              biz.settings AS business_settings,
+              biz.slug AS business_slug
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1
+       FOR UPDATE OF b SKIP LOCKED`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Rendez-vous introuvable ou en cours de modification' });
+    }
+
+    const bk = result.rows[0];
+    const settings = bk.business_settings || {};
+    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
+    const reschMaxCount = settings.reschedule_max_count ?? 1;
+    const reschWindowDays = settings.reschedule_window_days ?? 30;
+    const now = new Date();
+
+    // Eligibility checks
+    if (!settings.reschedule_enabled) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' }); }
+    if (!['confirmed', 'pending_deposit'].includes(bk.status)) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' }); }
+    if (bk.locked) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' }); }
+    if ((bk.reschedule_count || 0) >= reschMaxCount) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' }); }
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+    if (now >= reschDeadline) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Le délai de modification est dépassé.' }); }
+
+    // Validate date within window
+    const today = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000);
+    if (newStart > maxDate) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Le créneau doit être dans les ${reschWindowDays} prochains jours.` }); }
+
+    // Same slot check
+    if (newStart.getTime() === new Date(bk.start_at).getTime()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'C\'est déjà votre créneau actuel.' }); }
+
+    // Deposit deadline check for approaching dates
+    const oldStart = new Date(bk.start_at);
+    const delta = newStart.getTime() - oldStart.getTime();
+    if (bk.deposit_status === 'pending' && delta < 0) {
+      const dlHours = settings.deposit_deadline_hours ?? 48;
+      const newDeadline = new Date(newStart.getTime() - dlHours * 3600000);
+      if (newDeadline <= new Date(Date.now() + 3600000)) { // < now + 1h
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Impossible de rapprocher la date : le délai de paiement de l\'acompte serait dépassé. Contactez le salon.' });
+      }
+    }
+
+    // Practitioner availability
+    const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
+    if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
+
+    // Conflict check (exclude current booking)
+    const conflicts = await checkBookingConflicts(client, {
+      businessId: bk.business_id,
+      practitionerId: bk.practitioner_id,
+      startAt: start_at,
+      endAt: end_at,
+      excludeBookingId: bk.id,
+      serviceId: bk.service_id
+    });
+    if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
+    // --- Execute reschedule ---
+    if (bk.group_id) {
+      // Group move: shift all members by the same delta
+      const members = await client.query(
+        `SELECT id, start_at, end_at FROM bookings
+         WHERE group_id = $1 AND business_id = $2
+         ORDER BY group_order, start_at
+         FOR UPDATE SKIP LOCKED`,
+        [bk.group_id, bk.business_id]
+      );
+
+      for (const m of members.rows) {
+        const mNewStart = new Date(new Date(m.start_at).getTime() + delta);
+        const mNewEnd = new Date(new Date(m.end_at).getTime() + delta);
+        await client.query(
+          `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, updated_at = NOW()
+           WHERE id = $3`,
+          [mNewStart.toISOString(), mNewEnd.toISOString(), m.id]
+        );
+      }
+    } else {
+      // Single booking
+      await client.query(
+        `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, updated_at = NOW()
+         WHERE id = $3`,
+        [start_at, end_at, bk.id]
+      );
+    }
+
+    // Deposit deadline shift
+    if (bk.deposit_deadline && bk.deposit_status === 'pending') {
+      let newDeadline;
+      if (delta < 0) {
+        // Approaching: recalculate from new start
+        const dlHours = settings.deposit_deadline_hours ?? 48;
+        newDeadline = new Date(newStart.getTime() - dlHours * 3600000);
+      } else {
+        // Pushing out: shift proportionally
+        newDeadline = new Date(new Date(bk.deposit_deadline).getTime() + delta);
+      }
+      // Floor: at least now + 1h
+      const minDeadline = new Date(Date.now() + 3600000);
+      if (newDeadline < minDeadline) newDeadline = minDeadline;
+
+      const updateIds = bk.group_id
+        ? (await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2`, [bk.group_id, bk.business_id])).rows.map(r => r.id)
+        : [bk.id];
+      for (const uid of updateIds) {
+        await client.query(`UPDATE bookings SET deposit_deadline = $1 WHERE id = $2`, [newDeadline.toISOString(), uid]);
+      }
+    }
+
+    // Audit log
+    await client.query(
+      `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, user_id, details)
+       VALUES ($1, 'booking', $2, 'client_reschedule', $3, $4)`,
+      [bk.business_id, bk.id, bk.client_id, JSON.stringify({
+        old_start_at: bk.start_at, old_end_at: bk.end_at,
+        new_start_at: start_at, new_end_at: end_at,
+        reschedule_count: (bk.reschedule_count || 0) + 1,
+        group: !!bk.group_id
+      })]
+    );
+
+    await client.query('COMMIT');
+
+    // Post-commit: SSE broadcast
+    try { broadcast(bk.business_id, 'booking_update', { action: 'rescheduled', bookingId: bk.id, source: 'client' }); } catch (_) {}
+
+    // Post-commit: send confirmation email (async, non-blocking)
+    (async () => {
+      try {
+        const { sendRescheduleConfirmationEmail } = require('../../services/email');
+        const bkData = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category, COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS business_name, biz.slug AS business_slug, biz.settings
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           JOIN practitioners p ON p.id = b.practitioner_id LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
+        );
+        if (bkData.rows.length) {
+          const r = bkData.rows[0];
+          await sendRescheduleConfirmationEmail({
+            booking: r,
+            business: { name: r.business_name, slug: r.business_slug, settings: r.settings },
+            oldStartAt: bk.start_at, oldEndAt: bk.end_at
+          });
+        }
+      } catch (emailErr) { console.error('[RESCHEDULE] Email error:', emailErr.message); }
+    })();
+
+    // Post-commit: queue practitioner notification
+    try {
+      await query(
+        `INSERT INTO notifications (id, business_id, booking_id, type, status, created_at)
+         VALUES (uuid_generate_v4(), $1, $2, 'email_reschedule_pro', 'queued', NOW())`,
+        [bk.business_id, bk.id]
+      );
+    } catch (_) {}
+
+    res.json({ rescheduled: true, booking: { start_at, end_at } });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// ============================================================
 // POST /api/public/deposit/:token/checkout
 // Create Stripe Checkout Session for deposit payment
 // ============================================================

@@ -90,6 +90,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_reviews_enabled, settings_review_delay_hours, settings_review_auto_publish,
       // Minisite template
       settings_minisite_template,
+      // Client reschedule
+      settings_reschedule_enabled, settings_reschedule_deadline_hours,
+      settings_reschedule_max_count, settings_reschedule_window_days,
       // Sector
       sector
     } = req.body;
@@ -119,7 +122,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_default_calendar_view !== undefined
         || settings_payment_methods !== undefined
         || settings_reviews_enabled !== undefined || settings_review_delay_hours !== undefined || settings_review_auto_publish !== undefined
-        || settings_minisite_template !== undefined) {
+        || settings_minisite_template !== undefined
+        || settings_reschedule_enabled !== undefined || settings_reschedule_deadline_hours !== undefined
+        || settings_reschedule_max_count !== undefined || settings_reschedule_window_days !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -192,6 +197,11 @@ router.patch('/', requireOwner, async (req, res, next) => {
         const validTemplates = ['funky', 'epure', 'bold'];
         cur.minisite_template = validTemplates.includes(settings_minisite_template) ? settings_minisite_template : 'funky';
       }
+      // Client reschedule
+      if (settings_reschedule_enabled !== undefined) cur.reschedule_enabled = !!settings_reschedule_enabled;
+      if (settings_reschedule_deadline_hours !== undefined) { const _v = parseInt(settings_reschedule_deadline_hours); cur.reschedule_deadline_hours = (_v >= 1 && _v <= 720) ? _v : 24; }
+      if (settings_reschedule_max_count !== undefined) { const _v = parseInt(settings_reschedule_max_count); cur.reschedule_max_count = (_v >= 1 && _v <= 10) ? _v : 1; }
+      if (settings_reschedule_window_days !== undefined) { const _v = parseInt(settings_reschedule_window_days); cur.reschedule_window_days = (_v >= 7 && _v <= 90) ? _v : 30; }
       mergedSettings = cur;
     }
 
