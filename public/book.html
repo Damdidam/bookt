@@ -17,7 +17,8 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text!important;user-
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--primary-soft:#D5EFEC;--primary-border:#B8DDD9;--green:#1B7A42;--green-bg:#EEFAF1;--gold:#A68B3C;--gold-bg:#FAF6EC;--red:#DC2626;--red-bg:#FEF2F2;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--shadow:0 2px 8px rgba(0,0,0,.05);--radius:14px;--radius-sm:10px;--radius-xs:6px}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;opacity:0;transition:opacity .2s ease}
+body.themed{opacity:1}
 .page{max-width:560px;margin:0 auto;padding:20px 20px 40px}
 .page.wide{max-width:740px}
 
@@ -833,6 +834,7 @@ function initPage(){
   // Apply full theme from preset
   var preset=b.theme?.preset||'epure_nude';
   applyBookingTheme(preset);
+  document.body.classList.add('themed');
   // Custom primary_color override takes precedence
   if(b.theme?.primary_color){
     document.documentElement.style.setProperty('--primary',b.theme.primary_color);
