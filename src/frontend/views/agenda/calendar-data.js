@@ -13,18 +13,8 @@ const DEFAULT_ACCENT = '#0D7377';
 
 // ── Move restriction helper ──
 
-function isEventLocked(b) {
-  if (b.locked) return true;
-  if (b.deposit_required) return true;
-  const settings = calState.fcBusinessSettings || {};
-  if (!settings.move_restriction_enabled) return false;
-  const now = Date.now();
-  const start = new Date(b.start_at).getTime();
-  const created = new Date(b.created_at).getTime();
-  const deadlineMs = (settings.move_deadline_hours ?? 48) * 3600000;
-  const graceMs = (settings.move_grace_hours ?? 0) * 3600000;
-  if (graceMs > 0 && (now - created) <= graceMs) return false;
-  if ((start - now) < deadlineMs) return true;
+function isEventLocked() {
+  // Lock is visual-only (cadenas in booking modal) — never blocks drag/resize
   return false;
 }
 

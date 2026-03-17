@@ -11,20 +11,10 @@ const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurr
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Evaluate if a booking is locked (manual lock, deposit, or time-based restriction).
- * Returns { locked: true, reason } or { locked: false }.
+ * Lock is visual-only (cadenas in booking modal).
+ * Staff can always move/resize bookings — kept for API compat.
  */
-function isBookingLocked(booking, bizSettings) {
-  if (booking.locked) return { locked: true, reason: 'Ce RDV est verrouillé' };
-  if (booking.deposit_required) return { locked: true, reason: 'Ce RDV a un acompte et ne peut pas être déplacé' };
-  if (!bizSettings?.move_restriction_enabled) return { locked: false };
-  const now = new Date();
-  const start = new Date(booking.start_at);
-  const created = new Date(booking.created_at);
-  const deadlineH = bizSettings.move_deadline_hours ?? 48;
-  const graceH = bizSettings.move_grace_hours ?? 0;
-  if (graceH > 0 && (now - created) <= graceH * 3600000) return { locked: false };
-  if ((start - now) < deadlineH * 3600000) return { locked: true, reason: `Ce RDV ne peut plus être déplacé (moins de ${deadlineH}h avant l'échéance)` };
+function isBookingLocked() {
   return { locked: false };
 }
 
@@ -148,9 +138,7 @@ router.patch('/:id/move', async (req, res, next) => {
     if (IMMUTABLE.includes(old.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
-    const bizRow = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
-    const bizSettings = bizRow.rows[0]?.settings || {};
-    const lockCheck = isBookingLocked(old.rows[0], bizSettings);
+    const lockCheck = isBookingLocked(old.rows[0]);
     if (lockCheck.locked) {
       return res.status(400).json({ error: lockCheck.reason });
     }
@@ -708,9 +696,7 @@ router.patch('/:id/resize', async (req, res, next) => {
     if (IMMUTABLE_RESIZE.includes(current.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
-    const bizRowResize = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
-    const bizSettingsResize = bizRowResize.rows[0]?.settings || {};
-    const lockCheckResize = isBookingLocked(current.rows[0], bizSettingsResize);
+    const lockCheckResize = isBookingLocked(current.rows[0]);
     if (lockCheckResize.locked) {
       return res.status(400).json({ error: lockCheckResize.reason });
     }
@@ -840,9 +826,7 @@ router.patch('/:id/modify', async (req, res, next) => {
     if (IMMUTABLE_MOD.includes(old.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
-    const bizRowMod = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
-    const bizSettingsMod = bizRowMod.rows[0]?.settings || {};
-    const lockCheckMod = isBookingLocked(old.rows[0], bizSettingsMod);
+    const lockCheckMod = isBookingLocked(old.rows[0]);
     if (lockCheckMod.locked) {
       return res.status(400).json({ error: lockCheckMod.reason });
     }
