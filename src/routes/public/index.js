@@ -4788,7 +4788,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        JOIN businesses biz ON biz.id = b.business_id
-       WHERE b.public_token = $1 FOR UPDATE`,
+       WHERE b.public_token = $1 FOR UPDATE OF b`,
       [token]
     );
     if (bkRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Rendez-vous introuvable' }); }
