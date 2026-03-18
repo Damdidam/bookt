@@ -8,6 +8,7 @@
 
 const { query, pool } = require('./db');
 const { broadcast } = require('./sse');
+const { refundGiftCardForBooking } = require('./gift-card-refund');
 
 /**
  * Process expired pending-deposit bookings.
@@ -60,6 +61,9 @@ async function processExpiredDeposits() {
           [bk.group_id, bk.id]
         );
       }
+
+      // Refund any gift card debits
+      await refundGiftCardForBooking(bk.id, client);
 
       // Audit log — deposit expired
       await client.query(

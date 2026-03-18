@@ -5,6 +5,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete } = require('./bookings-helpers');
+const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
 const TRANSITIONS = {
@@ -441,6 +442,11 @@ router.patch('/:id/status', async (req, res, next) => {
               [newDepStatus, id, bid]
             );
             if (newDepStatus === 'refunded') depositRefunded = true;
+
+            // Refund gift card debits if deposit cancelled/refunded
+            if (newDepStatus === 'cancelled' || newDepStatus === 'refunded') {
+              await refundGiftCardForBooking(id, client);
+            }
 
             // Bug H6 + B4 + M7 fix: Update sibling deposits, handle both paid and pending
             if (old.rows[0].group_id) {
@@ -889,6 +895,9 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
           }
         }
       }
+
+      // Refund gift card debits
+      await refundGiftCardForBooking(id, client);
 
       await client.query(
         `UPDATE bookings SET deposit_status = 'refunded', status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
