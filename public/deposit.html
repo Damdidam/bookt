@@ -216,8 +216,6 @@ function render(d) {
     }
     html += `</div></div>`;
 
-    // Auto-check for gift cards linked to client email
-    checkClientGiftCards(bk.deposit_amount_cents);
   }
 
   document.getElementById('cardContent').innerHTML = html;
@@ -226,6 +224,11 @@ function render(d) {
   // Start countdown if pending + deadline
   if (depStatus === 'pending' && bk.deposit_deadline) {
     startCountdown(new Date(bk.deposit_deadline));
+  }
+
+  // Auto-check for gift cards AFTER DOM is ready
+  if (depStatus === 'pending') {
+    checkClientGiftCards(bk.deposit_amount_cents);
   }
 }
 
