@@ -136,6 +136,32 @@ async function openClientDetail(id){
       m+=`</div></div>`;
     }
 
+    // ── Gift cards section ──
+    const gcs = d.gift_cards || [];
+    if (gcs.length > 0) {
+      const totalBalance = gcs.reduce((s, g) => s + (g.status === 'active' ? g.balance_cents : 0), 0);
+      m += `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">🎁 Cartes cadeau${totalBalance > 0 ? ' · <span style="color:#1B7A42;font-weight:700">' + (totalBalance/100).toFixed(2) + ' €</span>' : ''}</span><span class="m-sec-line"></span></div>`;
+      m += `<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden">`;
+      gcs.forEach((g, i) => {
+        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
+        const bal = (g.balance_cents / 100).toFixed(2);
+        const orig = (g.amount_cents / 100).toFixed(2);
+        const exp = g.expires_at ? new Date(g.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        const active = g.status === 'active' && g.balance_cents > 0;
+        m += `<div style="padding:8px 12px;background:${bg};font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <span style="font-weight:600;font-family:monospace;letter-spacing:.5px">${g.code}</span>
+            <span style="font-size:.72rem;color:var(--text-4);margin-left:6px">exp. ${exp}</span>
+          </div>
+          <div style="text-align:right">
+            <span style="font-weight:700;color:${active?'#1B7A42':'var(--text-4)'}">${bal} €</span>
+            ${g.balance_cents < g.amount_cents ? '<span style="font-size:.7rem;color:var(--text-4);margin-left:4px;text-decoration:line-through">' + orig + ' €</span>' : ''}
+          </div>
+        </div>`;
+      });
+      m += `</div></div>`;
+    }
+
     // ── Historique section (inside m-body, scrollable) ──
     const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888',pending_deposit:'#B45309'};
     const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente',pending_deposit:'Acompte requis'};

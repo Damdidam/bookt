@@ -173,7 +173,22 @@ router.get('/:id', async (req, res, next) => {
 
     const bookings = await queryWithRLS(bid, bkSql, bkParams);
 
-    res.json({ client: client.rows[0], bookings: bookings.rows });
+    // Gift card balances for this client
+    const email = client.rows[0].email;
+    let giftCards = [];
+    if (email) {
+      const gcRes = await queryWithRLS(bid,
+        `SELECT id, code, amount_cents, balance_cents, status, expires_at, created_at
+         FROM gift_cards
+         WHERE business_id = $1 AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
+           AND status IN ('active', 'used')
+         ORDER BY created_at DESC`,
+        [bid, email]
+      );
+      giftCards = gcRes.rows;
+    }
+
+    res.json({ client: client.rows[0], bookings: bookings.rows, gift_cards: giftCards });
   } catch (err) {
     next(err);
   }

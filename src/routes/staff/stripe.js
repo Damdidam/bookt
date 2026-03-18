@@ -449,10 +449,31 @@ async function handleStripeWebhook(req, res) {
               [gc.rows[0].id, bizId, amountCents]
             );
 
+            const giftCard = gc.rows[0];
+
+            // Auto-create recipient as client if not exists
+            if (giftCard.recipient_email) {
+              try {
+                const existingClient = await query(
+                  `SELECT id FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2)`,
+                  [bizId, giftCard.recipient_email]
+                );
+                if (existingClient.rows.length === 0) {
+                  await query(
+                    `INSERT INTO clients (id, business_id, full_name, email, source, created_at, updated_at)
+                     VALUES (gen_random_uuid(), $1, $2, $3, 'gift_card', NOW(), NOW())`,
+                    [bizId, giftCard.recipient_name || giftCard.recipient_email.split('@')[0], giftCard.recipient_email]
+                  );
+                  console.log(`[GIFT-CARD] Auto-created client for ${giftCard.recipient_email}`);
+                }
+              } catch (clientErr) {
+                console.error('[GIFT-CARD] Auto-create client failed:', clientErr.message);
+              }
+            }
+
             // Send emails
             if (biz) {
               const { sendGiftCardEmail, sendGiftCardReceiptEmail } = require('../../services/email');
-              const giftCard = gc.rows[0];
 
               if (giftCard.recipient_email) {
                 await sendGiftCardEmail({ giftCard, business: biz }).catch(e =>
