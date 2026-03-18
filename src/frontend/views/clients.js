@@ -175,7 +175,7 @@ async function openClientDetail(id){
         const depTag = b.deposit_required ? (() => {
           const dc = {paid:'#15803D',refunded:'#1D4ED8',cancelled:'#DC2626',pending:'#B45309'}[b.deposit_status] || '#888';
           const dl = {paid:'Payé',refunded:'Remboursé',cancelled:'Conservé',pending:'En attente'}[b.deposit_status] || '';
-          return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(0)}\u20ac ${dl}</span>`;
+          return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(2).replace('.',',')}\u20ac ${dl}</span>`;
         })() : '';
         const createdDt=b.created_at?new Date(b.created_at):null;
         const createdStr=createdDt?createdDt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'';
