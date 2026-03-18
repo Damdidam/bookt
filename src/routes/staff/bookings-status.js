@@ -527,7 +527,7 @@ router.patch('/:id/status', async (req, res, next) => {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.client_id, b.group_id,
-                  b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
+                  b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -556,7 +556,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -568,7 +568,7 @@ router.patch('/:id/status', async (req, res, next) => {
     if (txResult.depositRefunded) {
       try {
         const emailData = await queryWithRLS(bid,
-          `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.client_id, b.group_id,
+          `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_payment_intent_id, b.client_id, b.group_id,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -595,7 +595,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendDepositRefundEmail } = require('../../services/email');
           sendDepositRefundEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
@@ -956,7 +956,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
     // Send refund confirmation email to client (non-blocking)
     try {
       const emailData = await queryWithRLS(bid,
-        `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.client_id, b.group_id,
+        `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_payment_intent_id, b.client_id, b.group_id,
                 c.full_name AS client_name, c.email AS client_email,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                 s.category AS service_category,
@@ -983,7 +983,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
-          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
+          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
           business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));

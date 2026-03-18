@@ -920,13 +920,31 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
 
+  // Determine refund method: gift card, stripe, or mixed
+  const isGcPaid = booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('gc_');
+  const gcCode = isGcPaid ? booking.deposit_payment_intent_id.replace('gc_', '') : null;
+
+  let refundBanner = '';
+  if (isGcPaid) {
+    // 100% gift card — instant refund to GC balance
+    refundBanner = `
+    <div style="background:#FFF8E1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:15px;font-weight:600;color:#5D4037;margin-bottom:4px">\u{1F381} Acompte de ${amtStr}\u00a0\u20ac rembours\u00e9 sur votre carte cadeau</div>
+      <div style="font-size:14px;color:#8D6E63">Le solde a \u00e9t\u00e9 recr\u00e9dit\u00e9 sur votre carte ${gcCode}.</div>
+    </div>`;
+  } else {
+    // 100% Stripe — bank refund delay
+    refundBanner = `
+    <div style="background:#EFF6FF;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #60A5FA">
+      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">${_ic('refund')} Acompte de ${amtStr}\u00a0\u20ac rembours\u00e9</div>
+      <div style="font-size:14px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
+    </div>`;
+  }
+
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre acompte a \u00e9t\u00e9 rembours\u00e9 suite \u00e0 l'annulation de votre rendez-vous.</p>
-    <div style="background:#EFF6FF;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #60A5FA">
-      <div style="font-size:15px;font-weight:600;color:#1D4ED8;margin-bottom:4px">${_ic('refund')} Acompte de ${amtStr} \u20ac rembours\u00e9</div>
-      <div style="font-size:14px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
-    </div>
+    ${refundBanner}
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Rendez-vous annul\u00e9</div>
       <div style="font-size:14px;color:#3D3832">${_ic('calendar-dk')} ${dateStr}</div>
@@ -996,13 +1014,24 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const depositRetained = wasPaid && booking.deposit_status === 'cancelled';
   const depAmtStr = hadDeposit ? ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',') : '';
 
+  const isGcDeposit = booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('gc_');
+  const cancelGcCode = isGcDeposit ? booking.deposit_payment_intent_id.replace('gc_', '') : null;
+
   let depositHTML = '';
   if (depositRefunded) {
-    depositHTML = `
+    if (isGcDeposit) {
+      depositHTML = `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmtStr}\u00a0\u20ac recr\u00e9dit\u00e9 sur votre carte cadeau</div>
+      <div style="font-size:13px;color:#8D6E63;margin-top:4px">Le solde a \u00e9t\u00e9 recr\u00e9dit\u00e9 sur votre carte ${cancelGcCode}.</div>
+    </div>`;
+    } else {
+      depositHTML = `
     <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
-      <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} Acompte de ${depAmtStr} \u20ac rembours\u00e9</div>
+      <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} Acompte de ${depAmtStr}\u00a0\u20ac rembours\u00e9</div>
       <div style="font-size:13px;color:#15803D;margin-top:4px">Votre acompte vous sera restitu\u00e9 sous quelques jours ouvrables.</div>
     </div>`;
+    }
   } else if (depositRetained) {
     const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
     depositHTML = `
