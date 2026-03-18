@@ -1117,15 +1117,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               clientIsVip = !!nsRow.rows[0]?.is_vip;
             }
 
+            let gcPartialCents = 0;
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
               const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
               if (hoursUntilRdv >= dlHours) {
-                // Check for gift card auto-debit
                 // Check for gift card auto-debit (full or partial)
                 let gcAutoPaid = false;
-                let gcPartialCents = 0;
                 if (client_email) {
                   try {
                     const gcRes = await client.query(
@@ -1623,6 +1622,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             clientIsVip = !!nsRow.rows[0]?.is_vip;
           }
 
+          let gcPartialCents = 0;
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
           if (depResult.required) {
             const dlHours = bizSettings.deposit_deadline_hours ?? 48;
@@ -1631,7 +1631,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (hoursUntilRdv >= dlHours) {
               // Check for gift card auto-debit (full or partial)
               let gcAutoPaid = false;
-              let gcPartialCents = 0;
               if (client_email) {
                 try {
                   const gcRes = await client.query(
