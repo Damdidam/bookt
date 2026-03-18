@@ -1123,20 +1123,23 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
               if (hoursUntilRdv >= dlHours) {
                 // Check for gift card auto-debit
+                // Check for gift card auto-debit (full or partial)
                 let gcAutoPaid = false;
+                let gcPartialCents = 0;
                 if (client_email) {
                   try {
                     const gcRes = await client.query(
                       `SELECT id, code, balance_cents FROM gift_cards
-                       WHERE business_id = $1 AND status = 'active' AND balance_cents >= $2
+                       WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
                          AND (LOWER(recipient_email) = LOWER($3) OR LOWER(buyer_email) = LOWER($3))
                          AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY balance_cents ASC LIMIT 1`,
+                       ORDER BY balance_cents DESC LIMIT 1`,
                       [businessId, depResult.depCents, client_email]
                     );
                     if (gcRes.rows.length > 0) {
                       const gc = gcRes.rows[0];
-                      const newBal = gc.balance_cents - depResult.depCents;
+                      const gcDebit = Math.min(gc.balance_cents, depResult.depCents);
+                      const newBal = gc.balance_cents - gcDebit;
                       await client.query(
                         `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
                         [newBal, newBal === 0 ? 'used' : 'active', gc.id]
@@ -1144,31 +1147,39 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                       await client.query(
                         `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
                          VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
-                        [gc.id, businessId, bookings[0].id, depResult.depCents, `Acompte auto — carte ${gc.code}`]
+                        [gc.id, businessId, bookings[0].id, gcDebit, `Acompte auto — carte ${gc.code}`]
                       );
-                      await client.query(
-                        `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
-                          deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
-                          deposit_payment_intent_id = $2
-                         WHERE id = $3 AND business_id = $4`,
-                        [depResult.depCents, `gc_${gc.code}`, bookings[0].id, businessId]
-                      );
-                      bookings[0].deposit_required = true;
-                      bookings[0].deposit_amount_cents = depResult.depCents;
-                      bookings[0].deposit_status = 'paid';
-                      bookings[0].deposit_payment_intent_id = `gc_${gc.code}`;
-                      if (bookings.length > 1) {
-                        const otherIds = bookings.slice(1).map(b => b.id);
+
+                      if (gcDebit >= depResult.depCents) {
+                        // Fully covered by GC
                         await client.query(
-                          `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
-                            deposit_paid_at = NOW(), locked = true, deposit_amount_cents = $3,
-                            deposit_payment_intent_id = $4
-                           WHERE id = ANY($1) AND business_id = $2`,
-                          [otherIds, businessId, depResult.depCents, `gc_${gc.code}`]
+                          `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                            deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
+                            deposit_payment_intent_id = $2
+                           WHERE id = $3 AND business_id = $4`,
+                          [depResult.depCents, `gc_${gc.code}`, bookings[0].id, businessId]
                         );
+                        bookings[0].deposit_required = true;
+                        bookings[0].deposit_amount_cents = depResult.depCents;
+                        bookings[0].deposit_status = 'paid';
+                        bookings[0].deposit_payment_intent_id = `gc_${gc.code}`;
+                        if (bookings.length > 1) {
+                          const otherIds = bookings.slice(1).map(b => b.id);
+                          await client.query(
+                            `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
+                              deposit_paid_at = NOW(), locked = true, deposit_amount_cents = $3,
+                              deposit_payment_intent_id = $4
+                             WHERE id = ANY($1) AND business_id = $2`,
+                            [otherIds, businessId, depResult.depCents, `gc_${gc.code}`]
+                          );
+                        }
+                        gcAutoPaid = true;
+                        console.log(`[DEPOSIT] Multi fully auto-paid via gift card ${gc.code} (${gcDebit}c), balance: ${newBal}c`);
+                      } else {
+                        // Partial — GC deducted, remaining goes to pending_deposit for Stripe
+                        gcPartialCents = gcDebit;
+                        console.log(`[DEPOSIT] Multi partial auto-debit via gift card ${gc.code}: ${gcDebit}c of ${depResult.depCents}c, remaining ${depResult.depCents - gcDebit}c via Stripe, GC balance: ${newBal}c`);
                       }
-                      gcAutoPaid = true;
-                      console.log(`[DEPOSIT] Multi auto-paid via gift card ${gc.code} (${depResult.depCents}c), balance: ${newBal}c`);
                     }
                   } catch (gcErr) {
                     console.error('[DEPOSIT] Multi gift card auto-debit failed:', gcErr.message);
@@ -1241,10 +1252,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           console.error('Notification insert failed:', notifErr.message);
         }
 
-        return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel };
+        return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
       });
 
-      const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel } = multiResult;
+      const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel, gcPartialCents: multiGcPartial } = multiResult;
 
       broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
       // H1: calSyncPush for each created booking
@@ -1265,7 +1276,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               client_name, client_email,
               service_category: multiServices[0]?.category || null,
               practitioner_name: pracRow.rows[0]?.display_name || '',
-              comment: client_comment
+              comment: client_comment,
+              gc_partial_cents: multiGcPartial || 0
             };
             const groupSvcs = multiServices.map(s => ({ name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
 
@@ -1617,21 +1629,23 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
             // Skip deposit if RDV is within the deadline window
             if (hoursUntilRdv >= dlHours) {
-              // Check for gift card auto-debit
+              // Check for gift card auto-debit (full or partial)
               let gcAutoPaid = false;
+              let gcPartialCents = 0;
               if (client_email) {
                 try {
                   const gcRes = await client.query(
                     `SELECT id, code, balance_cents FROM gift_cards
-                     WHERE business_id = $1 AND status = 'active' AND balance_cents >= $2
+                     WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
                        AND (LOWER(recipient_email) = LOWER($3) OR LOWER(buyer_email) = LOWER($3))
                        AND (expires_at IS NULL OR expires_at > NOW())
-                     ORDER BY balance_cents ASC LIMIT 1`,
+                     ORDER BY balance_cents DESC LIMIT 1`,
                     [businessId, depResult.depCents, client_email]
                   );
                   if (gcRes.rows.length > 0) {
                     const gc = gcRes.rows[0];
-                    const newBal = gc.balance_cents - depResult.depCents;
+                    const gcDebit = Math.min(gc.balance_cents, depResult.depCents);
+                    const newBal = gc.balance_cents - gcDebit;
                     await client.query(
                       `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
                       [newBal, newBal === 0 ? 'used' : 'active', gc.id]
@@ -1639,22 +1653,29 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                     await client.query(
                       `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
                        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
-                      [gc.id, businessId, booking.rows[0].id, depResult.depCents, `Acompte auto — carte ${gc.code}`]
+                      [gc.id, businessId, booking.rows[0].id, gcDebit, `Acompte auto — carte ${gc.code}`]
                     );
-                    // Mark deposit as paid via gift card
-                    await client.query(
-                      `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
-                        deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
-                        deposit_payment_intent_id = $2
-                       WHERE id = $3 AND business_id = $4`,
-                      [depResult.depCents, `gc_${gc.code}`, booking.rows[0].id, businessId]
-                    );
-                    booking.rows[0].deposit_required = true;
-                    booking.rows[0].deposit_amount_cents = depResult.depCents;
-                    booking.rows[0].deposit_status = 'paid';
-                    booking.rows[0].deposit_payment_intent_id = `gc_${gc.code}`;
-                    gcAutoPaid = true;
-                    console.log(`[DEPOSIT] Auto-paid via gift card ${gc.code} (${depResult.depCents}c), balance: ${newBal}c`);
+
+                    if (gcDebit >= depResult.depCents) {
+                      // Fully covered by GC
+                      await client.query(
+                        `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                          deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
+                          deposit_payment_intent_id = $2
+                         WHERE id = $3 AND business_id = $4`,
+                        [depResult.depCents, `gc_${gc.code}`, booking.rows[0].id, businessId]
+                      );
+                      booking.rows[0].deposit_required = true;
+                      booking.rows[0].deposit_amount_cents = depResult.depCents;
+                      booking.rows[0].deposit_status = 'paid';
+                      booking.rows[0].deposit_payment_intent_id = `gc_${gc.code}`;
+                      gcAutoPaid = true;
+                      console.log(`[DEPOSIT] Fully auto-paid via gift card ${gc.code} (${gcDebit}c), balance: ${newBal}c`);
+                    } else {
+                      // Partial — GC deducted, remaining goes to pending_deposit for Stripe
+                      gcPartialCents = gcDebit;
+                      console.log(`[DEPOSIT] Partial auto-debit via gift card ${gc.code}: ${gcDebit}c of ${depResult.depCents}c, remaining ${depResult.depCents - gcDebit}c via Stripe, GC balance: ${newBal}c`);
+                    }
                   }
                 } catch (gcErr) {
                   console.error('[DEPOSIT] Gift card auto-debit failed:', gcErr.message);
@@ -1715,10 +1736,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         console.error('Notification insert failed:', notifErr.message);
       }
 
-      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel };
+      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
     });
 
-    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel } = result;
+    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial } = result;
 
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
     // H1: calSyncPush for created booking
@@ -1747,7 +1768,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             service_name: svcName,
             service_category: svcCategory,
             practitioner_name: pracRow.rows[0]?.display_name || '',
-            comment: client_comment
+            comment: client_comment,
+            gc_partial_cents: resultGcPartial || 0
           };
           if (createdBooking.status === 'pending_deposit') {
             // Deposit auto-triggered: send deposit request email (payment serves as confirmation)

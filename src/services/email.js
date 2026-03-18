@@ -618,7 +618,12 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   const timeStr = fmtTimeBrussels(booking.start_at);
   const realEnd = getRealEndAt(booking, groupServices);
   const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
-  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const totalDepCents = booking.deposit_amount_cents || 0;
+  const gcPartialCents = booking.gc_partial_cents || 0;
+  const remainingCents = totalDepCents - gcPartialCents;
+  const amtStr = (totalDepCents / 100).toFixed(2).replace('.', ',');
+  const remainStr = gcPartialCents > 0 ? (remainingCents / 100).toFixed(2).replace('.', ',') : amtStr;
+  const gcPartialStr = gcPartialCents > 0 ? (gcPartialCents / 100).toFixed(2).replace('.', ',') : null;
   const deadlineStr = booking.deposit_deadline
     ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
         timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
@@ -660,7 +665,8 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
-      <div style="font-size:24px;font-weight:800;color:#1A1816">${amtStr} \u20ac</div>
+      <div style="font-size:24px;font-weight:800;color:#1A1816">${remainStr}\u00a0\u20ac</div>
+      ${gcPartialStr ? `<div style="font-size:13px;color:#5D4037;margin-top:6px">\u{1F381} ${gcPartialStr}\u00a0\u20ac d\u00e9j\u00e0 d\u00e9duits de votre carte cadeau</div>` : ''}
       ${deadlineStr ? `<div style="font-size:12px;color:#92700C;margin-top:6px">\u00c0 r\u00e9gler avant le ${deadlineStr}</div>` : ''}
     </div>
     <div style="background:#F0F9FF;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #60A5FA">
@@ -680,7 +686,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     title: 'Acompte requis pour votre rendez-vous',
     preheader: `Acompte de ${amtStr}\u20ac requis avant votre RDV du ${dateStr}`,
     bodyHTML,
-    ctaText: `Payer ${amtStr} \u20ac en ligne`,
+    ctaText: `Payer ${remainStr}\u00a0\u20ac en ligne`,
     ctaUrl: directPayUrl,
     cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
     cancelUrl: manageUrl,
