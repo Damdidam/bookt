@@ -1131,10 +1131,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                     const gcRes = await client.query(
                       `SELECT id, code, balance_cents FROM gift_cards
                        WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
-                         AND (LOWER(recipient_email) = LOWER($3) OR LOWER(buyer_email) = LOWER($3))
+                         AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
                          AND (expires_at IS NULL OR expires_at > NOW())
                        ORDER BY balance_cents DESC LIMIT 1`,
-                      [businessId, depResult.depCents, client_email]
+                      [businessId, client_email]
                     );
                     if (gcRes.rows.length > 0) {
                       const gc = gcRes.rows[0];
@@ -1637,10 +1637,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   const gcRes = await client.query(
                     `SELECT id, code, balance_cents FROM gift_cards
                      WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
-                       AND (LOWER(recipient_email) = LOWER($3) OR LOWER(buyer_email) = LOWER($3))
+                       AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
                        AND (expires_at IS NULL OR expires_at > NOW())
                      ORDER BY balance_cents DESC LIMIT 1`,
-                    [businessId, depResult.depCents, client_email]
+                    [businessId, client_email]
                   );
                   if (gcRes.rows.length > 0) {
                     const gc = gcRes.rows[0];
