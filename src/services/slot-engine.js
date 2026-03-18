@@ -57,7 +57,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
 
   // 2. Fetch service details
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
      FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
     [serviceId, businessId]
   );
@@ -345,8 +345,9 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
           const slotStart = new Date(`${dateStr}T${minutesToTime(startMin)}:00${tzOffset}`);
           const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
 
-          // Check if slot is in the past
-          if (slotStart <= now) continue;
+          // Check if slot is in the past or within min booking notice
+          const minNoticeMs = (service.min_booking_notice_hours || 0) * 3600000;
+          if (slotStart <= new Date(now.getTime() + minNoticeMs)) continue;
 
           // Check for conflicts with existing bookings (capacity-aware)
           // Buffers are included in totalDuration for the NEW slot (slotStart→slotEnd),
@@ -433,7 +434,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
 
   // 2. Fetch all services in one query, preserving order from serviceIds array
   const svcResult = await queryWithRLS(businessId,
-    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule
+    `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
      FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
      ORDER BY array_position($1, id)`,
     [serviceIds, businessId]
@@ -748,7 +749,9 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
           const slotStart = new Date(`${dateStr}T${minutesToTime(startMin)}:00${tzOffset}`);
           const slotEnd = new Date(slotStart.getTime() + totalDuration * 60000);
 
-          if (slotStart <= now) continue;
+          // Check past + max notice across all services
+          const maxNoticeMs = Math.max(...services.map(s => (s.min_booking_notice_hours || 0) * 3600000));
+          if (slotStart <= new Date(now.getTime() + maxNoticeMs)) continue;
 
           // Per-service restriction check: each restricted service's actual time slice
           // must fall within its allowed windows (not the entire group)

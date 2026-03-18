@@ -602,6 +602,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
   m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Préavis minimum (heures)</label><input type="number" id="svc_min_notice" value="${svc?.min_booking_notice_hours||0}" min="0" placeholder="0"><small style="color:var(--text-secondary);font-size:11px">Délai minimum avant qu'un client puisse réserver en ligne</small></div></div>`;
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
@@ -817,6 +818,7 @@ async function saveService(id){
   const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder(),processing_time:parseInt(document.getElementById('svc_pose_time')?.value)||0,processing_start:parseInt(document.getElementById('svc_pose_start')?.value)||0};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
+  body.min_booking_notice_hours=parseInt(document.getElementById('svc_min_notice')?.value)||0;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.flexibility_enabled=document.getElementById('svc_flexibility').checked;
   body.flexibility_discount_pct=parseInt(document.getElementById('svc_flex_discount')?.value)||0;
