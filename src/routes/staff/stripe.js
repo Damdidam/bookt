@@ -359,6 +359,8 @@ async function handleStripeWebhook(req, res) {
                   }
                 }
                 if (groupServices) d.end_at = groupServices[groupServices.length - 1].end_at;
+                const { getGcPaidCents } = require('../../services/gift-card-refund');
+                d.gc_paid_cents = await getGcPaidCents(bookingId);
                 const { sendDepositPaidEmail } = require('../../services/email');
                 await sendDepositPaidEmail({
                   booking: d,

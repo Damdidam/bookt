@@ -2703,6 +2703,9 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
           }
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaid = await getGcPaidCents(bk.id);
+          d.gc_paid_cents = gcPaid;
           const { sendDepositPaidEmail } = require('../../services/email');
           sendDepositPaidEmail({
             booking: d,
@@ -2968,9 +2971,11 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidCancel = await getGcPaidCents(bk.id);
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
@@ -3302,8 +3307,10 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidReject = await getGcPaidCents(rejBk.id);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -3854,8 +3861,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidCancel2 = await getGcPaidCents(bk.id);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2 },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -4926,9 +4935,11 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidForEmail = await getGcPaidCents(bk.id);
           const { sendDepositPaidEmail } = require('../../services/email');
           await sendDepositPaidEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token },
             business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });

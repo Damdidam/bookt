@@ -846,12 +846,26 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
 
+  // Breakdown: GC portion vs Stripe portion
+  const gcPaidCents = booking.gc_paid_cents || 0;
+  const stripePaidCents = (booking.deposit_amount_cents || 0) - gcPaidCents;
+  let depositBreakdown = '';
+  if (gcPaidCents > 0 && stripePaidCents > 0) {
+    const gcStr = (gcPaidCents / 100).toFixed(2).replace('.', ',');
+    const stripeStr = (stripePaidCents / 100).toFixed(2).replace('.', ',');
+    depositBreakdown = `
+      <div style="font-size:13px;color:#15803D;margin-top:6px">\u{1F381} ${gcStr}\u00a0\u20ac via carte cadeau \u00b7 ${stripeStr}\u00a0\u20ac par carte bancaire</div>`;
+  } else if (gcPaidCents > 0) {
+    depositBreakdown = `
+      <div style="font-size:13px;color:#15803D;margin-top:6px">\u{1F381} Pay\u00e9 via carte cadeau</div>`;
+  }
+
   let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
-    <p>Votre acompte a bien été reçu. Votre rendez-vous est confirmé !</p>
+    <p>Votre acompte a bien \u00e9t\u00e9 re\u00e7u. Votre rendez-vous est confirm\u00e9 !</p>
     <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
-      <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">${_ic('check')} Acompte de ${amtStr} \u20ac re\u00e7u</div>
-      <div style="font-size:14px;color:#15803D">Votre rendez-vous est confirmé</div>
+      <div style="font-size:15px;font-weight:600;color:#15803D;margin-bottom:4px">${_ic('check')} Acompte de ${amtStr}\u00a0\u20ac re\u00e7u</div>
+      <div style="font-size:14px;color:#15803D">Votre rendez-vous est confirm\u00e9</div>${depositBreakdown}
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
       <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr}</div>
@@ -860,7 +874,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
       ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>
-    <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9.</p>`;
+    <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9${gcPaidCents > 0 && stripePaidCents > 0 ? ' (carte cadeau recr\u00e9dit\u00e9e + remboursement bancaire)' : gcPaidCents > 0 ? ' sur votre carte cadeau' : ''}.</p>`;
 
   // Footer: address, contact, payment methods, calendar links
   const depCalEndAt = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
@@ -927,16 +941,31 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   }
 
   // Determine refund method: gift card, stripe, or mixed
-  const isGcPaid = booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('gc_');
-  const gcCode = isGcPaid ? booking.deposit_payment_intent_id.replace('gc_', '') : null;
+  const gcRefundCents = booking.gc_paid_cents || 0;
+  const stripeRefundCents = (booking.deposit_amount_cents || 0) - gcRefundCents;
+  const isFullGc = gcRefundCents > 0 && stripeRefundCents <= 0;
+  const isMix = gcRefundCents > 0 && stripeRefundCents > 0;
 
   let refundBanner = '';
-  if (isGcPaid) {
+  if (isFullGc) {
     // 100% gift card — instant refund to GC balance
+    const gcCode = booking.deposit_payment_intent_id ? booking.deposit_payment_intent_id.replace('gc_', '') : '';
     refundBanner = `
     <div style="background:#FFF8E1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #F9A825">
-      <div style="font-size:15px;font-weight:600;color:#5D4037;margin-bottom:4px">\u{1F381} Acompte de ${amtStr}\u00a0\u20ac rembours\u00e9 sur votre carte cadeau</div>
+      <div style="font-size:15px;font-weight:600;color:#5D4037;margin-bottom:4px">\u{1F381} Acompte de ${amtStr}\u00a0\u20ac recr\u00e9dit\u00e9 sur votre carte cadeau</div>
       <div style="font-size:14px;color:#8D6E63">Le solde a \u00e9t\u00e9 recr\u00e9dit\u00e9 sur votre carte ${gcCode}.</div>
+    </div>`;
+  } else if (isMix) {
+    // Mix GC + Stripe
+    const gcStr = (gcRefundCents / 100).toFixed(2).replace('.', ',');
+    const stripeStr = (stripeRefundCents / 100).toFixed(2).replace('.', ',');
+    refundBanner = `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} ${gcStr}\u00a0\u20ac recr\u00e9dit\u00e9s sur votre carte cadeau</div>
+    </div>
+    <div style="background:#EFF6FF;border-radius:8px;padding:12px 16px;margin:4px 0 16px;border-left:3px solid #60A5FA">
+      <div style="font-size:14px;color:#1D4ED8;font-weight:600">${_ic('refund')} ${stripeStr}\u00a0\u20ac rembours\u00e9s par carte bancaire</div>
+      <div style="font-size:13px;color:#1D4ED8">Le remboursement appara\u00eetra sur votre relev\u00e9 sous 5 \u00e0 10 jours ouvrables.</div>
     </div>`;
   } else {
     // 100% Stripe — bank refund delay
@@ -1020,16 +1049,28 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const depositRetained = wasPaid && booking.deposit_status === 'cancelled';
   const depAmtStr = hadDeposit ? ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',') : '';
 
-  const isGcDeposit = booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('gc_');
-  const cancelGcCode = isGcDeposit ? booking.deposit_payment_intent_id.replace('gc_', '') : null;
+  const gcCancelCents = booking.gc_paid_cents || 0;
+  const stripeCancelCents = hadDeposit ? (booking.deposit_amount_cents || 0) - gcCancelCents : 0;
+  const isFullGcCancel = gcCancelCents > 0 && stripeCancelCents <= 0;
+  const isMixCancel = gcCancelCents > 0 && stripeCancelCents > 0;
 
   let depositHTML = '';
   if (depositRefunded) {
-    if (isGcDeposit) {
+    if (isMixCancel) {
+      const gcStr = (gcCancelCents / 100).toFixed(2).replace('.', ',');
+      const stripeStr = (stripeCancelCents / 100).toFixed(2).replace('.', ',');
+      depositHTML = `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} ${gcStr}\u00a0\u20ac recr\u00e9dit\u00e9s sur votre carte cadeau</div>
+    </div>
+    <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:4px 0 16px;border-left:3px solid #22C55E">
+      <div style="font-size:14px;color:#15803D;font-weight:600">${_ic('check')} ${stripeStr}\u00a0\u20ac rembours\u00e9s par carte bancaire</div>
+      <div style="font-size:13px;color:#15803D;margin-top:4px">Le remboursement appara\u00eetra sur votre relev\u00e9 sous quelques jours ouvrables.</div>
+    </div>`;
+    } else if (isFullGcCancel) {
       depositHTML = `
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmtStr}\u00a0\u20ac recr\u00e9dit\u00e9 sur votre carte cadeau</div>
-      <div style="font-size:13px;color:#8D6E63;margin-top:4px">Le solde a \u00e9t\u00e9 recr\u00e9dit\u00e9 sur votre carte ${cancelGcCode}.</div>
     </div>`;
     } else {
       depositHTML = `

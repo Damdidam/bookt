@@ -5,7 +5,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete } = require('./bookings-helpers');
-const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gift-card-refund');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
 const TRANSITIONS = {
@@ -560,9 +560,10 @@ router.patch('/:id/status', async (req, res, next) => {
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const gcPaidForEmail = await getGcPaidCents(id);
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -599,9 +600,10 @@ router.patch('/:id/status', async (req, res, next) => {
             if (grp.rows.length > 1) groupServices = grp.rows;
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const gcPaidRefund = await getGcPaidCents(id);
           const { sendDepositRefundEmail } = require('../../services/email');
           sendDepositRefundEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidRefund, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
             groupServices
           }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
@@ -651,6 +653,7 @@ router.patch('/:id/status', async (req, res, next) => {
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
           }
+          d.gc_paid_cents = await getGcPaidCents(id);
           const { sendDepositPaidEmail } = require('../../services/email');
           sendDepositPaidEmail({
             booking: d,
@@ -993,9 +996,10 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
           if (grp.rows.length > 1) groupServices = grp.rows;
         }
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+        const gcPaidManual = await getGcPaidCents(id);
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
-          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
+          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category },
           business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));

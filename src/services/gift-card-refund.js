@@ -65,4 +65,19 @@ async function refundGiftCardForBooking(bookingId, dbClient) {
   return { refunded: totalRefunded, cards };
 }
 
-module.exports = { refundGiftCardForBooking };
+/**
+ * Get total GC debit amount for a booking (for email display).
+ * @param {string} bookingId
+ * @param {object} [dbClient] - Optional pg client for transactions
+ * @returns {Promise<number>} Total GC debit in cents
+ */
+async function getGcPaidCents(bookingId, dbClient) {
+  const q = dbClient ? dbClient.query.bind(dbClient) : query;
+  const res = await q(
+    `SELECT COALESCE(SUM(amount_cents), 0) AS total FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+    [bookingId]
+  );
+  return parseInt(res.rows[0]?.total) || 0;
+}
+
+module.exports = { refundGiftCardForBooking, getGcPaidCents };
