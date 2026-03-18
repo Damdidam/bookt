@@ -1121,35 +1121,87 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
               const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
-              // Skip deposit if RDV is within the deadline window — deposit makes no sense
-              // (ex: deadline=48h, RDV dans 24h → trop tard pour exiger un acompte)
               if (hoursUntilRdv >= dlHours) {
-                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-                await client.query(
-                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-                    deposit_requested_at = NOW(), deposit_request_count = 1,
-                    confirmation_expires_at = NULL
-                   WHERE id = $3 AND business_id = $4`,
-                  [depResult.depCents, deadline.toISOString(), bookings[0].id, businessId]
-                );
-                bookings[0].status = 'pending_deposit';
-                bookings[0].deposit_required = true;
-                bookings[0].deposit_amount_cents = depResult.depCents;
-                bookings[0].deposit_deadline = deadline.toISOString();
-                if (bookings.length > 1) {
-                  const otherIds = bookings.slice(1).map(b => b.id);
-                  await client.query(
-                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
-                      deposit_amount_cents = $3, deposit_deadline = $4
-                     WHERE id = ANY($1) AND business_id = $2`,
-                    [otherIds, businessId, depResult.depCents, deadline.toISOString()]
-                  );
-                  for (let i = 1; i < bookings.length; i++) {
-                    bookings[i].status = 'pending_deposit';
+                // Check for gift card auto-debit
+                let gcAutoPaid = false;
+                if (client_email) {
+                  try {
+                    const gcRes = await client.query(
+                      `SELECT id, code, balance_cents FROM gift_cards
+                       WHERE business_id = $1 AND status = 'active' AND balance_cents >= $2
+                         AND (LOWER(recipient_email) = LOWER($3) OR LOWER(buyer_email) = LOWER($3))
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       ORDER BY balance_cents ASC LIMIT 1`,
+                      [businessId, depResult.depCents, client_email]
+                    );
+                    if (gcRes.rows.length > 0) {
+                      const gc = gcRes.rows[0];
+                      const newBal = gc.balance_cents - depResult.depCents;
+                      await client.query(
+                        `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                        [newBal, newBal === 0 ? 'used' : 'active', gc.id]
+                      );
+                      await client.query(
+                        `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
+                         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
+                        [gc.id, businessId, bookings[0].id, depResult.depCents, `Acompte auto — carte ${gc.code}`]
+                      );
+                      await client.query(
+                        `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                          deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
+                          deposit_payment_intent_id = $2
+                         WHERE id = $3 AND business_id = $4`,
+                        [depResult.depCents, `gc_${gc.code}`, bookings[0].id, businessId]
+                      );
+                      bookings[0].deposit_required = true;
+                      bookings[0].deposit_amount_cents = depResult.depCents;
+                      bookings[0].deposit_status = 'paid';
+                      if (bookings.length > 1) {
+                        const otherIds = bookings.slice(1).map(b => b.id);
+                        await client.query(
+                          `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
+                            deposit_paid_at = NOW(), locked = true, deposit_amount_cents = $3,
+                            deposit_payment_intent_id = $4
+                           WHERE id = ANY($1) AND business_id = $2`,
+                          [otherIds, businessId, depResult.depCents, `gc_${gc.code}`]
+                        );
+                      }
+                      gcAutoPaid = true;
+                      console.log(`[DEPOSIT] Multi auto-paid via gift card ${gc.code} (${depResult.depCents}c), balance: ${newBal}c`);
+                    }
+                  } catch (gcErr) {
+                    console.error('[DEPOSIT] Multi gift card auto-debit failed:', gcErr.message);
                   }
                 }
-                console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
+
+                if (!gcAutoPaid) {
+                  const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+                  await client.query(
+                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                      deposit_requested_at = NOW(), deposit_request_count = 1,
+                      confirmation_expires_at = NULL
+                     WHERE id = $3 AND business_id = $4`,
+                    [depResult.depCents, deadline.toISOString(), bookings[0].id, businessId]
+                  );
+                  bookings[0].status = 'pending_deposit';
+                  bookings[0].deposit_required = true;
+                  bookings[0].deposit_amount_cents = depResult.depCents;
+                  bookings[0].deposit_deadline = deadline.toISOString();
+                  if (bookings.length > 1) {
+                    const otherIds = bookings.slice(1).map(b => b.id);
+                    await client.query(
+                      `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
+                        deposit_amount_cents = $3, deposit_deadline = $4
+                       WHERE id = ANY($1) AND business_id = $2`,
+                      [otherIds, businessId, depResult.depCents, deadline.toISOString()]
+                    );
+                    for (let i = 1; i < bookings.length; i++) {
+                      bookings[i].status = 'pending_deposit';
+                    }
+                  }
+                  console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
+                }
               }
             }
           } catch (depErr) {
@@ -1564,20 +1616,65 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
             // Skip deposit if RDV is within the deadline window
             if (hoursUntilRdv >= dlHours) {
-              const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-              await client.query(
-                `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-                  deposit_requested_at = NOW(), deposit_request_count = 1,
-                  confirmation_expires_at = NULL
-                 WHERE id = $3 AND business_id = $4`,
-                [depResult.depCents, deadline.toISOString(), booking.rows[0].id, businessId]
-              );
-              booking.rows[0].status = 'pending_deposit';
-              booking.rows[0].deposit_required = true;
-              booking.rows[0].deposit_amount_cents = depResult.depCents;
-              booking.rows[0].deposit_deadline = deadline.toISOString();
-              console.log(`[DEPOSIT] Single-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
+              // Check for gift card auto-debit
+              let gcAutoPaid = false;
+              if (client_email) {
+                try {
+                  const gcRes = await client.query(
+                    `SELECT id, code, balance_cents FROM gift_cards
+                     WHERE business_id = $1 AND status = 'active' AND balance_cents >= $2
+                       AND (LOWER(recipient_email) = LOWER($3) OR LOWER(buyer_email) = LOWER($3))
+                       AND (expires_at IS NULL OR expires_at > NOW())
+                     ORDER BY balance_cents ASC LIMIT 1`,
+                    [businessId, depResult.depCents, client_email]
+                  );
+                  if (gcRes.rows.length > 0) {
+                    const gc = gcRes.rows[0];
+                    const newBal = gc.balance_cents - depResult.depCents;
+                    await client.query(
+                      `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                      [newBal, newBal === 0 ? 'used' : 'active', gc.id]
+                    );
+                    await client.query(
+                      `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
+                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
+                      [gc.id, businessId, booking.rows[0].id, depResult.depCents, `Acompte auto — carte ${gc.code}`]
+                    );
+                    // Mark deposit as paid via gift card
+                    await client.query(
+                      `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                        deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
+                        deposit_payment_intent_id = $2
+                       WHERE id = $3 AND business_id = $4`,
+                      [depResult.depCents, `gc_${gc.code}`, booking.rows[0].id, businessId]
+                    );
+                    booking.rows[0].deposit_required = true;
+                    booking.rows[0].deposit_amount_cents = depResult.depCents;
+                    booking.rows[0].deposit_status = 'paid';
+                    gcAutoPaid = true;
+                    console.log(`[DEPOSIT] Auto-paid via gift card ${gc.code} (${depResult.depCents}c), balance: ${newBal}c`);
+                  }
+                } catch (gcErr) {
+                  console.error('[DEPOSIT] Gift card auto-debit failed:', gcErr.message);
+                }
+              }
+
+              if (!gcAutoPaid) {
+                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+                await client.query(
+                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    deposit_requested_at = NOW(), deposit_request_count = 1,
+                    confirmation_expires_at = NULL
+                   WHERE id = $3 AND business_id = $4`,
+                  [depResult.depCents, deadline.toISOString(), booking.rows[0].id, businessId]
+                );
+                booking.rows[0].status = 'pending_deposit';
+                booking.rows[0].deposit_required = true;
+                booking.rows[0].deposit_amount_cents = depResult.depCents;
+                booking.rows[0].deposit_deadline = deadline.toISOString();
+                console.log(`[DEPOSIT] Single-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
+              }
             }
           }
         } catch (depErr) {
