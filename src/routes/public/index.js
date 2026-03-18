@@ -1249,7 +1249,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   const { sendSMS } = require('../../services/sms');
                   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
                   const link = `${baseUrl}/api/public/booking/${multiBookings[0].public_token}/confirm-booking`;
-                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
+                  const _sd = new Date(emailBooking.start_at);
+                  const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                  const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
                 } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
               }
             } else {
@@ -1673,7 +1676,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 const { sendSMS } = require('../../services/sms');
                 const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
                 const link = `${baseUrl}/api/public/booking/${createdBooking.public_token}/confirm-booking`;
-                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
+                const _sd2 = new Date(emailBooking.start_at);
+                const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
               } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
             }
           } else {

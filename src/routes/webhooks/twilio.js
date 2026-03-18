@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { validate: isUuid } = require('uuid');
-const { query } = require('../../services/db');
+const { query, pool } = require('../../services/db');
 
 // Twilio request signature validation middleware
 function validateTwilioSignature(req, res, next) {
@@ -280,6 +280,177 @@ router.post('/voicemail/status', async (req, res) => {
 
 // POST /webhooks/twilio/sms/status
 router.post('/sms/status', (req, res) => res.sendStatus(200));
+
+// ============================================================
+// POST /webhooks/twilio/sms/inbound — receive client SMS replies
+// ============================================================
+
+// Rate limiter: max 3 replies per phone per hour (prevents billing abuse)
+const _smsRateMap = new Map();
+const SMS_RATE_MAX = 3;
+const SMS_RATE_WINDOW = 3600000; // 1 hour
+
+function checkSmsRate(phone) {
+  const now = Date.now();
+  const entry = _smsRateMap.get(phone);
+  if (!entry) { _smsRateMap.set(phone, { count: 1, firstAt: now }); return true; }
+  if (now - entry.firstAt > SMS_RATE_WINDOW) { _smsRateMap.set(phone, { count: 1, firstAt: now }); return true; }
+  entry.count++;
+  return entry.count <= SMS_RATE_MAX;
+}
+// Cleanup stale entries every 10 min
+setInterval(() => {
+  const cutoff = Date.now() - SMS_RATE_WINDOW;
+  for (const [k, v] of _smsRateMap) { if (v.firstAt < cutoff) _smsRateMap.delete(k); }
+}, 600000);
+
+const CONFIRM_RE = /^(oui|yes|ok|confirm|confirmer|ja|1)$/i;
+const CANCEL_RE = /^(non|no|annuler|cancel|nee|0)$/i;
+
+router.post('/sms/inbound', validateTwilioSignature, async (req, res) => {
+  const from = (req.body.From || '').trim();
+  const body = (req.body.Body || '').trim();
+  const normalized = body.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  console.log(`[SMS INBOUND] From: ***${from.slice(-4)} Body: "${body}"`);
+
+  // Rate limit — silent response (no outbound SMS charged)
+  if (!checkSmsRate(from)) {
+    console.warn(`[SMS INBOUND] Rate limited: ***${from.slice(-4)}`);
+    return res.type('text/xml').send('<Response/>');
+  }
+
+  try {
+    if (CONFIRM_RE.test(normalized)) {
+      // Find most recent pending booking for this phone
+      const pending = await query(
+        `SELECT b.id, b.public_token, b.business_id, b.group_id, b.client_id,
+                b.service_id, b.practitioner_id, b.start_at, b.end_at
+         FROM bookings b
+         JOIN clients c ON c.id = b.client_id
+         WHERE c.phone = $1 AND b.status = 'pending'
+           AND b.confirmation_expires_at > NOW()
+         ORDER BY b.created_at DESC LIMIT 1`,
+        [from]
+      );
+
+      if (pending.rows.length === 0) {
+        return res.type('text/xml').send(twiml('<Message>Aucun rendez-vous en attente de confirmation.</Message>'));
+      }
+
+      const bk = pending.rows[0];
+
+      // Atomic confirm (same logic as POST /confirm-booking)
+      const txClient = await pool.connect();
+      let sibConfirmed = { rows: [] };
+      try {
+        await txClient.query('BEGIN');
+        const upd = await txClient.query(
+          `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+           WHERE id = $1 AND status = 'pending'
+           RETURNING id`,
+          [bk.id]
+        );
+        if (upd.rows.length === 0) {
+          await txClient.query('ROLLBACK');
+          return res.type('text/xml').send(twiml('<Message>Ce rendez-vous ne peut plus être confirmé.</Message>'));
+        }
+        // Confirm group siblings
+        sibConfirmed = await txClient.query(
+          `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+           WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+             AND id != $1 AND status = 'pending'
+           RETURNING id`,
+          [bk.id]
+        );
+        await txClient.query('COMMIT');
+      } catch (txErr) {
+        await txClient.query('ROLLBACK').catch(() => {});
+        throw txErr;
+      } finally {
+        txClient.release();
+      }
+
+      // SSE + calendar sync (non-blocking)
+      try {
+        const { broadcast } = require('../../services/sse');
+        broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'sms_reply' });
+      } catch (_) {}
+      try {
+        const { calSyncPush } = require('../staff/bookings-helpers');
+        calSyncPush(bk.business_id, bk.id);
+        for (const sib of (sibConfirmed?.rows || [])) { calSyncPush(bk.business_id, sib.id); }
+      } catch (_) {}
+
+      // Queue confirmation email (non-blocking)
+      (async () => {
+        try {
+          const fullBk = await query(
+            `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                    s.category AS service_category,
+                    p.display_name AS practitioner_name,
+                    c.full_name AS client_name, c.email AS client_email,
+                    biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address, biz.theme AS biz_theme, biz.settings AS biz_settings
+             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             JOIN practitioners p ON p.id = b.practitioner_id
+             LEFT JOIN clients c ON c.id = b.client_id
+             JOIN businesses biz ON biz.id = b.business_id
+             WHERE b.id = $1`, [bk.id]
+          );
+          if (fullBk.rows[0]?.client_email) {
+            const row = fullBk.rows[0];
+            let groupServices = null;
+            if (row.group_id) {
+              const grp = await query(
+                `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+                [row.group_id, row.business_id]
+              );
+              if (grp.rows.length > 1) groupServices = grp.rows;
+            }
+            const { sendBookingConfirmation } = require('../../services/email');
+            await sendBookingConfirmation({
+              booking: { public_token: row.public_token, start_at: row.start_at, end_at: groupServices ? groupServices[groupServices.length - 1].end_at : row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, comment: row.comment_client },
+              business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+              groupServices
+            });
+          }
+        } catch (e) { console.warn('[SMS INBOUND] Confirmation email error:', e.message); }
+      })();
+
+      // Audit log
+      try {
+        await query(
+          `INSERT INTO notifications (business_id, booking_id, type, status, sent_at)
+           VALUES ($1, $2, 'sms_confirmation_reply', 'sent', NOW())`,
+          [bk.business_id, bk.id]
+        );
+      } catch (_) {}
+
+      console.log(`[SMS INBOUND] Booking ${bk.id} confirmed via SMS reply from ***${from.slice(-4)}`);
+      return res.type('text/xml').send(twiml('<Message>✓ RDV confirmé ! À bientôt.</Message>'));
+
+    } else if (CANCEL_RE.test(normalized)) {
+      return res.type('text/xml').send(twiml('<Message>Pour annuler, utilisez le lien dans votre SMS de confirmation.</Message>'));
+
+    } else {
+      // Unknown message — check if they even have a pending booking
+      const hasPending = await query(
+        `SELECT 1 FROM bookings b JOIN clients c ON c.id = b.client_id
+         WHERE c.phone = $1 AND b.status = 'pending' AND b.confirmation_expires_at > NOW() LIMIT 1`,
+        [from]
+      );
+      if (hasPending.rows.length > 0) {
+        return res.type('text/xml').send(twiml('<Message>Répondez OUI pour confirmer votre rendez-vous.</Message>'));
+      }
+      // No pending booking — silent (no charge)
+      return res.type('text/xml').send('<Response/>');
+    }
+  } catch (err) {
+    console.error('[SMS INBOUND] Error:', err);
+    return res.type('text/xml').send('<Response/>');
+  }
+});
 
 // ============================================================
 // HELPERS
