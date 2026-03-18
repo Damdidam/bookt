@@ -399,6 +399,18 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
       ${detailLines}
     </div>`;
 
+  // Gift card auto-paid deposit banner
+  if (booking.deposit_required && booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0
+      && booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('gc_')) {
+    const depAmt = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+    const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');
+    bodyHTML += `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 via votre carte cadeau</div>
+      <div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${gcCode}</div>
+    </div>`;
+  }
+
   if (booking.comment) {
     bodyHTML += `<p style="font-size:13px;color:#6B6560;margin-top:12px">${_ic('note-dk')} <em>${safeComment}</em></p>`;
   }

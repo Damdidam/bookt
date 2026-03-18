@@ -1156,6 +1156,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                       bookings[0].deposit_required = true;
                       bookings[0].deposit_amount_cents = depResult.depCents;
                       bookings[0].deposit_status = 'paid';
+                      bookings[0].deposit_payment_intent_id = `gc_${gc.code}`;
                       if (bookings.length > 1) {
                         const otherIds = bookings.slice(1).map(b => b.id);
                         await client.query(
@@ -1651,6 +1652,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                     booking.rows[0].deposit_required = true;
                     booking.rows[0].deposit_amount_cents = depResult.depCents;
                     booking.rows[0].deposit_status = 'paid';
+                    booking.rows[0].deposit_payment_intent_id = `gc_${gc.code}`;
                     gcAutoPaid = true;
                     console.log(`[DEPOSIT] Auto-paid via gift card ${gc.code} (${depResult.depCents}c), balance: ${newBal}c`);
                   }
