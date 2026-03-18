@@ -401,6 +401,82 @@ async function handleStripeWebhook(req, res) {
           break;
         }
 
+        // ===== GIFT CARD PAYMENT =====
+        if (session.metadata?.type === 'gift_card') {
+          const bizId = session.metadata.business_id;
+          const amountCents = parseInt(session.metadata.amount_cents);
+          if (!bizId || !amountCents) break;
+
+          const piId = session.payment_intent || session.id;
+          console.log(`[STRIPE WH] Gift card purchased for business ${bizId} (${amountCents}c, PI: ${piId})`);
+
+          try {
+            const { generateCode } = require('./gift-cards');
+            let code;
+            for (let i = 0; i < 5; i++) {
+              code = generateCode();
+              const exists = await query('SELECT 1 FROM gift_cards WHERE code = $1', [code]);
+              if (exists.rows.length === 0) break;
+            }
+
+            const expiryDays = 365;
+            try {
+              const bizSettings = await query('SELECT settings FROM businesses WHERE id = $1', [bizId]);
+              if (bizSettings.rows[0]?.settings?.giftcard_expiry_days) {
+                // use business setting
+              }
+            } catch (_) {}
+
+            const bizResult = await query('SELECT id, name, slug, theme, email, settings FROM businesses WHERE id = $1', [bizId]);
+            const biz = bizResult.rows[0];
+            const days = biz?.settings?.giftcard_expiry_days || 365;
+            const expiresAt = new Date(Date.now() + days * 86400000);
+
+            const gc = await query(
+              `INSERT INTO gift_cards (business_id, code, amount_cents, balance_cents,
+               buyer_name, buyer_email, recipient_name, recipient_email, message,
+               stripe_payment_intent_id, expires_at)
+               VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+              [bizId, code, amountCents,
+               session.metadata.buyer_name || null, session.metadata.buyer_email || null,
+               session.metadata.recipient_name || null, session.metadata.recipient_email || null,
+               session.metadata.message || null, piId, expiresAt]
+            );
+
+            await query(
+              `INSERT INTO gift_card_transactions (gift_card_id, business_id, amount_cents, type, note)
+               VALUES ($1, $2, $3, 'purchase', 'Achat en ligne')`,
+              [gc.rows[0].id, bizId, amountCents]
+            );
+
+            // Send emails
+            if (biz) {
+              const { sendGiftCardEmail, sendGiftCardReceiptEmail } = require('../../services/email');
+              const giftCard = gc.rows[0];
+
+              if (giftCard.recipient_email) {
+                await sendGiftCardEmail({ giftCard, business: biz }).catch(e =>
+                  console.error('[GIFT-CARD] Recipient email failed:', e.message));
+              }
+              if (giftCard.buyer_email) {
+                await sendGiftCardReceiptEmail({ giftCard, business: biz }).catch(e =>
+                  console.error('[GIFT-CARD] Buyer receipt failed:', e.message));
+              }
+            }
+
+            // SSE
+            try {
+              const { broadcast } = require('../../services/sse');
+              broadcast(bizId, 'gift_card', { action: 'purchased', gift_card_id: gc.rows[0].id });
+            } catch (_) {}
+
+            console.log(`[STRIPE WH] Gift card ${code} created (${amountCents}c) for business ${bizId}`);
+          } catch (gcErr) {
+            console.error('[STRIPE WH] Gift card creation failed:', gcErr);
+          }
+          break;
+        }
+
         // ===== SUBSCRIPTION PAYMENT =====
         const businessId = session.metadata?.business_id;
         if (!businessId) break;

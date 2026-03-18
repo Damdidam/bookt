@@ -43,6 +43,7 @@ const newsRoutes = require('./routes/staff/news');
 const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
 const taskRoutes = require('./routes/staff/tasks');
+const giftCardRoutes = require('./routes/staff/gift-cards');
 const businessHoursRoutes = require('./routes/staff/business-hours');
 const reviewRoutes = require('./routes/staff/reviews');
 const twilioWebhooks = require('./routes/webhooks/twilio');
@@ -193,6 +194,7 @@ app.use('/api/planning', planningRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/business-hours', requireAuth, businessHoursRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/gift-cards', giftCardRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
@@ -252,6 +254,11 @@ app.get('/:slug', async (req, res, next) => {
 // /:slug/book → booking flow
 app.get('/:slug/book', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/book.html'));
+});
+
+// /:slug/gift-card → gift card purchase page
+app.get('/:slug/gift-card', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/gift-card.html'));
 });
 
 // /booking/:token → manage booking (cancel/reschedule)
@@ -386,6 +393,24 @@ app.listen(PORT, async () => {
       depositRunning = false;
     }
   }, depositInterval);
+
+  // ===== GIFT CARD EXPIRY CRON — expire old gift cards every hour =====
+  let gcRunning = false;
+  setInterval(async () => {
+    if (gcRunning) return;
+    gcRunning = true;
+    try {
+      const { processExpiredGiftCards } = require('./services/giftcard-expiry');
+      const result = await processExpiredGiftCards();
+      if (result.processed > 0) {
+        console.log(`[GC CRON] ${result.processed} gift card(s) expired`);
+      }
+    } catch (e) {
+      console.error('[GC CRON] Error:', e.message);
+    } finally {
+      gcRunning = false;
+    }
+  }, 60 * 60 * 1000); // Every hour
 
   // ===== SLOT CALIBRATION CRON — nightly recalibration of slot granularity from booking data =====
   const calibrationInterval = 24 * 60 * 60 * 1000; // 24h

@@ -93,6 +93,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // Client reschedule
       settings_reschedule_enabled, settings_reschedule_deadline_hours,
       settings_reschedule_max_count, settings_reschedule_window_days,
+      // Gift cards
+      settings_giftcard_enabled, settings_giftcard_amounts, settings_giftcard_custom_amount,
+      settings_giftcard_min_amount_cents, settings_giftcard_max_amount_cents, settings_giftcard_expiry_days,
       // Sector
       sector
     } = req.body;
@@ -124,7 +127,10 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_reviews_enabled !== undefined || settings_review_delay_hours !== undefined || settings_review_auto_publish !== undefined
         || settings_minisite_template !== undefined
         || settings_reschedule_enabled !== undefined || settings_reschedule_deadline_hours !== undefined
-        || settings_reschedule_max_count !== undefined || settings_reschedule_window_days !== undefined) {
+        || settings_reschedule_max_count !== undefined || settings_reschedule_window_days !== undefined
+        || settings_giftcard_enabled !== undefined || settings_giftcard_amounts !== undefined
+        || settings_giftcard_custom_amount !== undefined || settings_giftcard_min_amount_cents !== undefined
+        || settings_giftcard_max_amount_cents !== undefined || settings_giftcard_expiry_days !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -202,6 +208,13 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_reschedule_deadline_hours !== undefined) { const _v = parseInt(settings_reschedule_deadline_hours); cur.reschedule_deadline_hours = (_v >= 1 && _v <= 720) ? _v : 24; }
       if (settings_reschedule_max_count !== undefined) { const _v = parseInt(settings_reschedule_max_count); cur.reschedule_max_count = (_v >= 1 && _v <= 10) ? _v : 1; }
       if (settings_reschedule_window_days !== undefined) { const _v = parseInt(settings_reschedule_window_days); cur.reschedule_window_days = (_v >= 7 && _v <= 90) ? _v : 30; }
+      // Gift cards
+      if (settings_giftcard_enabled !== undefined) cur.giftcard_enabled = !!settings_giftcard_enabled;
+      if (settings_giftcard_amounts !== undefined) cur.giftcard_amounts = Array.isArray(settings_giftcard_amounts) ? settings_giftcard_amounts.filter(a => Number.isInteger(a) && a > 0) : [2500, 5000, 7500, 10000];
+      if (settings_giftcard_custom_amount !== undefined) cur.giftcard_custom_amount = settings_giftcard_custom_amount !== false;
+      if (settings_giftcard_min_amount_cents !== undefined) { const _v = parseInt(settings_giftcard_min_amount_cents); cur.giftcard_min_amount_cents = (_v >= 500 && _v <= 100000) ? _v : 1000; }
+      if (settings_giftcard_max_amount_cents !== undefined) { const _v = parseInt(settings_giftcard_max_amount_cents); cur.giftcard_max_amount_cents = (_v >= 1000 && _v <= 100000) ? _v : 50000; }
+      if (settings_giftcard_expiry_days !== undefined) { const _v = parseInt(settings_giftcard_expiry_days); cur.giftcard_expiry_days = (_v >= 30 && _v <= 730) ? _v : 365; }
       mergedSettings = cur;
     }
 

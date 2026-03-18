@@ -1142,4 +1142,91 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, sendRescheduleConfirmationEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+// ============================================================
+// GIFT CARD EMAILS
+// ============================================================
+
+/**
+ * Send gift card to recipient — beautiful card with code + amount
+ */
+async function sendGiftCardEmail({ giftCard, business }) {
+  const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+  const color = safeColor(business.theme?.primary_color);
+  const amtStr = (giftCard.amount_cents / 100).toFixed(2).replace('.', ',');
+  const expiryStr = giftCard.expires_at
+    ? new Date(giftCard.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  const recipientName = giftCard.recipient_name || '';
+  const buyerName = giftCard.buyer_name || 'Quelqu\'un';
+
+  const bodyHTML = `
+    <p style="margin:0 0 16px">${recipientName ? escHtml(recipientName) + ', v' : 'V'}ous avez reçu une carte cadeau de la part de <strong>${escHtml(buyerName)}</strong> !</p>
+    ${giftCard.message ? `<div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:0 0 20px;font-style:italic;color:#5C564F">"${escHtml(giftCard.message)}"</div>` : ''}
+    <div style="background:linear-gradient(135deg,${color},${color}dd);border-radius:16px;padding:32px;text-align:center;margin:0 0 20px">
+      <div style="font-size:13px;color:rgba(255,255,255,.8);margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Carte Cadeau</div>
+      <div style="font-size:36px;font-weight:800;color:#fff;margin:0 0 12px">${amtStr} €</div>
+      <div style="background:rgba(255,255,255,.2);border-radius:8px;padding:12px 20px;display:inline-block">
+        <span style="font-size:20px;font-weight:700;color:#fff;letter-spacing:3px;font-family:monospace">${escHtml(giftCard.code)}</span>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,.7);margin:12px 0 0">Valable chez ${escHtml(business.name)}</div>
+    </div>
+    ${expiryStr ? `<p style="font-size:13px;color:#9C958E;text-align:center;margin:0 0 8px">Valable jusqu'au ${expiryStr}</p>` : ''}
+    <p style="font-size:14px;color:#5C564F;text-align:center">Présentez ce code lors de votre réservation ou en salon.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Votre carte cadeau',
+    preheader: `${buyerName} vous offre une carte cadeau de ${amtStr}€`,
+    bodyHTML,
+    ctaText: 'Réserver maintenant',
+    ctaUrl: `${baseUrl}/${business.slug}/book?gc=${giftCard.code}`,
+    businessName: business.name,
+    primaryColor: color
+  });
+
+  return sendEmail({
+    to: giftCard.recipient_email,
+    toName: recipientName,
+    subject: `🎁 Vous avez reçu une carte cadeau — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+/**
+ * Send receipt to buyer — confirmation of purchase
+ */
+async function sendGiftCardReceiptEmail({ giftCard, business }) {
+  const amtStr = (giftCard.amount_cents / 100).toFixed(2).replace('.', ',');
+  const recipientName = giftCard.recipient_name || giftCard.recipient_email || '—';
+
+  const bodyHTML = `
+    <p style="margin:0 0 16px">Votre carte cadeau a bien été envoyée !</p>
+    <div style="background:#F5F4F1;border-radius:10px;padding:20px;margin:0 0 20px">
+      <table style="width:100%;font-size:14px;color:#3D3832" cellpadding="4" cellspacing="0">
+        <tr><td style="color:#9C958E">Montant</td><td style="text-align:right;font-weight:600">${amtStr} €</td></tr>
+        <tr><td style="color:#9C958E">Code</td><td style="text-align:right;font-weight:600;font-family:monospace;letter-spacing:1px">${escHtml(giftCard.code)}</td></tr>
+        <tr><td style="color:#9C958E">Destinataire</td><td style="text-align:right">${escHtml(recipientName)}</td></tr>
+      </table>
+    </div>
+    <p style="font-size:14px;color:#5C564F">Un email contenant le code a été envoyé au destinataire.</p>`;
+
+  const html = buildEmailHTML({
+    title: 'Carte cadeau envoyée',
+    preheader: `Carte cadeau de ${amtStr}€ envoyée à ${recipientName}`,
+    bodyHTML,
+    businessName: business.name,
+    primaryColor: business.theme?.primary_color
+  });
+
+  return sendEmail({
+    to: giftCard.buyer_email,
+    toName: giftCard.buyer_name,
+    subject: `Carte cadeau envoyée — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, sendRescheduleConfirmationEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };

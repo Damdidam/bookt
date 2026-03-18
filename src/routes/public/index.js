@@ -4560,4 +4560,132 @@ router.get('/:slug/reviews', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// GIFT CARDS — Public endpoints
+// ============================================================
+
+// GET /api/public/:slug/gift-card-config
+router.get('/:slug/gift-card-config', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+    const biz = rows[0];
+    const s = biz.settings || {};
+
+    if (!s.giftcard_enabled) return res.status(404).json({ error: 'Cartes cadeau non disponibles' });
+
+    res.json({
+      business_name: biz.name,
+      slug: biz.slug,
+      theme: biz.theme,
+      amounts: s.giftcard_amounts || [2500, 5000, 7500, 10000],
+      custom_amount: s.giftcard_custom_amount !== false,
+      min_amount_cents: s.giftcard_min_amount_cents || 1000,
+      max_amount_cents: s.giftcard_max_amount_cents || 50000,
+      expiry_days: s.giftcard_expiry_days || 365
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/:slug/gift-card/checkout — Stripe Checkout for gift card purchase
+router.post('/:slug/gift-card/checkout', async (req, res, next) => {
+  try {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
+    const stripe = require('stripe')(key);
+
+    const { rows } = await query(
+      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+    const biz = rows[0];
+    const s = biz.settings || {};
+
+    if (!s.giftcard_enabled) return res.status(400).json({ error: 'Cartes cadeau non disponibles' });
+
+    const { amount_cents, buyer_name, buyer_email, recipient_name, recipient_email, message } = req.body;
+
+    if (!amount_cents || amount_cents < (s.giftcard_min_amount_cents || 1000)) {
+      return res.status(400).json({ error: 'Montant trop faible' });
+    }
+    if (amount_cents > (s.giftcard_max_amount_cents || 50000)) {
+      return res.status(400).json({ error: 'Montant trop élevé' });
+    }
+    if (!buyer_email) return res.status(400).json({ error: 'Email acheteur requis' });
+
+    const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: amount_cents,
+          product_data: {
+            name: `Carte cadeau — ${biz.name}`,
+            description: `Valeur : ${(amount_cents / 100).toFixed(2)}€`
+          }
+        },
+        quantity: 1
+      }],
+      customer_email: buyer_email,
+      metadata: {
+        type: 'gift_card',
+        business_id: biz.id,
+        amount_cents: String(amount_cents),
+        buyer_name: buyer_name || '',
+        buyer_email,
+        recipient_name: recipient_name || '',
+        recipient_email: recipient_email || '',
+        message: (message || '').substring(0, 500)
+      },
+      success_url: `${baseUrl}/${biz.slug}/gift-card?success=1`,
+      cancel_url: `${baseUrl}/${biz.slug}/gift-card`,
+      locale: 'fr',
+      expires_at: Math.floor(Date.now() / 1000) + 1800
+    });
+
+    res.json({ url: session.url, session_id: session.id });
+  } catch (err) {
+    console.error('[GIFT-CARD CHECKOUT] Error:', err);
+    next(err);
+  }
+});
+
+// POST /api/public/gift-card/validate — validate code + return balance
+router.post('/gift-card/validate', async (req, res, next) => {
+  try {
+    const { code, business_id } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code requis' });
+
+    let sql = `SELECT id, code, amount_cents, balance_cents, status, expires_at, business_id
+               FROM gift_cards WHERE code = $1`;
+    const params = [code.toUpperCase().trim()];
+
+    if (business_id) {
+      sql += ' AND business_id = $2';
+      params.push(business_id);
+    }
+
+    const result = await query(sql, params);
+    if (result.rows.length === 0) return res.json({ valid: false, error: 'Code invalide' });
+
+    const gc = result.rows[0];
+    if (gc.status !== 'active') return res.json({ valid: false, error: gc.status === 'expired' ? 'Carte expirée' : 'Carte inactive' });
+    if (gc.expires_at && new Date(gc.expires_at) < new Date()) return res.json({ valid: false, error: 'Carte expirée' });
+
+    res.json({
+      valid: true,
+      balance_cents: gc.balance_cents,
+      amount_cents: gc.amount_cents,
+      expires_at: gc.expires_at
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

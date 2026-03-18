@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carte Cadeau — Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+
+/* ── Kill mobile browser helpers ── */
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
+body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;--gold:#A68B3C;--gold-bg:#FAF6EC;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--radius:14px;--radius-sm:10px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.container{width:100%;max-width:520px}
+.logo{text-align:center;margin-bottom:24px}
+.logo a{font-family:var(--serif);font-size:1.3rem;color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.logo .l{width:32px;height:32px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
+.card-header{padding:24px 28px;border-bottom:1px solid var(--border-light);text-align:center}
+.card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
+.card-header .biz{font-size:.88rem;color:var(--text-3)}
+.card-body{padding:24px 28px}
+.loading{text-align:center;padding:60px}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{text-align:center;padding:60px}
+.error .e-icon{font-size:3rem;margin-bottom:12px}
+.footer-link{text-align:center;margin-top:16px}
+.footer-link a{font-size:.82rem;color:var(--primary);text-decoration:none;font-weight:600}
+.footer-link a:hover{text-decoration:underline}
+
+/* ── Amount pills ── */
+.amount-section{margin-bottom:20px}
+.amount-section .section-label{font-size:.78rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+.amount-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.amount-pill{padding:10px 20px;border:1.5px solid var(--border);border-radius:50px;background:var(--white);font-family:var(--sans);font-size:.92rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s}
+.amount-pill:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.amount-pill.active{border-color:var(--primary);background:var(--primary);color:#fff}
+.custom-amount-row{display:flex;align-items:center;gap:8px}
+.custom-amount-row label{font-size:.85rem;font-weight:600;color:var(--text-3);white-space:nowrap}
+.custom-amount-input{flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.92rem;font-weight:600;color:var(--text);background:var(--white);outline:none;transition:border-color .15s}
+.custom-amount-input:focus{border-color:var(--primary)}
+.custom-amount-input::placeholder{color:var(--text-4);font-weight:400}
+
+/* ── Form fields ── */
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.78rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.form-group input,.form-group textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.88rem;color:var(--text);background:var(--white);outline:none;transition:border-color .15s;resize:vertical}
+.form-group input:focus,.form-group textarea:focus{border-color:var(--primary)}
+.form-group input::placeholder,.form-group textarea::placeholder{color:var(--text-4)}
+.form-group textarea{min-height:80px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+.form-group .hint{font-size:.75rem;color:var(--text-4);margin-top:4px}
+
+/* ── Divider ── */
+.form-divider{height:1px;background:var(--border-light);margin:20px 0}
+
+/* ── Submit button ── */
+.submit-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 24px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-family:var(--sans);font-size:.92rem;font-weight:700;cursor:pointer;transition:all .15s;margin-top:20px}
+.submit-btn:hover{background:var(--primary-hover);transform:translateY(-1px)}
+.submit-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.submit-btn .spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite}
+
+/* ── Gift card icon header ── */
+.gift-icon-wrap{width:56px;height:56px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+
+/* ── Success state ── */
+.success-wrap{padding:48px 28px;text-align:center}
+.success-wrap h2{font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px}
+.success-wrap p{font-size:.88rem;color:var(--text-3)}
+
+/* ── Error message inline ── */
+.field-error{border-color:var(--red) !important}
+.error-msg{font-size:.75rem;color:var(--red);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo"><a href="/"><span class="l">G</span>Genda</a></div>
+  <div class="card" id="cardContent">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:12px;color:var(--text-4);font-size:.85rem">Chargement...</p></div>
+  </div>
+  <div class="footer-link" id="footerLink" style="display:none"></div>
+</div>
+
+<script>
+// Extract slug from URL path: /:slug/gift-card
+const pathParts = window.location.pathname.split('/').filter(Boolean);
+const slug = pathParts.length >= 2 ? pathParts[pathParts.length - 2] : null;
+
+let selectedAmount = null;
+let config = null;
+
+// Check for success redirect
+if (new URLSearchParams(window.location.search).get('success') === '1') {
+  showSuccess();
+} else if (!slug) {
+  showError('Lien invalide');
+} else {
+  loadConfig();
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch(`/api/public/${slug}/gift-card-config`);
+    if (!res.ok) { showError('Configuration introuvable'); return; }
+    config = await res.json();
+    render();
+  } catch (err) { showError('Erreur de chargement'); }
+}
+
+function render() {
+  // Apply business theme
+  if (config.theme?.primary_color) {
+    document.documentElement.style.setProperty('--primary', config.theme.primary_color);
+  }
+
+  document.title = `Carte Cadeau — ${config.business_name || 'Genda'}`;
+
+  // Build amount pills
+  const amounts = config.amounts || [25, 50, 75, 100];
+  const minAmount = config.min_amount || 5;
+  const maxAmount = config.max_amount || 500;
+
+  let pillsHtml = amounts.map(a =>
+    `<button class="amount-pill" data-amount="${a}" onclick="selectAmount(${a}, this)">${a} &euro;</button>`
+  ).join('');
+
+  const html = `
+    <div class="card-header">
+      <div class="gift-icon-wrap">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+      </div>
+      <h1>Carte Cadeau</h1>
+      <div class="biz">${esc(config.business_name)}</div>
+    </div>
+    <div class="card-body">
+      <div class="amount-section">
+        <div class="section-label">Choisir un montant</div>
+        <div class="amount-pills">${pillsHtml}</div>
+        <div class="custom-amount-row">
+          <label for="customAmount">Ou :</label>
+          <input type="number" class="custom-amount-input" id="customAmount" placeholder="Montant libre" min="${minAmount}" max="${maxAmount}" step="1" oninput="selectCustomAmount(this)">
+          <span style="font-size:.88rem;font-weight:600;color:var(--text-3)">&euro;</span>
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="senderName">Votre nom</label>
+          <input type="text" id="senderName" placeholder="Votre nom" required>
+        </div>
+        <div class="form-group">
+          <label for="senderEmail">Votre email</label>
+          <input type="email" id="senderEmail" placeholder="votre@email.com" required>
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="recipientName">Nom du destinataire</label>
+          <input type="text" id="recipientName" placeholder="Nom du destinataire" required>
+        </div>
+        <div class="form-group">
+          <label for="recipientEmail">Email du destinataire</label>
+          <input type="email" id="recipientEmail" placeholder="destinataire@email.com" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="message">Message personnel <span style="font-weight:400;text-transform:none;letter-spacing:0">(optionnel)</span></label>
+        <textarea id="message" placeholder="Un petit mot pour accompagner votre cadeau..."></textarea>
+      </div>
+
+      <button class="submit-btn" id="submitBtn" onclick="submitGiftCard()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+        Offrir cette carte cadeau
+      </button>
+    </div>`;
+
+  document.getElementById('cardContent').innerHTML = html;
+  showFooterLink();
+}
+
+function selectAmount(amount, el) {
+  selectedAmount = amount;
+  // Clear custom input
+  const custom = document.getElementById('customAmount');
+  if (custom) custom.value = '';
+  // Update pill styles
+  document.querySelectorAll('.amount-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function selectCustomAmount(input) {
+  const val = parseFloat(input.value);
+  if (val && val > 0) {
+    selectedAmount = val;
+    document.querySelectorAll('.amount-pill').forEach(p => p.classList.remove('active'));
+  } else {
+    selectedAmount = null;
+  }
+}
+
+function validateForm() {
+  let valid = true;
+  // Clear previous errors
+  document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+  document.querySelectorAll('.error-msg').forEach(el => el.remove());
+
+  // Amount
+  if (!selectedAmount || selectedAmount <= 0) {
+    const pills = document.querySelector('.amount-pills');
+    pills.insertAdjacentHTML('beforebegin', '<div class="error-msg">Veuillez choisir un montant</div>');
+    valid = false;
+  } else if (config) {
+    const min = config.min_amount || 5;
+    const max = config.max_amount || 500;
+    if (selectedAmount < min || selectedAmount > max) {
+      const pills = document.querySelector('.amount-pills');
+      pills.insertAdjacentHTML('beforebegin', `<div class="error-msg">Le montant doit être entre ${min} € et ${max} €</div>`);
+      valid = false;
+    }
+  }
+
+  // Required fields
+  const fields = [
+    { id: 'senderName', msg: 'Veuillez entrer votre nom' },
+    { id: 'senderEmail', msg: 'Veuillez entrer votre email' },
+    { id: 'recipientName', msg: 'Veuillez entrer le nom du destinataire' },
+    { id: 'recipientEmail', msg: 'Veuillez entrer l\'email du destinataire' }
+  ];
+
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el.value.trim()) {
+      el.classList.add('field-error');
+      el.insertAdjacentHTML('afterend', `<div class="error-msg">${f.msg}</div>`);
+      valid = false;
+    }
+  });
+
+  // Email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const senderEmail = document.getElementById('senderEmail');
+  const recipientEmail = document.getElementById('recipientEmail');
+  if (senderEmail.value.trim() && !emailRegex.test(senderEmail.value.trim())) {
+    senderEmail.classList.add('field-error');
+    if (!senderEmail.nextElementSibling?.classList?.contains('error-msg')) {
+      senderEmail.insertAdjacentHTML('afterend', '<div class="error-msg">Email invalide</div>');
+    }
+    valid = false;
+  }
+  if (recipientEmail.value.trim() && !emailRegex.test(recipientEmail.value.trim())) {
+    recipientEmail.classList.add('field-error');
+    if (!recipientEmail.nextElementSibling?.classList?.contains('error-msg')) {
+      recipientEmail.insertAdjacentHTML('afterend', '<div class="error-msg">Email invalide</div>');
+    }
+    valid = false;
+  }
+
+  return valid;
+}
+
+async function submitGiftCard() {
+  if (!validateForm()) return;
+
+  const btn = document.getElementById('submitBtn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Redirection vers le paiement…';
+
+  const body = {
+    amount: selectedAmount,
+    sender_name: document.getElementById('senderName').value.trim(),
+    sender_email: document.getElementById('senderEmail').value.trim(),
+    recipient_name: document.getElementById('recipientName').value.trim(),
+    recipient_email: document.getElementById('recipientEmail').value.trim(),
+    message: document.getElementById('message').value.trim() || null
+  };
+
+  try {
+    const res = await fetch(`/api/public/${slug}/gift-card/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Une erreur est survenue');
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg> Offrir cette carte cadeau`;
+      return;
+    }
+    if (data.url) window.location.href = data.url;
+  } catch (err) {
+    alert('Erreur de connexion');
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg> Offrir cette carte cadeau`;
+  }
+}
+
+function showSuccess() {
+  document.getElementById('cardContent').innerHTML = `
+    <div class="success-wrap">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Carte cadeau envoy\u00e9e !</h2>
+      <p>Le destinataire recevra sa carte cadeau par email.<br>Merci pour votre achat !</p>
+    </div>`;
+
+  // Try to show footer link using slug from URL
+  if (slug) {
+    const fl = document.getElementById('footerLink');
+    fl.innerHTML = `<a href="/${slug}/book">R\u00e9server un rendez-vous</a>`;
+    fl.style.display = '';
+  }
+}
+
+function showFooterLink() {
+  if (!config || !slug) return;
+  const fl = document.getElementById('footerLink');
+  fl.innerHTML = `<a href="/${slug}/book">R\u00e9server un rendez-vous chez ${esc(config.business_name)}</a>`;
+  fl.style.display = '';
+}
+
+function showError(msg) {
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">\u26a0\ufe0f</div><p style="font-size:.92rem;font-weight:600">${msg}</p><p style="font-size:.82rem;color:var(--text-3);margin-top:6px">V\u00e9rifiez le lien ou contactez le salon.</p></div>`;
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

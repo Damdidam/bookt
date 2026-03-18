@@ -378,6 +378,31 @@ async function loadSettings(){
     h+=`</div>`;
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveRescheduleSettings()">Enregistrer</button></div></div>`;
 
+    // 3a-bis. Gift cards
+    const gcOn=!!b.settings?.giftcard_enabled;
+    const gcAmounts=b.settings?.giftcard_amounts||[2500,5000,7500,10000];
+    const gcCustom=b.settings?.giftcard_custom_amount!==false;
+    const gcMin=(b.settings?.giftcard_min_amount_cents||1000)/100;
+    const gcMax=(b.settings?.giftcard_max_amount_cents||50000)/100;
+    const gcExpiry=b.settings?.giftcard_expiry_days||365;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8v12"/><path d="M8 1l4 3.5L16 1"/></svg> Cartes cadeau</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Permettez à vos clients d'acheter des cartes cadeau en ligne depuis votre minisite.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les cartes cadeau</div><div style="font-size:.75rem;color:var(--text-4)">Un bouton "Carte cadeau" apparaîtra sur votre minisite</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_gc_enabled" ${gcOn?'checked':''} onchange="document.getElementById('gcOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${gcOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${gcOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="gcOptions" style="display:${gcOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Montants prédéfinis (€)</label><input type="text" id="s_gc_amounts" value="${gcAmounts.map(a=>(a/100)).join(', ')}" placeholder="25, 50, 75, 100" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;width:100%;font-family:var(--sans)"><div class="hint">Séparez les montants par des virgules</div></div>`;
+    h+=`<div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s_gc_custom" ${gcCustom?'checked':''}> Autoriser un montant libre</label></div>`;
+    h+=`<div class="field"><label>Montant min/max (€)</label><div style="display:flex;gap:10px"><input type="number" id="s_gc_min" value="${gcMin}" min="5" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="align-self:center;color:var(--text-3)">à</span><input type="number" id="s_gc_max" value="${gcMax}" min="10" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"></div></div>`;
+    h+=`<div class="field"><label>Validité</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_gc_expiry" value="${gcExpiry}" min="30" max="730" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="font-size:.82rem;color:var(--text-3)">jours</span></div></div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveGiftCardSettings()">Enregistrer</button></div></div>`;
+
     // 3b. Confirmation de réservation en ligne
     const confOn=!!b.settings?.booking_confirmation_required;
     const confTimeout=b.settings?.booking_confirmation_timeout_min||30;
@@ -813,6 +838,33 @@ async function saveMoveSettings(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveGiftCardSettings(){
+  try{
+    const amountsStr=document.getElementById('s_gc_amounts')?.value||'';
+    const amounts=amountsStr.split(',').map(s=>Math.round(parseFloat(s.trim())*100)).filter(n=>n>0&&!isNaN(n));
+    const data={
+      settings_giftcard_enabled:document.getElementById('s_gc_enabled').checked,
+      settings_giftcard_amounts:amounts.length?amounts:[2500,5000,7500,10000],
+      settings_giftcard_custom_amount:document.getElementById('s_gc_custom').checked,
+      settings_giftcard_min_amount_cents:Math.round((parseFloat(document.getElementById('s_gc_min')?.value)||10)*100),
+      settings_giftcard_max_amount_cents:Math.round((parseFloat(document.getElementById('s_gc_max')?.value)||500)*100),
+      settings_giftcard_expiry_days:parseInt(document.getElementById('s_gc_expiry')?.value)||365
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.giftcard_enabled=data.settings_giftcard_enabled;
+    freshBiz.settings.giftcard_amounts=data.settings_giftcard_amounts;
+    freshBiz.settings.giftcard_custom_amount=data.settings_giftcard_custom_amount;
+    freshBiz.settings.giftcard_min_amount_cents=data.settings_giftcard_min_amount_cents;
+    freshBiz.settings.giftcard_max_amount_cents=data.settings_giftcard_max_amount_cents;
+    freshBiz.settings.giftcard_expiry_days=data.settings_giftcard_expiry_days;
+    api.setBusiness(freshBiz);
+    GendaUI.toast('Paramètres cartes cadeau enregistrés','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveRescheduleSettings(){
   try{
     const data={
@@ -956,6 +1008,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveRescheduleSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, saveRescheduleSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
