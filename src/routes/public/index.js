@@ -290,23 +290,30 @@ router.get('/:slug', async (req, res, next) => {
     const news = newsResult.rows;
     const realisations = reaResult.rows;
 
-    // ===== NEXT AVAILABLE SLOT (depends on svcResult) =====
+    // ===== NEXT AVAILABLE SLOT (earliest across ALL services) =====
     let nextSlot = null;
     if (svcResult.rows.length > 0) {
       try {
         const now = new Date();
         const brusselsToday = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const weekOut = new Date(now.getTime() + 8 * 86400000);
-        const slots = await getAvailableSlots({
-          businessId: bid,
-          serviceId: svcResult.rows[0].id,
-          dateFrom: brusselsToday,
-          dateTo: weekOut.toLocaleDateString('en-CA', { timeZone: 'UTC' })
-        });
-        // Filter out slots in the past (Brussels time)
+        const dateTo = weekOut.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const nowMs = now.getTime();
-        const futureSlots = slots.filter(s => new Date(s.start_at).getTime() > nowMs);
-        if (futureSlots.length > 0) nextSlot = futureSlots[0].start_at;
+        // Check up to 5 services to find the earliest slot (perf-safe)
+        const svcsToCheck = svcResult.rows.slice(0, 5);
+        const slotPromises = svcsToCheck.map(s =>
+          getAvailableSlots({ businessId: bid, serviceId: s.id, dateFrom: brusselsToday, dateTo })
+            .then(slots => {
+              const future = slots.filter(sl => new Date(sl.start_at).getTime() > nowMs);
+              return future.length > 0 ? future[0].start_at : null;
+            })
+            .catch(() => null)
+        );
+        const earliest = (await Promise.all(slotPromises)).filter(Boolean);
+        if (earliest.length > 0) {
+          earliest.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          nextSlot = earliest[0];
+        }
       } catch (e) { /* non-critical */ }
     }
 
