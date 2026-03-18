@@ -124,14 +124,15 @@ function render() {
 
   document.title = `Carte Cadeau — ${config.business_name || 'Genda'}`;
 
-  // Build amount pills
-  const amounts = config.amounts || [25, 50, 75, 100];
-  const minAmount = config.min_amount || 5;
-  const maxAmount = config.max_amount || 500;
+  // Build amount pills — amounts come from API in cents, display in euros
+  const amountsCents = config.amounts || [2500, 5000, 7500, 10000];
+  const minAmount = (config.min_amount_cents || 1000) / 100;
+  const maxAmount = (config.max_amount_cents || 50000) / 100;
 
-  let pillsHtml = amounts.map(a =>
-    `<button class="amount-pill" data-amount="${a}" onclick="selectAmount(${a}, this)">${a} &euro;</button>`
-  ).join('');
+  let pillsHtml = amountsCents.map(a => {
+    const eur = (a / 100);
+    return `<button class="amount-pill" data-amount="${eur}" onclick="selectAmount(${eur}, this)">${eur.toFixed(0)} &euro;</button>`;
+  }).join('');
 
   const html = `
     <div class="card-header">
@@ -282,9 +283,9 @@ async function submitGiftCard() {
   btn.innerHTML = '<span class="spinner-sm"></span> Redirection vers le paiement…';
 
   const body = {
-    amount: selectedAmount,
-    sender_name: document.getElementById('senderName').value.trim(),
-    sender_email: document.getElementById('senderEmail').value.trim(),
+    amount_cents: Math.round(selectedAmount * 100),
+    buyer_name: document.getElementById('senderName').value.trim(),
+    buyer_email: document.getElementById('senderEmail').value.trim(),
     recipient_name: document.getElementById('recipientName').value.trim(),
     recipient_email: document.getElementById('recipientEmail').value.trim(),
     message: document.getElementById('message').value.trim() || null
