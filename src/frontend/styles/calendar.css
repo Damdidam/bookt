@@ -5,7 +5,7 @@
 .main.agenda-mode>.topbar{display:none}
 .agenda-toolbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid #E8ECF0;padding:10px 32px 8px;margin:0 -32px;width:calc(100% + 64px)}
 .at-row-nav{display:flex;align-items:center;gap:8px;margin-bottom:0}
-.at-row-views{display:flex;align-items:center;margin-top:6px}
+.at-row-views{display:flex;align-items:center;margin-top:6px;gap:10px}
 .agenda-toolbar .at-nav{display:flex;align-items:center;gap:5px;flex-shrink:0}
 .agenda-toolbar .at-nav-btn{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-nav-btn:hover{background:var(--surface);border-color:var(--text-4)}
