@@ -91,6 +91,9 @@ app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleSt
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: false }));
 
+// Health check for Render zero-downtime deploys
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
 // Serve api-client ES module (single source of truth for all pages)
 app.get('/js/api-client.js', (req, res) => {
   res.type('application/javascript');
