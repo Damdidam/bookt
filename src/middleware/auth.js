@@ -30,7 +30,7 @@ async function requireAuth(req, res, next) {
 
     // Fetch user + business + linked practitioner in one query
     const result = await query(
-      `SELECT u.id, u.email, u.role, u.business_id,
+      `SELECT u.id, u.email, u.role, u.business_id, u.is_superadmin,
               b.slug, b.plan, b.sector,
               p.id AS practitioner_id
        FROM users u
@@ -49,7 +49,8 @@ async function requireAuth(req, res, next) {
       id: user.id,
       email: user.email,
       role: user.role,
-      practitionerId: user.practitioner_id || null
+      practitionerId: user.practitioner_id || null,
+      is_superadmin: user.is_superadmin || false
     };
     req.businessId = user.business_id;
     req.businessSlug = user.slug;
@@ -108,4 +109,14 @@ function resolvePractitionerScope(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireOwner, requireRole, resolvePractitionerScope };
+/**
+ * Require superadmin access (platform admin panel)
+ */
+function requireSuperadmin(req, res, next) {
+  if (!req.user?.is_superadmin) {
+    return res.status(403).json({ error: 'Accès réservé aux administrateurs de la plateforme' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireOwner, requireRole, resolvePractitionerScope, requireSuperadmin };

@@ -46,6 +46,7 @@ const taskRoutes = require('./routes/staff/tasks');
 const giftCardRoutes = require('./routes/staff/gift-cards');
 const businessHoursRoutes = require('./routes/staff/business-hours');
 const reviewRoutes = require('./routes/staff/reviews');
+const adminRoutes = require('./routes/admin');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 const stripeRoutes = require('./routes/staff/stripe');
 const { handleStripeWebhook } = require('./routes/staff/stripe');
@@ -170,6 +171,9 @@ app.use('/api/public', publicRoutes);
 // Auth
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', signupRoutes);
+
+// Admin API (superadmin only)
+app.use('/api/admin', adminRoutes);
 
 // Staff API (auth required — dashboard)
 app.use('/api/dashboard', dashboardRoutes);

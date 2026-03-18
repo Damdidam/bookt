@@ -498,6 +498,35 @@
 
 <div id="gToast" class="g-toast" style="display:none"></div>
 
+<!-- Admin impersonation handler -->
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var at = p.get('admin_token');
+  if (at) {
+    // Store the admin token as the regular token so the dashboard uses it
+    localStorage.setItem('genda_token', at);
+    // Clean URL
+    history.replaceState(null, '', '/dashboard.html');
+    // Decode JWT to get business name for banner
+    try {
+      var payload = JSON.parse(atob(at.split('.')[1]));
+      if (payload.impersonated) {
+        window.__genda_impersonated = true;
+      }
+    } catch(e) {}
+  }
+  // Check existing token for impersonation flag
+  var tk = localStorage.getItem('genda_token');
+  if (tk) {
+    try {
+      var pay = JSON.parse(atob(tk.split('.')[1]));
+      if (pay.impersonated) window.__genda_impersonated = true;
+    } catch(e) {}
+  }
+})();
+</script>
+
 <!-- Vite entry point -->
 <script type="module" src="/src/frontend/main.js"></script>
 </body>
