@@ -17,8 +17,10 @@ function validateTwilioSignature(req, res, next) {
     const twilio = require('twilio');
     const signature = req.headers['x-twilio-signature'];
     const url = `${process.env.APP_BASE_URL || 'https://' + req.headers.host}${req.originalUrl}`;
-    if (!signature || !twilio.validateRequest(authToken, signature, url, req.body || {})) {
-      console.warn('[TWILIO] Invalid signature for', req.originalUrl);
+    const params = req.body || {};
+    const valid = signature && twilio.validateRequest(authToken, signature, url, params);
+    if (!valid) {
+      console.warn('[TWILIO] Invalid signature for', req.originalUrl, '| url:', url, '| sig:', signature ? 'present' : 'missing', '| body keys:', Object.keys(params).join(','));
       return res.status(403).send('Forbidden');
     }
   } catch (e) {
