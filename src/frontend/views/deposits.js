@@ -82,9 +82,9 @@ async function loadDeposits(){
           <td style="padding:10px 14px"><div style="font-weight:600">${rdvDate}</div><div style="font-size:.7rem;color:var(--text-4)">Cr\u00e9\u00e9 ${createdDate}</div></td>
           <td style="padding:10px"><div style="font-weight:500">${esc(d.client_name)}</div><div style="font-size:.7rem;color:var(--text-4)">${esc(d.client_email||'')}</div></td>
           <td style="padding:10px"><span style="font-size:.78rem">${esc(d.service_name)}</span><div style="font-size:.7rem;color:var(--text-4)">${esc(d.practitioner_name||'')}</div></td>
-          <td style="padding:10px;text-align:right;font-weight:600">${fmtEur(d.deposit_amount_cents)}</td>
+          <td style="padding:10px;text-align:right;font-weight:600">${fmtEur(d.deposit_amount_cents)}${(()=>{const gc=parseInt(d.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(d.deposit_amount_cents||0)-gc);return '<div style="font-size:.65rem;font-weight:400;color:var(--text-4);margin-top:2px">🎁 '+fmtEur(gc)+' carte cadeau'+(stripe>0?' · '+fmtEur(stripe)+' Stripe':'')+'</div>';})()}</td>
           <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${dc}12;color:${dc};font-weight:600">${depStatusLabels[d.deposit_status]||d.deposit_status||'\u2014'}</span></td>
-          <td style="padding:10px;color:var(--text-3);font-size:.78rem">${paidDate}${d.deposit_payment_intent_id?'<div style="font-size:.65rem;color:var(--text-4);font-family:monospace">'+esc(d.deposit_payment_intent_id.slice(-8))+'</div>':''}</td>
+          <td style="padding:10px;color:var(--text-3);font-size:.78rem">${paidDate}${d.deposit_payment_intent_id?(d.deposit_payment_intent_id.startsWith('gc_')?'<div style="font-size:.65rem;color:#B45309">🎁 Carte cadeau</div>':'<div style="font-size:.65rem;color:var(--text-4);font-family:monospace">'+esc(d.deposit_payment_intent_id.slice(-8))+'</div>'):''}</td>
           <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${bc}12;color:${bc};font-weight:600">${bkStatusLabels[d.booking_status]||d.booking_status}</span></td>
           <td style="padding:10px;text-align:center">${hasAudit?`<button onclick="showDepositAudit('${d.id}')" title="Voir l'historique" style="background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--primary)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>`:'<span style="color:var(--text-4)">\u2014</span>'}</td>
         </tr>`;
@@ -138,7 +138,7 @@ function showDepositAudit(bookingId){
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
         <div style="font-size:.85rem;font-weight:600">${esc(dep.client_name)} \u2014 ${esc(dep.service_name)}</div>
-        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
+        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)}${(()=>{const gc=parseInt(dep.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(dep.deposit_amount_cents||0)-gc);return ' (🎁 '+fmtEur(gc)+' carte cadeau'+(stripe>0?' + '+fmtEur(stripe)+' Stripe':'')+')';})()} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
       </div>
       ${auditHtml}
     </div>
