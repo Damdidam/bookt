@@ -61,6 +61,8 @@ function setupHoverDelegation() {
   container.addEventListener('mouseover', function (e) {
     if (fsIsActive()) return;
     var el = findEventEl(e.target);
+    // If hoveredEl was detached from DOM (FC re-render), reset it
+    if (_hoveredEl && !_hoveredEl.isConnected) { _hoveredEl = null; fcHideTooltip(); }
     if (el === _hoveredEl) { clearTimeout(_hideTimer); return; }
     if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
     if (_hoveredEl) fcHideTooltip();
@@ -72,6 +74,8 @@ function setupHoverDelegation() {
 
   container.addEventListener('mousemove', function (e) {
     if (fsIsActive() || !_hoveredEl) return;
+    // If hoveredEl was detached, clean up
+    if (!_hoveredEl.isConnected) { _hoveredEl = null; fcHideTooltip(); return; }
     fcMoveTooltip(e.clientX, e.clientY);
   });
 
