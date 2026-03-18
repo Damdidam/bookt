@@ -1087,6 +1087,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
 
         // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
+        let gcPartialCents = 0;
         if (bookings.length > 0) {
           try {
             await client.query('SAVEPOINT deposit_sp');
@@ -1117,7 +1118,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               clientIsVip = !!nsRow.rows[0]?.is_vip;
             }
 
-            let gcPartialCents = 0;
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
@@ -1589,6 +1589,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       );
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
+      let gcPartialCents = 0;
       if (booking.rows[0]) {
         try {
           await client.query('SAVEPOINT deposit_single_sp');
@@ -1622,7 +1623,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             clientIsVip = !!nsRow.rows[0]?.is_vip;
           }
 
-          let gcPartialCents = 0;
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
           if (depResult.required) {
             const dlHours = bizSettings.deposit_deadline_hours ?? 48;
