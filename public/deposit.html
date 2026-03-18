@@ -193,10 +193,17 @@ function render(d) {
 
   // Pay online button (for pending deposits)
   if (depStatus === 'pending') {
+    html += `<div id="gcSection" style="margin:0 28px 16px;display:none"></div>`;
     html += `<button class="pay-btn" id="payBtn" onclick="startPayment()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       Payer ${depAmount} € en ligne
     </button>`;
+    html += `<div class="pay-or">ou entrez un code carte cadeau</div>`;
+    html += `<div style="margin:0 28px 20px;display:flex;gap:8px">
+      <input type="text" id="gcCode" placeholder="GC-XXXX-XXXX" style="flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.88rem;text-transform:uppercase;outline:none" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+      <button onclick="applyGiftCard()" id="gcApplyBtn" style="padding:12px 20px;border:none;border-radius:var(--radius-sm);background:var(--text);color:#fff;font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">Appliquer</button>
+    </div>`;
+    html += `<div id="gcResult" style="margin:0 28px 20px;display:none"></div>`;
     html += `<div class="pay-or">ou</div>`;
     html += `<div class="contact-section" style="border-top:none;padding-top:0">
       <p>Contactez directement l'\u00e9tablissement :</p>
@@ -208,6 +215,9 @@ function render(d) {
       html += `<a class="c-btn" href="mailto:${esc(biz.email)}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> Email</a>`;
     }
     html += `</div></div>`;
+
+    // Auto-check for gift cards linked to client email
+    checkClientGiftCards(bk.deposit_amount_cents);
   }
 
   document.getElementById('cardContent').innerHTML = html;
@@ -303,6 +313,139 @@ if (new URLSearchParams(window.location.search).get('paid') === '1') {
       if (attempts >= 10) { clearInterval(interval); window.location.href = `/deposit/${token}`; }
     }, 1500);
   })();
+}
+
+let appliedGcCode = null;
+let appliedGcAmount = 0;
+
+async function checkClientGiftCards(depositCents) {
+  try {
+    const res = await fetch(`/api/public/deposit/${token}/check-gift-cards`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.cards || data.cards.length === 0) return;
+
+    const sec = document.getElementById('gcSection');
+    if (!sec) return;
+    const card = data.cards[0]; // best card (highest balance)
+    const bal = (card.balance_cents / 100).toFixed(2);
+    const dep = (depositCents / 100).toFixed(2);
+    const covers = card.balance_cents >= depositCents;
+
+    sec.style.display = '';
+    sec.innerHTML = `
+      <div style="padding:14px 16px;border-radius:var(--radius-sm);background:#FAF6EC;border:1.5px solid #E5D9B5;display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;border-radius:10px;background:#F0E6C8;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A68B3C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V6a2 2 0 0 1 4 0v2"/><path d="M8 8V6a2 2 0 0 1 4 0"/><line x1="12" y1="8" x2="12" y2="20"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:700;color:#8B7124">Carte cadeau disponible</div>
+          <div style="font-size:.78rem;color:#A68B3C">Solde : ${bal} € · Code : ${card.code}</div>
+        </div>
+        <button onclick="useAutoGiftCard('${card.code}', ${card.balance_cents})" style="padding:8px 16px;border:none;border-radius:8px;background:#A68B3C;color:#fff;font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer">
+          ${covers ? 'Utiliser' : 'Utiliser ' + bal + ' €'}
+        </button>
+      </div>`;
+  } catch (e) { /* silent */ }
+}
+
+async function useAutoGiftCard(code, balanceCents) {
+  await payWithGiftCard(code);
+}
+
+async function applyGiftCard() {
+  const input = document.getElementById('gcCode');
+  const btn = document.getElementById('gcApplyBtn');
+  const result = document.getElementById('gcResult');
+  const code = (input.value || '').trim();
+  if (!code) { input.focus(); return; }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  try {
+    const res = await fetch('/api/public/gift-card/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+
+    if (!data.valid) {
+      result.style.display = '';
+      result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">${data.error || 'Code invalide'}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Appliquer';
+      return;
+    }
+
+    // Valid card — use it
+    await payWithGiftCard(code);
+  } catch (e) {
+    result.style.display = '';
+    result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">Erreur de connexion</div>`;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Appliquer';
+}
+
+async function payWithGiftCard(code) {
+  const result = document.getElementById('gcResult');
+  const payBtn = document.getElementById('payBtn');
+
+  try {
+    const res = await fetch(`/api/public/deposit/${token}/gift-card`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (result) { result.style.display = ''; result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">${data.error || 'Erreur'}</div>`; }
+      return;
+    }
+
+    const gcUsed = (data.gc_amount_used / 100).toFixed(2);
+
+    if (data.fully_paid) {
+      // Fully paid — show success and reload
+      document.getElementById('cardContent').innerHTML = `<div style="padding:60px 28px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2 style="font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px">Acompte réglé !</h2>
+        <p style="font-size:.88rem;color:var(--text-3)">${gcUsed} € débités de votre carte cadeau.<br>Votre rendez-vous est confirmé.</p>
+        ${data.gc_balance > 0 ? '<p style="font-size:.78rem;color:var(--text-4);margin-top:8px">Solde restant : ' + (data.gc_balance / 100).toFixed(2) + ' €</p>' : ''}
+      </div>`;
+      // Reload after 3s to show confirmed state
+      setTimeout(() => { window.location.href = '/deposit/' + token; }, 3000);
+    } else {
+      // Partial — update pay button with remaining
+      const rem = (data.remaining / 100).toFixed(2);
+      appliedGcCode = code;
+      appliedGcAmount = data.gc_amount_used;
+
+      if (result) {
+        result.style.display = '';
+        result.innerHTML = `<div style="padding:12px 14px;border-radius:8px;background:var(--green-bg);border:1px solid #86EFAC;font-size:.82rem;color:var(--green);font-weight:600">
+          ✓ ${gcUsed} € déduits de la carte cadeau. Reste à payer : ${rem} €
+        </div>`;
+      }
+
+      // Update Stripe pay button amount
+      if (payBtn) {
+        payBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Payer ${rem} € en ligne`;
+      }
+
+      // Hide the gc input section
+      const gcCode = document.getElementById('gcCode');
+      if (gcCode) gcCode.parentElement.style.display = 'none';
+      const gcSec = document.getElementById('gcSection');
+      if (gcSec) gcSec.style.display = 'none';
+    }
+  } catch (e) {
+    if (result) { result.style.display = ''; result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:.82rem;font-weight:600">Erreur de connexion</div>`; }
+  }
 }
 
 function showError(msg) {

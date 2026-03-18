@@ -2250,7 +2250,13 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     if (!key) return res.status(503).json({ error: 'Paiement en ligne non disponible' });
     const stripe = require('stripe')(key);
 
-    const amountCents = bk.deposit_amount_cents || 0;
+    // Check if gift card was partially applied
+    const gcTxRes = await query(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions
+       WHERE booking_id = $1 AND type = 'debit'`, [bk.id]
+    );
+    const gcPaid = parseInt(gcTxRes.rows[0].gc_paid) || 0;
+    const amountCents = (bk.deposit_amount_cents || 0) - gcPaid;
     if (amountCents < 50) return res.status(400).json({ error: 'Montant trop faible' });
 
     // M13: Reuse existing Stripe session if still open
@@ -2353,7 +2359,13 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     if (!key) return res.redirect(depositPageUrl + '?error=stripe');
     const stripe = require('stripe')(key);
 
-    const amountCents = bk.deposit_amount_cents || 0;
+    // Check if gift card was partially applied
+    const gcTxRes2 = await query(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions
+       WHERE booking_id = $1 AND type = 'debit'`, [bk.id]
+    );
+    const gcPaid2 = parseInt(gcTxRes2.rows[0].gc_paid) || 0;
+    const amountCents = (bk.deposit_amount_cents || 0) - gcPaid2;
     if (amountCents < 50) return res.redirect(depositPageUrl);
 
     // M13: Reuse existing Stripe session if still open
@@ -4655,6 +4667,156 @@ router.post('/:slug/gift-card/checkout', async (req, res, next) => {
     console.error('[GIFT-CARD CHECKOUT] Error:', err);
     next(err);
   }
+});
+
+// POST /api/public/deposit/:token/gift-card — pay deposit (fully or partially) with gift card
+router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { token } = req.params;
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code requis' });
+
+    await client.query('BEGIN');
+
+    // 1. Fetch booking
+    const bkRes = await client.query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
+              b.deposit_amount_cents, b.deposit_deadline, b.public_token, b.group_id,
+              b.start_at, c.email AS client_email, c.full_name AS client_name,
+              biz.name AS business_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1 FOR UPDATE`,
+      [token]
+    );
+    if (bkRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Rendez-vous introuvable' }); }
+    const bk = bkRes.rows[0];
+
+    if (!bk.deposit_required || bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Aucun acompte en attente' });
+    }
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Le délai de paiement est dépassé' });
+    }
+
+    // 2. Fetch gift card
+    const gcRes = await client.query(
+      `SELECT id, code, balance_cents, status, expires_at FROM gift_cards
+       WHERE code = $1 AND business_id = $2 FOR UPDATE`,
+      [code.toUpperCase().trim(), bk.business_id]
+    );
+    if (gcRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Code carte cadeau invalide' }); }
+    const gc = gcRes.rows[0];
+
+    if (gc.status !== 'active') { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Carte inactive ou expirée' }); }
+    if (gc.expires_at && new Date(gc.expires_at) < new Date()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Carte expirée' }); }
+
+    const depositAmount = bk.deposit_amount_cents;
+    const gcDebit = Math.min(gc.balance_cents, depositAmount);
+    const remaining = depositAmount - gcDebit;
+
+    // 3. Debit gift card
+    const newBalance = gc.balance_cents - gcDebit;
+    await client.query(
+      `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+      [newBalance, newBalance === 0 ? 'used' : 'active', gc.id]
+    );
+    await client.query(
+      `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
+      [gc.id, bk.business_id, bk.id, gcDebit, `Acompte RDV — carte ${gc.code}`]
+    );
+
+    if (remaining <= 0) {
+      // 4a. Fully paid by gift card → confirm booking
+      await client.query(
+        `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
+                locked = true, deposit_payment_intent_id = $1
+         WHERE id = $2`,
+        [`gc_${gc.code}`, bk.id]
+      );
+
+      // Also update group siblings
+      if (bk.group_id) {
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
+                  locked = true WHERE group_id = $1 AND id != $2 AND status = 'pending_deposit'`,
+          [bk.group_id, bk.id]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Send confirmation email
+      try {
+        const { sendDepositPaidEmail } = require('../../services/email');
+        if (sendDepositPaidEmail) await sendDepositPaidEmail(bk.id);
+      } catch (e) { console.error('[GC DEPOSIT] Email error:', e.message); }
+
+      // Broadcast SSE
+      try {
+        const { broadcast } = require('../../services/sse');
+        if (broadcast) broadcast(bk.business_id, { type: 'booking', action: 'updated', booking_id: bk.id });
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        fully_paid: true,
+        gc_amount_used: gcDebit,
+        remaining: 0,
+        gc_balance: newBalance
+      });
+    } else {
+      // 4b. Partially paid — remaining needs Stripe
+      await client.query('COMMIT');
+
+      return res.json({
+        success: true,
+        fully_paid: false,
+        gc_amount_used: gcDebit,
+        remaining,
+        gc_balance: newBalance
+      });
+    }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[GC DEPOSIT] Error:', err);
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/public/deposit/:token/check-gift-cards — check if client email has gift cards
+router.post('/deposit/:token/check-gift-cards', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const bkRes = await query(
+      `SELECT b.business_id, c.email FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.public_token = $1 AND b.status = 'pending_deposit'`,
+      [token]
+    );
+    if (bkRes.rows.length === 0 || !bkRes.rows[0].email) return res.json({ cards: [] });
+
+    const { business_id, email } = bkRes.rows[0];
+
+    const gcRes = await query(
+      `SELECT code, balance_cents, expires_at FROM gift_cards
+       WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+         AND (recipient_email = $2 OR buyer_email = $2)
+         AND (expires_at IS NULL OR expires_at > NOW())
+       ORDER BY balance_cents DESC`,
+      [business_id, email]
+    );
+
+    res.json({ cards: gcRes.rows });
+  } catch (err) { next(err); }
 });
 
 // POST /api/public/gift-card/validate — validate code + return balance
