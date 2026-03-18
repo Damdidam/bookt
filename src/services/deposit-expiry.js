@@ -169,7 +169,7 @@ async function processExpiredDeposits() {
       if (!cancelled.group_id) continue;
       try {
         const siblings = await query(
-          `SELECT b.id, b.start_at, b.end_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
+          `SELECT b.id, b.start_at, b.end_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
@@ -189,7 +189,7 @@ async function processExpiredDeposits() {
           try {
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at },
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id },
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
             });
           } catch (e) { console.warn('[DEPOSIT CRON] Sibling email error:', e.message); }

@@ -2886,6 +2886,14 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
     }
+    // Refund GC debits for group siblings
+    if (bk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        const { refundGiftCardForBooking } = require('../services/gift-card-refund');
+        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+      } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
+    }
 
     // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
     try {
@@ -3219,6 +3227,14 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     try { const { refundGiftCardForBooking } = require('../services/gift-card-refund'); await refundGiftCardForBooking(rejBk.id); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
     if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
+    }
+    // Refund GC debits for group siblings
+    if (rejBk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
+        const { refundGiftCardForBooking } = require('../services/gift-card-refund');
+        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+      } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
     }
 
     // Notify practitioner
@@ -3758,6 +3774,14 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     try { const { refundGiftCardForBooking } = require('../services/gift-card-refund'); await refundGiftCardForBooking(cancelledBk.id); } catch (e) { console.error('[GC REFUND] reschedule-cancel error:', e.message); }
     if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
+    }
+    // Refund GC debits for group siblings
+    if (bk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        const { refundGiftCardForBooking } = require('../services/gift-card-refund');
+        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+      } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
     }
 
     // Audit log

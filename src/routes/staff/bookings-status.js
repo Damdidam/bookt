@@ -460,6 +460,12 @@ router.patch('/:id/status', async (req, res, next) => {
                  WHERE group_id = $2 AND business_id = $3 AND id != $4 AND deposit_required = true`,
                 [newDepStatus, old.rows[0].group_id, bid, id]
               );
+              // Refund GC debits for siblings too
+              const sibIds = await client.query(
+                `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
+                [old.rows[0].group_id, bid, id]
+              );
+              for (const sib of sibIds.rows) { await refundGiftCardForBooking(sib.id, client); }
             }
           }
         }
@@ -925,6 +931,12 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
              AND deposit_status NOT IN ('refunded', 'cancelled')`,
           [bk.rows[0].group_id, bid, id]
         );
+        // Refund GC debits for siblings too
+        const sibIds = await client.query(
+          `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`,
+          [bk.rows[0].group_id, bid, id]
+        );
+        for (const sib of sibIds.rows) { await refundGiftCardForBooking(sib.id, client); }
       }
 
       // Bug B5 fix: Include old_data in deposit-refund audit log
