@@ -1066,12 +1066,17 @@ img { max-width: 100%; display: block; }
 
   function fmtNext(iso) {
     if (!iso) return null;
-    var d = new Date(iso), now = new Date(), h = (d - now) / 36e5;
-    if (h < 0) return null;
-    var t = d.toLocaleTimeString('fr-BE', { hour:'2-digit', minute:'2-digit' });
-    if (h < 24) return "Aujourd'hui, " + t;
-    if (h < 48) return 'Demain, ' + t;
-    return d.toLocaleDateString('fr-BE', { weekday:'long', day:'numeric', month:'short' }) + ', ' + t;
+    var d = new Date(iso), now = new Date();
+    if (d <= now) return null;
+    var tz = { timeZone: 'Europe/Brussels' };
+    var t = d.toLocaleTimeString('fr-BE', Object.assign({ hour:'2-digit', minute:'2-digit' }, tz));
+    // Compare calendar dates in Brussels timezone (not hour-based)
+    var slotDate = d.toLocaleDateString('en-CA', tz);
+    var todayDate = now.toLocaleDateString('en-CA', tz);
+    var tomorrowDate = new Date(now.getTime() + 86400000).toLocaleDateString('en-CA', tz);
+    if (slotDate === todayDate) return "Aujourd'hui, " + t;
+    if (slotDate === tomorrowDate) return 'Demain, ' + t;
+    return d.toLocaleDateString('fr-BE', Object.assign({ weekday:'long', day:'numeric', month:'short' }, tz)) + ', ' + t;
   }
 
   function todayIdx() {

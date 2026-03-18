@@ -290,31 +290,40 @@ router.get('/:slug', async (req, res, next) => {
     const news = newsResult.rows;
     const realisations = reaResult.rows;
 
-    // ===== NEXT AVAILABLE SLOT (earliest across ALL services) =====
+    // ===== NEXT AVAILABLE SLOT (earliest across bookable-online services) =====
     let nextSlot = null;
-    if (svcResult.rows.length > 0) {
+    const bookableServices = svcResult.rows.filter(s => s.bookable_online !== false);
+    if (bookableServices.length > 0) {
       try {
         const now = new Date();
         const brusselsToday = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-        const weekOut = new Date(now.getTime() + 8 * 86400000);
+        const weekOut = new Date(now.getTime() + 14 * 86400000); // 2 weeks out
         const dateTo = weekOut.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const nowMs = now.getTime();
-        // Check up to 5 services to find the earliest slot (perf-safe)
-        const svcsToCheck = svcResult.rows.slice(0, 5);
+        // Check up to 10 bookable services to find the earliest slot
+        const svcsToCheck = bookableServices.slice(0, 10);
         const slotPromises = svcsToCheck.map(s =>
           getAvailableSlots({ businessId: bid, serviceId: s.id, dateFrom: brusselsToday, dateTo })
             .then(slots => {
-              const future = slots.filter(sl => new Date(sl.start_at).getTime() > nowMs);
+              // Slots may be reordered by smart ranking — sort chronologically to find earliest
+              const future = slots
+                .filter(sl => new Date(sl.start_at).getTime() > nowMs)
+                .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
               return future.length > 0 ? future[0].start_at : null;
             })
-            .catch(() => null)
+            .catch(err => {
+              console.warn('[MINISITE] next-slot error for service', s.id, ':', err.message);
+              return null;
+            })
         );
         const earliest = (await Promise.all(slotPromises)).filter(Boolean);
         if (earliest.length > 0) {
           earliest.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
           nextSlot = earliest[0];
         }
-      } catch (e) { /* non-critical */ }
+      } catch (e) {
+        console.warn('[MINISITE] next-slot global error:', e.message);
+      }
     }
 
     const hours = {};
