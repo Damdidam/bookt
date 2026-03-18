@@ -2143,14 +2143,11 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
     // Audit log
     await client.query(
-      `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, user_id, details)
-       VALUES ($1, 'booking', $2, 'client_reschedule', $3, $4)`,
-      [bk.business_id, bk.id, bk.client_id, JSON.stringify({
-        old_start_at: bk.start_at, old_end_at: bk.end_at,
-        new_start_at: start_at, new_end_at: end_at,
-        reschedule_count: (bk.reschedule_count || 0) + 1,
-        group: !!bk.group_id
-      })]
+      `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, actor_user_id, old_data, new_data)
+       VALUES ($1, 'booking', $2, 'client_reschedule', NULL, $3, $4)`,
+      [bk.business_id, bk.id,
+       JSON.stringify({ start_at: bk.start_at, end_at: bk.end_at }),
+       JSON.stringify({ start_at, end_at, reschedule_count: (bk.reschedule_count || 0) + 1, group: !!bk.group_id })]
     );
 
     await client.query('COMMIT');
