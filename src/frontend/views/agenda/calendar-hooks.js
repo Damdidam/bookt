@@ -32,6 +32,7 @@ function scheduleRedistribute() {
 
 // ── Delegated tooltip hover (set up once on container, avoids 240 listeners) ──
 let _hoverReady = false;
+let _hoverContainer = null;
 let _hoveredEl = null;
 let _hideTimer = null;
 
@@ -49,10 +50,13 @@ function getFCEvent(el) {
 }
 
 function setupHoverDelegation() {
-  if (_hoverReady || _isTouch) return;
+  if (_isTouch) return;
   var container = document.getElementById('fcCalendar');
   if (!container) return;
+  // Re-attach if container DOM element changed (FC re-render)
+  if (_hoverReady && _hoverContainer === container) return;
   _hoverReady = true;
+  _hoverContainer = container;
 
   container.addEventListener('mouseover', function (e) {
     if (fsIsActive()) return;
