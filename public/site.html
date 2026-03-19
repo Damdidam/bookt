@@ -1325,7 +1325,7 @@ img { max-width: 100%; display: block; }
     document.getElementById('navBrand').textContent = b.name;
     document.getElementById('navBookBtn').href = bookUrl;
     // Gift card link
-    if (b.settings && b.settings.giftcard_enabled) {
+    if (b.giftcard_enabled) {
       var gcUrl = '/' + b.slug + '/gift-card';
       document.getElementById('navGiftCardLi').style.display = '';
       document.getElementById('navGiftCardBtn').href = gcUrl;
