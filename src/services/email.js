@@ -377,9 +377,9 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   let detailLines = `<div style="font-size:15px;font-weight:600;color:#15613A;margin-bottom:4px">${_ic('calendar-grn')} ${dateStr}</div>`;
   detailLines += `<div style="font-size:14px;color:#15613A">${_ic('clock-grn')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
 
+  const hasSplitPrac = isMulti && groupServices.some(s => s.practitioner_name);
   if (isMulti) {
     detailLines += `<div style="font-size:13px;color:#15613A;margin-top:8px;font-weight:600">Prestations :</div>`;
-    const hasSplitPrac = groupServices.some(s => s.practitioner_name);
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
@@ -481,9 +481,9 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
   let detailLines = `<div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>`;
   detailLines += `<div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>`;
 
+  const hasSplitPracCR = isMulti && groupServices.some(s => s.practitioner_name);
   if (isMulti) {
     detailLines += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
-    const hasSplitPracCR = groupServices.some(s => s.practitioner_name);
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
