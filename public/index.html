@@ -81,7 +81,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 .nav.scrolled { border-color: var(--border-light); box-shadow: var(--shadow-xs); }
 .nav-inner { max-width: var(--max-w); margin: 0 auto; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
 .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.nav-logo { width: 36px; height: 36px; border-radius: 10px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 1.05rem; transition: transform .2s; }
+.nav-logo { width: 36px; height: 36px; transition: transform .2s; }
 .nav-brand:hover .nav-logo { transform: scale(1.06); }
 .nav-wm { font-family: var(--serif); font-size: 1.25rem; color: var(--text); }
 .nav-right { display: flex; align-items: center; gap: 4px; }
@@ -305,7 +305,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .footer { padding: 48px 32px; border-top: 1px solid var(--border-light); }
 .footer-inner { max-width: var(--max-w); margin: 0 auto; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 48px; }
 .footer-brand .f-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.footer-brand .f-logo .nav-logo { width: 30px; height: 30px; font-size: .85rem; }
+.footer-brand .f-logo .nav-logo { width: 30px; height: 30px; }
 .footer-brand .f-tagline { font-size: .82rem; color: var(--text-3); max-width: 280px; line-height: 1.5; font-weight: 300; }
 .footer-col h4 { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-4); margin-bottom: 14px; }
 .footer-col a { display: block; font-size: .84rem; color: var(--text-3); text-decoration: none; padding: 4px 0; transition: color .15s; }
@@ -351,7 +351,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 <!-- ═══════════════ NAV ═══════════════ -->
 <nav class="nav" id="nav">
   <div class="nav-inner">
-    <a class="nav-brand" href="#"><div class="nav-logo">G</div><span class="nav-wm">Genda</span></a>
+    <a class="nav-brand" href="#"><div class="nav-logo"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="nav-wm">Genda</span></a>
     <div class="nav-right">
       <a class="nav-link" href="#features">Fonctionnalités</a>
       <a class="nav-link" href="#how">Comment ça marche</a>
@@ -733,7 +733,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 <!-- ═══════════════ FOOTER ═══════════════ -->
 <footer class="footer">
   <div class="footer-inner">
-    <div class="footer-brand"><div class="f-logo"><div class="nav-logo">G</div><span class="nav-wm">Genda</span></div><p class="f-tagline">La plateforme tout-en-un pour salons de beauté et instituts. Agenda, booking, acomptes, cartes cadeau et minisite pro.</p></div>
+    <div class="footer-brand"><div class="f-logo"><div class="nav-logo"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="nav-wm">Genda</span></div><p class="f-tagline">La plateforme tout-en-un pour salons de beauté et instituts. Agenda, booking, acomptes, cartes cadeau et minisite pro.</p></div>
     <div class="footer-col"><h4>Produit</h4><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a><a href="#">Changelog</a></div>
     <div class="footer-col"><h4>Secteurs</h4><a href="#">Coiffure</a><a href="#">Esthétique</a><a href="#">Barbier</a><a href="#">Massage</a><a href="#">Onglerie</a><a href="#">Bien-être</a></div>
     <div class="footer-col"><h4>Légal</h4><a href="/privacy-policy.html">Politique de confidentialité</a><a href="#">Conditions d'utilisation</a><a href="#">RGPD</a><a href="#">Contact</a></div>
