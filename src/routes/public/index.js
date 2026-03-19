@@ -2167,10 +2167,11 @@ router.get('/manage/:token', async (req, res, next) => {
     let isSplitBooking = false;
     if (bk.group_id) {
       const grp = await query(
-        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
-                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at
+                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
+                b.service_id, b.service_variant_id
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -2189,13 +2190,14 @@ router.get('/manage/:token', async (req, res, next) => {
         }));
         groupEndAt = grp.rows[grp.rows.length - 1].end_at;
       }
+      // For split reschedule: store service/variant IDs
+      if (isSplitBooking) {
+        bk._splitServiceIds = grp.rows.map(r => r.service_id);
+        bk._splitVariantIds = grp.rows.map(r => r.service_variant_id);
+      }
     }
 
-    // Disable reschedule for split-practitioner bookings
-    if (isSplitBooking && reschAllowed) {
-      reschAllowed = false;
-      reschReason = 'Contactez le salon pour modifier ce rendez-vous multi-praticiens.';
-    }
+    // Split bookings: reschedule IS allowed — we'll use multi-practitioner slot engine
 
     const serviceInfo = groupServices
       ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
@@ -2239,7 +2241,10 @@ router.get('/manage/:token', async (req, res, next) => {
         practitioner_id: bk.practitioner_id,
         variant_id: bk.service_variant_id,
         duration_min: bk.duration_min,
-        appointment_mode: bk.appointment_mode
+        appointment_mode: bk.appointment_mode,
+        is_split: isSplitBooking,
+        split_service_ids: bk._splitServiceIds || null,
+        split_variant_ids: bk._splitVariantIds || null
       }
     });
   } catch (err) { next(err); }
@@ -2255,11 +2260,11 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
     const { date } = req.query;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Paramètre date requis (YYYY-MM-DD)' });
 
-    // Lookup booking
+    // Lookup booking + group info
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.status, b.locked, b.reschedule_count,
               b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
-              b.appointment_mode,
+              b.appointment_mode, b.group_id,
               biz.settings AS business_settings
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
@@ -2270,6 +2275,27 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
 
     const bk = result.rows[0];
     const settings = bk.business_settings || {};
+
+    // Detect split group
+    let isSplitGroup = false;
+    let splitServiceIds = null;
+    let splitVariantIds = null;
+    if (bk.group_id) {
+      const grpMembers = await query(
+        `SELECT b.service_id, b.service_variant_id, b.practitioner_id
+         FROM bookings b WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grpMembers.rows.length > 1) {
+        const pracIds = new Set(grpMembers.rows.map(r => r.practitioner_id));
+        isSplitGroup = pracIds.size > 1;
+        if (isSplitGroup) {
+          splitServiceIds = grpMembers.rows.map(r => r.service_id);
+          splitVariantIds = grpMembers.rows.map(r => r.service_variant_id).filter(Boolean);
+        }
+      }
+    }
 
     // Re-check eligibility
     const reschEnabled = !!settings.reschedule_enabled;
@@ -2290,16 +2316,29 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
     const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000).toISOString().slice(0, 10);
     if (date < today || date > maxDate) return res.status(400).json({ error: `Date hors de la fenêtre autorisée (${reschWindowDays} jours).` });
 
-    // Fetch available slots using existing slot engine
-    const slots = await getAvailableSlots({
-      businessId: bk.business_id,
-      serviceId: bk.service_id,
-      practitionerId: bk.practitioner_id,
-      dateFrom: date,
-      dateTo: date,
-      appointmentMode: bk.appointment_mode,
-      variantId: bk.service_variant_id || undefined
-    });
+    let slots;
+    if (isSplitGroup && splitServiceIds) {
+      // Split booking: use multi-practitioner slot engine
+      slots = await getAvailableSlotsMultiPractitioner({
+        businessId: bk.business_id,
+        serviceIds: splitServiceIds,
+        dateFrom: date,
+        dateTo: date,
+        appointmentMode: bk.appointment_mode,
+        variantIds: splitVariantIds.length > 0 ? splitVariantIds : undefined
+      });
+    } else {
+      // Single or same-practitioner group: use standard slot engine
+      slots = await getAvailableSlots({
+        businessId: bk.business_id,
+        serviceId: bk.service_id,
+        practitionerId: bk.practitioner_id,
+        dateFrom: date,
+        dateTo: date,
+        appointmentMode: bk.appointment_mode,
+        variantId: bk.service_variant_id || undefined
+      });
+    }
 
     // Filter out the booking's current slot (so client doesn't see it)
     const bkStart = new Date(bk.start_at).toISOString();
@@ -2311,7 +2350,8 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
         start_time: s.start_time,
         end_time: s.end_time,
         start_at: s.start_at,
-        end_at: s.end_at
+        end_at: s.end_at,
+        practitioners: s.practitioners || null
       }))
     });
   } catch (err) { next(err); }
@@ -2325,7 +2365,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
   const client = await pool.connect();
   try {
     const { token } = req.params;
-    const { start_at, end_at } = req.body;
+    const { start_at, end_at, practitioners: slotPractitioners } = req.body;
     if (!start_at || !end_at) return res.status(400).json({ error: 'start_at et end_at requis' });
 
     const newStart = new Date(start_at);
@@ -2393,33 +2433,73 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       }
     }
 
-    // Practitioner availability
-    const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
-    if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
-
-    // Conflict check (exclude current booking)
-    const conflicts = await checkBookingConflicts(client, {
-      businessId: bk.business_id,
-      practitionerId: bk.practitioner_id,
-      startAt: start_at,
-      endAt: end_at,
-      excludeBookingId: bk.id,
-      serviceId: bk.service_id
-    });
-    if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
-
-    // --- Execute reschedule ---
+    // Detect split group
+    let isSplitGroup = false;
+    let groupMembers = [];
     if (bk.group_id) {
-      // Group move: shift all members by the same delta
-      const members = await client.query(
-        `SELECT id, start_at, end_at FROM bookings
+      const grpRes = await client.query(
+        `SELECT id, start_at, end_at, practitioner_id, service_id, group_order
+         FROM bookings
          WHERE group_id = $1 AND business_id = $2
          ORDER BY group_order, start_at
          FOR UPDATE SKIP LOCKED`,
         [bk.group_id, bk.business_id]
       );
+      groupMembers = grpRes.rows;
+      if (groupMembers.length > 1) {
+        const pracIds = new Set(groupMembers.map(m => m.practitioner_id));
+        isSplitGroup = pracIds.size > 1;
+      }
+    }
 
-      for (const m of members.rows) {
+    if (isSplitGroup && Array.isArray(slotPractitioners) && slotPractitioners.length > 0) {
+      // ── Split booking reschedule: use per-member times from slot practitioners ──
+      // Validate each practitioner assignment
+      for (const sp of slotPractitioners) {
+        const avail = await checkPracAvailability(bk.business_id, sp.practitioner_id, sp.start_at, sp.end_at);
+        if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Un praticien n\'est pas disponible à cet horaire.' }); }
+      }
+
+      // Match group members to slot practitioners by service_id order
+      for (let i = 0; i < groupMembers.length; i++) {
+        const m = groupMembers[i];
+        const sp = slotPractitioners[i];
+        if (!sp) continue;
+
+        // Conflict check per member (exclude self)
+        const conflicts = await checkBookingConflicts(client, {
+          businessId: bk.business_id,
+          practitionerId: sp.practitioner_id,
+          startAt: sp.start_at,
+          endAt: sp.end_at,
+          excludeBookingId: m.id,
+          serviceId: m.service_id
+        });
+        if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
+        await client.query(
+          `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, reschedule_count = reschedule_count + 1, updated_at = NOW()
+           WHERE id = $4`,
+          [sp.start_at, sp.end_at, sp.practitioner_id, m.id]
+        );
+      }
+    } else if (bk.group_id && groupMembers.length > 0) {
+      // ── Same-practitioner group: shift all members by the same delta ──
+      // Practitioner availability
+      const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
+      if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
+
+      const conflicts = await checkBookingConflicts(client, {
+        businessId: bk.business_id,
+        practitionerId: bk.practitioner_id,
+        startAt: start_at,
+        endAt: end_at,
+        excludeBookingId: bk.id,
+        serviceId: bk.service_id
+      });
+      if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
+      for (const m of groupMembers) {
         const mNewStart = new Date(new Date(m.start_at).getTime() + delta);
         const mNewEnd = new Date(new Date(m.end_at).getTime() + delta);
         await client.query(
@@ -2429,7 +2509,20 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         );
       }
     } else {
-      // Single booking
+      // ── Single booking ──
+      const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
+      if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
+
+      const conflicts = await checkBookingConflicts(client, {
+        businessId: bk.business_id,
+        practitionerId: bk.practitioner_id,
+        startAt: start_at,
+        endAt: end_at,
+        excludeBookingId: bk.id,
+        serviceId: bk.service_id
+      });
+      if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
       await client.query(
         `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, updated_at = NOW()
          WHERE id = $3`,

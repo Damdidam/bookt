@@ -112,6 +112,7 @@ const token = window.location.pathname.split('/').pop();
 let _data = null;
 let _selectedSlot = null;
 let _currentDate = null;
+let _slotsData = null;
 
 if (!token) { showError('Lien invalide'); }
 else { loadBooking(); }
@@ -326,13 +327,14 @@ async function loadSlots(dateStr) {
     const res = await fetch(`/api/public/manage/${token}/slots?date=${dateStr}`);
     if (!res.ok) { const d = await res.json(); container.innerHTML = `<div class="no-slots">${escH(d.error || 'Erreur')}</div>`; return; }
     const data = await res.json();
-    if (!data.slots || data.slots.length === 0) {
-      container.innerHTML = '<div class="no-slots">Aucun créneau disponible ce jour</div>';
+    _slotsData = data.slots || [];
+    if (_slotsData.length === 0) {
+      container.innerHTML = '<div class="no-slots">Aucun cr\u00e9neau disponible ce jour</div>';
       return;
     }
     let html = '<div class="slot-grid">';
-    data.slots.forEach(function(s) {
-      html += `<button class="slot-btn" data-start="${s.start_at}" data-end="${s.end_at}" onclick="selectSlot(this,'${s.start_at}','${s.end_at}')">${s.start_time}</button>`;
+    _slotsData.forEach(function(s, idx) {
+      html += `<button class="slot-btn" data-start="${s.start_at}" data-end="${s.end_at}" onclick="selectSlot(this,'${s.start_at}','${s.end_at}',${idx})">${s.start_time}</button>`;
     });
     html += '</div>';
     container.innerHTML = html;
@@ -341,8 +343,12 @@ async function loadSlots(dateStr) {
   }
 }
 
-function selectSlot(el, startAt, endAt) {
+function selectSlot(el, startAt, endAt, slotIdx) {
+  var slotData = _slotsData && _slotsData[slotIdx];
   _selectedSlot = { start_at: startAt, end_at: endAt };
+  if (slotData && slotData.practitioners) {
+    _selectedSlot.practitioners = slotData.practitioners;
+  }
   document.querySelectorAll('.slot-btn').forEach(function(b) { b.classList.remove('selected'); });
   el.classList.add('selected');
 
