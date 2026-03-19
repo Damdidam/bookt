@@ -555,8 +555,17 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'service_ids requis (UUIDs séparés par des virgules)' });
     }
 
-    const ids = service_ids.split(',').map(s => s.trim()).filter(Boolean);
-    const vids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
+    // Parse and deduplicate service_ids (ANY() ignores duplicates, causing length mismatch)
+    const rawIds = service_ids.split(',').map(s => s.trim()).filter(Boolean);
+    const rawVids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
+    const ids = [], vids = [], seenSlotIds = new Set();
+    for (let i = 0; i < rawIds.length; i++) {
+      if (!seenSlotIds.has(rawIds[i])) {
+        seenSlotIds.add(rawIds[i]);
+        ids.push(rawIds[i]);
+        vids.push(rawVids[i] || null);
+      }
+    }
     // UUID-validate non-null variant_ids
     if (vids.some(v => v && !UUID_RE.test(v))) {
       return res.status(400).json({ error: 'variant_ids invalide(s)' });
@@ -825,7 +834,27 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       if (service_ids.some(id => !UUID_RE.test(id))) {
         return res.status(400).json({ error: 'service_ids invalide(s)' });
       }
-      isMultiService = true;
+      // Deduplicate service_ids (and matching variant_ids) to prevent ANY(array) mismatch
+      const seenIds = new Set();
+      const deduped = [];
+      const dedupedVars = [];
+      for (let i = 0; i < service_ids.length; i++) {
+        if (!seenIds.has(service_ids[i])) {
+          seenIds.add(service_ids[i]);
+          deduped.push(service_ids[i]);
+          if (Array.isArray(variant_ids)) dedupedVars.push(variant_ids[i] || null);
+        }
+      }
+      service_ids.length = 0;
+      deduped.forEach(id => service_ids.push(id));
+      if (Array.isArray(variant_ids)) { variant_ids.length = 0; dedupedVars.forEach(v => variant_ids.push(v)); }
+      if (service_ids.length === 1) {
+        // Dedup reduced to single service — fall through to single-service path
+        isMultiService = false;
+        effectiveServiceId = service_ids[0];
+      } else {
+        isMultiService = true;
+      }
     } else if (Array.isArray(service_ids) && service_ids.length === 1) {
       // Treat single-element array as regular single service
       if (!UUID_RE.test(service_ids[0])) {

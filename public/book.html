@@ -854,10 +854,13 @@ function initPage(){
   if(multiParam&&siteData.business.multi_service_enabled){
     multiServiceMode=true;
     const entries=multiParam.split(',').slice(0,5);
+    var seenSvcIds={};
     entries.forEach(function(entry){
       var parts=entry.split(':');
       var svcId=parts[0], varId=parts[1]||null;
       if(!UUID_RE.test(svcId))return;
+      if(seenSvcIds[svcId])return;
+      seenSvcIds[svcId]=true;
       var svc=siteData.services.find(function(s){return s.id===svcId;});
       if(!svc)return;
       selectedServices.push(svc);
