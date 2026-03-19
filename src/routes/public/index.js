@@ -3286,7 +3286,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
     // Refund gift card debits + Stripe refund if deposit was refunded
     const postCancelBk = cancelResult.rows[0];
-    try { const { refundGiftCardForBooking } = require('../services/gift-card-refund'); await refundGiftCardForBooking(postCancelBk.id); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
+    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(postCancelBk.id); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
     if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
     }
@@ -3294,7 +3294,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (bk.group_id) {
       try {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
-        const { refundGiftCardForBooking } = require('../services/gift-card-refund');
+        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
         for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
       } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
     }
@@ -3634,7 +3634,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Refund gift card debits + Stripe refund AFTER transaction commits
     const rejBk = result.rows[0];
-    try { const { refundGiftCardForBooking } = require('../services/gift-card-refund'); await refundGiftCardForBooking(rejBk.id); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
+    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(rejBk.id); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
     if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
     }
@@ -3642,7 +3642,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     if (rejBk.group_id) {
       try {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
-        const { refundGiftCardForBooking } = require('../services/gift-card-refund');
+        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
         for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
       } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
     }
@@ -4193,7 +4193,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
 
     // Refund gift card debits + Stripe refund AFTER transaction commits
     const cancelledBk = cancelResult.rows[0];
-    try { const { refundGiftCardForBooking } = require('../services/gift-card-refund'); await refundGiftCardForBooking(cancelledBk.id); } catch (e) { console.error('[GC REFUND] reschedule-cancel error:', e.message); }
+    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(cancelledBk.id); } catch (e) { console.error('[GC REFUND] reschedule-cancel error:', e.message); }
     if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
     }
@@ -4201,7 +4201,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     if (bk.group_id) {
       try {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
-        const { refundGiftCardForBooking } = require('../services/gift-card-refund');
+        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
         for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
       } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
     }
