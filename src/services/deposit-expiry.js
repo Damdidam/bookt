@@ -188,7 +188,7 @@ async function processExpiredDeposits() {
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
            JOIN businesses biz ON biz.id = b.business_id
            WHERE b.group_id = $1 AND b.business_id = $2 AND b.id != $3
-             AND b.client_id IS NOT NULL AND b.client_id != COALESCE($4, '00000000-0000-0000-0000-000000000000')
+             AND b.client_id IS NOT NULL AND b.client_id != COALESCE($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
              AND c.email IS NOT NULL`,
           [cancelled.group_id, cancelled.business_id, cancelled.id, cancelled.client_id]
         );
