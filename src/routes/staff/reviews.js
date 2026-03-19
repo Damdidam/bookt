@@ -57,7 +57,7 @@ router.get('/stats', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const result = await queryWithRLS(req.businessId,
-      `SELECT r.*, c.first_name, c.last_name, c.email, c.phone,
+      `SELECT r.*, c.full_name as client_name, c.email, c.phone,
         p.display_name as practitioner_name,
         s.name as service_name
        FROM reviews r

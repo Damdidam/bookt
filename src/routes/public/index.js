@@ -5037,7 +5037,7 @@ router.get('/review/:token', async (req, res, next) => {
               biz.name as business_name, biz.settings,
               s.name as service_name, sv.name as variant_name,
               p.display_name as practitioner_name,
-              c.first_name as client_first_name
+              SPLIT_PART(c.full_name, ' ', 1) as client_first_name
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
        LEFT JOIN services s ON s.id = b.service_id
@@ -5109,7 +5109,7 @@ router.get('/:slug/reviews', async (req, res, next) => {
     // Get published reviews
     const reviews = await query(
       `SELECT r.rating, r.comment, r.owner_reply, r.owner_reply_at, r.created_at,
-              c.first_name, LEFT(c.last_name, 1) as last_initial,
+              SPLIT_PART(c.full_name, ' ', 1) as first_name, LEFT(SPLIT_PART(c.full_name, ' ', 2), 1) as last_initial,
               p.display_name as practitioner_name
        FROM reviews r
        LEFT JOIN clients c ON c.id = r.client_id
