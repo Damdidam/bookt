@@ -5107,6 +5107,79 @@ router.post('/review/:token', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── Public guide: dynamic flow documentation for clients ──────────
+router.get('/:slug/guide', async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const biz = await query(
+      `SELECT id, name, slug, settings, logo_url, sector, category,
+              theme->>'primary' AS primary_color
+       FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [slug]
+    );
+    if (biz.rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+
+    const b = biz.rows[0];
+    const s = b.settings || {};
+
+    res.json({
+      business: {
+        name: b.name,
+        slug: b.slug,
+        logo_url: b.logo_url,
+        primary_color: b.primary_color || '#0D7377',
+        sector: b.sector || 'autre'
+      },
+      flows: {
+        // Confirmation
+        confirmation_required: !!s.booking_confirmation_required,
+        confirmation_timeout_min: s.booking_confirmation_timeout_min || 30,
+
+        // Deposit
+        deposit_enabled: !!s.deposit_enabled,
+        deposit_type: s.deposit_type || 'percent',
+        deposit_percent: s.deposit_percent || 50,
+        deposit_fixed_cents: s.deposit_fixed_cents || 2500,
+        deposit_price_threshold_cents: s.deposit_price_threshold_cents || 0,
+        deposit_duration_threshold_min: s.deposit_duration_threshold_min || 0,
+        deposit_threshold_mode: s.deposit_threshold_mode || 'any',
+        deposit_deadline_hours: s.deposit_deadline_hours ?? 48,
+        deposit_noshow_threshold: s.deposit_noshow_threshold || 2,
+
+        // Cancellation
+        cancel_deadline_hours: s.cancel_deadline_hours ?? s.cancellation_window_hours ?? 24,
+        cancel_policy_text: s.cancel_policy_text || null,
+
+        // Reschedule
+        reschedule_max_count: s.reschedule_max_count ?? 1,
+        reschedule_window_days: s.reschedule_window_days ?? 30,
+
+        // Reminders
+        reminder_email_24h: s.reminder_email_24h !== false,
+        reminder_sms_24h: !!s.reminder_sms_24h,
+        reminder_sms_2h: !!s.reminder_sms_2h,
+
+        // Gift cards
+        giftcard_enabled: !!s.giftcard_enabled,
+
+        // Multi-service
+        multi_service_enabled: !!s.multi_service_enabled,
+
+        // Waitlist
+        waitlist_enabled: !!s.waitlist_enabled,
+
+        // Last-minute promo
+        last_minute_enabled: !!s.last_minute_enabled,
+        last_minute_discount_pct: s.last_minute_discount_pct || 0,
+        last_minute_deadline: s.last_minute_deadline || 'j-1',
+
+        // Payment
+        payment_methods: s.payment_methods || []
+      }
+    });
+  } catch (err) { next(err); }
+});
+
 // ─── Public reviews for minisite ────────────────────────────────────
 router.get('/:slug/reviews', async (req, res, next) => {
   try {

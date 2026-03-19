@@ -265,6 +265,11 @@ app.get('/:slug/gift-card', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/gift-card.html'));
 });
 
+// /:slug/guide → client-facing flow documentation
+app.get('/:slug/guide', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/guide.html'));
+});
+
 // /booking/:token → manage booking (cancel/reschedule)
 app.get('/booking/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/manage-booking.html'));
