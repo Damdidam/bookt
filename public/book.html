@@ -1441,6 +1441,7 @@ function oauthConnect(provider){
   oauthState.weekOffset=weekOffset;
   oauthState.noPrefSelected=noPrefSelected;
   oauthState.multiServiceMode=multiServiceMode;
+  if(splitMode)oauthState.splitMode=true;
   sessionStorage.setItem('genda_oauth_state',JSON.stringify(oauthState));
   window.location.href='/api/public/auth/'+provider+'?slug='+encodeURIComponent(slug);
 }
@@ -1503,6 +1504,7 @@ function restoreOauthState(){
     // Restore selections after siteData is loaded
     if(st.multiServiceMode)multiServiceMode=true;
     if(st.noPrefSelected)noPrefSelected=true;
+    if(st.splitMode){splitMode=true;selectedPractitioner=null;}
     if(st.weekOffset)weekOffset=st.weekOffset;
     if(st.mode)selectedMode=st.mode;
     if(st.serviceId&&siteData){
