@@ -1190,12 +1190,13 @@ async function sendReviewRequestEmail({ booking, business }) {
  * Send reschedule confirmation email to client (after self-reschedule).
  * Shows old vs new time.
  */
-async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, oldEndAt }) {
+async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, oldEndAt, groupServices }) {
   if (!booking.client_email) return;
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const color = safeColor(business.settings?.theme?.primary_color || business.settings?.primaryColor);
   const serviceName = booking.service_name || 'Prestation';
   const pracName = booking.practitioner_name || '';
+  const hasSplitPrac = groupServices && groupServices.some(s => s.practitioner_name);
 
   const fmtDate = (iso) => new Date(iso).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
@@ -1207,19 +1208,36 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   const newTime = fmtTime(booking.start_at);
   const newEndTime = fmtTime(booking.end_at);
 
+  // Build service detail block
+  let detailLines = '';
+  if (groupServices && groupServices.length > 1) {
+    groupServices.forEach(s => {
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      detailLines += `<tr><td style="padding:4px 0;font-weight:600">${escHtml(s.name)}${pracSuffix}</td></tr>`;
+    });
+    const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    detailLines += `<tr><td style="padding:6px 0 2px;font-weight:700;border-top:1px solid #E0DDD8">Total : ${totalMin} min${totalPrice ? ' \u00b7 ' + (totalPrice / 100).toFixed(0) + '\u20ac' : ''}</td></tr>`;
+    if (pracName && !hasSplitPrac) {
+      detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien : ${escHtml(pracName)}</td></tr>`;
+    }
+  } else {
+    detailLines = `<tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>
+        <tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>`;
+  }
+
   const bodyHTML = `
     <p>Bonjour ${escHtml(booking.client_name || '')},</p>
-    <p>Votre rendez-vous a bien été déplacé.</p>
+    <p>Votre rendez-vous a bien \u00e9t\u00e9 d\u00e9plac\u00e9.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
-      <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#9C958E;font-size:13px;text-transform:uppercase;letter-spacing:.4px">Ancien créneau</td></tr>
-      <tr><td style="padding:4px 0;color:#9C958E;text-decoration:line-through">${oldDate}</td><td style="padding:4px 0;color:#9C958E;text-decoration:line-through">${oldTime} – ${oldEndTime}</td></tr>
-      <tr><td colspan="2" style="padding:12px 0 8px;font-weight:600;color:${color};font-size:13px;text-transform:uppercase;letter-spacing:.4px">Nouveau créneau</td></tr>
-      <tr><td style="padding:4px 0;font-weight:600">${newDate}</td><td style="padding:4px 0;font-weight:600">${newTime} – ${newEndTime}</td></tr>
+      <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#9C958E;font-size:13px;text-transform:uppercase;letter-spacing:.4px">Ancien cr\u00e9neau</td></tr>
+      <tr><td style="padding:4px 0;color:#9C958E;text-decoration:line-through">${oldDate}</td><td style="padding:4px 0;color:#9C958E;text-decoration:line-through">${oldTime} \u2013 ${oldEndTime}</td></tr>
+      <tr><td colspan="2" style="padding:12px 0 8px;font-weight:600;color:${color};font-size:13px;text-transform:uppercase;letter-spacing:.4px">Nouveau cr\u00e9neau</td></tr>
+      <tr><td style="padding:4px 0;font-weight:600">${newDate}</td><td style="padding:4px 0;font-weight:600">${newTime} \u2013 ${newEndTime}</td></tr>
     </table>
     <div style="background:#F5F4F1;border-radius:8px;padding:12px 16px;margin:16px 0">
       <table style="width:100%;border-collapse:collapse">
-        <tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>
-        <tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>
+        ${detailLines}
       </table>
     </div>`;
 
