@@ -793,7 +793,7 @@ router.patch('/:id/status', async (req, res, next) => {
       try {
         const reviewData = await queryWithRLS(bid,
           `SELECT b.id, b.client_id, b.review_token,
-                  c.full_name AS client_name, c.email AS client_email, c.first_name,
+                  c.full_name AS client_name, c.email AS client_email, SPLIT_PART(c.full_name, ' ', 1) AS first_name,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
                   p.display_name AS practitioner_name,
