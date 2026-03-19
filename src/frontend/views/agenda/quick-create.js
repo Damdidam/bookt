@@ -216,19 +216,19 @@ function qcShowAssignPanel() {
   const pracId = document.getElementById('qcPrac')?.value;
   const taken = qcGetSelectedServiceIds();
 
-  // Check if all services are already added
-  const available = fcGetFilteredServices(pracId, '').filter(s => !taken.has(String(s.id)));
+  // Check if all services are already added (show ALL services, not filtered by practitioner)
+  const available = fcGetFilteredServices(null, '').filter(s => !taken.has(String(s.id)));
   if (available.length === 0) { gToast('Toutes les prestations sont d\u00e9j\u00e0 ajout\u00e9es', 'error'); return; }
 
-  // Populate category dropdown
+  // Populate category dropdown (all categories)
   const catSel = document.getElementById('qcAssignCatSel');
-  const cats = fcGetServiceCategories(pracId);
+  const cats = fcGetServiceCategories(null);
   catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
     `<option value="${esc(c)}">${esc(c)}</option>`
   ).join('');
 
-  // Populate service dropdown (all categories, excluding taken)
-  qcAssignRebuildServices(pracId, '', taken);
+  // Populate service dropdown (all categories, excluding taken — no practitioner filter)
+  qcAssignRebuildServices(null, '', taken);
 
   // Reset variant + info + button
   document.getElementById('qcAssignVarWrap').style.display = 'none';
@@ -245,7 +245,8 @@ function qcShowAssignPanel() {
 /** Rebuild service dropdown for the assign panel */
 function qcAssignRebuildServices(pracId, category, taken) {
   if (!taken) taken = qcGetSelectedServiceIds();
-  const services = fcGetFilteredServices(pracId, category).filter(s => !taken.has(String(s.id)));
+  // Show ALL active services (no practitioner filter) — backend auto-assigns practitioners
+  const services = fcGetFilteredServices(null, category).filter(s => !taken.has(String(s.id)));
   const sel = document.getElementById('qcAssignSvcSel');
   sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
     `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}" data-color="${/^#[0-9a-fA-F]{3,8}$/.test(s.color)?s.color:'#0D7377'}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`
@@ -255,8 +256,7 @@ function qcAssignRebuildServices(pracId, category, taken) {
 /** Category changed in assign panel */
 function qcAssignCatChanged() {
   const cat = document.getElementById('qcAssignCatSel')?.value || '';
-  const pracId = document.getElementById('qcPrac')?.value;
-  qcAssignRebuildServices(pracId, cat);
+  qcAssignRebuildServices(null, cat);
   document.getElementById('qcAssignVarWrap').style.display = 'none';
   document.getElementById('qcAssignVarSel').innerHTML = '';
   document.getElementById('qcAssignInfo').textContent = '';
@@ -366,19 +366,10 @@ function qcRemoveConfirmed(btn) {
   qcUpdateTotal();
 }
 
-/** When practitioner changes: keep valid cards, remove incompatible ones */
+/** When practitioner changes: services are no longer filtered by practitioner,
+ *  so we just close the assign panel if open. Backend auto-assigns practitioners. */
 function qcRefreshServiceDropdowns() {
-  const pracId = document.getElementById('qcPrac')?.value;
-  const available = new Set(fcGetFilteredServices(pracId, '').map(s => String(s.id)));
-  let removed = 0;
-  document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
-    if (!available.has(String(card.dataset.serviceId))) {
-      card.remove();
-      removed++;
-    }
-  });
-  if (removed > 0) gToast(removed + ' prestation(s) retirée(s) (non disponible pour ce praticien)', 'info');
-  // Close assign panel if open (services list changed)
+  // Close assign panel if open
   document.getElementById('qcAssignSvc').style.display = 'none';
   document.getElementById('qcAddSvcBtn').style.display = '';
   qcUpdateTotal();

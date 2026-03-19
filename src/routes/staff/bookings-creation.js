@@ -288,17 +288,30 @@ router.post('/manual', async (req, res, next) => {
       s._variant_processing_start = vr.rows[0].processing_start || 0;
     }
 
-    // Validate practitioner is assigned to all selected services
+    // Validate practitioner is assigned to services — auto-assign others if needed
     const psCheck = await queryWithRLS(bid,
       `SELECT service_id FROM practitioner_services
        WHERE practitioner_id = $1 AND service_id = ANY($2)`,
       [practitioner_id, svcIds]
     );
     const assignedSvcIds = new Set(psCheck.rows.map(r => r.service_id));
+    let isSplitMode = false;
     for (const s of serviceList) {
       if (!assignedSvcIds.has(s.service_id)) {
-        const svcName = svcMap[s.service_id]?.name || s.service_id;
-        return res.status(400).json({ error: `Le praticien ne propose pas la prestation "${svcName}"` });
+        // Auto-assign: find another practitioner who covers this service
+        const altPrac = await queryWithRLS(bid,
+          `SELECT ps.practitioner_id FROM practitioner_services ps
+           JOIN practitioners p ON p.id = ps.practitioner_id
+           WHERE ps.service_id = $1 AND p.business_id = $2 AND p.is_active = true
+           LIMIT 1`,
+          [s.service_id, bid]
+        );
+        if (altPrac.rows.length === 0) {
+          const svcName = svcMap[s.service_id]?.name || s.service_id;
+          return res.status(400).json({ error: `Aucun praticien ne propose la prestation "${svcName}"` });
+        }
+        s._practitioner_id = altPrac.rows[0].practitioner_id;
+        isSplitMode = true;
       }
     }
 
@@ -324,7 +337,8 @@ router.post('/manual', async (req, res, next) => {
         end_at: slotEnd.toISOString(),
         group_order: i,
         processing_time: s._variant_processing_time ?? svc.processing_time ?? 0,
-        processing_start: s._variant_processing_start ?? svc.processing_start ?? 0
+        processing_start: s._variant_processing_start ?? svc.processing_start ?? 0,
+        practitioner_id: s._practitioner_id || practitioner_id
       };
     });
 
@@ -366,17 +380,37 @@ router.post('/manual', async (req, res, next) => {
     }
 
     // Check practitioner availability (absences, exceptions, hours)
-    const availCheck = await checkPracAvailability(bid, practitioner_id, start_at, totalEnd);
-    if (!availCheck.ok) {
-      return res.status(409).json({ error: availCheck.reason });
+    if (isSplitMode) {
+      // Per-practitioner availability check for each slot
+      for (const slot of slots) {
+        const availCheck = await checkPracAvailability(bid, slot.practitioner_id, slot.start_at, slot.end_at);
+        if (!availCheck.ok) {
+          return res.status(409).json({ error: availCheck.reason });
+        }
+      }
+    } else {
+      const availCheck = await checkPracAvailability(bid, practitioner_id, start_at, totalEnd);
+      if (!availCheck.ok) {
+        return res.status(409).json({ error: availCheck.reason });
+      }
     }
 
     const bookings = await transactionWithRLS(bid, async (client) => {
       // Check conflicts for the entire time range (skip if business allows overlap)
       if (!globalAllowOverlap) {
-        const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: new Date(start_at).toISOString(), newEnd: totalEnd });
-        if (conflicts.length >= maxConcurrent) {
-          throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
+        if (isSplitMode) {
+          // Per-practitioner conflict check
+          for (const slot of slots) {
+            const conflicts = await checkBookingConflicts(client, { bid, pracId: slot.practitioner_id, newStart: slot.start_at, newEnd: slot.end_at });
+            if (conflicts.length >= maxConcurrent) {
+              throw Object.assign(new Error('Capacit\u00e9 maximale atteinte sur ce cr\u00e9neau'), { type: 'conflict' });
+            }
+          }
+        } else {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: new Date(start_at).toISOString(), newEnd: totalEnd });
+          if (conflicts.length >= maxConcurrent) {
+            throw Object.assign(new Error('Capacit\u00e9 maximale atteinte sur ce cr\u00e9neau'), { type: 'conflict' });
+          }
         }
       }
 
@@ -393,7 +427,7 @@ router.post('/manual', async (req, res, next) => {
             confirmation_expires_at)
            VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
            RETURNING *`,
-          [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
+          [bid, slot.practitioner_id || practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
            slot.start_at, slot.end_at,
            bookingStatus,
