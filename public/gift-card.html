@@ -41,7 +41,7 @@ body.ready{opacity:1}
 .gc-sparkle:nth-child(6){top:20%;left:45%;width:5px;height:5px;opacity:.08}
 
 .gc-hero-content{position:relative;z-index:1}
-.gc-hero .logo-link{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);margin-bottom:24px}
+.gc-hero .logo-link{display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;color:var(--text);margin-bottom:16px}
 .gc-hero .logo-mark{width:38px;height:38px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem;overflow:hidden;flex-shrink:0}
 .gc-hero .logo-mark img{width:100%;height:100%;object-fit:cover}
 .gc-hero .logo-name{font-family:var(--serif);font-size:1.15rem;font-weight:400;white-space:nowrap}
@@ -310,7 +310,7 @@ function render() {
   }
   logoName.textContent = config.business_name || 'Genda';
   document.getElementById('logoLink').href = '/' + slug;
-  document.getElementById('heroSubtitle').textContent = 'Faites plaisir \u00e0 vos proches avec une carte cadeau ' + (config.business_name || '') + '.';
+  document.getElementById('heroSubtitle').textContent = 'Faites plaisir \u00e0 vos proches avec une carte cadeau.';
 
   document.title = 'Carte Cadeau \u2014 ' + (config.business_name || 'Genda');
 
