@@ -5111,7 +5111,7 @@ router.get('/:slug/reviews', async (req, res, next) => {
 router.get('/:slug/gift-card-config', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      `SELECT id, name, slug, settings, theme, logo_url FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
       [req.params.slug]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
@@ -5124,6 +5124,7 @@ router.get('/:slug/gift-card-config', async (req, res, next) => {
       business_name: biz.name,
       slug: biz.slug,
       theme: biz.theme,
+      logo_url: biz.logo_url || null,
       amounts: s.giftcard_amounts || [2500, 5000, 7500, 10000],
       custom_amount: s.giftcard_custom_amount !== false,
       min_amount_cents: s.giftcard_min_amount_cents || 1000,
