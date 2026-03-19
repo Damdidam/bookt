@@ -1799,6 +1799,8 @@ async function loadSlots(){
     const sRes=await fetch(slotsUrl);
     if(!sRes.ok)throw new Error('HTTP '+sRes.status);
     const sData=await sRes.json();slotsData=sData.by_date||{};
+    // Backend signals it used split fallback — switch frontend to split mode
+    if(sData.split_mode&&!splitMode){splitMode=true;selectedPractitioner=null;noPrefSelected=true;}
   }catch(e){
     slotsData={};
     document.getElementById('slotsArea').innerHTML='<div class="no-slots" style="color:var(--red)">Erreur de chargement des créneaux. Veuillez réessayer.</div>';

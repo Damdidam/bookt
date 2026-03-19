@@ -649,7 +649,7 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       totalDurationMin = (eh * 60 + em) - (sh * 60 + sm);
     }
 
-    res.json({ by_date: byDate, total: slots.length, total_duration_min: totalDurationMin });
+    res.json({ by_date: byDate, total: slots.length, total_duration_min: totalDurationMin, split_mode: monoFailed });
   } catch (err) {
     if (err.type === 'validation') return res.status(400).json({ error: err.message });
     if (err.type === 'not_found') return res.status(404).json({ error: err.message });
@@ -769,7 +769,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     } = req.body;
 
     // Split mode: practitioners[] array provided instead of practitioner_id
-    const isSplitMode = Array.isArray(splitPractitioners) && splitPractitioners.length > 0;
+    let isSplitMode = Array.isArray(splitPractitioners) && splitPractitioners.length > 0;
 
     if (!isSplitMode && !practitioner_id) {
       return res.status(400).json({ error: 'practitioner_id ou practitioners[] requis' });
@@ -997,17 +997,45 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           [service_ids, practitioner_id]
         );
         if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
-          return res.status(400).json({ error: 'Ce praticien ne propose pas toutes les prestations sélectionnées' });
-        }
-
-        // Validate practitioner is active + booking_enabled + capacity
-        const multiPracCap = await query(
-          `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
-           FROM practitioners WHERE id = $1 AND business_id = $2`,
-          [practitioner_id, businessId]
-        );
-        if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
-          return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+          // Auto-split: practitioner doesn't cover all services, assign each service to a valid practitioner
+          console.log('[BOOKING] Auto-split: practitioner', practitioner_id, 'does not cover all services, falling back to split mode');
+          const autoSplitResult = await query(
+            `SELECT DISTINCT ON (ps.service_id) ps.service_id, ps.practitioner_id
+             FROM practitioner_services ps
+             JOIN practitioners p ON p.id = ps.practitioner_id
+             WHERE ps.service_id = ANY($1) AND p.business_id = $2 AND p.is_active = true AND p.booking_enabled = true
+             ORDER BY ps.service_id, (ps.practitioner_id = $3) DESC, p.display_order ASC`,
+            [service_ids, businessId, practitioner_id]
+          );
+          if (autoSplitResult.rows.length !== service_ids.length) {
+            return res.status(400).json({ error: 'Impossible de trouver un praticien pour chaque prestation' });
+          }
+          // Switch to split mode
+          isSplitMode = true;
+          for (const row of autoSplitResult.rows) {
+            splitPracMap[row.service_id] = row.practitioner_id;
+          }
+          // Validate all auto-assigned practitioners
+          const autoUniquePracIds = [...new Set(autoSplitResult.rows.map(r => r.practitioner_id))];
+          for (const pid of autoUniquePracIds) {
+            const pracCheck = await query(
+              `SELECT is_active, booking_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
+              [pid, businessId]
+            );
+            if (pracCheck.rows.length === 0 || !pracCheck.rows[0].is_active || !pracCheck.rows[0].booking_enabled) {
+              return res.status(400).json({ error: 'Un praticien n\'est pas disponible pour la prise de rendez-vous' });
+            }
+          }
+        } else {
+          // Validate practitioner is active + booking_enabled + capacity
+          const multiPracCap = await query(
+            `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
+             FROM practitioners WHERE id = $1 AND business_id = $2`,
+            [practitioner_id, businessId]
+          );
+          if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
+            return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+          }
         }
       }
 
