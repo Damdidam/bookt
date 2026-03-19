@@ -600,26 +600,37 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
 
-    let slots = await getAvailableSlotsMulti({
-      businessId, serviceIds: ids,
-      practitionerId: practitioner_id || null,
-      dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
-      variantIds: vids.length > 0 ? vids : null
-    });
+    let slots = [];
+    let monoFailed = false;
+    try {
+      slots = await getAvailableSlotsMulti({
+        businessId, serviceIds: ids,
+        practitionerId: practitioner_id || null,
+        dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
+        variantIds: vids.length > 0 ? vids : null
+      });
+    } catch (monoErr) {
+      // If practitioner doesn't cover all services, try split fallback
+      if (monoErr.type === 'validation') {
+        monoFailed = true;
+        slots = [];
+      } else {
+        throw monoErr;
+      }
+    }
 
-    // Fallback: if no mono-practitioner slots and no specific practitioner requested,
+    // Fallback: if no mono-practitioner slots (or validation failed),
     // try multi-practitioner split (different practitioner per service)
-    if (slots.length === 0 && !practitioner_id) {
+    if (slots.length === 0 || monoFailed) {
       try {
-        slots = await getAvailableSlotsMultiPractitioner({
+        const splitSlots = await getAvailableSlotsMultiPractitioner({
           businessId, serviceIds: ids,
           dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
           variantIds: vids.length > 0 ? vids : null
         });
+        if (splitSlots.length > 0) slots = splitSlots;
       } catch (splitErr) {
         console.warn('[MULTI-SLOTS] Split fallback error:', splitErr.message);
-        // If split also fails, return empty (original result)
-        slots = [];
       }
     }
 

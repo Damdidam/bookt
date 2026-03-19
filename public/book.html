@@ -1346,8 +1346,16 @@ function buildPractitioners(){
     return false;
   }
   // If only 1 practitioner → auto-assign even if setting is on
+  // But if multi-service and that single practitioner doesn't cover all → split mode
   if(displayPracs.length<=1){
-    selectedPractitioner=displayPracs[0]||siteData.practitioners[0];
+    const autoPrac=displayPracs[0]||siteData.practitioners[0];
+    if(multiServiceMode&&selectedServices.length>1&&!selectedServices.every(svc=>autoPrac.service_ids.includes(svc.id))){
+      splitMode=true;
+      selectedPractitioner=null;
+      noPrefSelected=true;
+      return false;
+    }
+    selectedPractitioner=autoPrac;
     noPrefSelected=false;
     return false;
   }
@@ -1636,14 +1644,21 @@ function goToStep(n){
     if(!siteData.business.practitioner_choice_enabled){
       selectedPractitioner=null;
       noPrefSelected=true;
-    }else if(!selectedPractitioner&&!noPrefSelected){
+    }else if(!selectedPractitioner&&!noPrefSelected&&!splitMode){
       let pracs;
       if(multiServiceMode&&selectedServices.length>1){
         pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
       }else{
         pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
       }
-      selectedPractitioner=pracs[0]||siteData.practitioners[0];
+      if(pracs.length>0){
+        selectedPractitioner=pracs[0];
+      }else if(multiServiceMode&&selectedServices.length>1){
+        // No single practitioner covers all → split mode
+        splitMode=true;noPrefSelected=true;
+      }else{
+        selectedPractitioner=siteData.practitioners[0];
+      }
     }
     buildModeSelector();weekOffset=0;selectedDate=null;selectedSlot=null;slotsData={};loadSlots();
   }
@@ -1768,7 +1783,7 @@ async function loadSlots(){
       return rw(a)-rw(b);
     });
     const params=new URLSearchParams({service_ids:selectedServices.map(s=>s.id).join(','),date_from:dateFrom,date_to:dateTo});
-    if(selectedPractitioner)params.set('practitioner_id',selectedPractitioner.id);
+    if(selectedPractitioner&&!splitMode)params.set('practitioner_id',selectedPractitioner.id);
     if(selectedMode)params.set('appointment_mode',selectedMode);
     var vids=selectedServices.map(function(s){return selectedVariants[s.id]?selectedVariants[s.id].id:'';}).join(',');
     if(vids.replace(/,/g,''))params.set('variant_ids',vids);
