@@ -1319,17 +1319,21 @@ function clearCart(){
 }
 
 // ──────── PRACTITIONER ────────
+var splitMode=false; // true when multi-service requires different practitioners per service
 function buildPractitioners(){
   let pracs;
   if(multiServiceMode&&selectedServices.length>1){
     pracs=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
     if(pracs.length===0){
-      const list=document.getElementById('pracList');
-      list.innerHTML='<div class="no-slots">Aucun praticien ne propose toutes les prestations sélectionnées.</div>';
-      document.getElementById('btnStep2').disabled=true;
-      return true;
+      // No single practitioner covers all services → split mode (auto-assign)
+      splitMode=true;
+      selectedPractitioner=null;
+      noPrefSelected=true;
+      return false; // skip practitioner step
     }
+    splitMode=false;
   }else{
+    splitMode=false;
     pracs=siteData.practitioners.filter(p=>p.service_ids.includes(selectedService.id));
   }
   const displayPracs=pracs.length>0?pracs:siteData.practitioners;
@@ -1383,7 +1387,10 @@ function buildPractitioners(){
 function computeStepOrder(){
   if(vedetteMode){stepOrder=['vedette',4,5];computeProgressDots();return;}
   let showPrac=false;
-  if(siteData.business.practitioner_choice_enabled){
+  if(splitMode){
+    // Split mode: skip practitioner step entirely (auto-assign)
+    showPrac=false;
+  }else if(siteData.business.practitioner_choice_enabled){
     if(multiServiceMode&&selectedServices.length>1){
       const linked=siteData.practitioners.filter(p=>selectedServices.every(svc=>p.service_ids.includes(svc.id)));
       const displayPracs=linked.length>0?linked:siteData.practitioners;
@@ -1946,7 +1953,16 @@ function buildSummary(){
       var dur=v?v.duration_min:svc.duration_min;
       var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
       var p=pc?(pc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
-      html+='<div class="sum-row"><span class="label">'+name+'</span><span class="val">'+dur+' min \u00b7 '+p+'</span></div>';
+      // In split mode, show practitioner name per service
+      var pracLabel='';
+      if(splitMode&&selectedSlot&&selectedSlot.practitioners){
+        var sp=selectedSlot.practitioners.find(function(pr){return pr.service_id===svc.id;});
+        if(sp){
+          var prac=siteData.practitioners.find(function(pp){return pp.id===sp.practitioner_id;});
+          if(prac)pracLabel=' <span style="color:var(--text-4);font-size:.78rem">\u2014 '+escH(prac.display_name)+'</span>';
+        }
+      }
+      html+='<div class="sum-row"><span class="label">'+name+pracLabel+'</span><span class="val">'+dur+' min \u00b7 '+p+'</span></div>';
     });
     var totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
     var totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
@@ -1958,8 +1974,20 @@ function buildSummary(){
     var svcName=sv?selectedService.name+' \u2014 '+sv.name:selectedService.name;
     html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+svcName+'</span></div>';
   }
-  var sumPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
-  html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+sumPracName+'</span></div>'
+  if(splitMode&&selectedSlot&&selectedSlot.practitioners){
+    // Split mode: practitioners already shown per-service above, show combined line
+    var uniqueSumPracs={};
+    selectedSlot.practitioners.forEach(function(sp){
+      var prac=siteData.practitioners.find(function(pp){return pp.id===sp.practitioner_id;});
+      if(prac)uniqueSumPracs[sp.practitioner_id]=prac.display_name;
+    });
+    var sumPracNames=Object.values(uniqueSumPracs).join(', ');
+    html+='<div class="sum-row"><span class="label">Praticiens</span><span class="val">'+sumPracNames+'</span></div>';
+  }else{
+    var sumPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assigné':'Praticien assigné');
+    html+='<div class="sum-row"><span class="label">Praticien</span><span class="val">'+sumPracName+'</span></div>';
+  }
+  html+=''
     +'<div class="sum-divider"></div>'
     +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
     +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+(function(){if(multiServiceMode&&selectedServices.length>1){var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);var sD=new Date(selectedSlot.start_at);var eD=new Date(sD.getTime()+tMin*60000);return eD.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});}return selectedSlot.end_time;})()+'</span></div>';
@@ -2029,9 +2057,8 @@ async function submitBooking(){
   btn.disabled=true;btn.textContent='Réservation en cours...';
 
   try{
-    var bookingPracId=selectedPractitioner?selectedPractitioner.id:selectedSlot.practitioner_id;
+    var bookingPracId=selectedPractitioner?selectedPractitioner.id:(selectedSlot?selectedSlot.practitioner_id:null);
     var bookingBody={
-      practitioner_id:bookingPracId,
       start_at:selectedSlot.start_at,
       appointment_mode:selectedMode||'cabinet',
       client_name:name,client_phone:phone,client_email:email,
@@ -2039,6 +2066,15 @@ async function submitBooking(){
       consent_sms:consent,consent_email:consent,
       flexible:!!document.getElementById('bkFlexible').checked
     };
+    // Split mode: send practitioners array instead of practitioner_id
+    if(splitMode&&selectedSlot&&selectedSlot.practitioners){
+      bookingBody.practitioners=selectedSlot.practitioners.map(function(sp){
+        return{service_id:sp.service_id,practitioner_id:sp.practitioner_id};
+      });
+      bookingBody.practitioner_id=selectedSlot.practitioners[0].practitioner_id; // fallback
+    }else{
+      bookingBody.practitioner_id=bookingPracId;
+    }
     if(selectedSlot&&selectedSlot.is_last_minute)bookingBody.is_last_minute=true;
     if(multiServiceMode&&selectedServices.length>1){
       bookingBody.service_ids=selectedServices.map(s=>s.id);
@@ -2080,9 +2116,20 @@ async function submitBooking(){
       confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+confirmName+'</span></div>';
     }
 
-    // Praticien
-    var confPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assign\u00e9':'Praticien assign\u00e9');
-    confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+escH(confPracName)+'</span></div>';
+    // Praticien(s)
+    if(splitMode&&selectedSlot&&selectedSlot.practitioners){
+      // Split mode: show practitioners per service inline (already shown above per-service)
+      var uniquePracs={};
+      selectedSlot.practitioners.forEach(function(sp){
+        var prac=siteData.practitioners.find(function(pp){return pp.id===sp.practitioner_id;});
+        if(prac)uniquePracs[sp.practitioner_id]=prac.display_name;
+      });
+      var pracNames=Object.values(uniquePracs).join(', ');
+      confirmHtml+='<div class="row"><span class="l">Praticiens</span><span class="v">'+escH(pracNames)+'</span></div>';
+    }else{
+      var confPracName=selectedPractitioner?selectedPractitioner.display_name:(selectedSlot&&selectedSlot.practitioner_id?(siteData.practitioners.find(function(p){return p.id===selectedSlot.practitioner_id;})||{}).display_name||'Praticien assign\u00e9':'Praticien assign\u00e9');
+      confirmHtml+='<div class="row"><span class="l">Praticien</span><span class="v">'+escH(confPracName)+'</span></div>';
+    }
 
     // Date
     confirmHtml+='<div class="row"><span class="l">Date</span><span class="v">'+escH(dateStr)+'</span></div>';

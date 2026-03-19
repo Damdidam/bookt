@@ -554,10 +554,14 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [d.group_id, bid]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const gcPaidForEmail = await getGcPaidCents(id);
@@ -594,10 +598,14 @@ router.patch('/:id/status', async (req, res, next) => {
           let groupServices = null;
           if (d.group_id) {
             const grp = await queryWithRLS(bid,
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [d.group_id, bid]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const gcPaidRefund = await getGcPaidCents(id);
@@ -641,14 +649,17 @@ router.patch('/:id/status', async (req, res, next) => {
             const grp = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
                LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+               LEFT JOIN practitioners p ON p.id = bk.practitioner_id
                WHERE bk.group_id = $1 AND bk.business_id = $2
                ORDER BY bk.group_order, bk.start_at`,
               [d.group_id, bid]
             );
             if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
@@ -692,14 +703,19 @@ router.patch('/:id/status', async (req, res, next) => {
             const grp = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
                LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+               LEFT JOIN practitioners p ON p.id = bk.practitioner_id
                WHERE bk.group_id = $1 AND bk.business_id = $2
                ORDER BY bk.group_order, bk.start_at`,
               [d.group_id, bid]
             );
-            if (grp.rows.length > 1) { groupServices = grp.rows; d.end_at = grp.rows[grp.rows.length - 1].end_at; }
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows; d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
           }
           const { sendDepositRequestEmail } = require('../../services/email');
           sendDepositRequestEmail({
@@ -741,14 +757,17 @@ router.patch('/:id/status', async (req, res, next) => {
             const grp = await queryWithRLS(bid,
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
                FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
                LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+               LEFT JOIN practitioners p ON p.id = bk.practitioner_id
                WHERE bk.group_id = $1 AND bk.business_id = $2
                ORDER BY bk.group_order, bk.start_at`,
               [d.group_id, bid]
             );
             if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
@@ -990,10 +1009,14 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         let groupServices = null;
         if (d.group_id) {
           const grp = await queryWithRLS(bid,
-            `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
             [d.group_id, bid]
           );
-          if (grp.rows.length > 1) groupServices = grp.rows;
+          if (grp.rows.length > 1) {
+            const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+            if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+            groupServices = grp.rows;
+          }
         }
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
         const gcPaidManual = await getGcPaidCents(id);
@@ -1131,14 +1154,17 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
           const grp = await queryWithRLS(bid,
             `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, bk.end_at, bk.practitioner_id, p.display_name AS practitioner_name
              FROM bookings bk LEFT JOIN services s ON s.id = bk.service_id
              LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
+             LEFT JOIN practitioners p ON p.id = bk.practitioner_id
              WHERE bk.group_id = $1 AND bk.business_id = $2
              ORDER BY bk.group_order, bk.start_at`,
             [b.group_id, bid]
           );
           if (grp.rows.length > 1) {
+            const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+            if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
             groupServices = grp.rows;
             b.end_at = grp.rows[grp.rows.length - 1].end_at;
           }
@@ -1296,14 +1322,19 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
         const grp = await queryWithRLS(bid,
           `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                  COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                  COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
            WHERE b.group_id = $1 AND b.business_id = $2
            ORDER BY b.group_order, b.start_at`,
           [bk.group_id, bid]
         );
-        if (grp.rows.length > 1) groupServices = grp.rows;
+        if (grp.rows.length > 1) {
+          const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+          if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+          groupServices = grp.rows;
+        }
       }
       if (groupServices) bk.end_at = groupServices[groupServices.length - 1].end_at;
       const { sendDepositRequestEmail } = require('../../services/email');
@@ -1486,14 +1517,19 @@ router.post('/:id/require-deposit', async (req, res, next) => {
           const grp = await queryWithRLS(bid,
             `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b2.end_at
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b2.end_at, b2.practitioner_id, p.display_name AS practitioner_name
              FROM bookings b2 LEFT JOIN services s ON s.id = b2.service_id
              LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+             LEFT JOIN practitioners p ON p.id = b2.practitioner_id
              WHERE b2.group_id = $1 AND b2.business_id = $2
              ORDER BY b2.group_order, b2.start_at`,
             [b.group_id, bid]
           );
-          if (grp.rows.length > 1) groupServices = grp.rows;
+          if (grp.rows.length > 1) {
+            const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+            if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+            groupServices = grp.rows;
+          }
         }
 
         // Override end_at for group bookings

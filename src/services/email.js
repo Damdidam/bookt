@@ -297,13 +297,16 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   if (isMulti) {
     serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6;margin-top:4px">Prestations :</div>`;
     groupServices.forEach(s => {
-      serviceDetailOld += `<div style="font-size:12px;color:#92700C;text-decoration:line-through;opacity:.6;padding:1px 0">\u2022 ${escHtml(s.name)}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailOld += `<div style="font-size:12px;color:#92700C;text-decoration:line-through;opacity:.6;padding:1px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
     });
     serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600;margin-top:4px">Prestations :</div>`;
     groupServices.forEach(s => {
-      serviceDetailNew += `<div style="font-size:12px;color:#15613A;padding:1px 0">\u2022 ${escHtml(s.name)}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailNew += `<div style="font-size:12px;color:#15613A;padding:1px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
     });
-    if (safePracName) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
+    const hasSplitPracMod = groupServices.some(s => s.practitioner_name);
+    if (safePracName && !hasSplitPracMod) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
   }
 
   const bodyHTML = `
@@ -376,9 +379,11 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
 
   if (isMulti) {
     detailLines += `<div style="font-size:13px;color:#15613A;margin-top:8px;font-weight:600">Prestations :</div>`;
+    const hasSplitPrac = groupServices.some(s => s.practitioner_name);
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-      detailLines += `<div style="font-size:13px;color:#15613A;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      detailLines += `<div style="font-size:13px;color:#15613A;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
@@ -387,7 +392,7 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
   } else {
     detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">${_ic('sparkle-grn')} ${serviceName}</div>`;
   }
-  if (practitionerName) detailLines += `<div style="font-size:14px;color:#15613A">${_ic('user-grn')} ${practitionerName}</div>`;
+  if (practitionerName && !hasSplitPrac) detailLines += `<div style="font-size:14px;color:#15613A">${_ic('user-grn')} ${practitionerName}</div>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const hasPublicToken = booking.public_token;
@@ -478,14 +483,16 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
 
   if (isMulti) {
     detailLines += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
+    const hasSplitPracCR = groupServices.some(s => s.practitioner_name);
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-      detailLines += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      detailLines += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
   } else {
     detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${_ic('sparkle-amb')} ${serviceName}</div>`;
   }
-  if (practitionerName) detailLines += `<div style="font-size:14px;color:#92700C">${_ic('user-amb')} ${practitionerName}</div>`;
+  if (practitionerName && !hasSplitPracCR) detailLines += `<div style="font-size:14px;color:#92700C">${_ic('user-amb')} ${practitionerName}</div>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const confirmUrl = `${baseUrl}/api/public/booking/${booking.public_token}/confirm-booking`;
@@ -648,12 +655,14 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     serviceDetailHTML += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-      serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
   }
 
+  const hasSplitPracDR = isMulti && groupServices.some(s => s.practitioner_name);
   let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Un acompte est requis pour confirmer votre rendez-vous :</p>
@@ -661,7 +670,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
       <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>
       <div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
-      ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
+      ${safePracName && !hasSplitPracDR ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
@@ -749,12 +758,14 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     serviceDetailHTML += `<div style="font-size:13px;color:#92700C;margin-top:8px;font-weight:600">Prestations :</div>`;
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-      serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
   }
 
+  const hasSplitPracDRem = isMulti && groupServices.some(s => s.practitioner_name);
   let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
@@ -767,7 +778,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
       <div style="font-size:15px;font-weight:600;color:#92700C;margin-bottom:4px">${_ic('calendar-amb')} ${dateStr}</div>
       <div style="font-size:14px;color:#92700C">${_ic('clock-amb')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
-      ${safePracName ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
+      ${safePracName && !hasSplitPracDRem ? `<div style="font-size:14px;color:#92700C">${safePracName}</div>` : ''}
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
@@ -836,7 +847,8 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;margin-top:8px;font-weight:600">Prestations :</div>`;
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
@@ -846,6 +858,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
 
+  const hasSplitPracDP = isMulti && groupServices.some(s => s.practitioner_name);
   // Breakdown: GC portion vs Stripe portion
   const gcPaidCents = booking.gc_paid_cents || 0;
   const stripePaidCents = (booking.deposit_amount_cents || 0) - gcPaidCents;
@@ -871,7 +884,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
       <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr}</div>
       <div style="font-size:14px;color:#1A1816">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
-      ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
+      ${safePracName && !hasSplitPracDP ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>
     <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9${gcPaidCents > 0 && stripePaidCents > 0 ? ' (carte cadeau recr\u00e9dit\u00e9e + remboursement bancaire)' : gcPaidCents > 0 ? ' sur votre carte cadeau' : ''}.</p>`;
@@ -934,7 +947,8 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   let serviceDetailHTML = '';
   if (isMulti) {
     groupServices.forEach(s => {
-      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
     });
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
@@ -1036,7 +1050,8 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   let serviceDetailHTML = '';
   if (isMulti) {
     groupServices.forEach(s => {
-      serviceDetailHTML += `<div style="font-size:13px;color:#6B6560;padding:2px 0">\u2022 ${escHtml(s.name)}</div>`;
+      const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
+      serviceDetailHTML += `<div style="font-size:13px;color:#6B6560;padding:2px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
     });
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;

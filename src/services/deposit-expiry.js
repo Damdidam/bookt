@@ -144,13 +144,19 @@ async function processExpiredDeposits() {
           const grp = await query(
             `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                    b.practitioner_id, p.display_name AS practitioner_name
              FROM bookings b LEFT JOIN services s ON s.id = b.service_id
              LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             LEFT JOIN practitioners p ON p.id = b.practitioner_id
              WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
             [row.group_id, row.business_id]
           );
-          if (grp.rows.length > 1) groupServices = grp.rows;
+          if (grp.rows.length > 1) {
+            const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+            if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+            groupServices = grp.rows;
+          }
         }
         const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
         const gcPaidExpiry = await getGcPaidCents(bkId);

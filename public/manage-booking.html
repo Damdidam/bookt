@@ -163,7 +163,13 @@ function render(d) {
       </div>
       <div class="detail-row">
         <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
-        <div class="info"><div class="label">Prestation</div><div class="value">${escH(bk.service.name)}</div><div class="sub">${bk.service.duration_min} min · ${price}${modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : ''}</div></div>
+        <div class="info"><div class="label">Prestation${bk.service.members && bk.service.members.length > 1 ? 's' : ''}</div>${bk.service.members && bk.service.members.length > 1
+          ? bk.service.members.map(function(m) {
+              var pracInfo = m.practitioner_name ? ' <span style="color:var(--text-4);font-size:.78rem">— ' + escH(m.practitioner_name) + '</span>' : '';
+              return '<div class="value" style="margin-bottom:2px">' + escH(m.name) + pracInfo + '</div><div class="sub">' + m.duration_min + ' min' + (m.price_cents ? ' · ' + (m.price_cents/100).toFixed(0) + ' €' : '') + '</div>';
+            }).join('') + '<div class="sub" style="margin-top:4px;font-weight:600">Total : ' + bk.service.duration_min + ' min · ' + price + '</div>'
+          : '<div class="value">' + escH(bk.service.name) + '</div><div class="sub">' + bk.service.duration_min + ' min · ' + price + (modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : '') + '</div>'
+        }</div>
       </div>
       <div class="detail-row">
         <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>

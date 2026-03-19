@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, queryWithRLS, pool } = require('../../services/db');
-const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
+const { getAvailableSlots, getAvailableSlotsMulti, getAvailableSlotsMultiPractitioner } = require('../../services/slot-engine');
 const { bookingLimiter, slotsLimiter, clientPhoneLimiter, depositLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
@@ -600,12 +600,28 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
 
-    const slots = await getAvailableSlotsMulti({
+    let slots = await getAvailableSlotsMulti({
       businessId, serviceIds: ids,
       practitionerId: practitioner_id || null,
       dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
       variantIds: vids.length > 0 ? vids : null
     });
+
+    // Fallback: if no mono-practitioner slots and no specific practitioner requested,
+    // try multi-practitioner split (different practitioner per service)
+    if (slots.length === 0 && !practitioner_id) {
+      try {
+        slots = await getAvailableSlotsMultiPractitioner({
+          businessId, serviceIds: ids,
+          dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
+          variantIds: vids.length > 0 ? vids : null
+        });
+      } catch (splitErr) {
+        console.warn('[MULTI-SLOTS] Split fallback error:', splitErr.message);
+        // If split also fails, return empty (original result)
+        slots = [];
+      }
+    }
 
     const byDate = {};
     for (const slot of slots) {
@@ -732,7 +748,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const {
-      service_id, service_ids, practitioner_id, start_at, end_at, appointment_mode,
+      service_id, service_ids, practitioner_id, practitioners: splitPractitioners,
+      start_at, end_at, appointment_mode,
       variant_id, variant_ids,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing,
@@ -740,9 +757,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       oauth_provider, oauth_provider_id
     } = req.body;
 
-    if (!practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
+    // Split mode: practitioners[] array provided instead of practitioner_id
+    const isSplitMode = Array.isArray(splitPractitioners) && splitPractitioners.length > 0;
+
+    if (!isSplitMode && !practitioner_id) {
+      return res.status(400).json({ error: 'practitioner_id ou practitioners[] requis' });
+    }
+    if (!start_at || !client_name || !client_phone || !client_email) {
       return res.status(400).json({
-        error: 'Champs requis : practitioner_id, start_at, client_name, client_phone, client_email'
+        error: 'Champs requis : start_at, client_name, client_phone, client_email'
       });
     }
 
@@ -762,8 +785,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'oauth_provider_id invalide' });
     }
 
-    if (!UUID_RE.test(practitioner_id)) {
+    if (!isSplitMode && !UUID_RE.test(practitioner_id)) {
       return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+    if (isSplitMode) {
+      for (const sp of splitPractitioners) {
+        if (!sp.service_id || !sp.practitioner_id || !UUID_RE.test(sp.service_id) || !UUID_RE.test(sp.practitioner_id)) {
+          return res.status(400).json({ error: 'practitioners[]: service_id et practitioner_id requis (UUID)' });
+        }
+      }
     }
     if (service_id && !UUID_RE.test(service_id)) {
       return res.status(400).json({ error: 'service_id invalide' });
@@ -836,26 +866,31 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (startDate < new Date()) return res.status(400).json({ error: 'Impossible de réserver dans le passé' });
 
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
+    // For split mode, check all involved practitioners
     const startDateBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-    const lockCheck = await query(
-      `SELECT 1 FROM locked_weeks
-       WHERE business_id = $1 AND practitioner_id = $2
-       AND week_start = date_trunc('week', $3::date)::date`,
-      [businessId, practitioner_id, startDateBrussels]
-    );
-    if (lockCheck.rows.length > 0) {
-      // Week is locked — booking must match a featured slot
-      const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false }); // HH:MM
-      const fsCheck = await query(
-        `SELECT 1 FROM featured_slots
+    const lockCheckPracIds = isSplitMode
+      ? [...new Set(splitPractitioners.map(sp => sp.practitioner_id))]
+      : [practitioner_id];
+    for (const lockPracId of lockCheckPracIds) {
+      const lockCheck = await query(
+        `SELECT 1 FROM locked_weeks
          WHERE business_id = $1 AND practitioner_id = $2
-         AND date = $3::date AND to_char(start_time, 'HH24:MI') = $4`,
-        [businessId, practitioner_id, startDateBrussels, startTimeStr]
+         AND week_start = date_trunc('week', $3::date)::date`,
+        [businessId, lockPracId, startDateBrussels]
       );
-      if (fsCheck.rows.length === 0) {
-        return res.status(403).json({
-          error: 'Cette semaine est verrouillée. Seuls les créneaux vedette sont disponibles.'
-        });
+      if (lockCheck.rows.length > 0) {
+        const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
+        const fsCheck = await query(
+          `SELECT 1 FROM featured_slots
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND date = $3::date AND to_char(start_time, 'HH24:MI') = $4`,
+          [businessId, lockPracId, startDateBrussels, startTimeStr]
+        );
+        if (fsCheck.rows.length === 0) {
+          return res.status(403).json({
+            error: 'Cette semaine est verrouillée. Seuls les créneaux vedette sont disponibles.'
+          });
+        }
       }
     }
 
@@ -912,26 +947,58 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // Validate practitioner offers ALL services
-      const psMultiCheck = await query(
-        `SELECT COUNT(DISTINCT service_id)::int AS cnt
-         FROM practitioner_services WHERE service_id = ANY($1) AND practitioner_id = $2`,
-        [service_ids, practitioner_id]
-      );
-      if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
-        return res.status(400).json({ error: 'Ce praticien ne propose pas toutes les prestations sélectionnées' });
-      }
+      // Build practitioners map for split mode
+      const splitPracMap = {}; // service_id → practitioner_id
+      if (isSplitMode) {
+        for (const sp of splitPractitioners) {
+          splitPracMap[sp.service_id] = sp.practitioner_id;
+        }
+        // Validate each practitioner offers their respective service
+        for (const svc of multiServices) {
+          const pracId = splitPracMap[svc.id];
+          if (!pracId) {
+            return res.status(400).json({ error: `Praticien manquant pour la prestation ${svc.id}` });
+          }
+          const psCheck = await query(
+            `SELECT 1 FROM practitioner_services WHERE service_id = $1 AND practitioner_id = $2`,
+            [svc.id, pracId]
+          );
+          if (psCheck.rows.length === 0) {
+            return res.status(400).json({ error: `Le praticien ${pracId} ne propose pas la prestation ${svc.name}` });
+          }
+        }
+        // Validate all practitioners are active + booking_enabled
+        const uniquePracIds = [...new Set(Object.values(splitPracMap))];
+        for (const pid of uniquePracIds) {
+          const pracCheck = await query(
+            `SELECT is_active, booking_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
+            [pid, businessId]
+          );
+          if (pracCheck.rows.length === 0 || !pracCheck.rows[0].is_active || !pracCheck.rows[0].booking_enabled) {
+            return res.status(400).json({ error: 'Un praticien n\'est pas disponible pour la prise de rendez-vous' });
+          }
+        }
+      } else {
+        // Mono-practitioner: validate offers ALL services
+        const psMultiCheck = await query(
+          `SELECT COUNT(DISTINCT service_id)::int AS cnt
+           FROM practitioner_services WHERE service_id = ANY($1) AND practitioner_id = $2`,
+          [service_ids, practitioner_id]
+        );
+        if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
+          return res.status(400).json({ error: 'Ce praticien ne propose pas toutes les prestations sélectionnées' });
+        }
 
-      // Validate practitioner is active + booking_enabled + capacity
-      const multiPracCap = await query(
-        `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
-         FROM practitioners WHERE id = $1 AND business_id = $2`,
-        [practitioner_id, businessId]
-      );
-      if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
-        return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+        // Validate practitioner is active + booking_enabled + capacity
+        const multiPracCap = await query(
+          `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
+           FROM practitioners WHERE id = $1 AND business_id = $2`,
+          [practitioner_id, businessId]
+        );
+        if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
+          return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+        }
       }
-      const multiMaxConcurrent = multiPracCap.rows[0]?.max_concurrent ?? 1;
 
       // Calculate chained slots (buffer_before first only, buffer_after last only)
       const groupId = require('crypto').randomUUID();
@@ -946,6 +1013,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         return {
           service_id: svc.id,
           service_variant_id: resolvedVariantIds[i] || null,
+          practitioner_id: isSplitMode ? splitPracMap[svc.id] : practitioner_id,
           start_at: slotStart.toISOString(),
           end_at: slotEnd.toISOString(),
           group_order: i,
@@ -956,10 +1024,20 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       const totalEnd = new Date(chainedSlots[chainedSlots.length - 1].end_at);
 
-      // Validate booking fits within practitioner's availability window
-      const availCheck = await checkPracAvailability(businessId, practitioner_id, startDate, totalEnd);
-      if (!availCheck.ok) {
-        return res.status(400).json({ error: availCheck.reason });
+      // Validate booking fits within practitioner availability
+      if (isSplitMode) {
+        // Split: check each practitioner for their specific time slice
+        for (const slot of chainedSlots) {
+          const availCheck = await checkPracAvailability(businessId, slot.practitioner_id, new Date(slot.start_at), new Date(slot.end_at));
+          if (!availCheck.ok) {
+            return res.status(400).json({ error: availCheck.reason });
+          }
+        }
+      } else {
+        const availCheck = await checkPracAvailability(businessId, practitioner_id, startDate, totalEnd);
+        if (!availCheck.ok) {
+          return res.status(400).json({ error: availCheck.reason });
+        }
       }
 
       const multiResult = await transactionWithRLS(businessId, async (client) => {
@@ -971,10 +1049,30 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
         const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
 
-        // Conflict check for entire chained range (pose-aware)
-        const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: practitioner_id, newStart: startDate.toISOString(), newEnd: totalEnd.toISOString() });
-        if (conflicts.length >= multiMaxConcurrent) {
-          throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+        // Conflict check
+        if (isSplitMode) {
+          // Split: check conflicts per practitioner for their specific time slice
+          for (const slot of chainedSlots) {
+            const pracCap = await client.query(
+              `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1`,
+              [slot.practitioner_id]
+            );
+            const maxConc = pracCap.rows[0]?.max_concurrent ?? 1;
+            const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: slot.practitioner_id, newStart: slot.start_at, newEnd: slot.end_at });
+            if (conflicts.length >= maxConc) {
+              throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+            }
+          }
+        } else {
+          const multiPracCapRow = await client.query(
+            `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1`,
+            [practitioner_id]
+          );
+          const multiMaxConcurrent = multiPracCapRow.rows[0]?.max_concurrent ?? 1;
+          const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: practitioner_id, newStart: startDate.toISOString(), newEnd: totalEnd.toISOString() });
+          if (conflicts.length >= multiMaxConcurrent) {
+            throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+          }
         }
 
         // Find or create client (4-step matching: OAuth > exact > phone > email)
@@ -1087,13 +1185,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         // Insert each booking with group_id and group_order
         const bookings = [];
         for (const slot of chainedSlots) {
+          const slotPracId = slot.practitioner_id || practitioner_id;
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
               group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked)
              VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
-            [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
+            [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
              needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
@@ -1282,7 +1381,18 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       (async () => {
         try {
           const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
-          const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+          // Fetch practitioner names — split mode may have multiple practitioners
+          let pracDisplayName = '';
+          const splitPracNames = {}; // practitioner_id → display_name
+          if (isSplitMode) {
+            const uniquePIds = [...new Set(Object.values(splitPracMap))];
+            const pracRows = await query(`SELECT id, display_name FROM practitioners WHERE id = ANY($1)`, [uniquePIds]);
+            pracRows.rows.forEach(r => { splitPracNames[r.id] = r.display_name; });
+            pracDisplayName = pracRows.rows.map(r => r.display_name).filter(Boolean).join(', ');
+          } else {
+            const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+            pracDisplayName = pracRow.rows[0]?.display_name || '';
+          }
           if (bizRow.rows[0]) {
             const lastBooking = multiBookings[multiBookings.length - 1];
             const emailBooking = {
@@ -1290,11 +1400,16 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               end_at: lastBooking.end_at,
               client_name, client_email,
               service_category: multiServices[0]?.category || null,
-              practitioner_name: pracRow.rows[0]?.display_name || '',
+              practitioner_name: pracDisplayName,
               comment: client_comment,
               gc_partial_cents: multiGcPartial || 0
             };
-            const groupSvcs = multiServices.map(s => ({ name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
+            const groupSvcs = multiServices.map(s => ({
+              name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
+              duration_min: s.duration_min,
+              price_cents: s.price_cents,
+              practitioner_name: isSplitMode ? (splitPracNames[splitPracMap[s.id]] || null) : null
+            }));
 
             if (multiBookings[0].status === 'pending_deposit') {
               // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
@@ -1886,16 +2001,24 @@ router.get('/booking/:token', async (req, res, next) => {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
          WHERE b.group_id = $1 AND b.business_id = (SELECT business_id FROM bookings WHERE public_token = $2)
          ORDER BY b.group_order, b.start_at`,
         [bk.group_id, token]
       );
       if (grp.rows.length > 1) {
-        groupServices = grp.rows.map(r => ({ name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color }));
+        const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
+        const isSplit = pracIds.size > 1;
+        groupServices = grp.rows.map(r => ({
+          name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color,
+          practitioner_name: isSplit ? r.practitioner_name : null,
+          start_at: r.svc_start_at, end_at: r.end_at
+        }));
         groupEndAt = grp.rows[grp.rows.length - 1].end_at;
       }
     }
@@ -2002,22 +2125,37 @@ router.get('/manage/:token', async (req, res, next) => {
     // Group members
     let groupServices = null;
     let groupEndAt = null;
+    let isSplitBooking = false;
     if (bk.group_id) {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
          WHERE b.group_id = $1 AND b.business_id = $2
          ORDER BY b.group_order, b.start_at`,
         [bk.group_id, bk.business_id]
       );
       if (grp.rows.length > 1) {
-        groupServices = grp.rows.map(r => ({ name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color }));
+        const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
+        isSplitBooking = pracIds.size > 1;
+        groupServices = grp.rows.map(r => ({
+          name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color,
+          practitioner_name: isSplitBooking ? r.practitioner_name : null,
+          start_at: r.svc_start_at, end_at: r.end_at
+        }));
         groupEndAt = grp.rows[grp.rows.length - 1].end_at;
       }
+    }
+
+    // Disable reschedule for split-practitioner bookings
+    if (isSplitBooking && reschAllowed) {
+      reschAllowed = false;
+      reschReason = 'Contactez le salon pour modifier ce rendez-vous multi-praticiens.';
     }
 
     const serviceInfo = groupServices
@@ -2706,14 +2844,18 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
             const grp = await query(
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                      b.practitioner_id, p.display_name AS practitioner_name
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
                WHERE b.group_id = $1 AND b.business_id = $2
                ORDER BY b.group_order, b.start_at`,
               [d.group_id, bk.business_id]
             );
             if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
@@ -2980,10 +3122,14 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { getGcPaidCents } = require('../../services/gift-card-refund');
@@ -3315,10 +3461,14 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
@@ -3553,13 +3703,19 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
               const grp = await query(
                 `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                         COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                        COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                        COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                        b.practitioner_id, p.display_name AS practitioner_name
                  FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                  LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 LEFT JOIN practitioners p ON p.id = b.practitioner_id
                  WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
                 [fullBk.rows[0].group_id, bk.business_id]
               );
-              if (grp.rows.length > 1) groupServices = grp.rows;
+              if (grp.rows.length > 1) {
+                const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+                if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+                groupServices = grp.rows;
+              }
             }
             const { sendBookingConfirmation } = require('../../services/email');
             await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0], groupServices });
@@ -3866,13 +4022,19 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
             const grp = await query(
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                      b.practitioner_id, p.display_name AS practitioner_name
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
                WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, bk.business_id]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { sendCancellationEmail } = require('../../services/email');
@@ -4017,10 +4179,14 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           await sendBookingConfirmation({
@@ -4944,10 +5110,14 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
-            if (grp.rows.length > 1) groupServices = grp.rows;
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { getGcPaidCents } = require('../../services/gift-card-refund');

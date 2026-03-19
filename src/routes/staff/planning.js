@@ -816,7 +816,7 @@ router.get('/impact', async (req, res, next) => {
     }
 
     const bookings = await queryWithRLS(bid,
-      `SELECT b.id, b.start_at, b.end_at, b.status, b.service_id,
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.service_id, b.group_id, b.practitioner_id,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               s.name AS service_name
        FROM bookings b
@@ -849,6 +849,35 @@ router.get('/impact', async (req, res, next) => {
         if (dayPeriod === 'pm') return hour >= 13;
         return true;
       });
+    }
+
+    // Split bookings: also include group siblings from split groups
+    // (if Ashley is absent and a booking is part of a split group with Véronique, the whole combo is impacted)
+    const groupIds = [...new Set(filtered.filter(b => b.group_id).map(b => b.group_id))];
+    for (const gid of groupIds) {
+      // Check if this group is a split (different practitioners)
+      const siblings = await queryWithRLS(bid,
+        `SELECT b.id, b.start_at, b.end_at, b.status, b.service_id, b.practitioner_id, b.group_id,
+                c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
+                s.name AS service_name
+         FROM bookings b
+         LEFT JOIN clients c ON c.id = b.client_id
+         LEFT JOIN services s ON s.id = b.service_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+           AND b.status IN ('confirmed', 'pending')
+         ORDER BY b.start_at`,
+        [gid, bid]
+      );
+      const pracIds = new Set(siblings.rows.map(r => r.practitioner_id));
+      if (pracIds.size > 1) {
+        // It's a split group — add missing siblings to the list
+        for (const sib of siblings.rows) {
+          if (!filtered.find(f => f.id === sib.id)) {
+            sib.split_sibling = true; // Mark as indirectly impacted
+            filtered.push(sib);
+          }
+        }
+      }
     }
 
     // Coverage check: which services are ONLY covered by this practitioner?
@@ -902,7 +931,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
 
     // Fetch impacted bookings (same logic as GET /impact)
     const bookings = await queryWithRLS(bid,
-      `SELECT b.id, b.start_at, b.end_at, b.status, b.public_token,
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.public_token, b.group_id,
               c.full_name AS client_name, c.phone AS client_phone,
               c.email AS client_email, c.consent_sms,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
@@ -947,7 +976,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
 
     // Fetch business info
     const bizResult = await queryWithRLS(bid,
-      `SELECT name, email, phone, plan, theme, settings FROM businesses WHERE id = $1`, [bid]
+      `SELECT name, email, phone, plan, theme, settings, slug FROM businesses WHERE id = $1`, [bid]
     );
     const business = bizResult.rows[0] || { name: 'Genda' };
     const hasSms = ['pro', 'premium'].includes(business.plan);
@@ -956,6 +985,99 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
     const pracName = filtered[0]?.practitioner_name || 'votre praticien';
 
     let sentEmail = 0, sentSms = 0, errors = 0;
+    let splitGroupsCancelled = 0;
+
+    // Split bookings: auto-cancel entire group when one sibling is impacted
+    const processedGroupIds = new Set();
+    for (const bk of filtered) {
+      if (!bk.group_id || processedGroupIds.has(bk.group_id)) continue;
+      processedGroupIds.add(bk.group_id);
+
+      // Check if this group is a split (different practitioners)
+      const siblings = await queryWithRLS(bid,
+        `SELECT b.id, b.practitioner_id, b.status, b.public_token, b.start_at,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                p.display_name AS practitioner_name,
+                c.full_name AS client_name, c.email AS client_email
+         FROM bookings b
+         LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
+         LEFT JOIN clients c ON c.id = b.client_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bid]
+      );
+      const pracIds = new Set(siblings.rows.map(r => r.practitioner_id));
+      if (pracIds.size <= 1) continue; // Not a split group, handle normally
+
+      // Cancel ALL siblings in the split group
+      await queryWithRLS(bid,
+        `UPDATE bookings SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'system'
+         WHERE group_id = $1 AND business_id = $2 AND status IN ('confirmed', 'pending', 'pending_deposit')`,
+        [bk.group_id, bid]
+      );
+      splitGroupsCancelled++;
+
+      // Send unified cancellation email to the client
+      const clientEmail = siblings.rows[0]?.client_email;
+      const clientName = siblings.rows[0]?.client_name;
+      const publicToken = siblings.rows[0]?.public_token;
+      if (clientEmail) {
+        try {
+          const startLocal = new Date(bk.start_at).toLocaleString('fr-BE', {
+            timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
+            hour: '2-digit', minute: '2-digit'
+          });
+          const svcList = siblings.rows.map(s =>
+            `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.service_name)} \u00b7 ${escHtml(s.practitioner_name || '')}</div>`
+          ).join('');
+          const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+          const slug = business.slug || '';
+          const rebookUrl = slug ? `${baseUrl}/${slug}` : baseUrl;
+
+          const bodyHTML = `
+            <p>Bonjour <strong>${escHtml(clientName || 'cher client')}</strong>,</p>
+            <p>Nous sommes d\u00e9sol\u00e9s, votre rendez-vous a d\u00fb \u00eatre annul\u00e9 suite \u00e0 l'indisponibilit\u00e9 de ${escHtml(pracName)} :</p>
+            <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:6px;padding:14px 16px;margin:16px 0">
+              <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:6px">${escHtml(startLocal)}</div>
+              ${svcList}
+            </div>
+            <p>Vous pouvez reprendre un nouveau cr\u00e9neau en cliquant ci-dessous :</p>`;
+
+          const html = buildEmailHTML({
+            title: 'Rendez-vous annul\u00e9',
+            preheader: `Votre RDV chez ${business.name} a \u00e9t\u00e9 annul\u00e9`,
+            bodyHTML,
+            ctaText: 'Reprendre un cr\u00e9neau',
+            ctaUrl: rebookUrl,
+            cancelText: publicToken ? 'G\u00e9rer mon rendez-vous' : null,
+            cancelUrl: publicToken ? `${baseUrl}/booking/${publicToken}` : null,
+            businessName: business.name,
+            primaryColor,
+            footerText: `${business.name} \u2014 Via Genda.be`
+          });
+
+          const emailResult = await sendEmail({
+            to: clientEmail,
+            toName: clientName,
+            subject: `Rendez-vous annul\u00e9 \u2014 ${business.name}`,
+            html,
+            fromName: business.name,
+            replyTo: business.email
+          });
+          if (emailResult.success) sentEmail++;
+          else errors++;
+        } catch (e) {
+          console.error('[NOTIFY-IMPACT] Split group cancellation email error:', e.message);
+          errors++;
+        }
+      }
+
+      // Remove these bookings from the normal loop (already handled)
+      const siblingIds = new Set(siblings.rows.map(r => r.id));
+      filtered = filtered.filter(f => !siblingIds.has(f.id));
+    }
 
     // De-duplicate by client email/phone (a client might have multiple bookings)
     // But we send one email per booking so they know which specific appointment is impacted
@@ -1041,6 +1163,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       sent_email: sentEmail,
       sent_sms: sentSms,
       total: filtered.length,
+      split_groups_cancelled: splitGroupsCancelled,
       errors
     });
   } catch (err) { next(err); }
