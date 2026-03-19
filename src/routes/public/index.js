@@ -1307,7 +1307,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (depResult.required) {
               const dlHours = bizSettings.deposit_deadline_hours ?? 48;
               const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
-              if (hoursUntilRdv >= dlHours) {
+              // Skip deposit only if RDV is less than 2h away (not enough time to pay)
+              if (hoursUntilRdv >= 2) {
                 // Check for gift card auto-debit (full or partial)
                 let gcAutoPaid = false;
                 if (gift_card_code || client_email) {
@@ -1384,7 +1385,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 }
 
                 if (!gcAutoPaid) {
-                  const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+                  // Cap deadline: configured deadline OR 2h before RDV, whichever is sooner
+                  const normalDeadline = new Date(startDate.getTime() - dlHours * 3600000);
+                  const minDeadline = new Date(startDate.getTime() - 2 * 3600000);
+                  const deadline = normalDeadline.getTime() > Date.now() ? normalDeadline : (minDeadline.getTime() > Date.now() ? minDeadline : new Date(Date.now() + 30 * 60000));
                   await client.query(
                     `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                       deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -1841,8 +1845,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           if (depResult.required) {
             const dlHours = bizSettings.deposit_deadline_hours ?? 48;
             const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
-            // Skip deposit if RDV is within the deadline window
-            if (hoursUntilRdv >= dlHours) {
+            // Skip deposit only if RDV is less than 2h away (not enough time to pay)
+            if (hoursUntilRdv >= 2) {
               // Check for gift card auto-debit (full or partial)
               let gcAutoPaid = false;
               if (gift_card_code || client_email) {
@@ -1907,7 +1911,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               }
 
               if (!gcAutoPaid) {
-                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
+                // Cap deadline: configured deadline OR 2h before RDV, whichever is sooner
+                const normalDeadline = new Date(startDate.getTime() - dlHours * 3600000);
+                const minDeadline = new Date(startDate.getTime() - 2 * 3600000);
+                const deadline = normalDeadline.getTime() > Date.now() ? normalDeadline : (minDeadline.getTime() > Date.now() ? minDeadline : new Date(Date.now() + 30 * 60000));
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -4759,9 +4766,11 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         const dlHoursWl = wlBizSettings.deposit_deadline_hours ?? 48;
         const startWl = new Date(e.offer_booking_start);
         const hoursUntilWlRdv = (startWl.getTime() - Date.now()) / 3600000;
-        // Skip deposit if RDV is within the deadline window
-        if (hoursUntilWlRdv >= dlHoursWl) {
-          const deadlineWl = new Date(startWl.getTime() - dlHoursWl * 3600000);
+        // Skip deposit only if RDV is less than 2h away
+        if (hoursUntilWlRdv >= 2) {
+          const normalDeadlineWl = new Date(startWl.getTime() - dlHoursWl * 3600000);
+          const minDeadlineWl = new Date(startWl.getTime() - 2 * 3600000);
+          const deadlineWl = normalDeadlineWl.getTime() > Date.now() ? normalDeadlineWl : (minDeadlineWl.getTime() > Date.now() ? minDeadlineWl : new Date(Date.now() + 30 * 60000));
           await client.query(
             `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
               deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
