@@ -30,6 +30,7 @@ function fmtCountdown(ms) {
 }
 async function fcOpenDetail(bookingId) {
   if (_openingDetail) return; // Prevent concurrent opens (e.g. double-click firing twice)
+  if (!bookingId || bookingId === 'undefined') return; // Guard against undefined ID
   _openingDetail = true;
   calState.fcCurrentEventId = bookingId;
   const modal = document.getElementById('calDetailModal');
@@ -662,6 +663,7 @@ function historyDetail(entry) {
 async function loadBookingHistory() {
   const el = document.getElementById('mHistoryTimeline');
   if (!el) return;
+  if (!calState.fcCurrentEventId || calState.fcCurrentEventId === 'undefined') return;
   el.innerHTML = '<div class="m-empty" style="padding:20px;opacity:.6">Chargement...</div>';
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/history`, {
