@@ -583,6 +583,9 @@ img { max-width: 100%; display: block; }
 }
 .final-cta .section-heading { font-size: 32px; margin-bottom: 12px; }
 .final-cta .section-subtitle { margin-bottom: 32px; }
+.final-cta .cta-buttons { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.final-cta .cta-buttons .btn-solid,
+.final-cta .cta-buttons .btn-outline { padding: 14px 36px; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
 
 /* ════════════════════════════════════════
    FOOTER
@@ -953,8 +956,10 @@ img { max-width: 100%; display: block; }
   <div class="container text-center">
     <h2 class="section-heading">Envie d'un moment pour <span class="serif">vous</span>&nbsp;?</h2>
     <p class="section-subtitle">R&eacute;servez votre cr&eacute;neau en quelques clics.</p>
-    <a href="#" class="btn-solid" id="ctaBtn">R&eacute;server maintenant &rarr;</a>
-    <a href="#" class="btn-outline" id="ctaGiftCardBtn" style="display:none;margin-top:12px">&#127873; Offrir une carte cadeau</a>
+    <div class="cta-buttons">
+      <a href="#" class="btn-solid" id="ctaBtn">R&eacute;server maintenant &rarr;</a>
+      <a href="#" class="btn-outline" id="ctaGiftCardBtn" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg> Offrir une carte cadeau</a>
+    </div>
   </div>
 </section>
 
