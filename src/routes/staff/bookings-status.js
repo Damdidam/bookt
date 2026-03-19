@@ -193,7 +193,7 @@ router.patch('/:id/status', async (req, res, next) => {
           `UPDATE bookings SET status = 'pending_deposit', deposit_status = 'pending',
             deposit_deadline = $1, deposit_paid_at = NULL, deposit_payment_intent_id = NULL,
             deposit_payment_url = $2, deposit_requested_at = NOW(), deposit_request_count = COALESCE(deposit_request_count, 0) + 1,
-            deposit_reminder_sent = false, cancel_reason = NULL, locked = true, updated_at = NOW()
+            deposit_reminder_sent = false, cancel_reason = NULL, updated_at = NOW()
            WHERE id = $3 AND business_id = $4`,
           [deadline.toISOString(), depositUrl, id, bid]
         );
@@ -201,7 +201,7 @@ router.patch('/:id/status', async (req, res, next) => {
         // Deposit was retained → mark as paid again
         await client.query(
           `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
-            deposit_deadline = NULL, cancel_reason = NULL, locked = true, updated_at = NOW()
+            deposit_deadline = NULL, cancel_reason = NULL, updated_at = NOW()
            WHERE id = $1 AND business_id = $2`,
           [id, bid]
         );
@@ -1077,7 +1077,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
       // Waive: confirm without payment
       await client.query(
         `UPDATE bookings SET status = 'confirmed', deposit_status = 'waived',
-          deposit_deadline = NULL, locked = true, updated_at = NOW()
+          deposit_deadline = NULL, updated_at = NOW()
          WHERE id = $1 AND business_id = $2`,
         [id, bid]
       );

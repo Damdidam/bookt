@@ -242,8 +242,7 @@ async function handleStripeWebhook(req, res) {
               deposit_status = 'paid',
               deposit_paid_at = NOW(),
               deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
-              deposit_deadline = NULL,
-              locked = true
+              deposit_deadline = NULL
              WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
              RETURNING id, business_id, group_id, client_id`,
             [piId, bookingId, businessId]
@@ -260,7 +259,7 @@ async function handleStripeWebhook(req, res) {
             if (bk.group_id) {
               const grpUpd = await query(
                 `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
-                  deposit_paid_at = NOW(), deposit_deadline = NULL, locked = true
+                  deposit_paid_at = NOW(), deposit_deadline = NULL
                  WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
                  RETURNING id`,
                 [bk.group_id, businessId, bookingId]
@@ -272,7 +271,7 @@ async function handleStripeWebhook(req, res) {
             if (piId) {
               const detachedUpd = await query(
                 `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
-                  deposit_paid_at = NOW(), deposit_deadline = NULL, locked = true
+                  deposit_paid_at = NOW(), deposit_deadline = NULL
                  WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
                    AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
                  RETURNING id`,
