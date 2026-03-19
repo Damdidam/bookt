@@ -1169,7 +1169,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                         // Fully covered by GC
                         await client.query(
                           `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
-                            deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
+                            deposit_status = 'paid', deposit_paid_at = NOW(),
                             deposit_payment_intent_id = $2
                            WHERE id = $3 AND business_id = $4`,
                           [depResult.depCents, `gc_${gc.code}`, bookings[0].id, businessId]
@@ -1182,7 +1182,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                           const otherIds = bookings.slice(1).map(b => b.id);
                           await client.query(
                             `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
-                              deposit_paid_at = NOW(), locked = true, deposit_amount_cents = $3,
+                              deposit_paid_at = NOW(), deposit_amount_cents = $3,
                               deposit_payment_intent_id = $4
                              WHERE id = ANY($1) AND business_id = $2`,
                             [otherIds, businessId, depResult.depCents, `gc_${gc.code}`]
@@ -1675,7 +1675,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                       // Fully covered by GC
                       await client.query(
                         `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
-                          deposit_status = 'paid', deposit_paid_at = NOW(), locked = true,
+                          deposit_status = 'paid', deposit_paid_at = NOW(),
                           deposit_payment_intent_id = $2
                          WHERE id = $3 AND business_id = $4`,
                         [depResult.depCents, `gc_${gc.code}`, booking.rows[0].id, businessId]
@@ -2611,8 +2611,7 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
           deposit_status = 'paid',
           deposit_paid_at = NOW(),
           deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
-          deposit_deadline = NULL,
-          locked = true
+          deposit_deadline = NULL
          WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
          RETURNING id`,
         [piId, bk.id, bk.business_id]
@@ -2622,7 +2621,7 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         // 1. Group siblings
         if (bk.group_id) {
           const sibResult = await txClient.query(
-            `UPDATE bookings SET status = 'confirmed', locked = true,
+            `UPDATE bookings SET status = 'confirmed',
               deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
              WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
              RETURNING id`,
@@ -2633,7 +2632,7 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
         // 2. Detached bookings sharing same deposit_payment_intent_id
         if (piId) {
           const detached = await txClient.query(
-            `UPDATE bookings SET status = 'confirmed', locked = true,
+            `UPDATE bookings SET status = 'confirmed',
               deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
              WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
                AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
@@ -4907,7 +4906,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
       // 4a. Fully paid by gift card → confirm booking
       await client.query(
         `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
-                locked = true, deposit_payment_intent_id = $1
+                deposit_payment_intent_id = $1
          WHERE id = $2`,
         [`gc_${gc.code}`, bk.id]
       );
@@ -4915,8 +4914,8 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
       // Also update group siblings
       if (bk.group_id) {
         await client.query(
-          `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
-                  locked = true WHERE group_id = $1 AND id != $2 AND status = 'pending_deposit'`,
+          `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW()
+                  WHERE group_id = $1 AND id != $2 AND status = 'pending_deposit'`,
           [bk.group_id, bk.id]
         );
       }
