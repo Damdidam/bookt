@@ -182,6 +182,10 @@ router.patch('/:id/move', async (req, res, next) => {
         return res.status(400).json({ error: 'Aucun membre trouvé dans le groupe' });
       }
 
+      // Detect split group (different practitioners) — don't reassign practitioners on move
+      const groupPracIds = new Set(groupMembers.map(m => m.practitioner_id));
+      const isSplitGroup = groupPracIds.size > 1;
+
       // Calculate time delta from dragged booking's original start
       const delta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
 
@@ -205,9 +209,19 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalEnd = updates[updates.length - 1].end_at;
 
       // Check practitioner availability (absences, exceptions, hours)
-      const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
-      if (!availCheck.ok) {
-        return res.status(409).json({ error: availCheck.reason });
+      if (isSplitGroup) {
+        // Split group: check each practitioner for their own time range
+        for (const u of updates) {
+          const availCheck = await checkPracAvailability(bid, u.practitioner_id, u.start_at, u.end_at);
+          if (!availCheck.ok) {
+            return res.status(409).json({ error: availCheck.reason });
+          }
+        }
+      } else {
+        const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
+        if (!availCheck.ok) {
+          return res.status(409).json({ error: availCheck.reason });
+        }
       }
 
       // Atomic group move: conflict check + updates in one transaction
@@ -230,10 +244,11 @@ router.patch('/:id/move', async (req, res, next) => {
           // only, rather than using the full group totalStart/totalEnd which over-reports conflicts
           if (!globalAllowOverlap) {
             const groupIds = groupMembers.map(m => m.id);
-            const distinctPracIds = [...new Set(updates.map(u => practitioner_id || u.practitioner_id))];
+            // For split groups, use each member's own practitioner_id; for non-split, use the target practitioner_id
+            const distinctPracIds = [...new Set(updates.map(u => (isSplitGroup ? u.practitioner_id : (practitioner_id || u.practitioner_id))))];
             for (const pracId of distinctPracIds) {
               // Filter updates belonging to this practitioner and compute their min start / max end
-              const pracUpdates = updates.filter(u => (practitioner_id || u.practitioner_id) === pracId);
+              const pracUpdates = updates.filter(u => (isSplitGroup ? u.practitioner_id : (practitioner_id || u.practitioner_id)) === pracId);
               const pracStart = pracUpdates.reduce((min, u) => u.start_at < min ? u.start_at : min, pracUpdates[0].start_at);
               const pracEnd = pracUpdates.reduce((max, u) => u.end_at > max ? u.end_at : max, pracUpdates[0].end_at);
               const pracMaxConcurrent = await getMaxConcurrent(bid, pracId);
@@ -248,7 +263,8 @@ router.patch('/:id/move', async (req, res, next) => {
             let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
             const params = [u.start_at, u.end_at];
             let idx = 3;
-            if (practitioner_id) {
+            // Only reassign practitioner if NOT a split group (split = each member keeps its own practitioner)
+            if (practitioner_id && !isSplitGroup) {
               sql += `, practitioner_id = $${idx}`;
               params.push(practitioner_id);
               idx++;
