@@ -785,6 +785,7 @@ img { max-width: 100%; display: block; }
       <li><a href="#realisations" id="navRealisations" style="display:none">Réalisations</a></li>
       <li><a href="#info">Contact</a></li>
       <li><a href="#news" id="navNews" style="display:none">Actus</a></li>
+      <li id="navGiftCardLi" style="display:none"><a href="#" id="navGiftCardBtn">Carte cadeau</a></li>
       <li><a href="#" class="btn-outline" id="navBookBtn">R&eacute;server</a></li>
     </ul>
   </div>
@@ -953,6 +954,7 @@ img { max-width: 100%; display: block; }
     <h2 class="section-heading">Envie d'un moment pour <span class="serif">vous</span>&nbsp;?</h2>
     <p class="section-subtitle">R&eacute;servez votre cr&eacute;neau en quelques clics.</p>
     <a href="#" class="btn-solid" id="ctaBtn">R&eacute;server maintenant &rarr;</a>
+    <a href="#" class="btn-outline" id="ctaGiftCardBtn" style="display:none;margin-top:12px">&#127873; Offrir une carte cadeau</a>
   </div>
 </section>
 
@@ -1322,6 +1324,14 @@ img { max-width: 100%; display: block; }
     // Navbar
     document.getElementById('navBrand').textContent = b.name;
     document.getElementById('navBookBtn').href = bookUrl;
+    // Gift card link
+    if (b.settings && b.settings.giftcard_enabled) {
+      var gcUrl = '/' + b.slug + '/gift-card';
+      document.getElementById('navGiftCardLi').style.display = '';
+      document.getElementById('navGiftCardBtn').href = gcUrl;
+      var ctaGcBtn = document.getElementById('ctaGiftCardBtn');
+      if (ctaGcBtn) { ctaGcBtn.href = gcUrl; ctaGcBtn.style.display = ''; }
+    }
 
     // Hero
     var city = b.address ? b.address.split(',').pop().trim() : '';

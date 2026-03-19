@@ -386,7 +386,8 @@ router.get('/:slug', async (req, res, next) => {
         booking_auth_mode: biz.settings?.booking_auth_mode || 'soft',
         deposit_enabled: !!biz.settings?.deposit_enabled,
         payment_methods: biz.settings?.payment_methods || [],
-        about_image_url: biz.settings?.about_image_url || null
+        about_image_url: biz.settings?.about_image_url || null,
+        giftcard_enabled: !!biz.settings?.giftcard_enabled
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
@@ -765,7 +766,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing,
       flexible, is_last_minute,
-      oauth_provider, oauth_provider_id
+      oauth_provider, oauth_provider_id,
+      gift_card_code
     } = req.body;
 
     // Split mode: practitioners[] array provided instead of practitioner_id
@@ -1279,16 +1281,29 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               if (hoursUntilRdv >= dlHours) {
                 // Check for gift card auto-debit (full or partial)
                 let gcAutoPaid = false;
-                if (client_email) {
+                if (gift_card_code || client_email) {
                   try {
-                    const gcRes = await client.query(
-                      `SELECT id, code, balance_cents FROM gift_cards
-                       WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
-                         AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
-                         AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY balance_cents DESC LIMIT 1`,
-                      [businessId, client_email]
-                    );
+                    let gcRes;
+                    if (gift_card_code) {
+                      // Client provided a gift card code manually
+                      gcRes = await client.query(
+                        `SELECT id, code, balance_cents FROM gift_cards
+                         WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
+                           AND (expires_at IS NULL OR expires_at > NOW())
+                         LIMIT 1`,
+                        [businessId, gift_card_code.toUpperCase().trim()]
+                      );
+                    } else {
+                      // Auto-match by client email
+                      gcRes = await client.query(
+                        `SELECT id, code, balance_cents FROM gift_cards
+                         WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+                           AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
+                           AND (expires_at IS NULL OR expires_at > NOW())
+                         ORDER BY balance_cents DESC LIMIT 1`,
+                        [businessId, client_email]
+                      );
+                    }
                     if (gcRes.rows.length > 0) {
                       const gc = gcRes.rows[0];
                       const gcDebit = Math.min(gc.balance_cents, depResult.depCents);
@@ -1801,16 +1816,27 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (hoursUntilRdv >= dlHours) {
               // Check for gift card auto-debit (full or partial)
               let gcAutoPaid = false;
-              if (client_email) {
+              if (gift_card_code || client_email) {
                 try {
-                  const gcRes = await client.query(
-                    `SELECT id, code, balance_cents FROM gift_cards
-                     WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
-                       AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
-                       AND (expires_at IS NULL OR expires_at > NOW())
-                     ORDER BY balance_cents DESC LIMIT 1`,
-                    [businessId, client_email]
-                  );
+                  let gcRes;
+                  if (gift_card_code) {
+                    gcRes = await client.query(
+                      `SELECT id, code, balance_cents FROM gift_cards
+                       WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       LIMIT 1`,
+                      [businessId, gift_card_code.toUpperCase().trim()]
+                    );
+                  } else {
+                    gcRes = await client.query(
+                      `SELECT id, code, balance_cents FROM gift_cards
+                       WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+                         AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       ORDER BY balance_cents DESC LIMIT 1`,
+                      [businessId, client_email]
+                    );
+                  }
                   if (gcRes.rows.length > 0) {
                     const gc = gcRes.rows[0];
                     const gcDebit = Math.min(gc.balance_cents, depResult.depCents);

@@ -185,6 +185,20 @@ body.themed{opacity:1}
 .phone-wrap .fi{border-radius:0 var(--radius-xs) var(--radius-xs) 0}
 .bce-toggle{font-size:.78rem;color:var(--primary);cursor:pointer;font-weight:600;margin-bottom:12px;display:inline-flex;align-items:center;gap:4px}
 
+/* Gift card */
+.gc-section{margin:16px 0;padding:14px;border-radius:var(--radius-sm);background:var(--gold-bg);border:1px solid rgba(166,139,60,.2)}
+.gc-toggle{font-size:.82rem;color:var(--gold);cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.gc-toggle:hover{opacity:.8}
+.gc-input-row{display:flex;gap:8px;margin-top:10px}
+.gc-input-row .fi{flex:1;text-transform:uppercase;letter-spacing:1px;font-size:.9rem}
+.gc-validate-btn{padding:0 16px;border:none;border-radius:var(--radius-xs);background:var(--gold);color:#fff;font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;min-height:44px;transition:opacity .15s}
+.gc-validate-btn:hover{opacity:.85}
+.gc-validate-btn:disabled{opacity:.5;cursor:not-allowed}
+.gc-result{margin-top:8px;font-size:.82rem;padding:8px 10px;border-radius:var(--radius-xs)}
+.gc-result.ok{background:var(--green-bg);color:var(--green);border:1px solid #BBF7D0}
+.gc-result.err{background:var(--red-bg);color:var(--red);border:1px solid #FECACA}
+.gc-remove{font-size:.78rem;color:var(--red);cursor:pointer;margin-left:8px;font-weight:600}
+
 /* Summary */
 .summary{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:16px}
 .sum-row{display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem}
@@ -334,6 +348,8 @@ body.theme-dark .fi:focus{border-color:var(--primary)}
 body.theme-dark .fi::placeholder{color:var(--text-4)}
 body.theme-dark .fl{color:var(--text-3)}
 body.theme-dark .phone-prefix{background:var(--surface-2);border-color:var(--border);color:var(--text-3)}
+body.theme-dark .gc-section{background:var(--surface);border-color:var(--border)}
+body.theme-dark .gc-toggle{color:var(--gold)}
 body.theme-dark .summary{background:var(--surface);border-color:var(--border)}
 body.theme-dark .sum-row .label{color:var(--text-3)}
 body.theme-dark .sum-row .val{color:var(--text)}
@@ -520,6 +536,18 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
 
     <label class="checkbox"><input type="checkbox" id="cConsent"> J'accepte les confirmations et rappels par email et SMS.</label>
 
+    <!-- Gift card -->
+    <div id="gcSection" class="gc-section" style="display:none">
+      <span class="gc-toggle" id="gcToggle" onclick="toggleGcInput()">&#127873; J'ai une carte cadeau</span>
+      <div id="gcInputArea" style="display:none">
+        <div class="gc-input-row">
+          <input class="fi" id="gcCode" placeholder="CODE CARTE CADEAU" maxlength="20" autocomplete="off">
+          <button class="gc-validate-btn" id="gcValidateBtn" onclick="validateGcCode()">Vérifier</button>
+        </div>
+        <div id="gcResult" style="display:none"></div>
+      </div>
+    </div>
+
     <div id="bkFlexBox" style="display:none;margin:12px 0;padding:12px 14px;border-radius:8px;background:rgba(13,115,119,.06);border:1px solid rgba(13,115,119,.2)">
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:.88rem">
         <input type="checkbox" id="bkFlexible" style="margin-top:3px">
@@ -569,6 +597,9 @@ let multiServiceMode=false;
 // OAuth state
 let oauthProvider=null,oauthProviderId=null;
 let oauthAuthenticated=false;
+
+// Gift card state
+let gcValidated=false,gcValidCode=null,gcBalance=0;
 
 function escH(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
@@ -846,6 +877,18 @@ function initPage(){
     document.documentElement.style.setProperty('--primary-light',cc.light);
     document.documentElement.style.setProperty('--primary-soft',cc.soft);
     document.documentElement.style.setProperty('--primary-border',cc.border);
+  }
+
+  // Gift card section: show if enabled
+  if(b.giftcard_enabled){
+    document.getElementById('gcSection').style.display='';
+    var gcParam=urlParams.get('gc');
+    if(gcParam){
+      document.getElementById('gcInputArea').style.display='block';
+      document.getElementById('gcToggle').innerHTML='&#127873; Masquer';
+      document.getElementById('gcCode').value=gcParam.toUpperCase();
+      validateGcCode();
+    }
   }
 
   // Multi-service mode detection
@@ -2051,6 +2094,62 @@ function buildSummary(){
   document.getElementById('bookingSummary').innerHTML=html;
 }
 
+// --- Gift card functions ---
+function toggleGcInput(){
+  var area=document.getElementById('gcInputArea');
+  var toggle=document.getElementById('gcToggle');
+  if(area.style.display==='none'){
+    area.style.display='block';
+    toggle.innerHTML='&#127873; Masquer';
+    document.getElementById('gcCode').focus();
+  }else{
+    area.style.display='none';
+    toggle.innerHTML='&#127873; J\'ai une carte cadeau';
+    clearGc();
+  }
+}
+function clearGc(){
+  gcValidated=false;gcValidCode=null;gcBalance=0;
+  document.getElementById('gcCode').value='';
+  document.getElementById('gcResult').style.display='none';
+  document.getElementById('gcCode').disabled=false;
+  var btn=document.getElementById('gcValidateBtn');
+  btn.disabled=false;btn.style.display='';
+}
+async function validateGcCode(){
+  var code=document.getElementById('gcCode').value.trim().toUpperCase();
+  if(!code)return;
+  var btn=document.getElementById('gcValidateBtn');
+  var resEl=document.getElementById('gcResult');
+  btn.disabled=true;btn.textContent='...';
+  try{
+    var r=await fetch('/api/public/gift-card/validate',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:code,business_id:siteData.business.id})
+    });
+    var data=await r.json();
+    if(data.valid){
+      gcValidated=true;gcValidCode=code;gcBalance=data.balance_cents;
+      var balStr=(data.balance_cents/100).toFixed(2).replace('.',',')+' \u20ac';
+      resEl.className='gc-result ok';
+      resEl.innerHTML='<strong>Carte valide</strong> — Solde : '+balStr+' <span class="gc-remove" onclick="clearGc()">Retirer</span>';
+      resEl.style.display='block';
+      document.getElementById('gcCode').disabled=true;
+      btn.style.display='none';
+    }else{
+      gcValidated=false;gcValidCode=null;gcBalance=0;
+      resEl.className='gc-result err';
+      resEl.textContent=data.error||'Code invalide';
+      resEl.style.display='block';
+    }
+  }catch(e){
+    resEl.className='gc-result err';
+    resEl.textContent='Erreur de vérification';
+    resEl.style.display='block';
+  }
+  btn.disabled=false;btn.textContent='Vérifier';
+}
+
 // ──────── SUBMIT ────────
 var _submitting=false;
 async function submitBooking(){
@@ -2105,6 +2204,7 @@ async function submitBooking(){
     }
     if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
     if(oauthProvider&&oauthProviderId){bookingBody.oauth_provider=oauthProvider;bookingBody.oauth_provider_id=oauthProviderId;}
+    if(gcValidated&&gcValidCode){bookingBody.gift_card_code=gcValidCode;}
 
     const res=await fetch('/api/public/'+slug+'/bookings',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -2182,7 +2282,10 @@ async function submitBooking(){
 
     // Mentions légales / acompte / prestations
     var mentions=[];
-    if(siteData.business&&siteData.business.deposit_enabled){
+    if(gcValidated&&gcValidCode){
+      mentions.push('&#127873; Carte cadeau '+escH(gcValidCode)+' appliqu\u00e9e.');
+    }
+    if(siteData.business&&siteData.business.deposit_enabled&&!gcValidated){
       mentions.push('Selon la politique de l\u2019\u00e9tablissement, un acompte pourrait vous \u00eatre demand\u00e9 par email.');
     }
     mentions.push('Le rendez-vous est r\u00e9serv\u00e9 pour les prestations s\u00e9lectionn\u00e9es. Toute demande suppl\u00e9mentaire sera soumise \u00e0 la disponibilit\u00e9 et \u00e0 l\u2019accord du praticien.');
