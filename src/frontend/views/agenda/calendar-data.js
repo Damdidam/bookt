@@ -157,14 +157,78 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
   });
 }
 
-/** Build FC events from grouped bookings (single container per group). */
+/** Build FC events from grouped bookings (single container per group,
+ *  or one per practitioner for split groups with different practitioners). */
 export function buildGroupEvents(grouped) {
-  return Object.keys(grouped).map(gid => {
+  return Object.keys(grouped).flatMap(gid => {
     const members = grouped[gid].sort((a, b) => (a.group_order || 0) - (b.group_order || 0));
     const first = members[0];
-    const accent = accentFor(first);
     const anyFrozen = members.some(m => ['completed', 'cancelled', 'no_show'].includes(m.status));
     const anyLocked = members.some(m => isEventLocked(m));
+    const allMembersWithAccent = members.map(m => ({ ...m, _accent: accentFor(m) }));
+
+    // Detect split group: different practitioners across members
+    const pracIds = new Set(members.map(m => String(m.practitioner_id)));
+    const isSplit = pracIds.size > 1;
+
+    if (isSplit) {
+      // Split group: one FC event per practitioner, each covering only their time slice
+      const byPrac = {};
+      members.forEach(m => {
+        const pid = String(m.practitioner_id);
+        if (!byPrac[pid]) byPrac[pid] = [];
+        byPrac[pid].push(m);
+      });
+      return Object.entries(byPrac).map(([pracId, pracMembers]) => {
+        const pracFirst = pracMembers[0];
+        const accent = accentFor(pracFirst);
+        const pracStart = pracMembers.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, pracMembers[0].start_at);
+        const pracEnd = pracMembers.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, pracMembers[0].end_at);
+        // Border segments for this practitioner's members only
+        const pracAccents = pracMembers.map(m => accentFor(m));
+        let _borderSegments = null;
+        if (new Set(pracAccents).size > 1) {
+          const durations = pracMembers.map(m => Math.max((new Date(m.end_at) - new Date(m.start_at)) / 60000, 1));
+          const total = durations.reduce((s, d) => s + d, 0);
+          let cursor = 0;
+          _borderSegments = pracMembers.map((m, i) => {
+            const seg = { color: pracAccents[i], from: cursor, to: cursor + durations[i] / total * 100 };
+            cursor = seg.to;
+            return seg;
+          });
+        }
+        return {
+          id: 'group_' + gid + '_' + pracId,
+          resourceId: pracId,
+          title: first.client_name || 'Sans nom',
+          start: pracStart, end: pracEnd,
+          backgroundColor: fcHexAlpha(accent, 0.22), borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
+          editable: !anyFrozen && !anyLocked && !calState.fcLocked,
+          startEditable: !anyFrozen && !anyLocked && !calState.fcLocked,
+          durationEditable: false,
+          extendedProps: {
+            _isGroup: true, _isSplitGroup: true, _groupId: gid, _accent: accent,
+            _members: allMembersWithAccent,
+            _borderSegments,
+            client_name: first.client_name,
+            client_is_vip: first.client_is_vip,
+            client_notes: first.client_notes,
+            practitioner_id: pracFirst.practitioner_id,
+            practitioner_name: pracFirst.practitioner_name,
+            processing_time: pracFirst.processing_time,
+            processing_start: pracFirst.processing_start,
+            buffer_before_min: pracFirst.buffer_before_min,
+            internal_note: first.internal_note,
+            notes_count: members.reduce((sum, m) => sum + (m.notes_count || 0), 0),
+            first_note: (members.find(m => m.first_note) || {}).first_note || '',
+            status: first.status
+          }
+        };
+      });
+    }
+
+    // Non-split group: single event (existing behavior)
+    const accent = accentFor(first);
     const minStart = members.reduce((mn, m) => m.start_at < mn ? m.start_at : mn, members[0].start_at);
     const maxEnd = members.reduce((mx, m) => m.end_at > mx ? m.end_at : mx, members[0].end_at);
     // Proportional border segments for multi-color groups
@@ -180,7 +244,7 @@ export function buildGroupEvents(grouped) {
         return seg;
       });
     }
-    const gev = {
+    return [{
       id: 'group_' + gid, resourceId: String(first.practitioner_id),
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
@@ -188,7 +252,7 @@ export function buildGroupEvents(grouped) {
       editable: !anyFrozen && !anyLocked && !calState.fcLocked, startEditable: !anyFrozen && !anyLocked && !calState.fcLocked, durationEditable: false,
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
-        _members: members.map(m => ({ ...m, _accent: accentFor(m) })),
+        _members: allMembersWithAccent,
         _borderSegments,
         client_name: first.client_name,
         client_is_vip: first.client_is_vip,
@@ -203,8 +267,7 @@ export function buildGroupEvents(grouped) {
         first_note: (members.find(m => m.first_note) || {}).first_note || '',
         status: first.status
       }
-    };
-    return gev;
+    }];
   });
 }
 
