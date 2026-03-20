@@ -788,6 +788,7 @@ img { max-width: 100%; display: block; }
       <li><a href="#realisations" id="navRealisations" style="display:none">Réalisations</a></li>
       <li><a href="#info">Contact</a></li>
       <li><a href="#news" id="navNews" style="display:none">Actus</a></li>
+      <li id="navGuideLi" style="display:none"><a id="navGuideLink" href="#">Guide</a></li>
       <li id="navGiftCardLi" style="display:none"><a href="#" id="navGiftCardBtn">Carte cadeau</a></li>
       <li><a href="#" class="btn-outline" id="navBookBtn">R&eacute;server</a></li>
     </ul>
@@ -977,7 +978,7 @@ img { max-width: 100%; display: block; }
       <span class="fp-company">Un produit H3001</span>
     </div>
     <div class="footer-legal">
-      &copy; 2026 Genda &middot; <a href="https://genda.be/cgv" target="_blank" rel="noopener">CGV</a> &middot; <a href="https://genda.be/confidentialite" target="_blank" rel="noopener">Confidentialit&eacute;</a>
+      &copy; 2026 Genda &middot; <a href="https://genda.be/cgv" target="_blank" rel="noopener">CGV</a> &middot; <a href="https://genda.be/confidentialite" target="_blank" rel="noopener">Confidentialit&eacute;</a> &middot; <a id="footerGuideLink" href="#" style="display:none">Guide de r&eacute;servation</a>
     </div>
   </div>
 </footer>
@@ -1337,6 +1338,12 @@ img { max-width: 100%; display: block; }
       var ctaGcBtn = document.getElementById('ctaGiftCardBtn');
       if (ctaGcBtn) { ctaGcBtn.href = gcUrl; ctaGcBtn.style.display = ''; }
     }
+    // Guide link
+    var guideUrl = '/' + b.slug + '/guide';
+    document.getElementById('navGuideLi').style.display = '';
+    document.getElementById('navGuideLink').href = guideUrl;
+    var footerGuide = document.getElementById('footerGuideLink');
+    if (footerGuide) { footerGuide.href = guideUrl; footerGuide.style.display = 'inline'; }
 
     // Hero
     var city = b.address ? b.address.split(',').pop().trim() : '';
