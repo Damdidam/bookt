@@ -4,6 +4,13 @@
   .topbar{padding:14px 16px}
   .content{padding:20px 16px}
   .agenda-toolbar{padding:8px 16px 6px;margin:0 -16px;width:calc(100% + 32px)}
+  .at-nav-btn{width:44px;height:44px;font-size:.9rem}
+  .at-today{padding:10px 16px;min-height:44px}
+  .at-vp-btn{padding:10px 16px;min-height:44px;font-size:.7rem}
+  .at-prac-pills{max-width:60vw}
+  .prac-pill{padding:8px 14px;min-height:40px;font-size:.68rem}
+  .at-search-wrap.expanded .at-search{width:200px}
+  .at-row-stats{display:none}
 }
 @media(max-width:1000px){
   .stats{grid-template-columns:1fr 1fr}
@@ -86,7 +93,7 @@
   .m-bottom{padding:14px 18px;margin:0 -18px}
 
   /* FAB — floating action button */
-  .cal-fab{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 16px rgba(13,115,119,.4);z-index:100;display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
+  .cal-fab{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));right:24px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 16px rgba(13,115,119,.4);z-index:100;display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
   .cal-fab:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(13,115,119,.5)}
   .cal-fab:active{transform:scale(.95)}
 
@@ -125,7 +132,7 @@
   .mob-empty-sub{font-size:.78rem;margin-top:4px}
 }
 /* Hide FAB on desktop, hide mobile rows on desktop */
-@media(min-width:769px){
+@media(min-width:1025px){
   .cal-fab{display:none!important}
   .agenda-toolbar .at-row1,.agenda-toolbar .at-row2,.agenda-toolbar .at-mob-views{display:none!important}
   .mob-list{display:none!important}
