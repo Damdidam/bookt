@@ -49,7 +49,7 @@
 }
 
 /* ===== MOBILE CALENDAR OPTIMIZATIONS ===== */
-@media(max-width:768px){
+@media(max-width:600px){
   .fc .fc-timegrid-slot{height:24px}
   .fc .fc-timegrid-slot-label-cushion{font-size:.62rem}
   .fc .fc-col-header-cell{font-size:.6rem;padding:6px 0}
@@ -131,9 +131,12 @@
   .mob-empty-text{font-size:.88rem}
   .mob-empty-sub{font-size:.78rem;margin-top:4px}
 }
-/* Hide FAB on desktop, hide mobile rows on desktop */
-@media(min-width:1025px){
-  .cal-fab{display:none!important}
+/* Hide mobile rows above phone breakpoint */
+@media(min-width:601px){
   .agenda-toolbar .at-row1,.agenda-toolbar .at-row2,.agenda-toolbar .at-mob-views{display:none!important}
   .mob-list{display:none!important}
+}
+/* Hide FAB on desktop only */
+@media(min-width:1025px){
+  .cal-fab{display:none!important}
 }
