@@ -36,6 +36,17 @@ if (userRole === 'practitioner') {
 }
 document.getElementById('userRole').textContent = sectorLabels[userRole] || userRole;
 
+// ── Admin impersonation banner ──
+if (window.__genda_impersonated) {
+  const banner = document.createElement('div');
+  banner.id = 'impersonBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#F59E0B;color:#78350F;padding:8px 20px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:.82rem;font-weight:600;font-family:var(--sans)';
+  banner.innerHTML = '⚠️ Mode admin — ' + (biz?.name || 'Salon') +
+    ' <button onclick="localStorage.removeItem(\'genda_token\');window.close()" style="padding:4px 12px;background:#78350F;color:#FEF3C7;border:none;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;font-family:inherit;margin-left:8px">Quitter</button>';
+  document.body.prepend(banner);
+  document.body.style.paddingTop = '40px';
+}
+
 // ── RBAC: hide sidebar items not allowed for this role ──
 document.querySelectorAll('.ni[data-section]').forEach(item => {
   const section = item.dataset.section;
@@ -56,7 +67,7 @@ document.querySelectorAll('.sb-section').forEach(sec => {
 // ── Category-aware sidebar labels ──
 if (biz) {
   const sbBiz = document.getElementById('sbBizName');
-  if (sbBiz) { const sp = sbBiz.querySelector('span'); if (sp) sp.textContent = biz.name || 'Cabinet'; }
+  if (sbBiz) { const sp = sbBiz.querySelector('span'); if (sp) sp.textContent = biz.name || 'Mon salon'; }
   const sbClients = document.getElementById('sbClientsLabel');
   if (sbClients) sbClients.textContent = categoryLabels.clients;
   const sbServices = document.getElementById('sbServicesLabel');

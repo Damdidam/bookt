@@ -224,6 +224,290 @@ async function handleStripeWebhook(req, res) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
+
+        // ===== DEPOSIT PAYMENT =====
+        if (session.metadata?.type === 'deposit') {
+          const bookingId = session.metadata.booking_id;
+          const businessId = session.metadata.business_id;
+          const bookingToken = session.metadata.booking_token;
+          if (!bookingId || !businessId) break;
+
+          const piId = session.payment_intent || null;
+          console.log(`[STRIPE WH] Deposit paid for booking ${bookingId} (PI: ${piId})`);
+
+          // Update booking: pending_deposit → confirmed, deposit_status → paid
+          const upd = await query(
+            `UPDATE bookings SET
+              status = 'confirmed',
+              deposit_status = 'paid',
+              deposit_paid_at = NOW(),
+              deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
+              deposit_deadline = NULL
+             WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
+             RETURNING id, business_id, group_id, client_id`,
+            [piId, bookingId, businessId]
+          );
+
+          if (upd.rows.length > 0) {
+            const bk = upd.rows[0];
+
+            // Propagate to group siblings AND ungrouped bookings sharing same deposit
+            // (handles case where bookings were ungrouped/reassigned after deposit request)
+            const linkedIds = [];
+
+            // 1. Group siblings (still in same group)
+            if (bk.group_id) {
+              const grpUpd = await query(
+                `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                  deposit_paid_at = NOW(), deposit_deadline = NULL
+                 WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
+                 RETURNING id`,
+                [bk.group_id, businessId, bookingId]
+              );
+              grpUpd.rows.forEach(r => linkedIds.push(r.id));
+            }
+
+            // 2. Ungrouped bookings sharing same deposit_payment_intent_id (detached after deposit request)
+            if (piId) {
+              const detachedUpd = await query(
+                `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                  deposit_paid_at = NOW(), deposit_deadline = NULL
+                 WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
+                   AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
+                 RETURNING id`,
+                [piId, businessId, bookingId, bk.group_id]
+              );
+              detachedUpd.rows.forEach(r => linkedIds.push(r.id));
+            }
+
+            // SSE broadcast to update calendar in real-time
+            try {
+              const { broadcast } = require('../../services/sse');
+              broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: bookingId });
+              for (const lid of linkedIds) {
+                broadcast(businessId, 'booking_update', { action: 'deposit_paid', booking_id: lid });
+              }
+            } catch (e) { /* SSE optional */ }
+
+            // CalSync push for primary + all linked
+            try {
+              const { calSyncPush } = require('../staff/bookings-helpers');
+              calSyncPush(businessId, bookingId);
+              for (const lid of linkedIds) {
+                calSyncPush(businessId, lid);
+              }
+            } catch (_) {}
+
+            // Send confirmation email to client
+            try {
+              const bkData = await query(
+                `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                        c.full_name AS client_name, c.email AS client_email,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                        s.category AS service_category,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                        p.display_name AS practitioner_name,
+                        biz.name AS business_name, biz.email AS business_email,
+                        biz.phone AS business_phone,
+                        biz.address AS business_address, biz.theme, biz.slug,
+                        biz.settings AS business_settings
+                 FROM bookings b
+                 LEFT JOIN clients c ON c.id = b.client_id
+                 LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 JOIN practitioners p ON p.id = b.practitioner_id
+                 JOIN businesses biz ON biz.id = b.business_id
+                 WHERE b.id = $1`,
+                [bookingId]
+              );
+              if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
+                const d = bkData.rows[0];
+                // Fetch group services for multi-service bookings
+                let groupServices = null;
+                // Collect all linked services: group siblings + detached bookings with same deposit
+                const allLinkedIds = [bookingId, ...linkedIds];
+                if (allLinkedIds.length > 1) {
+                  const grp = await query(
+                    `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                            COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                            b.practitioner_id, p.display_name AS practitioner_name
+                     FROM bookings b
+                     LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                     LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                     WHERE b.id = ANY($1) AND b.business_id = $2
+                     ORDER BY b.start_at`,
+                    [allLinkedIds, businessId]
+                  );
+                  if (grp.rows.length > 1) {
+                    const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+                    if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+                    groupServices = grp.rows;
+                  }
+                } else if (d.group_id) {
+                  const grp = await query(
+                    `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                            COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                            COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                            b.practitioner_id, p.display_name AS practitioner_name
+                     FROM bookings b
+                     LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                     LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                     WHERE b.group_id = $1 AND b.business_id = $2
+                     ORDER BY b.group_order, b.start_at`,
+                    [d.group_id, businessId]
+                  );
+                  if (grp.rows.length > 1) {
+                    const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+                    if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+                    groupServices = grp.rows;
+                  }
+                }
+                if (groupServices) d.end_at = groupServices[groupServices.length - 1].end_at;
+                const { getGcPaidCents } = require('../../services/gift-card-refund');
+                d.gc_paid_cents = await getGcPaidCents(bookingId);
+                const { sendDepositPaidEmail } = require('../../services/email');
+                await sendDepositPaidEmail({
+                  booking: d,
+                  business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+                  groupServices
+                });
+              }
+            } catch (emailErr) {
+              console.error('[STRIPE WH] Deposit confirmation email failed:', emailErr.message);
+            }
+
+            // Log notification
+            try {
+              await query(
+                `INSERT INTO notifications (business_id, booking_id, type, status, sent_at)
+                 VALUES ($1, $2, 'deposit_paid_webhook', 'sent', NOW())`,
+                [businessId, bookingId]
+              );
+            } catch (logErr) { /* non-critical */ }
+          } else {
+            // Race condition: deposit-expiry cron may have cancelled the booking while Stripe processed payment
+            const stale = await query(
+              `SELECT id, status, deposit_status FROM bookings WHERE id = $1 AND business_id = $2`,
+              [bookingId, businessId]
+            );
+            if (stale.rows.length > 0 && stale.rows[0].status === 'cancelled') {
+              console.warn(`[STRIPE WH] Race: booking ${bookingId} was cancelled while deposit was paid. Attempting auto-refund.`);
+              if (piId && piId.startsWith('pi_')) {
+                try {
+                  await stripe.refunds.create({ payment_intent: piId });
+                  console.log(`[STRIPE WH] Auto-refunded PI ${piId} for cancelled booking ${bookingId}`);
+                } catch (refundErr) {
+                  if (refundErr.code !== 'charge_already_refunded') {
+                    console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
+                  }
+                }
+              }
+            }
+          }
+          break;
+        }
+
+        // ===== GIFT CARD PAYMENT =====
+        if (session.metadata?.type === 'gift_card') {
+          const bizId = session.metadata.business_id;
+          const amountCents = parseInt(session.metadata.amount_cents);
+          if (!bizId || !amountCents) break;
+
+          const piId = session.payment_intent || session.id;
+          console.log(`[STRIPE WH] Gift card purchased for business ${bizId} (${amountCents}c, PI: ${piId})`);
+
+          try {
+            const { generateCode } = require('./gift-cards');
+            let code;
+            for (let i = 0; i < 5; i++) {
+              code = generateCode();
+              const exists = await query('SELECT 1 FROM gift_cards WHERE code = $1', [code]);
+              if (exists.rows.length === 0) break;
+            }
+
+            const expiryDays = 365;
+            try {
+              const bizSettings = await query('SELECT settings FROM businesses WHERE id = $1', [bizId]);
+              if (bizSettings.rows[0]?.settings?.giftcard_expiry_days) {
+                // use business setting
+              }
+            } catch (_) {}
+
+            const bizResult = await query('SELECT id, name, slug, theme, email, settings FROM businesses WHERE id = $1', [bizId]);
+            const biz = bizResult.rows[0];
+            const days = biz?.settings?.giftcard_expiry_days || 365;
+            const expiresAt = new Date(Date.now() + days * 86400000);
+
+            const gc = await query(
+              `INSERT INTO gift_cards (business_id, code, amount_cents, balance_cents,
+               buyer_name, buyer_email, recipient_name, recipient_email, message,
+               stripe_payment_intent_id, expires_at)
+               VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+              [bizId, code, amountCents,
+               session.metadata.buyer_name || null, session.metadata.buyer_email || null,
+               session.metadata.recipient_name || null, session.metadata.recipient_email || null,
+               session.metadata.message || null, piId, expiresAt]
+            );
+
+            await query(
+              `INSERT INTO gift_card_transactions (gift_card_id, business_id, amount_cents, type, note)
+               VALUES ($1, $2, $3, 'purchase', 'Achat en ligne')`,
+              [gc.rows[0].id, bizId, amountCents]
+            );
+
+            const giftCard = gc.rows[0];
+
+            // Auto-create recipient as client if not exists
+            if (giftCard.recipient_email) {
+              try {
+                const existingClient = await query(
+                  `SELECT id FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2)`,
+                  [bizId, giftCard.recipient_email]
+                );
+                if (existingClient.rows.length === 0) {
+                  await query(
+                    `INSERT INTO clients (id, business_id, full_name, email, source, created_at, updated_at)
+                     VALUES (gen_random_uuid(), $1, $2, $3, 'gift_card', NOW(), NOW())`,
+                    [bizId, giftCard.recipient_name || giftCard.recipient_email.split('@')[0], giftCard.recipient_email]
+                  );
+                  console.log(`[GIFT-CARD] Auto-created client for ${giftCard.recipient_email}`);
+                }
+              } catch (clientErr) {
+                console.error('[GIFT-CARD] Auto-create client failed:', clientErr.message);
+              }
+            }
+
+            // Send emails
+            if (biz) {
+              const { sendGiftCardEmail, sendGiftCardReceiptEmail } = require('../../services/email');
+
+              if (giftCard.recipient_email) {
+                await sendGiftCardEmail({ giftCard, business: biz }).catch(e =>
+                  console.error('[GIFT-CARD] Recipient email failed:', e.message));
+              }
+              if (giftCard.buyer_email) {
+                await sendGiftCardReceiptEmail({ giftCard, business: biz }).catch(e =>
+                  console.error('[GIFT-CARD] Buyer receipt failed:', e.message));
+              }
+            }
+
+            // SSE
+            try {
+              const { broadcast } = require('../../services/sse');
+              broadcast(bizId, 'gift_card', { action: 'purchased', gift_card_id: gc.rows[0].id });
+            } catch (_) {}
+
+            console.log(`[STRIPE WH] Gift card ${code} created (${amountCents}c) for business ${bizId}`);
+          } catch (gcErr) {
+            console.error('[STRIPE WH] Gift card creation failed:', gcErr);
+          }
+          break;
+        }
+
+        // ===== SUBSCRIPTION PAYMENT =====
         const businessId = session.metadata?.business_id;
         if (!businessId) break;
 
@@ -305,13 +589,34 @@ async function handleStripeWebhook(req, res) {
         break;
       }
 
+      case 'account.updated': {
+        // Stripe Connect: sync account verification status
+        const acct = event.data.object;
+        const connectId = acct.id;
+        if (connectId && connectId.startsWith('acct_')) {
+          const found = await query(
+            `SELECT id FROM businesses WHERE stripe_connect_id = $1`, [connectId]
+          );
+          if (found.rows.length > 0) {
+            const newStatus = deriveConnectStatus(acct);
+            await query(
+              `UPDATE businesses SET stripe_connect_status = $1, updated_at = NOW() WHERE id = $2`,
+              [newStatus, found.rows[0].id]
+            );
+            console.log(`[STRIPE WH] Connect account ${connectId} → ${newStatus}`);
+          }
+        }
+        break;
+      }
+
       case 'invoice.paid': {
         const invoice = event.data.object;
         const subId = invoice.subscription;
-        if (subId) {
+        // M6: Don't overwrite 'trialing' on $0 trial invoices
+        if (subId && invoice.billing_reason !== 'subscription_create') {
           await query(
             `UPDATE businesses SET subscription_status = 'active', updated_at = NOW()
-             WHERE stripe_subscription_id = $1`,
+             WHERE stripe_subscription_id = $1 AND subscription_status != 'trialing'`,
             [subId]
           );
           console.log(`[STRIPE WH] Payment received for subscription ${subId}`);
@@ -345,6 +650,164 @@ async function syncSubscription(sub, businessId) {
     [plan, priceId, sub.status, trialEnd, businessId]
   );
   console.log(`[STRIPE WH] Business ${businessId} → plan ${plan} (${sub.status})`);
+}
+
+// ============================================================
+// STRIPE CONNECT EXPRESS — Merchant payouts
+// ============================================================
+
+// POST /api/stripe/connect/onboard — Start or resume Connect onboarding
+router.post('/connect/onboard', requireAuth, requireOwner, async (req, res, next) => {
+  try {
+    const stripe = getStripe();
+    if (!stripe) return res.status(503).json({ error: 'Stripe non configur\u00e9.' });
+
+    const bid = req.businessId;
+    const bizResult = await query(
+      `SELECT b.id, b.email, b.name, b.stripe_connect_id,
+              u.email AS owner_email
+       FROM businesses b
+       JOIN users u ON u.business_id = b.id AND u.role = 'owner'
+       WHERE b.id = $1 LIMIT 1`,
+      [bid]
+    );
+    const biz = bizResult.rows[0];
+    if (!biz) return res.status(404).json({ error: 'Business non trouv\u00e9.' });
+
+    let connectId = biz.stripe_connect_id;
+
+    // Create Express account if none exists
+    if (!connectId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'BE',
+        email: biz.owner_email || biz.email,
+        business_type: 'individual',
+        metadata: { business_id: bid, business_name: biz.name },
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+          bancontact_payments: { requested: true }
+        }
+      });
+      connectId = account.id;
+
+      await query(
+        `UPDATE businesses SET stripe_connect_id = $1, stripe_connect_status = 'onboarding', updated_at = NOW()
+         WHERE id = $2`,
+        [connectId, bid]
+      );
+      console.log(`[STRIPE CONNECT] Created Express account ${connectId} for business ${bid}`);
+    }
+
+    // Create Account Link for onboarding (or re-onboarding)
+    const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+    const accountLink = await stripe.accountLinks.create({
+      account: connectId,
+      refresh_url: `${baseUrl}/dashboard?connect=refresh`,
+      return_url: `${baseUrl}/dashboard?connect=success`,
+      type: 'account_onboarding'
+    });
+
+    res.json({ url: accountLink.url });
+  } catch (err) {
+    console.error('[STRIPE CONNECT] Onboard error:', err);
+    next(err);
+  }
+});
+
+// GET /api/stripe/connect/status — Connect account status
+router.get('/connect/status', requireAuth, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const result = await query(
+      `SELECT stripe_connect_id, stripe_connect_status FROM businesses WHERE id = $1`,
+      [bid]
+    );
+    const b = result.rows[0];
+    if (!b) return res.status(404).json({ error: 'Business non trouv\u00e9.' });
+
+    const resp = {
+      connect_id: b.stripe_connect_id || null,
+      connect_status: b.stripe_connect_status || 'none',
+      charges_enabled: false,
+      payouts_enabled: false,
+      details_submitted: false
+    };
+
+    // If account exists, fetch live status from Stripe
+    if (b.stripe_connect_id) {
+      const stripe = getStripe();
+      if (stripe) {
+        try {
+          const acct = await stripe.accounts.retrieve(b.stripe_connect_id);
+          resp.charges_enabled = acct.charges_enabled;
+          resp.payouts_enabled = acct.payouts_enabled;
+          resp.details_submitted = acct.details_submitted;
+
+          // Sync status to DB if changed
+          const newStatus = deriveConnectStatus(acct);
+          if (newStatus !== b.stripe_connect_status) {
+            await query(
+              `UPDATE businesses SET stripe_connect_status = $1, updated_at = NOW() WHERE id = $2`,
+              [newStatus, bid]
+            );
+            resp.connect_status = newStatus;
+          }
+        } catch (e) {
+          console.error('[STRIPE CONNECT] Status fetch error:', e.message);
+        }
+      }
+    }
+
+    res.json(resp);
+  } catch (err) { next(err); }
+});
+
+// POST /api/stripe/connect/dashboard — Login link to Express dashboard
+router.post('/connect/dashboard', requireAuth, requireOwner, async (req, res, next) => {
+  try {
+    const stripe = getStripe();
+    if (!stripe) return res.status(503).json({ error: 'Stripe non configur\u00e9.' });
+
+    const bid = req.businessId;
+    const result = await query(
+      `SELECT stripe_connect_id FROM businesses WHERE id = $1`, [bid]
+    );
+    const connectId = result.rows[0]?.stripe_connect_id;
+    if (!connectId) return res.status(400).json({ error: 'Aucun compte Stripe connect\u00e9.' });
+
+    const loginLink = await stripe.accounts.createLoginLink(connectId);
+    res.json({ url: loginLink.url });
+  } catch (err) {
+    console.error('[STRIPE CONNECT] Dashboard error:', err);
+    next(err);
+  }
+});
+
+// DELETE /api/stripe/connect — Disconnect Connect account
+router.delete('/connect', requireAuth, requireOwner, async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    await query(
+      `UPDATE businesses SET stripe_connect_id = NULL, stripe_connect_status = 'none', updated_at = NOW()
+       WHERE id = $1`,
+      [bid]
+    );
+    console.log(`[STRIPE CONNECT] Business ${bid} disconnected`);
+    res.json({ disconnected: true });
+  } catch (err) { next(err); }
+});
+
+/**
+ * Derive connect status from Stripe account object
+ */
+function deriveConnectStatus(acct) {
+  if (acct.charges_enabled && acct.payouts_enabled) return 'active';
+  if (acct.requirements?.disabled_reason) return 'disabled';
+  if (acct.requirements?.currently_due?.length > 0) return 'restricted';
+  if (acct.details_submitted && !acct.charges_enabled) return 'onboarding';
+  return 'onboarding';
 }
 
 module.exports = router;

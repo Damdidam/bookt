@@ -13,17 +13,34 @@ body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;-mo
 input,textarea,select,[contenteditable]{-webkit-user-select:text!important;-moz-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}
 
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#E07A5F;--primary-hover:#C9684F;--primary-soft:#FDF0EC;--red:#DC2626;--red-bg:#FEF2F2;--serif:'DM Serif Display',Georgia,serif;--sans:'Outfit',-apple-system,sans-serif;--radius:14px;--radius-sm:10px;--radius-xs:6px}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
-.login-card{width:100%;max-width:400px;background:var(--white);border-radius:var(--radius);border:1px solid var(--border-light);padding:36px;box-shadow:0 4px 20px rgba(0,0,0,0.06)}
-.logo-row{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:24px}
-.logo{width:36px;height:36px;border-radius:10px;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1rem}
-.wordmark{font-family:var(--serif);font-size:1.2rem;color:var(--text)}
-h1{font-family:var(--serif);font-size:1.4rem;font-weight:400;text-align:center;margin-bottom:4px}
-.subtitle{font-size:0.85rem;color:var(--text-3);text-align:center;margin-bottom:24px}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--surface-2:#EDEBE8;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#E07A5F;--primary-hover:#C9684F;--primary-soft:#FDF0EC;--primary-light:#FEF7F5;--red:#DC2626;--red-bg:#FEF2F2;--serif:'DM Serif Display',Georgia,serif;--sans:'Outfit',-apple-system,sans-serif;--radius:14px;--radius-sm:10px;--radius-xs:6px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;display:flex;-webkit-font-smoothing:antialiased}
+
+/* Layout */
+.page{display:flex;min-height:100vh;width:100%}
+.left{width:420px;background:linear-gradient(160deg,#1A1614,#2C2420,#3D2F28);color:#fff;padding:40px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.left::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(224,122,95,.12) 0%,transparent 70%);pointer-events:none}
+.left-logo{display:flex;align-items:center;gap:10px;margin-bottom:auto;text-decoration:none;color:#fff}
+.left-logo .l{width:34px;height:34px;flex-shrink:0}
+.left-logo .l svg{width:100%;height:100%}
+.left-logo .w{font-family:var(--serif);font-size:1.2rem}
+.left-body{margin:auto 0;position:relative;z-index:1}
+.left-body h2{font-family:var(--serif);font-size:1.7rem;line-height:1.2;margin-bottom:10px;font-weight:400}
+.left-body h2 em{font-style:italic;color:#E8A090}
+.left-body p{font-size:.85rem;color:rgba(255,255,255,.45);line-height:1.6}
+.left-perks{margin-top:20px;display:flex;flex-direction:column;gap:8px;position:relative;z-index:1}
+.left-perk{display:flex;align-items:center;gap:8px;font-size:.72rem;color:rgba(255,255,255,.35)}
+.left-perk .lp-dot{width:5px;height:5px;border-radius:50%;background:var(--primary);flex-shrink:0;opacity:.7}
+.left-foot{margin-top:auto;font-size:.7rem;color:rgba(255,255,255,.25)}
+
+.right{flex:1;display:flex;align-items:center;justify-content:center;padding:40px}
+.login-card{width:100%;max-width:400px}
+
+h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
+.subtitle{font-size:0.85rem;color:var(--text-3);margin-bottom:28px}
 .form-group{margin-bottom:14px}
 .form-label{display:block;font-size:0.75rem;font-weight:600;color:var(--text-2);margin-bottom:4px}
-.form-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:0.88rem;color:var(--text);outline:none;transition:border-color .15s}
+.form-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:0.88rem;color:var(--text);outline:none;transition:border-color .15s;background:var(--white)}
 .form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
 .form-input::placeholder{color:var(--text-4)}
 .error-msg{display:none;padding:10px 14px;background:var(--red-bg);border:1px solid #FECACA;border-radius:var(--radius-xs);font-size:0.82rem;color:var(--red);margin-bottom:14px}
@@ -33,34 +50,60 @@ h1{font-family:var(--serif);font-size:1.4rem;font-weight:400;text-align:center;m
 .btn:disabled{opacity:.6;cursor:not-allowed}
 .footer-text{text-align:center;margin-top:18px;font-size:0.8rem;color:var(--text-4)}
 .footer-text a{color:var(--primary);text-decoration:none;font-weight:600}
+.forgot{text-align:center;margin-top:12px}
+.forgot a{font-size:0.8rem;color:var(--text-4);text-decoration:none;font-weight:500;transition:color .15s}
+.forgot a:hover{color:var(--primary)}
 .expired-notice{padding:10px 14px;background:#FAF6EC;border:1px solid #E8DCBA;border-radius:var(--radius-xs);font-size:0.82rem;color:#A68B3C;margin-bottom:14px;text-align:center;display:none}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.login-card{animation:fadeIn .4s ease}
+
+@media(max-width:900px){.page{flex-direction:column}.left{width:100%;padding:24px}.right{padding:20px}}
 </style>
 </head>
 <body>
 
-<div class="login-card">
-  <div class="logo-row"><div class="logo">G</div><span class="wordmark">Genda</span></div>
-  <h1>Connexion</h1>
-  <p class="subtitle">Accédez à votre dashboard</p>
-
-  <div class="expired-notice" id="expiredNotice">Votre session a expiré. Reconnectez-vous.</div>
-  <div class="error-msg" id="errorMsg"></div>
-
-  <form id="loginForm">
-    <div class="form-group">
-      <label class="form-label">Email</label>
-      <input class="form-input" type="email" id="email" placeholder="pierre@dewit-compta.be" required autofocus>
+<div class="page">
+  <aside class="left">
+    <a class="left-logo" href="/"><div class="l"><svg viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="32" height="32" rx="9" fill="rgba(224,122,95,.18)" stroke="rgba(224,122,95,.3)" stroke-width="1"/><path d="M17 9.5c-4.14 0-7.5 3.36-7.5 7.5s3.36 7.5 7.5 7.5c2.07 0 3.94-.84 5.3-2.2" stroke="#E8A090" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M21 17h-4v-4.5" stroke="#E8A090" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="w">Genda</span></a>
+    <div class="left-body">
+      <h2>Chaque minute <em>compte.</em></h2>
+      <p>Le moteur de planning le plus intelligent pour salons et instituts de beauté.</p>
     </div>
-    <div class="form-group">
-      <label class="form-label">Mot de passe</label>
-      <input class="form-input" type="password" id="password" placeholder="Votre mot de passe" required>
+    <div class="left-perks">
+      <div class="left-perk"><span class="lp-dot"></span>Temps de pose optimisés automatiquement</div>
+      <div class="left-perk"><span class="lp-dot"></span>Multi-praticiens sur un même RDV</div>
+      <div class="left-perk"><span class="lp-dot"></span>Gap analyzer : 0 trou dans l'agenda</div>
+      <div class="left-perk"><span class="lp-dot"></span>Booking en ligne 24/7, acomptes, rappels</div>
     </div>
-    <button class="btn" type="submit" id="submitBtn">Se connecter →</button>
-  </form>
+    <div class="left-foot">© 2026 Genda · Belgique <svg style="display:inline-block;width:1em;height:1em;vertical-align:-.125em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg></div>
+  </aside>
 
-  <p style="text-align:center;margin-top:12px"><a href="/reset-password.html" style="font-size:0.8rem;color:var(--text-4);text-decoration:none;font-weight:500;transition:color .15s" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-4)'">Mot de passe oublié ?</a></p>
+  <main class="right">
+    <div class="login-card">
+      <h1>Connexion</h1>
+      <p class="subtitle">Accédez à votre dashboard</p>
 
-  <p class="footer-text">Pas encore de compte ? <a href="/signup.html">Créer mon cabinet</a></p>
+      <div class="expired-notice" id="expiredNotice">Votre session a expiré. Reconnectez-vous.</div>
+      <div class="error-msg" id="errorMsg"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" id="email" placeholder="sarah@lestudio-coiffure.be" required autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mot de passe</label>
+          <input class="form-input" type="password" id="password" placeholder="Votre mot de passe" required>
+        </div>
+        <button class="btn" type="submit" id="submitBtn">Se connecter →</button>
+      </form>
+
+      <p class="forgot"><a href="/reset-password.html">Mot de passe oublié ?</a></p>
+
+      <p class="footer-text">Pas encore de compte ? <a href="/signup.html">Créer mon salon</a></p>
+    </div>
+  </main>
 </div>
 
 <script type="module">
@@ -97,9 +140,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   try {
     await api.login(email, password);
 
-    // Redirect
+    // C1: Validate redirect — only allow relative paths (prevent open redirect)
     const redirect = new URLSearchParams(window.location.search).get('redirect');
-    window.location.href = redirect || '/dashboard.html';
+    if (redirect && /^\/[^\/\\]/.test(redirect)) {
+      window.location.href = redirect;
+    } else {
+      window.location.href = '/dashboard.html';
+    }
 
   } catch (err) {
     errorEl.textContent = err.message || 'Erreur de connexion';
@@ -111,9 +158,5 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 </script>
 
 <script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
-<script>/* Kill mobile helpers */
-document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});
-document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});
-</script>
 </body>
 </html>

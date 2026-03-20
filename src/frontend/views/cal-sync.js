@@ -132,7 +132,7 @@ async function loadCalSync() {
     h += `</div>`;
     c.innerHTML = h;
   } catch (e) {
-    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;
+    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;
   }
 }
 

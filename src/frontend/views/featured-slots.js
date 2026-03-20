@@ -7,6 +7,8 @@ import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+
 let practitioners = [];
 let selectedPractId = null;
 let weekStart = null; // Monday ISO string
@@ -76,7 +78,7 @@ async function loadFeaturedSlots() {
     await loadWeekData();
     render();
   } catch (e) {
-    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;
+    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;
   }
 }
 

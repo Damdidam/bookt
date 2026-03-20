@@ -18,7 +18,7 @@ router.get('/', async (req, res, next) => {
       `SELECT * FROM businesses WHERE id = $1`,
       [req.businessId]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
 
     const business = result.rows[0];
 
@@ -38,7 +38,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PATCH /api/business — update business info
-// UI: Settings > Cabinet form + Onboarding bio step
+// UI: Settings > Salon form + Onboarding bio step
 router.patch('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
@@ -62,16 +62,40 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_deposit_type, settings_deposit_percent,
       settings_deposit_fixed_cents, settings_deposit_deadline_hours,
       settings_deposit_message, settings_deposit_deduct,
+      settings_deposit_price_threshold_cents, settings_deposit_duration_threshold_min, settings_deposit_threshold_mode,
       // V23b cancellation policy
       settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text,
       // Multi-service booking
       settings_multi_service_enabled,
       // Calendar settings (business-level)
-      settings_slot_increment_min, settings_waitlist_mode, settings_calendar_color_mode,
+      settings_slot_increment_min, settings_waitlist_mode, settings_calendar_color_mode, settings_slot_auto_optimize,
       // Booking page settings
       settings_practitioner_choice_enabled,
       // Booking confirmation
       settings_booking_confirmation_required, settings_booking_confirmation_timeout, settings_booking_confirmation_channel,
+      // Gap analyzer
+      settings_gap_analyzer_enabled,
+      // Featured slots (mode vedette)
+      settings_featured_slots_enabled,
+      // Last-minute promotions
+      settings_last_minute_enabled, settings_last_minute_deadline,
+      settings_last_minute_discount_pct, settings_last_minute_min_price_cents,
+      // Default calendar view
+      settings_default_calendar_view,
+      // Payment methods accepted on-site
+      settings_payment_methods,
+      // Move restriction settings
+      settings_move_restriction_enabled, settings_move_deadline_hours, settings_move_grace_hours,
+      // Reviews settings
+      settings_reviews_enabled, settings_review_delay_hours, settings_review_auto_publish,
+      // Minisite template
+      settings_minisite_template,
+      // Client reschedule
+      settings_reschedule_enabled, settings_reschedule_deadline_hours,
+      settings_reschedule_max_count, settings_reschedule_window_days,
+      // Gift cards
+      settings_giftcard_enabled, settings_giftcard_amounts, settings_giftcard_custom_amount,
+      settings_giftcard_min_amount_cents, settings_giftcard_max_amount_cents, settings_giftcard_expiry_days,
       // Sector
       sector
     } = req.body;
@@ -90,10 +114,23 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_cancel_deadline_hours !== undefined || settings_cancel_grace_minutes !== undefined
         || settings_cancel_policy_text !== undefined
         || settings_multi_service_enabled !== undefined
-        || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined || settings_calendar_color_mode !== undefined
+        || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined || settings_calendar_color_mode !== undefined || settings_slot_auto_optimize !== undefined
         || settings_practitioner_choice_enabled !== undefined
         || settings_booking_confirmation_required !== undefined || settings_booking_confirmation_timeout !== undefined
-        || settings_booking_confirmation_channel !== undefined) {
+        || settings_booking_confirmation_channel !== undefined
+        || settings_gap_analyzer_enabled !== undefined
+        || settings_featured_slots_enabled !== undefined
+        || settings_last_minute_enabled !== undefined || settings_last_minute_deadline !== undefined
+        || settings_last_minute_discount_pct !== undefined || settings_last_minute_min_price_cents !== undefined
+        || settings_default_calendar_view !== undefined
+        || settings_payment_methods !== undefined
+        || settings_reviews_enabled !== undefined || settings_review_delay_hours !== undefined || settings_review_auto_publish !== undefined
+        || settings_minisite_template !== undefined
+        || settings_reschedule_enabled !== undefined || settings_reschedule_deadline_hours !== undefined
+        || settings_reschedule_max_count !== undefined || settings_reschedule_window_days !== undefined
+        || settings_giftcard_enabled !== undefined || settings_giftcard_amounts !== undefined
+        || settings_giftcard_custom_amount !== undefined || settings_giftcard_min_amount_cents !== undefined
+        || settings_giftcard_max_amount_cents !== undefined || settings_giftcard_expiry_days !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -116,6 +153,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_deposit_deadline_hours !== undefined) { const _v = parseInt(settings_deposit_deadline_hours); cur.deposit_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_deposit_message !== undefined) cur.deposit_message = settings_deposit_message;
       if (settings_deposit_deduct !== undefined) cur.deposit_deduct = !!settings_deposit_deduct;
+      if (settings_deposit_price_threshold_cents !== undefined) { const _v = parseInt(settings_deposit_price_threshold_cents); cur.deposit_price_threshold_cents = isNaN(_v) ? 0 : _v; }
+      if (settings_deposit_duration_threshold_min !== undefined) { const _v = parseInt(settings_deposit_duration_threshold_min); cur.deposit_duration_threshold_min = isNaN(_v) ? 0 : _v; }
+      if (settings_deposit_threshold_mode !== undefined) cur.deposit_threshold_mode = ['any', 'both'].includes(settings_deposit_threshold_mode) ? settings_deposit_threshold_mode : 'any';
       // V23b cancellation policy
       if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_cancel_grace_minutes !== undefined) { const _v = parseInt(settings_cancel_grace_minutes); cur.cancel_grace_minutes = isNaN(_v) ? 240 : _v; }
@@ -126,12 +166,55 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_slot_increment_min !== undefined) { const _v = parseInt(settings_slot_increment_min); cur.slot_increment_min = [5,10,15,20,30,45,60].includes(_v) ? _v : 15; }
       if (settings_waitlist_mode !== undefined) { cur.waitlist_mode = ['off','manual','auto'].includes(settings_waitlist_mode) ? settings_waitlist_mode : 'off'; }
       if (settings_calendar_color_mode !== undefined) { cur.calendar_color_mode = ['category','practitioner'].includes(settings_calendar_color_mode) ? settings_calendar_color_mode : 'category'; }
+      if (settings_slot_auto_optimize !== undefined) { cur.slot_auto_optimize = !!settings_slot_auto_optimize; if (!settings_slot_auto_optimize) delete cur.optimized_granularity; }
+      if (settings_gap_analyzer_enabled !== undefined) cur.gap_analyzer_enabled = !!settings_gap_analyzer_enabled;
+      if (settings_featured_slots_enabled !== undefined) cur.featured_slots_enabled = !!settings_featured_slots_enabled;
+      // Last-minute promotions
+      if (settings_last_minute_enabled !== undefined) cur.last_minute_enabled = !!settings_last_minute_enabled;
+      if (settings_last_minute_deadline !== undefined) { cur.last_minute_deadline = ['j-2','j-1','same_day'].includes(settings_last_minute_deadline) ? settings_last_minute_deadline : 'j-1'; }
+      if (settings_last_minute_discount_pct !== undefined) { const _v = parseInt(settings_last_minute_discount_pct); cur.last_minute_discount_pct = [5,10,15,20,25].includes(_v) ? _v : 10; }
+      if (settings_last_minute_min_price_cents !== undefined) { const _v = parseInt(settings_last_minute_min_price_cents); cur.last_minute_min_price_cents = (_v >= 0 && _v <= 100000) ? _v : 0; }
       // Booking page
       if (settings_practitioner_choice_enabled !== undefined) cur.practitioner_choice_enabled = !!settings_practitioner_choice_enabled;
       // Booking confirmation
       if (settings_booking_confirmation_required !== undefined) cur.booking_confirmation_required = !!settings_booking_confirmation_required;
       if (settings_booking_confirmation_timeout !== undefined) { const _v = parseInt(settings_booking_confirmation_timeout); cur.booking_confirmation_timeout_min = (_v >= 5 && _v <= 1440) ? _v : 30; }
       if (settings_booking_confirmation_channel !== undefined) { cur.booking_confirmation_channel = ['email','sms','both'].includes(settings_booking_confirmation_channel) ? settings_booking_confirmation_channel : 'email'; }
+      // Default calendar view
+      if (settings_default_calendar_view !== undefined) {
+        const allowed = ['day', 'week', 'month'];
+        if (allowed.includes(settings_default_calendar_view)) cur.default_calendar_view = settings_default_calendar_view;
+      }
+      // Move restriction settings
+      if (settings_move_restriction_enabled !== undefined) cur.move_restriction_enabled = !!settings_move_restriction_enabled;
+      if (settings_move_deadline_hours !== undefined) { const _v = parseInt(settings_move_deadline_hours); cur.move_deadline_hours = (_v >= 1 && _v <= 720) ? _v : 48; }
+      if (settings_move_grace_hours !== undefined) { const _v = parseInt(settings_move_grace_hours); cur.move_grace_hours = (_v >= 0 && _v <= 168) ? _v : 0; }
+      // Payment methods accepted on-site
+      if (settings_payment_methods !== undefined) {
+        const validMethods = ['cash', 'card', 'bancontact', 'apple_pay', 'google_pay', 'payconiq', 'instant_transfer', 'bank_transfer'];
+        cur.payment_methods = Array.isArray(settings_payment_methods) ? settings_payment_methods.filter(m => validMethods.includes(m)) : [];
+      }
+      // Reviews
+      if (settings_reviews_enabled !== undefined) cur.reviews_enabled = !!settings_reviews_enabled;
+      if (settings_review_delay_hours !== undefined) { const _v = parseInt(settings_review_delay_hours); cur.review_delay_hours = (_v >= 1 && _v <= 168) ? _v : 24; }
+      if (settings_review_auto_publish !== undefined) cur.review_auto_publish = !!settings_review_auto_publish;
+      // Minisite template
+      if (settings_minisite_template !== undefined) {
+        const validTemplates = ['funky', 'epure', 'bold'];
+        cur.minisite_template = validTemplates.includes(settings_minisite_template) ? settings_minisite_template : 'funky';
+      }
+      // Client reschedule
+      if (settings_reschedule_enabled !== undefined) cur.reschedule_enabled = !!settings_reschedule_enabled;
+      if (settings_reschedule_deadline_hours !== undefined) { const _v = parseInt(settings_reschedule_deadline_hours); cur.reschedule_deadline_hours = (_v >= 1 && _v <= 720) ? _v : 24; }
+      if (settings_reschedule_max_count !== undefined) { const _v = parseInt(settings_reschedule_max_count); cur.reschedule_max_count = (_v >= 1 && _v <= 10) ? _v : 1; }
+      if (settings_reschedule_window_days !== undefined) { const _v = parseInt(settings_reschedule_window_days); cur.reschedule_window_days = (_v >= 7 && _v <= 90) ? _v : 30; }
+      // Gift cards
+      if (settings_giftcard_enabled !== undefined) cur.giftcard_enabled = !!settings_giftcard_enabled;
+      if (settings_giftcard_amounts !== undefined) cur.giftcard_amounts = Array.isArray(settings_giftcard_amounts) ? settings_giftcard_amounts.filter(a => Number.isInteger(a) && a > 0) : [2500, 5000, 7500, 10000];
+      if (settings_giftcard_custom_amount !== undefined) cur.giftcard_custom_amount = settings_giftcard_custom_amount !== false;
+      if (settings_giftcard_min_amount_cents !== undefined) { const _v = parseInt(settings_giftcard_min_amount_cents); cur.giftcard_min_amount_cents = (_v >= 500 && _v <= 100000) ? _v : 1000; }
+      if (settings_giftcard_max_amount_cents !== undefined) { const _v = parseInt(settings_giftcard_max_amount_cents); cur.giftcard_max_amount_cents = (_v >= 1000 && _v <= 100000) ? _v : 50000; }
+      if (settings_giftcard_expiry_days !== undefined) { const _v = parseInt(settings_giftcard_expiry_days); cur.giftcard_expiry_days = (_v >= 30 && _v <= 730) ? _v : 365; }
       mergedSettings = cur;
     }
 
@@ -240,7 +323,7 @@ router.get('/public-link', async (req, res, next) => {
     );
 
     // V13-024: Guard against no rows
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
 
     const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
     const slug = result.rows[0].slug;
@@ -253,6 +336,101 @@ router.get('/public-link', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// POST /api/business/upload-image — Upload logo or cover image
+// ============================================================
+router.post('/upload-image', requireOwner, async (req, res, next) => {
+  try {
+    const { photo, type } = req.body; // type: 'logo' | 'cover'
+    if (!photo) return res.status(400).json({ error: 'Photo requise' });
+    if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide (logo, cover ou about)' });
+
+    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp|svg\+xml);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG, WebP ou SVG)' });
+
+    const ext = match[1] === 'jpg' ? 'jpeg' : match[1] === 'svg+xml' ? 'svg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    const maxSize = type === 'logo' ? 1 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (buffer.length > maxSize) return res.status(400).json({ error: `Image trop lourde (max ${type === 'logo' ? '1' : '2'} Mo)` });
+
+    // Check quota
+    const { checkQuota } = require('../../services/storage-quota');
+    const quota = await checkQuota(req.businessId, buffer.length, queryWithRLS);
+    if (!quota.allowed) return res.status(413).json({ error: quota.message });
+
+    const fs = require('fs');
+    const path = require('path');
+    const uploadDir = path.join(__dirname, '../../../public/uploads/branding');
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    // Delete old file if local
+    const field = type === 'about' ? null : (type === 'logo' ? 'logo_url' : 'cover_image_url');
+    if (field) {
+      const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+      if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
+        const oldPath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      }
+    } else {
+      // about image — stored in settings JSONB
+      const existing = await queryWithRLS(req.businessId, `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
+      const oldUrl = existing.rows[0]?.settings?.about_image_url;
+      if (oldUrl?.startsWith('/uploads/branding/')) {
+        const oldPath = path.resolve(__dirname, '../../../public', oldUrl.split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (oldPath.startsWith(uploadBase)) try { fs.unlinkSync(oldPath); } catch (e) { /* ignore */ }
+      }
+    }
+
+    const filename = `${req.businessId}_${type}.${ext}`;
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+    const imageUrl = `/uploads/branding/${filename}?t=${Date.now()}`;
+
+    if (field) {
+      await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = $2 WHERE id = $1`, [req.businessId, imageUrl]);
+    } else {
+      await queryWithRLS(req.businessId, `UPDATE businesses SET settings = jsonb_set(COALESCE(settings, '{}'), '{about_image_url}', to_jsonb($2::text)) WHERE id = $1`, [req.businessId, imageUrl]);
+    }
+
+    res.json({ url: imageUrl });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// DELETE /api/business/delete-image — Remove logo or cover image
+// ============================================================
+router.delete('/delete-image/:type', requireOwner, async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    if (!['logo', 'cover', 'about'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
+
+    const field = type === 'about' ? null : (type === 'logo' ? 'logo_url' : 'cover_image_url');
+    const fs = require('fs');
+    const path = require('path');
+
+    if (field) {
+      const existing = await queryWithRLS(req.businessId, `SELECT ${field} FROM businesses WHERE id = $1`, [req.businessId]);
+      if (existing.rows[0]?.[field]?.startsWith('/uploads/branding/')) {
+        const filePath = path.resolve(__dirname, '../../../public', existing.rows[0][field].split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+      await queryWithRLS(req.businessId, `UPDATE businesses SET ${field} = NULL WHERE id = $1`, [req.businessId]);
+    } else {
+      const existing = await queryWithRLS(req.businessId, `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
+      const oldUrl = existing.rows[0]?.settings?.about_image_url;
+      if (oldUrl?.startsWith('/uploads/branding/')) {
+        const filePath = path.resolve(__dirname, '../../../public', oldUrl.split('?')[0]);
+        const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+        if (filePath.startsWith(uploadBase)) try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+      await queryWithRLS(req.businessId, `UPDATE businesses SET settings = settings - 'about_image_url' WHERE id = $1`, [req.businessId]);
+    }
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
 });
 
 // ============================================================

@@ -35,17 +35,18 @@ const signupRoutes = require('./routes/staff/signup');
 const practitionerRoutes = require('./routes/staff/practitioners');
 const invoiceRoutes = require('./routes/staff/invoices');
 const depositRoutes = require('./routes/staff/deposits');
-const documentRoutes = require('./routes/staff/documents');
 const calendarRoutes = require('./routes/staff/calendar');
 const waitlistRoutes = require('./routes/staff/waitlist');
-const whiteboardRoutes = require('./routes/staff/whiteboards');
 const galleryRoutes = require('./routes/staff/gallery');
+const realisationsRoutes = require('./routes/staff/realisations');
 const newsRoutes = require('./routes/staff/news');
 const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
 const taskRoutes = require('./routes/staff/tasks');
+const giftCardRoutes = require('./routes/staff/gift-cards');
 const businessHoursRoutes = require('./routes/staff/business-hours');
-const preRdvCron = require('./routes/cron/pre-rdv');
+const reviewRoutes = require('./routes/staff/reviews');
+const adminRoutes = require('./routes/admin');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 const stripeRoutes = require('./routes/staff/stripe');
 const { handleStripeWebhook } = require('./routes/staff/stripe');
@@ -57,9 +58,22 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy (Render, Railway, etc.)
 app.set('trust proxy', 1);
 
-// TODO: Enable CSP when frontend is ready
+// H1: CSP enabled — restrict script/style sources
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https://api.stripe.com"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+      frameSrc: ["https://js.stripe.com", "https://maps.google.com", "https://www.google.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"]
+    }
+  },
   crossOriginEmbedderPolicy: false
 }));
 app.use(cors({
@@ -77,6 +91,10 @@ app.use('/webhooks/twilio', express.urlencoded({ extended: false }));
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: false }));
+
+// Health check for Render zero-downtime deploys
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Serve api-client ES module (single source of truth for all pages)
 app.get('/js/api-client.js', (req, res) => {
@@ -134,7 +152,11 @@ app.get('/api/events/stream', requireAuth, (req, res) => {
   });
   res.write(':\n\n'); // Initial ping
 
-  addClient(req.businessId, res);
+  const accepted = addClient(req.businessId, res);
+  if (!accepted) {
+    res.write('event: error\ndata: {"error":"too_many_connections"}\n\n');
+    return res.end();
+  }
 
   // Heartbeat every 30s to keep connection alive through proxies
   const hb = setInterval(() => { try { res.write(':\n\n'); } catch(e) { clearInterval(hb); } }, 30000);
@@ -150,6 +172,9 @@ app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', signupRoutes);
 
+// Admin API (superadmin only)
+app.use('/api/admin', adminRoutes);
+
 // Staff API (auth required — dashboard)
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/bookings', bookingsRoutes);
@@ -162,33 +187,72 @@ app.use('/api/site', siteRoutes);
 app.use('/api/practitioners', practitionerRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/deposits', depositRoutes);
-app.use('/api/documents', documentRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/waitlist', waitlistRoutes);
-app.use('/api/whiteboards', whiteboardRoutes);
 app.use('/api/gallery', galleryRoutes);
+app.use('/api/realisations', realisationsRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/featured-slots', featuredSlotsRoutes);
 app.use('/api/planning', planningRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/business-hours', requireAuth, businessHoursRoutes);
 app.use('/api/stripe', stripeRoutes);
-app.use('/api/cron', preRdvCron);
+app.use('/api/gift-cards', giftCardRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
 
 // ===== PUBLIC MINI-SITE =====
-// Catch-all for /:slug → serve site.html (the dynamic mini-site page)
+// Catch-all for /:slug → DB lookup → serve the right template
 // Must be AFTER all API and static routes
-app.get('/:slug', (req, res, next) => {
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+app.get('/:slug', async (req, res, next) => {
   // Skip if it looks like a file request
   if (req.params.slug.includes('.')) return next();
   // Skip known paths
   const reserved = ['api', 'webhooks', 'health', 'login', 'signup', 'dashboard'];
   if (reserved.includes(req.params.slug)) return next();
-  // Serve the dynamic mini-site page
-  res.sendFile(path.join(__dirname, '../public/site.html'));
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT name, tagline, description, logo_url, cover_image_url, seo_title, seo_description, theme->>'preset' as preset FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+
+    let biz = rows.length > 0 ? rows[0] : null;
+
+    const filePath = path.join(__dirname, '../public/site.html');
+    let html = fs.readFileSync(filePath, 'utf8');
+
+    if (biz) {
+      const title = biz.seo_title || biz.name + ' — ' + (biz.tagline || 'Prenez rendez-vous en ligne');
+      const desc = biz.seo_description || biz.description || biz.tagline || '';
+      const image = biz.cover_image_url || biz.logo_url || '';
+      const url = req.protocol + '://' + req.get('host') + '/' + req.params.slug;
+
+      // Replace meta tags
+      html = html.replace('<title id="pageTitle">Chargement...</title>', '<title id="pageTitle">' + escapeHtml(title) + '</title>');
+      html = html.replace('id="pageMeta" content=""', 'id="pageMeta" content="' + escapeHtml(desc) + '"');
+      html = html.replace('id="ogTitle" content=""', 'id="ogTitle" content="' + escapeHtml(title) + '"');
+      html = html.replace('id="ogDesc" content=""', 'id="ogDesc" content="' + escapeHtml(desc) + '"');
+      html = html.replace('id="ogImage" content=""', 'id="ogImage" content="' + escapeHtml(image) + '"');
+      html = html.replace('id="ogUrl" content=""', 'id="ogUrl" content="' + escapeHtml(url) + '"');
+    }
+
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Content-Type', 'text/html');
+    res.send(html);
+  } catch (err) {
+    console.error('Slug route error:', err);
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, '../public/site.html'));
+  }
 });
 
 // /:slug/book → booking flow
@@ -196,24 +260,29 @@ app.get('/:slug/book', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/book.html'));
 });
 
+// /:slug/gift-card → gift card purchase page
+app.get('/:slug/gift-card', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/gift-card.html'));
+});
+
+// /:slug/guide → client-facing flow documentation
+app.get('/:slug/guide', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/guide.html'));
+});
+
 // /booking/:token → manage booking (cancel/reschedule)
 app.get('/booking/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/manage-booking.html'));
 });
 
-// /docs/:token → pre-RDV document / form
-app.get('/docs/:token', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/pre-rdv.html'));
+// /deposit/:token → public deposit details page
+app.get('/deposit/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/deposit.html'));
 });
 
-// /whiteboard/:id → staff whiteboard editor
-app.get('/whiteboard/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/whiteboard.html'));
-});
-
-// /wb/:token → public shared whiteboard view (read-only)
-app.get('/wb/:token', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/wb-view.html'));
+// /review/:token → public review submission page
+app.get('/review/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/review.html'));
 });
 
 // /waitlist/:token → waitlist offer page
@@ -233,8 +302,25 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n  Genda server running on port ${PORT}`);
+
+  // Auto-migrate: ensure new tables exist
+  try {
+    const { query: dbQuery } = require('./services/db');
+    await dbQuery(`CREATE TABLE IF NOT EXISTS realisations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+      title TEXT, description TEXT, category TEXT,
+      image_url TEXT, before_url TEXT, after_url TEXT,
+      sort_order INT DEFAULT 0, is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await dbQuery(`CREATE INDEX IF NOT EXISTS idx_realisations_biz ON realisations (business_id, sort_order)`);
+    console.log('  ✓ Auto-migrate: realisations table ready');
+  } catch (e) {
+    console.warn('  ⚠ Auto-migrate warning:', e.message);
+  }
   console.log(`  <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg> Dashboard: http://localhost:${PORT}`);
   console.log(`  Public booking: http://localhost:${PORT}/api/public/:slug\n`);
 
@@ -297,6 +383,59 @@ app.listen(PORT, () => {
       confirmRunning = false;
     }
   }, confirmInterval);
+
+  // ===== DEPOSIT EXPIRY CRON — auto-cancel pending_deposit bookings past deadline every 2 min =====
+  const depositInterval = parseInt(process.env.DEPOSIT_EXPIRY_CRON_INTERVAL_MS, 10) || 2 * 60 * 1000;
+  let depositRunning = false;
+  setInterval(async () => {
+    if (depositRunning) return;
+    depositRunning = true;
+    try {
+      const { processExpiredDeposits } = require('./services/deposit-expiry');
+      const result = await processExpiredDeposits();
+      if (result.processed > 0) {
+        console.log(`[DEPOSIT CRON] ${result.processed} expired deposit booking(s) auto-cancelled`);
+      }
+    } catch (e) {
+      console.error('[DEPOSIT CRON] Error:', e.message);
+    } finally {
+      depositRunning = false;
+    }
+  }, depositInterval);
+
+  // ===== GIFT CARD EXPIRY CRON — expire old gift cards every hour =====
+  let gcRunning = false;
+  setInterval(async () => {
+    if (gcRunning) return;
+    gcRunning = true;
+    try {
+      const { processExpiredGiftCards } = require('./services/giftcard-expiry');
+      const result = await processExpiredGiftCards();
+      if (result.processed > 0) {
+        console.log(`[GC CRON] ${result.processed} gift card(s) expired`);
+      }
+    } catch (e) {
+      console.error('[GC CRON] Error:', e.message);
+    } finally {
+      gcRunning = false;
+    }
+  }, 60 * 60 * 1000); // Every hour
+
+  // ===== SLOT CALIBRATION CRON — nightly recalibration of slot granularity from booking data =====
+  const calibrationInterval = 24 * 60 * 60 * 1000; // 24h
+  let calibrationRunning = false;
+  setInterval(async () => {
+    if (calibrationRunning) return;
+    calibrationRunning = true;
+    try {
+      const { calibrateAllBusinesses } = require('./services/slot-optimizer');
+      await calibrateAllBusinesses((sql, params) => pool.query(sql, params));
+    } catch (e) {
+      console.error('[SLOT CALIBRATION] Error:', e.message);
+    } finally {
+      calibrationRunning = false;
+    }
+  }, calibrationInterval);
 });
 
 module.exports = app;

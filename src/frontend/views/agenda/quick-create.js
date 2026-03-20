@@ -25,7 +25,7 @@ let qcReminders = [];
 // Cache autocomplete results so we can access email/phone without re-fetch
 let _qcSearchResults = [];
 
-function fcOpenQuickCreate(startStr, endStr) {
+function fcOpenQuickCreate(startStr, endStr, resourceId) {
   let d;
   if (startStr) { d = new Date(startStr); }
   else {
@@ -41,6 +41,7 @@ function fcOpenQuickCreate(startStr, endStr) {
   document.getElementById('qcClientId').value = '';
   document.getElementById('qcComment').value = '';
   document.getElementById('qcLocked').checked = false;
+  document.getElementById('qcSkipConfirm').checked = false;
   document.getElementById('qcAcResults').style.display = 'none';
 
   // Reset freestyle mode
@@ -69,8 +70,10 @@ function fcOpenQuickCreate(startStr, endStr) {
     prSel.value = user.practitioner_id;
     prSel.disabled = true;
   } else {
-    // Default to filtered practitioner if one is selected
-    if (calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all') {
+    // Default to clicked resource column, or filtered practitioner
+    if (resourceId) {
+      prSel.value = resourceId;
+    } else if (calState.fcCurrentFilter && calState.fcCurrentFilter !== 'all') {
       prSel.value = calState.fcCurrentFilter;
     }
     prSel.disabled = false;
@@ -86,10 +89,12 @@ function fcOpenQuickCreate(startStr, endStr) {
     qcRefreshServiceDropdowns();
   };
 
-  // Init service list with one entry
+  // Init service list — clear cards + open assign panel
   viewState.qcServiceCount = 0;
   document.getElementById('qcServiceList').innerHTML = '';
-  qcAddService();
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+  qcShowAssignPanel();
 
   // Reset client email/phone fields
   const qcDetails = document.getElementById('qcClientDetails');
@@ -108,6 +113,26 @@ function fcOpenQuickCreate(startStr, endStr) {
 
   // Reset mode toggle to RDV
   _qcSetMode('rdv');
+
+  // Reset task fields
+  const ttl = document.getElementById('qcTaskTitle'); if (ttl) ttl.value = '';
+  const tn = document.getElementById('qcTaskNote'); if (tn) tn.value = '';
+
+  // Reset deposit toggle + channels
+  const depToggle = document.getElementById('qcDepositToggle');
+  const depCheck = document.getElementById('qcDepositCheck');
+  if (depToggle) depToggle.style.display = 'none';
+  if (depCheck) { depCheck.checked = false; delete depCheck.dataset.userOverride; }
+  const depAmtRow = document.getElementById('qcDepositAmountRow');
+  if (depAmtRow) depAmtRow.style.display = 'none';
+  const depAmtInp = document.getElementById('qcDepositAmount');
+  if (depAmtInp) depAmtInp.value = '';
+  const depChannels = document.getElementById('qcDepositChannels');
+  if (depChannels) depChannels.style.display = 'none';
+  const depEmailCb = document.getElementById('qcDepEmail');
+  const depSmsCb = document.getElementById('qcDepSms');
+  if (depEmailCb) depEmailCb.checked = true;
+  if (depSmsCb) depSmsCb.checked = false;
 
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
@@ -151,9 +176,11 @@ function qcToggleFreestyle() {
     }
     qcUpdateFreeDuration();
     qcUpdateGradient('#0D7377');
+    qcCheckDepositSuggestion(); // Show deposit toggle in freestyle mode
   } else {
-    qcUpdateTotal();
+    qcUpdateTotal(); // calls qcCheckDepositSuggestion() internally
   }
+  _qcUpdateDepositAmountRow();
 }
 
 function qcUpdateFreeDuration() {
@@ -171,161 +198,203 @@ function qcUpdateFreeDuration() {
   el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong>${(bb || ba) ? ' + buffers ' + (bb ? bb + 'min avant ' : '') + (ba ? ba + 'min après' : '') : ''}`;
 }
 
-// ── Service management ──
+// ── Service management (assign panel pattern — matches detail modal) ──
 
-/** Get service IDs already picked in existing dropdowns (optionally exclude one index) */
-function qcGetSelectedServiceIds(excludeIdx) {
+/** Get service IDs already confirmed */
+function qcGetSelectedServiceIds() {
   const ids = new Set();
-  document.querySelectorAll('.qc-svc-item').forEach(item => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const idx = parseInt(sel.id.replace('qcSvcSel', ''));
-    if (idx === excludeIdx) return;
-    if (sel.value) ids.add(String(sel.value));
+  document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
+    if (card.dataset.serviceId) ids.add(String(card.dataset.serviceId));
   });
+  // Also include the current picker selection if open
+  const assignSel = document.getElementById('qcAssignSvcSel');
+  if (assignSel?.value && document.getElementById('qcAssignSvc')?.style.display !== 'none') {
+    ids.add(String(assignSel.value));
+  }
   return ids;
 }
 
-/** Get services filtered by the currently selected practitioner */
-function qcGetPracServices() {
+/** Show the assign panel — reuses same pattern as mConvertSvc in detail modal */
+function qcShowAssignPanel() {
+  const panel = document.getElementById('qcAssignSvc');
   const pracId = document.getElementById('qcPrac')?.value;
-  return calState.fcServices.filter(s => {
-    if (s.is_active === false) return false;
-    // If service has practitioner_ids, check the selected practitioner is assigned
-    if (pracId && s.practitioner_ids && s.practitioner_ids.length > 0) {
-      return s.practitioner_ids.some(pid => String(pid) === String(pracId));
-    }
-    // If no practitioner_ids info, show the service (backwards compat)
-    return true;
-  });
+  const taken = qcGetSelectedServiceIds();
+
+  // Check if all services are already added (show ALL services, not filtered by practitioner)
+  const available = fcGetFilteredServices(null, '').filter(s => !taken.has(String(s.id)));
+  if (available.length === 0) { gToast('Toutes les prestations sont d\u00e9j\u00e0 ajout\u00e9es', 'error'); return; }
+
+  // Populate category dropdown (all categories)
+  const catSel = document.getElementById('qcAssignCatSel');
+  const cats = fcGetServiceCategories(null);
+  catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
+    `<option value="${esc(c)}">${esc(c)}</option>`
+  ).join('');
+
+  // Populate service dropdown (all categories, excluding taken — no practitioner filter)
+  qcAssignRebuildServices(null, '', taken);
+
+  // Reset variant + info + button
+  document.getElementById('qcAssignVarWrap').style.display = 'none';
+  document.getElementById('qcAssignVarSel').innerHTML = '';
+  document.getElementById('qcAssignInfo').textContent = '';
+  const addBtn = document.getElementById('qcAssignAddBtn');
+  if (addBtn) { addBtn.disabled = true; addBtn.textContent = '+ Ajouter'; }
+
+  // Hide the add button, show the panel
+  document.getElementById('qcAddSvcBtn').style.display = 'none';
+  panel.style.display = '';
 }
 
-/** Handle service selection change — populate variant dropdown if needed + prevent duplicates */
-function qcServiceChanged(idx) {
-  const sel = document.getElementById('qcSvcSel' + idx);
-  const varSel = document.getElementById('qcVarSel' + idx);
-  if (!sel || !varSel) { qcUpdateTotal(); return; }
+/** Rebuild service dropdown for the assign panel */
+function qcAssignRebuildServices(pracId, category, taken) {
+  if (!taken) taken = qcGetSelectedServiceIds();
+  // Show ALL active services (no practitioner filter) — backend auto-assigns practitioners
+  const services = fcGetFilteredServices(null, category).filter(s => !taken.has(String(s.id)));
+  const sel = document.getElementById('qcAssignSvcSel');
+  sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}" data-color="${/^#[0-9a-fA-F]{3,8}$/.test(s.color)?s.color:'#0D7377'}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`
+  ).join('');
+}
+
+/** Category changed in assign panel */
+function qcAssignCatChanged() {
+  const cat = document.getElementById('qcAssignCatSel')?.value || '';
+  qcAssignRebuildServices(null, cat);
+  document.getElementById('qcAssignVarWrap').style.display = 'none';
+  document.getElementById('qcAssignVarSel').innerHTML = '';
+  document.getElementById('qcAssignInfo').textContent = '';
+  qcAssignUpdateAddBtn();
+}
+
+/** Service changed in assign panel — populate variant dropdown if needed */
+function qcAssignSvcChanged() {
+  const sel = document.getElementById('qcAssignSvcSel');
+  const varWrap = document.getElementById('qcAssignVarWrap');
+  const varSel = document.getElementById('qcAssignVarSel');
   const svcId = sel.value;
+  if (!svcId) { varWrap.style.display = 'none'; document.getElementById('qcAssignInfo').textContent = ''; qcAssignUpdateAddBtn(); return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
   if (variants.length > 0) {
-    varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
-    varSel.style.display = '';
+    varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
+      `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    ).join('');
+    varWrap.style.display = 'block';
   } else {
     varSel.innerHTML = '';
-    varSel.style.display = 'none';
+    varWrap.style.display = 'none';
   }
-  // Refresh other dropdowns to disable services already picked
-  qcSyncServiceOptions();
-  qcUpdateTotal();
+  qcAssignUpdateInfo();
+  qcAssignUpdateAddBtn();
 }
 
-/** Sync all service dropdowns: disable options already selected elsewhere */
-function qcSyncServiceOptions() {
-  const allFiltered = qcGetPracServices();
-  document.querySelectorAll('.qc-svc-item').forEach(item => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
-    const taken = qcGetSelectedServiceIds(myIdx);
-    const curVal = sel.value;
-    sel.innerHTML = allFiltered.map(s => {
-      const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-      const disabled = taken.has(String(s.id)) ? ' disabled' : '';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${s.duration_min} min)</option>`;
-    }).join('');
-    sel.value = curVal;
-  });
+/** Variant changed in assign panel */
+function qcAssignVarChanged() {
+  qcAssignUpdateInfo();
+  qcAssignUpdateAddBtn();
 }
 
-/** Rebuild all service dropdowns with filtered options, preserving selections */
-function qcRefreshServiceDropdowns() {
-  const filtered = qcGetPracServices();
-  const filteredIds = new Set(filtered.map(s => String(s.id)));
-  document.querySelectorAll('.qc-svc-item').forEach(item => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const myIdx = parseInt(sel.id.replace('qcSvcSel', ''));
-    const taken = qcGetSelectedServiceIds(myIdx);
-    const curVal = sel.value;
-    sel.innerHTML = filtered.map(s => {
-      const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377';
-      const disabled = taken.has(String(s.id)) ? ' disabled' : '';
-      return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}"${disabled}>${esc(s.name)} (${s.duration_min} min)</option>`;
-    }).join('');
-    if (filteredIds.has(String(curVal))) sel.value = curVal;
-    // Refresh variant dropdown for the selected service
-    const varSel = item.querySelector('.qc-var-sel');
-    if (varSel) {
-      const svc = calState.fcServices.find(s => String(s.id) === String(sel.value));
-      const variants = svc?.variants || [];
-      if (variants.length > 0) {
-        varSel.innerHTML = '<option value="">— Variante —</option>' + variants.map(v => `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||''}">${esc(v.name)} (${v.duration_min}min${v.price_cents?' · '+(v.price_cents/100).toFixed(0)+'€':''})</option>`).join('');
-        varSel.style.display = '';
-      } else {
-        varSel.innerHTML = '';
-        varSel.style.display = 'none';
-      }
-    }
-  });
-  qcUpdateTotal();
+/** Update info line with duration + price (variant-aware) */
+function qcAssignUpdateInfo() {
+  const sel = document.getElementById('qcAssignSvcSel');
+  const varSel = document.getElementById('qcAssignVarSel');
+  const info = document.getElementById('qcAssignInfo');
+  const svcId = sel?.value;
+  if (!svcId) { info.textContent = ''; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const varOpt = varSel?.selectedOptions?.[0];
+  const varId = varOpt?.value;
+  if (varId) {
+    const variant = svc?.variants?.find(v => String(v.id) === String(varId));
+    const dur = variant?.duration_min || parseInt(varOpt.dataset.dur) || 0;
+    const price = variant?.price_cents ?? parseInt(varOpt.dataset.price) ?? 0;
+    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  } else {
+    info.textContent = svcDurPriceLabel(svc);
+  }
 }
 
-function qcAddService() {
-  const idx = viewState.qcServiceCount++;
-  const filtered = qcGetPracServices();
-  const taken = qcGetSelectedServiceIds(-1);
-  const available = filtered.filter(s => !taken.has(String(s.id)));
-  if (available.length === 0) { gToast('Toutes les prestations sont déjà ajoutées', 'error'); viewState.qcServiceCount--; return; }
-  const opts = available.map(s => { const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#0D7377'; return `<option value="${s.id}" data-dur="${s.duration_min}" data-buf="${(s.buffer_before_min || 0) + (s.buffer_after_min || 0)}" data-color="${safeColor}">${esc(s.name)} (${s.duration_min} min)</option>`; }).join('');
-  if (!opts) { gToast('Aucune prestation disponible pour ce praticien', 'error'); return; }
-  const html = `<div class="qc-svc-item" id="qcSvc${idx}">
-    <span class="qc-svc-handle"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
-    <span class="qc-svc-color" id="qcSvcCol${idx}"></span>
-    <select onchange="qcServiceChanged(${idx})" id="qcSvcSel${idx}">${opts}</select>
-    <select class="qc-var-sel" id="qcVarSel${idx}" style="display:none" onchange="qcUpdateTotal()"></select>
-    <span class="qc-svc-dur" id="qcSvcDur${idx}"></span>
-    <button class="qc-svc-rm" onclick="qcRemoveService(${idx})" title="Retirer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+/** Enable/disable + Ajouter button based on selection state */
+function qcAssignUpdateAddBtn() {
+  const btn = document.getElementById('qcAssignAddBtn');
+  if (!btn) return;
+  const svcId = document.getElementById('qcAssignSvcSel')?.value;
+  if (!svcId) { btn.disabled = true; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const hasVariants = (svc?.variants || []).length > 0;
+  const varSelected = !!document.getElementById('qcAssignVarSel')?.value;
+  btn.disabled = hasVariants && !varSelected;
+}
+
+/** Confirm selection: create confirmed card + hide panel */
+function qcAssignConfirm() {
+  const sel = document.getElementById('qcAssignSvcSel');
+  const varSel = document.getElementById('qcAssignVarSel');
+  const svcId = sel?.value;
+  if (!svcId) return;
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  if (!svc) return;
+  const varId = varSel?.value || '';
+  const variant = varId ? svc.variants?.find(v => String(v.id) === String(varId)) : null;
+  const color = /^#[0-9a-fA-F]{3,8}$/.test(svc.color) ? svc.color : '#0D7377';
+  const name = variant ? svc.name + ' \u2014 ' + variant.name : svc.name;
+  const dur = variant?.duration_min || svc.duration_min || 0;
+  const price = variant?.price_cents || svc.price_cents || 0;
+  const durPrice = dur + 'min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  const modes = JSON.stringify(svc.mode_options || ['cabinet']);
+  const pt = variant?.processing_time || svc.processing_time || 0;
+  const ps = variant?.processing_start || svc.processing_start || 0;
+  const html = `<div class="qc-svc-confirmed" data-service-id="${svcId}" data-variant-id="${varId}" data-dur="${dur}" data-buf="${(svc.buffer_before_min||0)+(svc.buffer_after_min||0)}" data-price="${price}" data-color="${color}" data-modes='${modes}' data-pt="${pt}" data-ps="${ps}">
+    <span class="qc-svc-color" style="background:${color}"></span>
+    <span style="flex:1;font-weight:600">${esc(name)}</span>
+    <span class="qc-svc-dur">${durPrice}</span>
+    <button class="qc-svc-rm" onclick="qcRemoveConfirmed(this)" title="Retirer">\u2715</button>
   </div>`;
   document.getElementById('qcServiceList').insertAdjacentHTML('beforeend', html);
-  qcServiceChanged(idx);
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+  qcUpdateTotal();
 }
 
-function qcRemoveService(idx) {
-  const el = document.getElementById('qcSvc' + idx);
-  if (el) el.remove();
-  if (document.querySelectorAll('.qc-svc-item').length === 0) qcAddService();
-  else { qcSyncServiceOptions(); qcUpdateTotal(); }
+/** Cancel assign panel without adding */
+function qcAssignCancel() {
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+}
+
+/** Remove a confirmed service card */
+function qcRemoveConfirmed(btn) {
+  const card = btn.closest('.qc-svc-confirmed');
+  if (card) card.remove();
+  qcUpdateTotal();
+}
+
+/** When practitioner changes: services are no longer filtered by practitioner,
+ *  so we just close the assign panel if open. Backend auto-assigns practitioners. */
+function qcRefreshServiceDropdowns() {
+  // Close assign panel if open
+  document.getElementById('qcAssignSvc').style.display = 'none';
+  document.getElementById('qcAddSvcBtn').style.display = '';
+  qcUpdateTotal();
 }
 
 function qcUpdateTotal() {
   let total = 0;
   let firstColor = '#0D7377';
-  const svcItems = document.querySelectorAll('.qc-svc-item');
+  const cards = document.querySelectorAll('.qc-svc-confirmed');
   let availModes = null;
-  svcItems.forEach((item, i) => {
-    const sel = item.querySelector('[id^="qcSvcSel"]');
-    if (!sel) return;
-    const opt = sel.options[sel.selectedIndex];
-    let dur = parseInt(opt?.dataset.dur || 30);
-    const buf = parseInt(opt?.dataset.buf || 0);
-    const color = opt?.dataset.color || '#0D7377';
-    const varSel = item.querySelector('.qc-var-sel');
-    if (varSel?.value && varSel.selectedIndex > 0) {
-      dur = parseInt(varSel.options[varSel.selectedIndex]?.dataset.dur || dur);
-    }
+  cards.forEach((card, i) => {
+    const dur = parseInt(card.dataset.dur || 0);
+    const buf = parseInt(card.dataset.buf || 0);
+    const color = card.dataset.color || '#0D7377';
     total += dur + buf;
     if (i === 0) firstColor = color;
-    const durEl = item.querySelector('.qc-svc-dur');
-    if (durEl) durEl.textContent = dur + 'min';
-    const colEl = item.querySelector('.qc-svc-color');
-    if (colEl) colEl.style.background = color;
-    const svcId = sel.value;
-    // Bug B5 fix: coerce both sides to string for type-safe comparison
-    const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
-    const modes = svc?.mode_options || ['cabinet'];
-    if (!availModes) availModes = new Set(modes);
-    else availModes = new Set([...availModes].filter(m => modes.includes(m)));
+    try {
+      const modes = JSON.parse(card.dataset.modes || '["cabinet"]');
+      if (!availModes) availModes = new Set(modes);
+      else availModes = new Set([...availModes].filter(m => modes.includes(m)));
+    } catch (_) { /* ignore */ }
   });
 
   // Update gradient to first service color
@@ -333,11 +402,13 @@ function qcUpdateTotal() {
 
   // Update total display
   const el = document.getElementById('qcTotalDuration');
-  if (svcItems.length > 1) {
+  if (cards.length > 1) {
     const h = Math.floor(total / 60), m = total % 60;
-    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Durée totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> · ${svcItems.length} ${categoryLabels.services.toLowerCase()}`;
-  } else {
+    el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Dur\u00e9e totale : <strong>${h ? h + 'h' : ''}${m ? m + 'min' : ''}</strong> \u00b7 ${cards.length} ${categoryLabels.services.toLowerCase()}`;
+  } else if (cards.length === 1) {
     el.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${total} min`;
+  } else {
+    el.innerHTML = '';
   }
 
   // Update mode selector
@@ -350,8 +421,205 @@ function qcUpdateTotal() {
   } else {
     modeRow.style.display = '';
     const curVal = modeSel.value;
-    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'Téléphone' })[m] || esc(m)}</option>`).join('');
+    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Au salon', visio: 'Visio', phone: 'T\u00e9l\u00e9phone' })[m] || esc(m)}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
+  }
+
+  // ── Multi-practitioner split info ──
+  document.getElementById('qcSplitInfo')?.remove();
+  if (cards.length > 1) {
+    const pracId = document.getElementById('qcPrac')?.value;
+    const assignments = [];
+    let needsSplit = false;
+    cards.forEach(card => {
+      const svcId = card.dataset.serviceId;
+      const svc = calState.fcServices?.find(s => String(s.id) === String(svcId));
+      const svcName = svc?.name || '?';
+      // Check if the selected practitioner covers this service
+      const selPrac = calState.fcPractitioners.find(p => String(p.id) === String(pracId));
+      if (selPrac && !selPrac.service_ids?.includes(svcId)) {
+        // Find which practitioner(s) cover this service
+        const covering = calState.fcPractitioners.filter(p => p.service_ids?.includes(svcId));
+        const assignedName = covering.length > 0 ? covering[0].display_name : '?';
+        assignments.push(`<span style="font-weight:600">${esc(svcName)}</span> \u2192 ${esc(assignedName)}`);
+        needsSplit = true;
+      } else if (selPrac) {
+        assignments.push(`<span style="font-weight:600">${esc(svcName)}</span> \u2192 ${esc(selPrac.display_name)}`);
+      }
+    });
+    if (needsSplit && el) {
+      const splitHtml = `<div id="qcSplitInfo" style="margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.6;background:var(--bg-2);border:1px solid var(--border)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;width:14px;height:14px;margin-right:4px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Multi-praticien : ${assignments.join(' <span style="color:var(--text-4)">\u00b7</span> ')}</div>`;
+      el.insertAdjacentHTML('afterend', splitHtml);
+    }
+  }
+
+  // Pose info
+  let poseHtml = '';
+  const timeVal = document.getElementById('qcTime')?.value;
+  if (timeVal && cards.length) {
+    const [hh, mm] = timeVal.split(':').map(Number);
+    let offsetMin = 0;
+    cards.forEach(card => {
+      const dur = parseInt(card.dataset.dur || 0);
+      const buf = parseInt(card.dataset.buf || 0);
+      const pt = parseInt(card.dataset.pt || 0);
+      const ps = parseInt(card.dataset.ps || 0);
+      if (pt > 0) {
+        const poseStartMin = hh * 60 + mm + offsetMin + ps;
+        const poseEndMin = poseStartMin + pt;
+        const fmt = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+        poseHtml += `<div>\u23f3 Pose ${fmt(poseStartMin)} \u2013 ${fmt(poseEndMin)} (${pt}min)</div>`;
+      }
+      offsetMin += dur + buf;
+    });
+  }
+  document.getElementById('qcPoseInfo')?.remove();
+  if (poseHtml && el) el.insertAdjacentHTML('afterend', `<div id="qcPoseInfo" style="font-size:.75rem;color:var(--text-4);margin-top:4px">${poseHtml}</div>`);
+
+  // ── Schedule restriction warning ──
+  document.getElementById('qcScheduleWarn')?.remove();
+  const dateVal = document.getElementById('qcDate')?.value;
+  if (timeVal && dateVal && cards.length) {
+    const [hh2, mm2] = timeVal.split(':').map(Number);
+    let offMin = 0;
+    const warns = [];
+    cards.forEach(card => {
+      const svcId = card.dataset.serviceId;
+      const dur2 = parseInt(card.dataset.dur || 0);
+      const buf2 = parseInt(card.dataset.buf || 0);
+      const svc2 = calState.fcServices?.find(s => String(s.id) === String(svcId));
+      if (svc2?.available_schedule?.type === 'restricted') {
+        const sStart = new Date(dateVal + 'T00:00:00');
+        const jsDay = sStart.getDay();
+        const weekday = jsDay === 0 ? 6 : jsDay - 1;
+        const svcWindows = (svc2.available_schedule.windows || []).filter(w => w.day === weekday);
+        const sMin = hh2 * 60 + mm2 + offMin;
+        const eMin = sMin + dur2;
+        const _tm = t => { const p = String(t).split(':'); return parseInt(p[0]) * 60 + parseInt(p[1]); };
+        const fits = svcWindows.some(w => sMin >= _tm(w.from) && eMin <= _tm(w.to));
+        if (!fits) {
+          const windowsStr = svcWindows.length > 0
+            ? svcWindows.map(w => w.from + '\u2013' + w.to).join(', ')
+            : 'non disponible ce jour';
+          warns.push(`<strong>${esc(svc2.name)}</strong> : ${windowsStr}`);
+        }
+      }
+      offMin += dur2 + buf2;
+    });
+    if (warns.length > 0) {
+      const warnHtml = `<div id="qcScheduleWarn" style="margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:#FFF3E0;color:#E65100"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Restriction horaire : ${warns.join(' \u00b7 ')}</div>`;
+      el.insertAdjacentHTML('afterend', warnHtml);
+    }
+  }
+
+  // Check deposit suggestion whenever services change
+  qcCheckDepositSuggestion();
+}
+
+// ── Deposit auto-suggestion ──
+function qcCheckDepositSuggestion() {
+  const s = calState.fcBusinessSettings || {};
+  if (!s.deposit_enabled) return;
+
+  const toggle = document.getElementById('qcDepositToggle');
+  const check = document.getElementById('qcDepositCheck');
+  const hint = document.getElementById('qcDepositHint');
+  const track = document.getElementById('qcDepositTrack');
+  const thumb = document.getElementById('qcDepositThumb');
+  if (!toggle || !check) return;
+
+  const isFreestyle = document.getElementById('qcFreestyle')?.checked;
+
+  // Compute total price + duration from selected services
+  let totalPrice = 0, totalDur = 0;
+  if (isFreestyle) {
+    // Freestyle: compute duration from start/end, no price
+    const st = document.getElementById('qcTime')?.value;
+    const et = document.getElementById('qcFreeEnd')?.value;
+    if (st && et) {
+      const [sh, sm] = st.split(':').map(Number);
+      const [eh, em] = et.split(':').map(Number);
+      totalDur = (eh * 60 + em) - (sh * 60 + sm);
+      if (totalDur < 0) totalDur = 0;
+    }
+  } else {
+    document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
+      totalPrice += parseInt(card.dataset.price || 0);
+      totalDur += parseInt(card.dataset.dur || 0);
+    });
+  }
+
+  const priceThresh = s.deposit_price_threshold_cents || 0;
+  const durThresh = s.deposit_duration_threshold_min || 0;
+  const mode = s.deposit_threshold_mode || 'any';
+
+  // Always show toggle when deposit is enabled
+  toggle.style.display = '';
+
+  // Auto-suggest logic
+  const priceHit = priceThresh > 0 && totalPrice >= priceThresh;
+  const durHit = durThresh > 0 && totalDur >= durThresh;
+  const suggest = (priceThresh > 0 || durThresh > 0) && (mode === 'both' ? (priceHit && durHit) : (priceHit || durHit));
+
+  if (suggest && !check.checked && !check.dataset.userOverride) {
+    check.checked = true;
+    _qcUpdateDepositVisual(true);
+    _qcUpdateDepositAmountRow();
+    _qcUpdateDepositChannels(true);
+    const reasons = [];
+    if (priceHit) reasons.push((totalPrice / 100).toFixed(0) + '€');
+    if (durHit) reasons.push(totalDur + ' min');
+    hint.textContent = 'Suggéré — ' + reasons.join(' · ');
+  } else if (!suggest && hint) {
+    hint.textContent = '';
+  }
+}
+
+function qcDepositUserToggle(el) {
+  el.dataset.userOverride = 'true';
+  _qcUpdateDepositVisual(el.checked);
+  _qcUpdateDepositAmountRow();
+  _qcUpdateDepositChannels(el.checked);
+}
+
+function _qcUpdateDepositVisual(on) {
+  const track = document.getElementById('qcDepositTrack');
+  const thumb = document.getElementById('qcDepositThumb');
+  if (track) track.style.background = on ? '#D97706' : 'var(--border)';
+  if (thumb) thumb.style.left = on ? '20px' : '2px';
+}
+
+function _qcUpdateDepositChannels(on) {
+  const row = document.getElementById('qcDepositChannels');
+  if (!row) return;
+  row.style.display = on ? 'flex' : 'none';
+  // Pre-check based on available client contact
+  const emailInput = document.getElementById('qcClient');
+  const phoneField = document.querySelector('#qcPhone input, #qcPhone');
+  // Default: email checked, SMS unchecked
+  const emailCb = document.getElementById('qcDepEmail');
+  const smsCb = document.getElementById('qcDepSms');
+  if (emailCb) emailCb.checked = true;
+  if (smsCb) smsCb.checked = false;
+}
+
+/** Show/hide the deposit amount input — only visible in freestyle mode + deposit ON */
+function _qcUpdateDepositAmountRow() {
+  const row = document.getElementById('qcDepositAmountRow');
+  if (!row) return;
+  const isFreestyle = document.getElementById('qcFreestyle')?.checked;
+  const isChecked = document.getElementById('qcDepositCheck')?.checked;
+  const show = isFreestyle && isChecked;
+  row.style.display = show ? '' : 'none';
+  if (show) {
+    const inp = document.getElementById('qcDepositAmount');
+    if (inp && !inp.value) {
+      const s = calState.fcBusinessSettings || {};
+      const defaultEuros = s.deposit_type === 'fixed'
+        ? ((s.deposit_fixed_cents || 2500) / 100)
+        : 25;
+      inp.value = defaultEuros.toFixed(2);
+    }
   }
 }
 
@@ -368,13 +636,16 @@ function calSearchClients(q) {
       const clients = d.clients || [];
       _qcSearchResults = clients;
       let h = clients.map(c => {
+        const vipTag = c.is_vip
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FEF9E7;color:#D4A017;margin-left:4px">★ VIP</span>`
+          : '';
         const nsTag = c.no_show_count > 0
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
           : '';
         const blTag = c.is_blocked
           ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
           : '';
-        return `<div class="ac-item" onclick="calPickClient('${safeId(c.id)}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
+        return `<div class="ac-item" onclick="calPickClient('${safeId(c.id)}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${vipTag}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
       }).join('');
       h += `<div class="ac-item ac-new" onclick="calNewClient()">+ ${categoryLabels.client} : "${esc(q)}"</div>`;
       res.innerHTML = h; res.style.display = 'block';
@@ -520,6 +791,11 @@ async function calCreateBooking() {
 
     const start_at = toBrusselsISO(date, time);
 
+    // Reject bookings too far in the past (>2h tolerance)
+    if (new Date(start_at).getTime() < Date.now() - 2 * 3600000) {
+      gToast('Impossible de créer un RDV aussi loin dans le passé', 'error'); return;
+    }
+
     const clientEmail = document.getElementById('qcClientEmail')?.value.trim() || '';
     const clientPhone = document.getElementById('qcClientPhone')?.value.trim() || '';
 
@@ -554,6 +830,7 @@ async function calCreateBooking() {
     }
 
     const isLocked = document.getElementById('qcLocked')?.checked || false;
+    const skipConfirm = document.getElementById('qcSkipConfirm')?.checked || false;
 
     let body;
     if (isFreestyle) {
@@ -581,17 +858,20 @@ async function calCreateBooking() {
         appointment_mode: 'cabinet',
         comment: comment || null,
         client_email: clientEmail || undefined,
-        locked: isLocked
+        locked: isLocked,
+        skip_confirmation: skipConfirm
       };
     } else {
-      const svcItemEls = document.querySelectorAll('.qc-svc-item');
-      const services = [...svcItemEls].map(item => {
-        const svcSel = item.querySelector('[id^="qcSvcSel"]');
-        const varSel = item.querySelector('.qc-var-sel');
-        const obj = { service_id: svcSel.value };
-        if (varSel?.value) obj.variant_id = varSel.value;
+      // Check if assign panel is open with pending selection
+      if (document.getElementById('qcAssignSvc')?.style.display !== 'none') {
+        gToast('Confirmez ou annulez la prestation en cours', 'error'); return;
+      }
+      const cards = document.querySelectorAll('.qc-svc-confirmed');
+      const services = [...cards].map(c => {
+        const obj = { service_id: c.dataset.serviceId };
+        if (c.dataset.variantId) obj.variant_id = c.dataset.variantId;
         return obj;
-      });
+      }).filter(s => s.service_id);
       if (services.length === 0) { gToast('Choisissez au moins une '+categoryLabels.service.toLowerCase(), 'error'); return; }
 
       body = {
@@ -601,13 +881,28 @@ async function calCreateBooking() {
         appointment_mode: mode,
         comment: comment || null,
         client_email: clientEmail || undefined,
-        locked: isLocked
+        locked: isLocked,
+        skip_confirmation: skipConfirm
       };
       if (services.length === 1) {
         body.service_id = services[0].service_id;
         if (services[0].variant_id) body.variant_id = services[0].variant_id;
       } else {
         body.services = services;
+      }
+    }
+
+    // Deposit toggle: force deposit if staff checked the toggle
+    const depCheck = document.getElementById('qcDepositCheck');
+    if (depCheck?.checked) {
+      body.force_deposit = true;
+      // Freestyle: send explicit deposit amount from the input
+      const depAmtRow = document.getElementById('qcDepositAmountRow');
+      if (depAmtRow && depAmtRow.style.display !== 'none') {
+        const raw = parseFloat(document.getElementById('qcDepositAmount')?.value);
+        if (!raw || raw <= 0) { gToast('Montant de l\'acompte requis', 'error'); return; }
+        if (raw > 10000) { gToast('Montant de l\'acompte trop élevé (max 10 000€)', 'error'); return; }
+        body.deposit_amount_cents = Math.round(raw * 100);
       }
     }
 
@@ -642,19 +937,48 @@ async function calCreateBooking() {
 
     const count = result.bookings?.length || 1;
     const extra = [];
-    if (qcTodos.length) extra.push(`${qcTodos.length} tâche${qcTodos.length > 1 ? 's' : ''}`);
+    if (qcTodos.length) extra.push(`${qcTodos.length} t\u00e2che${qcTodos.length > 1 ? 's' : ''}`);
     if (qcReminders.length) extra.push(`${qcReminders.length} rappel${qcReminders.length > 1 ? 's' : ''}`);
     const extraStr = extra.length ? ' + ' + extra.join(', ') : '';
 
-    gToast(isFreestyle
-      ? `${clientName} — RDV libre créé !${extraStr}`
+    const toastMsg = isFreestyle
+      ? `${clientName} \u2014 RDV libre cr\u00e9\u00e9 !${extraStr}`
       : count > 1
-        ? `${clientName} — ${count} ${categoryLabels.services.toLowerCase()} créées !${extraStr}`
-        : `${clientName} — RDV créé !${extraStr}`, 'success');
+        ? `${clientName} \u2014 ${count} ${categoryLabels.services.toLowerCase()} cr\u00e9\u00e9es !${extraStr}`
+        : `${clientName} \u2014 RDV cr\u00e9\u00e9 !${extraStr}`;
 
+    // Signal to Quick Booking that a booking was created (not just modal closed)
+    const mainBooking = result.booking || result.bookings?.[0];
+    document.getElementById('calCreateModal')._soBooked = true;
+
+    gToast(toastMsg, 'success');
     document.getElementById('calCreateModal')._dirtyGuard?.markClean();
     closeCalModal('calCreateModal');
     fcRefresh();
+
+    // Auto-send deposit request in background using selected channels (single API call)
+    if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
+      const wantEmail = document.getElementById('qcDepEmail')?.checked;
+      const wantSms = document.getElementById('qcDepSms')?.checked;
+      const channels = [];
+      if (wantEmail && clientEmail) channels.push('email');
+      if (wantSms && clientPhone) channels.push('sms');
+      // Fallback: if nothing selected but contact exists, send email
+      if (!channels.length && clientEmail) channels.push('email');
+      if (channels.length > 0) {
+        try {
+          const dr = await fetch(`/api/bookings/${mainBooking.id}/send-deposit-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+            body: JSON.stringify({ channels })
+          });
+          if (dr.ok) {
+            const data = await dr.json();
+            gToast(`Demande d\u2019acompte envoy\u00e9e par ${data.label || channels.join(' + ')}`, 'success');
+          }
+        } catch (_) { /* silent — booking already created */ }
+      }
+    }
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
   finally {
     calCreateBooking._busy = false;
@@ -675,7 +999,10 @@ function setupQuickCreateListeners() {
     }
   });
   document.addEventListener('input', e => {
-    if (e.target?.id === 'qcTime' && document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
+    if (e.target?.id === 'qcTime' || e.target?.id === 'qcDate') {
+      if (document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
+      else qcUpdateTotal();
+    }
   });
 }
 
@@ -726,15 +1053,148 @@ function qcSwitchMode(mode) {
   _qcSetMode(mode);
 }
 
+async function qcCreateTask() {
+  if (qcCreateTask._busy) return;
+  qcCreateTask._busy = true;
+  try {
+    const title = document.getElementById('qcTaskTitle').value.trim();
+    const date = document.getElementById('qcTaskDate').value;
+    const startTime = document.getElementById('qcTaskStart').value;
+    const endTime = document.getElementById('qcTaskEnd').value;
+    const color = document.getElementById('qcTaskColor')?.value || '';
+    const note = document.getElementById('qcTaskNote').value.trim();
+
+    // Collect selected practitioner IDs from checkboxes
+    const checks = document.querySelectorAll('#qcTaskPracChecks input[type="checkbox"]:checked');
+    const pracIds = [...checks].map(cb => cb.value);
+
+    if (!title) { gToast('Titre requis', 'error'); return; }
+    if (pracIds.length === 0) { gToast('Sélectionnez au moins un praticien', 'error'); return; }
+    if (!date || !startTime || !endTime) { gToast('Date et heures requises', 'error'); return; }
+
+    const start_at = toBrusselsISO(date, startTime);
+    const end_at = toBrusselsISO(date, endTime);
+
+    const body = { title, start_at, end_at, color: color || null, note: note || null };
+    if (pracIds.length === 1) body.practitioner_id = pracIds[0];
+    else body.practitioner_ids = pracIds;
+
+    const r = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    const countMsg = pracIds.length > 1 ? ` (${pracIds.length} praticiens)` : '';
+    gToast('Tâche créée' + countMsg, 'success');
+    document.getElementById('calCreateModal')._soBooked = true;
+    document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+    closeCalModal('calCreateModal');
+    fcRefresh();
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { qcCreateTask._busy = false; }
+}
+
+// ── Deposit request panel (shown after creating a pending_deposit booking) ──
+
+function _showDepositRequestPanel(booking, clientName, clientEmail, clientPhone) {
+  const modalBody = document.querySelector('#calCreateModal .m-body');
+  const modalBottom = document.querySelector('#calCreateModal .m-bottom');
+
+  qcUpdateGradient('#F59E0B');
+  const headerTitle = document.querySelector('#calCreateModal .m-client-name');
+  if (headerTitle) headerTitle.textContent = 'Demande d\u2019acompte';
+
+  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const hasEmail = !!clientEmail;
+  const hasPhone = !!clientPhone;
+  const safeId = String(booking.id).replace(/[^a-zA-Z0-9_-]/g, '');
+
+  let channelBtns = '';
+  if (hasEmail) {
+    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF3E2;color:#B45309;font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','email')">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      Par email</button>`;
+  }
+  if (hasPhone) {
+    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid ${hasEmail ? 'var(--border)' : '#F59E0B'};background:${hasEmail ? 'var(--white)' : '#FEF3E2'};color:${hasEmail ? 'var(--text-3)' : '#B45309'};font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','sms')">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      Par SMS</button>`;
+  }
+
+  modalBody.innerHTML = `
+    <div style="padding:24px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:16px;background:#FEF3E2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 4px;font-family:var(--sans)">Envoyer une demande d\u2019acompte ?</h3>
+      <p style="font-size:.88rem;color:var(--text-3);margin:0 0 20px">
+        <strong>${esc(clientName)}</strong> \u2014 ${amtStr} \u20ac
+      </p>
+      ${(!hasEmail && !hasPhone) ? '<p style="font-size:.82rem;color:var(--red);margin:0 0 16px">Aucun contact disponible (ni email, ni t\u00e9l\u00e9phone)</p>' : ''}
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        ${channelBtns}
+      </div>
+      <div id="qcDepositSendStatus" style="display:none;margin-top:12px"></div>
+    </div>`;
+
+  modalBottom.innerHTML = `
+    <button class="m-btn" style="padding:10px 24px;border-radius:10px;border:1.5px solid var(--border);background:var(--white);color:var(--text-3);font-weight:600;font-size:.85rem;cursor:pointer" onclick="qcSkipDepositRequest()">Plus tard</button>`;
+}
+
+async function qcSendDepositRequest(bookingId, channel) {
+  const statusEl = document.getElementById('qcDepositSendStatus');
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '<div style="font-size:.82rem;color:var(--text-3)">Envoi en cours\u2026</div>';
+  }
+  // Disable buttons
+  document.querySelectorAll('#calCreateModal .m-body .m-btn').forEach(b => { b.disabled = true; b.style.opacity = '.5'; });
+
+  try {
+    const r = await fetch(`/api/bookings/${bookingId}/send-deposit-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ channels: [channel] })
+    });
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.error || 'Erreur d\u2019envoi');
+    }
+    const data = await r.json();
+    if (statusEl) {
+      statusEl.innerHTML = `<div style="font-size:.88rem;color:var(--green);font-weight:700">\u2713 Demande envoy\u00e9e par ${data.label || channel}</div>`;
+    }
+    setTimeout(() => {
+      document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+      closeCalModal('calCreateModal');
+    }, 1500);
+  } catch (e) {
+    if (statusEl) {
+      statusEl.innerHTML = `<div style="font-size:.82rem;color:var(--red)">${esc(e.message)}</div>`;
+    }
+    // Re-enable buttons
+    document.querySelectorAll('#calCreateModal .m-body .m-btn').forEach(b => { b.disabled = false; b.style.opacity = ''; });
+  }
+}
+
+function qcSkipDepositRequest() {
+  document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+  closeCalModal('calCreateModal');
+}
+
 // Expose to global scope for onclick handlers
 bridge({
   fcOpenQuickCreate, qcToggleFreestyle, qcUpdateFreeDuration,
-  qcAddService, qcRemoveService, qcUpdateTotal, qcRefreshServiceDropdowns,
-  qcServiceChanged, qcSyncServiceOptions,
+  qcShowAssignPanel, qcAssignCatChanged, qcAssignSvcChanged, qcAssignVarChanged,
+  qcAssignConfirm, qcAssignCancel, qcRemoveConfirmed,
+  qcUpdateTotal, qcRefreshServiceDropdowns,
   calSearchClients, calPickClient, calNewClient, calCreateBooking,
   qcAddTodo, qcDeleteTodo,
   qcAddReminder, qcDeleteReminder,
-  qcSwitchMode
+  qcSwitchMode,
+  qcSendDepositRequest, qcSkipDepositRequest,
+  qcDepositUserToggle, qcCheckDepositSuggestion
 });
 
 export { fcOpenQuickCreate, calCreateBooking, setupQuickCreateListeners };

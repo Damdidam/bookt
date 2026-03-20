@@ -6,7 +6,7 @@ import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { fcRefresh } from './calendar-init.js';
-import { closeCalModal } from './booking-detail.js';
+import { closeCalModal, fcOpenDetail } from './booking-detail.js';
 import { storeUndoAction } from './booking-undo.js';
 
 async function fcSetStatus(newStatus) {
@@ -22,12 +22,18 @@ async function fcSetStatus(newStatus) {
       body: JSON.stringify({ status: newStatus })
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
-    // Store undo (only for reversible status changes)
-    if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
+    const result = await r.json().catch(() => ({}));
+    // Deposit-aware restore: show specific toast
+    if (result.deposit_restore === 'redeposit') {
+      gToast('RDV rétabli — nouvel acompte demandé au client', 'success');
+    } else if (result.deposit_restore === 'repaid') {
+      gToast('RDV rétabli — acompte retenu, RDV confirmé', 'success');
+    } else if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
+      // Store undo (only for reversible status changes)
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
-      gToast('Statut mis \u00e0 jour', 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
+      gToast('Statut mis à jour', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
     } else {
-      gToast('Statut mis \u00e0 jour', 'success');
+      gToast('Statut mis à jour', 'success');
     }
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
@@ -62,26 +68,25 @@ async function fcPurgeBooking() {
   }
 }
 
-async function fcMarkDepositPaid() {
-  if (fcMarkDepositPaid._busy) return;
-  if (!(await showConfirmDialog('Confirmer le paiement', 'Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.', 'Confirmer', 'primary'))) return;
-  fcMarkDepositPaid._busy = true;
+async function fcWaiveDeposit() {
+  if (fcWaiveDeposit._busy) return;
+  if (!(await showConfirmDialog('Confirmer sans acompte', 'Confirmer le RDV sans acompte ? Le client recevra un email de confirmation classique (sans mention d\u2019acompte).', 'Confirmer', 'primary'))) return;
+  fcWaiveDeposit._busy = true;
   const _depBtns = document.querySelectorAll('.m-st-btn');
   _depBtns.forEach(b => { b.disabled = true; b.classList.add('is-loading'); });
   try {
-    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/waive-deposit`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ status: 'confirmed' })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
-    gToast('Acompte marqu\u00e9 comme pay\u00e9 \u2014 RDV confirm\u00e9', 'success');
+    gToast('RDV confirm\u00e9 sans acompte', 'success');
     document.getElementById('calDetailModal')._dirtyGuard?.markClean();
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
   finally {
-    fcMarkDepositPaid._busy = false;
+    fcWaiveDeposit._busy = false;
     _depBtns.forEach(b => { b.classList.remove('is-loading'); b.disabled = false; });
   }
 }
@@ -110,7 +115,70 @@ async function fcRefundDeposit(amountCents) {
   }
 }
 
-// Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit });
+async function fcSendDepositRequest(channel) {
+  if (fcSendDepositRequest._busy) return;
+  fcSendDepositRequest._busy = true;
+  const statusEl = document.getElementById('mDepositSendStatus');
+  try {
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = '#FEF3E2'; statusEl.style.color = '#B45309'; statusEl.textContent = 'Envoi en cours…'; }
+    // Auto-save client contact if edited, so deposit goes to the new email/phone
+    const newEmail = document.getElementById('uClientEmail')?.value.trim() || '';
+    const newPhone = document.getElementById('uClientPhone')?.value.trim() || '';
+    const orig = calState.fcEditOriginal || {};
+    const contactChanged = newEmail !== (orig.client_email || '') || newPhone !== (orig.client_phone || '');
+    if (contactChanged && calState.fcCurrentBooking?.client_id) {
+      const cr = await fetch(`/api/clients/${calState.fcCurrentBooking.client_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ phone: newPhone || null, email: newEmail || null })
+      });
+      if (!cr.ok) { const d = await cr.json().catch(() => ({})); throw new Error(d.error || 'Erreur sauvegarde contact'); }
+      if (calState.fcEditOriginal) { calState.fcEditOriginal.client_email = newEmail; calState.fcEditOriginal.client_phone = newPhone; }
+    }
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-deposit-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ channels: [channel] })
+    });
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    const data = await r.json();
+    gToast(`Demande d'acompte envoyée par ${data.label || channel}`, 'success');
+    if (statusEl) { statusEl.style.background = '#F0FDF4'; statusEl.style.color = '#15803D'; statusEl.textContent = `\u2713 Demande envoyée par ${data.label || channel}`; }
+  } catch (e) {
+    gToast('Erreur: ' + e.message, 'error');
+    if (statusEl) { statusEl.style.background = '#FEF2F2'; statusEl.style.color = '#DC2626'; statusEl.textContent = e.message; }
+  } finally { fcSendDepositRequest._busy = false; }
+}
 
-export { fcSetStatus, fcPurgeBooking, fcMarkDepositPaid, fcRefundDeposit };
+async function fcRequireDeposit() {
+  if (fcRequireDeposit._busy) return;
+  const amountInput = document.getElementById('mReqDepAmount');
+  const deadlineInput = document.getElementById('mReqDepDeadline');
+  const amountCents = Math.round(parseFloat(amountInput?.value || 0) * 100);
+  const deadlineHours = parseInt(deadlineInput?.value || 48);
+  if (!amountCents || amountCents <= 0) { gToast('Montant invalide', 'error'); return; }
+  if (!confirm(`Exiger un acompte de ${(amountCents / 100).toFixed(2)}\u20ac ? Le client devra payer avant le RDV.`)) return;
+  fcRequireDeposit._busy = true;
+  try {
+    const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/require-deposit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ amount_cents: amountCents, deadline_hours: deadlineHours })
+    });
+    if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+    const result = await r.json();
+    if (result.email_sent) {
+      gToast('Acompte exigé — demande envoyée par email', 'success');
+    } else {
+      gToast('Acompte exigé — ajoutez un email au client pour envoyer la demande', 'warning');
+    }
+    // Refresh the detail modal to show the deposit banner
+    fcOpenDetail(calState.fcCurrentEventId);
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { fcRequireDeposit._busy = false; }
+}
+
+// Expose to global scope for onclick handlers
+bridge({ fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit });
+
+export { fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit };

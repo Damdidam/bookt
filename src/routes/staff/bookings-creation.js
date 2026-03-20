@@ -7,6 +7,7 @@ const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
 const { calSyncPush, businessAllowsOverlap, getMaxConcurrent, checkPracAvailability, checkBookingConflicts } = require('./bookings-helpers');
+const { dateToWeekday, timeToMinutes } = require('../../services/schedule-helpers');
 
 // ============================================================
 // POST /api/bookings/manual
@@ -17,7 +18,16 @@ router.post('/manual', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { service_id, practitioner_id, client_id, start_at, appointment_mode, comment,
-            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked } = req.body;
+            services: multiServices, freestyle, end_at, buffer_before_min, buffer_after_min, custom_label, color, locked,
+            force_deposit, deposit_amount_cents, skip_confirmation } = req.body;
+
+    // Default status: pending (staff confirms later). skip_confirmation → confirmed immediately.
+    const bookingStatus = skip_confirmation ? 'confirmed' : 'pending';
+
+    // Fetch confirmation timeout from business settings (same as public flow)
+    const _bizConf = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
+    const _bizSettings = _bizConf.rows[0]?.settings || {};
+    const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
 
     // BK-V13-008: group_id removed from destructuring (dead code — group_id is generated server-side)
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,6 +57,12 @@ router.post('/manual', async (req, res, next) => {
     const VALID_MODES = ['cabinet', 'visio', 'phone', 'domicile'];
     if (appointment_mode && !VALID_MODES.includes(appointment_mode)) {
       return res.status(400).json({ error: `Mode invalide. Valeurs : ${VALID_MODES.join(', ')}` });
+    }
+
+    // Reject bookings that start too far in the past (2h tolerance for walk-ins / late entries)
+    const startMs = new Date(start_at).getTime();
+    if (startMs < Date.now() - 2 * 3600000) {
+      return res.status(400).json({ error: 'Impossible de créer un rendez-vous aussi loin dans le passé' });
     }
 
     // Validate text field lengths
@@ -115,15 +131,19 @@ router.post('/manual', async (req, res, next) => {
           }
         }
 
+        const confirmExpiresAt = bookingStatus === 'pending' ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null;
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked)
-           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, 'confirmed', $7, $8, $9, $10)
+            channel, appointment_mode, start_at, end_at, status, comment_client, custom_label, color, locked,
+            confirmation_expires_at)
+           VALUES ($1, $2, NULL, $3, 'manual', $4, $5, $6, $7, $8, $9, $10, $11, $12)
            RETURNING *`,
           [bid, practitioner_id, client_id || null,
            appointment_mode || 'cabinet',
            realStart.toISOString(), realEnd.toISOString(),
-           comment || null, custom_label || null, safeColor, !!locked]
+           bookingStatus,
+           comment || null, custom_label || null, safeColor, bookingStatus === 'confirmed' ? true : !!locked,
+           confirmExpiresAt]
         );
 
         await client.query(
@@ -142,18 +162,23 @@ router.post('/manual', async (req, res, next) => {
             [client_id, bid]
           );
           const dc = depCheck.rows[0];
-          if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
-            const depCents = dc.settings.deposit_type === 'fixed'
-              ? (dc.settings.deposit_fixed_cents || 2500)
-              : 0; // freestyle has no service price, use fixed or skip
+          const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
+          if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
+            const depCents = (deposit_amount_cents > 0)
+              ? deposit_amount_cents
+              : (dc.settings.deposit_fixed_cents || 2500);
             if (depCents > 0) {
-              const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-              // Bug M8 fix: Use realStart (actual booking start incl. buffer) instead of raw start_at
-              const deadline = new Date(realStart.getTime() - dlHours * 3600000);
-              if (deadline > new Date()) {
+              const hoursUntilRdv = (realStart.getTime() - Date.now()) / 3600000;
+              if (force_deposit || hoursUntilRdv >= 2) {
+                const timeoutMin = parseInt(dc.settings.booking_confirmation_timeout_min) || 30;
+                let deadline = new Date(Date.now() + timeoutMin * 60000);
+                const minBefore = new Date(realStart.getTime() - 2 * 3600000);
+                if (minBefore.getTime() > Date.now() && minBefore < deadline) deadline = minBefore;
+                if (deadline.getTime() < Date.now() + 5 * 60000) deadline = new Date(Date.now() + 5 * 60000);
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    confirmation_expires_at = NULL
                    WHERE id = $3 AND business_id = $4`,
                   [depCents, deadline.toISOString(), booking.id, bid]
                 );
@@ -171,11 +196,12 @@ router.post('/manual', async (req, res, next) => {
       broadcast(bid, 'booking_update', { action: 'created' });
       calSyncPush(bid, bookings[0].id).catch(() => {});
 
-      // Send confirmation email (non-blocking)
-      if (client_email && client_id) {
+      // Send confirmation email only if confirmed AND not pending deposit (non-blocking)
+      // When deposit is active, payment serves as confirmation — skip confirmation email
+      if (bookingStatus === 'confirmed' && bookings[0].status !== 'pending_deposit' && client_email && client_id) {
         (async () => {
           try {
-            const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+            const biz = await queryWithRLS(bid, `SELECT name, email, phone, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
             const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
             if (biz.rows[0] && cl.rows[0]) {
               await sendBookingConfirmation({
@@ -228,7 +254,7 @@ router.post('/manual', async (req, res, next) => {
     // Fetch all service durations
     const svcIds = serviceList.map(s => s.service_id);
     const svcResult = await queryWithRLS(bid,
-      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, available_schedule
        FROM services WHERE business_id = $1 AND id = ANY($2)`,
       [bid, svcIds]
     );
@@ -261,17 +287,31 @@ router.post('/manual', async (req, res, next) => {
       s._variant_processing_start = vr.rows[0].processing_start || 0;
     }
 
-    // Validate practitioner is assigned to all selected services
+    // Validate practitioner is assigned to services — auto-assign others if needed
     const psCheck = await queryWithRLS(bid,
       `SELECT service_id FROM practitioner_services
        WHERE practitioner_id = $1 AND service_id = ANY($2)`,
       [practitioner_id, svcIds]
     );
     const assignedSvcIds = new Set(psCheck.rows.map(r => r.service_id));
+    let isSplitMode = false;
+    // Collect ALL candidate practitioners per unassigned service (for availability fallback)
+    const candidatesPerService = {};
     for (const s of serviceList) {
       if (!assignedSvcIds.has(s.service_id)) {
-        const svcName = svcMap[s.service_id]?.name || s.service_id;
-        return res.status(400).json({ error: `Le praticien ne propose pas la prestation "${svcName}"` });
+        const altPracs = await queryWithRLS(bid,
+          `SELECT ps.practitioner_id, p.display_name FROM practitioner_services ps
+           JOIN practitioners p ON p.id = ps.practitioner_id
+           WHERE ps.service_id = $1 AND p.business_id = $2 AND p.is_active = true`,
+          [s.service_id, bid]
+        );
+        if (altPracs.rows.length === 0) {
+          const svcName = svcMap[s.service_id]?.name || s.service_id;
+          return res.status(400).json({ error: `Aucun praticien ne propose la prestation "${svcName}"` });
+        }
+        candidatesPerService[s.service_id] = altPracs.rows;
+        s._practitioner_id = altPracs.rows[0].practitioner_id;
+        isSplitMode = true;
       }
     }
 
@@ -297,24 +337,99 @@ router.post('/manual', async (req, res, next) => {
         end_at: slotEnd.toISOString(),
         group_order: i,
         processing_time: s._variant_processing_time ?? svc.processing_time ?? 0,
-        processing_start: s._variant_processing_start ?? svc.processing_start ?? 0
+        processing_start: s._variant_processing_start ?? svc.processing_start ?? 0,
+        practitioner_id: s._practitioner_id || practitioner_id
       };
     });
 
     const totalEnd = slots[slots.length - 1].end_at;
 
+    // ── Validate service available_schedule (restricted windows) ──
+    const _bruFmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
+    for (const slot of slots) {
+      const svc = svcMap[slot.service_id];
+      if (svc.available_schedule?.type === 'restricted') {
+        // Convert slot times to Brussels local
+        const sp = {}; _bruFmt.formatToParts(new Date(slot.start_at)).forEach(p => { sp[p.type] = p.value; });
+        const ep = {}; _bruFmt.formatToParts(new Date(slot.end_at)).forEach(p => { ep[p.type] = p.value; });
+        const slotDate = `${sp.year}-${sp.month}-${sp.day}`;
+        const weekday = dateToWeekday(slotDate);
+        const svcWindows = (svc.available_schedule.windows || []).filter(w => w.day === weekday);
+        if (svcWindows.length === 0) {
+          return res.status(400).json({
+            error: `La prestation "${svc.name}" n'est pas disponible ce jour`
+          });
+        }
+        const startMin = parseInt(sp.hour) * 60 + parseInt(sp.minute);
+        const endMin = parseInt(ep.hour) * 60 + parseInt(ep.minute);
+        const fitsWindow = svcWindows.some(w => {
+          const wStart = timeToMinutes(w.from);
+          const wEnd = timeToMinutes(w.to);
+          return startMin >= wStart && endMin <= wEnd;
+        });
+        if (!fitsWindow) {
+          const windowsStr = svcWindows.map(w => `${w.from}–${w.to}`).join(', ');
+          return res.status(400).json({
+            error: `La prestation "${svc.name}" est restreinte aux créneaux : ${windowsStr}`
+          });
+        }
+      }
+    }
+
     // Check practitioner availability (absences, exceptions, hours)
-    const availCheck = await checkPracAvailability(bid, practitioner_id, start_at, totalEnd);
-    if (!availCheck.ok) {
-      return res.status(409).json({ error: availCheck.reason });
+    // In split mode: try each candidate practitioner per slot, pick first available
+    if (isSplitMode) {
+      for (const slot of slots) {
+        const candidates = candidatesPerService[slot.service_id];
+        if (!candidates) {
+          // Primary practitioner slot — check normally
+          const availCheck = await checkPracAvailability(bid, slot.practitioner_id, slot.start_at, slot.end_at);
+          if (!availCheck.ok) {
+            return res.status(409).json({ error: availCheck.reason });
+          }
+          continue;
+        }
+        // Try each candidate until one is available
+        let assigned = false;
+        for (const cand of candidates) {
+          const availCheck = await checkPracAvailability(bid, cand.practitioner_id, slot.start_at, slot.end_at);
+          if (availCheck.ok) {
+            slot.practitioner_id = cand.practitioner_id;
+            assigned = true;
+            break;
+          }
+        }
+        if (!assigned) {
+          const svcName = svcMap[slot.service_id]?.name || '';
+          return res.status(409).json({ error: `Aucun praticien disponible pour "${svcName}" à cette heure` });
+        }
+      }
+    } else {
+      const availCheck = await checkPracAvailability(bid, practitioner_id, start_at, totalEnd);
+      if (!availCheck.ok) {
+        return res.status(409).json({ error: availCheck.reason });
+      }
     }
 
     const bookings = await transactionWithRLS(bid, async (client) => {
       // Check conflicts for the entire time range (skip if business allows overlap)
       if (!globalAllowOverlap) {
-        const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: new Date(start_at).toISOString(), newEnd: totalEnd });
-        if (conflicts.length >= maxConcurrent) {
-          throw Object.assign(new Error('Capacité maximale atteinte sur ce créneau'), { type: 'conflict' });
+        if (isSplitMode) {
+          // Per-practitioner conflict check
+          for (const slot of slots) {
+            const conflicts = await checkBookingConflicts(client, { bid, pracId: slot.practitioner_id, newStart: slot.start_at, newEnd: slot.end_at });
+            if (conflicts.length >= maxConcurrent) {
+              throw Object.assign(new Error('Capacit\u00e9 maximale atteinte sur ce cr\u00e9neau'), { type: 'conflict' });
+            }
+          }
+        } else {
+          const conflicts = await checkBookingConflicts(client, { bid, pracId: practitioner_id, newStart: new Date(start_at).toISOString(), newEnd: totalEnd });
+          if (conflicts.length >= maxConcurrent) {
+            throw Object.assign(new Error('Capacit\u00e9 maximale atteinte sur ce cr\u00e9neau'), { type: 'conflict' });
+          }
         }
       }
 
@@ -323,18 +438,22 @@ router.post('/manual', async (req, res, next) => {
         // CRT-6: By design, group bookings do not support individual color/custom_label.
         // These fields are omitted intentionally — group members share the same visual style
         // derived from their service. Per-member customization may be added in a future iteration.
+        const confirmExpiresAtNormal = bookingStatus === 'pending' ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null;
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
-            group_id, group_order, processing_time, processing_start, locked)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, 'confirmed', $9, $10, $11, $12, $13, $14)
+            group_id, group_order, processing_time, processing_start, locked,
+            confirmation_expires_at)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
            RETURNING *`,
-          [bid, practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
+          [bid, slot.practitioner_id || practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
            slot.start_at, slot.end_at,
+           bookingStatus,
            comment || null,
            groupId, slot.group_order,
-           slot.processing_time || 0, slot.processing_start || 0, !!locked]
+           slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : !!locked,
+           confirmExpiresAtNormal]
         );
         results.push(result.rows[0]);
 
@@ -355,7 +474,8 @@ router.post('/manual', async (req, res, next) => {
           [client_id, bid]
         );
         const dc = depCheck.rows[0];
-        if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
+        const noShowTriggered = dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2);
+        if (dc?.settings?.deposit_enabled && (noShowTriggered || force_deposit)) {
           const svcPriceResult = await client.query(
             `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price
              FROM bookings b
@@ -372,13 +492,18 @@ router.post('/manual', async (req, res, next) => {
             depCents = Math.round(totalPrice * (dc.settings.deposit_percent || 50) / 100);
           }
           if (depCents > 0) {
-            const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-            const deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-            if (deadline > new Date()) {
+            const hoursUntilRdv = (new Date(start_at).getTime() - Date.now()) / 3600000;
+            if (force_deposit || hoursUntilRdv >= 2) {
+              const timeoutMin = parseInt(dc.settings.booking_confirmation_timeout_min) || 30;
+              let deadline = new Date(Date.now() + timeoutMin * 60000);
+              const minBefore = new Date(new Date(start_at).getTime() - 2 * 3600000);
+              if (minBefore.getTime() > Date.now() && minBefore < deadline) deadline = minBefore;
+              if (deadline.getTime() < Date.now() + 5 * 60000) deadline = new Date(Date.now() + 5 * 60000);
               // CRT-V10-7: Deposit amount on the first booking only
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                  deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                  confirmation_expires_at = NULL
                  WHERE id = $3 AND business_id = $4`,
                 [depCents, deadline.toISOString(), results[0].id, bid]
               );
@@ -408,18 +533,41 @@ router.post('/manual', async (req, res, next) => {
     broadcast(bid, 'booking_update', { action: 'created' });
     bookings.forEach(b => calSyncPush(bid, b.id).catch(() => {}));
 
-    // Send confirmation email (non-blocking)
-    if (client_email && client_id) {
+    // Send confirmation email only if confirmed AND not pending deposit (non-blocking)
+    // When deposit is active, payment serves as confirmation — skip confirmation email
+    if (bookingStatus === 'confirmed' && bookings[0].status !== 'pending_deposit' && client_email && client_id) {
       (async () => {
         try {
-          const biz = await queryWithRLS(bid, `SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
+          const biz = await queryWithRLS(bid, `SELECT name, email, phone, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
           const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
-          const svc = await queryWithRLS(bid, `SELECT name FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
+          const svc = await queryWithRLS(bid, `SELECT name, category FROM services WHERE id = $1 AND business_id = $2`, [bookings[0].service_id, bid]);
           const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);
+          // Query groupServices for multi-service bookings
+          let groupServices = null;
+          if (groupId) {
+            const grp = await queryWithRLS(bid,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                      b.practitioner_id, p.display_name AS practitioner_name
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [groupId, bid]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           if (biz.rows[0] && cl.rows[0]) {
             await sendBookingConfirmation({
-              booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', practitioner_name: prac.rows[0]?.display_name || '' },
-              business: biz.rows[0]
+              booking: { ...bookings[0], end_at: groupEndAt || bookings[0].end_at, client_name: cl.rows[0].full_name, client_email: client_email, service_name: svc.rows[0]?.name || 'Rendez-vous', service_category: svc.rows[0]?.category || '', practitioner_name: prac.rows[0]?.display_name || '' },
+              business: biz.rows[0],
+              groupServices
             });
           }
         } catch (e) { console.warn('[EMAIL] Confirmation send error:', e.message); }

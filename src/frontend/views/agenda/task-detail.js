@@ -1,5 +1,6 @@
 /**
  * Task Detail — open, create, edit, delete internal tasks.
+ * v47: Multi-practitioner group support.
  * Creation mode is triggered by the Tâche toggle in Quick Create.
  */
 import { api, calState } from '../../state.js';
@@ -14,6 +15,8 @@ import { cswHTML } from './color-swatches.js';
 import { toBrusselsISO } from '../../utils/format.js';
 
 let _currentTaskId = null;
+let _isGroupTask = false;
+let _currentGroupId = null;
 
 // ── Gradient header ──
 function tdUpdateGradient(color) {
@@ -61,6 +64,8 @@ function fcNewTask(date, startTime, endTime, pracId) {
 // ── Open task detail/edit modal ──
 async function fcOpenTaskDetail(taskId) {
   _currentTaskId = taskId;
+  _isGroupTask = false;
+  _currentGroupId = null;
   const modal = document.getElementById('calTaskModal');
   if (!modal) return;
 
@@ -82,7 +87,23 @@ async function fcOpenTaskDetail(taskId) {
     document.getElementById('tdStart').value = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
     document.getElementById('tdEnd').value = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
 
-    _populatePracSelect(task.practitioner_id);
+    // Practitioner(s) — always show checkboxes so user can add more
+    const pracField = document.getElementById('tdPracField');
+    _currentGroupId = task.group_id || null;
+    const assignedIds = task.group_members
+      ? new Set(task.group_members.map(m => m.practitioner_id))
+      : new Set([task.practitioner_id]);
+    _isGroupTask = assignedIds.size > 1;
+    const countLabel = assignedIds.size > 1 ? `Praticiens (${assignedIds.size})` : 'Praticien(s)';
+    let pracHtml = `<label class="m-field-label">${countLabel}</label>`;
+    pracHtml += '<div class="td-prac-checks" id="tdPracChecks">';
+    (calState.fcPractitioners || []).forEach(p => {
+      const checked = assignedIds.has(p.id) ? 'checked' : '';
+      pracHtml += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${p.color || 'var(--primary)'}"></span><span>${esc(p.display_name)}</span></label>`;
+    });
+    pracHtml += '</div>';
+    pracField.innerHTML = pracHtml;
+
     document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', task.color || '#6B7280', false);
     tdUpdateGradient(task.color || '#6B7280');
 
@@ -100,6 +121,7 @@ async function fcOpenTaskDetail(taskId) {
 
 function _populatePracSelect(selectedId) {
   const sel = document.getElementById('tdPrac');
+  if (!sel) return;
   sel.innerHTML = '';
   (calState.fcPractitioners || []).forEach(p => {
     sel.innerHTML += `<option value="${p.id}" ${String(p.id) === String(selectedId) ? 'selected' : ''}>${esc(p.display_name)}</option>`;
@@ -139,7 +161,6 @@ async function fcSaveTask() {
   const date = document.getElementById('tdDate').value;
   const startTime = document.getElementById('tdStart').value;
   const endTime = document.getElementById('tdEnd').value;
-  const pracId = document.getElementById('tdPrac').value;
   const color = document.getElementById('tdColor')?.value || '';
   const note = document.getElementById('tdNote').value.trim();
 
@@ -151,6 +172,21 @@ async function fcSaveTask() {
 
   const _sBtn = document.getElementById('tdSaveBtn');
   if (_sBtn) { _sBtn.disabled = true; _sBtn.classList.add('is-loading'); }
+
+  const body = { title, start_at, end_at, color: color || null, note: note || null };
+
+  // Collect practitioner(s)
+  const checksEl = document.getElementById('tdPracChecks');
+  if (checksEl) {
+    const checks = checksEl.querySelectorAll('input[type="checkbox"]:checked');
+    const pracIds = [...checks].map(cb => cb.value);
+    if (pracIds.length === 0) { gToast('Au moins un praticien requis', 'error'); return; }
+    body.practitioner_ids = pracIds;
+  } else {
+    const sel = document.getElementById('tdPrac');
+    if (sel) body.practitioner_id = sel.value;
+  }
+
   try {
     const isCreation = !_currentTaskId;
     const url = isCreation ? '/api/tasks' : `/api/tasks/${_currentTaskId}`;
@@ -159,7 +195,7 @@ async function fcSaveTask() {
     const r = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
+      body: JSON.stringify(body)
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     gToast(isCreation ? 'Tâche créée' : 'Tâche mise à jour', 'success');
@@ -173,7 +209,8 @@ async function fcSaveTask() {
 
 async function fcDeleteTask() {
   if (!_currentTaskId) return;
-  if (!(await showConfirmDialog('Supprimer la tâche', 'Supprimer cette tâche ?', 'Supprimer', 'danger'))) return;
+  const msg = _isGroupTask ? 'Supprimer cette tâche pour tous les praticiens ?' : 'Supprimer cette tâche ?';
+  if (!(await showConfirmDialog('Supprimer la tâche', msg, 'Supprimer', 'danger'))) return;
   const _dBtn = document.getElementById('tdDeleteBtn');
   if (_dBtn) { _dBtn.disabled = true; _dBtn.classList.add('is-loading'); }
   try {

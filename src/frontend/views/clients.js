@@ -6,7 +6,6 @@ import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
 import { guardModal } from '../utils/dirty-guard.js';
-import './whiteboards.js'; // registers openWhiteboardForClient, loadClientWhiteboards on window
 
 let clientSearch='';
 let clientFilter='';
@@ -27,25 +26,26 @@ async function loadClients(){
     const clients=d.clients||[];
     const stats=d.stats||{};
     const clLabel=categoryLabels.clients.toLowerCase();
-    let h=`<div class="kpis"><div class="kpi" onclick="clientFilter='';loadClients()" style="cursor:pointer"><div class="kpi-val">${stats.total||0}</div><div class="kpi-label">Total ${clLabel}</div></div><div class="kpi" onclick="clientFilter='blocked';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--red)">${stats.blocked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</div></div><div class="kpi" onclick="clientFilter='flagged';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:#B45309">${stats.flagged||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</div></div><div class="kpi"><div class="kpi-val" style="color:var(--primary)">${stats.clean||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> OK</div></div></div>`;
+    let h=`<div class="kpis"><div class="kpi" onclick="clientFilter='';loadClients()" style="cursor:pointer"><div class="kpi-val">${stats.total||0}</div><div class="kpi-label">Total ${clLabel}</div></div><div class="kpi" onclick="clientFilter='blocked';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--red)">${stats.blocked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</div></div><div class="kpi" onclick="clientFilter='flagged';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:#B45309">${stats.flagged||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</div></div><div class="kpi" onclick="clientFilter='fantome';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:#7C3AED">${stats.fantome||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Fantômes</div></div><div class="kpi" onclick="clientFilter='vip';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:#D4A017">${stats.vip||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="#D4A017" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> VIP</div></div><div class="kpi"><div class="kpi-val" style="color:var(--primary)">${stats.clean||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> OK</div></div></div>`;
     h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="position:relative;flex:1;min-width:200px"><input type="text" placeholder="Rechercher par nom, email ou téléphone..." value="${clientSearch}" id="clientSearchInput" oninput="clientLiveSearch(this.value)" onkeydown="if(event.key==='Enter'){document.getElementById('clientAcDrop').style.display='none';clientSearch=this.value;clientFilter='';loadClients()}" onfocus="if(this.value.length>=3)clientLiveSearch(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('clientAcDrop');if(d)d.style.display='none'},200)" style="width:100%" autocomplete="off"><div id="clientAcDrop" class="ac-results" style="display:none"></div></div><button class="btn-primary" onclick="document.getElementById('clientAcDrop').style.display='none';clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button>${clientSearch||clientFilter?`<button class="btn-outline" onclick="clientSearch='';clientFilter='';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reset</button>`:''}</div>`;
-    h+=`<div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn-sm ${!clientFilter?'active':''}" onclick="clientFilter='';loadClients()">Tous</button><button class="btn-sm ${clientFilter==='blocked'?'active':''}" onclick="clientFilter='blocked';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</button><button class="btn-sm ${clientFilter==='flagged'?'active':''}" onclick="clientFilter='flagged';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</button></div>`;
-    h+=`<div class="card"><div class="card-h"><h3>${clientFilter==='blocked'?categoryLabels.clients+' bloqué·e·s':clientFilter==='flagged'?categoryLabels.clients+' avec no-shows':'Tous les '+clLabel}</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
+    h+=`<div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn-sm ${!clientFilter?'active':''}" onclick="clientFilter='';loadClients()">Tous</button><button class="btn-sm ${clientFilter==='blocked'?'active':''}" onclick="clientFilter='blocked';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</button><button class="btn-sm ${clientFilter==='flagged'?'active':''}" onclick="clientFilter='flagged';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</button><button class="btn-sm ${clientFilter==='fantome'?'active':''}" onclick="clientFilter='fantome';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Fantômes</button><button class="btn-sm ${clientFilter==='vip'?'active':''}" onclick="clientFilter='vip';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> VIP</button></div>`;
+    h+=`<div class="card"><div class="card-h"><h3>${clientFilter==='blocked'?categoryLabels.clients+' bloqué·e·s':clientFilter==='flagged'?categoryLabels.clients+' avec no-shows':clientFilter==='fantome'?categoryLabels.clients+' fantômes':clientFilter==='vip'?categoryLabels.clients+' VIP':'Tous les '+clLabel}</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
     if(clients.length===0){h+=`<div class="empty">Aucun client${clientSearch?' trouvé':clientFilter?' dans cette catégorie':' encore'}</div>`;}
     else{
-      h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>RDV</th><th>No-shows</th><th>Dernière visite</th><th>Statut</th></tr></thead><tbody>`;
+      h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>RDV</th><th>NS</th><th title="Réservations jamais confirmées">Exp.</th><th>Dernière visite</th><th>Statut</th></tr></thead><tbody>`;
       clients.forEach(cl=>{
         const last=cl.last_visit?new Date(cl.last_visit).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'—';
-        const tagColors={'bloqué':'#dc2626','récidiviste':'#B45309','à surveiller':'#ca8a04','fidèle':'#15803d','actif':'#0D7377','nouveau':'#888'};
+        const tagColors={'bloqué':'#dc2626','récidiviste':'#B45309','à surveiller':'#ca8a04','fantôme':'#7C3AED','fidèle':'#15803d','actif':'#0D7377','nouveau':'#888'};
         const tagColor=tagColors[cl.tag]||'#888';
         const nsDisplay=cl.no_show_count>0?`<span style="color:#B45309;font-weight:600">${cl.no_show_count}</span>`:'0';
-        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</td><td>${esc(cl.phone||'—')}</td><td style="font-size:.78rem">${esc(cl.email||'—')}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${esc(cl.tag)}</span></td></tr>`;
+        const epDisplay=cl.expired_pending_count>0?`<span style="color:#7C3AED;font-weight:600">${cl.expired_pending_count}</span>`:'0';
+        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${cl.is_vip?'<span style="color:#D4A017;margin-right:4px" title="VIP">★</span>':''}${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</td><td>${esc(cl.phone||'—')}</td><td style="font-size:.78rem">${esc(cl.email||'—')}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td>${epDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${esc(cl.tag)}</span></td></tr>`;
       });
       h+=`</tbody></table></div>`;
     }
     h+=`</div>`;
     c.innerHTML=h;
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 // ── Live autocomplete for client search (3+ chars) ──
@@ -66,6 +66,9 @@ function clientLiveSearch(q) {
         dd.style.display = 'block'; return;
       }
       dd.innerHTML = cls.map(c => {
+        const vip = c.is_vip
+          ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FEF9E7;color:#D4A017;margin-left:6px">★ VIP</span>`
+          : '';
         const ns = c.no_show_count > 0
           ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FDE68A;color:#B45309;margin-left:6px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
           : '';
@@ -73,9 +76,9 @@ function clientLiveSearch(q) {
           ? `<span style="font-size:.62rem;font-weight:700;padding:1px 6px;border-radius:8px;background:#FECACA;color:#dc2626;margin-left:6px">Bloqué</span>`
           : '';
         const meta = [c.phone, c.email].filter(Boolean).join(' · ');
-        const tagColors = { 'récidiviste': '#B45309', 'à surveiller': '#ca8a04', 'fidèle': '#15803d', 'actif': '#0D7377', 'nouveau': '#888', 'bloqué': '#dc2626' };
+        const tagColors = { 'récidiviste': '#B45309', 'à surveiller': '#ca8a04', 'fantôme': '#7C3AED', 'fidèle': '#15803d', 'actif': '#0D7377', 'nouveau': '#888', 'bloqué': '#dc2626' };
         const tc = tagColors[c.tag] || '#888';
-        return `<div class="ac-item" onmousedown="event.preventDefault();openClientDetail('${c.id}');document.getElementById('clientAcDrop').style.display='none'"><div class="ac-name">${esc(c.full_name)}${ns}${bl}</div><div class="ac-meta">${esc(meta)}${meta ? ' · ' : ''}${c.total_bookings} RDV <span style="color:${tc};font-weight:600">${esc(c.tag)}</span></div></div>`;
+        return `<div class="ac-item" onmousedown="event.preventDefault();openClientDetail('${c.id}');document.getElementById('clientAcDrop').style.display='none'"><div class="ac-name">${esc(c.full_name)}${vip}${ns}${bl}</div><div class="ac-meta">${esc(meta)}${meta ? ' · ' : ''}${c.total_bookings} RDV <span style="color:${tc};font-weight:600">${esc(c.tag)}</span></div></div>`;
       }).join('');
       dd.style.display = 'block';
     } catch (e) { dd.style.display = 'none'; }
@@ -89,14 +92,29 @@ async function openClientDetail(id){
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
     const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="closeModal('clientModal')">${X_SVG}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${cl.is_vip?'<span style="color:#D4A017;margin-right:6px">★</span>':''}${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="closeModal('clientModal')">${X_SVG}</button></div><div class="m-body">`;
     if(cl.is_blocked){
       m+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#dc2626"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:#666">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="unblockClient('${cl.id}')">Débloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){
       m+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#B45309"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${cl.no_show_count} no-show${cl.no_show_count>1?'s':''}</strong>${cl.last_no_show_at?` <span style="color:#888">· dernier le ${new Date(cl.last_no_show_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="blockClient('${cl.id}')">Bloquer</button> <button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetNoShow('${cl.id}')">Reset</button></div>`;
     }
+    if(cl.expired_pending_count>0){
+      m+=`<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:#7C3AED"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> ${cl.expired_pending_count} réservation${cl.expired_pending_count>1?'s':''} jamais confirmée${cl.expired_pending_count>1?'s':''}</strong>${cl.last_expired_pending_at?` <span style="color:#888">· dernière le ${new Date(cl.last_expired_pending_at).toLocaleDateString('fr-BE')}</span>`:''}<br><button style="margin-top:6px;font-size:.75rem;padding:4px 10px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="resetExpired('${cl.id}')">Reset</button></div>`;
+    }
+    m+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${cl.is_vip?'#FEF9E7':'var(--surface)'};border:1px solid ${cl.is_vip?'#F5E6A3':'var(--border-light)'};border-radius:10px;margin-bottom:14px;transition:all .2s">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.1rem;color:#D4A017">★</span>
+        <div><div style="font-size:.82rem;font-weight:600;color:${cl.is_vip?'#D4A017':'var(--text)'}">Client VIP</div></div>
+      </div>
+      <label style="position:relative;display:inline-flex;width:44px;height:24px;flex-shrink:0;cursor:pointer">
+        <input type="checkbox" id="cl_vip" ${cl.is_vip?'checked':''} onchange="(function(t){var w=t.closest('div[style*=padding]');var spans=t.parentElement.querySelectorAll('span');spans[0].style.background=t.checked?'#D4A017':'var(--border)';spans[1].style.left=t.checked?'22px':'2px';w.style.background=t.checked?'#FEF9E7':'var(--surface)';w.style.borderColor=t.checked?'#F5E6A3':'var(--border-light)';w.querySelector('div>div>div').style.color=t.checked?'#D4A017':'var(--text)'})(this)" style="opacity:0;width:0;height:0;position:absolute">
+        <span style="position:absolute;inset:0;border-radius:100px;background:${cl.is_vip?'#D4A017':'var(--border)'};transition:all .2s"></span>
+        <span style="position:absolute;left:${cl.is_vip?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
     m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Nom</label><input class="m-input" id="cl_name" value="${esc(cl.full_name||'')}"></div><div><label class="m-field-label">Téléphone</label><input class="m-input" id="cl_phone" value="${esc(cl.phone||'')}"></div></div>`;
     m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Email</label><input class="m-input" id="cl_email" value="${esc(cl.email||'')}"></div><div><label class="m-field-label">N° BCE</label><input class="m-input" id="cl_bce" value="${esc(cl.bce_number||'')}"></div></div>`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Anniversaire</label><input class="m-input" type="date" id="cl_birthday" value="${cl.birthday?cl.birthday.substring(0,10):''}"></div><div></div></div>`;
     m+=`<div><label class="m-field-label">Notes</label><textarea class="m-input" id="cl_notes">${esc(cl.notes||'')}</textarea></div>`;
 
     // ── Notes internes (from bookings) ──
@@ -118,6 +136,32 @@ async function openClientDetail(id){
       m+=`</div></div>`;
     }
 
+    // ── Gift cards section ──
+    const gcs = d.gift_cards || [];
+    if (gcs.length > 0) {
+      const totalBalance = gcs.reduce((s, g) => s + (g.status === 'active' ? g.balance_cents : 0), 0);
+      m += `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">🎁 Cartes cadeau${totalBalance > 0 ? ' · <span style="color:#1B7A42;font-weight:700">' + (totalBalance/100).toFixed(2) + ' €</span>' : ''}</span><span class="m-sec-line"></span></div>`;
+      m += `<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden">`;
+      gcs.forEach((g, i) => {
+        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
+        const bal = (g.balance_cents / 100).toFixed(2);
+        const orig = (g.amount_cents / 100).toFixed(2);
+        const exp = g.expires_at ? new Date(g.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        const active = g.status === 'active' && g.balance_cents > 0;
+        m += `<div style="padding:8px 12px;background:${bg};font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <span style="font-weight:600;font-family:monospace;letter-spacing:.5px">${g.code}</span>
+            <span style="font-size:.72rem;color:var(--text-4);margin-left:6px">exp. ${exp}</span>
+          </div>
+          <div style="text-align:right">
+            <span style="font-weight:700;color:${active?'#1B7A42':'var(--text-4)'}">${bal} €</span>
+            ${g.balance_cents < g.amount_cents ? '<span style="font-size:.7rem;color:var(--text-4);margin-left:4px;text-decoration:line-through">' + orig + ' €</span>' : ''}
+          </div>
+        </div>`;
+      });
+      m += `</div></div>`;
+    }
+
     // ── Historique section (inside m-body, scrollable) ──
     const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'#B45309',confirmed:'var(--primary)',pending:'#888',pending_deposit:'#B45309'};
     const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente',pending_deposit:'Acompte requis'};
@@ -131,7 +175,7 @@ async function openClientDetail(id){
         const depTag = b.deposit_required ? (() => {
           const dc = {paid:'#15803D',refunded:'#1D4ED8',cancelled:'#DC2626',pending:'#B45309'}[b.deposit_status] || '#888';
           const dl = {paid:'Payé',refunded:'Remboursé',cancelled:'Conservé',pending:'En attente'}[b.deposit_status] || '';
-          return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(0)}\u20ac ${dl}</span>`;
+          return `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;color:${dc};background:${dc}12;margin-left:4px">\ud83d\udcb0 ${((b.deposit_amount_cents||0)/100).toFixed(2).replace('.',',')}\u20ac ${dl}</span>`;
         })() : '';
         const createdDt=b.created_at?new Date(b.created_at):null;
         const createdStr=createdDt?createdDt.toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'}):'';
@@ -144,54 +188,17 @@ async function openClientDetail(id){
     }
     m+=`</div>`;
 
-    // ── Whiteboards section ──
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg> Whiteboards</span><span class="m-sec-line"></span><button style="font-size:.68rem;padding:3px 10px;background:var(--primary-light);color:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;font-weight:700" onclick="openWhiteboardForClient('${cl.id}')">+ Nouveau</button></div><div id="clientWbList" style="font-size:.8rem;color:var(--text-4)">Chargement...</div></div>`;
-
-    // ── Session notes section ──
-    const sessionBookings = (d.bookings || []).filter(b => b.session_notes && b.session_notes.trim() && b.session_notes.trim() !== '<br>');
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes de séance${sessionBookings.length > 0 ? ' (' + sessionBookings.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
-    if (sessionBookings.length > 0) {
-      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
-      sessionBookings.forEach((sb, i) => {
-        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
-        const dt = new Date(sb.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
-        const sent = sb.session_notes_sent_at;
-        const badge = sent
-          ? '<span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:#1B7A42;background:#1B7A4212">Envoyé</span>'
-          : '<span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:#9C958E;background:#9C958E12">Brouillon</span>';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem;cursor:pointer" onclick="fcOpenDetail('${sb.id}')">
-          <span style="color:var(--text)">${sb.service_name || 'RDV'} du ${dt} · ${sb.practitioner_name || ''}</span>
-          ${badge}
-        </div>`;
-      });
-      m+=`</div>`;
-    } else {
-      m+=`<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--text-4)">Aucune note de séance</div>`;
-    }
-    m+=`</div>`;
-
-    // ── Documents pré-RDV section ──
-    const docsList = d.documents || [];
-    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">${IC.fileText} Documents pré-RDV${docsList.length > 0 ? ' (' + docsList.length + ')' : ''}</span><span class="m-sec-line"></span></div>`;
-    if (docsList.length > 0) {
-      const docStColors = { pending: '#9C958E', sent: '#E6A817', viewed: '#3B82F6', completed: '#1B7A42' };
-      const docStLabels = { pending: 'En attente', sent: 'Envoyé', viewed: 'Consulté', completed: 'Complété' };
-      const docTypeIco = { info: IC.info, form: IC.clipboard, consent: IC.penTool };
-      m+=`<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden;max-height:200px;overflow-y:auto">`;
-      docsList.forEach((doc, i) => {
-        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
-        const sc = docStColors[doc.status] || '#888';
-        const bkDate = doc.booking_date ? new Date(doc.booking_date).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) : '';
-        m+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${bg};font-size:.8rem">
-          <span style="color:var(--text)">${docTypeIco[doc.template_type] || IC.fileText} ${doc.template_name}${bkDate ? ' · RDV ' + bkDate : ''}</span>
-          <span style="font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:10px;color:${sc};background:${sc}12">${docStLabels[doc.status] || doc.status}</span>
-        </div>`;
-      });
-      m+=`</div>`;
-    } else {
-      m+=`<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--text-4)">Aucun document envoyé</div>`;
-    }
-    m+=`</div>`;
+    // ── Remarques (rich text for staff) ──
+    m+=`<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Remarques</span><span class="m-sec-line"></span></div>`;
+    m+=`<div style="border:1px solid var(--border-light);border-radius:8px;overflow:hidden">
+      <div id="cl_remarks_toolbar" style="display:flex;gap:2px;padding:4px 6px;background:var(--surface);border-bottom:1px solid var(--border-light)">
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-weight:700;font-size:.8rem" onclick="document.execCommand('bold')"><b>G</b></button>
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-style:italic;font-size:.8rem" onclick="document.execCommand('italic')"><i>I</i></button>
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.8rem" onclick="document.execCommand('underline')"><u>S</u></button>
+        <button type="button" style="padding:2px 6px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.8rem" onclick="document.execCommand('insertUnorderedList')">• Liste</button>
+      </div>
+      <div id="cl_remarks" contenteditable="true" style="min-height:80px;max-height:200px;overflow-y:auto;padding:8px 12px;font-size:.82rem;line-height:1.5;outline:none">${cl.remarks||''}</div>
+    </div></div>`;
 
     // ── Danger zone (subtle, bottom of m-body) ──
     if(!cl.is_blocked&&cl.no_show_count===0){
@@ -202,22 +209,15 @@ async function openClientDetail(id){
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('clientModal')">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
     guardModal(document.getElementById('clientModal'));
-    // Load whiteboards for this client
-    window.loadClientWhiteboards(cl.id).then(wbs=>{
-      const el=document.getElementById('clientWbList');
-      if(!el)return;
-      if(wbs.length===0){el.textContent='Aucun whiteboard';return;}
-      el.innerHTML=wbs.map(w=>{
-        const dt=new Date(w.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-light)"><span style="cursor:pointer;color:var(--primary);font-weight:500" onclick="window.open('/whiteboard/${w.id}','_blank')">${w.title||'Whiteboard'}</span><span style="font-size:.72rem;color:var(--text-4)">${dt}</span></div>`;
-      }).join('');
-    });
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 async function saveClient(id){
   try{
-    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value})});
+    const remarkEl=document.getElementById('cl_remarks');
+    const remarksHtml=remarkEl?remarkEl.innerHTML.trim():'';
+    const bdayVal=document.getElementById('cl_birthday')?.value||null;
+    const r=await fetch(`/api/clients/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({full_name:document.getElementById('cl_name').value,phone:document.getElementById('cl_phone').value,email:document.getElementById('cl_email').value,bce_number:document.getElementById('cl_bce').value,notes:document.getElementById('cl_notes').value,remarks:remarksHtml,birthday:bdayVal||null,is_vip:document.getElementById('cl_vip')?.checked||false})});
     if(!r.ok)throw new Error((await r.json()).error);
     document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
     GendaUI.toast(categoryLabels.client+' mis·e à jour','success');loadClients();
@@ -255,10 +255,20 @@ async function resetNoShow(id){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function resetExpired(id){
+  if(!confirm('Remettre le compteur de réservations non confirmées à zéro ?'))return;
+  try{
+    const r=await fetch(`/api/clients/${id}/reset-expired`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    document.getElementById('clientModal')?._dirtyGuard?.markClean(); closeModal('clientModal');
+    GendaUI.toast('Compteur remis à zéro','success');loadClients();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 // Expose to global scope for onclick handlers in dynamic HTML
-bridge({ loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, clientLiveSearch, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
+bridge({ loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
 // Also expose the mutable variables directly on window for inline onclick handlers
 Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ clientSearch=v; }, configurable: true });
 Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ clientFilter=v; }, configurable: true });
 
-export { loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, clientLiveSearch };
+export { loadClients, openClientDetail, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch };

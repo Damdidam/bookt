@@ -4,7 +4,7 @@
  * computes calendar bounds / hidden days / business hours,
  * builds toolbar HTML, initialises FullCalendar, and sets up SSE.
  */
-import { api, calState, userRole, user, allowedSections } from '../../state.js';
+import { api, calState, userRole, user, allowedSections, GendaUI } from '../../state.js';
 import { getContentArea } from '../../utils/dom.js';
 import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import { bridge } from '../../utils/window-bridge.js';
@@ -16,6 +16,8 @@ import { fcLoadMobileList } from './calendar-mobile.js';
 import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
 import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
+import { gaOnDatesSet, gaOnFilterChanged, gaDeactivate } from './gap-analyzer.js';
+import { soIsActive, soDeactivate, soOnDatesSet, soRefreshSlots } from './smart-optimizer.js';
 import { buildEventsCallback } from './calendar-data.js';
 
 // Force side-effect imports so bridge() calls register the global handlers
@@ -31,6 +33,8 @@ import './booking-ungroup.js';
 import './calendar-toolbar.js';
 import './calendar-mobile.js';
 import './calendar-featured.js';
+import './gap-analyzer.js';
+import './smart-optimizer.js';
 import './task-detail.js';
 
 // ── Practitioner filter ──
@@ -57,12 +61,22 @@ function fcFilterPractitioner(id, el) {
   // Star button always visible for owner/manager (auto-enable on use)
 
   fcRefresh();
+  gaOnFilterChanged();
+}
+
+// ── Booking search ──
+let _searchTimer = null;
+function fcSearchBookings(q) {
+  clearTimeout(_searchTimer);
+  calState.calSearchQuery = (q || '').trim().toLowerCase();
+  _searchTimer = setTimeout(() => fcRefresh(), 200);
 }
 
 // ── Status toggle ──
 function fcToggleStatus(status, el) {
   if (status === 'cancelled') { calState.fcShowCancelled = !calState.fcShowCancelled; }
   else if (status === 'no_show') { calState.fcShowNoShow = !calState.fcShowNoShow; }
+  else if (status === 'pending') { calState.fcShowPending = !calState.fcShowPending; }
   // Sync all copies (desktop + mobile)
   const isActive = el.classList.contains('active');
   document.querySelectorAll('.prac-pill.st-toggle').forEach(p => {
@@ -128,6 +142,9 @@ async function loadAgenda() {
     calState.fcServices = svD.services || [];
     calState.fcAllowOverlap = !!(bizD.business?.settings?.allow_overlap);
     calState.fcColorMode = bizD.business?.settings?.calendar_color_mode || 'category';
+    calState.calSearchQuery = '';
+    calState.fcBusinessSettings = bizD.business?.settings || {};
+    calState.fcDefaultView = bizD.business?.settings?.default_calendar_view || 'week';
 
     // Compute calendar bounds — prefer business_schedule (salon hours), fallback to practitioner avails
     const avails = avD.availabilities || {};
@@ -209,60 +226,88 @@ async function loadAgenda() {
     for (let d = 0; d < 7; d++) { if (!activeDays.has(d)) calState.fcHiddenDays.push(d); }
   } catch (e) { calState.fcPractitioners = []; calState.fcServices = []; }
 
-  // Build filter pills HTML (shared between desktop & mobile)
+  // Build filter pills — separate prac pills from status toggles
   const isPrac = userRole === 'practitioner';
   let pillsHtml = '';
+  let statusPillsHtml = '';
+  // Status toggles (shared by all roles)
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowPending ? 'active' : ''}" onclick="fcToggleStatus('pending',this)" style="font-size:.68rem;gap:4px"><span style="color:#D97706"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>En attente</div>`;
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   if (isPrac) {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   } else {
-    pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-hours" data-prac-id="all"></span><span class="prac-fill" data-fill-id="all"></span></div>`;
+    pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-hours" data-prac-id="${p.id}"></span><span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
+      pillsHtml += `<div class="prac-pill" onclick="fcFilterPractitioner('${p.id}',this)" title="${p.display_name}"><span class="dot" style="background:${p.color || 'var(--primary)'}"></span>${ini}<span class="prac-fill" data-fill-id="${p.id}"></span></div>`;
     });
-    pillsHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
-    pillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
   }
 
-  // Build category filter chips
+  // Build category filter chips (inner only — no wrapper div)
   const catSet = new Set();
   calState.fcServices.forEach(s => { if (s.is_active !== false) catSet.add(s.category || ''); });
   const categories = [...catSet].sort((a, b) => (a || 'zzz').localeCompare(b || 'zzz'));
   calState.fcHiddenCategories = new Set();
-  let catChipsHtml = '';
+  let catChipsInnerHtml = '';
   if (categories.length > 1) {
-    catChipsHtml = `<div class="at-row-cats" id="atCatFilters">`;
-    catChipsHtml += `<div class="cat-chip active" data-cat="__all__" onclick="fcFilterCategory('__all__',this)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
+    catChipsInnerHtml += `<div class="at-sep" style="width:1px;height:18px;background:var(--border-light);flex-shrink:0"></div>`;
+    catChipsInnerHtml += `<div class="cat-chip active" data-cat="__all__" onclick="fcFilterCategory('__all__',this)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
     categories.forEach(cat => {
       const label = cat || 'Autres';
       const svcOfCat = calState.fcServices.find(s => (s.category || '') === cat && s.is_active !== false);
       const color = svcOfCat?.color || 'var(--primary)';
-      catChipsHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
+      catChipsInnerHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
     });
-    catChipsHtml += `</div>`;
   }
 
   // Build unified toolbar
   const mobile = fcIsMobile();
-  const initView = mobile ? 'timeGridDay' : 'timeGridWeek';
-  const canFeatured = ['owner', 'manager'].includes(userRole);
+  const viewMap = { day: 'resourceTimeGridDay', week: 'rollingWeek', month: 'dayGridMonth' };
+  const initView = mobile ? 'timeGridDay' : (viewMap[calState.fcDefaultView] || 'rollingWeek');
+  const canFeatured = ['owner', 'manager'].includes(userRole) && calState.fcBusinessSettings?.featured_slots_enabled;
   const fsBtnHtml = canFeatured ? `<button class="at-view-btn fs-toggle-btn" id="fsToggleBtn" onclick="fsToggleMode()" title="Mode vedette"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>` : '';
+  const gaBtnHtml = canFeatured ? `<button class="at-view-btn ga-toggle-btn" id="gaToggleBtn" onclick="gaToggleMode()" title="Analyseur de gaps"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="ga-badge" id="gaBadge" style="display:none"></span></button>` : '';
+  const soBtnHtml = ['owner', 'manager'].includes(userRole) ? `<button class="at-view-btn so-toggle-btn" id="soToggleBtn" onclick="soToggleMode()" title="Quick booking"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>` : '';
+  // Lock button
+  const lockBtnHtml = `<button class="at-view-btn at-lock-btn" id="calLockBtn" onclick="fcToggleLock()" title="Verrouiller le calendrier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M17 11V7a5 5 0 0 0-9.58-2"/></svg></button>`;
+
+  // Compute today's label for the nav button
+  const _n = new Date();
+  const _da = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.'][_n.getDay()];
+  const _ma = ['Janv.','F\u00e9vr.','Mars','Avr.','Mai','Juin','Juil.','Ao\u00fbt','Sept.','Oct.','Nov.','D\u00e9c.'][_n.getMonth()];
+  const todayLabel = `${_da} ${_n.getDate()} ${_ma}`;
+
   let toolbar = `<div class="agenda-toolbar">`;
-  // Desktop: Row 1 -- nav + title + views + date
-  toolbar += `<div class="at-row-nav"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Aujourd'hui</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title" id="atTitle"></span><div class="at-views"><button class="at-view-btn" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')">Jour</button><button class="at-view-btn${initView === 'timeGridWeek' ? ' active' : ''}" data-view="timeGridWeek" onclick="atView('timeGridWeek')">Semaine</button><button class="at-view-btn" data-view="dayGridMonth" onclick="atView('dayGridMonth')">Mois</button><button class="at-view-btn" data-view="resourceTimelineDay" onclick="atView('resourceTimelineDay')">Timeline</button>${fsBtnHtml}</div><span class="at-date" id="atDate"></span></div>`;
-  // Desktop: Row 2 -- filter pills
-  toolbar += `<div class="at-row-filters">${pillsHtml}</div>`;
-  // Desktop: Row 2b -- thin full-width fill bar (no text)
+  // Desktop: Row 1 -- nav + title + prac pills + views + tools + search icon + filter toggle
+  const searchHtml = `<input type="search" id="calSearch" class="at-search at-search-hidden" placeholder="Rechercher un client..." oninput="fcSearchBookings(this.value)">`;
+  const searchIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+  const filterIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
+  toolbar += `<div class="at-row-nav">`;
+  toolbar += `<div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDate" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div>`;
+  toolbar += `<span class="at-title" id="atTitle"></span>`;
+  if (pillsHtml) toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
+  else toolbar += `<span style="flex:1"></span>`;
+  toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
+  toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
+  toolbar += `</div>`;
+  toolbar += `<div class="at-row-views">`;
+  toolbar += `<div class="at-view-pill">`;
+  toolbar += `<button class="at-vp-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
+  toolbar += `<button class="at-vp-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
+  toolbar += `<button class="at-vp-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
+  toolbar += `</div>`;
+  toolbar += `<div class="at-views">${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}</div>`;
+  toolbar += `</div>`;
+  // Desktop: Fill bar
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
-  // Desktop: Row 3 -- category filter chips (if multiple categories)
-  if (catChipsHtml) toolbar += catChipsHtml;
+  // Desktop: Collapsible filter panel (status toggles + category chips)
+  toolbar += `<div class="at-filter-panel" id="atFilterPanel"><div class="at-filter-panel-inner">${statusPillsHtml}${catChipsInnerHtml}</div></div>`;
   // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)
-  toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" onclick="atNav('today')">Auj.</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
-  // Mobile: Row 2 -- pills scrollable
-  toolbar += `<div class="at-row2">${pillsHtml}</div>`;
+  toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDateMob" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
+  // Mobile: Row 2 -- prac pills + status pills + search (scrollable)
+  const mobSearchHtml = `<input type="search" id="calSearchMob" class="at-search" placeholder="Rechercher..." oninput="fcSearchBookings(this.value)">`;
+  toolbar += `<div class="at-row2">${pillsHtml}${statusPillsHtml}${mobSearchHtml}</div>`;
   toolbar += `</div>`;
 
   c.innerHTML = toolbar + `<div id="fcCalendar" style="${mobile && calState.fcMobileView === 'list' ? 'display:none' : ''}"></div><div id="fcMobList" class="mob-list ${mobile && calState.fcMobileView === 'list' ? 'active' : ''}"></div>` +
@@ -273,8 +318,22 @@ async function loadAgenda() {
   const initInc = allIncs.length > 0 ? Math.min(...allIncs) : 15;
   const initSlotDur = fcSlotDuration(initInc);
 
-  // Init FullCalendar
+  // Restore lock state BEFORE calendar init so editable option + events are correct from the start
+  try { calState.fcLocked = localStorage.getItem('bookt_cal_locked') === '1'; } catch (_) {}
+
+  // Init FullCalendar (uses calState.fcLocked for editable option)
   initCalendar(initView, initSlotDur);
+
+  // Apply lock UI (button icon/class) — no need for setOption/refetchEvents, already baked into init
+  if (calState.fcLocked) fcApplyLockUI();
+
+  // Measure toolbar height for sticky column headers
+  const tb = document.querySelector('.agenda-toolbar');
+  if (tb) {
+    const setToolbarH = () => c.style.setProperty('--toolbar-h', tb.offsetHeight + 'px');
+    setToolbarH();
+    window.addEventListener('resize', setToolbarH);
+  }
 
   // Star button always visible for owner/manager (auto-enable on use)
 
@@ -284,10 +343,29 @@ async function loadAgenda() {
   // Setup quick create listeners (once)
   setupQuickCreateListeners();
 
+  // Gap analyzer: silent scan for badge + morning toast
+  setTimeout(() => { if (window.gaAutoScan) window.gaAutoScan(); }, 800);
+
   // Featured mode: reload slots when week changes, deactivate on month view
+  // Debounced to avoid redundant API calls during rapid prev/next clicks
+  let _featureDatesDebounce = null;
   calState.fcCal.on('datesSet', function (info) {
-    fsOnDatesSet();
-    if (info.view.type === 'dayGridMonth') fsDeactivate();
+    if (info.view.type === 'dayGridMonth') { fsDeactivate(); soDeactivate(); }
+    clearTimeout(_featureDatesDebounce);
+    _featureDatesDebounce = setTimeout(function () {
+      fsOnDatesSet();
+      gaOnDatesSet();
+      soOnDatesSet();
+    }, 200);
+  });
+
+  // Real-time QB slot refresh: when events change (SSE booking_update → refetch),
+  // re-render QB slots so taken slots disappear live while practitioner is browsing
+  let _soEventsDebounce = null;
+  calState.fcCal.on('eventsSet', function () {
+    if (!soIsActive()) return;
+    clearTimeout(_soEventsDebounce);
+    _soEventsDebounce = setTimeout(() => soRefreshSlots(), 300);
   });
 
   // Touch devices: setup swipe navigation
@@ -316,7 +394,74 @@ async function loadAgenda() {
   }
 }
 
+// ── Lock toggle ──
+const LOCK_ICON = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+const UNLOCK_ICON = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M17 11V7a5 5 0 0 0-9.58-2"/></svg>';
+
+function fcApplyLockUI() {
+  const btn = document.getElementById('calLockBtn');
+  if (btn) {
+    btn.classList.toggle('active', !!calState.fcLocked);
+    btn.innerHTML = calState.fcLocked ? LOCK_ICON : UNLOCK_ICON;
+  }
+}
+
+function fcToggleLock() {
+  calState.fcLocked = !calState.fcLocked;
+  try { localStorage.setItem('bookt_cal_locked', calState.fcLocked ? '1' : '0'); } catch (_) {}
+  const cal = calState.fcCal;
+  if (!cal) return;
+  // Belt-and-suspenders: update global FC option AND refetch events
+  // so both global defaults and per-event properties reflect lock state
+  cal.setOption('editable', !calState.fcLocked);
+  cal.refetchEvents();
+  // Visual feedback
+  fcApplyLockUI();
+  GendaUI.toast(calState.fcLocked ? 'Calendrier verrouillé' : 'Calendrier déverrouillé', 'info');
+}
+
+// ── Filter panel toggle ──
+function fcToggleFilterPanel() {
+  const panel = document.getElementById('atFilterPanel');
+  const btn = document.getElementById('atFilterToggle');
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (btn) btn.classList.toggle('active');
+  // Recalculate --toolbar-h for sticky headers after transition
+  const recalc = () => {
+    const tb = document.querySelector('.agenda-toolbar');
+    const c = document.querySelector('.content.agenda-active');
+    if (tb && c) c.style.setProperty('--toolbar-h', tb.offsetHeight + 'px');
+  };
+  // Immediate + after transition
+  requestAnimationFrame(recalc);
+  panel.addEventListener('transitionend', recalc, { once: true });
+}
+
+// ── Expandable search ──
+function fcToggleSearch() {
+  const wrap = document.getElementById('atSearchWrap');
+  const input = document.getElementById('calSearch');
+  if (!wrap || !input) return;
+  if (wrap.classList.contains('expanded')) {
+    wrap.classList.remove('expanded');
+    input.value = '';
+    fcSearchBookings('');
+  } else {
+    wrap.classList.add('expanded');
+    setTimeout(() => input.focus(), 220);
+  }
+}
+
+// Close search on click outside
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('atSearchWrap');
+  if (wrap && wrap.classList.contains('expanded') && !wrap.contains(e.target)) {
+    wrap.classList.remove('expanded');
+  }
+});
+
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcToggleFilterPanel, fcToggleSearch });
 
 export { loadAgenda };

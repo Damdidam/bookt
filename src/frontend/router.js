@@ -5,6 +5,9 @@
 import { getContentArea } from './utils/dom.js';
 import { showDirtyPrompt } from './utils/dirty-guard.js';
 
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+
+
 const SECTION_TITLES = {
   home: 'Dashboard',
   bookings: 'Agenda',
@@ -18,7 +21,7 @@ const SECTION_TITLES = {
   calls: 'Appels',
   invoices: 'Facturation',
   deposits: 'Acomptes',
-  documents: 'Documents pré-RDV',
+  reviews: 'Avis clients',
   settings: 'Paramètres',
   analytics: 'Statistiques',
   'cal-sync': 'Calendrier externe',
@@ -118,9 +121,9 @@ async function loadSection(section) {
         mod = await import('./views/deposits.js');
         mod.loadDeposits();
         break;
-      case 'documents':
-        mod = await import('./views/documents.js');
-        mod.loadDocuments();
+      case 'reviews':
+        mod = await import('./views/reviews.js');
+        mod.loadReviews();
         break;
       case 'analytics':
         mod = await import('./views/analytics.js');
@@ -139,11 +142,11 @@ async function loadSection(section) {
         mod.loadProfile();
         break;
       default:
-        c.innerHTML = `<div class="empty">Section "${section}" — Bientôt disponible</div>`;
+        c.innerHTML = `<div class="empty">Section "${esc(section)}" — Bientôt disponible</div>`;
     }
   } catch (e) {
     console.error(`Error loading section "${section}":`, e);
-    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur de chargement: ${e.message}</div>`;
+    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur de chargement: ${esc(e.message)}</div>`;
   }
 }
 

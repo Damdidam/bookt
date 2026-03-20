@@ -136,6 +136,8 @@ async function loadServices(){
         if(desc) h+=`<div class="svc-cat-comment">${esc(desc)}</div>`;
         h+=`</div>`;
         h+=`<div class="svc-cat-actions">`;
+        const catHasActive=groupSvcs.some(s=>s.is_active!==false);
+        h+=`<label class="svc-toggle" title="${catHasActive?'Désactiver la catégorie':'Activer la catégorie'}" onclick="event.stopPropagation()"><input type="checkbox"${catHasActive?' checked':''} onchange="toggleCategory('${safeCat}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
         if(cat!=='Autres') h+=`<button class="svc-icon-btn" onclick="event.stopPropagation();openCategoryModal('${safeCat}')" title="Modifier">${PENCIL_SVG}</button>`;
         if(cat!=='Autres') h+=`<button class="svc-icon-btn danger" onclick="event.stopPropagation();svcDeleteCategory('${safeCat}')" title="Supprimer">${TRASH_SVG}</button>`;
         h+=`</div>`;
@@ -156,7 +158,7 @@ async function loadServices(){
     c.innerHTML=h;
     restoreCollapsedState();
     initSvcTouchDnD();
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 function renderServiceRow(s,sortIdx){
@@ -193,9 +195,9 @@ function renderServiceRow(s,sortIdx){
   if(vars.length>0) h+=renderVariantList(vars,s.color||'var(--primary)',s.id);
   h+=`</div>`; // end info
   h+=`<div class="svc-row-actions">`;
+  h+=`<label class="svc-toggle" title="${s.is_active!==false?'Désactiver':'Activer'}" onclick="event.stopPropagation()"><input type="checkbox"${s.is_active!==false?' checked':''} onchange="toggleService('${s.id}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
   h+=`<button class="svc-icon-btn" onclick="openServiceModal('${s.id}')" title="Modifier">${PENCIL_SVG}</button>`;
-  if(s.is_active!==false) h+=`<button class="svc-icon-btn danger" onclick="if(confirm('Supprimer cette prestation ?'))deleteService('${s.id}')" title="Supprimer">${TRASH_SVG}</button>`;
-  else h+=`<button class="svc-icon-btn" onclick="if(confirm('Réactiver ?'))reactivateService('${s.id}')" title="Réactiver" style="color:#2E7D32;border-color:#C8E6C9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
+  h+=`<button class="svc-icon-btn danger" onclick="if(confirm('Supprimer cette prestation ?'))deleteService('${s.id}')" title="Supprimer">${TRASH_SVG}</button>`;
   h+=`</div>`;
   h+=`</div>`; // end row
   return h;
@@ -600,12 +602,13 @@ function renderServiceModal(svc,sectorCats,prefill){
   // ── SECTION 3: Planification ──
   m+=sec('Planification');
   m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Préavis minimum (heures)</label><input type="number" id="svc_min_notice" value="${svc?.min_booking_notice_hours||0}" min="0" placeholder="0"><small style="color:var(--text-secondary);font-size:11px">Délai minimum avant qu'un client puisse réserver en ligne</small></div></div>`;
   const modes=svc?.mode_options||['cabinet'];
   const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
   const showModes=!physicalOnlySectors.includes(userSector);
   if(showModes){
     m+=`<div class="field"><label>Mode</label><div style="display:flex;gap:10px;margin-top:4px">
-      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Cabinet</label>
+      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Au salon</label>
       <label class="svc-mode-opt"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> Visio</label>
       <label class="svc-mode-opt"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> Tél.</label>
     </div></div>`;
@@ -640,6 +643,8 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_flexibility" onchange="svcToggleFlexibility()" ${isFlexEnabled?'checked':''}><span class="svc-switch-track"></span> Proposer la flexibilité au client</label>`;
   m+=`<div id="svc_flexibility_fields" style="display:${isFlexEnabled?'flex':'none'};align-items:center;gap:8px;margin:8px 0 0 48px"><label style="font-size:.8rem;white-space:nowrap">Réduction offerte</label><input type="number" class="svc-input" id="svc_flex_discount" min="0" max="100" value="${flexDiscount}" style="width:70px"><span style="font-size:.82rem">%</span></div>`;
   m+=`</div>`;
+  const isPromoEligible=svc?svc.promo_eligible!==false:true;
+  m+=`<div class="field" style="margin-top:10px;margin-bottom:0"><label class="svc-switch"><input type="checkbox" id="svc_promo_eligible" ${isPromoEligible?'checked':''}><span class="svc-switch-track"></span> Éligible aux promotions dernière minute</label></div>`;
   m+=`</div>`;
 
   // ── SECTION 4: Affectation ──
@@ -813,9 +818,11 @@ async function saveService(id){
   const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
   const body={name:document.getElementById('svc_name').value,duration_min:parseInt(document.getElementById('svc_dur').value),price_cents:priceVal?Math.round(parseFloat(priceVal)*100):null,price_label:document.getElementById('svc_plabel').value||null,buffer_before_min:parseInt(document.getElementById('svc_bbefore').value)||0,buffer_after_min:parseInt(document.getElementById('svc_bafter').value)||0,category:selectedCat,color:catColorVal||'#1E3A8A',mode_options:modes.length?modes:['cabinet'],practitioner_ids:svcGetPracOrder(),processing_time:parseInt(document.getElementById('svc_pose_time')?.value)||0,processing_start:parseInt(document.getElementById('svc_pose_start')?.value)||0};
   body.description=document.getElementById('svc_desc')?.value.trim()||null;
+  body.min_booking_notice_hours=parseInt(document.getElementById('svc_min_notice')?.value)||0;
   body.bookable_online=document.getElementById('svc_bookable_online').checked;
   body.flexibility_enabled=document.getElementById('svc_flexibility').checked;
   body.flexibility_discount_pct=parseInt(document.getElementById('svc_flex_discount')?.value)||0;
+  body.promo_eligible=document.getElementById('svc_promo_eligible').checked;
   body.available_schedule=buildScheduleFromEditor();
   // Duplicate check: same name + same category (exclude current service if editing)
   const dupName=body.name.trim().toLowerCase();
@@ -835,14 +842,22 @@ async function saveService(id){
 
 // ===== SERVICE CRUD =====
 
+const BOOKING_WARNING='Ces prestations sont actuellement utilisées dans des RDV à venir. La désactivation empêche les nouvelles réservations mais les RDV existants sont maintenus.';
 async function deactivateService(id){
-  try{const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' désactivée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  try{const r=await fetch(`/api/services/${id}/deactivate`,{method:'PATCH',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);const d=await r.json();GendaUI.toast(categoryLabels.service+' désactivée','success');if(d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent cette prestation. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function reactivateService(id){
   try{const r=await fetch(`/api/services/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({is_active:true})});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' réactivée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 async function deleteService(id){
   try{const r=await fetch(`/api/services/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast(categoryLabels.service+' supprimée','success');loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+async function toggleService(id,active){
+  if(active) return reactivateService(id);
+  return deactivateService(id);
+}
+async function toggleCategory(cat,active){
+  try{const r=await fetch('/api/services/category-toggle',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({category:cat,is_active:active})});if(!r.ok)throw new Error((await r.json()).error);const d=await r.json();GendaUI.toast(`${d.toggled} prestation${d.toggled>1?'s':''} ${active?'activée':'désactivée'}${d.toggled>1?'s':''}`,'success');if(!active&&d.active_bookings>0)GendaUI.toast(`${d.active_bookings} RDV à venir utilisent ces prestations. `+BOOKING_WARNING,'warning',6000);loadServices();}catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
 // ===== VARIANT ROW (in modal) =====
@@ -998,6 +1013,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility });
 
-export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, openQuickStart };
+export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart };

@@ -43,7 +43,8 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
             price_cents, price_label, mode_options, prep_instructions_fr,
             prep_instructions_nl, color, description, available_schedule, practitioner_ids, variants,
             bookable_online, processing_time, processing_start,
-            flexibility_enabled, flexibility_discount_pct } = req.body;
+            flexibility_enabled, flexibility_discount_pct, promo_eligible,
+            min_booking_notice_hours } = req.body;
 
     if (!name || !duration_min) {
       return res.status(400).json({ error: 'name et duration_min requis' });
@@ -69,8 +70,9 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
         `INSERT INTO services (business_id, name, category, duration_min,
           buffer_before_min, buffer_after_min, price_cents, price_label,
           mode_options, prep_instructions_fr, prep_instructions_nl, color, description, available_schedule, bookable_online,
-          processing_time, processing_start, flexibility_enabled, flexibility_discount_pct)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          processing_time, processing_start, flexibility_enabled, flexibility_discount_pct, promo_eligible,
+          min_booking_notice_hours)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
          RETURNING *`,
         [bid, name, category || null, duration_min,
          buffer_before_min || 0, buffer_after_min || 0,
@@ -81,7 +83,9 @@ router.post('/', requireRole('owner', 'manager'), async (req, res, next) => {
          available_schedule ? JSON.stringify(available_schedule) : null,
          bookable_online !== false,
          parseInt(processing_time) || 0, parseInt(processing_start) || 0,
-         !!flexibility_enabled, parseInt(flexibility_discount_pct) || 0]
+         !!flexibility_enabled, parseInt(flexibility_discount_pct) || 0,
+         promo_eligible !== false,
+         parseInt(min_booking_notice_hours) || 0]
       );
 
       const svc = result.rows[0];
@@ -130,6 +134,12 @@ router.patch('/reorder', requireRole('owner', 'manager'), async (req, res, next)
     const bid = req.businessId;
     const { order } = req.body;
     if (!Array.isArray(order)) return res.status(400).json({ error: 'order array requis' });
+    // L6: Validate reorder items
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const item of order) {
+      if (!item.id || !UUID_RE.test(String(item.id))) return res.status(400).json({ error: 'ID invalide dans order' });
+      if (item.sort_order !== undefined && typeof item.sort_order !== 'number') return res.status(400).json({ error: 'sort_order invalide' });
+    }
     for (const item of order) {
       const sets = ['sort_order = $1'];
       const vals = [item.sort_order, item.id, bid];
@@ -167,7 +177,8 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
       'buffer_after_min', 'price_cents', 'price_label', 'mode_options',
       'prep_instructions_fr', 'prep_instructions_nl', 'is_active', 'color', 'sort_order', 'description', 'available_schedule', 'bookable_online',
       'processing_time', 'processing_start',
-      'flexibility_enabled', 'flexibility_discount_pct'];
+      'flexibility_enabled', 'flexibility_discount_pct', 'promo_eligible',
+      'min_booking_notice_hours'];
 
     const sets = [];
     const params = [id, bid];
@@ -232,7 +243,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
           end_at = start_at + (interval '1 minute' * $1),
           updated_at = NOW()
          WHERE service_id = $2 AND business_id = $3
-         AND status IN ('pending', 'confirmed', 'modified_pending')
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')
          AND start_at > NOW()`,
         [totalMin, id, bid]
       );
@@ -279,7 +290,7 @@ router.patch('/:id', requireRole('owner', 'manager'), async (req, res, next) => 
           await queryWithRLS(bid,
             `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
              WHERE service_variant_id = $2 AND business_id = $3
-             AND status IN ('pending', 'confirmed', 'modified_pending') AND start_at > NOW()`,
+             AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit') AND start_at > NOW()`,
             [totalMin, v.id, bid]
           );
         } else {
@@ -330,45 +341,95 @@ router.patch('/:id/deactivate', requireRole('owner', 'manager'), async (req, res
        WHERE id = $1 AND business_id = $2`,
       [req.params.id, req.businessId]
     );
-    res.json({ deactivated: true });
+    // Count future active bookings using this service
+    const upcoming = await queryWithRLS(req.businessId,
+      `SELECT COUNT(*)::int AS cnt FROM bookings
+       WHERE service_id = $1 AND business_id = $2
+         AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+      [req.params.id, req.businessId]
+    );
+    res.json({ deactivated: true, active_bookings: upcoming.rows[0].cnt });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/services/category-toggle — bulk activate/deactivate all services in a category
+router.patch('/category-toggle', requireRole('owner', 'manager'), async (req, res, next) => {
+  try {
+    const { category, is_active } = req.body;
+    if (!category || typeof is_active !== 'boolean') return res.status(400).json({ error: 'category and is_active required' });
+    const result = await queryWithRLS(req.businessId,
+      `UPDATE services SET is_active = $1, updated_at = NOW()
+       WHERE business_id = $2 AND category = $3
+       RETURNING id`,
+      [is_active, req.businessId, category]
+    );
+    let active_bookings = 0;
+    if (!is_active && result.rows.length > 0) {
+      const ids = result.rows.map(r => r.id);
+      const upcoming = await queryWithRLS(req.businessId,
+        `SELECT COUNT(*)::int AS cnt FROM bookings
+         WHERE service_id = ANY($1) AND business_id = $2
+           AND start_at > NOW() AND status IN ('pending','confirmed','pending_deposit')`,
+        [ids, req.businessId]
+      );
+      active_bookings = upcoming.rows[0].cnt;
+    }
+    res.json({ toggled: result.rows.length, is_active, active_bookings });
   } catch (err) {
     next(err);
   }
 });
 
 // DELETE /api/services/:id — permanent delete (blocked only if active bookings exist)
+// M7: Wrapped in transaction to prevent TOCTOU race (booking created between check & delete)
 router.delete('/:id', requireRole('owner', 'manager'), async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
 
-    // Only block on active bookings (pending, confirmed, modified_pending)
-    const active = await queryWithRLS(bid,
-      `SELECT COUNT(*)::int AS cnt FROM bookings
-       WHERE service_id = $1 AND business_id = $2
-       AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
-      [id, bid]
-    );
-    if (active.rows[0].cnt > 0) {
+    const result = await transactionWithRLS(bid, async (txClient) => {
+      // Lock the service row first to prevent concurrent modifications
+      const svcLock = await txClient.query(
+        `SELECT id FROM services WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+        [id, bid]
+      );
+      if (svcLock.rows.length === 0) return { notFound: true };
+
+      // Only block on active bookings (pending, confirmed, modified_pending)
+      const active = await txClient.query(
+        `SELECT COUNT(*)::int AS cnt FROM bookings
+         WHERE service_id = $1 AND business_id = $2
+         AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit')`,
+        [id, bid]
+      );
+      if (active.rows[0].cnt > 0) {
+        return { conflict: true, count: active.rows[0].cnt };
+      }
+
+      // Remove terminal bookings (cancelled, completed, no_show) that would block FK
+      await txClient.query(
+        `DELETE FROM bookings
+         WHERE service_id = $1 AND business_id = $2
+         AND status IN ('cancelled', 'completed', 'no_show')`,
+        [id, bid]
+      );
+
+      // Safe to hard delete (variants + practitioner_services cascade)
+      await txClient.query(
+        `DELETE FROM services WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      return { deleted: true };
+    });
+
+    if (result.notFound) return res.status(404).json({ error: 'Prestation introuvable' });
+    if (result.conflict) {
       return res.status(409).json({
-        error: `Impossible de supprimer : ${active.rows[0].cnt} réservation(s) active(s). Annulez-les d'abord ou désactivez la prestation.`
+        error: `Impossible de supprimer : ${result.count} réservation(s) active(s). Annulez-les d'abord ou désactivez la prestation.`
       });
     }
-
-    // Remove terminal bookings (cancelled, completed, no_show) that would block FK
-    await queryWithRLS(bid,
-      `DELETE FROM bookings
-       WHERE service_id = $1 AND business_id = $2
-       AND status IN ('cancelled', 'completed', 'no_show')`,
-      [id, bid]
-    );
-
-    // Safe to hard delete (variants + practitioner_services cascade)
-    const result = await queryWithRLS(bid,
-      `DELETE FROM services WHERE id = $1 AND business_id = $2 RETURNING id`,
-      [id, bid]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
 
     res.json({ deleted: true });
   } catch (err) {
@@ -459,7 +520,7 @@ router.patch('/:serviceId/variants/:variantId', requireRole('owner', 'manager'),
         await queryWithRLS(bid,
           `UPDATE bookings SET end_at = start_at + (interval '1 minute' * $1), updated_at = NOW()
            WHERE service_variant_id = $2 AND business_id = $3
-           AND status IN ('pending', 'confirmed', 'modified_pending') AND start_at > NOW()`,
+           AND status IN ('pending', 'confirmed', 'modified_pending', 'pending_deposit') AND start_at > NOW()`,
           [totalMin, variantId, bid]
         );
       }

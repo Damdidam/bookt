@@ -100,7 +100,7 @@ async function loadCalls(){
     else if(viewState.callTab==='usage') h+=renderCallUsage(usage,logs);
 
     c.innerHTML=h;
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 function renderCallLogs(logs){
@@ -230,11 +230,11 @@ function renderCallConfig(cs){
     h+=`<div style="text-align:center;padding:24px">`;
     h+=`<div style="font-size:2.5rem;margin-bottom:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>`;
     h+=`<h3 style="margin-bottom:8px">Activez le filtre d'appels intelligent</h3>`;
-    h+=`<p style="font-size:.85rem;color:var(--text-4);max-width:500px;margin:0 auto 20px">Vos patients re\u00e7oivent un SMS avec votre lien de r\u00e9servation. Les VIP passent directement. Fini les appels qui interrompent vos consultations.</p>`;
+    h+=`<p style="font-size:.85rem;color:var(--text-4);max-width:500px;margin:0 auto 20px">Vos clients re\u00e7oivent un SMS avec votre lien de r\u00e9servation. Les VIP passent directement. Fini les appels qui vous interrompent.</p>`;
     h+=`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">`;
     h+=`<button class="btn-primary" onclick="activateCallFilter('BE')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg> Num\u00e9ro belge</button>`;
     h+=`</div>`;
-    h+=`<div style="font-size:.72rem;color:var(--text-4)">Un num\u00e9ro virtuel est attribu\u00e9 \u00e0 votre cabinet. Inclus dans l'abonnement Premium.</div>`;
+    h+=`<div style="font-size:.72rem;color:var(--text-4)">Un num\u00e9ro virtuel est attribu\u00e9 \u00e0 votre salon. Inclus dans l'abonnement Premium.</div>`;
     h+=`</div></div>`;
     return h;
   }
@@ -290,7 +290,7 @@ function renderCallConfig(cs){
   // Toggles
   h+=`<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">`;
   h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_sms" ${cs.sms_after_call!==false?'checked':''}><span><strong>SMS automatique</strong> \u2014 Envoie le lien de r\u00e9servation par SMS</span></label>`;
-  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_voicemail" ${cs.voicemail_enabled?'checked':''}><span><strong>Messagerie vocale</strong> \u2014 En mode Strict/Vacances, propose au patient de laisser un message ("tapez 1")</span></label>`;
+  h+=`<label style="display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="call_voicemail" ${cs.voicemail_enabled?'checked':''}><span><strong>Messagerie vocale</strong> \u2014 En mode Strict/Vacances, propose au client de laisser un message ("tapez 1")</span></label>`;
   h+=`</div>`;
 
   // Repeat caller
@@ -308,7 +308,7 @@ function renderCallConfig(cs){
   // Instructions
   h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Comment \u00e7a marche</h3></div>`;
   h+=`<div style="font-size:.82rem;color:var(--text-3);line-height:1.7;padding:4px 0">`;
-  h+=`<strong>1.</strong> Communiquez le num\u00e9ro Twilio \u00e0 vos patients (carte de visite, site web, Google).<br>`;
+  h+=`<strong>1.</strong> Communiquez le num\u00e9ro Twilio \u00e0 vos clients (carte de visite, site web, Google).<br>`;
   h+=`<strong>2.</strong> Renseignez votre vrai GSM en "Num\u00e9ro de transfert" ci-dessus.<br>`;
   h+=`<strong>3.</strong> Ajoutez vos contacts importants (labo, pharmacie, confr\u00e8res) dans l'onglet VIP.<br>`;
   h+=`<strong>4.</strong> Les num\u00e9ros blacklist\u00e9s sont rejet\u00e9s silencieusement.<br>`;
@@ -319,7 +319,7 @@ function renderCallConfig(cs){
 }
 
 async function activateCallFilter(country){
-  if(!confirm(`Activer le filtre d'appels avec un num\u00e9ro ${country==='BE'?'belge':country==='FR'?'fran\u00e7ais':'n\u00e9erlandais'} ?\n\nUn num\u00e9ro virtuel sera attribu\u00e9 \u00e0 votre cabinet.`))return;
+  if(!confirm(`Activer le filtre d'appels avec un num\u00e9ro ${country==='BE'?'belge':country==='FR'?'fran\u00e7ais':'n\u00e9erlandais'} ?\n\nUn num\u00e9ro virtuel sera attribu\u00e9 \u00e0 votre salon.`))return;
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div><p style="text-align:center;margin-top:12px;color:var(--text-4)">Recherche d'un num\u00e9ro disponible...</p></div>`;
   try{
@@ -388,26 +388,26 @@ async function saveCallSettings(){
 
 function renderCallMessages(cs){
   let h=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Messages personnalis\u00e9s</h3></div><div style="padding:18px">`;
-  h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Personnalisez ce que vos patients entendent au t\u00e9l\u00e9phone et re\u00e7oivent par SMS. Laissez vide pour utiliser les messages par d\u00e9faut.</p>`;
+  h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Personnalisez ce que vos clients entendent au t\u00e9l\u00e9phone et re\u00e7oivent par SMS. Laissez vide pour utiliser les messages par d\u00e9faut.</p>`;
 
   // Announcement
   h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
   h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg> Message vocal (modes Soft / Strict)</div>`;
-  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Ce que le patient entend quand il appelle. Par d\u00e9faut : "Bonjour et bienvenue chez [cabinet]. Pour prendre rendez-vous, nous vous envoyons un SMS..."</div>`;
-  h+=`<div class="fg"><label class="fl">Message vocal</label><textarea class="fi" id="msg_custom_fr" rows="3" placeholder="Bonjour, vous avez joint le cabinet du Dr Dupont...">${esc(cs.custom_message_fr||'')}</textarea></div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Ce que le client entend quand il appelle. Par d\u00e9faut : "Bonjour et bienvenue chez [salon]. Pour prendre rendez-vous, nous vous envoyons un SMS..."</div>`;
+  h+=`<div class="fg"><label class="fl">Message vocal</label><textarea class="fi" id="msg_custom_fr" rows="3" placeholder="Bonjour, vous avez joint Le Studio Coiffure...">${esc(cs.custom_message_fr||'')}</textarea></div>`;
   h+=`</div>`;
 
   // Vacation message
   h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
   h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Message vacances</div>`;
-  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Par d\u00e9faut : "Le cabinet [nom] est actuellement ferm\u00e9 jusqu'au [date]. Vous pouvez prendre RDV en ligne..."</div>`;
-  h+=`<div class="fg"><label class="fl">Message vacances</label><textarea class="fi" id="msg_vac_fr" rows="3" placeholder="Bonjour, le cabinet est ferm\u00e9 pour cong\u00e9 annuel. Nous reprenons le...">${esc(cs.vacation_message_fr||'')}</textarea></div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Par d\u00e9faut : "[Salon] est actuellement ferm\u00e9 jusqu'au [date]. Vous pouvez prendre RDV en ligne..."</div>`;
+  h+=`<div class="fg"><label class="fl">Message vacances</label><textarea class="fi" id="msg_vac_fr" rows="3" placeholder="Bonjour, le salon est ferm\u00e9 pour cong\u00e9 annuel. Nous reprenons le...">${esc(cs.vacation_message_fr||'')}</textarea></div>`;
   h+=`</div>`;
 
   // SMS text
   h+=`<div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">`;
   h+=`<div style="font-weight:700;font-size:.85rem;margin-bottom:4px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> Texte du SMS</div>`;
-  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Le SMS envoy\u00e9 au patient. Par d\u00e9faut : "[Cabinet] : Prenez RDV en ligne sur [lien]"</div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-bottom:10px">Le SMS envoy\u00e9 au client. Par d\u00e9faut : "[Salon] : Prenez RDV en ligne sur [lien]"</div>`;
   h+=`<div class="fg"><label class="fl">SMS</label><input class="fi" id="msg_sms_fr" value="${esc(cs.custom_sms_fr||'')}" placeholder="Dr Dupont \u2014 Prenez RDV en ligne : {lien}"></div>`;
   h+=`</div>`;
 

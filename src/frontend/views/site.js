@@ -6,46 +6,54 @@ import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 import { guardModal } from '../utils/dirty-guard.js';
 
+// XSS-safe HTML escaping for admin views
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+const escAttr=s=>(s||'').replace(/"/g,'&quot;');
+const GRIP_SVG='<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
+
+// Only 3 template families remain: Funky, Épuré, Bold
 const THEMES={
-  classique:{name:'Classique',desc:'Épuré et professionnel. Teal + typographie éditoriale.',free:true,
-    colors:{bg:'#FAFAF9',nav:'#FAFAF9',navText:'#1A1816',primary:'#0D7377',text:'#1A1816',card:'#FFF',cardBorder:'#ECEAE6',heroBg:'#FAFAF9'},
-    heroStyle:'light',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&family=Instrument+Serif&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Plus Jakarta Sans',sans-serif",
-    fontLabel:'Jakarta Sans + Instrument Serif'},
-  prestige:{name:'Prestige',desc:'Bleu nuit + or. Idéal avocats, notaires, consultants.',free:false,
-    colors:{bg:'#F8F7F4',nav:'#1B1B1B',navText:'#FFF',primary:'#1E3A5F',text:'#1B1B1B',card:'#FFF',cardBorder:'#E0DDD8',heroBg:'#1B1B1B'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@500;600&display=swap',
-    serif:"'DM Serif Display',Georgia,serif",sans:"'Inter',sans-serif",
-    fontLabel:'Inter + DM Serif Display'},
-  zen:{name:'Zen',desc:'Vert sauge + beige. Parfait bien-être, thérapeutes, coachs.',free:false,
-    colors:{bg:'#F7F5F0',nav:'#F7F5F0',navText:'#2C2820',primary:'#6B7F5E',text:'#2C2820',card:'#FFFDF9',cardBorder:'#E5E0D6',heroBg:'#EDE9E0'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Nunito+Sans:wght@500;600&display=swap',
-    serif:"'Cormorant Garamond',Georgia,serif",sans:"'Nunito Sans',sans-serif",
-    fontLabel:'Nunito Sans + Cormorant Garamond'},
-  moderne:{name:'Moderne',desc:'Noir + blanc. Géométrique, tech-forward, minimaliste.',free:false,
-    colors:{bg:'#FAFAFA',nav:'#FAFAFA',navText:'#111',primary:'#111',text:'#111',card:'#FFF',cardBorder:'#E8E8E8',heroBg:'#FAFAFA'},
-    heroStyle:'light',layout:'left',accentCards:true,
-    fontUrl:'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Instrument+Serif&display=swap',
-    serif:"'Instrument Serif',Georgia,serif",sans:"'Space Grotesk',sans-serif",
-    fontLabel:'Space Grotesk + Instrument Serif'},
-  chaleureux:{name:'Chaleureux',desc:'Terracotta + crème. Accueillant, personnel, artisanal.',free:false,
-    colors:{bg:'#FAF6F2',nav:'#FAF6F2',navText:'#2E1F14',primary:'#8B4513',text:'#2E1F14',card:'#FFFCF8',cardBorder:'#E8E0D6',heroBg:'#F0EAE2'},
-    heroStyle:'light',layout:'center',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@500;600&display=swap',
-    serif:"'Libre Baskerville',Georgia,serif",sans:"'Source Sans 3',sans-serif",
-    fontLabel:'Source Sans 3 + Libre Baskerville'},
-  ocean:{name:'Océan',desc:'Bleu profond + ciel. Frais, ouvert, médical.',free:false,
-    colors:{bg:'#F5F8FA',nav:'#0F2440',navText:'#FFF',primary:'#1565C0',text:'#0F2440',card:'#FFF',cardBorder:'#DCE5ED',heroBg:'#0F2440'},
-    heroStyle:'dark',layout:'left',
-    fontUrl:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Lato:wght@400;700&display=swap',
-    serif:"'Playfair Display',Georgia,serif",sans:"'Lato',sans-serif",
-    fontLabel:'Lato + Playfair Display'}
+  funky:{name:'Funky',family:'funky'},
+  epure_nude:{name:'Épuré Nude',family:'epure'},
+  epure_sauge:{name:'Épuré Sauge',family:'epure'},
+  epure_blush:{name:'Épuré Blush',family:'epure'},
+  epure_charbon:{name:'Épuré Charbon',family:'epure'},
+  bold_nuit:{name:'Bold Nuit',family:'bold'},
+  bold_foret:{name:'Bold Forêt',family:'bold'},
+  bold_bordeaux:{name:'Bold Bordeaux',family:'bold'},
+  bold_electrique:{name:'Bold Électrique',family:'bold'}
 };
 
-let currentThemePreset='classique';
+// Map legacy presets to new ones
+function resolvePreset(p){
+  if(THEMES[p])return p;
+  // Legacy presets → default to epure_nude
+  return 'epure_nude';
+}
+
+const FAMILIES=[
+  {key:'funky',label:'Funky',desc:'Corail + gradients. Punchy, fun, salons beauté.',
+   fonts:'Sora + Playfair Display',
+   presets:[{key:'funky',label:'Corail',color:'#E8694A'}]},
+  {key:'epure',label:'Épuré',desc:'Minimaliste, élégant. Typographie raffinée, sections épurées.',
+   fonts:'DM Sans + Cormorant Garamond',
+   presets:[
+     {key:'epure_nude',label:'Nude',color:'#B8977E'},
+     {key:'epure_sauge',label:'Sauge',color:'#7D8B75'},
+     {key:'epure_blush',label:'Blush',color:'#C4898A'},
+     {key:'epure_charbon',label:'Charbon',color:'#555'}
+   ]},
+  {key:'bold',label:'Bold',desc:'Dark mode, audacieux. Premium, moderne, impact.',
+   fonts:'Space Grotesk + Instrument Serif',
+   presets:[
+     {key:'bold_nuit',label:'Nuit',color:'#D4AF37'},
+     {key:'bold_foret',label:'Forêt',color:'#A8C5A0'},
+     {key:'bold_bordeaux',label:'Bordeaux',color:'#E8A0BF'},
+     {key:'bold_electrique',label:'Électrique',color:'#4ECDC4'}
+   ]}
+];
+
+let currentThemePreset='epure_nude';
 let businessPlan='free';
 let _galleryCache=[];
 let _testimonialCache=[];
@@ -69,7 +77,7 @@ async function loadSiteSection(){
     const testimonialItems=testData.testimonials||[];
     const valueItems=valData.values||[];
     const b=d.business;
-    currentThemePreset=b.theme?.preset||'classique';
+    currentThemePreset=resolvePreset(b.theme?.preset||'epure_nude');
     businessPlan=b.plan||'free';
     const slug=b.slug||'';
 
@@ -79,14 +87,32 @@ async function loadSiteSection(){
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Contenu du site</h3></div>
       <div style="padding:18px">
         <div class="fg"><label class="fl">Slogan / Tagline</label><input class="fi" id="siteTagline" value="${(b.tagline||'').replace(/"/g,'&quot;')}" placeholder="Ex: Votre santé, notre priorité depuis 2018"></div>
-        <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${b.description||''}</textarea></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="fg"><label class="fl">Logo (URL)</label><input class="fi" id="siteLogo" value="${b.logo_url||''}" placeholder="https://..."></div>
-          <div class="fg"><label class="fl">Image de couverture (URL)</label><input class="fi" id="siteCover" value="${b.cover_image_url||''}" placeholder="https://..."></div>
+        <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${esc(b.description||'')}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-top:8px">
+          <div>
+            <label class="fl" style="margin-bottom:8px;display:block">Logo</label>
+            <div id="logoDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'logo')" onclick="document.getElementById('logoFileInput').click()" style="width:100%;aspect-ratio:1;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
+              ${b.logo_url?'<img src="'+esc(b.logo_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Logo</div>'}
+              ${b.logo_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'logo\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+            </div>
+            <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp,image/svg+xml" style="display:none" onchange="handleBrandingFile(this.files[0],'logo')">
+          </div>
+          <div>
+            <label class="fl" style="margin-bottom:8px;display:block">Bannière / Couverture</label>
+            <div id="coverDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'cover')" onclick="document.getElementById('coverFileInput').click()" style="width:100%;aspect-ratio:16/6;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
+              ${b.cover_image_url?'<img src="'+esc(b.cover_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Bannière (recommandé 1200×400)</div>'}
+              ${b.cover_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'cover\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+            </div>
+            <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'cover')">
+          </div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:4px">
-          ${b.logo_url?'<div style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+b.logo_url+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
-          ${b.cover_image_url?'<div style="flex:1;height:48px;border-radius:8px;border:1px solid var(--border-light);overflow:hidden"><img src="'+b.cover_image_url+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display=\'none\'"></div>':''}
+        <div style="margin-top:16px">
+          <label class="fl" style="margin-bottom:8px;display:block">Photo "Notre philosophie"</label>
+          <div id="aboutDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'about')" onclick="document.getElementById('aboutFileInput').click()" style="width:100%;aspect-ratio:16/9;max-width:400px;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
+            ${b.settings?.about_image_url?'<img src="'+esc(b.settings.about_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Image à côté de la description (recommandé 1200×800)</div>'}
+            ${b.settings?.about_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'about\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+          </div>
+          <input type="file" id="aboutFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'about')">
         </div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSiteContent()">Enregistrer</button></div>
@@ -97,61 +123,125 @@ async function loadSiteSection(){
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Réseaux sociaux</h3></div>
       <div style="padding:18px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="fg"><label class="fl">Facebook</label><input class="fi" id="socialFb" value="${sl.facebook||''}" placeholder="https://facebook.com/..."></div>
-          <div class="fg"><label class="fl">Instagram</label><input class="fi" id="socialIg" value="${sl.instagram||''}" placeholder="https://instagram.com/..."></div>
-          <div class="fg"><label class="fl">LinkedIn</label><input class="fi" id="socialLi" value="${sl.linkedin||''}" placeholder="https://linkedin.com/in/..."></div>
-          <div class="fg"><label class="fl">Site web</label><input class="fi" id="socialWeb" value="${sl.website||''}" placeholder="https://..."></div>
+          <div class="fg"><label class="fl">Facebook</label><input class="fi" id="socialFb" value="${escAttr(sl.facebook)}" placeholder="https://facebook.com/..."></div>
+          <div class="fg"><label class="fl">Instagram</label><input class="fi" id="socialIg" value="${escAttr(sl.instagram)}" placeholder="https://instagram.com/..."></div>
+          <div class="fg"><label class="fl">LinkedIn</label><input class="fi" id="socialLi" value="${escAttr(sl.linkedin)}" placeholder="https://linkedin.com/in/..."></div>
+          <div class="fg"><label class="fl">Site web</label><input class="fi" id="socialWeb" value="${escAttr(sl.website)}" placeholder="https://..."></div>
         </div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSocialLinks()">Enregistrer</button></div>
     </div>`;
 
-    h+=`<div class="card"><div class="card-h"><h3>Thème du mini-site</h3><span class="badge ${businessPlan==='free'?'badge-teal':'badge-teal'}">${businessPlan==='free'?'Plan Gratuit — 1 thème':'Plan '+businessPlan.charAt(0).toUpperCase()+businessPlan.slice(1)}</span></div>
+    // Determine which family is active
+    const activeFamily=currentThemePreset==='funky'?'funky':currentThemePreset.startsWith('bold')?'bold':'epure';
+
+    h+=`<div class="card"><div class="card-h"><h3>Template du mini-site</h3><span class="badge badge-teal">3 templates</span></div>
     <div style="padding:18px">
-      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:4px">Choisissez l'identité visuelle de votre site. Chaque thème inclut typographie, palette et mise en page uniques.</p>
-      ${businessPlan==='free'?'<p style="font-size:.78rem;color:var(--gold);margin-bottom:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> Passez au plan Pro pour débloquer les 5 thèmes premium + couleur personnalisée.</p>':''}
-      <div class="theme-grid">`;
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Choisissez le template de votre site. Chaque template a sa propre identité visuelle.</p>
+      <div class="theme-grid" style="grid-template-columns:repeat(3,1fr)">`;
 
-    Object.entries(THEMES).forEach(([key,t])=>{
-      const isActive=key===currentThemePreset;
-      const isPro=!t.free;
-      const isLocked=isPro&&businessPlan==='free';
-      const cls=`theme-card${isActive?' active':''}${isLocked?' locked':''}`;
-      const co=t.colors;
-      const heroAlign=t.layout==='center'?'center':'left';
+    // ── FUNKY miniature ──
+    const funkyActive=activeFamily==='funky';
+    h+=`<div class="theme-card${funkyActive?' active':''}" onclick="selectTheme('funky')">
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="theme-preview" style="background:#FFFAF7;overflow:hidden;position:relative">
+        <div class="tp-nav" style="background:rgba(255,250,247,.95);backdrop-filter:blur(8px)">
+          <div class="dot" style="background:linear-gradient(135deg,#E8694A,#F15BB5)">G</div>
+          <span class="tp-name" style="color:#1E1210;font-family:'Sora',sans-serif;font-weight:800;font-size:7px">GLOW</span>
+          <span class="tp-cta" style="background:#E8694A;font-family:'Sora',sans-serif;border-radius:100px;font-size:6px">Réserver ✨</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:6px;padding:6px 8px 4px;align-items:center">
+          <div style="text-align:left">
+            <div style="display:inline-block;padding:1px 6px;border-radius:20px;background:#FFF3ED;font-size:4px;color:#E8694A;font-weight:700;margin-bottom:3px">● Dispo</div>
+            <div style="font-family:'Sora',sans-serif;font-size:8px;font-weight:800;color:#1E1210;line-height:1.1;letter-spacing:-.3px">Votre moment<br><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:400">beauté</span></div>
+            <div style="margin-top:3px"><span style="display:inline-block;padding:2px 8px;background:#E8694A;color:#fff;border-radius:20px;font-size:4px;font-weight:700;font-family:'Sora',sans-serif">Réserver</span></div>
+          </div>
+          <div style="aspect-ratio:1;border-radius:40% 60% 55% 45%/55% 40% 60% 45%;background:linear-gradient(135deg,#FFF3ED,#FFE8DA,#FFEAF5);display:flex;align-items:center;justify-content:center"><span style="font-family:'Playfair Display',serif;font-size:14px;color:#E8694A;opacity:.15;font-style:italic">glow</span></div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:16px;padding:3px 8px;border-top:1px solid #F5E6DB;border-bottom:1px solid #F5E6DB">
+          <div style="text-align:center"><span style="font-size:7px;font-weight:800;background:linear-gradient(135deg,#E8694A,#F15BB5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">500+</span><div style="font-size:3px;color:#B8A49A">Clientes</div></div>
+          <div style="text-align:center"><span style="font-size:7px;font-weight:800;background:linear-gradient(135deg,#E8694A,#F15BB5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">4.9★</span><div style="font-size:3px;color:#B8A49A">Avis</div></div>
+        </div>
+      </div>
+      <div class="theme-info">
+        <h4>Funky</h4>
+        <p>Corail + gradients. Punchy, fun, salons beauté.</p>
+        <p style="font-size:.6rem;color:var(--text-4);margin-top:3px">Sora + Playfair Display</p>
+      </div>
+    </div>`;
 
-      h+=`<div class="${cls}" onclick="${isLocked?'':'selectTheme(\''+key+'\')'}">
-        <link rel="stylesheet" href="${t.fontUrl}">
-        <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-        ${isLocked?'<div class="lock-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>':''}
-        <div class="theme-preview" style="background:${co.heroBg}">
-          <div class="tp-nav" style="background:${co.nav}">
-            <div class="dot" style="background:${co.primary}">G</div>
-            <span class="tp-name" style="color:${co.navText};font-family:${t.sans}">Cabinet</span>
-            <span class="tp-cta" style="background:${co.primary};font-family:${t.sans}">RDV</span>
-          </div>
-          <div class="tp-hero" style="color:${t.heroStyle==='dark'?'#fff':co.text};text-align:${heroAlign}">
-            <h3 style="font-family:${t.serif}">Cabinet Dupont</h3>
-            <p style="font-family:${t.sans}">Votre santé, notre priorité</p>
-          </div>
-          <div class="tp-cards">
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
-            <div class="tp-card" style="background:${co.card};border-color:${co.cardBorder}${t.accentCards||t.layout==='center'?';border-top:2px solid '+co.primary:''}"></div>
-          </div>
+    // ── ÉPURÉ miniature ──
+    const epureActive=activeFamily==='epure';
+    const epurePreset=epureActive?currentThemePreset:'epure_nude';
+    const epureColors={epure_nude:{accent:'#B8977E',bg:'#FEFDFB',border:'#E8E0D8',subtle:'#F5F0EB'},epure_sauge:{accent:'#7D8B75',bg:'#FAFCF9',border:'#D8E0D4',subtle:'#F0F4ED'},epure_blush:{accent:'#C4898A',bg:'#FFFBFB',border:'#F0D8D8',subtle:'#FBF0F0'},epure_charbon:{accent:'#555',bg:'#FEFEFE',border:'#E0E0E0',subtle:'#F5F5F5'}};
+    const ec=epureColors[epurePreset]||epureColors.epure_nude;
+
+    h+=`<div class="theme-card${epureActive?' active':''}" onclick="selectTheme('${epurePreset}')">
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="theme-preview" style="background:${ec.bg};overflow:hidden">
+        <div class="tp-nav" style="background:${ec.bg};border-bottom:1px solid ${ec.border}">
+          <span class="tp-name" style="color:#2C2C2C;font-family:'DM Sans',sans-serif;font-weight:600;font-size:7px;letter-spacing:1px;text-transform:uppercase">GLOW studio</span>
+          <span class="tp-cta" style="background:transparent;color:${ec.accent};border:1px solid ${ec.accent};font-family:'DM Sans',sans-serif;border-radius:2px;font-size:5px;padding:2px 6px">Réserver</span>
         </div>
-        <div class="theme-info">
-          <h4>${t.name} <span class="th-badge ${t.free?'th-free':'th-pro'}">${t.free?'Gratuit':'Pro'}</span></h4>
-          <p>${t.desc}</p>
-          <p style="font-size:.6rem;color:var(--text-4);margin-top:3px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> ${t.fontLabel}${t.layout==='center'?' · <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="15" y1="17" x2="3" y2="17"/></svg> Centré':''}${t.accentCards?' · <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="18" height="4" rx="1" fill="currentColor"/></svg> Accents':''}</p>
+        <div style="text-align:center;padding:12px 8px 8px">
+          <div style="font-size:3.5px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:4px;font-family:'DM Sans',sans-serif">INSTITUT — BRUXELLES</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;color:#2C2C2C;line-height:1.2">L'art du soin,<br><span style="font-family:'Cormorant Garamond',serif;font-style:italic">sublime</span></div>
+          <div style="margin-top:5px"><span style="display:inline-block;padding:2px 8px;border:1px solid ${ec.accent};color:${ec.accent};font-family:'DM Sans',sans-serif;font-size:4px;border-radius:1px">Prendre rendez-vous</span></div>
         </div>
-      </div>`;
-    });
+        <div style="border-top:1px solid ${ec.border};margin:0 8px"></div>
+        <div style="padding:4px 8px">
+          <div style="font-size:3px;color:#888;border-bottom:1px solid ${ec.border};padding:2px 0;font-family:'DM Sans',sans-serif">Coiffure</div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid ${ec.border}"><span style="font-size:3.5px;font-family:'DM Sans',sans-serif;color:#2C2C2C">Coupe femme</span><span style="font-size:3.5px;color:${ec.accent};font-weight:600">35€</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid ${ec.border}"><span style="font-size:3.5px;font-family:'DM Sans',sans-serif;color:#2C2C2C">Brushing</span><span style="font-size:3.5px;color:${ec.accent};font-weight:600">25€</span></div>
+        </div>
+      </div>
+      <div class="theme-info">
+        <h4>Épuré</h4>
+        <p>Minimaliste, élégant, raffiné.</p>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+          ${FAMILIES[1].presets.map(v=>`<div onclick="event.stopPropagation();selectTheme('${v.key}')" style="width:18px;height:18px;border-radius:50%;background:${v.color};cursor:pointer;border:2px solid ${v.key===currentThemePreset?'var(--text)':'transparent'};transition:all .2s;box-shadow:${v.key===currentThemePreset?'0 0 0 2px var(--bg), 0 0 0 4px var(--text)':'none'}" title="${v.label}"></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+    // ── BOLD miniature ──
+    const boldActive=activeFamily==='bold';
+    const boldPreset=boldActive?currentThemePreset:'bold_nuit';
+    const boldColors={bold_nuit:{bg:'#111827',card:'#1F2937',accent:'#D4AF37',text:'#F9FAFB',muted:'#9CA3AF',border:'#374151'},bold_foret:{bg:'#0F1D1A',card:'#1A2E28',accent:'#A8C5A0',text:'#F0F4ED',muted:'#8A9E85',border:'#2D4A3E'},bold_bordeaux:{bg:'#1A0F18',card:'#2D1B2E',accent:'#E8A0BF',text:'#FBF0F5',muted:'#B08A9E',border:'#4A2D45'},bold_electrique:{bg:'#0F1419',card:'#1A2332',accent:'#4ECDC4',text:'#F0F8F7',muted:'#7BA8A3',border:'#2D4A55'}};
+    const bc=boldColors[boldPreset]||boldColors.bold_nuit;
+
+    h+=`<div class="theme-card${boldActive?' active':''}" onclick="selectTheme('${boldPreset}')">
+      <div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="theme-preview" style="background:${bc.bg};overflow:hidden;position:relative">
+        <div style="position:absolute;width:60px;height:60px;border:1px solid ${bc.accent};border-radius:50%;opacity:.12;right:-15px;top:50%;transform:translateY(-50%)"></div>
+        <div class="tp-nav" style="background:${bc.bg};border-bottom:1px solid ${bc.border}">
+          <span class="tp-name" style="color:${bc.text};font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:7px;letter-spacing:1px;text-transform:uppercase">GLOW <span style="font-family:'Instrument Serif',serif;font-style:italic;text-transform:none;font-weight:400;font-size:6px">studio</span></span>
+          <span class="tp-cta" style="background:${bc.accent};color:${bc.bg};font-family:'Space Grotesk',sans-serif;border-radius:4px;font-size:5px;padding:2px 6px;font-weight:600">Réserver</span>
+        </div>
+        <div style="padding:10px 8px 6px;position:relative;z-index:1">
+          <div style="font-size:3.5px;letter-spacing:2px;text-transform:uppercase;color:${bc.accent};margin-bottom:4px;font-weight:700;font-family:'Space Grotesk',sans-serif">BEAUTY — BRUXELLES</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;color:${bc.text};line-height:1.1">Votre style.<br><span style="font-family:'Instrument Serif',serif;font-style:italic;color:${bc.accent}">Notre obsession.</span></div>
+          <div style="display:flex;gap:4px;margin-top:5px">
+            <span style="display:inline-block;padding:2px 7px;background:${bc.accent};color:${bc.bg};font-size:4px;font-weight:600;border-radius:3px;font-family:'Space Grotesk',sans-serif">Réserver</span>
+            <span style="display:inline-block;padding:2px 7px;border:1px solid ${bc.accent};color:${bc.accent};font-size:4px;border-radius:3px;font-family:'Space Grotesk',sans-serif">Découvrir</span>
+          </div>
+          <div style="width:20px;height:2px;background:${bc.accent};border-radius:1px;margin-top:5px"></div>
+        </div>
+      </div>
+      <div class="theme-info">
+        <h4>Bold</h4>
+        <p>Dark mode, audacieux, premium.</p>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+          ${FAMILIES[2].presets.map(v=>`<div onclick="event.stopPropagation();selectTheme('${v.key}')" style="width:18px;height:18px;border-radius:50%;background:${v.color};cursor:pointer;border:2px solid ${v.key===currentThemePreset?'var(--text)':'transparent'};transition:all .2s;box-shadow:${v.key===currentThemePreset?'0 0 0 2px var(--bg), 0 0 0 4px var(--text)':'none'}" title="${v.label}"></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
 
     h+=`</div></div></div>`;
 
     // Custom color (Pro only)
-    const curColor=b.theme?.primary_color||THEMES[currentThemePreset]?.colors?.primary||'#0D7377';
+    const defaultColor=FAMILIES.flatMap(f=>f.presets).find(p=>p.key===currentThemePreset)?.color||'#0D7377';
+    const curColor=b.theme?.primary_color||defaultColor;
     h+=`<div class="card"><div class="card-h"><h3>Couleur personnalisée</h3>${businessPlan==='free'?'<span class="th-badge th-pro">Pro</span>':''}</div>
       <div style="padding:18px">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
@@ -166,17 +256,22 @@ async function loadSiteSection(){
     // -- GALLERY MANAGEMENT --
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Galerie photos</h3><button class="btn-primary" onclick="openGalleryModal()">+ Ajouter</button></div>
       <div style="padding:18px">
-        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Photos affichées sur votre mini-site. Glissez pour réordonner. URL d'image directe requise (Imgur, Cloudinary, etc.).</p>
+        <div id="storageQuota" style="margin-bottom:14px;padding:10px 14px;background:var(--bg-2);border-radius:8px;font-size:.82rem;color:var(--text-3)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Stockage</span><span id="quotaText">Chargement...</span></div>
+          <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div id="quotaBar" style="height:100%;background:var(--primary);border-radius:3px;width:0%;transition:width .3s"></div></div>
+        </div>
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Photos affichées sur votre mini-site. Glissez pour réordonner.</p>
         <div id="galleryGrid" class="gallery-admin-grid">`;
     if(galleryItems.length===0){
       h+=`<div class="empty" style="padding:24px;text-align:center;color:var(--text-4)">Aucune photo. Ajoutez votre première image !</div>`;
     }else{
       galleryItems.forEach((img,i)=>{
-        h+=`<div class="gal-item${img.is_active?'':' inactive'}" data-id="${img.id}">
-          <div class="gal-img"><img src="${img.image_url}" alt="${img.title||''}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23eee%22 width=%22200%22 height=%22150%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>Erreur</text></svg>'"></div>
+        h+=`<div class="gal-item${img.is_active?'':' inactive'}" data-id="${img.id}" draggable="true" ondragstart="galDragStart(event)" ondragover="galDragOver(event)" ondragleave="galDragLeave(event)" ondrop="galDrop(event)">
+          <span class="drag-handle" onclick="event.stopPropagation()">${GRIP_SVG}</span>
+          <div class="gal-img"><img src="${esc(img.image_url)}" alt="${esc(img.title||'')}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect fill=%22%23eee%22 width=%22200%22 height=%22150%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2214%22>Erreur</text></svg>'"></div>
           <div class="gal-info">
-            <div class="gal-title">${img.title||'<em style="color:var(--text-4)">Sans titre</em>'}</div>
-            ${img.caption?'<div class="gal-caption">'+img.caption+'</div>':''}
+            <div class="gal-title">${esc(img.title)||'<em style="color:var(--text-4)">Sans titre</em>'}</div>
+            ${img.caption?'<div class="gal-caption">'+esc(img.caption)+'</div>':''}
           </div>
           <div class="gal-actions">
             <button onclick="editGalleryItem('${img.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -203,10 +298,10 @@ async function loadSiteSection(){
           <div class="news-date">${date}</div>
           <div class="news-body">
             <div class="news-title-row">
-              <span class="news-title">${n.title}</span>
-              ${n.tag?'<span class="news-tag" style="background:'+((tagColors[n.tag_type]||'var(--text-4)')+'22')+';color:'+(tagColors[n.tag_type]||'var(--text-4)')+'">'+n.tag+'</span>':''}
+              <span class="news-title">${esc(n.title)}</span>
+              ${n.tag?'<span class="news-tag" style="background:'+((tagColors[n.tag_type]||'var(--text-4)')+'22')+';color:'+(tagColors[n.tag_type]||'var(--text-4)')+'">'+esc(n.tag)+'</span>':''}
             </div>
-            <div class="news-excerpt">${(n.content||'').substring(0,120)}${(n.content||'').length>120?'…':''}</div>
+            <div class="news-excerpt">${esc((n.content||'').substring(0,120))}${(n.content||'').length>120?'…':''}</div>
           </div>
           <div class="news-actions">
             <button onclick="editNewsItem('${n.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -230,8 +325,8 @@ async function loadSiteSection(){
         h+=`<div class="news-item${t.is_active!==false?'':' inactive'}" data-id="${t.id}">
           <div class="news-date" style="font-size:1.2rem">${t.rating?Array.from({length:t.rating},()=>'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg>').join(''):'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg> <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/></svg>'}</div>
           <div class="news-body">
-            <div class="news-title-row"><span class="news-title">${t.author_name||'Anonyme'}</span>${t.author_role?'<span class="news-tag" style="background:var(--primary-light);color:var(--primary)">'+t.author_role+'</span>':''}</div>
-            <div class="news-excerpt">${(t.content||'').substring(0,120)}${(t.content||'').length>120?'…':''}</div>
+            <div class="news-title-row"><span class="news-title">${esc(t.author_name||'Anonyme')}</span>${t.author_role?'<span class="news-tag" style="background:var(--primary-light);color:var(--primary)">'+esc(t.author_role)+'</span>':''}</div>
+            <div class="news-excerpt">${esc((t.content||'').substring(0,120))}${(t.content||'').length>120?'…':''}</div>
           </div>
           <div class="news-actions">
             <button onclick="editTestimonial('${t.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -252,10 +347,10 @@ async function loadSiteSection(){
     }else{
       valueItems.forEach(v=>{
         h+=`<div class="news-item" data-id="${v.id}">
-          <div class="news-date" style="font-size:1.4rem">${v.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}</div>
+          <div class="news-date" style="font-size:1.4rem">${v.icon||(v.icon===''?'':'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>')}</div>
           <div class="news-body">
-            <div class="news-title-row"><span class="news-title">${v.title||''}</span></div>
-            <div class="news-excerpt">${v.description||''}</div>
+            <div class="news-title-row"><span class="news-title">${esc(v.title||'')}</span></div>
+            <div class="news-excerpt">${esc(v.description||'')}</div>
           </div>
           <div class="news-actions">
             <button onclick="editValue('${v.id}')" title="Modifier"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -271,7 +366,7 @@ async function loadSiteSection(){
       <div style="padding:18px">
         <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Optimisez votre référencement sur Google.</p>
         <div class="fg"><label class="fl">Titre SEO</label><input class="fi" id="seoTitle" value="${(b.seo_title||'').replace(/"/g,'&quot;')}" placeholder="${b.name||'Mon cabinet'} — ${b.tagline||'Prise de rendez-vous en ligne'}"></div>
-        <div class="fg"><label class="fl">Description SEO</label><textarea class="fi" id="seoDesc" style="min-height:60px;resize:vertical" placeholder="Description qui apparaîtra dans les résultats Google (max 160 caractères)...">${b.seo_description||''}</textarea></div>
+        <div class="fg"><label class="fl">Description SEO</label><textarea class="fi" id="seoDesc" style="min-height:60px;resize:vertical" placeholder="Description qui apparaîtra dans les résultats Google (max 160 caractères)...">${esc(b.seo_description||'')}</textarea></div>
       </div>
       <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSEO()">Enregistrer</button></div>
     </div>`;
@@ -289,6 +384,7 @@ async function loadSiteSection(){
       {key:'gallery',label:'Galerie',icon:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'},
       {key:'specializations',label:'Spécialisations',icon:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>'},
       {key:'testimonials',label:'Témoignages',icon:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'},
+      {key:'reviews',label:'Avis clients',icon:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>'},
       {key:'news',label:'Actualités',icon:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>'},
       {key:'location',label:'Horaires & Contact',icon:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>'}
     ];
@@ -301,21 +397,62 @@ async function loadSiteSection(){
     });
     h+=`</div></div></div>`;
 
+    // -- AVIS CLIENTS (Reviews) --
+    const revOn=!!(b.settings?.reviews_enabled);
+    const revDelay=b.settings?.review_delay_hours||24;
+    h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Avis clients</h3></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Recueillez les avis de vos clients après leur rendez-vous. Les avis sont publiés automatiquement sur votre mini-site.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+          <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les avis clients</div><div style="font-size:.75rem;color:var(--text-4)">Un email est envoyé au client après son rendez-vous</div></div>
+          <label style="position:relative;width:44px;height:24px;cursor:pointer">
+            <input type="checkbox" id="s_reviews_enabled" ${revOn?'checked':''} onchange="document.getElementById('reviewOptions').style.display=this.checked?'block':'none'" style="display:none">
+            <span style="position:absolute;inset:0;background:${revOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+            <span style="position:absolute;left:${revOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+          </label>
+        </div>
+        <div id="reviewOptions" style="display:${revOn?'block':'none'}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:.82rem;color:var(--text-3)">Envoyer la demande d'avis</span><input type="number" id="s_review_delay" value="${revDelay}" min="1" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures après le RDV</span></div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-bottom:10px">Recommandé : 24h (laisse le temps au client de profiter du service)</div>
+          <div style="padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les avis sont publiés automatiquement. Vous pouvez masquer les avis abusifs depuis la section "Avis clients" du dashboard. 1 seul avis par rendez-vous.</div>
+        </div>
+      </div>
+      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveReviewSettings()">Enregistrer</button></div>
+    </div>`;
+
     c.innerHTML=h;
+    // Load storage quota
+    loadStorageQuota();
     // Init branding color swatches
     const cwWrap=document.getElementById('customColor_wrap');
     if(cwWrap){
       cwWrap.innerHTML=cswHTML('customColor',curColor,false);
       if(businessPlan==='free'){cwWrap.style.opacity='.4';cwWrap.style.pointerEvents='none';}
     }
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
+}
+
+async function loadStorageQuota(){
+  try{
+    const r=await fetch('/api/gallery/quota',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)return;
+    const q=await r.json();
+    const el=document.getElementById('quotaText');
+    const bar=document.getElementById('quotaBar');
+    if(el)el.textContent=q.used_formatted+' / '+q.quota_formatted+' utilisés';
+    if(bar){
+      bar.style.width=Math.min(q.percent,100)+'%';
+      if(q.percent>80)bar.style.background='var(--orange,#e67e22)';
+      if(q.percent>95)bar.style.background='var(--red,#e74c3c)';
+    }
+  }catch(e){console.warn('Quota load error:',e);}
 }
 
 async function selectTheme(preset){
   if(preset===currentThemePreset)return;
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({theme:{preset,primary_color:THEMES[preset]?.colors?.primary}})});
+      body:JSON.stringify({theme:{preset}})});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     currentThemePreset=preset;
     GendaUI.toast(`Thème "${THEMES[preset].name}" appliqué !`,'success');
@@ -334,17 +471,30 @@ async function saveCustomColor(){
 }
 
 // Gallery CRUD
+let galPendingPhoto=null;
+
 function openGalleryModal(item){
   const isEdit=!!item;
+  galPendingPhoto=null;
   const ov=document.createElement('div');ov.className='m-overlay open';ov.id='galModal';
   ov.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple"><h3>${isEdit?'Modifier la photo':'Ajouter une photo'}</h3><button class="m-close" onclick="closeModal('galModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="m-body">
-      <div><label class="m-field-label">URL de l'image *</label><input class="m-input" id="galUrl" value="${item?.image_url||''}" placeholder="https://i.imgur.com/...jpg">
-        <p style="font-size:.68rem;color:var(--text-4);margin-top:3px">Hébergez vos images sur <a href="https://imgur.com" target="_blank" style="color:var(--primary)">Imgur</a>, <a href="https://cloudinary.com" target="_blank" style="color:var(--primary)">Cloudinary</a> ou similaire.</p>
+      <div>
+        <label class="m-field-label">Image</label>
+        <div id="galDropZone" style="border:2px dashed var(--border-light);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s">
+          <input type="file" id="galFileInput" accept="image/jpeg,image/png,image/webp" style="display:none">
+          <p style="font-size:.85rem;font-weight:500;color:var(--text-2)">Cliquez ou glissez une image ici</p>
+          <p style="font-size:.7rem;color:var(--text-4);margin-top:4px">JPEG, PNG ou WebP — max 2 Mo</p>
+        </div>
       </div>
-      <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'}">
+      <div id="galPreview" style="margin-bottom:12px;border-radius:8px;overflow:hidden;max-height:200px;display:${item?.image_url?'block':'none'};position:relative">
         <img id="galPreviewImg" src="${item?.image_url||''}" style="width:100%;height:auto;max-height:200px;object-fit:cover">
+        <button id="galClearFile" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;line-height:1" onclick="clearGalFile()">×</button>
+      </div>
+      <div style="border-top:1px solid var(--border-light);padding-top:12px;margin-top:4px">
+        <label class="m-field-label" style="font-size:.72rem;color:var(--text-4)">Ou collez une URL</label>
+        <input class="m-input" id="galUrl" value="${isEdit?item?.image_url||'':''}" placeholder="https://i.imgur.com/...jpg" style="font-size:.82rem">
       </div>
       <div><label class="m-field-label">Titre</label><input class="m-input" id="galTitle" value="${item?.title||''}" placeholder="Ex: Notre cabinet"></div>
       <div><label class="m-field-label">Légende</label><input class="m-input" id="galCaption" value="${item?.caption||''}" placeholder="Ex: Salle d'attente rénovée en 2024"></div>
@@ -353,9 +503,20 @@ function openGalleryModal(item){
   </div>`;
   document.body.appendChild(ov);
   guardModal(document.getElementById('galModal'));
-  // Live preview
+
+  // File input + drop zone
+  const dropZone=document.getElementById('galDropZone');
+  const fileInput=document.getElementById('galFileInput');
+  dropZone.addEventListener('click',()=>fileInput.click());
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.style.borderColor='var(--primary)';dropZone.style.background='rgba(13,115,119,.04)';});
+  dropZone.addEventListener('dragleave',()=>{dropZone.style.borderColor='';dropZone.style.background='';});
+  dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.style.borderColor='';dropZone.style.background='';if(e.dataTransfer.files.length)handleGalFile(e.dataTransfer.files[0]);});
+  fileInput.addEventListener('change',()=>{if(fileInput.files.length)handleGalFile(fileInput.files[0]);});
+
+  // URL input live preview (fallback)
   const urlInput=document.getElementById('galUrl');
   urlInput.addEventListener('input',()=>{
+    if(galPendingPhoto)return; // file takes priority
     const url=urlInput.value.trim();
     const preview=document.getElementById('galPreview');
     const img=document.getElementById('galPreviewImg');
@@ -363,21 +524,60 @@ function openGalleryModal(item){
       img.src=url;preview.style.display='block';
     }else{preview.style.display='none';}
   });
-  urlInput.focus();
+}
+
+function handleGalFile(file){
+  if(!file.type.match(/^image\/(jpeg|png|webp)$/)){GendaUI.toast('Format invalide (JPEG, PNG ou WebP)','error');return;}
+  if(file.size>2*1024*1024){GendaUI.toast('Image trop lourde (max 2 Mo)','error');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    galPendingPhoto=e.target.result;
+    document.getElementById('galPreviewImg').src=galPendingPhoto;
+    document.getElementById('galPreview').style.display='block';
+    document.getElementById('galClearFile').style.display='block';
+    document.getElementById('galDropZone').innerHTML='<p style="font-size:.85rem;font-weight:500;color:var(--primary)">✓ Image sélectionnée</p><p style="font-size:.7rem;color:var(--text-4);margin-top:4px">Cliquez pour changer</p>';
+    document.getElementById('galUrl').value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearGalFile(){
+  galPendingPhoto=null;
+  document.getElementById('galPreview').style.display='none';
+  document.getElementById('galClearFile').style.display='none';
+  document.getElementById('galDropZone').innerHTML='<input type="file" id="galFileInput" accept="image/jpeg,image/png,image/webp" style="display:none"><p style="font-size:.85rem;font-weight:500;color:var(--text-2)">Cliquez ou glissez une image ici</p><p style="font-size:.7rem;color:var(--text-4);margin-top:4px">JPEG, PNG ou WebP — max 2 Mo</p>';
+  const fi=document.getElementById('galFileInput');
+  const dz=document.getElementById('galDropZone');
+  dz.addEventListener('click',()=>fi.click());
+  fi.addEventListener('change',()=>{if(fi.files.length)handleGalFile(fi.files[0]);});
 }
 
 async function saveGalleryItem(id){
   const url=document.getElementById('galUrl').value.trim();
   const title=document.getElementById('galTitle').value.trim();
   const caption=document.getElementById('galCaption').value.trim();
-  if(!url){GendaUI.toast('URL de l\'image requise','error');return;}
+
+  if(!galPendingPhoto&&!url){GendaUI.toast('Sélectionnez une image ou collez une URL','error');return;}
+
   const btn=document.getElementById('galSaveBtn');btn.disabled=true;btn.textContent='Enregistrement...';
   try{
-    const method=id?'PUT':'POST';
-    const endpoint=id?'/api/gallery/'+id:'/api/gallery';
-    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
-      body:JSON.stringify({image_url:url,title:title||null,caption:caption||null})});
+    let r;
+    if(galPendingPhoto&&!id){
+      // Upload file (new only)
+      r=await fetch('/api/gallery/upload',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+        body:JSON.stringify({photo:galPendingPhoto,title:title||null,caption:caption||null})});
+    }else{
+      // URL-based (create or edit)
+      const imgUrl=galPendingPhoto?undefined:url;
+      if(!id&&!imgUrl){GendaUI.toast('URL requise','error');btn.disabled=false;btn.textContent='Ajouter';return;}
+      const method=id?'PUT':'POST';
+      const endpoint=id?'/api/gallery/'+id:'/api/gallery';
+      const body=id?{title:title||null,caption:caption||null}:{image_url:imgUrl,title:title||null,caption:caption||null};
+      if(id&&url)body.image_url=url;
+      r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    }
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    galPendingPhoto=null;
     document.getElementById('galModal')._dirtyGuard?.markClean();
     closeModal('galModal');
     GendaUI.toast(id?'Photo modifiée':'Photo ajoutée','success');
@@ -431,7 +631,7 @@ function openNewsModal(item){
         </select></div>
       </div>
       <div><label class="m-field-label">Image (URL, optionnel)</label><input class="m-input" id="newsImage" value="${item?.image_url||''}" placeholder="https://..."></div>
-      <div><label class="m-field-label">Date de publication</label><input class="m-input" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toISOString().split('T')[0]}"></div>
+      <div><label class="m-field-label">Date de publication</label><input class="m-input" type="date" id="newsDate" value="${item?.published_at?.split('T')[0]||new Date().toLocaleDateString('en-CA')}"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newsModal')">Annuler</button><button class="m-btn m-btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
   </div>`;
@@ -511,14 +711,45 @@ async function saveSiteContent(){
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({
         tagline:document.getElementById('siteTagline').value.trim()||null,
-        description:document.getElementById('siteDescription').value.trim()||null,
-        logo_url:document.getElementById('siteLogo').value.trim()||null,
-        cover_image_url:document.getElementById('siteCover').value.trim()||null
+        description:document.getElementById('siteDescription').value.trim()||null
       })});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     GendaUI.toast('Contenu mis à jour','success');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
+
+async function handleBrandingFile(file,type){
+  if(!file)return;
+  const validTypes=type==='logo'?['image/jpeg','image/png','image/webp','image/svg+xml']:['image/jpeg','image/png','image/webp'];
+  if(!validTypes.includes(file.type)){GendaUI.toast('Format invalide','error');return;}
+  const maxSize=type==='logo'?1*1024*1024:2*1024*1024;
+  if(file.size>maxSize){GendaUI.toast(`Image trop lourde (max ${type==='logo'?'1':'2'} Mo)`,'error');return;}
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const zone=document.getElementById(type==='logo'?'logoDropZone':'coverDropZone');
+    zone.innerHTML='<div class="spinner" style="width:24px;height:24px"></div>';
+    try{
+      const r=await fetch('/api/business/upload-image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({photo:e.target.result,type})});
+      if(!r.ok){const d=await r.json();throw new Error(d.error);}
+      const d=await r.json();
+      GendaUI.toast(type==='logo'?'Logo mis à jour':'Bannière mise à jour','success');
+      loadSiteSection();
+    }catch(err){GendaUI.toast('Erreur: '+err.message,'error');loadSiteSection();}
+  };
+  reader.readAsDataURL(file);
+}
+window.handleBrandingFile=handleBrandingFile;
+
+async function deleteBrandingImage(type){
+  if(!confirm('Supprimer cette image ?'))return;
+  try{
+    const r=await fetch('/api/business/delete-image/'+type,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error('Erreur');
+    GendaUI.toast('Image supprimée','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+window.deleteBrandingImage=deleteBrandingImage;
 
 async function saveSocialLinks(){
   try{
@@ -625,7 +856,7 @@ function openValueModal(item){
         <input class="m-input" id="valIcon" value="${item?.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}" placeholder="Emoji ou texte" style="max-width:80px">
       </div>
       <div><label class="m-field-label">Titre *</label><input class="m-input" id="valTitle" value="${item?.title||''}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
-      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque patient est unique, nous prenons le temps"></div>
+      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque client est unique, nous prenons le temps"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('valModal')">Annuler</button><button class="m-btn m-btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
@@ -672,13 +903,83 @@ async function deleteValue(id){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+async function saveReviewSettings(){
+  try{
+    const data={
+      settings_reviews_enabled:document.getElementById('s_reviews_enabled').checked,
+      settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast(data.settings_reviews_enabled?'Avis clients activés':'Avis clients désactivés','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ── Gallery drag-and-drop ──
+let galDragEl=null, galDragFromHandle=false;
+
+document.addEventListener('mousedown',e=>{
+  if(e.target.closest('.gal-item .drag-handle'))galDragFromHandle=true;
+});
+document.addEventListener('mouseup',()=>{galDragFromHandle=false;});
+
+function galDragStart(e){
+  if(!galDragFromHandle){e.preventDefault();return;}
+  const item=e.target.closest('.gal-item');
+  if(!item){e.preventDefault();return;}
+  galDragEl=item;
+  item.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain','');
+}
+function galDragOver(e){
+  if(!galDragEl)return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  const target=e.target.closest('.gal-item');
+  if(target&&target!==galDragEl)target.classList.add('drag-over');
+}
+function galDragLeave(e){
+  const target=e.target.closest('.gal-item');
+  if(target)target.classList.remove('drag-over');
+}
+function galDrop(e){
+  e.preventDefault();
+  const target=e.target.closest('.gal-item');
+  if(!target||!galDragEl||target===galDragEl){cleanupGalDrag();return;}
+  target.classList.remove('drag-over');
+  const parent=galDragEl.parentNode;
+  const items=[...parent.querySelectorAll('.gal-item')];
+  const fromIdx=items.indexOf(galDragEl),toIdx=items.indexOf(target);
+  if(fromIdx<toIdx)target.after(galDragEl);else target.before(galDragEl);
+  cleanupGalDrag();
+  persistGalleryOrder();
+}
+function cleanupGalDrag(){
+  if(galDragEl)galDragEl.classList.remove('dragging');
+  document.querySelectorAll('.gal-item.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  galDragEl=null;galDragFromHandle=false;
+}
+document.addEventListener('dragend',()=>{if(galDragEl)cleanupGalDrag();});
+
+async function persistGalleryOrder(){
+  const items=[...document.querySelectorAll('#galleryGrid .gal-item')];
+  const order=items.map((el,i)=>({id:el.dataset.id,sort_order:i}));
+  if(!order.length)return;
+  try{
+    await fetch('/api/gallery/reorder',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({order})});
+  }catch(e){console.warn('Gallery reorder failed:',e);}
+}
+
 bridge({
   loadSiteSection, selectTheme, saveCustomColor,
-  openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem,
+  openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem, clearGalFile,
+  galDragStart, galDragOver, galDragLeave, galDrop,
   openNewsModal, saveNewsItem, editNewsItem, toggleNewsItem, deleteNewsItem,
   toggleSiteSection, saveSiteContent, saveSocialLinks, saveSEO,
   openTestimonialModal, saveTestimonial, editTestimonial, deleteTestimonial,
-  openValueModal, saveValue, editValue, deleteValue
+  openValueModal, saveValue, editValue, deleteValue,
+  saveReviewSettings
 });
 
 export { loadSiteSection };

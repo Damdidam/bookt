@@ -57,7 +57,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
 
       // Fetch business details + practitioner link for frontend
       const bizResult = await query(
-        `SELECT b.id, b.slug, b.name, b.sector, b.category, b.plan,
+        `SELECT b.id, b.slug, b.name, b.sector, b.category, b.plan, b.settings,
                 p.id AS practitioner_id, p.display_name AS practitioner_name
          FROM businesses b
          LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
@@ -68,7 +68,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
       return res.json({
         token,
         user: { id: user.id, email: user.email, role: user.role, business_name: user.business_name, practitioner_id: biz.practitioner_id || null, practitioner_name: biz.practitioner_name || null },
-        business: { id: biz.id, slug: biz.slug, name: biz.name, sector: biz.sector || 'autre', category: biz.category || 'autre', plan: biz.plan || 'free' }
+        business: { id: biz.id, slug: biz.slug, name: biz.name, sector: biz.sector || 'autre', category: biz.category || 'autre', plan: biz.plan || 'free', settings: biz.settings || {} }
       });
     }
 
@@ -158,7 +158,7 @@ router.post('/verify', authLimiter, async (req, res, next) => {
 
     // Fetch practitioner link + sector + category
     const extraResult = await query(
-      `SELECT b.id, b.slug, b.name, b.sector, b.category, b.plan,
+      `SELECT b.id, b.slug, b.name, b.sector, b.category, b.plan, b.settings,
               p.id AS practitioner_id, p.display_name AS practitioner_name
        FROM businesses b
        LEFT JOIN practitioners p ON p.user_id = $2 AND p.business_id = b.id AND p.is_active = true
@@ -178,7 +178,8 @@ router.post('/verify', authLimiter, async (req, res, next) => {
       },
       business: {
         id: extra.id, slug: extra.slug, name: extra.name,
-        sector: extra.sector || 'autre', category: extra.category || 'autre', plan: extra.plan || 'free'
+        sector: extra.sector || 'autre', category: extra.category || 'autre', plan: extra.plan || 'free',
+        settings: extra.settings || {}
       }
     });
   } catch (err) {

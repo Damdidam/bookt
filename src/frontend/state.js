@@ -72,6 +72,7 @@ export const calState = {
   fcCurrentEventId: null,
   fcShowCancelled: false,
   fcShowNoShow: false,
+  fcShowPending: true,
   fcEditOriginal: {},
   fcSelectedNotifyChannel: null,
   fcDetailData: { notes: [], todos: [], reminders: [] },
@@ -85,7 +86,9 @@ export const calState = {
   fcMobileView: 'grid',
   fcMobileDate: new Date(),
   fcAllBookings: [],
-  fcCurrentBooking: null
+  fcCurrentBooking: null,
+  fcLocked: false,
+  fcAbsences: []
 };
 
 // ── View-specific state ──
@@ -97,7 +100,7 @@ export const viewState = {
   invoiceFilter: 'all',
   invoiceType: 'all',
   scheduleData: {},
-  currentThemePreset: 'classique',
+  currentThemePreset: 'epure_nude',
   businessPlan: biz?.plan || 'free',
   callTab: 'logs',
   wlFilter: 'waiting',

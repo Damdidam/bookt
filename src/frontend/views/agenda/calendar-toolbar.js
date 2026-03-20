@@ -10,7 +10,18 @@ function atNav(action) {
   if (!calState.fcCal) return;
   if (action === 'prev') calState.fcCal.prev();
   else if (action === 'next') calState.fcCal.next();
-  else if (action === 'today') calState.fcCal.today();
+  else if (action === 'today') {
+    // Rolling week: "today" should show yesterday as first visible day
+    if (calState.fcCal.view.type === 'rollingWeek') {
+      const t = new Date();
+      t.setDate(t.getDate() - 1);
+      const hd = calState.fcHiddenDays || [];
+      while (hd.includes(t.getDay())) t.setDate(t.getDate() - 1);
+      calState.fcCal.gotoDate(t);
+    } else {
+      calState.fcCal.today();
+    }
+  }
   if (fcIsMobile() && calState.fcMobileView === 'list') {
     calState.fcMobileDate = calState.fcCal.getDate();
     fcLoadMobileList();
@@ -19,8 +30,18 @@ function atNav(action) {
 
 function atView(view) {
   if (!calState.fcCal) return;
-  calState.fcCal.changeView(view);
-  document.querySelectorAll('.at-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  const prevType = calState.fcCal.view.type;
+  // When switching between views, preserve the visible date context.
+  // rollingWeek starts from yesterday, so switching to day view without
+  // an explicit date would show yesterday. Use getDate() to keep the
+  // calendar's current reference date, and for rollingWeek→day use today.
+  let targetDate = calState.fcCal.getDate();
+  if (prevType === 'rollingWeek' && (view === 'resourceTimeGridDay' || view === 'timeGridDay')) {
+    targetDate = new Date();
+  }
+  calState.fcCal.changeView(view, targetDate);
+  calState.fcCal.refetchEvents();
+  document.querySelectorAll('.at-vp-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
 }
 
 function atMobView(view) {
@@ -54,12 +75,16 @@ function atUpdateTitle() {
     const d = view.currentStart;
     title = DFULL[d.getDay()] + ' ' + d.getDate() + ' ' + MFULL[d.getMonth()];
     if (d.getFullYear() !== new Date().getFullYear()) title += ' ' + d.getFullYear();
-  } else if (view.type === 'timeGridWeek') {
+  } else if (view.type === 'timeGridWeek' || view.type === 'rollingWeek') {
     const s = view.currentStart, e = new Date(view.currentEnd.getTime() - 86400000);
+    // ISO week number
+    const thu = new Date(s.getTime()); thu.setDate(thu.getDate() + 3 - (thu.getDay() + 6) % 7);
+    const w1 = new Date(thu.getFullYear(), 0, 4);
+    const wn = 1 + Math.round(((thu.getTime() - w1.getTime()) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7);
     if (s.getMonth() === e.getMonth()) {
-      title = s.getDate() + ' \u2013 ' + e.getDate() + ' ' + MNAMES[s.getMonth()] + ' ' + s.getFullYear();
+      title = 'Sem. ' + wn + ' \u2014 ' + s.getDate() + ' \u2013 ' + e.getDate() + ' ' + MNAMES[s.getMonth()] + ' ' + s.getFullYear();
     } else {
-      title = s.getDate() + ' ' + MNAMES[s.getMonth()] + ' \u2013 ' + e.getDate() + ' ' + MNAMES[e.getMonth()] + ' ' + s.getFullYear();
+      title = 'Sem. ' + wn + ' \u2014 ' + s.getDate() + ' ' + MNAMES[s.getMonth()] + ' \u2013 ' + e.getDate() + ' ' + MNAMES[e.getMonth()] + ' ' + s.getFullYear();
     }
   } else if (view.type === 'dayGridMonth') {
     const d = view.currentStart;
@@ -69,10 +94,13 @@ function atUpdateTitle() {
   // Update both desktop and mobile title elements
   const el = document.getElementById('atTitle'); if (el) el.textContent = title;
   const elM = document.getElementById('atTitleMob'); if (elM) elM.textContent = title;
-  // Update date label
+  // Update today button label
   const now = new Date();
-  const dateStr = DNAMES[now.getDay()] + ' ' + now.getDate() + ' ' + MNAMES[now.getMonth()];
+  const DABBR = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.'];
+  const MABBR = ['Janv.','F\u00e9vr.','Mars','Avr.','Mai','Juin','Juil.','Ao\u00fbt','Sept.','Oct.','Nov.','D\u00e9c.'];
+  const dateStr = DABBR[now.getDay()] + ' ' + now.getDate() + ' ' + MABBR[now.getMonth()];
   const elD = document.getElementById('atDate'); if (elD) elD.textContent = dateStr;
+  const elDM = document.getElementById('atDateMob'); if (elDM) elDM.textContent = dateStr;
 }
 
 // Expose to global scope for onclick handlers

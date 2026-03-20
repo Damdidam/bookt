@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide de reservation — Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+.gi-lg{width:1.4em;height:1.4em}
+
+*{-webkit-tap-highlight-color:transparent}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;--gold:#A68B3C;--gold-bg:#FAF6EC;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--radius:14px;--radius-sm:10px}
+
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased;padding:24px}
+.page{max-width:680px;margin:0 auto}
+
+/* Header */
+.header{text-align:center;margin-bottom:40px}
+.header .logo-link{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+.header .logo-icon{width:40px;height:40px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.header .logo-icon img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+.header .biz-name{font-family:var(--serif);font-size:1.6rem}
+.header h1{font-family:var(--serif);font-size:2rem;font-weight:400;margin-top:16px;color:var(--text)}
+.header .subtitle{color:var(--text-3);font-size:.95rem;margin-top:6px}
+
+/* Sections */
+.section{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);margin-bottom:20px;overflow:hidden}
+.section-header{display:flex;align-items:center;gap:14px;padding:20px 24px;cursor:pointer;user-select:none;transition:background .15s}
+.section-header:hover{background:var(--surface)}
+.section-icon{width:42px;height:42px;border-radius:12px;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.section-title{flex:1}
+.section-title h2{font-size:1.05rem;font-weight:700}
+.section-title .desc{font-size:.82rem;color:var(--text-3);margin-top:2px}
+.section-chevron{color:var(--text-4);transition:transform .2s}
+.section.open .section-chevron{transform:rotate(180deg)}
+.section-body{display:none;padding:0 24px 24px;animation:fadeIn .2s}
+.section.open .section-body{display:block}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* Content */
+.rule{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-light)}
+.rule:last-child{border:none}
+.rule-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.85rem}
+.rule-icon.info{background:var(--primary-light);color:var(--primary)}
+.rule-icon.warn{background:var(--gold-bg);color:var(--gold)}
+.rule-icon.ok{background:var(--green-bg);color:var(--green)}
+.rule-icon.danger{background:var(--red-bg);color:var(--red)}
+.rule-text{flex:1}
+.rule-text strong{font-weight:700;font-size:.9rem}
+.rule-text p{font-size:.85rem;color:var(--text-3);margin-top:2px}
+
+.highlight{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:6px;font-weight:700;font-size:.85rem}
+.highlight.primary{background:var(--primary-light);color:var(--primary)}
+.highlight.gold{background:var(--gold-bg);color:var(--gold)}
+.highlight.green{background:var(--green-bg);color:var(--green)}
+.highlight.red{background:var(--red-bg);color:var(--red)}
+
+.disabled-section{opacity:.5;pointer-events:none}
+.disabled-badge{display:inline-flex;padding:2px 10px;border-radius:6px;background:var(--surface);color:var(--text-4);font-size:.75rem;font-weight:600;margin-left:8px}
+
+/* Footer */
+.footer{text-align:center;padding:32px 0;color:var(--text-4);font-size:.78rem}
+.footer a{color:var(--primary);text-decoration:none}
+
+/* Loading */
+.loading{text-align:center;padding:80px 24px;color:var(--text-3)}
+.loading .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.error-msg{text-align:center;padding:60px 24px}
+.error-msg h2{font-family:var(--serif);font-size:1.4rem;margin-bottom:8px}
+.error-msg p{color:var(--text-3);font-size:.9rem}
+
+/* Book CTA */
+.book-cta{display:block;text-align:center;padding:14px;background:var(--primary);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-size:.95rem;text-decoration:none;margin-top:32px;transition:background .15s}
+.book-cta:hover{background:var(--primary-hover)}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div id="root">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Chargement du guide...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const slug = location.pathname.split('/').filter(Boolean)[0];
+  if (!slug) { showError(); return; }
+
+  fetch(`/api/public/${slug}/guide`)
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(data => render(data))
+    .catch(() => showError());
+
+  function showError() {
+    document.getElementById('root').innerHTML = `
+      <div class="error-msg">
+        <h2>Page introuvable</h2>
+        <p>Ce salon n'existe pas ou n'est plus actif.</p>
+      </div>`;
+  }
+
+  function fmt(cents) { return (cents / 100).toFixed(2).replace('.', ',') + ' \u20AC'; }
+  function fmtDur(min) { return min >= 60 ? Math.floor(min/60) + 'h' + (min%60 ? (min%60 < 10 ? '0' : '') + min%60 : '') : min + ' min'; }
+
+  function svgIcon(name) {
+    const icons = {
+      calendar: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      check: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      shield: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+      x: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+      refresh: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>',
+      bell: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>',
+      star: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+      gift: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>',
+      clock: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      zap: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+      users: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+      chevron: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+    };
+    return icons[name] || '';
+  }
+
+  function render(data) {
+    const f = data.flows;
+    const biz = data.business;
+    document.title = `Guide de reservation — ${biz.name}`;
+
+    // Set primary color
+    if (biz.primary_color) {
+      document.documentElement.style.setProperty('--primary', biz.primary_color);
+      // Derive hover (darken ~15%)
+      const hex = biz.primary_color.replace('#', '');
+      const r = Math.max(0, parseInt(hex.substr(0,2),16) - 25);
+      const g = Math.max(0, parseInt(hex.substr(2,2),16) - 25);
+      const b = Math.max(0, parseInt(hex.substr(4,2),16) - 25);
+      document.documentElement.style.setProperty('--primary-hover', `rgb(${r},${g},${b})`);
+    }
+
+    const logoHtml = biz.logo_url
+      ? `<div class="logo-icon"><img src="${biz.logo_url}" alt="${biz.name}"></div>`
+      : `<div class="logo-icon">${biz.name.charAt(0)}</div>`;
+
+    let html = `
+      <div class="header">
+        <a href="/${biz.slug}" class="logo-link">${logoHtml}<span class="biz-name">${biz.name}</span></a>
+        <h1>Guide de reservation</h1>
+        <p class="subtitle">Tout ce que vous devez savoir pour prendre rendez-vous</p>
+      </div>`;
+
+    // ── 1. Reservation
+    html += buildSection('calendar', 'Prendre rendez-vous', 'Comment reserver en ligne', true, `
+      ${rule('info', 'Reservation en ligne 24h/24', 'Choisissez votre prestation, votre praticien(ne) et un creneau qui vous convient, directement depuis notre site.')}
+      ${f.multi_service_enabled ? rule('ok', 'Plusieurs prestations en une fois', 'Vous pouvez combiner plusieurs prestations en un seul rendez-vous. Elles seront enchainees sans interruption.') : ''}
+      ${rule('info', 'Coordonnees requises', 'Votre adresse email est obligatoire pour recevoir la confirmation. Le telephone est optionnel mais recommande pour les rappels SMS.')}
+    `);
+
+    // ── 2. Confirmation
+    if (f.confirmation_required) {
+      html += buildSection('check', 'Confirmation', 'Validez votre rendez-vous par email', false, `
+        ${rule('warn', `Vous avez ${f.confirmation_timeout_min} minutes pour confirmer`, `Apres votre reservation, vous recevrez un email avec un bouton "Confirmer". Si vous ne confirmez pas dans les ${f.confirmation_timeout_min} minutes, le creneau sera automatiquement libere.`)}
+        ${rule('info', 'Pensez a verifier vos spams', 'Si vous ne trouvez pas l\'email, regardez dans votre dossier courrier indesirable.')}
+      `);
+    } else {
+      html += buildSection('check', 'Confirmation', 'Votre rendez-vous est confirme automatiquement', false, `
+        ${rule('ok', 'Confirmation automatique', 'Votre rendez-vous est confirme des que vous finalisez votre reservation. Vous recevez un email de confirmation immediatement.')}
+      `);
+    }
+
+    // ── 3. Acompte
+    if (f.deposit_enabled) {
+      let threshDesc = '';
+      const hasPrice = f.deposit_price_threshold_cents > 0;
+      const hasDur = f.deposit_duration_threshold_min > 0;
+      if (hasPrice && hasDur) {
+        const mode = f.deposit_threshold_mode === 'both' ? 'et' : 'ou';
+        threshDesc = `Un acompte est demande lorsque le prix total depasse ${fmt(f.deposit_price_threshold_cents)} ${mode} que la duree depasse ${fmtDur(f.deposit_duration_threshold_min)}.`;
+      } else if (hasPrice) {
+        threshDesc = `Un acompte est demande lorsque le prix total depasse ${fmt(f.deposit_price_threshold_cents)}.`;
+      } else if (hasDur) {
+        threshDesc = `Un acompte est demande lorsque la duree depasse ${fmtDur(f.deposit_duration_threshold_min)}.`;
+      } else {
+        threshDesc = 'Un acompte peut etre demande selon la prestation choisie.';
+      }
+
+      let amountDesc = '';
+      if (f.deposit_type === 'fixed') {
+        amountDesc = `Le montant de l'acompte est de ${fmt(f.deposit_fixed_cents)}.`;
+      } else {
+        amountDesc = `Le montant de l'acompte correspond a ${f.deposit_percent}% du prix total de la prestation.`;
+      }
+
+      html += buildSection('shield', 'Acompte', 'Securisez votre creneau', false, `
+        ${rule('warn', 'Quand un acompte est-il demande ?', threshDesc)}
+        ${rule('info', 'Montant', amountDesc)}
+        ${rule('info', 'Delai de paiement', `Vous disposez d'un delai pour regler l'acompte. La deadline est au plus tard ${f.deposit_deadline_hours}h avant votre rendez-vous. Pour les reservations de derniere minute, la deadline s'adapte automatiquement.`)}
+        ${rule('danger', 'En cas de non-paiement', 'Si l\'acompte n\'est pas regle dans le delai imparti, le rendez-vous est automatiquement annule et le creneau libere.')}
+        ${f.giftcard_enabled ? rule('ok', 'Paiement par carte cadeau', 'Si vous disposez d\'une carte cadeau, son solde sera automatiquement utilise pour couvrir l\'acompte (en totalite ou partiellement).') : ''}
+        ${rule('ok', 'Remboursement', `En cas d'annulation dans le delai autorise (${f.cancel_deadline_hours}h avant le RDV), l'acompte est integralement rembourse.`)}
+      `);
+    }
+
+    // ── 4. Annulation
+    html += buildSection('x', 'Annulation', `Jusqu'a ${f.cancel_deadline_hours}h avant le rendez-vous`, false, `
+      ${rule('info', `Annulation gratuite jusqu'a ${f.cancel_deadline_hours}h avant`, `Vous pouvez annuler gratuitement votre rendez-vous jusqu'a ${f.cancel_deadline_hours} heures avant l'heure prevue, directement depuis le lien "Gerer mon rendez-vous" dans votre email de confirmation.`)}
+      ${rule('danger', 'Apres ce delai', 'L\'annulation n\'est plus possible en ligne. Veuillez nous contacter directement.')}
+      ${f.deposit_enabled ? rule('warn', 'Impact sur l\'acompte', `Si vous annulez dans le delai (${f.cancel_deadline_hours}h avant), l'acompte est rembourse. Au-dela, l'acompte est conserve.`) : ''}
+      ${f.cancel_policy_text ? rule('info', 'Politique d\'annulation', f.cancel_policy_text) : ''}
+    `);
+
+    // ── 5. Report
+    html += buildSection('refresh', 'Modifier la date', `${f.reschedule_max_count} modification(s) autorisee(s)`, false, `
+      ${rule('info', `${f.reschedule_max_count} report${f.reschedule_max_count > 1 ? 's' : ''} autorise${f.reschedule_max_count > 1 ? 's' : ''}`, `Vous pouvez reporter votre rendez-vous jusqu'a ${f.reschedule_max_count} fois, dans une fenetre de ${f.reschedule_window_days} jours.`)}
+      ${rule('ok', 'Acompte conserve', 'Si vous aviez paye un acompte, il reste valable pour la nouvelle date. Pas besoin de repayer.')}
+      ${rule('info', 'Comment faire ?', 'Depuis le lien "Gerer mon rendez-vous" dans votre email de confirmation, cliquez sur "Modifier la date" et choisissez un nouveau creneau.')}
+    `);
+
+    // ── 6. Rappels
+    html += buildSection('bell', 'Rappels', 'Ne manquez plus vos rendez-vous', false, `
+      ${f.reminder_email_24h ? rule('ok', 'Rappel email 24h avant', 'Vous recevrez un email de rappel la veille de votre rendez-vous avec tous les details.') : ''}
+      ${f.reminder_sms_24h ? rule('ok', 'Rappel SMS 24h avant', 'Un SMS de rappel vous sera envoye 24 heures avant votre rendez-vous.') : ''}
+      ${f.reminder_sms_2h ? rule('ok', 'Rappel SMS 2h avant', 'Un dernier rappel par SMS 2 heures avant votre rendez-vous.') : ''}
+      ${!f.reminder_email_24h && !f.reminder_sms_24h && !f.reminder_sms_2h ? rule('info', 'Pas de rappel automatique', 'Pensez a noter votre rendez-vous dans votre agenda. Vous pouvez l\'ajouter a votre calendrier depuis l\'email de confirmation.') : ''}
+    `);
+
+    // ── 7. Avis
+    html += buildSection('star', 'Votre avis', 'Aidez-nous a nous ameliorer', false, `
+      ${rule('info', 'Apres votre visite', 'Vous recevrez un email vous invitant a noter votre experience. Il suffit de cliquer sur le nombre d\'etoiles correspondant.')}
+      ${rule('ok', 'Facultatif et rapide', 'Laisser un avis prend moins de 30 secondes. Vous pouvez ajouter un commentaire si vous le souhaitez.')}
+    `);
+
+    // ── 8. Cartes cadeaux
+    if (f.giftcard_enabled) {
+      html += buildSection('gift', 'Cartes cadeaux', 'Offrez ou utilisez une carte cadeau', false, `
+        ${rule('ok', 'Utilisation a la reservation', 'Si vous possedez une carte cadeau, son solde sera automatiquement detecte lors de votre reservation (par email ou par code).')}
+        ${rule('info', 'Couverture partielle', 'Si le solde de votre carte ne couvre pas la totalite de l\'acompte, vous pouvez completer par carte bancaire.')}
+      `);
+    }
+
+    // ── 9. Promo derniere minute
+    if (f.last_minute_enabled && f.last_minute_discount_pct > 0) {
+      const deadlineLabel = f.last_minute_deadline === 'j-2' ? 'dans les 2 prochains jours'
+        : f.last_minute_deadline === 'j-1' ? 'pour le lendemain'
+        : 'pour aujourd\'hui';
+      html += buildSection('zap', 'Offres derniere minute', `Jusqu'a ${f.last_minute_discount_pct}% de reduction`, false, `
+        ${rule('ok', `${f.last_minute_discount_pct}% de reduction`, `Profitez d'une reduction de ${f.last_minute_discount_pct}% sur les creneaux disponibles ${deadlineLabel}.`)}
+        ${rule('info', 'Prestations eligibles', 'Certaines prestations peuvent etre exclues de cette offre. La reduction s\'affiche directement sur les creneaux concernes.')}
+      `);
+    }
+
+    // ── 10. Waitlist
+    if (f.waitlist_enabled) {
+      html += buildSection('users', 'Liste d\'attente', 'Soyez prevenu(e) si un creneau se libere', false, `
+        ${rule('info', 'Inscription', 'Si aucun creneau ne vous convient, inscrivez-vous sur la liste d\'attente. Vous serez contacte(e) des qu\'une place se libere.')}
+        ${rule('warn', '2 heures pour repondre', 'Lorsqu\'un creneau se libere et qu\'il vous est propose, vous disposez de 2 heures pour accepter. Passe ce delai, l\'offre est transmise a la personne suivante.')}
+      `);
+    }
+
+    // Book CTA
+    html += `<a href="/${biz.slug}" class="book-cta">Prendre rendez-vous</a>`;
+
+    // Footer
+    html += `<div class="footer">Guide de reservation de <strong>${biz.name}</strong><br>Propulse par <a href="https://genda.be" target="_blank">Genda</a></div>`;
+
+    document.getElementById('root').innerHTML = html;
+
+    // Open first section
+    const first = document.querySelector('.section');
+    if (first) first.classList.add('open');
+
+    // Toggle sections
+    document.querySelectorAll('.section-header').forEach(h => {
+      h.addEventListener('click', () => h.closest('.section').classList.toggle('open'));
+    });
+  }
+
+  function buildSection(icon, title, desc, openByDefault, body) {
+    return `<div class="section${openByDefault ? ' open' : ''}">
+      <div class="section-header">
+        <div class="section-icon">${svgIcon(icon)}</div>
+        <div class="section-title"><h2>${title}</h2><p class="desc">${desc}</p></div>
+        <div class="section-chevron">${svgIcon('chevron')}</div>
+      </div>
+      <div class="section-body">${body}</div>
+    </div>`;
+  }
+
+  function rule(type, title, text) {
+    const icons = { info: svgIcon('clock'), warn: svgIcon('bell'), ok: svgIcon('check'), danger: svgIcon('x') };
+    return `<div class="rule">
+      <div class="rule-icon ${type}">${icons[type] || ''}</div>
+      <div class="rule-text"><strong>${title}</strong><p>${text}</p></div>
+    </div>`;
+  }
+})();
+</script>
+</body>
+</html>

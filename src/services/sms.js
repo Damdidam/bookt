@@ -23,8 +23,11 @@ async function sendSMS(opts) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
 
+  // L10: Mask phone numbers in logs to prevent PII leaks
+  const masked = to.length > 4 ? '***' + to.slice(-4) : '***';
+
   if (!sid || !token) {
-    console.log(`  [SMS mock] To: ${to} — ${body}`);
+    console.log(`  [SMS mock] To: ${masked} — ${body.substring(0, 80)}`);
     return { success: true, sid: 'mock', mock: true };
   }
 
@@ -59,7 +62,7 @@ async function sendSMS(opts) {
         : undefined
     });
 
-    console.log(`[SMS] Sent to ${to}: ${msg.sid}`);
+    console.log(`[SMS] Sent to ${masked}: ${msg.sid}`);
     return { success: true, sid: msg.sid };
   } catch (err) {
     console.error('[SMS] Error:', err.message);

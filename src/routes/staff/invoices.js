@@ -87,7 +87,7 @@ router.post('/', requireOwner, async (req, res, next) => {
     let invoiceItems = items || [];
     if (booking_id && invoiceItems.length === 0) {
       const bkResult = await queryWithRLS(bid,
-        `SELECT b.*, s.name AS service_name, s.price_cents, s.duration_min,
+        `SELECT b.*, s.name AS service_name, s.category AS service_category, s.price_cents, s.duration_min,
                 sv.name AS variant_name, sv.price_cents AS variant_price_cents,
                 c.full_name, c.email, c.phone, c.bce_number, c.id AS c_id
          FROM bookings b
@@ -103,7 +103,7 @@ router.post('/', requireOwner, async (req, res, next) => {
           client = { id: bk.c_id, full_name: bk.full_name, email: bk.email,
                      phone: bk.phone, bce_number: bk.bce_number };
         }
-        const svcLabel = bk.variant_name ? `${bk.service_name} — ${bk.variant_name}` : bk.service_name;
+        const svcLabel = bk.service_category ? `${bk.service_category} - ${bk.service_name}${bk.variant_name ? ' \u2014 ' + bk.variant_name : ''}` : (bk.variant_name ? `${bk.service_name} \u2014 ${bk.variant_name}` : bk.service_name);
         invoiceItems = [{
           description: `${svcLabel} — ${new Date(bk.start_at).toLocaleDateString('fr-BE')}`,
           quantity: 1,
@@ -117,13 +117,7 @@ router.post('/', requireOwner, async (req, res, next) => {
       return res.status(400).json({ error: 'Client requis' });
     }
 
-    // Generate invoice number
-    const invoiceNumber = await getNextInvoiceNumber(
-      (sql, params) => queryWithRLS(bid, sql, params),
-      bid, invoiceType
-    );
-
-    // Calculate totals
+    // Calculate totals (before transaction — pure computation)
     const parsedVat = parseFloat(vat_rate);
     const vatR = isNaN(parsedVat) ? 21 : parsedVat;
     let subtotal = 0;
@@ -134,52 +128,60 @@ router.post('/', requireOwner, async (req, res, next) => {
     const vatAmount = Math.round(subtotal * vatR / 100);
     const total = subtotal + vatAmount;
 
-    // Structured communication
-    const structuredComm = generateStructuredComm(invoiceNumber);
-
     // Due date
     const issueDate = new Date();
     const dueDate = new Date(issueDate);
     dueDate.setDate(dueDate.getDate() + (due_days || 30));
 
-    // Create invoice
-    const invResult = await queryWithRLS(bid,
-      `INSERT INTO invoices (business_id, booking_id, client_id, invoice_number, type, status,
-        issue_date, due_date, client_name, client_email, client_phone, client_address, client_bce,
-        business_name, business_address, business_bce, business_iban, business_bic,
-        subtotal_cents, vat_amount_cents, total_cents, vat_rate,
-        structured_comm, notes, footer_text, language)
-       VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
-       RETURNING *`,
-      [bid, booking_id || null, client?.id || null,
-       invoiceNumber, invoiceType,
-       issueDate.toISOString().split('T')[0],
-       invoiceType !== 'quote' ? dueDate.toISOString().split('T')[0] : null,
-       req.body.client_name || client?.full_name,
-       client?.email || null, client?.phone || null,
-       client_address || null, client_bce || client?.bce_number || null,
-       biz.name, biz.address || null, biz.bce_number || null,
-       biz.iban || null, biz.bic || null,
-       subtotal, vatAmount, total, vatR,
-       structuredComm, notes || null,
-       biz.invoice_footer || null,
-       language || 'fr']
-    );
-
-    const invoiceId = invResult.rows[0].id;
-
-    // Insert items
-    for (const item of invoiceItems) {
-      await queryWithRLS(bid,
-        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [invoiceId, item.description, item.quantity || 1,
-         item.unit_price_cents || 0, (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR,
-         item.total_cents || 0, item.sort_order || 0]
+    // Atomic: generate invoice number + create invoice + insert items in one transaction
+    const invoice = await transactionWithRLS(bid, async (txClient) => {
+      // Generate invoice number (advisory lock stays held within this transaction)
+      const invoiceNumber = await getNextInvoiceNumber(
+        (sql, params) => txClient.query(sql, params),
+        bid, invoiceType
       );
-    }
 
-    res.status(201).json({ invoice: invResult.rows[0] });
+      const structuredComm = generateStructuredComm(invoiceNumber);
+
+      const invResult = await txClient.query(
+        `INSERT INTO invoices (business_id, booking_id, client_id, invoice_number, type, status,
+          issue_date, due_date, client_name, client_email, client_phone, client_address, client_bce,
+          business_name, business_address, business_bce, business_iban, business_bic,
+          subtotal_cents, vat_amount_cents, total_cents, vat_rate,
+          structured_comm, notes, footer_text, language)
+         VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+         RETURNING *`,
+        [bid, booking_id || null, client?.id || null,
+         invoiceNumber, invoiceType,
+         issueDate.toISOString().split('T')[0],
+         invoiceType !== 'quote' ? dueDate.toISOString().split('T')[0] : null,
+         req.body.client_name || client?.full_name,
+         client?.email || null, client?.phone || null,
+         client_address || null, client_bce || client?.bce_number || null,
+         biz.name, biz.address || null, biz.bce_number || null,
+         biz.iban || null, biz.bic || null,
+         subtotal, vatAmount, total, vatR,
+         structuredComm, notes || null,
+         biz.invoice_footer || null,
+         language || 'fr']
+      );
+
+      const invoiceId = invResult.rows[0].id;
+
+      for (const item of invoiceItems) {
+        await txClient.query(
+          `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [invoiceId, item.description, item.quantity || 1,
+           item.unit_price_cents || 0, (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR,
+           item.total_cents || 0, item.sort_order || 0]
+        );
+      }
+
+      return invResult.rows[0];
+    });
+
+    res.status(201).json({ invoice });
   } catch (err) {
     // V11-017: Handle duplicate invoice number gracefully
     if (err.code === '23505' && err.constraint && err.constraint.includes('invoice_number')) {

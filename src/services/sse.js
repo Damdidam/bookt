@@ -9,14 +9,33 @@
 // Map<businessId, Set<response>>
 const connections = new Map();
 
+// Connection limits to prevent DoS
+const MAX_PER_BUSINESS = 50;
+const MAX_GLOBAL = 500;
+let globalCount = 0;
+
 /**
  * Register a new SSE client connection
+ * Returns false if limits exceeded
  */
 function addClient(businessId, res) {
+  // Global limit
+  if (globalCount >= MAX_GLOBAL) {
+    return false;
+  }
+
   if (!connections.has(businessId)) {
     connections.set(businessId, new Set());
   }
-  connections.get(businessId).add(res);
+
+  // Per-business limit
+  const clients = connections.get(businessId);
+  if (clients.size >= MAX_PER_BUSINESS) {
+    return false;
+  }
+
+  clients.add(res);
+  globalCount++;
 
   // Cleanup on disconnect
   res.on('close', () => {
@@ -25,7 +44,10 @@ function addClient(businessId, res) {
       clients.delete(res);
       if (clients.size === 0) connections.delete(businessId);
     }
+    globalCount = Math.max(0, globalCount - 1);
   });
+
+  return true;
 }
 
 /**
@@ -38,7 +60,9 @@ function broadcast(businessId, event, data = {}) {
   const clients = connections.get(businessId);
   if (!clients || clients.size === 0) return;
 
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  // M14: Sanitize event name — strip newlines to prevent SSE injection
+  const safeEvent = String(event).replace(/[\r\n]/g, '');
+  const payload = `event: ${safeEvent}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of clients) {
     try {
       res.write(payload);

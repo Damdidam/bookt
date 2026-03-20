@@ -24,3 +24,10 @@ npm-debug.log*
 # Uploads & temp
 uploads/
 tmp/
+
+# Debug / demo files
+_debug_slots.js
+demo-service-modal.html
+preview-header.html
+public/js/app.css
+public/js/app.js

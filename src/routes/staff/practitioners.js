@@ -266,7 +266,7 @@ router.get('/', async (req, res, next) => {
       `SELECT p.*,
         u.email AS user_email, u.role AS user_role, u.last_login_at, u.is_active AS user_active,
         COUNT(DISTINCT ps.service_id) AS service_count,
-        COUNT(DISTINCT bk.id) FILTER (WHERE bk.status IN ('confirmed','completed') AND bk.start_at >= NOW() - INTERVAL '30 days') AS bookings_30d
+        COUNT(DISTINCT bk.id) FILTER (WHERE bk.status IN ('confirmed','completed','pending_deposit') AND bk.start_at >= NOW() - INTERVAL '30 days') AS bookings_30d
        FROM practitioners p
        LEFT JOIN users u ON u.id = p.user_id
        LEFT JOIN practitioner_services ps ON ps.practitioner_id = p.id

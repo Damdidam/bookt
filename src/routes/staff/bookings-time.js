@@ -10,6 +10,84 @@ const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurr
 // STS-V12-007: UUID validation regex (reused across all endpoints)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Lock is visual-only (cadenas in booking modal).
+ * Staff can always move/resize bookings — kept for API compat.
+ */
+function isBookingLocked(booking) {
+  if (booking.locked) return { locked: true, reason: 'RDV verrouillé — déverrouillez-le d\'abord via la fiche' };
+  return { locked: false };
+}
+
+// ============================================================
+// GET /api/bookings/:id/check-slot — Pre-flight slot availability
+// UI: Calendar → detail modal → time inputs (debounced 500ms)
+// ============================================================
+router.get('/:id/check-slot', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+
+    const { start_at, end_at, practitioner_id } = req.query;
+    if (!start_at || !end_at) return res.status(400).json({ error: 'start_at et end_at requis' });
+    if (isNaN(new Date(start_at).getTime()) || isNaN(new Date(end_at).getTime())) return res.status(400).json({ error: 'Format invalide' });
+
+    // If overlaps allowed globally, always available
+    const globalAllowOverlap = await businessAllowsOverlap(bid);
+    if (globalAllowOverlap) return res.json({ available: true });
+
+    // Fetch booking for default practitioner + group + processing info
+    const bk = await queryWithRLS(bid,
+      `SELECT b.practitioner_id, b.group_id, b.processing_time, b.processing_start,
+              COALESCE(s.buffer_before_min, 0) AS buffer_before
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.id = $1 AND b.business_id = $2`, [id, bid]);
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const b = bk.rows[0];
+    const pracId = practitioner_id || b.practitioner_id;
+    const maxConcurrent = await getMaxConcurrent(bid, pracId);
+
+    // Exclude this booking + group siblings
+    let excludeIds = [id];
+    if (b.group_id) {
+      const sibs = await queryWithRLS(bid, `SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2`, [b.group_id, bid]);
+      excludeIds = sibs.rows.map(r => r.id);
+    }
+
+    // Build conflict query (read-only, no FOR UPDATE)
+    const params = [bid, pracId, start_at, end_at, excludeIds];
+    let reversePoseClause = '';
+    const pt = parseInt(b.processing_time) || 0;
+    if (pt > 0) {
+      params.push(parseInt(b.buffer_before) || 0, parseInt(b.processing_start) || 0, pt);
+      reversePoseClause = `AND NOT (
+        date_trunc('minute', b.start_at) >= date_trunc('minute', $3::timestamptz) + ($6::integer + $7::integer) * interval '1 minute'
+        AND date_trunc('minute', b.end_at) <= date_trunc('minute', $3::timestamptz) + ($6::integer + $7::integer + $8::integer) * interval '1 minute'
+      )`;
+    }
+
+    const conflicts = await queryWithRLS(bid,
+      `SELECT b.id, s.name AS service_name, b.start_at, b.end_at
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       WHERE b.business_id = $1 AND b.practitioner_id = $2
+       AND b.status IN ('pending','confirmed','modified_pending','pending_deposit')
+       AND b.start_at < $4 AND b.end_at > $3
+       AND b.id != ALL($5::uuid[])
+       AND NOT (b.processing_time > 0
+         AND date_trunc('minute', $3::timestamptz) >= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start) * interval '1 minute'
+         AND date_trunc('minute', $4::timestamptz) <= date_trunc('minute', b.start_at) + (COALESCE(s.buffer_before_min,0) + b.processing_start + b.processing_time) * interval '1 minute')
+       ${reversePoseClause}`, params);
+
+    if (conflicts.rows.length >= maxConcurrent) {
+      return res.json({ available: false, conflicts: conflicts.rows.map(c => ({
+        id: c.id, service_name: c.service_name, start_at: c.start_at, end_at: c.end_at
+      }))});
+    }
+    res.json({ available: true });
+  } catch (err) { next(err); }
+});
+
 // ============================================================
 // PATCH /api/bookings/:id/move — Drag & drop
 // UI: Calendar → drag event to new time/date/practitioner
@@ -31,6 +109,10 @@ router.patch('/:id/move', async (req, res, next) => {
     if (new Date(start_at) >= new Date(end_at)) {
       return res.status(400).json({ error: 'L\'heure de fin doit être après l\'heure de début' });
     }
+    // Reject moves too far in the past (2h tolerance)
+    if (new Date(start_at).getTime() < Date.now() - 2 * 3600000) {
+      return res.status(400).json({ error: 'Impossible de déplacer un rendez-vous aussi loin dans le passé' });
+    }
 
     // CRT-8: Validate practitioner_id belongs to this business and is active
     if (practitioner_id) {
@@ -43,6 +125,7 @@ router.patch('/:id/move', async (req, res, next) => {
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.service_id,
               b.group_id, b.group_order, b.status, b.locked,
               b.processing_time, b.processing_start,
+              b.created_at, b.deposit_required,
               s.duration_min, s.buffer_before_min, s.buffer_after_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
@@ -56,8 +139,9 @@ router.patch('/:id/move', async (req, res, next) => {
     if (IMMUTABLE.includes(old.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
-    if (old.rows[0].locked) {
-      return res.status(400).json({ error: 'Ce RDV est verrouillé' });
+    const lockCheck = isBookingLocked(old.rows[0]);
+    if (lockCheck.locked) {
+      return res.status(400).json({ error: lockCheck.reason });
     }
 
     const draggedBooking = old.rows[0];
@@ -81,12 +165,14 @@ router.patch('/:id/move', async (req, res, next) => {
 
     // ── GROUP MOVE: recalculate all slots from the first booking's new start ──
     if (draggedBooking.group_id) {
-      // Fetch all group members with their service durations, ordered
+      // Fetch all group members with their service/variant durations, ordered
       const groupRes = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.practitioner_id,
-                s.duration_min, s.buffer_before_min, s.buffer_after_min
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                s.buffer_before_min, s.buffer_after_min
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          WHERE b.group_id = $1 AND b.business_id = $2
          ORDER BY b.group_order`,
         [draggedBooking.group_id, bid]
@@ -95,6 +181,10 @@ router.patch('/:id/move', async (req, res, next) => {
       if (groupMembers.length === 0) {
         return res.status(400).json({ error: 'Aucun membre trouvé dans le groupe' });
       }
+
+      // Detect split group (different practitioners) — don't reassign practitioners on move
+      const groupPracIds = new Set(groupMembers.map(m => m.practitioner_id));
+      const isSplitGroup = groupPracIds.size > 1;
 
       // Calculate time delta from dragged booking's original start
       const delta = newStart.getTime() - new Date(draggedBooking.start_at).getTime();
@@ -119,9 +209,19 @@ router.patch('/:id/move', async (req, res, next) => {
       const totalEnd = updates[updates.length - 1].end_at;
 
       // Check practitioner availability (absences, exceptions, hours)
-      const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
-      if (!availCheck.ok) {
-        return res.status(409).json({ error: availCheck.reason });
+      if (isSplitGroup) {
+        // Split group: check each practitioner for their own time range
+        for (const u of updates) {
+          const availCheck = await checkPracAvailability(bid, u.practitioner_id, u.start_at, u.end_at);
+          if (!availCheck.ok) {
+            return res.status(409).json({ error: availCheck.reason });
+          }
+        }
+      } else {
+        const availCheck = await checkPracAvailability(bid, effectivePracId, totalStart, totalEnd);
+        if (!availCheck.ok) {
+          return res.status(409).json({ error: availCheck.reason });
+        }
       }
 
       // Atomic group move: conflict check + updates in one transaction
@@ -144,10 +244,11 @@ router.patch('/:id/move', async (req, res, next) => {
           // only, rather than using the full group totalStart/totalEnd which over-reports conflicts
           if (!globalAllowOverlap) {
             const groupIds = groupMembers.map(m => m.id);
-            const distinctPracIds = [...new Set(updates.map(u => practitioner_id || u.practitioner_id))];
+            // For split groups, use each member's own practitioner_id; for non-split, use the target practitioner_id
+            const distinctPracIds = [...new Set(updates.map(u => (isSplitGroup ? u.practitioner_id : (practitioner_id || u.practitioner_id))))];
             for (const pracId of distinctPracIds) {
               // Filter updates belonging to this practitioner and compute their min start / max end
-              const pracUpdates = updates.filter(u => (practitioner_id || u.practitioner_id) === pracId);
+              const pracUpdates = updates.filter(u => (isSplitGroup ? u.practitioner_id : (practitioner_id || u.practitioner_id)) === pracId);
               const pracStart = pracUpdates.reduce((min, u) => u.start_at < min ? u.start_at : min, pracUpdates[0].start_at);
               const pracEnd = pracUpdates.reduce((max, u) => u.end_at > max ? u.end_at : max, pracUpdates[0].end_at);
               const pracMaxConcurrent = await getMaxConcurrent(bid, pracId);
@@ -162,7 +263,8 @@ router.patch('/:id/move', async (req, res, next) => {
             let sql = `UPDATE bookings SET start_at = $1, end_at = $2, updated_at = NOW()`;
             const params = [u.start_at, u.end_at];
             let idx = 3;
-            if (practitioner_id) {
+            // Only reassign practitioner if NOT a split group (split = each member keeps its own practitioner)
+            if (practitioner_id && !isSplitGroup) {
               sql += `, practitioner_id = $${idx}`;
               params.push(practitioner_id);
               idx++;
@@ -592,7 +694,8 @@ router.patch('/:id/resize', async (req, res, next) => {
     // Get current booking to know start_at, end_at, practitioner, group, status
     const current = await queryWithRLS(bid,
       `SELECT b.start_at, b.end_at, b.practitioner_id, b.group_id, b.status, b.locked,
-              b.processing_time, b.processing_start, COALESCE(s.buffer_before_min, 0) AS buffer_before_min
+              b.processing_time, b.processing_start, b.created_at, b.deposit_required,
+              COALESCE(s.buffer_before_min, 0) AS buffer_before_min
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        WHERE b.id = $1 AND b.business_id = $2`,
@@ -610,8 +713,9 @@ router.patch('/:id/resize', async (req, res, next) => {
     if (IMMUTABLE_RESIZE.includes(current.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
-    if (current.rows[0].locked) {
-      return res.status(400).json({ error: 'Ce RDV est verrouillé' });
+    const lockCheckResize = isBookingLocked(current.rows[0]);
+    if (lockCheckResize.locked) {
+      return res.status(400).json({ error: lockCheckResize.reason });
     }
 
     // Validate end > start
@@ -719,12 +823,15 @@ router.patch('/:id/modify', async (req, res, next) => {
     // Fetch old booking for audit + notification context
     const old = await queryWithRLS(bid,
       `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
-              s.name AS service_name, COALESCE(s.buffer_before_min, 0) AS svc_buffer_before,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+              s.category AS service_category,
+              COALESCE(s.buffer_before_min, 0) AS svc_buffer_before,
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
        FROM bookings b
        LEFT JOIN clients c ON c.id = b.client_id
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.id = $1 AND b.business_id = $2`,
@@ -737,8 +844,9 @@ router.patch('/:id/modify', async (req, res, next) => {
     if (IMMUTABLE_MOD.includes(old.rows[0].status)) {
       return res.status(400).json({ error: 'Ce RDV ne peut plus être modifié' });
     }
-    if (old.rows[0].locked) {
-      return res.status(400).json({ error: 'Ce RDV est verrouillé' });
+    const lockCheckMod = isBookingLocked(old.rows[0]);
+    if (lockCheckMod.locked) {
+      return res.status(400).json({ error: lockCheckMod.reason });
     }
 
     const oldBooking = old.rows[0];
@@ -841,6 +949,7 @@ router.patch('/:id/modify', async (req, res, next) => {
             client_email: oldBooking.client_email,
             public_token: oldBooking.public_token,
             service_name: oldBooking.service_name,
+            service_category: oldBooking.service_category,
             practitioner_name: oldBooking.practitioner_name,
             old_start_at: oldBooking.start_at,
             old_end_at: oldBooking.end_at,

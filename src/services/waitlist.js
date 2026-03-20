@@ -79,12 +79,12 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     // Just flag that there are matches — the pro will see in dashboard
     // Queue a notification for the pro
     try {
-      await query(
+      await queryWithRLS(bk.business_id,
         `INSERT INTO notifications (business_id, booking_id, type, status)
          VALUES ($1, $2, 'waitlist_match', 'queued')`,
         [bk.business_id, bookingId]
       );
-    } catch (e) { /* notification type might not exist in CHECK constraint yet */ }
+    } catch (e) { console.warn('[WAITLIST] Notification insert error:', e.message); }
 
     broadcast(bk.business_id, 'waitlist_match', {
       mode: 'manual',
@@ -108,12 +108,23 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     const slotTime = new Date(bk.start_at).getTime();
     if (slotTime < Date.now() + 2 * 60 * 60 * 1000) return { processed: false, reason: 'slot_too_soon' };
 
+    // Verify the slot is still free (no conflicting active bookings)
+    const conflict = await queryWithRLS(businessId,
+      `SELECT id FROM bookings
+       WHERE practitioner_id = $1 AND business_id = $2
+         AND status IN ('confirmed', 'pending', 'pending_deposit')
+         AND start_at < $4 AND end_at > $3
+       LIMIT 1`,
+      [bk.practitioner_id, bk.business_id, bk.start_at, bk.end_at]
+    );
+    if (conflict.rows.length > 0) return { processed: false, reason: 'slot_taken' };
+
     // FIFO: offer to the first matching entry
     const entry = matches.rows[0];
     const token = crypto.randomBytes(20).toString('hex');
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h timer
 
-    const offerResult = await query(
+    const offerResult = await queryWithRLS(businessId,
       `UPDATE waitlist_entries SET
         status = 'offered',
         offer_token = $1,
@@ -225,8 +236,19 @@ async function processExpiredOffers() {
         );
 
         if (next.rows.length > 0) {
-          // Skip if the slot is less than 1 hour away — too late to offer
-          if (new Date(entry.offer_booking_start) < new Date(Date.now() + 60 * 60 * 1000)) continue;
+          // Skip if the slot is less than 2 hours away — too late to offer (matches initial offer threshold)
+          if (new Date(entry.offer_booking_start) < new Date(Date.now() + 2 * 60 * 60 * 1000)) continue;
+
+          // Verify the slot is still free (no conflicting active bookings)
+          const slotConflict = await client.query(
+            `SELECT id FROM bookings
+             WHERE practitioner_id = $1 AND business_id = $2
+               AND status IN ('confirmed', 'pending', 'pending_deposit')
+               AND start_at < $4 AND end_at > $3
+             LIMIT 1`,
+            [entry.practitioner_id, entry.business_id, entry.offer_booking_start, entry.offer_booking_end]
+          );
+          if (slotConflict.rows.length > 0) continue;
 
           const token = crypto.randomBytes(20).toString('hex');
           const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);

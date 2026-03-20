@@ -6,6 +6,8 @@ import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal } from '../utils/dirty-guard.js';
 
+const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
+
 const DAYS_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const ICON_X = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -63,7 +65,7 @@ async function loadHours() {
 
     c.innerHTML = renderPage(year);
   } catch (e) {
-    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;
+    c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;
   }
 }
 
@@ -364,7 +366,7 @@ async function saveBusinessSchedule() {
 // ============================================================
 
 function openClosureModal() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   const m = `<div class="m-overlay open" id="closureModal"><div class="m-dialog m-sm">
     <div class="m-header-simple"><h3>Nouvelle fermeture</h3><button class="m-close" onclick="closeModal('closureModal')">${ICON_X}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><label class="m-field-label">Du</label><input type="date" class="m-input" id="cl_from" value="${today}"></div><div><label class="m-field-label">Au</label><input type="date" class="m-input" id="cl_to" value="${today}"></div></div>
@@ -412,7 +414,7 @@ async function deleteClosure(id) {
 function openHolidayModal() {
   const m = `<div class="m-overlay open" id="holidayModal"><div class="m-dialog m-sm">
     <div class="m-header-simple"><h3>Nouveau jour férié</h3><button class="m-close" onclick="closeModal('holidayModal')">${ICON_X}</button></div><div class="m-body">
-    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div><label class="m-field-label">Date</label><input type="date" class="m-input" id="hol_date" value="${new Date().toLocaleDateString('en-CA')}"></div>
     <div><label class="m-field-label">Nom</label><input class="m-input" id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('holidayModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);

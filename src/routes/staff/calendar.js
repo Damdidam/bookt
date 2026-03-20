@@ -15,7 +15,9 @@ const oauthStates = {
   },
   async get(key) {
     const r = await query(`SELECT data FROM oauth_states WHERE state_key = $1 AND expires_at > NOW()`, [key]);
-    return r.rows.length > 0 ? JSON.parse(r.rows[0].data) : null;
+    if (r.rows.length === 0) return null;
+    const d = r.rows[0].data;
+    return typeof d === 'string' ? JSON.parse(d) : d; // JSONB columns are auto-parsed by pg
   },
   async delete(key) {
     await query(`DELETE FROM oauth_states WHERE state_key = $1`, [key]);
@@ -278,7 +280,15 @@ router.get('/connections', requireAuth, async (req, res, next) => {
  */
 router.patch('/connections/:id', requireAuth, async (req, res, next) => {
   try {
-    const { sync_direction, sync_enabled, practitioner_id } = req.body;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const { sync_direction, sync_enabled } = req.body;
+    let { practitioner_id } = req.body;
+
+    // M9: UUID validation on practitioner_id
+    if (practitioner_id && !UUID_RE.test(practitioner_id)) {
+      return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+
     await queryWithRLS(req.businessId,
       `UPDATE calendar_connections SET
         sync_direction = COALESCE($1, sync_direction),
@@ -331,7 +341,7 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
     if (connResult.rows.length === 0) return res.status(404).json({ error: 'Connexion introuvable' });
 
     const conn = connResult.rows[0];
-    const qFn = (sql, params) => query(sql, params);
+    const qFn = (sql, params) => queryWithRLS(req.businessId, sql, params);
 
     // Pull busy times (next 60 days)
     const now = new Date();
@@ -346,14 +356,18 @@ router.post('/connections/:id/sync', requireAuth, async (req, res, next) => {
     // Push unsynced bookings
     let pushed = 0;
     if (conn.sync_direction === 'push' || conn.sync_direction === 'both') {
-      let pushSql = `SELECT b.*, s.name AS service_name, s.duration_min, s.color AS service_color,
+      let pushSql = `SELECT b.*,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                s.color AS service_color,
                 c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email
          FROM bookings b
          JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN clients c ON c.id = b.client_id
          LEFT JOIN calendar_events ce ON ce.booking_id = b.id AND ce.connection_id = $1
          WHERE b.business_id = $2
-           AND b.status IN ('confirmed', 'pending')
+           AND b.status IN ('confirmed', 'pending', 'pending_deposit')
            AND b.start_at > NOW()
            AND ce.id IS NULL`;
       const pushParams = [conn.id, req.businessId];
@@ -391,7 +405,7 @@ router.get('/busy', requireAuth, async (req, res, next) => {
     if (!business_id || !start || !end) {
       return res.status(400).json({ error: 'business_id, start, end required' });
     }
-    const qFn = (sql, params) => query(sql, params);
+    const qFn = (sql, params) => queryWithRLS(business_id, sql, params);
     const blocks = await cal.getBusyBlocks(qFn, business_id, practitioner_id || null,
       new Date(start), new Date(end));
     res.json({ busy: blocks });
@@ -422,7 +436,7 @@ router.get('/ical/:token', async (req, res) => {
     if (!businessId || !UUID_RE.test(businessId) || !secret) return res.status(400).send('Invalid token');
 
     // Verify token
-    const conn = await query(
+    const conn = await queryWithRLS(businessId,
       `SELECT cc.*, b.name AS business_name
        FROM calendar_connections cc
        JOIN businesses b ON b.id = cc.business_id
@@ -436,14 +450,16 @@ router.get('/ical/:token', async (req, res) => {
     const endRange = new Date(Date.now() + 90 * 86400000);
 
     let bkSql = `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
-                        s.name AS service_name, s.duration_min,
+                        CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         c.full_name AS client_name, c.phone AS client_phone,
                         p.display_name AS practitioner_name
                  FROM bookings b
                  JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                  JOIN clients c ON c.id = b.client_id
                  JOIN practitioners p ON p.id = b.practitioner_id
-                 WHERE b.business_id = $1 AND b.status IN ('confirmed','pending','modified_pending','completed')
+                 WHERE b.business_id = $1 AND b.status IN ('confirmed','pending','modified_pending','completed','pending_deposit')
                  AND b.start_at >= $2 AND b.start_at <= $3`;
     const bkParams = [businessId, startRange.toISOString(), endRange.toISOString()];
 
@@ -453,7 +469,7 @@ router.get('/ical/:token', async (req, res) => {
     }
     bkSql += ' ORDER BY b.start_at';
 
-    const bookings = await query(bkSql, bkParams);
+    const bookings = await queryWithRLS(businessId, bkSql, bkParams);
     const bizName = conn.rows[0].business_name || 'Genda';
 
     // Build iCal

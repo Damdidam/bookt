@@ -6,11 +6,11 @@ const { authLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // POST /api/auth/signup
-// Self-service registration: professional creates their cabinet
-// UI: Landing page Genda.be → "Créer mon cabinet" → formulaire
+// Self-service registration: professional creates their salon
+// UI: Landing page Genda.be → "Créer mon salon" → formulaire
 //
 // Creates: business + user (owner) + default practitioner
-//          + default services (template comptable)
+//          + default services (sector template)
 //          + default availability (Lun-Ven 9-17)
 //          + onboarding_progress
 //          + call_settings (off by default)
@@ -22,7 +22,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       email,
       password,
       full_name,
-      // Cabinet info
+      // Salon info
       business_name,
       business_phone,
       business_address,
@@ -117,6 +117,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
             cancellation_fee_percent: 50,
             noshow_policy: 'charge',
             slot_granularity_min: 15,
+            slot_auto_optimize: true,
             booking_horizon_days: 60
           }),
           // Default sections
@@ -186,10 +187,10 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
       // 7. Create default value propositions
       const defaultValues = [
-        { title: 'Approche personnalisée', description: 'Chaque dossier est unique.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>', style: 'teal' },
-        { title: 'Réactivité', description: 'Réponse rapide et suivi proactif.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>', style: 'gold' },
-        { title: 'Expertise reconnue', description: 'Des années d\'expérience à votre service.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>', style: 'green' },
-        { title: 'Conseils proactifs', description: 'Au-delà du minimum légal.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>', style: 'neutral' }
+        { title: 'Écoute & conseil', description: 'Chaque client est unique. Nous prenons le temps de comprendre vos envies pour un résultat sur mesure.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>', style: 'teal' },
+        { title: 'Produits premium', description: 'Nous travaillons exclusivement avec des marques professionnelles haut de gamme pour des soins d\'exception.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', style: 'gold' },
+        { title: 'Hygiène irréprochable', description: 'Protocoles stricts de désinfection et matériel stérilisé pour votre sécurité et votre confort.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', style: 'green' },
+        { title: 'Détente & bien-être', description: 'Un espace pensé pour votre relaxation, où chaque visite devient un moment rien qu\'à vous.', icon: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>', style: 'neutral' }
       ];
       for (let i = 0; i < defaultValues.length; i++) {
         const v = defaultValues[i];
@@ -261,11 +262,13 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
 function getSectorTagline(sector, name, lang) {
   const taglines = {
-    comptable: { fr: `Cabinet comptable à votre service`, nl: `Boekhouder aan uw zijde` },
-    avocat: { fr: `Cabinet d'avocats`, nl: `Advocatenkantoor` },
-    medecin: { fr: `Cabinet médical`, nl: `Medisch kabinet` },
-    dentiste: { fr: `Cabinet dentaire`, nl: `Tandartspraktijk` },
-    kine: { fr: `Cabinet de kinésithérapie`, nl: `Kinesitherapie praktijk` },
+    coiffeur: { fr: `Votre salon de coiffure`, nl: `Uw kapsalon` },
+    esthetique: { fr: `Institut de beauté`, nl: `Schoonheidsinstituut` },
+    barbier: { fr: `Barbershop`, nl: `Barbershop` },
+    massage: { fr: `Salon de massage et bien-être`, nl: `Massage en wellness salon` },
+    onglerie: { fr: `Onglerie & Nail art`, nl: `Nagelstudio & Nail art` },
+    tatouage: { fr: `Studio de tatouage`, nl: `Tattoo studio` },
+    bienetre: { fr: `Espace bien-être`, nl: `Wellness ruimte` },
     autre: { fr: `Prenez rendez-vous en ligne`, nl: `Maak online een afspraak` }
   };
   return (taglines[sector] || taglines.autre)[lang] || taglines.autre.fr;
@@ -273,11 +276,13 @@ function getSectorTagline(sector, name, lang) {
 
 function getSectorTitle(sector, lang) {
   const titles = {
-    comptable: { fr: 'Expert-comptable', nl: 'Boekhouder' },
-    avocat: { fr: 'Avocat', nl: 'Advocaat' },
-    medecin: { fr: 'Médecin', nl: 'Arts' },
-    dentiste: { fr: 'Dentiste', nl: 'Tandarts' },
-    kine: { fr: 'Kinésithérapeute', nl: 'Kinesitherapeut' },
+    coiffeur: { fr: 'Coiffeur/Coiffeuse', nl: 'Kapper' },
+    esthetique: { fr: 'Esthéticien(ne)', nl: 'Schoonheidsspecialist' },
+    barbier: { fr: 'Barbier', nl: 'Barbier' },
+    massage: { fr: 'Masseur/Masseuse', nl: 'Masseur/Masseuse' },
+    onglerie: { fr: 'Prothésiste ongulaire', nl: 'Nagelstyliste' },
+    tatouage: { fr: 'Tatoueur/Tatoueuse', nl: 'Tattoo artiest' },
+    bienetre: { fr: 'Praticien(ne) bien-être', nl: 'Wellness praktijk' },
     autre: { fr: 'Professionnel', nl: 'Professional' }
   };
   return (titles[sector] || titles.autre)[lang] || titles.autre.fr;

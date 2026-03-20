@@ -28,12 +28,17 @@ router.get('/', async (req, res, next) => {
              b.internal_note, b.color AS booking_color,
              b.group_id, b.group_order, b.custom_label,
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
-             b.locked,
+             b.deposit_paid_at, b.deposit_requested_at, b.deposit_request_count, b.deposit_reminder_sent,
+             b.locked, b.created_at,
+             b.discount_pct,
+             b.confirmation_expires_at, b.deposit_deadline,
              b.processing_time, b.processing_start,
              s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,
              sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
              p.id AS practitioner_id, p.display_name AS practitioner_name, p.color AS practitioner_color,
-             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email, c.is_vip AS client_is_vip
+             c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email, c.is_vip AS client_is_vip, c.notes AS client_notes,
+             (SELECT COUNT(*) FROM booking_notes bn WHERE bn.booking_id = b.id)::int AS notes_count,
+             (SELECT bn2.content FROM booking_notes bn2 WHERE bn2.booking_id = b.id ORDER BY bn2.is_pinned DESC, bn2.created_at DESC LIMIT 1) AS first_note
       FROM bookings b
       LEFT JOIN services s ON s.id = b.service_id
       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -43,6 +48,10 @@ router.get('/', async (req, res, next) => {
 
     const params = [bid];
     let idx = 2;
+
+    // Exclude old cancelled/no_show bookings from calendar feed (perf: lighter rendering)
+    // Keeps recent ones (< 1 day) visible so staff sees what just happened
+    sql += ` AND NOT (b.status IN ('cancelled', 'no_show') AND b.updated_at < NOW() - INTERVAL '1 day')`;
 
     if (from) {
       sql += ` AND b.start_at >= $${idx}`;
@@ -77,6 +86,37 @@ router.get('/', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/bookings/gaps — Detect exploitable gaps for a date
+// UI: (future) Agenda gap-fill panel
+// ============================================================
+const { detectGaps } = require('../../services/gap-engine');
+
+router.get('/gaps', async (req, res, next) => {
+  try {
+    // Check if gap analyzer is enabled for this business
+    const bizResult = await queryWithRLS(req.businessId,
+      `SELECT settings FROM businesses WHERE id = $1`, [req.businessId]);
+    const settings = bizResult.rows[0]?.settings || {};
+    if (!settings.gap_analyzer_enabled) {
+      return res.status(403).json({ error: 'Analyseur de gaps désactivé. Activez-le dans Paramètres > Calendrier.' });
+    }
+
+    const { date, practitioner_id } = req.query;
+    if (!date) return res.status(400).json({ error: 'Paramètre date requis' });
+    const result = await detectGaps({
+      businessId: req.businessId,
+      date,
+      practitionerId: practitioner_id || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.type === 'validation') return res.status(400).json({ error: err.message });
+    if (err.type === 'not_found') return res.status(404).json({ error: err.message });
+    next(err);
+  }
+});
+
+// ============================================================
 // GET /api/bookings/:id/history — Audit log timeline for a booking
 // UI: Calendar → detail modal → Historique tab
 // ============================================================
@@ -84,6 +124,14 @@ router.get('/:id/history', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
+
+    // Practitioner scope: verify booking belongs to this practitioner
+    if (req.practitionerFilter) {
+      const check = await queryWithRLS(bid,
+        `SELECT id FROM bookings WHERE id = $1 AND business_id = $2 AND practitioner_id = $3`,
+        [id, bid, req.practitionerFilter]);
+      if (check.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    }
 
     const result = await queryWithRLS(bid,
       `SELECT al.action, al.old_data, al.new_data, al.created_at,
@@ -116,14 +164,15 @@ router.get('/:id/detail', async (req, res, next) => {
               sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
-              c.no_show_count, c.is_blocked
+              c.no_show_count, c.is_blocked, c.is_vip
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
-       WHERE b.id = $1 AND b.business_id = $2`,
-      [id, bid]
+       WHERE b.id = $1 AND b.business_id = $2
+         AND ($3::uuid IS NULL OR b.practitioner_id = $3)`,
+      [id, bid, req.practitionerFilter || null]
     );
     if (booking.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
 
@@ -150,24 +199,12 @@ router.get('/:id/detail', async (req, res, next) => {
       [id, bid]
     );
 
-    // Fetch pre-RDV documents sent for this booking
-    const docs = await queryWithRLS(bid,
-      `SELECT prs.id, prs.template_id, prs.status, prs.token, prs.sent_at,
-              prs.responded_at, prs.created_at,
-              dt.name AS template_name, dt.type AS template_type
-       FROM pre_rdv_sends prs
-       JOIN document_templates dt ON dt.id = prs.template_id
-       WHERE prs.booking_id = $1 AND prs.business_id = $2
-       ORDER BY prs.created_at DESC`,
-      [id, bid]
-    );
-
     // If part of a group, fetch siblings
     let groupSiblings = [];
     const bk = booking.rows[0];
     if (bk.group_id) {
       const grp = await queryWithRLS(bid,
-        `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status,
+        `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status, b.locked,
                 b.practitioner_id, b.service_id, b.service_variant_id,
                 s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
                 sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents
@@ -186,7 +223,6 @@ router.get('/:id/detail', async (req, res, next) => {
       notes: notes.rows,
       todos: todos.rows,
       reminders: reminders.rows,
-      documents: docs.rows,
       group_siblings: groupSiblings
     });
   } catch (err) {

@@ -6,7 +6,7 @@ import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
-import { fcTimeDiffMin } from './booking-edit.js';
+import { fcTimeDiffMin, _serverSlotUnavailable } from './booking-edit.js';
 import { storeUndoAction } from './booking-undo.js';
 import { toBrusselsISO } from '../../utils/format.js';
 
@@ -17,6 +17,10 @@ async function calSaveAll() {
   const _btn = document.getElementById('mBtnSave');
   if (_btn) { _btn.disabled = true; _btn.classList.add('is-loading'); }
   try {
+  if (_serverSlotUnavailable) {
+    gToast('Créneau indisponible — modifiez l\'horaire', 'error');
+    return;
+  }
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
   const ne = document.getElementById('calEditEnd').value;
@@ -41,22 +45,17 @@ async function calSaveAll() {
   if (isFreestyle) {
     if (newLabel !== (calState.fcEditOriginal.custom_label || '')) editPayload.custom_label = newLabel;
   }
-  // Color: compare against swatch value (includes fallback), not raw DB color,
-  // to avoid accidentally saving the practitioner/service color as an explicit override
-  if (newColor !== (calState.fcEditOriginal._swatchColor || calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
+  // Color: compare against raw DB value (b.color || '') to detect actual changes.
+  // uBookingColor is initialized to b.color || '' so this is a 1:1 comparison.
+  if (newColor !== (calState.fcEditOriginal.color || '')) editPayload.color = newColor || null;
 
   // Lock toggle
-  const newLocked = document.getElementById('calLocked')?.checked || false;
+  const newLocked = document.getElementById('calLocked')?.value === 'true';
   if (newLocked !== calState.fcEditOriginal.locked) editPayload.locked = newLocked;
 
-  // Service conversion (freestyle ↔ service)
-  if (calState._convertAction === 'to-service') {
-    const svcId = document.getElementById('mConvertSvcSel')?.value;
-    if (svcId) {
-      editPayload.service_id = svcId;
-      editPayload.service_variant_id = document.getElementById('mConvertVarSel')?.value || null;
-    }
-  } else if (calState._convertAction === 'to-free') {
+  // Service conversion: freestyle → service now handled by fcConvertDirectAdd() in booking-detail.js
+  // Only handle service → freestyle here (to-free)
+  if (calState._convertAction === 'to-free') {
     editPayload.service_id = null;
     editPayload.service_variant_id = null;
     editPayload.custom_label = document.getElementById('uFreeLabel')?.value.trim() || null;

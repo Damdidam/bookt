@@ -197,10 +197,15 @@ async function getNextInvoiceNumber(queryFn, businessId, type) {
   const year = new Date().getFullYear();
   const pattern = `${prefix}-${year}-%`;
 
+  // Advisory lock to prevent concurrent invoice number generation for same business+prefix+year
+  const lockKey = `invoice_${businessId}_${prefix}_${year}`;
+  await queryFn(`SELECT pg_advisory_xact_lock(hashtext($1))`, [lockKey]);
+
   const result = await queryFn(
     `SELECT invoice_number FROM invoices
      WHERE business_id = $1 AND invoice_number LIKE $2
-     ORDER BY invoice_number DESC LIMIT 1`,
+     ORDER BY invoice_number DESC LIMIT 1
+     FOR UPDATE`,
     [businessId, pattern]
   );
 
@@ -221,10 +226,11 @@ function formatMoney(cents) {
 
 function formatDate(d, lang) {
   const date = new Date(d);
-  const months = lang === 'nl'
-    ? ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
-    : ['jan', 'fév', 'mar', 'avr', 'mai', 'jun', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'];
-  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  const locale = lang === 'nl' ? 'nl-BE' : 'fr-BE';
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: 'Europe/Brussels',
+    day: 'numeric', month: 'short', year: 'numeric'
+  }).format(date);
 }
 
 module.exports = { generateInvoicePDF, generateStructuredComm, getNextInvoiceNumber };

@@ -1,15 +1,144 @@
 const router = require('express').Router();
-const { query, queryWithRLS } = require('../../services/db');
-const { getAvailableSlots, getAvailableSlotsMulti } = require('../../services/slot-engine');
-const { bookingLimiter, slotsLimiter } = require('../../middleware/rate-limiter');
+const { query, queryWithRLS, pool } = require('../../services/db');
+const { getAvailableSlots, getAvailableSlotsMulti, getAvailableSlotsMultiPractitioner } = require('../../services/slot-engine');
+const { bookingLimiter, slotsLimiter, clientPhoneLimiter, depositLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 
+// Mount OAuth sub-router for client booking authentication
+router.use('/auth', require('./oauth'));
+
 const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Attempt Stripe refund for a deposit. Handles both pi_ (PaymentIntent) and cs_ (Checkout Session) IDs.
+ * @param {string} depositPaymentIntentId - stored ID (may be cs_ or pi_)
+ * @param {string} label - log label for error messages
+ */
+async function stripeRefundDeposit(depositPaymentIntentId, label) {
+  if (!depositPaymentIntentId) return;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return;
+  try {
+    const stripe = require('stripe')(key);
+    let piId = depositPaymentIntentId;
+    if (piId.startsWith('cs_')) {
+      const session = await stripe.checkout.sessions.retrieve(piId);
+      piId = session.payment_intent;
+      if (!piId) return; // session not yet paid
+    }
+    if (piId && piId.startsWith('pi_')) {
+      await stripe.refunds.create({ payment_intent: piId });
+    }
+  } catch (stripeErr) {
+    if (stripeErr.code !== 'charge_already_refunded') {
+      console.error(`[${label}] Stripe refund failed:`, stripeErr.message);
+    }
+  }
+}
+
+/**
+ * Determine if a deposit should be required for a public booking.
+ * Returns { required: true, depCents, reason } or { required: false }.
+ *
+ * Triggers (OR logic — any one is enough):
+ *   1. Price/duration thresholds (applies to ALL clients, even new ones)
+ *   2. No-show recidivists (only if clientId exists and has history)
+ *
+ * @param {object} bizSettings - business.settings JSONB
+ * @param {number} totalPriceCents - total price of all services
+ * @param {number} totalDurationMin - total duration in minutes
+ * @param {number} noShowCount - client's no-show count (0 for new clients)
+ * @param {boolean} [isVip=false] - VIP clients are exempt from deposits
+ */
+function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, noShowCount, isVip) {
+  if (!bizSettings?.deposit_enabled) return { required: false };
+  if (isVip) return { required: false };
+
+  // Check price/duration thresholds
+  const priceThresh = bizSettings.deposit_price_threshold_cents || 0;
+  const durThresh = bizSettings.deposit_duration_threshold_min || 0;
+  const threshMode = bizSettings.deposit_threshold_mode || 'any';
+
+  const priceHit = priceThresh > 0 && totalPriceCents >= priceThresh;
+  const durHit = durThresh > 0 && totalDurationMin >= durThresh;
+
+  // Only evaluate threshold if at least one threshold is configured
+  const hasThresholds = priceThresh > 0 || durThresh > 0;
+  const thresholdTrigger = hasThresholds && (threshMode === 'both' ? (priceHit && durHit) : (priceHit || durHit));
+
+  // Check no-show recidivist
+  const noShowThreshold = bizSettings.deposit_noshow_threshold || 2;
+  const noShowTrigger = noShowCount >= noShowThreshold;
+
+  if (!thresholdTrigger && !noShowTrigger) return { required: false };
+
+  // Calculate deposit amount
+  let depCents = 0;
+  if (bizSettings.deposit_type === 'fixed') {
+    depCents = bizSettings.deposit_fixed_cents || 2500;
+  } else {
+    depCents = Math.round(totalPriceCents * (bizSettings.deposit_percent || 50) / 100);
+  }
+
+  if (depCents <= 0) return { required: false };
+
+  const reasons = [];
+  if (thresholdTrigger) {
+    if (priceHit) reasons.push('prix');
+    if (durHit) reasons.push('durée');
+  }
+  if (noShowTrigger) reasons.push('no-show');
+
+  return { required: true, depCents, reason: reasons.join('+') };
+}
+
+/**
+ * Compute deposit payment deadline.
+ * Same logic as booking confirmation: NOW + confirmation_timeout (default 30 min),
+ * capped at start_at - 2h minimum. Deposit payment = confirmation.
+ * @param {Date} startAt - Appointment start time
+ * @param {object} bizSettings - Business settings
+ * @returns {Date} deadline
+ */
+function computeDepositDeadline(startAt, bizSettings) {
+  const timeoutMin = parseInt(bizSettings?.booking_confirmation_timeout_min) || 30;
+  const confirmDeadline = new Date(Date.now() + timeoutMin * 60000);
+  const minBefore = new Date(startAt.getTime() - 2 * 3600000); // 2h before RDV
+  // Use confirmation timeout, but don't exceed start_at - 2h
+  let deadline = confirmDeadline;
+  if (minBefore.getTime() > Date.now() && minBefore < deadline) {
+    deadline = minBefore;
+  }
+  // Safety: deadline must be in the future (at least 5 min from now)
+  if (deadline.getTime() < Date.now() + 5 * 60000) {
+    deadline = new Date(Date.now() + 5 * 60000);
+  }
+  return deadline;
+}
+
+/**
+ * Check if a slot date falls within the last-minute promotional window.
+ * @param {string} slotDate - YYYY-MM-DD
+ * @param {string} todayBrussels - YYYY-MM-DD (today in Europe/Brussels)
+ * @param {string} deadline - 'j-2' | 'j-1' | 'same_day'
+ */
+function isWithinLastMinuteWindow(slotDate, todayBrussels, deadline) {
+  const slot = new Date(slotDate + 'T12:00:00Z');
+  const now = new Date(todayBrussels + 'T12:00:00Z');
+  const diffDays = Math.round((slot - now) / 86400000);
+  if (diffDays < 0) return false;
+  switch (deadline) {
+    case 'j-2': return diffDays <= 2;
+    case 'j-1': return diffDays <= 1;
+    case 'same_day': return diffDays === 0;
+    default: return false;
+  }
+}
 
 const SECTOR_PRACTITIONER = {
   coiffeur:'Coiffeur·se', esthetique:'Esthéticien·ne', bien_etre:'Praticien·ne',
@@ -84,7 +213,7 @@ router.get('/:slug', async (req, res, next) => {
     const sections = biz.page_sections || {};
 
     // ===== PARALLEL QUERIES — all independent, run concurrently =====
-    const [pracResult, svcResult, specResult, testResult, valResult, galResult, newsResult, domainResult, hoursResult] = await Promise.all([
+    const [pracResult, svcResult, specResult, testResult, valResult, galResult, newsResult, reaResult, domainResult, hoursResult] = await Promise.all([
       // Practitioners + specializations
       query(
         `SELECT p.id, p.display_name, p.title, p.bio, p.photo_url, p.color,
@@ -105,7 +234,7 @@ router.get('/:slug', async (req, res, next) => {
         `SELECT id, name, category, duration_min, price_cents, price_label,
                 mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online,
                 processing_time, processing_start,
-                flexibility_enabled, flexibility_discount_pct
+                flexibility_enabled, flexibility_discount_pct, available_schedule, min_booking_notice_hours
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -136,6 +265,9 @@ router.get('/:slug', async (req, res, next) => {
       sections.news !== false
         ? query(`SELECT id, title, content, tag, tag_type, image_url, published_at FROM news_posts WHERE business_id = $1 AND is_active = true ORDER BY published_at DESC LIMIT 6`, [bid])
         : { rows: [] },
+      // Realisations
+      query(`SELECT id, title, description, category, image_url, before_url, after_url FROM realisations WHERE business_id = $1 AND is_active = true ORDER BY sort_order LIMIT 20`, [bid])
+        .catch(() => ({ rows: [] })),
       // Custom domain
       query(`SELECT domain, verification_status FROM custom_domains WHERE business_id = $1 AND verification_status = 'ssl_active'`, [bid]),
       // Hours: prefer business_schedule (salon-level), fallback to practitioner availabilities
@@ -180,23 +312,42 @@ router.get('/:slug', async (req, res, next) => {
     const values = valResult.rows;
     const gallery = galResult.rows;
     const news = newsResult.rows;
+    const realisations = reaResult.rows;
 
-    // ===== NEXT AVAILABLE SLOT (depends on svcResult) =====
+    // ===== NEXT AVAILABLE SLOT (earliest across bookable-online services) =====
     let nextSlot = null;
-    if (svcResult.rows.length > 0) {
+    const bookableServices = svcResult.rows.filter(s => s.bookable_online !== false);
+    if (bookableServices.length > 0) {
       try {
-        const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-        const tomorrow = new Date(brusselsToday + 'T12:00:00Z');
-        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-        const weekOut = new Date(tomorrow.getTime() + 7 * 86400000);
-        const slots = await getAvailableSlots({
-          businessId: bid,
-          serviceId: svcResult.rows[0].id,
-          dateFrom: tomorrow.toLocaleDateString('en-CA', { timeZone: 'UTC' }),
-          dateTo: weekOut.toLocaleDateString('en-CA', { timeZone: 'UTC' })
-        });
-        if (slots.length > 0) nextSlot = slots[0].start_at;
-      } catch (e) { /* non-critical */ }
+        const now = new Date();
+        const brusselsToday = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const weekOut = new Date(now.getTime() + 14 * 86400000); // 2 weeks out
+        const dateTo = weekOut.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const nowMs = now.getTime();
+        // Check up to 10 bookable services to find the earliest slot
+        const svcsToCheck = bookableServices.slice(0, 10);
+        const slotPromises = svcsToCheck.map(s =>
+          getAvailableSlots({ businessId: bid, serviceId: s.id, dateFrom: brusselsToday, dateTo })
+            .then(slots => {
+              // Slots may be reordered by smart ranking — sort chronologically to find earliest
+              const future = slots
+                .filter(sl => new Date(sl.start_at).getTime() > nowMs)
+                .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+              return future.length > 0 ? future[0].start_at : null;
+            })
+            .catch(err => {
+              console.warn('[MINISITE] next-slot error for service', s.id, ':', err.message);
+              return null;
+            })
+        );
+        const earliest = (await Promise.all(slotPromises)).filter(Boolean);
+        if (earliest.length > 0) {
+          earliest.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          nextSlot = earliest[0];
+        }
+      } catch (e) {
+        console.warn('[MINISITE] next-slot global error:', e.message);
+      }
     }
 
     const hours = {};
@@ -204,11 +355,21 @@ router.get('/:slug', async (req, res, next) => {
       hours[row.weekday] = { opens: row.opens, closes: row.closes };
     }
 
-    // Sector categories catalog
+    // Sector categories catalog (merged with business overrides for descriptions/colors)
     const sectorCatsResult = await query(
-      `SELECT label, icon_svg, sort_order FROM sector_categories
-       WHERE sector = $1 AND is_active = true ORDER BY sort_order`,
-      [biz.sector || 'autre']
+      `SELECT sc.label, COALESCE(bc.icon_svg, sc.icon_svg) AS icon_svg,
+              COALESCE(bc.sort_order, sc.sort_order) AS sort_order,
+              bc.description, bc.color
+       FROM sector_categories sc
+       LEFT JOIN business_categories bc ON bc.label = sc.label AND bc.business_id = $2
+       WHERE sc.sector = $1 AND sc.is_active = true
+       UNION
+       SELECT bc2.label, bc2.icon_svg, bc2.sort_order, bc2.description, bc2.color
+       FROM business_categories bc2
+       WHERE bc2.business_id = $2
+         AND NOT EXISTS (SELECT 1 FROM sector_categories sc2 WHERE sc2.label = bc2.label AND sc2.sector = $1 AND sc2.is_active = true)
+       ORDER BY sort_order`,
+      [biz.sector || 'autre', biz.id]
     );
 
     // ===== RESPONSE =====
@@ -239,11 +400,18 @@ router.get('/:slug', async (req, res, next) => {
         multi_service_enabled: !!biz.settings?.multi_service_enabled,
         practitioner_choice_enabled: !!biz.settings?.practitioner_choice_enabled,
         booking_confirmation_required: !!biz.settings?.booking_confirmation_required,
+        last_minute_enabled: !!biz.settings?.last_minute_enabled,
+        last_minute_discount_pct: biz.settings?.last_minute_discount_pct || 0,
         custom_domain: domainResult.rows.length > 0 ? domainResult.rows[0].domain : null,
         google_reviews_url: biz.google_reviews_url,
         category_labels: getCategoryLabels(biz.category),
         practitioner_label: SECTOR_PRACTITIONER[biz.sector] || 'Praticien·ne',
-        sector: biz.sector || 'autre'
+        sector: biz.sector || 'autre',
+        booking_auth_mode: biz.settings?.booking_auth_mode || 'soft',
+        deposit_enabled: !!biz.settings?.deposit_enabled,
+        payment_methods: biz.settings?.payment_methods || [],
+        about_image_url: biz.settings?.about_image_url || null,
+        giftcard_enabled: !!biz.settings?.giftcard_enabled
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
@@ -271,6 +439,7 @@ router.get('/:slug', async (req, res, next) => {
         color: s.color,
         description: s.description || null,
         bookable_online: s.bookable_online !== false,
+        available_schedule: s.available_schedule || null,
         variants: (varByService[s.id] || []).map(v => ({
           id: v.id, name: v.name, description: v.description || null, duration_min: v.duration_min,
           price_cents: v.price_cents,
@@ -281,6 +450,7 @@ router.get('/:slug', async (req, res, next) => {
       testimonials,
       values,
       gallery,
+      realisations,
       news,
       hours,
       sector_categories: sectorCatsResult.rows,
@@ -315,12 +485,13 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     }
 
     const bizResult = await query(
-      `SELECT id FROM businesses WHERE slug = $1 AND is_active = true`,
+      `SELECT id, settings FROM businesses WHERE slug = $1 AND is_active = true`,
       [slug]
     );
     if (bizResult.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
 
     const businessId = bizResult.rows[0].id;
+    const bizSettings = bizResult.rows[0].settings || {};
     const brusselsToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const from = date_from || brusselsToday;
     const defaultToDate = new Date(brusselsToday + 'T12:00:00Z');
@@ -331,7 +502,7 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
     const fromDate = new Date(from + 'T00:00:00Z');
     const toDate = new Date(to + 'T00:00:00Z');
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return res.status(400).json({ error: 'Dates invalides' });
-    if (toDate <= fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
+    if (toDate < fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
     if ((toDate - fromDate) / 86400000 > 60) {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
@@ -342,6 +513,46 @@ router.get('/:slug/slots', slotsLimiter, async (req, res, next) => {
       dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
       variantId: variant_id || null
     });
+
+    // ── Last-minute discount tagging ──
+    if (bizSettings.last_minute_enabled && slots.length > 0) {
+      const discountPct = bizSettings.last_minute_discount_pct || 10;
+      const minPriceCents = bizSettings.last_minute_min_price_cents || 0;
+      const deadline = bizSettings.last_minute_deadline || 'j-1';
+
+      // Resolve service price + promo eligibility (with variant override)
+      let servicePriceCents = 0;
+      const svcPriceResult = await query(
+        `SELECT price_cents, promo_eligible FROM services WHERE id = $1 AND business_id = $2`,
+        [service_id, businessId]
+      );
+      if (svcPriceResult.rows[0]?.promo_eligible === false) {
+        // Service opted out of last-minute promos — skip tagging
+      } else {
+      servicePriceCents = svcPriceResult.rows[0]?.price_cents || 0;
+      if (variant_id) {
+        const varPriceResult = await query(
+          `SELECT price_cents FROM service_variants WHERE id = $1 AND service_id = $2`,
+          [variant_id, service_id]
+        );
+        if (varPriceResult.rows[0]?.price_cents != null) {
+          servicePriceCents = varPriceResult.rows[0].price_cents;
+        }
+      }
+
+      if (servicePriceCents > 0 && servicePriceCents >= minPriceCents) {
+        const discountedCents = Math.round(servicePriceCents * (100 - discountPct) / 100);
+        for (const slot of slots) {
+          if (isWithinLastMinuteWindow(slot.date, brusselsToday, deadline)) {
+            slot.is_last_minute = true;
+            slot.discount_pct = discountPct;
+            slot.original_price_cents = servicePriceCents;
+            slot.discounted_price_cents = discountedCents;
+          }
+        }
+      }
+      } // end promo_eligible check
+    }
 
     const byDate = {};
     for (const slot of slots) {
@@ -368,8 +579,21 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'service_ids requis (UUIDs séparés par des virgules)' });
     }
 
-    const ids = service_ids.split(',').map(s => s.trim()).filter(Boolean);
-    const vids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
+    // Parse and deduplicate service_ids (ANY() ignores duplicates, causing length mismatch)
+    const rawIds = service_ids.split(',').map(s => s.trim()).filter(Boolean);
+    const rawVids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
+    const ids = [], vids = [], seenSlotIds = new Set();
+    for (let i = 0; i < rawIds.length; i++) {
+      if (!seenSlotIds.has(rawIds[i])) {
+        seenSlotIds.add(rawIds[i]);
+        ids.push(rawIds[i]);
+        vids.push(rawVids[i] || null);
+      }
+    }
+    // UUID-validate non-null variant_ids
+    if (vids.some(v => v && !UUID_RE.test(v))) {
+      return res.status(400).json({ error: 'variant_ids invalide(s)' });
+    }
     if (ids.length < 2) {
       return res.status(400).json({ error: 'Au moins 2 service_ids requis' });
     }
@@ -405,17 +629,44 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
     const fromDate = new Date(from + 'T00:00:00Z');
     const toDate = new Date(to + 'T00:00:00Z');
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return res.status(400).json({ error: 'Dates invalides' });
-    if (toDate <= fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
+    if (toDate < fromDate) return res.status(400).json({ error: 'date_to doit être après date_from' });
     if ((toDate - fromDate) / 86400000 > 60) {
       return res.status(400).json({ error: 'Plage maximale : 60 jours' });
     }
 
-    const slots = await getAvailableSlotsMulti({
-      businessId, serviceIds: ids,
-      practitionerId: practitioner_id || null,
-      dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
-      variantIds: vids.length > 0 ? vids : null
-    });
+    let slots = [];
+    let monoFailed = false;
+    try {
+      slots = await getAvailableSlotsMulti({
+        businessId, serviceIds: ids,
+        practitionerId: practitioner_id || null,
+        dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
+        variantIds: vids.length > 0 ? vids : null
+      });
+    } catch (monoErr) {
+      // If practitioner doesn't cover all services, try split fallback
+      if (monoErr.type === 'validation') {
+        monoFailed = true;
+        slots = [];
+      } else {
+        throw monoErr;
+      }
+    }
+
+    // Fallback: if no mono-practitioner slots (or validation failed),
+    // try multi-practitioner split (different practitioner per service)
+    if (slots.length === 0 || monoFailed) {
+      try {
+        const splitSlots = await getAvailableSlotsMultiPractitioner({
+          businessId, serviceIds: ids,
+          dateFrom: from, dateTo: to, appointmentMode: appointment_mode,
+          variantIds: vids.length > 0 ? vids : null
+        });
+        if (splitSlots.length > 0) slots = splitSlots;
+      } catch (splitErr) {
+        console.warn('[MULTI-SLOTS] Split fallback error:', splitErr.message);
+      }
+    }
 
     const byDate = {};
     for (const slot of slots) {
@@ -432,7 +683,7 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       totalDurationMin = (eh * 60 + em) - (sh * 60 + sm);
     }
 
-    res.json({ by_date: byDate, total: slots.length, total_duration_min: totalDurationMin });
+    res.json({ by_date: byDate, total: slots.length, total_duration_min: totalDurationMin, split_mode: monoFailed });
   } catch (err) {
     if (err.type === 'validation') return res.status(400).json({ error: err.message });
     if (err.type === 'not_found') return res.status(404).json({ error: err.message });
@@ -510,6 +761,31 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/public/:slug/client-phone
+// Lookup known client phone by email (for form auto-fill)
+// ============================================================
+router.get('/:slug/client-phone', clientPhoneLimiter, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const email = (req.query.email || '').trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({});
+
+    const biz = await query(`SELECT id FROM businesses WHERE slug = $1`, [slug]);
+    if (biz.rows.length === 0) return res.json({});
+
+    const cl = await query(
+      `SELECT phone, full_name
+       FROM clients WHERE business_id = $1 AND LOWER(email) = $2 AND phone IS NOT NULL
+       ORDER BY updated_at DESC LIMIT 1`,
+      [biz.rows[0].id, email]
+    );
+    if (cl.rows.length === 0 || !cl.rows[0].phone) return res.json({});
+
+    res.json({ phone: cl.rows[0].phone, name: cl.rows[0].full_name });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/public/:slug/bookings
 // (unchanged from v1 — same booking creation logic)
 // ============================================================
@@ -517,16 +793,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const {
-      service_id, service_ids, practitioner_id, start_at, end_at, appointment_mode,
+      service_id, service_ids, practitioner_id, practitioners: splitPractitioners,
+      start_at, end_at, appointment_mode,
       variant_id, variant_ids,
       client_name, client_phone, client_email, client_bce,
       client_comment, client_language, consent_sms, consent_email, consent_marketing,
-      flexible
+      flexible, is_last_minute,
+      oauth_provider, oauth_provider_id,
+      gift_card_code
     } = req.body;
 
-    if (!practitioner_id || !start_at || !client_name || !client_phone || !client_email) {
+    // Split mode: practitioners[] array provided instead of practitioner_id
+    let isSplitMode = Array.isArray(splitPractitioners) && splitPractitioners.length > 0;
+
+    if (!isSplitMode && !practitioner_id) {
+      return res.status(400).json({ error: 'practitioner_id ou practitioners[] requis' });
+    }
+    if (!start_at || !client_name || !client_phone || !client_email) {
       return res.status(400).json({
-        error: 'Champs requis : practitioner_id, start_at, client_name, client_phone, client_email'
+        error: 'Champs requis : start_at, client_name, client_phone, client_email'
       });
     }
 
@@ -537,8 +822,24 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Les champs client doivent être des chaînes de caractères' });
     }
 
-    if (!UUID_RE.test(practitioner_id)) {
+    // M4: Validate oauth_provider if provided
+    const VALID_OAUTH_PROVIDERS = ['google', 'facebook', 'apple', 'microsoft'];
+    if (oauth_provider && (!VALID_OAUTH_PROVIDERS.includes(oauth_provider) || typeof oauth_provider !== 'string')) {
+      return res.status(400).json({ error: 'oauth_provider invalide' });
+    }
+    if (oauth_provider_id && (typeof oauth_provider_id !== 'string' || oauth_provider_id.length > 500)) {
+      return res.status(400).json({ error: 'oauth_provider_id invalide' });
+    }
+
+    if (!isSplitMode && !UUID_RE.test(practitioner_id)) {
       return res.status(400).json({ error: 'practitioner_id invalide' });
+    }
+    if (isSplitMode) {
+      for (const sp of splitPractitioners) {
+        if (!sp.service_id || !sp.practitioner_id || !UUID_RE.test(sp.service_id) || !UUID_RE.test(sp.practitioner_id)) {
+          return res.status(400).json({ error: 'practitioners[]: service_id et practitioner_id requis (UUID)' });
+        }
+      }
     }
     if (service_id && !UUID_RE.test(service_id)) {
       return res.status(400).json({ error: 'service_id invalide' });
@@ -557,7 +858,27 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       if (service_ids.some(id => !UUID_RE.test(id))) {
         return res.status(400).json({ error: 'service_ids invalide(s)' });
       }
-      isMultiService = true;
+      // Deduplicate service_ids (and matching variant_ids) to prevent ANY(array) mismatch
+      const seenIds = new Set();
+      const deduped = [];
+      const dedupedVars = [];
+      for (let i = 0; i < service_ids.length; i++) {
+        if (!seenIds.has(service_ids[i])) {
+          seenIds.add(service_ids[i]);
+          deduped.push(service_ids[i]);
+          if (Array.isArray(variant_ids)) dedupedVars.push(variant_ids[i] || null);
+        }
+      }
+      service_ids.length = 0;
+      deduped.forEach(id => service_ids.push(id));
+      if (Array.isArray(variant_ids)) { variant_ids.length = 0; dedupedVars.forEach(v => variant_ids.push(v)); }
+      if (service_ids.length === 1) {
+        // Dedup reduced to single service — fall through to single-service path
+        isMultiService = false;
+        effectiveServiceId = service_ids[0];
+      } else {
+        isMultiService = true;
+      }
     } else if (Array.isArray(service_ids) && service_ids.length === 1) {
       // Treat single-element array as regular single service
       if (!UUID_RE.test(service_ids[0])) {
@@ -580,8 +901,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Mode de rendez-vous invalide' });
     }
 
-    if (client_comment && client_comment.length > 500) {
-      return res.status(400).json({ error: 'Commentaire trop long (max 500)' });
+    if (client_comment && (typeof client_comment !== 'string' || client_comment.length > 500)) {
+      return res.status(400).json({ error: 'Commentaire invalide (max 500 caractères)' });
     }
 
     if (client_bce && (typeof client_bce !== 'string' || client_bce.length > 30)) {
@@ -611,26 +932,31 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     if (startDate < new Date()) return res.status(400).json({ error: 'Impossible de réserver dans le passé' });
 
     // ── Locked-week guard: reject non-featured bookings when week is locked ──
+    // For split mode, check all involved practitioners
     const startDateBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-    const lockCheck = await query(
-      `SELECT 1 FROM locked_weeks
-       WHERE business_id = $1 AND practitioner_id = $2
-       AND week_start = date_trunc('week', $3::date)::date`,
-      [businessId, practitioner_id, startDateBrussels]
-    );
-    if (lockCheck.rows.length > 0) {
-      // Week is locked — booking must match a featured slot
-      const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false }); // HH:MM
-      const fsCheck = await query(
-        `SELECT 1 FROM featured_slots
+    const lockCheckPracIds = isSplitMode
+      ? [...new Set(splitPractitioners.map(sp => sp.practitioner_id))]
+      : [practitioner_id];
+    for (const lockPracId of lockCheckPracIds) {
+      const lockCheck = await query(
+        `SELECT 1 FROM locked_weeks
          WHERE business_id = $1 AND practitioner_id = $2
-         AND date = $3::date AND to_char(start_time, 'HH24:MI') = $4`,
-        [businessId, practitioner_id, startDateBrussels, startTimeStr]
+         AND week_start = date_trunc('week', $3::date)::date`,
+        [businessId, lockPracId, startDateBrussels]
       );
-      if (fsCheck.rows.length === 0) {
-        return res.status(403).json({
-          error: 'Cette semaine est verrouillée. Seuls les créneaux vedette sont disponibles.'
-        });
+      if (lockCheck.rows.length > 0) {
+        const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false });
+        const fsCheck = await query(
+          `SELECT 1 FROM featured_slots
+           WHERE business_id = $1 AND practitioner_id = $2
+           AND date = $3::date AND to_char(start_time, 'HH24:MI') = $4`,
+          [businessId, lockPracId, startDateBrussels, startTimeStr]
+        );
+        if (fsCheck.rows.length === 0) {
+          return res.status(403).json({
+            error: 'Cette semaine est verrouillée. Seuls les créneaux vedette sont disponibles.'
+          });
+        }
       }
     }
 
@@ -641,7 +967,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Fetch all services, preserving order
       const multiSvcResult = await query(
         `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents, processing_time, processing_start, flexibility_enabled
-         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
+         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true AND bookable_online = true
          ORDER BY array_position($1, id)`,
         [service_ids, businessId]
       );
@@ -659,11 +985,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const vid = variant_ids[i];
           if (vid && UUID_RE.test(vid)) {
             const vr = await queryWithRLS(businessId,
-              `SELECT duration_min, price_cents, processing_time, processing_start FROM service_variants
+              `SELECT name, duration_min, price_cents, processing_time, processing_start FROM service_variants
                WHERE id = $1 AND service_id = $2 AND business_id = $3 AND is_active = true`,
               [vid, multiServices[i].id, businessId]
             );
             if (vr.rows.length === 0) return res.status(404).json({ error: `Variante introuvable: ${vid}` });
+            multiServices[i]._variant_name = vr.rows[0].name;
             multiServices[i].duration_min = vr.rows[0].duration_min;
             if (vr.rows[0].price_cents != null) multiServices[i].price_cents = vr.rows[0].price_cents;
             multiServices[i]._processing_time = vr.rows[0].processing_time || 0;
@@ -675,12 +1002,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // Sort by category — same-category services are chained together
-      const _sorted = multiServices.map((svc, i) => ({ svc, vid: resolvedVariantIds[i] || null }));
-      _sorted.sort((a, b) => (a.svc.category || '').localeCompare(b.svc.category || ''));
-      multiServices = _sorted.map(p => p.svc);
-      resolvedVariantIds.splice(0);
-      _sorted.forEach(p => resolvedVariantIds.push(p.vid));
+      // Preserve frontend order (matches slot engine which uses array_position)
 
       // Mode validation
       if (appointment_mode) {
@@ -691,26 +1013,86 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // Validate practitioner offers ALL services
-      const psMultiCheck = await query(
-        `SELECT COUNT(DISTINCT service_id)::int AS cnt
-         FROM practitioner_services WHERE service_id = ANY($1) AND practitioner_id = $2`,
-        [service_ids, practitioner_id]
-      );
-      if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
-        return res.status(400).json({ error: 'Ce praticien ne propose pas toutes les prestations sélectionnées' });
+      // Build practitioners map for split mode
+      const splitPracMap = {}; // service_id → practitioner_id
+      if (isSplitMode) {
+        for (const sp of splitPractitioners) {
+          splitPracMap[sp.service_id] = sp.practitioner_id;
+        }
+        // Validate each practitioner offers their respective service
+        for (const svc of multiServices) {
+          const pracId = splitPracMap[svc.id];
+          if (!pracId) {
+            return res.status(400).json({ error: `Praticien manquant pour la prestation ${svc.id}` });
+          }
+          const psCheck = await query(
+            `SELECT 1 FROM practitioner_services WHERE service_id = $1 AND practitioner_id = $2`,
+            [svc.id, pracId]
+          );
+          if (psCheck.rows.length === 0) {
+            return res.status(400).json({ error: `Le praticien ${pracId} ne propose pas la prestation ${svc.name}` });
+          }
+        }
+        // Validate all practitioners are active + booking_enabled
+        const uniquePracIds = [...new Set(Object.values(splitPracMap))];
+        for (const pid of uniquePracIds) {
+          const pracCheck = await query(
+            `SELECT is_active, booking_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
+            [pid, businessId]
+          );
+          if (pracCheck.rows.length === 0 || !pracCheck.rows[0].is_active || !pracCheck.rows[0].booking_enabled) {
+            return res.status(400).json({ error: 'Un praticien n\'est pas disponible pour la prise de rendez-vous' });
+          }
+        }
+      } else {
+        // Mono-practitioner: validate offers ALL services
+        const psMultiCheck = await query(
+          `SELECT COUNT(DISTINCT service_id)::int AS cnt
+           FROM practitioner_services WHERE service_id = ANY($1) AND practitioner_id = $2`,
+          [service_ids, practitioner_id]
+        );
+        if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
+          // Auto-split: practitioner doesn't cover all services, assign each service to a valid practitioner
+          console.log('[BOOKING] Auto-split: practitioner', practitioner_id, 'does not cover all services, falling back to split mode');
+          const autoSplitResult = await query(
+            `SELECT DISTINCT ON (ps.service_id) ps.service_id, ps.practitioner_id
+             FROM practitioner_services ps
+             JOIN practitioners p ON p.id = ps.practitioner_id
+             WHERE ps.service_id = ANY($1) AND p.business_id = $2 AND p.is_active = true AND p.booking_enabled = true
+             ORDER BY ps.service_id, (ps.practitioner_id = $3) DESC, p.display_order ASC`,
+            [service_ids, businessId, practitioner_id]
+          );
+          if (autoSplitResult.rows.length !== service_ids.length) {
+            return res.status(400).json({ error: 'Impossible de trouver un praticien pour chaque prestation' });
+          }
+          // Switch to split mode
+          isSplitMode = true;
+          for (const row of autoSplitResult.rows) {
+            splitPracMap[row.service_id] = row.practitioner_id;
+          }
+          // Validate all auto-assigned practitioners
+          const autoUniquePracIds = [...new Set(autoSplitResult.rows.map(r => r.practitioner_id))];
+          for (const pid of autoUniquePracIds) {
+            const pracCheck = await query(
+              `SELECT is_active, booking_enabled FROM practitioners WHERE id = $1 AND business_id = $2`,
+              [pid, businessId]
+            );
+            if (pracCheck.rows.length === 0 || !pracCheck.rows[0].is_active || !pracCheck.rows[0].booking_enabled) {
+              return res.status(400).json({ error: 'Un praticien n\'est pas disponible pour la prise de rendez-vous' });
+            }
+          }
+        } else {
+          // Validate practitioner is active + booking_enabled + capacity
+          const multiPracCap = await query(
+            `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
+             FROM practitioners WHERE id = $1 AND business_id = $2`,
+            [practitioner_id, businessId]
+          );
+          if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
+            return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
+          }
+        }
       }
-
-      // Validate practitioner is active + booking_enabled + capacity
-      const multiPracCap = await query(
-        `SELECT COALESCE(max_concurrent, 1) AS max_concurrent, is_active, booking_enabled
-         FROM practitioners WHERE id = $1 AND business_id = $2`,
-        [practitioner_id, businessId]
-      );
-      if (multiPracCap.rows.length === 0 || !multiPracCap.rows[0].is_active || !multiPracCap.rows[0].booking_enabled) {
-        return res.status(400).json({ error: 'Ce praticien n\'est pas disponible pour la prise de rendez-vous' });
-      }
-      const multiMaxConcurrent = multiPracCap.rows[0]?.max_concurrent ?? 1;
 
       // Calculate chained slots (buffer_before first only, buffer_after last only)
       const groupId = require('crypto').randomUUID();
@@ -725,6 +1107,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         return {
           service_id: svc.id,
           service_variant_id: resolvedVariantIds[i] || null,
+          practitioner_id: isSplitMode ? splitPracMap[svc.id] : practitioner_id,
           start_at: slotStart.toISOString(),
           end_at: slotEnd.toISOString(),
           group_order: i,
@@ -735,10 +1118,20 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       const totalEnd = new Date(chainedSlots[chainedSlots.length - 1].end_at);
 
-      // Validate booking fits within practitioner's availability window
-      const availCheck = await checkPracAvailability(businessId, practitioner_id, startDate, totalEnd);
-      if (!availCheck.ok) {
-        return res.status(400).json({ error: availCheck.reason });
+      // Validate booking fits within practitioner availability
+      if (isSplitMode) {
+        // Split: check each practitioner for their specific time slice
+        for (const slot of chainedSlots) {
+          const availCheck = await checkPracAvailability(businessId, slot.practitioner_id, new Date(slot.start_at), new Date(slot.end_at));
+          if (!availCheck.ok) {
+            return res.status(400).json({ error: availCheck.reason });
+          }
+        }
+      } else {
+        const availCheck = await checkPracAvailability(businessId, practitioner_id, startDate, totalEnd);
+        if (!availCheck.ok) {
+          return res.status(400).json({ error: availCheck.reason });
+        }
       }
 
       const multiResult = await transactionWithRLS(businessId, async (client) => {
@@ -750,40 +1143,75 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const confirmTimeoutMin = parseInt(_bizSettings.booking_confirmation_timeout_min) || 30;
         const confirmChannel = _bizSettings.booking_confirmation_channel || 'email';
 
-        // Conflict check for entire chained range (pose-aware)
-        const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: practitioner_id, newStart: startDate.toISOString(), newEnd: totalEnd.toISOString() });
-        if (conflicts.length >= multiMaxConcurrent) {
-          throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+        // Conflict check
+        if (isSplitMode) {
+          // Split: check conflicts per practitioner for their specific time slice
+          for (const slot of chainedSlots) {
+            const pracCap = await client.query(
+              `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1`,
+              [slot.practitioner_id]
+            );
+            const maxConc = pracCap.rows[0]?.max_concurrent ?? 1;
+            const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: slot.practitioner_id, newStart: slot.start_at, newEnd: slot.end_at });
+            if (conflicts.length >= maxConc) {
+              throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+            }
+          }
+        } else {
+          const multiPracCapRow = await client.query(
+            `SELECT COALESCE(max_concurrent, 1) AS max_concurrent FROM practitioners WHERE id = $1`,
+            [practitioner_id]
+          );
+          const multiMaxConcurrent = multiPracCapRow.rows[0]?.max_concurrent ?? 1;
+          const conflicts = await checkBookingConflicts(client, { bid: businessId, pracId: practitioner_id, newStart: startDate.toISOString(), newEnd: totalEnd.toISOString() });
+          if (conflicts.length >= multiMaxConcurrent) {
+            throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
+          }
         }
 
-        // Find or create client (same 3-step matching as single-service)
+        // Find or create client (4-step matching: OAuth > exact > phone > email)
         let clientId;
         let existingClient = null;
         let matchType = null;
 
-        const exactMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
-          [businessId, client_phone, client_email]
-        );
-        if (exactMatch.rows.length > 0) {
-          existingClient = exactMatch.rows[0];
-          matchType = 'exact';
-        } else {
-          const phoneMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-            [businessId, client_phone]
+        // Priority 1: OAuth provider match (most reliable identity)
+        if (oauth_provider && oauth_provider_id) {
+          const oauthMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3 LIMIT 1`,
+            [businessId, oauth_provider, oauth_provider_id]
           );
-          if (phoneMatch.rows.length > 0) {
-            existingClient = phoneMatch.rows[0];
-            matchType = 'phone';
+          if (oauthMatch.rows.length > 0) {
+            existingClient = oauthMatch.rows[0];
+            matchType = 'oauth';
+          }
+        }
+
+        // Priority 2-4: phone+email > phone > email
+        if (!existingClient) {
+          const exactMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
+            [businessId, client_phone, client_email]
+          );
+          if (exactMatch.rows.length > 0) {
+            existingClient = exactMatch.rows[0];
+            matchType = 'exact';
           } else {
-            const emailMatch = await client.query(
-              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
-              [businessId, client_email]
+            const phoneMatch = await client.query(
+              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+              [businessId, client_phone]
             );
-            if (emailMatch.rows.length > 0) {
-              existingClient = emailMatch.rows[0];
-              matchType = 'email';
+            if (phoneMatch.rows.length > 0) {
+              existingClient = phoneMatch.rows[0];
+              matchType = 'phone';
+            } else {
+              const emailMatch = await client.query(
+                `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
+                [businessId, client_email]
+              );
+              if (emailMatch.rows.length > 0) {
+                existingClient = emailMatch.rows[0];
+                matchType = 'email';
+              }
             }
           }
         }
@@ -796,7 +1224,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             );
           }
           clientId = existingClient.id;
-          if (matchType === 'exact') {
+          if (matchType === 'oauth' || matchType === 'exact') {
             await client.query(
               `UPDATE clients SET
                 full_name = COALESCE(NULLIF($1, ''), full_name),
@@ -806,34 +1234,40 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 consent_sms = COALESCE($5, consent_sms),
                 consent_email = COALESCE($6, consent_email),
                 consent_marketing = COALESCE($7, consent_marketing),
+                oauth_provider = COALESCE($9, oauth_provider),
+                oauth_provider_id = COALESCE($10, oauth_provider_id),
                 updated_at = NOW()
                WHERE id = $8`,
               [client_name, client_email, client_phone, client_bce,
                consent_sms === true ? true : (consent_sms === false ? false : null),
                consent_email === true ? true : (consent_email === false ? false : null),
                consent_marketing === true ? true : (consent_marketing === false ? false : null),
-               clientId]
+               clientId,
+               oauth_provider || null, oauth_provider_id || null]
             );
-          } else if (matchType === 'phone') {
+          } else if (matchType === 'phone' || matchType === 'email') {
+            // Soft merge: update name, phone, email + link OAuth
             await client.query(
-              `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+              `UPDATE clients SET
+                full_name = COALESCE(NULLIF($2, ''), full_name),
+                phone = COALESCE(NULLIF($4, ''), phone),
+                email = COALESCE(NULLIF($5, ''), email),
+                oauth_provider = COALESCE($6, oauth_provider),
+                oauth_provider_id = COALESCE($7, oauth_provider_id),
+                updated_at = NOW()
                WHERE id = $1 AND business_id = $3`,
-              [clientId, client_name, businessId]
-            );
-          } else if (matchType === 'email') {
-            await client.query(
-              `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
-               WHERE id = $1 AND business_id = $3`,
-              [clientId, client_name, businessId]
+              [clientId, client_name, businessId, client_phone || null, client_email || null, oauth_provider || null, oauth_provider_id || null]
             );
           }
         } else {
           const nc = await client.query(
             `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-              language_preference, consent_sms, consent_email, consent_marketing, created_from)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
+              language_preference, consent_sms, consent_email, consent_marketing, created_from,
+              oauth_provider, oauth_provider_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
             [businessId, client_name, client_phone, client_email, client_bce||null,
-             safeLang, consent_sms===true, consent_email===true, consent_marketing===true]
+             safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
+             oauth_provider || null, oauth_provider_id || null]
           );
           clientId = nc.rows[0].id;
         }
@@ -845,93 +1279,187 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         // Insert each booking with group_id and group_order
         const bookings = [];
         for (const slot of chainedSlots) {
+          const slotPracId = slot.practitioner_id || practitioner_id;
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
               group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked)
-             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,
-              ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-              $13,$14,$15)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
-            [businessId, practitioner_id, slot.service_id, slot.service_variant_id, clientId,
+            [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
-             slot.processing_time || 0, slot.processing_start || 0, multiLocked]
+             needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
+             slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked]
           );
           bookings.push(bk.rows[0]);
         }
 
-        // Deposit on first booking only (same pattern as bookings-creation.js)
-        if (clientId && bookings.length > 0) {
+        // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
+        let gcPartialCents = 0;
+        if (bookings.length > 0) {
           try {
             await client.query('SAVEPOINT deposit_sp');
-            const depCheck = await client.query(
-              `SELECT c.no_show_count, biz.settings
-               FROM clients c JOIN businesses biz ON biz.id = c.business_id
-               WHERE c.id = $1 AND c.business_id = $2`,
-              [clientId, businessId]
+
+            // Get business settings
+            const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
+            const bizSettings = bizSettingsRow.rows[0]?.settings || {};
+
+            // Get total price from DB (accurate, includes variants)
+            const svcPriceResult = await client.query(
+              `SELECT COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS total_price,
+                      COALESCE(SUM(COALESCE(sv.duration_min, s.duration_min)), 0) AS total_duration
+               FROM bookings b
+               JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = ANY($1) AND b.business_id = $2`,
+              [bookings.map(b => b.id), businessId]
             );
-            const dc = depCheck.rows[0];
-            if (dc?.settings?.deposit_enabled && dc.no_show_count >= (dc.settings.deposit_noshow_threshold || 2)) {
-              const svcPriceResult = await client.query(
-                `SELECT COALESCE(SUM(s.price_cents), 0) AS total_price
-                 FROM bookings b JOIN services s ON s.id = b.service_id
-                 WHERE b.id = ANY($1) AND b.business_id = $2`,
-                [bookings.map(b => b.id), businessId]
-              );
-              const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
-              let depCents = 0;
-              if (dc.settings.deposit_type === 'fixed') {
-                depCents = dc.settings.deposit_fixed_cents || 2500;
-              } else {
-                depCents = Math.round(totalPrice * (dc.settings.deposit_percent || 50) / 100);
-              }
-              if (depCents > 0) {
-                const dlHours = dc.settings.deposit_deadline_hours ?? 48;
-                const deadline = new Date(startDate.getTime() - dlHours * 3600000);
-                if (deadline > new Date()) {
-                  // Deposit amount on the first booking only
+            const totalPrice = parseInt(svcPriceResult.rows[0]?.total_price) || 0;
+            const totalDuration = parseInt(svcPriceResult.rows[0]?.total_duration) || 0;
+
+            // Get no-show count + VIP status (0/false for new clients)
+            let noShowCount = 0;
+            let clientIsVip = false;
+            if (clientId) {
+              const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+              noShowCount = nsRow.rows[0]?.no_show_count || 0;
+              clientIsVip = !!nsRow.rows[0]?.is_vip;
+            }
+
+            const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
+            if (depResult.required) {
+              const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
+              // Skip deposit only if RDV is less than 2h away (not enough time to pay)
+              if (hoursUntilRdv >= 2) {
+                // Check for gift card auto-debit (full or partial)
+                let gcAutoPaid = false;
+                if (gift_card_code || client_email) {
+                  try {
+                    let gcRes;
+                    if (gift_card_code) {
+                      // Client provided a gift card code manually
+                      gcRes = await client.query(
+                        `SELECT id, code, balance_cents FROM gift_cards
+                         WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
+                           AND (expires_at IS NULL OR expires_at > NOW())
+                         LIMIT 1`,
+                        [businessId, gift_card_code.toUpperCase().trim()]
+                      );
+                    } else {
+                      // Auto-match by client email
+                      gcRes = await client.query(
+                        `SELECT id, code, balance_cents FROM gift_cards
+                         WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+                           AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
+                           AND (expires_at IS NULL OR expires_at > NOW())
+                         ORDER BY balance_cents DESC LIMIT 1`,
+                        [businessId, client_email]
+                      );
+                    }
+                    if (gcRes.rows.length > 0) {
+                      const gc = gcRes.rows[0];
+                      const gcDebit = Math.min(gc.balance_cents, depResult.depCents);
+                      const newBal = gc.balance_cents - gcDebit;
+                      await client.query(
+                        `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                        [newBal, newBal === 0 ? 'used' : 'active', gc.id]
+                      );
+                      await client.query(
+                        `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
+                         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
+                        [gc.id, businessId, bookings[0].id, gcDebit, `Acompte auto — carte ${gc.code}`]
+                      );
+
+                      if (gcDebit >= depResult.depCents) {
+                        // Fully covered by GC
+                        await client.query(
+                          `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                            deposit_status = 'paid', deposit_paid_at = NOW(),
+                            deposit_payment_intent_id = $2
+                           WHERE id = $3 AND business_id = $4`,
+                          [depResult.depCents, `gc_${gc.code}`, bookings[0].id, businessId]
+                        );
+                        bookings[0].deposit_required = true;
+                        bookings[0].deposit_amount_cents = depResult.depCents;
+                        bookings[0].deposit_status = 'paid';
+                        bookings[0].deposit_payment_intent_id = `gc_${gc.code}`;
+                        if (bookings.length > 1) {
+                          const otherIds = bookings.slice(1).map(b => b.id);
+                          await client.query(
+                            `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
+                              deposit_paid_at = NOW(), deposit_amount_cents = $3,
+                              deposit_payment_intent_id = $4
+                             WHERE id = ANY($1) AND business_id = $2`,
+                            [otherIds, businessId, depResult.depCents, `gc_${gc.code}`]
+                          );
+                        }
+                        gcAutoPaid = true;
+                        console.log(`[DEPOSIT] Multi fully auto-paid via gift card ${gc.code} (${gcDebit}c), balance: ${newBal}c`);
+                      } else {
+                        // Partial — GC deducted, remaining goes to pending_deposit for Stripe
+                        gcPartialCents = gcDebit;
+                        console.log(`[DEPOSIT] Multi partial auto-debit via gift card ${gc.code}: ${gcDebit}c of ${depResult.depCents}c, remaining ${depResult.depCents - gcDebit}c via Stripe, GC balance: ${newBal}c`);
+                      }
+                    }
+                  } catch (gcErr) {
+                    console.error('[DEPOSIT] Multi gift card auto-debit failed:', gcErr.message);
+                  }
+                }
+
+                if (!gcAutoPaid) {
+                  const deadline = computeDepositDeadline(startDate, bizSettings);
                   await client.query(
                     `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2
+                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                      deposit_requested_at = NOW(), deposit_request_count = 1,
+                      confirmation_expires_at = NULL
                      WHERE id = $3 AND business_id = $4`,
-                    [depCents, deadline.toISOString(), bookings[0].id, businessId]
+                    [depResult.depCents, deadline.toISOString(), bookings[0].id, businessId]
                   );
                   bookings[0].status = 'pending_deposit';
                   bookings[0].deposit_required = true;
-                  bookings[0].deposit_amount_cents = depCents;
-                  // Set pending_deposit status on all other group members (no deposit amount)
+                  bookings[0].deposit_amount_cents = depResult.depCents;
+                  bookings[0].deposit_deadline = deadline.toISOString();
                   if (bookings.length > 1) {
                     const otherIds = bookings.slice(1).map(b => b.id);
                     await client.query(
-                      `UPDATE bookings SET status = 'pending_deposit'
+                      `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
+                        deposit_amount_cents = $3, deposit_deadline = $4
                        WHERE id = ANY($1) AND business_id = $2`,
-                      [otherIds, businessId]
+                      [otherIds, businessId, depResult.depCents, deadline.toISOString()]
                     );
                     for (let i = 1; i < bookings.length; i++) {
                       bookings[i].status = 'pending_deposit';
                     }
                   }
+                  console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
                 }
               }
             }
           } catch (depErr) {
             await client.query('ROLLBACK TO SAVEPOINT deposit_sp');
             console.error('Deposit check failed:', depErr.message);
+            // If deposit is enabled, abort the booking — don't let it slip through without deposit
+            if (bizSettings.deposit_enabled) {
+              throw new Error('Impossible de vérifier l\'acompte. Veuillez réessayer.');
+            }
           }
         }
 
-        // Queue notifications for first booking
-        try {
-          await client.query('SAVEPOINT notif_multi_sp1');
-          await client.query(
-            `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-             VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-            [businessId, bookings[0].id, client_email, client_phone]
-          );
-        } catch (notifErr) {
-          await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp1');
-          console.error('Notification insert failed:', notifErr.message);
+        // Queue notifications for first booking (skip email_confirmation if deposit active)
+        if (bookings[0].status !== 'pending_deposit') {
+          try {
+            await client.query('SAVEPOINT notif_multi_sp1');
+            await client.query(
+              `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
+               VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
+              [businessId, bookings[0].id, client_email, client_phone]
+            );
+          } catch (notifErr) {
+            await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp1');
+            console.error('Notification insert failed:', notifErr.message);
+          }
         }
         try {
           await client.query('SAVEPOINT notif_multi_sp2');
@@ -945,30 +1473,74 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           console.error('Notification insert failed:', notifErr.message);
         }
 
-        return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel };
+        return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
       });
 
-      const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel } = multiResult;
+      const { bookings: multiBookings, needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout, confirmChannel: multiConfChannel, gcPartialCents: multiGcPartial } = multiResult;
 
       broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+      // H1: calSyncPush for each created booking
+      for (const mb of multiBookings) {
+        try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, mb.id); } catch (_) {}
+      }
 
-      // Send email (non-blocking): confirmation request OR direct confirmation
+      // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
       (async () => {
         try {
-          const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
-          const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+          const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
+          // Fetch practitioner names — split mode may have multiple practitioners
+          let pracDisplayName = '';
+          const splitPracNames = {}; // practitioner_id → display_name
+          if (isSplitMode) {
+            const uniquePIds = [...new Set(Object.values(splitPracMap))];
+            const pracRows = await query(`SELECT id, display_name FROM practitioners WHERE id = ANY($1)`, [uniquePIds]);
+            pracRows.rows.forEach(r => { splitPracNames[r.id] = r.display_name; });
+            pracDisplayName = pracRows.rows.map(r => r.display_name).filter(Boolean).join(', ');
+          } else {
+            const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+            pracDisplayName = pracRow.rows[0]?.display_name || '';
+          }
           if (bizRow.rows[0]) {
             const lastBooking = multiBookings[multiBookings.length - 1];
             const emailBooking = {
               ...multiBookings[0],
               end_at: lastBooking.end_at,
               client_name, client_email,
-              practitioner_name: pracRow.rows[0]?.display_name || '',
-              comment: client_comment
+              service_category: multiServices[0]?.category || null,
+              practitioner_name: pracDisplayName,
+              comment: client_comment,
+              gc_partial_cents: multiGcPartial || 0
             };
-            const groupSvcs = multiServices.map(s => ({ name: s.name, duration_min: s.duration_min, price_cents: s.price_cents }));
+            const groupSvcs = multiServices.map(s => ({
+              name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
+              duration_min: s.duration_min,
+              price_cents: s.price_cents,
+              practitioner_name: isSplitMode ? (splitPracNames[splitPracMap[s.id]] || null) : null
+            }));
 
-            if (multiNeedsConfirm) {
+            if (multiBookings[0].status === 'pending_deposit') {
+              // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const depositUrl = `${baseUrl}/deposit/${multiBookings[0].public_token}`;
+              await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, multiBookings[0].id]);
+              const { sendDepositRequestEmail } = require('../../services/email');
+              const payUrl = `${baseUrl}/api/public/deposit/${multiBookings[0].public_token}/pay`;
+              await sendDepositRequestEmail({
+                booking: emailBooking,
+                business: bizRow.rows[0],
+                depositUrl,
+                payUrl,
+                groupServices: groupSvcs
+              });
+              // Audit trail
+              try {
+                await query(
+                  `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
+                   VALUES ($1,$2,'email_deposit_request',$3,'sent',NOW())`,
+                  [businessId, multiBookings[0].id, client_email]
+                );
+              } catch (_) { /* best-effort audit */ }
+            } else if (multiNeedsConfirm) {
               // Send confirmation REQUEST (client must click to confirm)
               const { sendBookingConfirmationRequest } = require('../../services/email');
               if (multiConfChannel === 'email' || multiConfChannel === 'both') {
@@ -979,7 +1551,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   const { sendSMS } = require('../../services/sms');
                   const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
                   const link = `${baseUrl}/api/public/booking/${multiBookings[0].public_token}/confirm-booking`;
-                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
+                  const _sd = new Date(emailBooking.start_at);
+                  const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                  const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
                 } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
               }
             } else {
@@ -993,7 +1568,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         booking: {
           id: multiBookings[0].id, token: multiBookings[0].public_token,
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
-          cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${multiBookings[0].public_token}`
+          cancel_url: `${process.env.BOOKING_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${multiBookings[0].public_token}`
         },
         bookings: multiBookings.map(b => ({
           id: b.id, token: b.public_token,
@@ -1001,7 +1576,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           group_order: b.group_order
         })),
         group_id: groupId,
-        needs_confirmation: multiNeedsConfirm
+        needs_confirmation: multiNeedsConfirm && multiBookings[0].status !== 'pending_deposit'
       });
     }
 
@@ -1022,11 +1597,17 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
     if (effectiveServiceId) {
       const svcResult = await query(
-        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, flexibility_enabled
-         FROM services WHERE id = $1 AND business_id = $2 AND is_active = true`,
+        `SELECT duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, flexibility_enabled, mode_options
+         FROM services WHERE id = $1 AND business_id = $2 AND is_active = true AND bookable_online = true`,
         [effectiveServiceId, businessId]
       );
-      if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable' });
+      if (svcResult.rows.length === 0) return res.status(404).json({ error: 'Prestation introuvable ou non disponible en ligne' });
+      // M7: Validate appointment mode against service's allowed modes
+      if (appointment_mode && svcResult.rows[0].mode_options && Array.isArray(svcResult.rows[0].mode_options) && svcResult.rows[0].mode_options.length > 0) {
+        if (!svcResult.rows[0].mode_options.includes(appointment_mode)) {
+          return res.status(400).json({ error: `Mode "${appointment_mode}" non disponible pour cette prestation` });
+        }
+      }
       const service = svcResult.rows[0];
 
       // Override duration from variant if provided
@@ -1103,43 +1684,53 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         throw Object.assign(new Error('Ce créneau vient d\'être pris.'), { type: 'conflict' });
       }
 
-      // Find or create client (3-step matching: exact → phone → email)
+      // Find or create client (4-step matching: OAuth > exact > phone > email)
       let clientId;
       let existingClient = null;
-      let matchType = null; // 'exact', 'phone', or 'email'
+      let matchType = null;
 
-      // Step 1: exact match (phone AND email)
-      const exactMatch = await client.query(
-        `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
-        [businessId, client_phone, client_email]
-      );
-      if (exactMatch.rows.length > 0) {
-        existingClient = exactMatch.rows[0];
-        matchType = 'exact';
-      } else {
-        // Step 2: match by phone
-        const phoneMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-          [businessId, client_phone]
+      // Priority 1: OAuth provider match (most reliable identity)
+      if (oauth_provider && oauth_provider_id) {
+        const oauthMatch = await client.query(
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3 LIMIT 1`,
+          [businessId, oauth_provider, oauth_provider_id]
         );
-        if (phoneMatch.rows.length > 0) {
-          existingClient = phoneMatch.rows[0];
-          matchType = 'phone';
+        if (oauthMatch.rows.length > 0) {
+          existingClient = oauthMatch.rows[0];
+          matchType = 'oauth';
+        }
+      }
+
+      if (!existingClient) {
+        const exactMatch = await client.query(
+          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
+          [businessId, client_phone, client_email]
+        );
+        if (exactMatch.rows.length > 0) {
+          existingClient = exactMatch.rows[0];
+          matchType = 'exact';
         } else {
-          // Step 3: match by email
-          const emailMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
-            [businessId, client_email]
+          const phoneMatch = await client.query(
+            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
+            [businessId, client_phone]
           );
-          if (emailMatch.rows.length > 0) {
-            existingClient = emailMatch.rows[0];
-            matchType = 'email';
+          if (phoneMatch.rows.length > 0) {
+            existingClient = phoneMatch.rows[0];
+            matchType = 'phone';
+          } else {
+            const emailMatch = await client.query(
+              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
+              [businessId, client_email]
+            );
+            if (emailMatch.rows.length > 0) {
+              existingClient = emailMatch.rows[0];
+              matchType = 'email';
+            }
           }
         }
       }
 
       if (existingClient) {
-        // Check if client is blocked
         if (existingClient.is_blocked) {
           throw Object.assign(
             new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
@@ -1147,8 +1738,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           );
         }
         clientId = existingClient.id;
-        if (matchType === 'exact') {
-          // Exact match: safe to update all fields
+        if (matchType === 'oauth' || matchType === 'exact') {
           await client.query(
             `UPDATE clients SET
               full_name = COALESCE(NULLIF($1, ''), full_name),
@@ -1158,36 +1748,39 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               consent_sms = COALESCE($5, consent_sms),
               consent_email = COALESCE($6, consent_email),
               consent_marketing = COALESCE($7, consent_marketing),
+              oauth_provider = COALESCE($9, oauth_provider),
+              oauth_provider_id = COALESCE($10, oauth_provider_id),
               updated_at = NOW()
              WHERE id = $8`,
             [client_name, client_email, client_phone, client_bce,
              consent_sms === true ? true : (consent_sms === false ? false : null),
              consent_email === true ? true : (consent_email === false ? false : null),
              consent_marketing === true ? true : (consent_marketing === false ? false : null),
-             clientId]
+             clientId,
+             oauth_provider || null, oauth_provider_id || null]
           );
-        } else if (matchType === 'phone') {
-          // Phone-only match: do NOT overwrite email (prevents malicious email takeover)
+        } else if (matchType === 'phone' || matchType === 'email') {
           await client.query(
-            `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
+            `UPDATE clients SET
+              full_name = COALESCE(NULLIF($2, ''), full_name),
+              phone = COALESCE(NULLIF($4, ''), phone),
+              email = COALESCE(NULLIF($5, ''), email),
+              oauth_provider = COALESCE($6, oauth_provider),
+              oauth_provider_id = COALESCE($7, oauth_provider_id),
+              updated_at = NOW()
              WHERE id = $1 AND business_id = $3`,
-            [clientId, client_name, businessId]
-          );
-        } else if (matchType === 'email') {
-          // Email-only match: do NOT overwrite phone (prevents malicious phone takeover)
-          await client.query(
-            `UPDATE clients SET full_name = COALESCE(NULLIF($2, ''), full_name), updated_at = NOW()
-             WHERE id = $1 AND business_id = $3`,
-            [clientId, client_name, businessId]
+            [clientId, client_name, businessId, client_phone, client_email, oauth_provider || null, oauth_provider_id || null]
           );
         }
       } else {
         const nc = await client.query(
           `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-            language_preference, consent_sms, consent_email, consent_marketing, created_from)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking') RETURNING id`,
+            language_preference, consent_sms, consent_email, consent_marketing, created_from,
+            oauth_provider, oauth_provider_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
           [businessId, client_name, client_phone, client_email, client_bce||null,
-           safeLang, consent_sms===true, consent_email===true, consent_marketing===true]
+           safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
+           oauth_provider || null, oauth_provider_id || null]
         );
         clientId = nc.rows[0].id;
       }
@@ -1195,32 +1788,188 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Determine locked status based on service flexibility setting
       const singleLocked = resolvedFlexEnabled ? (flexible !== true) : false;
 
+      // Resolve last-minute discount (validate server-side to prevent abuse)
+      let resolvedDiscountPct = null;
+      if (is_last_minute && bizSettings.last_minute_enabled) {
+        const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
+        const startBrussels = startDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        if (isWithinLastMinuteWindow(startBrussels, todayBrussels, lmDeadline)) {
+          const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+          // Resolve effective price (variant or service)
+          let effPrice = 0;
+          const _sp = await client.query(`SELECT price_cents, promo_eligible FROM services WHERE id = $1`, [effectiveServiceId]);
+          if (_sp.rows[0]?.promo_eligible === false) { /* Service not eligible */ }
+          else {
+          effPrice = _sp.rows[0]?.price_cents || 0;
+          if (resolvedVariantId) {
+            const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+            if (_vp.rows[0]?.price_cents != null) effPrice = _vp.rows[0].price_cents;
+          }
+          if (effPrice > 0 && effPrice >= lmMinPrice) {
+            resolvedDiscountPct = bizSettings.last_minute_discount_pct || 10;
+          }
+          } // end promo_eligible check
+        }
+      }
+
       // Create booking
       const booking = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
-          processing_time, processing_start, locked)
-         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,
-          ${needsConfirmation ? "NOW() + INTERVAL '" + confirmTimeoutMin + " minutes'" : 'NULL'},
-          $11,$12,$13)
-         RETURNING id, public_token, start_at, end_at, status`,
+          processing_time, processing_start, locked, discount_pct)
+         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         RETURNING id, public_token, start_at, end_at, status, discount_pct`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
-         resolvedProcessingTime, resolvedProcessingStart, singleLocked]
+         needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
+         resolvedProcessingTime, resolvedProcessingStart, bookingStatus === 'confirmed' ? true : singleLocked, resolvedDiscountPct]
       );
 
-      // Queue notifications
-      // NOTE: notification types may need a DB migration to add to the CHECK constraint
-      try {
-        await client.query('SAVEPOINT notif_sp1');
-        await client.query(
-          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-           VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-          [businessId, booking.rows[0].id, client_email, client_phone]
-        );
-      } catch (notifErr) {
-        await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
-        console.error('Notification insert failed:', notifErr.message);
+      // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
+      let gcPartialCents = 0;
+      if (booking.rows[0]) {
+        try {
+          await client.query('SAVEPOINT deposit_single_sp');
+
+          // Get business settings
+          const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
+          const bizSettings = bizSettingsRow.rows[0]?.settings || {};
+
+          // Get service price + duration (use variant if applicable)
+          let svcPrice = 0, svcDuration = 0;
+          const svcInfoResult = await client.query(
+            `SELECT COALESCE(s.price_cents, 0) AS price, COALESCE(s.duration_min, 0) AS duration
+             FROM bookings b JOIN services s ON s.id = b.service_id
+             WHERE b.id = $1 AND b.business_id = $2`,
+            [booking.rows[0].id, businessId]
+          );
+          svcPrice = parseInt(svcInfoResult.rows[0]?.price) || 0;
+          svcDuration = parseInt(svcInfoResult.rows[0]?.duration) || 0;
+          if (resolvedVariantId) {
+            const varInfo = await client.query(`SELECT price_cents, duration_min FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+            if (varInfo.rows[0]?.price_cents != null) svcPrice = varInfo.rows[0].price_cents;
+            if (varInfo.rows[0]?.duration_min != null) svcDuration = varInfo.rows[0].duration_min;
+          }
+
+          // Get no-show count + VIP status (0/false for new clients)
+          let noShowCount = 0;
+          let clientIsVip = false;
+          if (clientId) {
+            const nsRow = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+            noShowCount = nsRow.rows[0]?.no_show_count || 0;
+            clientIsVip = !!nsRow.rows[0]?.is_vip;
+          }
+
+          const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
+          if (depResult.required) {
+            const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
+            // Skip deposit only if RDV is less than 2h away (not enough time to pay)
+            if (hoursUntilRdv >= 2) {
+              // Check for gift card auto-debit (full or partial)
+              let gcAutoPaid = false;
+              if (gift_card_code || client_email) {
+                try {
+                  let gcRes;
+                  if (gift_card_code) {
+                    gcRes = await client.query(
+                      `SELECT id, code, balance_cents FROM gift_cards
+                       WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       LIMIT 1`,
+                      [businessId, gift_card_code.toUpperCase().trim()]
+                    );
+                  } else {
+                    gcRes = await client.query(
+                      `SELECT id, code, balance_cents FROM gift_cards
+                       WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+                         AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       ORDER BY balance_cents DESC LIMIT 1`,
+                      [businessId, client_email]
+                    );
+                  }
+                  if (gcRes.rows.length > 0) {
+                    const gc = gcRes.rows[0];
+                    const gcDebit = Math.min(gc.balance_cents, depResult.depCents);
+                    const newBal = gc.balance_cents - gcDebit;
+                    await client.query(
+                      `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                      [newBal, newBal === 0 ? 'used' : 'active', gc.id]
+                    );
+                    await client.query(
+                      `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
+                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
+                      [gc.id, businessId, booking.rows[0].id, gcDebit, `Acompte auto — carte ${gc.code}`]
+                    );
+
+                    if (gcDebit >= depResult.depCents) {
+                      // Fully covered by GC
+                      await client.query(
+                        `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                          deposit_status = 'paid', deposit_paid_at = NOW(),
+                          deposit_payment_intent_id = $2
+                         WHERE id = $3 AND business_id = $4`,
+                        [depResult.depCents, `gc_${gc.code}`, booking.rows[0].id, businessId]
+                      );
+                      booking.rows[0].deposit_required = true;
+                      booking.rows[0].deposit_amount_cents = depResult.depCents;
+                      booking.rows[0].deposit_status = 'paid';
+                      booking.rows[0].deposit_payment_intent_id = `gc_${gc.code}`;
+                      gcAutoPaid = true;
+                      console.log(`[DEPOSIT] Fully auto-paid via gift card ${gc.code} (${gcDebit}c), balance: ${newBal}c`);
+                    } else {
+                      // Partial — GC deducted, remaining goes to pending_deposit for Stripe
+                      gcPartialCents = gcDebit;
+                      console.log(`[DEPOSIT] Partial auto-debit via gift card ${gc.code}: ${gcDebit}c of ${depResult.depCents}c, remaining ${depResult.depCents - gcDebit}c via Stripe, GC balance: ${newBal}c`);
+                    }
+                  }
+                } catch (gcErr) {
+                  console.error('[DEPOSIT] Gift card auto-debit failed:', gcErr.message);
+                }
+              }
+
+              if (!gcAutoPaid) {
+                const deadline = computeDepositDeadline(startDate, bizSettings);
+                await client.query(
+                  `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                    deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                    deposit_requested_at = NOW(), deposit_request_count = 1,
+                    confirmation_expires_at = NULL
+                   WHERE id = $3 AND business_id = $4`,
+                  [depResult.depCents, deadline.toISOString(), booking.rows[0].id, businessId]
+                );
+                booking.rows[0].status = 'pending_deposit';
+                booking.rows[0].deposit_required = true;
+                booking.rows[0].deposit_amount_cents = depResult.depCents;
+                booking.rows[0].deposit_deadline = deadline.toISOString();
+                console.log(`[DEPOSIT] Single-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
+              }
+            }
+          }
+        } catch (depErr) {
+          await client.query('ROLLBACK TO SAVEPOINT deposit_single_sp');
+          console.error('Single-service deposit check failed:', depErr.message);
+          // If deposit is enabled, abort the booking — don't let it slip through without deposit
+          if (bizSettings.deposit_enabled) {
+            throw new Error('Impossible de vérifier l\'acompte. Veuillez réessayer.');
+          }
+        }
+      }
+
+      // Queue notifications (skip email_confirmation if deposit active)
+      if (booking.rows[0].status !== 'pending_deposit') {
+        try {
+          await client.query('SAVEPOINT notif_sp1');
+          await client.query(
+            `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
+             VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
+            [businessId, booking.rows[0].id, client_email, client_phone]
+          );
+        } catch (notifErr) {
+          await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
+          console.error('Notification insert failed:', notifErr.message);
+        }
       }
       try {
         await client.query('SAVEPOINT notif_sp2');
@@ -1234,33 +1983,58 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         console.error('Notification insert failed:', notifErr.message);
       }
 
-      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel };
+      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
     });
 
-    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel } = result;
+    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial } = result;
 
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
+    // H1: calSyncPush for created booking
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, createdBooking.id); } catch (_) {}
 
-    // Send email (non-blocking): confirmation request OR direct confirmation
+    // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
     (async () => {
       try {
-        const bizRow = await query(`SELECT name, email, address, theme FROM businesses WHERE id = $1`, [businessId]);
+        const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
         const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
         if (bizRow.rows[0]) {
-          // Fetch service name for email
+          // Fetch service name (+ variant name) for email
           let svcName = 'Rendez-vous';
+          let svcCategory = null;
           if (effectiveServiceId) {
-            const svcRow = await query(`SELECT name FROM services WHERE id = $1`, [effectiveServiceId]);
-            if (svcRow.rows[0]) svcName = svcRow.rows[0].name;
+            const svcRow = await query(`SELECT name, category FROM services WHERE id = $1`, [effectiveServiceId]);
+            if (svcRow.rows[0]) { svcName = svcRow.rows[0].name; svcCategory = svcRow.rows[0].category || null; }
+            if (resolvedVariantId) {
+              const vrRow = await query(`SELECT name FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+              if (vrRow.rows[0]?.name) svcName = svcName + ' \u2014 ' + vrRow.rows[0].name;
+            }
           }
           const emailBooking = {
             ...createdBooking,
             client_name, client_email,
             service_name: svcName,
+            service_category: svcCategory,
             practitioner_name: pracRow.rows[0]?.display_name || '',
-            comment: client_comment
+            comment: client_comment,
+            gc_partial_cents: resultGcPartial || 0
           };
-          if (singleNeedsConfirm) {
+          if (createdBooking.status === 'pending_deposit') {
+            // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
+            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const depositUrl = `${baseUrl}/deposit/${createdBooking.public_token}`;
+            await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, createdBooking.id]);
+            const { sendDepositRequestEmail } = require('../../services/email');
+            const payUrl = `${baseUrl}/api/public/deposit/${createdBooking.public_token}/pay`;
+            await sendDepositRequestEmail({ booking: emailBooking, business: bizRow.rows[0], depositUrl, payUrl });
+            // Audit trail
+            try {
+              await query(
+                `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
+                 VALUES ($1,$2,'email_deposit_request',$3,'sent',NOW())`,
+                [businessId, createdBooking.id, client_email]
+              );
+            } catch (_) { /* best-effort audit */ }
+          } else if (singleNeedsConfirm) {
             const { sendBookingConfirmationRequest } = require('../../services/email');
             if (singleConfChannel === 'email' || singleConfChannel === 'both') {
               await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: singleConfTimeout });
@@ -1270,7 +2044,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 const { sendSMS } = require('../../services/sms');
                 const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
                 const link = `${baseUrl}/api/public/booking/${createdBooking.public_token}/confirm-booking`;
-                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : confirmez votre RDV en cliquant ici : ${link}`, businessId });
+                const _sd2 = new Date(emailBooking.start_at);
+                const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
               } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
             }
           } else {
@@ -1284,9 +2061,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       booking: {
         id: createdBooking.id, token: createdBooking.public_token,
         start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
-        cancel_url: `${process.env.BOOKING_BASE_URL}/booking/${createdBooking.public_token}`
+        discount_pct: createdBooking.discount_pct || null,
+        cancel_url: `${process.env.BOOKING_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${createdBooking.public_token}`
       },
-      needs_confirmation: singleNeedsConfirm
+      needs_confirmation: singleNeedsConfirm && createdBooking.status !== 'pending_deposit'
     });
   } catch (err) {
     if (err.type === 'conflict') return res.status(409).json({ error: err.message });
@@ -1307,9 +2085,13 @@ router.get('/booking/:token', async (req, res, next) => {
     const { token } = req.params;
     const result = await query(
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
-              b.comment_client, b.public_token, b.created_at,
-              b.deposit_required, b.deposit_amount_cents, b.deposit_status,
-              s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+              b.comment_client, b.public_token, b.created_at, b.group_id,
+              b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+              s.color AS service_color,
               p.display_name AS practitioner_name, p.title AS practitioner_title,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
               biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
@@ -1318,6 +2100,7 @@ router.get('/booking/:token', async (req, res, next) => {
               biz.category AS business_category, biz.sector AS business_sector
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN practitioners p ON p.id = b.practitioner_id
        LEFT JOIN clients c ON c.id = b.client_id
        JOIN businesses biz ON biz.id = b.business_id
@@ -1327,19 +2110,54 @@ router.get('/booking/:token', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
+
+    // Fetch group members if this is a grouped booking
+    let groupServices = null;
+    let groupEndAt = null;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at
+         FROM bookings b
+         LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
+         WHERE b.group_id = $1 AND b.business_id = (SELECT business_id FROM bookings WHERE public_token = $2)
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, token]
+      );
+      if (grp.rows.length > 1) {
+        const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
+        const isSplit = pracIds.size > 1;
+        groupServices = grp.rows.map(r => ({
+          name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color,
+          practitioner_name: isSplit ? r.practitioner_name : null,
+          start_at: r.svc_start_at, end_at: r.end_at
+        }));
+        groupEndAt = grp.rows[grp.rows.length - 1].end_at;
+      }
+    }
+
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = (bk.status === 'confirmed' || bk.status === 'pending_deposit') && new Date() < deadline;
+    const canCancel = bk.status === 'pending' || ((['confirmed', 'pending_deposit'].includes(bk.status)) && new Date() < deadline);
+
+    // Build service info: use group members if available, otherwise single service
+    const serviceInfo = groupServices
+      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
+      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
 
     res.json({
       booking: {
         id: bk.id, token: bk.public_token,
-        start_at: bk.start_at, end_at: bk.end_at, status: bk.status,
+        start_at: bk.start_at, end_at: groupEndAt || bk.end_at, status: bk.status,
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
-        deposit_status: bk.deposit_status,
-        service: { name: bk.service_name, duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color },
+        deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
+        service: serviceInfo,
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
       },
@@ -1362,20 +2180,169 @@ router.get('/booking/:token', async (req, res, next) => {
 });
 
 // ============================================================
-// POST /api/public/booking/:token/cancel
-// Client self-cancel
+// GET /api/public/manage/:token
+// Booking details + reschedule eligibility
 // ============================================================
-router.post('/booking/:token/cancel', async (req, res, next) => {
+router.get('/manage/:token', async (req, res, next) => {
   try {
     const { token } = req.params;
-    const { reason } = req.body;
-
-    // Bug B2 fix: length limit on cancel reason
-    if (reason && reason.length > 2000) return res.status(400).json({ error: 'Raison trop longue (max 2000)' });
-
     const result = await query(
-      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.deposit_required, b.deposit_status,
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+              b.comment_client, b.public_token, b.created_at, b.group_id,
+              b.locked, b.reschedule_count, b.business_id,
+              b.service_id, b.service_variant_id, b.practitioner_id,
+              b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              s.category AS service_category,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+              s.color AS service_color,
+              p.display_name AS practitioner_name, p.title AS practitioner_title,
+              c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
+              biz.name AS business_name, biz.slug AS business_slug, biz.phone AS business_phone,
+              biz.email AS business_email, biz.address AS business_address,
+              biz.settings AS business_settings, biz.theme AS business_theme,
+              biz.category AS business_category, biz.sector AS business_sector
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+    const bk = result.rows[0];
+    const settings = bk.business_settings || {};
+
+    // Cancellation (same logic as GET /booking/:token)
+    const cancelWindowHours = settings.cancel_deadline_hours ?? settings.cancellation_window_hours ?? 24;
+    const cancelDeadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+    const canCancel = bk.status === 'pending' || ((['confirmed', 'pending_deposit'].includes(bk.status)) && new Date() < cancelDeadline);
+
+    // Reschedule eligibility
+    const reschEnabled = !!settings.reschedule_enabled;
+    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
+    const reschMaxCount = settings.reschedule_max_count ?? 1;
+    const reschWindowDays = settings.reschedule_window_days ?? 30;
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+    const now = new Date();
+
+    let reschAllowed = true;
+    let reschReason = null;
+    if (!reschEnabled) { reschAllowed = false; reschReason = null; } // feature off — hide section
+    else if (!['confirmed', 'pending_deposit'].includes(bk.status)) { reschAllowed = false; reschReason = 'Le rendez-vous ne peut pas être modifié dans son état actuel.'; }
+    else if (bk.locked) { reschAllowed = false; reschReason = 'Ce rendez-vous est verrouillé. Contactez le salon.'; }
+    else if ((bk.reschedule_count || 0) >= reschMaxCount) { reschAllowed = false; reschReason = 'Nombre maximum de modifications atteint. Contactez le salon.'; }
+    else if (now >= reschDeadline) { reschAllowed = false; reschReason = `Le délai de modification (${reschDeadlineHours}h avant) est dépassé.`; }
+    else if (new Date(bk.start_at) <= now) { reschAllowed = false; reschReason = 'Ce rendez-vous est déjà passé.'; }
+
+    // Group members
+    let groupServices = null;
+    let groupEndAt = null;
+    let isSplitBooking = false;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
+                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
+                b.service_id, b.service_variant_id
+         FROM bookings b
+         LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
+        isSplitBooking = pracIds.size > 1;
+        groupServices = grp.rows.map(r => ({
+          name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color,
+          practitioner_name: isSplitBooking ? r.practitioner_name : null,
+          start_at: r.svc_start_at, end_at: r.end_at
+        }));
+        groupEndAt = grp.rows[grp.rows.length - 1].end_at;
+      }
+      // For split reschedule: store service/variant IDs
+      if (isSplitBooking) {
+        bk._splitServiceIds = grp.rows.map(r => r.service_id);
+        bk._splitVariantIds = grp.rows.map(r => r.service_variant_id);
+      }
+    }
+
+    // Split bookings: reschedule IS allowed — we'll use multi-practitioner slot engine
+
+    const serviceInfo = groupServices
+      ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
+      : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
+
+    res.json({
+      booking: {
+        id: bk.id, token: bk.public_token,
+        start_at: bk.start_at, end_at: groupEndAt || bk.end_at, status: bk.status,
+        appointment_mode: bk.appointment_mode, comment: bk.comment_client,
+        created_at: bk.created_at,
+        deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
+        deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
+        service: serviceInfo,
+        practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
+        client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
+      },
+      business: {
+        name: bk.business_name, slug: bk.business_slug,
+        phone: bk.business_phone, email: bk.business_email,
+        address: bk.business_address, theme: bk.business_theme,
+        category_labels: getCategoryLabels(bk.business_category),
+        practitioner_label: SECTOR_PRACTITIONER[bk.business_sector] || 'Praticien·ne'
+      },
+      cancellation: {
+        allowed: canCancel,
+        deadline: cancelDeadline.toISOString(),
+        window_hours: cancelWindowHours,
+        policy_text: settings.cancel_policy_text || null,
+        reason: !canCancel && ['confirmed', 'pending_deposit'].includes(bk.status) ? 'Délai d\'annulation dépassé' : null
+      },
+      reschedule: {
+        enabled: reschEnabled,
+        allowed: reschAllowed,
+        reason: reschReason,
+        count: bk.reschedule_count || 0,
+        max_count: reschMaxCount,
+        deadline: reschDeadline.toISOString(),
+        window_days: reschWindowDays,
+        service_id: bk.service_id,
+        practitioner_id: bk.practitioner_id,
+        variant_id: bk.service_variant_id,
+        duration_min: bk.duration_min,
+        appointment_mode: bk.appointment_mode,
+        is_split: isSplitBooking,
+        split_service_ids: bk._splitServiceIds || null,
+        split_variant_ids: bk._splitVariantIds || null
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/public/manage/:token/slots?date=YYYY-MM-DD
+// Available slots for client reschedule
+// ============================================================
+router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { date } = req.query;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Paramètre date requis (YYYY-MM-DD)' });
+
+    // Lookup booking + group info
+    const result = await query(
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.locked, b.reschedule_count,
+              b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
+              b.appointment_mode, b.group_id,
               biz.settings AS business_settings
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
@@ -1385,39 +2352,975 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
-    if (!['confirmed', 'pending_deposit'].includes(bk.status)) {
+    const settings = bk.business_settings || {};
+
+    // Detect split group
+    let isSplitGroup = false;
+    let splitServiceIds = null;
+    let splitVariantIds = null;
+    if (bk.group_id) {
+      const grpMembers = await query(
+        `SELECT b.service_id, b.service_variant_id, b.practitioner_id
+         FROM bookings b WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grpMembers.rows.length > 1) {
+        const pracIds = new Set(grpMembers.rows.map(r => r.practitioner_id));
+        isSplitGroup = pracIds.size > 1;
+        if (isSplitGroup) {
+          splitServiceIds = grpMembers.rows.map(r => r.service_id);
+          splitVariantIds = grpMembers.rows.map(r => r.service_variant_id).filter(Boolean);
+        }
+      }
+    }
+
+    // Re-check eligibility
+    const reschEnabled = !!settings.reschedule_enabled;
+    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
+    const reschMaxCount = settings.reschedule_max_count ?? 1;
+    const reschWindowDays = settings.reschedule_window_days ?? 30;
+    const now = new Date();
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+
+    if (!reschEnabled) return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' });
+    if (!['confirmed', 'pending_deposit'].includes(bk.status)) return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' });
+    if (bk.locked) return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' });
+    if ((bk.reschedule_count || 0) >= reschMaxCount) return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' });
+    if (now >= reschDeadline) return res.status(403).json({ error: 'Le délai de modification est dépassé.' });
+
+    // Validate date range
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000).toISOString().slice(0, 10);
+    if (date < today || date > maxDate) return res.status(400).json({ error: `Date hors de la fenêtre autorisée (${reschWindowDays} jours).` });
+
+    let slots;
+    if (isSplitGroup && splitServiceIds) {
+      // Split booking: use multi-practitioner slot engine
+      slots = await getAvailableSlotsMultiPractitioner({
+        businessId: bk.business_id,
+        serviceIds: splitServiceIds,
+        dateFrom: date,
+        dateTo: date,
+        appointmentMode: bk.appointment_mode,
+        variantIds: splitVariantIds.length > 0 ? splitVariantIds : undefined
+      });
+    } else {
+      // Single or same-practitioner group: use standard slot engine
+      slots = await getAvailableSlots({
+        businessId: bk.business_id,
+        serviceId: bk.service_id,
+        practitionerId: bk.practitioner_id,
+        dateFrom: date,
+        dateTo: date,
+        appointmentMode: bk.appointment_mode,
+        variantId: bk.service_variant_id || undefined
+      });
+    }
+
+    // Filter out the booking's current slot (so client doesn't see it)
+    const bkStart = new Date(bk.start_at).toISOString();
+    const filtered = slots.filter(s => s.start_at !== bkStart);
+
+    res.json({
+      date,
+      slots: filtered.map(s => ({
+        start_time: s.start_time,
+        end_time: s.end_time,
+        start_at: s.start_at,
+        end_at: s.end_at,
+        practitioners: s.practitioners || null
+      }))
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// POST /api/public/manage/:token/reschedule
+// Client self-reschedule — move booking to new time
+// ============================================================
+router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { token } = req.params;
+    const { start_at, end_at, practitioners: slotPractitioners } = req.body;
+    if (!start_at || !end_at) return res.status(400).json({ error: 'start_at et end_at requis' });
+
+    const newStart = new Date(start_at);
+    const newEnd = new Date(end_at);
+    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) return res.status(400).json({ error: 'Dates invalides' });
+    if (newEnd <= newStart) return res.status(400).json({ error: 'end_at doit être après start_at' });
+    if (newStart <= new Date()) return res.status(400).json({ error: 'Le créneau doit être dans le futur' });
+
+    await client.query('BEGIN');
+
+    // Lock booking
+    const result = await client.query(
+      `SELECT b.id, b.start_at, b.end_at, b.status, b.locked, b.reschedule_count,
+              b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
+              b.group_id, b.client_id, b.appointment_mode, b.public_token,
+              b.deposit_status, b.deposit_deadline,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+              biz.settings AS business_settings,
+              biz.slug AS business_slug
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1
+       FOR UPDATE OF b SKIP LOCKED`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Rendez-vous introuvable ou en cours de modification' });
+    }
+
+    const bk = result.rows[0];
+    const settings = bk.business_settings || {};
+    const reschDeadlineHours = settings.reschedule_deadline_hours ?? 24;
+    const reschMaxCount = settings.reschedule_max_count ?? 1;
+    const reschWindowDays = settings.reschedule_window_days ?? 30;
+    const now = new Date();
+
+    // Eligibility checks
+    if (!settings.reschedule_enabled) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' }); }
+    if (!['confirmed', 'pending_deposit'].includes(bk.status)) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' }); }
+    if (bk.locked) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' }); }
+    if ((bk.reschedule_count || 0) >= reschMaxCount) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' }); }
+    const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
+    if (now >= reschDeadline) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Le délai de modification est dépassé.' }); }
+
+    // Validate date within window
+    const today = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000);
+    if (newStart > maxDate) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Le créneau doit être dans les ${reschWindowDays} prochains jours.` }); }
+
+    // Same slot check
+    if (newStart.getTime() === new Date(bk.start_at).getTime()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'C\'est déjà votre créneau actuel.' }); }
+
+    // Deposit deadline check for approaching dates
+    const oldStart = new Date(bk.start_at);
+    const delta = newStart.getTime() - oldStart.getTime();
+    if (bk.deposit_status === 'pending' && delta < 0) {
+      const dlHours = settings.deposit_deadline_hours ?? 48;
+      const newDeadline = new Date(newStart.getTime() - dlHours * 3600000);
+      if (newDeadline <= new Date(Date.now() + 3600000)) { // < now + 1h
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Impossible de rapprocher la date : le délai de paiement de l\'acompte serait dépassé. Contactez le salon.' });
+      }
+    }
+
+    // Detect split group
+    let isSplitGroup = false;
+    let groupMembers = [];
+    if (bk.group_id) {
+      const grpRes = await client.query(
+        `SELECT id, start_at, end_at, practitioner_id, service_id, group_order
+         FROM bookings
+         WHERE group_id = $1 AND business_id = $2
+         ORDER BY group_order, start_at
+         FOR UPDATE SKIP LOCKED`,
+        [bk.group_id, bk.business_id]
+      );
+      groupMembers = grpRes.rows;
+      if (groupMembers.length > 1) {
+        const pracIds = new Set(groupMembers.map(m => m.practitioner_id));
+        isSplitGroup = pracIds.size > 1;
+      }
+    }
+
+    if (isSplitGroup && Array.isArray(slotPractitioners) && slotPractitioners.length > 0) {
+      // ── Split booking reschedule: use per-member times from slot practitioners ──
+      // Validate each practitioner assignment
+      for (const sp of slotPractitioners) {
+        const avail = await checkPracAvailability(bk.business_id, sp.practitioner_id, sp.start_at, sp.end_at);
+        if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Un praticien n\'est pas disponible à cet horaire.' }); }
+      }
+
+      // Match group members to slot practitioners by service_id order
+      for (let i = 0; i < groupMembers.length; i++) {
+        const m = groupMembers[i];
+        const sp = slotPractitioners[i];
+        if (!sp) continue;
+
+        // Conflict check per member (exclude self)
+        const conflicts = await checkBookingConflicts(client, {
+          businessId: bk.business_id,
+          practitionerId: sp.practitioner_id,
+          startAt: sp.start_at,
+          endAt: sp.end_at,
+          excludeBookingId: m.id,
+          serviceId: m.service_id
+        });
+        if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
+        await client.query(
+          `UPDATE bookings SET start_at = $1, end_at = $2, practitioner_id = $3, reschedule_count = reschedule_count + 1, updated_at = NOW()
+           WHERE id = $4`,
+          [sp.start_at, sp.end_at, sp.practitioner_id, m.id]
+        );
+      }
+    } else if (bk.group_id && groupMembers.length > 0) {
+      // ── Same-practitioner group: shift all members by the same delta ──
+      // Practitioner availability
+      const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
+      if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
+
+      const conflicts = await checkBookingConflicts(client, {
+        businessId: bk.business_id,
+        practitionerId: bk.practitioner_id,
+        startAt: start_at,
+        endAt: end_at,
+        excludeBookingId: bk.id,
+        serviceId: bk.service_id
+      });
+      if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
+      for (const m of groupMembers) {
+        const mNewStart = new Date(new Date(m.start_at).getTime() + delta);
+        const mNewEnd = new Date(new Date(m.end_at).getTime() + delta);
+        await client.query(
+          `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, updated_at = NOW()
+           WHERE id = $3`,
+          [mNewStart.toISOString(), mNewEnd.toISOString(), m.id]
+        );
+      }
+    } else {
+      // ── Single booking ──
+      const avail = await checkPracAvailability(bk.business_id, bk.practitioner_id, start_at, end_at);
+      if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
+
+      const conflicts = await checkBookingConflicts(client, {
+        businessId: bk.business_id,
+        practitionerId: bk.practitioner_id,
+        startAt: start_at,
+        endAt: end_at,
+        excludeBookingId: bk.id,
+        serviceId: bk.service_id
+      });
+      if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
+
+      await client.query(
+        `UPDATE bookings SET start_at = $1, end_at = $2, reschedule_count = reschedule_count + 1, updated_at = NOW()
+         WHERE id = $3`,
+        [start_at, end_at, bk.id]
+      );
+    }
+
+    // Deposit deadline: recalculate based on new start (same as confirmation timeout)
+    if (bk.deposit_deadline && bk.deposit_status === 'pending') {
+      const newDeadline = computeDepositDeadline(newStart, settings);
+
+      const updateIds = bk.group_id
+        ? (await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2`, [bk.group_id, bk.business_id])).rows.map(r => r.id)
+        : [bk.id];
+      for (const uid of updateIds) {
+        await client.query(`UPDATE bookings SET deposit_deadline = $1 WHERE id = $2`, [newDeadline.toISOString(), uid]);
+      }
+    }
+
+    // Audit log
+    await client.query(
+      `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, actor_user_id, old_data, new_data)
+       VALUES ($1, 'booking', $2, 'client_reschedule', NULL, $3, $4)`,
+      [bk.business_id, bk.id,
+       JSON.stringify({ start_at: bk.start_at, end_at: bk.end_at }),
+       JSON.stringify({ start_at, end_at, reschedule_count: (bk.reschedule_count || 0) + 1, group: !!bk.group_id })]
+    );
+
+    await client.query('COMMIT');
+
+    // Post-commit: SSE broadcast
+    try { broadcast(bk.business_id, 'booking_update', { action: 'rescheduled', bookingId: bk.id, source: 'client' }); } catch (_) {}
+
+    // Post-commit: send confirmation email (async, non-blocking)
+    (async () => {
+      try {
+        const { sendRescheduleConfirmationEmail } = require('../../services/email');
+        const bkData = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category, COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS business_name, biz.slug AS business_slug, biz.settings
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           JOIN practitioners p ON p.id = b.practitioner_id LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
+        );
+        if (bkData.rows.length) {
+          const r = bkData.rows[0];
+          // Fetch group services for split bookings
+          let groupSvcs = null;
+          if (r.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                      b.practitioner_id, p.display_name AS practitioner_name,
+                      b.start_at, b.end_at
+               FROM bookings b
+               LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.group_id = $1 AND b.business_id = $2
+               ORDER BY b.group_order, b.start_at`,
+              [r.group_id, r.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(g => g.practitioner_id));
+              const hasSplitPrac = _pIds.size > 1;
+              groupSvcs = grp.rows.map(g => ({
+                name: g.name, duration_min: g.duration_min, price_cents: g.price_cents,
+                practitioner_name: hasSplitPrac ? g.practitioner_name : null,
+                start_at: g.start_at, end_at: g.end_at
+              }));
+              // Update booking times to reflect full group range
+              r.start_at = grp.rows[0].start_at;
+              r.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          }
+          await sendRescheduleConfirmationEmail({
+            booking: r,
+            business: { name: r.business_name, slug: r.business_slug, settings: r.settings },
+            oldStartAt: bk.start_at,
+            oldEndAt: groupMembers.length > 1 ? groupMembers[groupMembers.length - 1].end_at : bk.end_at,
+            groupServices: groupSvcs
+          });
+        }
+      } catch (emailErr) { console.error('[RESCHEDULE] Email error:', emailErr.message); }
+    })();
+
+    // Post-commit: queue practitioner notification
+    try {
+      await query(
+        `INSERT INTO notifications (id, business_id, booking_id, type, status, created_at)
+         VALUES (uuid_generate_v4(), $1, $2, 'email_reschedule_pro', 'queued', NOW())`,
+        [bk.business_id, bk.id]
+      );
+    } catch (_) {}
+
+    res.json({ rescheduled: true, booking: { start_at, end_at } });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// ============================================================
+// POST /api/public/deposit/:token/checkout
+// Create Stripe Checkout Session for deposit payment
+// ============================================================
+router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    // 1. Fetch booking + business
+    const result = await query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
+              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
+              b.start_at, b.deposit_payment_intent_id,
+              c.full_name AS client_name, c.email AS client_email,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              biz.name AS business_name, biz.stripe_customer_id
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+    const bk = result.rows[0];
+
+    // 2. Validate deposit is still pending
+    if (!bk.deposit_required || bk.status !== 'pending_deposit') {
+      return res.status(400).json({ error: 'Aucun acompte en attente pour ce rendez-vous' });
+    }
+    if (bk.deposit_status !== 'pending') {
+      return res.status(400).json({ error: 'L\'acompte n\'est plus en attente' });
+    }
+
+    // 3. Check deadline
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      return res.status(400).json({ error: 'Le délai de paiement est dépassé' });
+    }
+
+    // 4. Check Stripe
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.status(503).json({ error: 'Paiement en ligne non disponible' });
+    const stripe = require('stripe')(key);
+
+    // Check if gift card was partially applied
+    const gcTxRes = await query(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions
+       WHERE booking_id = $1 AND type = 'debit'`, [bk.id]
+    );
+    const gcPaid = parseInt(gcTxRes.rows[0].gc_paid) || 0;
+    const amountCents = (bk.deposit_amount_cents || 0) - gcPaid;
+    if (amountCents < 50) return res.status(400).json({ error: 'Montant trop faible' });
+
+    // M13: Reuse existing Stripe session if still open
+    if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('cs_')) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(bk.deposit_payment_intent_id);
+        if (existingSession.status === 'open' && existingSession.url) {
+          return res.json({ url: existingSession.url, session_id: existingSession.id });
+        }
+      } catch (e) { /* expired or invalid — create new */ }
+    }
+
+    // 5. Create Checkout Session
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+      timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Acompte — ${bk.service_category ? bk.service_category + ' - ' : ''}${bk.service_name || 'Rendez-vous'}`,
+            description: `${bk.business_name} · ${dateStr}`
+          }
+        },
+        quantity: 1
+      }],
+      customer_email: bk.client_email || undefined,
+      metadata: {
+        type: 'deposit',
+        booking_id: bk.id,
+        business_id: bk.business_id,
+        booking_token: token
+      },
+      success_url: `${baseUrl}/deposit/${token}?paid=1`,
+      cancel_url: `${baseUrl}/deposit/${token}`,
+      locale: 'fr',
+      expires_at: Math.floor(Date.now() / 1000) + 1800 // 30 min from now
+    });
+
+    // 6. Store checkout session ID (payment_intent is null at creation for Checkout sessions)
+    // We store session.id (cs_...) so the verify endpoint can check payment status with Stripe
+    await query(
+      `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,
+      [session.id, bk.id]
+    );
+
+    res.json({ url: session.url, session_id: session.id });
+  } catch (err) {
+    console.error('[DEPOSIT CHECKOUT] Error:', err);
+    next(err);
+  }
+});
+
+// ============================================================
+// GET /api/public/deposit/:token/pay
+// One-click payment redirect: creates Stripe Checkout Session and 302 redirects.
+// Used in deposit request emails so clients go directly to Stripe.
+// ============================================================
+router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const depositPageUrl = `${baseUrl}/deposit/${token}`;
+
+    const result = await query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
+              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
+              b.start_at, b.deposit_payment_intent_id,
+              c.email AS client_email,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              biz.name AS business_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.redirect(depositPageUrl + '?error=not_found');
+    const bk = result.rows[0];
+
+    // Already paid or not pending → redirect to deposit page with status
+    if (!bk.deposit_required || bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
+      return res.redirect(depositPageUrl + (bk.deposit_status === 'paid' ? '?paid=1' : ''));
+    }
+    // Deadline passed
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      return res.redirect(depositPageUrl + '?error=expired');
+    }
+
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.redirect(depositPageUrl + '?error=stripe');
+    const stripe = require('stripe')(key);
+
+    // Check if gift card was partially applied
+    const gcTxRes2 = await query(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions
+       WHERE booking_id = $1 AND type = 'debit'`, [bk.id]
+    );
+    const gcPaid2 = parseInt(gcTxRes2.rows[0].gc_paid) || 0;
+    const amountCents = (bk.deposit_amount_cents || 0) - gcPaid2;
+    if (amountCents < 50) return res.redirect(depositPageUrl);
+
+    // M13: Reuse existing Stripe session if still open
+    if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('cs_')) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(bk.deposit_payment_intent_id);
+        if (existingSession.status === 'open' && existingSession.url) {
+          return res.redirect(existingSession.url);
+        }
+      } catch (e) { /* expired or invalid — create new */ }
+    }
+
+    const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+      timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: amountCents,
+          product_data: {
+            name: `Acompte — ${bk.service_category ? bk.service_category + ' - ' : ''}${bk.service_name || 'Rendez-vous'}`,
+            description: `${bk.business_name} · ${dateStr}`
+          }
+        },
+        quantity: 1
+      }],
+      customer_email: bk.client_email || undefined,
+      metadata: {
+        type: 'deposit',
+        booking_id: bk.id,
+        business_id: bk.business_id,
+        booking_token: token
+      },
+      success_url: `${baseUrl}/deposit/${token}?paid=1`,
+      cancel_url: depositPageUrl,
+      locale: 'fr',
+      expires_at: Math.floor(Date.now() / 1000) + 1800
+    });
+
+    await query(
+      `UPDATE bookings SET deposit_payment_intent_id = $1 WHERE id = $2`,
+      [session.id, bk.id]
+    );
+
+    res.redirect(session.url);
+  } catch (err) {
+    console.error('[DEPOSIT PAY REDIRECT] Error:', err);
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    res.redirect(`${baseUrl}/deposit/${req.params.token}?error=checkout`);
+  }
+});
+
+// ============================================================
+// POST /api/public/deposit/:token/verify
+// Verify payment status directly with Stripe (fallback when webhook delayed/missing)
+// ============================================================
+router.post('/deposit/:token/verify', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_status, b.deposit_payment_intent_id,
+              b.group_id
+       FROM bookings b
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+    const bk = result.rows[0];
+
+    // Already paid or not pending
+    if (bk.deposit_status === 'paid') return res.json({ status: 'paid', updated: false });
+    if (bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
+      return res.json({ status: bk.deposit_status, updated: false });
+    }
+
+    // Need a stored checkout session ID (cs_...) to verify
+    const csId = bk.deposit_payment_intent_id;
+    if (!csId || !csId.startsWith('cs_')) {
+      return res.json({ status: 'pending', updated: false, reason: 'no_session' });
+    }
+
+    // Check with Stripe
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.json({ status: 'pending', updated: false, reason: 'stripe_not_configured' });
+    const stripe = require('stripe')(key);
+
+    const session = await stripe.checkout.sessions.retrieve(csId);
+    if (session.payment_status !== 'paid') {
+      return res.json({ status: 'pending', updated: false, payment_status: session.payment_status });
+    }
+
+    // Payment confirmed by Stripe! Update booking
+    const piId = session.payment_intent || null;
+    console.log(`[DEPOSIT VERIFY] Payment confirmed for booking ${bk.id} (PI: ${piId}, CS: ${csId})`);
+
+    // M3: Wrap primary + siblings update in transaction for atomicity
+    const { transactionWithRLS: txRLS } = require('../../services/db');
+    const txResult = await txRLS(bk.business_id, async (txClient) => {
+      const upd = await txClient.query(
+        `UPDATE bookings SET
+          status = 'confirmed',
+          deposit_status = 'paid',
+          deposit_paid_at = NOW(),
+          deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
+          deposit_deadline = NULL
+         WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
+         RETURNING id`,
+        [piId, bk.id, bk.business_id]
+      );
+      let sibIds = [];
+      if (upd.rows.length > 0) {
+        // 1. Group siblings
+        if (bk.group_id) {
+          const sibResult = await txClient.query(
+            `UPDATE bookings SET status = 'confirmed',
+              deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+             WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
+             RETURNING id`,
+            [bk.group_id, bk.business_id, bk.id]
+          );
+          sibIds = sibResult.rows.map(r => r.id);
+        }
+        // 2. Detached bookings sharing same deposit_payment_intent_id
+        if (piId) {
+          const detached = await txClient.query(
+            `UPDATE bookings SET status = 'confirmed',
+              deposit_status = 'paid', deposit_paid_at = NOW(), deposit_deadline = NULL
+             WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
+               AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
+             RETURNING id`,
+            [piId, bk.business_id, bk.id, bk.group_id]
+          );
+          sibIds = sibIds.concat(detached.rows.map(r => r.id));
+        }
+      }
+      return { upd, sibIds };
+    });
+
+    const upd = txResult.upd;
+    const sibIds = txResult.sibIds || [];
+
+    if (upd.rows.length > 0) {
+
+      // SSE broadcast
+      try {
+        const { broadcast } = require('../../services/sse');
+        broadcast(bk.business_id, 'booking_update', { action: 'deposit_paid', booking_id: bk.id });
+      } catch (e) { /* SSE optional */ }
+      // calSyncPush on deposit verify (primary + siblings)
+      try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, bk.id); } catch (_) {}
+      for (const sibId of sibIds) {
+        try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, sibId); } catch (_) {}
+      }
+
+      // Send deposit paid confirmation email (mirrors Stripe webhook behavior)
+      try {
+        const bkData = await query(
+          `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                  c.full_name AS client_name, c.email AS client_email,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  p.display_name AS practitioner_name,
+                  biz.name AS business_name, biz.email AS business_email,
+                  biz.phone AS business_phone,
+                  biz.address AS business_address, biz.theme, biz.slug,
+                  biz.settings AS business_settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`,
+          [bk.id]
+        );
+        if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
+          const d = bkData.rows[0];
+          let groupServices = null;
+          const allLinkedIds = [bk.id, ...sibIds];
+          if (allLinkedIds.length > 1) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                      b.practitioner_id, p.display_name AS practitioner_name
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.id = ANY($1) AND b.business_id = $2
+               ORDER BY b.start_at`,
+              [allLinkedIds, bk.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+              d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          } else if (d.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                      b.practitioner_id, p.display_name AS practitioner_name
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.group_id = $1 AND b.business_id = $2
+               ORDER BY b.group_order, b.start_at`,
+              [d.group_id, bk.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+              d.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          }
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaid = await getGcPaidCents(bk.id);
+          d.gc_paid_cents = gcPaid;
+          const { sendDepositPaidEmail } = require('../../services/email');
+          sendDepositPaidEmail({
+            booking: d,
+            business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, slug: d.slug, settings: d.business_settings },
+            groupServices
+          }).catch(e => console.warn('[DEPOSIT VERIFY] Email error:', e.message));
+        }
+      } catch (emailErr) {
+        console.warn('[DEPOSIT VERIFY] Email fetch error:', emailErr.message);
+      }
+    }
+
+    res.json({ status: 'paid', updated: true });
+  } catch (err) {
+    console.error('[DEPOSIT VERIFY] Error:', err.message);
+    // Don't fail the page — just return pending
+    res.json({ status: 'pending', updated: false, reason: 'verify_error' });
+  }
+});
+
+// ============================================================
+// GET /api/public/booking/:token/calendar.ics
+// Generate ICS file for Apple Calendar, Outlook, etc.
+// ============================================================
+router.get('/booking/:token/calendar.ics', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT b.start_at, b.end_at, b.group_id, b.business_id,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              p.display_name AS practitioner_name,
+              biz.name AS business_name, biz.address AS business_address
+       FROM bookings b
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).send('Not found');
+    const bk = result.rows[0];
+
+    // For multi-service groups, get all services and use last end_at
+    let summary = bk.service_name || 'Rendez-vous';
+    let endAt = bk.end_at;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, b.end_at
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        summary = grp.rows.map(r => r.name).join(' + ');
+        endAt = grp.rows[grp.rows.length - 1].end_at;
+      }
+    }
+
+    const fmtDt = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const uid = `booking-${token}@genda.be`;
+    const now = fmtDt(new Date());
+    const title = `${summary} — ${bk.business_name}`;
+    const desc = bk.practitioner_name ? `Avec ${bk.practitioner_name}` : '';
+    const location = bk.business_address || '';
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Genda//Booking//FR',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${fmtDt(bk.start_at)}`,
+      `DTEND:${fmtDt(endAt || bk.start_at)}`,
+      `SUMMARY:${title.replace(/[,;\\]/g, ' ')}`,
+      desc ? `DESCRIPTION:${desc.replace(/[,;\\]/g, ' ')}` : '',
+      location ? `LOCATION:${location.replace(/[,;\\]/g, ' ')}` : '',
+      'STATUS:CONFIRMED',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT1H',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Rappel rendez-vous',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].filter(Boolean).join('\r\n');
+
+    res.set({
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': `attachment; filename="rdv-${(bk.business_name || 'genda').replace(/[^a-zA-Z0-9]/g, '_')}.ics"`
+    });
+    res.send(ics);
+  } catch (err) {
+    console.error('[ICS] Error:', err.message);
+    next(err);
+  }
+});
+
+// ============================================================
+// POST /api/public/booking/:token/cancel
+// Client self-cancel
+// ============================================================
+router.post('/booking/:token/cancel', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { reason } = req.body;
+
+    // M3: typeof check + Bug B2 fix: length limit on cancel reason
+    if (reason !== undefined && typeof reason !== 'string') return res.status(400).json({ error: 'Raison invalide' });
+    if (reason && reason.length > 2000) return res.status(400).json({ error: 'Raison trop longue (max 2000)' });
+
+    const result = await query(
+      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
+              b.deposit_required, b.deposit_status, b.group_id,
+              biz.settings AS business_settings
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+    const bk = result.rows[0];
+    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
+    // Cancel deadline (declared at function scope for both deadline check and deposit refund SQL)
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    if (new Date() >= deadline) {
-      return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
+
+    // Skip cancellation deadline for pending_deposit — client hasn't paid yet,
+    // they should always be able to cancel (otherwise deposit-expiry cron would cancel it anyway)
+    if (bk.status !== 'pending_deposit') {
+      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+      if (new Date() >= deadline) {
+        return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
+      }
     }
 
     // Deposit refund logic — atomic CASE WHEN to avoid race condition
     // between SELECT and UPDATE (a payment webhook could change deposit_status in between)
     const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
 
-    const cancelResult = await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
-        deposit_status = CASE
-          WHEN deposit_required = true AND deposit_status = 'paid' THEN
-            CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
-                   OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
-                 THEN 'refunded' ELSE 'cancelled' END
-          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
-          ELSE deposit_status
-        END,
-        updated_at = NOW()
-       WHERE id = $2 AND status IN ('confirmed', 'pending_deposit')
-       RETURNING *`,
-      [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
-    );
+    // Atomic: primary cancel + sibling propagation in one transaction
+    const txClient = await pool.connect();
+    let cancelResult;
+    try {
+      await txClient.query('BEGIN');
+      cancelResult = await txClient.query(
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
+          deposit_status = CASE
+            WHEN deposit_required = true AND deposit_status = 'paid' THEN
+              CASE WHEN (start_at - INTERVAL '1 minute' * $3) > NOW()
+                     OR (NOW() - created_at) <= INTERVAL '1 minute' * $4
+                   THEN 'refunded' ELSE 'cancelled' END
+            WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+            ELSE deposit_status
+          END,
+          updated_at = NOW()
+         WHERE id = $2 AND status IN ('pending', 'confirmed', 'pending_deposit')
+         RETURNING *`,
+        [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
+      );
 
-    if (cancelResult.rowCount === 0) {
-      return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
+      if (cancelResult.rowCount === 0) {
+        await txClient.query('ROLLBACK');
+        return res.status(409).json({ error: 'Ce rendez-vous a déjà été modifié ou annulé' });
+      }
+
+      // Propagate cancellation to group siblings (multi-service bookings)
+      if (bk.group_id) {
+        await txClient.query(
+          `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
+            deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+              ELSE deposit_status
+            END,
+            updated_at = NOW()
+           WHERE group_id = $2 AND business_id = $3 AND id != $4
+             AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
+          [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id]
+        );
+      }
+      await txClient.query('COMMIT');
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      txClient.release();
     }
+
+    // Refund gift card debits + Stripe refund if deposit was refunded
+    const postCancelBk = cancelResult.rows[0];
+    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(postCancelBk.id); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
+    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
+    }
+    // Refund GC debits for group siblings
+    if (bk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+      } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
+    }
+
+    // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)
+    try {
+      await query(
+        `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, 'booking', $2, 'client_cancel', $3, $4)`,
+        [bk.business_id, bk.id,
+         JSON.stringify({ status: bk.status }),
+         JSON.stringify({ status: 'cancelled', cancel_reason: reason || null })]
+      );
+    } catch (e) { /* non-critical */ }
 
     // Queue cancellation notification
     // NOTE: notification types may need a DB migration to add to the CHECK constraint
@@ -1431,11 +3334,68 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
     }
 
+    // Send cancellation confirmation email to client (non-blocking)
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug
+           FROM bookings b
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [bk.id]
+        );
+        if (fullBk.rows[0]?.client_email) {
+          const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidCancel = await getGcPaidCents(bk.id);
+          const { sendCancellationEmail } = require('../../services/email');
+          await sendCancellationEmail({
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
+            groupServices
+          });
+        }
+      } catch (e) { console.warn('[EMAIL] Cancellation email error:', e.message); }
+    })();
+
     // Trigger waitlist processing
     let waitlistResult = null;
     try {
       waitlistResult = await processWaitlistForCancellation(bk.id, bk.business_id);
     } catch (e) { /* non-blocking */ }
+
+    // calSyncDelete for primary booking + group siblings
+    try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, bk.id); } catch (e) { /* non-blocking */ }
+    if (bk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        for (const sib of sibs.rows) {
+          try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, sib.id); } catch (e) { /* non-blocking */ }
+          try { await processWaitlistForCancellation(sib.id, bk.business_id); } catch (e) { /* non-blocking */ }
+        }
+      } catch (e) { /* non-blocking */ }
+    }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
     res.json({ cancelled: true, waitlist: waitlistResult });
@@ -1456,8 +3416,12 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
     let displayData = null;
     if (isForm) {
       const info = await query(
-        `SELECT b.status, b.start_at, s.name AS service_name, biz.name AS business_name, biz.theme
+        `SELECT b.id, b.status, b.start_at, b.group_id, b.business_id,
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                biz.name AS business_name, biz.theme
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN businesses biz ON biz.id = b.business_id
          WHERE b.public_token = $1`, [token]
       );
@@ -1470,6 +3434,20 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       displayData._dt = dt;
       displayData._tm = tm;
 
+      // Fetch all group services for multi-service bookings
+      if (displayData.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [displayData.group_id, displayData.business_id]
+        );
+        if (grp.rows.length > 1) {
+          displayData.service_name = grp.rows.map(r => r.name).join(', ');
+        }
+      }
+
       if (displayData.status === 'confirmed') {
         return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt} à ${tm}</strong> est confirmé.`, color, displayData.business_name));
       }
@@ -1478,27 +3456,58 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       }
     }
 
-    const result = await query(
-      `UPDATE bookings SET status = 'confirmed', updated_at = NOW()
-       WHERE public_token = $1 AND status = 'modified_pending'
-       RETURNING id, status, start_at, end_at, business_id`,
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      const check = await query(
-        `SELECT status FROM bookings WHERE public_token = $1`, [token]
+    // Atomic: primary confirm + sibling propagation in one transaction
+    const txClient = await pool.connect();
+    let result, sibResult = { rows: [] };
+    try {
+      await txClient.query('BEGIN');
+      result = await txClient.query(
+        `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
+         WHERE public_token = $1 AND status = 'modified_pending'
+         RETURNING id, status, start_at, end_at, business_id`,
+        [token]
       );
-      if (check.rows.length === 0) {
-        if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
-        return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+      if (result.rows.length === 0) {
+        await txClient.query('ROLLBACK');
+        const check = await query(
+          `SELECT status FROM bookings WHERE public_token = $1`, [token]
+        );
+        if (check.rows.length === 0) {
+          if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+          return res.status(404).json({ error: 'Rendez-vous introuvable' });
+        }
+        if (check.rows[0].status === 'confirmed') {
+          if (isForm) return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous est confirmé.`, displayData?._color || '#0D7377', displayData?.business_name));
+          return res.json({ confirmed: true, already: true });
+        }
+        if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', displayData?.business_name));
+        return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être confirmé dans son état actuel' });
       }
-      if (check.rows[0].status === 'confirmed') {
-        if (isForm) return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous est confirmé.`, displayData?._color || '#0D7377', displayData?.business_name));
-        return res.json({ confirmed: true, already: true });
+
+      // Propagate to group siblings (multi-service bookings)
+      const confirmedBk = result.rows[0];
+      const grpCheck = await txClient.query(`SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL`, [confirmedBk.id]);
+      if (grpCheck.rows.length > 0) {
+        sibResult = await txClient.query(
+          `UPDATE bookings SET status = 'confirmed', locked = true, updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'modified_pending'
+           RETURNING id`,
+          [grpCheck.rows[0].group_id, confirmedBk.business_id, confirmedBk.id]
+        );
       }
-      if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', displayData?.business_name));
-      return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être confirmé dans son état actuel' });
+      await txClient.query('COMMIT');
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      txClient.release();
+    }
+
+    const confirmedBk = result.rows[0];
+    // calSyncPush for siblings
+    for (const sib of sibResult.rows) {
+      try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(confirmedBk.business_id, sib.id); } catch (_) {}
     }
 
     // Queue notification to practitioner
@@ -1507,13 +3516,15 @@ router.post('/booking/:token/confirm', async (req, res, next) => {
       await query(
         `INSERT INTO notifications (business_id, booking_id, type, status)
          VALUES ($1, $2, 'email_modification_confirmed', 'queued')`,
-        [result.rows[0].business_id, result.rows[0].id]
+        [confirmedBk.business_id, confirmedBk.id]
       );
     } catch (notifErr) {
       console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
     }
 
-    broadcast(result.rows[0].business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+    broadcast(confirmedBk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+    // calSyncPush on modified_pending → confirmed
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(confirmedBk.business_id, confirmedBk.id); } catch (_) {}
 
     if (isForm && displayData) {
       return res.send(confirmationPage('Rendez-vous confirmé ✅', `${escHtml(displayData.service_name) || 'Votre rendez-vous'} le <strong>${escHtml(displayData._dt)} à ${escHtml(displayData._tm)}</strong> est confirmé. Merci !`, displayData._color, displayData.business_name));
@@ -1556,7 +3567,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Deadline check: prevent rejection bypass of cancellation deadline
     const bkCheck = await query(
-      `SELECT b.id, b.status, b.start_at, b.original_start_at, biz.settings AS business_settings
+      `SELECT b.id, b.status, b.start_at, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -1565,35 +3576,87 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(404).json({ error: 'Rendez-vous introuvable' });
     }
     const bkData = bkCheck.rows[0];
-    const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? 24;
-    const origStartAt = bkData.original_start_at || bkData.start_at;
-    const deadline = new Date(new Date(origStartAt).getTime() - cancelWindowHours * 3600000);
+    const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? bkData.business_settings?.cancellation_window_hours ?? 24;
+    const deadline = new Date(new Date(bkData.start_at).getTime() - cancelWindowHours * 3600000);
     if (new Date() >= deadline) {
       if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
       return res.status(400).json({ error: 'Délai de modification dépassé' });
     }
 
-    const result = await query(
-      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification', updated_at = NOW()
-       WHERE public_token = $1 AND status = 'modified_pending'
-       RETURNING id, status, start_at, end_at, business_id`,
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      const check = await query(
-        `SELECT status FROM bookings WHERE public_token = $1`, [token]
+    // Atomic: primary reject + sibling cancellation in one transaction
+    const txClient = await pool.connect();
+    let result;
+    try {
+      await txClient.query('BEGIN');
+      result = await txClient.query(
+        `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
+          deposit_status = CASE
+            WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+            WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+            ELSE deposit_status
+          END,
+          updated_at = NOW()
+         WHERE public_token = $1 AND status = 'modified_pending'
+         RETURNING id, status, start_at, end_at, business_id, group_id,
+                   deposit_required, deposit_status, deposit_payment_intent_id`,
+        [token]
       );
-      if (check.rows.length === 0) {
-        if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
-        return res.status(404).json({ error: 'Rendez-vous introuvable' });
+
+      if (result.rows.length === 0) {
+        await txClient.query('ROLLBACK');
+        const check = await query(
+          `SELECT status FROM bookings WHERE public_token = $1`, [token]
+        );
+        if (check.rows.length === 0) {
+          if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\'est plus valide.', '#C62828'));
+          return res.status(404).json({ error: 'Rendez-vous introuvable' });
+        }
+        if (check.rows[0].status === 'cancelled') {
+          if (isForm) return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a été annulé.', '#C62828', displayData?.business_name));
+          return res.json({ rejected: true, already: true });
+        }
+        if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', displayData?.business_name));
+        return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être refusé dans son état actuel' });
       }
-      if (check.rows[0].status === 'cancelled') {
-        if (isForm) return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a été annulé.', '#C62828', displayData?.business_name));
-        return res.json({ rejected: true, already: true });
+
+      const rejBk = result.rows[0];
+
+      // Cancel group siblings if multi-service booking
+      if (rejBk.group_id) {
+        await txClient.query(
+          `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
+            deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+              ELSE deposit_status
+            END,
+            updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != $3
+             AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
+          [rejBk.group_id, rejBk.business_id, rejBk.id]
+        );
       }
-      if (isForm) return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être modifié.', '#A68B3C', displayData?.business_name));
-      return res.status(400).json({ error: 'Ce rendez-vous ne peut pas être refusé dans son état actuel' });
+      await txClient.query('COMMIT');
+    } catch (txErr) {
+      await txClient.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      txClient.release();
+    }
+
+    // Refund gift card debits + Stripe refund AFTER transaction commits
+    const rejBk = result.rows[0];
+    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(rejBk.id); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
+    if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
+    }
+    // Refund GC debits for group siblings
+    if (rejBk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
+        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+      } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
     }
 
     // Notify practitioner
@@ -1602,13 +3665,61 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       await query(
         `INSERT INTO notifications (business_id, booking_id, type, status)
          VALUES ($1, $2, 'email_modification_rejected', 'queued')`,
-        [result.rows[0].business_id, result.rows[0].id]
+        [rejBk.business_id, rejBk.id]
       );
     } catch (notifErr) {
       console.error('Notification insert failed (CHECK constraint?):', notifErr.message);
     }
 
-    broadcast(result.rows[0].business_id, 'booking_update', { action: 'rejected', source: 'public' });
+    broadcast(rejBk.business_id, 'booking_update', { action: 'rejected', source: 'public' });
+
+    // Send cancellation confirmation email to client (non-blocking)
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [rejBk.id]
+        );
+        if (fullBk.rows[0]?.client_email) {
+          const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const { sendCancellationEmail } = require('../../services/email');
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidReject = await getGcPaidCents(rejBk.id);
+          await sendCancellationEmail({
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+            groupServices
+          });
+        }
+      } catch (e) { console.warn('[EMAIL] Rejection cancellation email error:', e.message); }
+      // M1: calSyncDelete + waitlist on reject
+      try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(rejBk.business_id, rejBk.id); } catch (_) {}
+      try { await processWaitlistForCancellation(rejBk.id, rejBk.business_id); } catch (_) {}
+    })();
 
     if (isForm && displayData) {
       const phone = displayData.business_phone ? ` au <strong>${escHtml(displayData.business_phone)}</strong>` : '';
@@ -1627,9 +3738,13 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(
-      `SELECT b.status, b.start_at, b.end_at, s.name AS service_name, biz.name AS business_name, biz.theme
+      `SELECT b.status, b.start_at, b.end_at,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              biz.name AS business_name, biz.theme
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -1648,7 +3763,7 @@ router.get('/booking/:token/confirm', async (req, res, next) => {
     }
 
     // Show confirmation landing page with a form button (no mutation on GET)
-    res.send(actionPage('Confirmer le rendez-vous', `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅'));
+    res.send(actionPage('Confirmer le rendez-vous', `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} à ${tm}</strong>`, color, bk.business_name, token, 'confirm', 'Confirmer ✅', true));
   } catch (err) { next(err); }
 });
 
@@ -1688,38 +3803,75 @@ function confirmationPage(title, message, color, businessName) {
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
   const safeTitle = escHtml(title);
   const safeBiz = escHtml(businessName);
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${safeTitle} — ${safeBiz || 'Genda'}</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
-<div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-  <div style="width:56px;height:56px;border-radius:50%;background:${safeColor}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">${(title||'').includes('\u2705') ? '\u2705' : (title||'').includes('refus') || (title||'').includes('annul') ? '\u274C' : '\u2139\uFE0F'}</div>
-  </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${safeTitle}</h1>
-  <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0">${message}</p>
-  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${safeBiz} · Via Genda</p>` : ''}
+  // Determine type: success / error / warning / info
+  const rawTitle = (title || '').toLowerCase();
+  const isSuccess = rawTitle.includes('confirm') && !rawTitle.includes('impossible');
+  const isError = rawTitle.includes('annul') || rawTitle.includes('refus') || rawTitle.includes('introuvable') || rawTitle.includes('expir');
+  const isWarning = rawTitle.includes('impossible') || rawTitle.includes('dépassé') || rawTitle.includes('déjà');
+  const iconSvg = isSuccess
+    ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+    : isError
+    ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`
+    : isWarning
+    ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+    : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+  // Clean title — remove emojis
+  const cleanTitle = (title || '').replace(/[\u2705\u274C\u2753\u2139\uFE0F]/g, '').trim();
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(cleanTitle)} — ${safeBiz || 'Genda'}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:#FAFAF9;font-family:'Plus Jakarta Sans',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#FFF;border-radius:16px;padding:48px 36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.06)}
+.icon-wrap{width:64px;height:64px;border-radius:50%;background:${safeColor}12;display:flex;align-items:center;justify-content:center;margin:0 auto 24px}
+h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400;color:#1A1816;margin:0 0 12px;line-height:1.3}
+.msg{font-size:.88rem;color:#6B6560;line-height:1.7;margin:0}
+.msg strong{color:#3D3832;font-weight:600}
+.divider{width:40px;height:1px;background:#E0DDD8;margin:24px auto}
+.biz{font-size:.72rem;color:#9C958E;letter-spacing:.3px}
+@media(max-width:480px){.card{padding:40px 24px 32px;border-radius:12px}h1{font-size:1.35rem}}
+</style></head><body>
+<div class="card">
+  <div class="icon-wrap">${iconSvg}</div>
+  <h1>${escHtml(cleanTitle)}</h1>
+  <p class="msg">${message}</p>
+  ${businessName ? `<div class="divider"></div><p class="biz">${safeBiz}</p>` : ''}
 </div></body></html>`;
 }
 
 // Helper: build a standalone HTML action page (form with POST button)
-function actionPage(title, message, color, businessName, token, action, btnLabel) {
+function actionPage(title, message, color, businessName, token, action, btnLabel, autoSubmit) {
   const escHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#0D7377';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escHtml(title)} — ${escHtml(businessName) || 'Genda'}</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body style="margin:0;padding:0;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh">
-<div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:440px;width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-  <div style="width:56px;height:56px;border-radius:50%;background:${safeColor}18;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
-    <div style="font-size:24px">\u2753</div>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:#FAFAF9;font-family:'Plus Jakarta Sans',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#FFF;border-radius:16px;padding:48px 36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.06)}
+.icon-wrap{width:64px;height:64px;border-radius:50%;background:${safeColor}12;display:flex;align-items:center;justify-content:center;margin:0 auto 24px}
+h1{font-family:'Instrument Serif',Georgia,serif;font-size:1.5rem;font-weight:400;color:#1A1816;margin:0 0 12px;line-height:1.3}
+.msg{font-size:.88rem;color:#6B6560;line-height:1.7;margin:0 0 28px}
+.msg strong{color:#3D3832;font-weight:600}
+.action-btn{display:inline-block;background:${safeColor};color:#fff;border:none;border-radius:10px;padding:14px 36px;font-size:.92rem;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.2px;transition:opacity .15s}
+.action-btn:hover{opacity:.9}
+.divider{width:40px;height:1px;background:#E0DDD8;margin:24px auto}
+.biz{font-size:.72rem;color:#9C958E;letter-spacing:.3px}
+@media(max-width:480px){.card{padding:40px 24px 32px;border-radius:12px}h1{font-size:1.35rem}}
+</style></head><body>
+<div class="card">
+  <div class="icon-wrap">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
   </div>
-  <h1 style="font-size:1.3rem;font-weight:700;color:#1A2332;margin:0 0 12px">${escHtml(title)}</h1>
-  <p style="font-size:.95rem;color:#6B7A8D;line-height:1.6;margin:0 0 24px">${message}</p>
-  <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}">
-    <button type="submit" style="background:${safeColor};color:#fff;border:none;border-radius:10px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px">${escHtml(btnLabel)}</button>
+  <h1>${escHtml(title)}</h1>
+  <p class="msg">${message}</p>
+  <form method="POST" action="/api/public/booking/${escHtml(token)}/${escHtml(action)}" id="af">
+    <button type="submit" class="action-btn">${escHtml(btnLabel)}</button>
   </form>
-  ${businessName ? `<p style="font-size:.75rem;color:#A0AAB6;margin-top:24px">${escHtml(businessName)} · Via Genda</p>` : ''}
+  ${autoSubmit ? '<script>document.getElementById("af").submit();</script>' : ''}
+  ${businessName ? `<div class="divider"></div><p class="biz">${escHtml(businessName)}</p>` : ''}
 </div></body></html>`;
 }
 
@@ -1727,45 +3879,425 @@ function actionPage(title, message, color, businessName, token, action, btnLabel
 // BOOKING CONFIRMATION (pending → confirmed) — for booking_confirmation_required setting
 // ============================================================
 
-// GET /api/public/booking/:token/confirm-booking — landing page (READ-ONLY)
+// GET /api/public/booking/:token/confirm-booking — one-click confirm from email
 router.get('/booking/:token/confirm-booking', async (req, res, next) => {
   try {
     const { token } = req.params;
-    const result = await query(
-      `SELECT b.status, b.start_at, b.end_at, b.confirmation_expires_at,
-              s.name AS service_name,
+
+    // Attempt direct confirmation (pending → confirmed) — atomic with group siblings
+    const client = await pool.connect();
+    let result;
+    try {
+      await client.query('BEGIN');
+      result = await client.query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE public_token = $1 AND status = 'pending'
+           AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
+         RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
+        [token]
+      );
+      if (result.rows.length > 0) {
+        // Also confirm group siblings in same transaction
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+           WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+             AND id != $1 AND status = 'pending'`,
+          [result.rows[0].id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    if (result.rows.length > 0) {
+      const bk = result.rows[0];
+
+      broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+
+      // Send confirmation email (non-blocking)
+      (async () => {
+        try {
+          const fullBk = await query(
+            `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                    p.display_name AS practitioner_name, c.full_name AS client_name, c.email AS client_email
+             FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             JOIN practitioners p ON p.id = b.practitioner_id
+             LEFT JOIN clients c ON c.id = b.client_id
+             WHERE b.id = $1`, [bk.id]
+          );
+          const bizRow = await query(`SELECT name, email, address, phone, theme, settings FROM businesses WHERE id = $1`, [bk.business_id]);
+          if (fullBk.rows[0] && bizRow.rows[0]) {
+            let groupServices = null;
+            if (fullBk.rows[0].group_id) {
+              const grp = await query(
+                `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                        COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                        COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                        b.practitioner_id, p.display_name AS practitioner_name
+                 FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 LEFT JOIN practitioners p ON p.id = b.practitioner_id
+                 WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+                [fullBk.rows[0].group_id, bk.business_id]
+              );
+              if (grp.rows.length > 1) {
+                const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+                if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+                groupServices = grp.rows;
+              }
+            }
+            const { sendBookingConfirmation } = require('../../services/email');
+            await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0], groupServices });
+          }
+        } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
+      })();
+
+      // Queue notification audit
+      try {
+        const clientRow = await query(`SELECT email FROM clients WHERE id = $1`, [bk.client_id]);
+        await query(
+          `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status)
+           VALUES ($1, $2, 'email_confirmation', $3, 'queued')`,
+          [bk.business_id, bk.id, clientRow.rows[0]?.email]
+        );
+      } catch (_) { /* best-effort audit */ }
+
+      const info = await query(
+        `SELECT b.start_at, b.group_id, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                biz.name AS business_name, biz.theme
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
+      );
+      const i = info.rows[0] || {};
+      const color = i.theme?.primary_color || '#0D7377';
+      const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+
+      // Fetch all group services for multi-service bookings
+      let serviceLabel = escHtml(i.service_name || '');
+      if (i.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+          [i.group_id, bk.business_id]
+        );
+        if (grp.rows.length > 1) {
+          serviceLabel = grp.rows.map(r => escHtml(r.name)).join(', ');
+        }
+      }
+
+      return res.send(confirmationPage('Rendez-vous confirmé ✅', `Votre rendez-vous <strong>${serviceLabel}</strong> du <strong>${dt} à ${tm}</strong> est confirmé.`, color, i.business_name));
+    }
+
+    // Confirmation failed — check why
+    const check = await query(
+      `SELECT b.status, b.start_at, b.confirmation_expires_at,
               biz.name AS business_name, biz.theme
-       FROM bookings b
-       LEFT JOIN services s ON s.id = b.service_id
-       JOIN businesses biz ON biz.id = b.business_id
+       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
-    if (result.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+    if (check.rows.length === 0) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+
+    const bk2 = check.rows[0];
+    const color2 = bk2.theme?.primary_color || '#0D7377';
+
+    if (bk2.status === 'confirmed' || bk2.status === 'completed') {
+      const dt2 = new Date(bk2.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+      const tm2 = new Date(bk2.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+      return res.send(confirmationPage('Déjà confirmé ✅', `Votre rendez-vous du <strong>${dt2} à ${tm2}</strong> est confirmé.`, color2, bk2.business_name));
+    }
+    if (bk2.status === 'cancelled') {
+      return res.send(confirmationPage('Rendez-vous annulé', 'Ce rendez-vous a été annulé car le délai de confirmation a expiré.', '#C62828', bk2.business_name));
+    }
+    return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être confirmé.', '#A68B3C', bk2.business_name));
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/public/booking/:token/cancel-booking — intermediate confirmation page (safe from email preview)
+// ============================================================
+router.get('/booking/:token/cancel-booking', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id, b.group_id,
+              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              biz.name AS business_name, biz.theme, biz.settings AS business_settings
+       FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+    }
 
     const bk = result.rows[0];
-    const color = bk.theme?.primary_color || '#0D7377';
+
+    // Already cancelled
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('Déjà annulé', 'Ce rendez-vous a déjà été annulé.', '#C62828', bk.business_name));
+    }
+
+    // Completed or other non-cancellable status
+    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être annulé.', '#A68B3C', bk.business_name));
+    }
+
+    // For confirmed: check cancellation deadline
+    // Skip deadline check for pending_deposit — client hasn't paid yet, always allow cancel
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
+    if (bk.status === 'confirmed') {
+      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+      if (new Date() >= deadline) {
+        return res.send(confirmationPage('Annulation impossible', `L'annulation n'est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
+      }
+    }
+
+    // Fetch group services if multi-service booking
+    let serviceLabel = `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong>`;
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                s.category AS service_category
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         WHERE b.group_id = $1 AND b.business_id = $2 AND b.status IN ('pending','confirmed','pending_deposit','modified_pending')
+         ORDER BY b.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        serviceLabel = grp.rows.map(r => `<strong>${escHtml(r.service_name)}</strong>`).join('<br>');
+      }
+    }
+
+    // Deposit refund message
+    let depositMsg = '';
+    if (bk.deposit_required && bk.deposit_status === 'paid' && bk.deposit_amount_cents) {
+      const amt = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',') + ' €';
+      const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
+      const startMs = new Date(bk.start_at).getTime();
+      const createdMs = new Date(bk.created_at).getTime();
+      const nowMs = Date.now();
+      const withinCancelWindow = (startMs - cancelWindowHours * 3600000) > nowMs;
+      const withinGrace = (nowMs - createdMs) <= graceMin * 60000;
+      if (withinCancelWindow || withinGrace) {
+        depositMsg = `<br><br><span style="color:#2E7D32;font-size:13px">✓ Votre acompte de <strong>${amt}</strong> sera remboursé.</span>`;
+      } else {
+        depositMsg = `<br><br><span style="color:#C62828;font-size:13px">⚠ Votre acompte de <strong>${amt}</strong> ne sera pas remboursé (annulation tardive).</span>`;
+      }
+    } else if (bk.deposit_required && bk.deposit_status === 'pending') {
+      depositMsg = `<br><br><span style="color:#6B6560;font-size:13px">L'acompte en attente sera annulé.</span>`;
+    }
+
+    // Show intermediate confirmation page with POST form
     const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
     const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-
-    if (bk.status === 'confirmed' || bk.status === 'completed') {
-      return res.send(confirmationPage('D\u00e9j\u00e0 confirm\u00e9 \u2705', `Votre rendez-vous du <strong>${dt} \u00e0 ${tm}</strong> est confirm\u00e9.`, color, bk.business_name));
-    }
-    if (bk.status === 'cancelled') {
-      return res.send(confirmationPage('Rendez-vous annul\u00e9', 'Ce rendez-vous a \u00e9t\u00e9 annul\u00e9 car le d\u00e9lai de confirmation a expir\u00e9.', '#C62828', bk.business_name));
-    }
-    if (bk.status !== 'pending') {
-      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre confirm\u00e9.', '#A68B3C', bk.business_name));
-    }
-    if (bk.confirmation_expires_at && new Date() > new Date(bk.confirmation_expires_at)) {
-      return res.send(confirmationPage('Lien expir\u00e9 \u23f3', 'Le d\u00e9lai de confirmation est d\u00e9pass\u00e9. Le cr\u00e9neau a \u00e9t\u00e9 lib\u00e9r\u00e9.', '#C62828', bk.business_name));
-    }
-
-    // Show confirmation landing page with POST button
-    res.send(actionPage(
-      'Confirmer votre rendez-vous',
-      `<strong>${escHtml(bk.service_name || 'Votre rendez-vous')}</strong> le <strong>${dt} \u00e0 ${tm}</strong>`,
-      color, bk.business_name, token, 'confirm-booking', 'Confirmer \u2705'
+    return res.send(actionPage(
+      'Annuler votre rendez-vous ?',
+      `${serviceLabel}<br>${dt} à ${tm}${depositMsg}`,
+      '#C62828', bk.business_name, token, 'cancel-booking',
+      'Confirmer l\u2019annulation'
     ));
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/booking/:token/cancel-booking — actual cancellation (POST = safe from email preview)
+// ============================================================
+router.post('/booking/:token/cancel-booking', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
+              b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
+              biz.name AS business_name, biz.theme, biz.settings AS business_settings
+       FROM bookings b JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
+    }
+
+    const bk = result.rows[0];
+
+    if (bk.status === 'cancelled') {
+      return res.send(confirmationPage('D\u00e9j\u00e0 annul\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 annul\u00e9.', '#C62828', bk.business_name));
+    }
+    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
+      return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
+    }
+
+    const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
+    if (bk.status === 'confirmed') {
+      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
+      if (new Date() >= deadline) {
+        return res.send(confirmationPage('Annulation impossible', `L\u2019annulation n\u2019est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
+      }
+    }
+
+    // Atomic: primary cancel + sibling propagation in one transaction
+    const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
+    const txClient2 = await pool.connect();
+    let cancelResult;
+    try {
+      await txClient2.query('BEGIN');
+      cancelResult = await txClient2.query(
+      `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Annul\u00e9 par le client (email)',
+        deposit_status = CASE
+          WHEN deposit_required = true AND deposit_status = 'paid' THEN
+            CASE WHEN (start_at - INTERVAL '1 minute' * $2) > NOW()
+                   OR (NOW() - created_at) <= INTERVAL '1 minute' * $3
+                 THEN 'refunded' ELSE 'cancelled' END
+          WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+          ELSE deposit_status
+        END,
+        updated_at = NOW()
+       WHERE id = $1 AND status IN ('pending', 'confirmed', 'pending_deposit')
+       RETURNING *`,
+      [bk.id, cancelWindowHours * 60, graceMin]
+    );
+
+    if (cancelResult.rowCount === 0) {
+      await txClient2.query('ROLLBACK');
+      return res.send(confirmationPage('D\u00e9j\u00e0 modifi\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 modifi\u00e9 ou annul\u00e9.', '#A68B3C', bk.business_name));
+    }
+
+    // Cancel group siblings (inside same transaction)
+    if (bk.group_id) {
+        await txClient2.query(
+          `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Annul\u00e9 par le client (email)',
+            deposit_status = CASE
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
+              ELSE deposit_status
+            END,
+            updated_at = NOW()
+           WHERE group_id = $1 AND business_id = $2 AND id != $3
+             AND status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')`,
+          [bk.group_id, bk.business_id, bk.id]
+        );
+    }
+      await txClient2.query('COMMIT');
+    } catch (txErr2) {
+      await txClient2.query('ROLLBACK').catch(() => {});
+      throw txErr2;
+    } finally {
+      txClient2.release();
+    }
+
+    // Refund gift card debits + Stripe refund AFTER transaction commits
+    const cancelledBk = cancelResult.rows[0];
+    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(cancelledBk.id); } catch (e) { console.error('[GC REFUND] reschedule-cancel error:', e.message); }
+    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
+    }
+    // Refund GC debits for group siblings
+    if (bk.group_id) {
+      try {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+      } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
+    }
+
+    // Audit log
+    try {
+      await query(
+        `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)
+         VALUES ($1, 'booking', $2, 'client_cancel', $3, $4)`,
+        [bk.business_id, bk.id,
+         JSON.stringify({ status: bk.status }),
+         JSON.stringify({ status: 'cancelled', cancel_reason: 'Annul\u00e9 par le client (email)' })]
+      );
+    } catch (_) { /* non-critical */ }
+
+    broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
+    // H3: Notify pro about client cancellation
+    try { await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [bk.business_id, bk.id]); } catch (_) {}
+
+    // Send cancellation email + waitlist (non-blocking)
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id WHERE b.id = $1`, [bk.id]
+        );
+        if (fullBk.rows[0]?.client_email) {
+          const row = fullBk.rows[0];
+          // Query group services for multi-service bookings
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
+                      b.practitioner_id, p.display_name AS practitioner_name
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, bk.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const { sendCancellationEmail } = require('../../services/email');
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidCancel2 = await getGcPaidCents(bk.id);
+          await sendCancellationEmail({
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2 },
+            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
+            groupServices
+          });
+        }
+      } catch (e) { console.warn('[EMAIL] Cancel-booking email error:', e.message); }
+      try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, bk.id); } catch (_) {}
+      try { await processWaitlistForCancellation(bk.id, bk.business_id); } catch (_) {}
+      if (bk.group_id) {
+        try {
+          const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+          for (const sib of sibs.rows) {
+            try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, sib.id); } catch (_) {}
+            try { await processWaitlistForCancellation(sib.id, bk.business_id); } catch (_) {}
+          }
+        } catch (_) {}
+      }
+    })();
+
+    const dt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+    const tm = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+    return res.send(confirmationPage('Rendez-vous annul\u00e9 \u274c', `Votre rendez-vous du <strong>${dt} \u00e0 ${tm}</strong> a \u00e9t\u00e9 annul\u00e9.`, '#C62828', bk.business_name));
   } catch (err) { next(err); }
 });
 
@@ -1780,8 +4312,11 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
     if (isForm) {
       const info = await query(
         `SELECT b.status, b.start_at, b.confirmation_expires_at,
-                s.name AS service_name, biz.name AS business_name, biz.theme
+                CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                biz.name AS business_name, biz.theme
          FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
          JOIN businesses biz ON biz.id = b.business_id
          WHERE b.public_token = $1`, [token]
       );
@@ -1797,19 +4332,24 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
       }
     }
 
-    // Confirm the booking (pending → confirmed, only if not expired)
-    const result = await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
-       WHERE public_token = $1 AND status = 'pending'
-         AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
-       RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
-      [token]
-    );
+    // Atomic: primary confirm + sibling propagation in one transaction
+    const txClient3 = await pool.connect();
+    let result, sibConfirmed = { rows: [] };
+    try {
+      await txClient3.query('BEGIN');
+      result = await txClient3.query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE public_token = $1 AND status = 'pending'
+           AND (confirmation_expires_at IS NULL OR confirmation_expires_at > NOW())
+         RETURNING id, status, business_id, public_token, start_at, end_at, client_id, service_id, practitioner_id`,
+        [token]
+      );
 
-    if (result.rows.length === 0) {
-      // Check why it failed
-      const check = await query(`SELECT status, confirmation_expires_at FROM bookings WHERE public_token = $1`, [token]);
-      if (check.rows.length === 0) {
+      if (result.rows.length === 0) {
+        await txClient3.query('ROLLBACK');
+        // Check why it failed
+        const check = await query(`SELECT status, confirmation_expires_at FROM bookings WHERE public_token = $1`, [token]);
+        if (check.rows.length === 0) {
         if (isForm) return res.status(404).send(confirmationPage('Rendez-vous introuvable', 'Ce lien n\u2019est plus valide.', '#C62828'));
         return res.status(404).json({ error: 'Rendez-vous introuvable' });
       }
@@ -1825,28 +4365,45 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
       return res.status(400).json({ error: 'Booking not in pending status' });
     }
 
-    const bk = result.rows[0];
+      // Confirm group siblings inside same transaction
+      const bkInner = result.rows[0];
+      sibConfirmed = await txClient3.query(
+        `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, locked = true, updated_at = NOW()
+         WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
+           AND id != $1 AND status = 'pending'
+         RETURNING id`,
+        [bkInner.id]
+      );
+      await txClient3.query('COMMIT');
+    } catch (txErr3) {
+      await txClient3.query('ROLLBACK').catch(() => {});
+      throw txErr3;
+    } finally {
+      txClient3.release();
+    }
 
-    // Also confirm group siblings if any
-    await query(
-      `UPDATE bookings SET status = 'confirmed', confirmation_expires_at = NULL, updated_at = NOW()
-       WHERE group_id = (SELECT group_id FROM bookings WHERE id = $1 AND group_id IS NOT NULL)
-         AND id != $1 AND status = 'pending'`,
-      [bk.id]
-    );
+    const bk = result.rows[0];
 
     // SSE notification
     broadcast(bk.business_id, 'booking_update', { action: 'confirmed', source: 'public' });
+    // calSyncPush for primary + siblings
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, bk.id); } catch (_) {}
+    for (const sib of (sibConfirmed?.rows || [])) {
+      try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(bk.business_id, sib.id); } catch (_) {}
+    }
 
     // Send the actual confirmation email (non-blocking)
     (async () => {
       try {
         const fullBk = await query(
-          `SELECT b.*, s.name AS service_name, p.display_name AS practitioner_name,
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
-                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address, biz.theme AS biz_theme
+                  biz.name AS biz_name, biz.email AS biz_email, biz.phone AS biz_phone, biz.address AS biz_address, biz.theme AS biz_theme, biz.settings AS biz_settings
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            JOIN practitioners p ON p.id = b.practitioner_id
            LEFT JOIN clients c ON c.id = b.client_id
            JOIN businesses biz ON biz.id = b.business_id
@@ -1854,14 +4411,28 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
         );
         if (fullBk.rows[0] && fullBk.rows[0].client_email) {
           const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           await sendBookingConfirmation({
             booking: {
-              public_token: row.public_token, start_at: row.start_at, end_at: row.end_at,
+              public_token: row.public_token, start_at: row.start_at, end_at: groupEndAt || row.end_at,
               client_name: row.client_name, client_email: row.client_email,
               service_name: row.service_name, practitioner_name: row.practitioner_name,
               comment: row.comment_client
             },
-            business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme }
+            business: { name: row.biz_name, email: row.biz_email, phone: row.biz_phone, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+            groupServices
           });
         }
       } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
@@ -1876,128 +4447,6 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
     }
     const { business_id: _bid, ...publicBooking } = bk;
     res.json({ confirmed: true, booking: publicBooking });
-  } catch (err) { next(err); }
-});
-
-// ============================================================
-// PRE-RDV DOCUMENTS — PUBLIC ACCESS
-// ============================================================
-
-// GET /api/public/docs/:token — fetch document for client
-router.get('/docs/:token', async (req, res, next) => {
-  try {
-    const result = await query(
-      `SELECT ps.*, dt.name AS template_name, dt.type AS template_type,
-              dt.content_html, dt.form_fields, dt.subject,
-              bk.start_at, bk.service_id,
-              s.name AS service_name,
-              p.display_name AS practitioner_name,
-              c.full_name AS client_name,
-              b.name AS business_name, b.slug AS business_slug,
-              b.address AS business_address, b.theme,
-              b.email AS business_email, b.phone AS business_phone
-       FROM pre_rdv_sends ps
-       JOIN document_templates dt ON dt.id = ps.template_id
-       JOIN bookings bk ON bk.id = ps.booking_id
-       LEFT JOIN services s ON s.id = bk.service_id
-       LEFT JOIN practitioners p ON p.id = bk.practitioner_id
-       JOIN clients c ON c.id = ps.client_id
-       JOIN businesses b ON b.id = ps.business_id
-       WHERE ps.token = $1`,
-      [req.params.token]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Document introuvable ou lien expiré' });
-    }
-
-    const row = result.rows[0];
-    res.json({
-      template: {
-        name: row.template_name,
-        type: row.template_type,
-        content_html: row.content_html,
-        form_fields: row.form_fields || [],
-        subject: row.subject
-      },
-      booking: {
-        start_at: row.start_at,
-        service_name: row.service_name,
-        practitioner_name: row.practitioner_name,
-        client_name: row.client_name
-      },
-      business: {
-        name: row.business_name,
-        slug: row.business_slug,
-        address: row.business_address,
-        primary_color: row.theme?.primary_color,
-        email: row.business_email,
-        phone: row.business_phone
-      },
-      send: {
-        status: row.status,
-        responded_at: row.responded_at,
-        sent_at: row.sent_at
-      }
-    });
-  } catch (err) { next(err); }
-});
-
-// POST /api/public/docs/:token/view — mark as viewed
-router.post('/docs/:token/view', async (req, res, next) => {
-  try {
-    await query(
-      `UPDATE pre_rdv_sends SET status = 'viewed'
-       WHERE token = $1 AND status = 'sent'`,
-      [req.params.token]
-    );
-    res.json({ ok: true });
-  } catch (err) { next(err); }
-});
-
-// POST /api/public/docs/:token/submit — submit form responses
-router.post('/docs/:token/submit', async (req, res, next) => {
-  try {
-    const { response_data, consent_given } = req.body;
-
-    const responseStr = JSON.stringify(response_data || {});
-    if (responseStr.length > 50000) {
-      return res.status(400).json({ error: 'Données de réponse trop volumineuses (max 50 Ko)' });
-    }
-
-    const safeConsent = consent_given === true || consent_given === 'true' ? true : false;
-
-    const check = await query(
-      `SELECT ps.id, ps.status, dt.type AS template_type
-       FROM pre_rdv_sends ps
-       JOIN document_templates dt ON dt.id = ps.template_id
-       WHERE ps.token = $1`,
-      [req.params.token]
-    );
-
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Document introuvable' });
-    }
-    if (check.rows[0].status === 'completed') {
-      return res.status(400).json({ error: 'Ce formulaire a déjà été complété' });
-    }
-
-    const updateResult = await query(
-      `UPDATE pre_rdv_sends SET
-        response_data = $1::jsonb,
-        consent_given = $2,
-        responded_at = NOW(),
-        status = 'completed'
-       WHERE token = $3 AND status IN ('sent', 'viewed')
-       RETURNING id`,
-      [JSON.stringify(response_data || {}), safeConsent, req.params.token]
-    );
-
-    if (updateResult.rows.length === 0) {
-      return res.status(409).json({ error: 'Ce formulaire a déjà été complété ou n\'est plus disponible' });
-    }
-
-    res.json({ submitted: true });
   } catch (err) { next(err); }
 });
 
@@ -2045,6 +4494,10 @@ router.post('/:slug/waitlist', bookingLimiter, async (req, res, next) => {
       }
     }
 
+    // L9: Typeof check — reject non-string note
+    if (note !== undefined && typeof note !== 'string') {
+      return res.status(400).json({ error: 'note invalide' });
+    }
     if (note && note.length > 300) {
       return res.status(400).json({ error: 'Note trop longue (max 300)' });
     }
@@ -2123,7 +4576,7 @@ router.get('/waitlist/:token', async (req, res, next) => {
       `SELECT w.id, w.status, w.client_name, w.offer_booking_start, w.offer_booking_end,
               w.offer_expires_at,
         p.display_name AS practitioner_name, p.title AS practitioner_title,
-        s.name AS service_name, s.duration_min, s.price_cents, s.price_label,
+        s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.price_label,
         b.name AS business_name, b.slug AS business_slug, b.address AS business_address,
         b.phone AS business_phone, b.email AS business_email, b.theme
        FROM waitlist_entries w
@@ -2240,7 +4693,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Step 1: exact match (phone AND email)
       if (e.client_phone && e.client_email) {
         const exactMatch = await client.query(
-          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 AND email = $3 LIMIT 1`,
+          `SELECT id FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
           [e.business_id, e.client_phone, e.client_email]
         );
         if (exactMatch.rows.length > 0) existingWlClient = exactMatch.rows[0];
@@ -2256,7 +4709,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Step 3: match by email
       if (!existingWlClient && e.client_email) {
         const emailMatch = await client.query(
-          `SELECT id FROM clients WHERE business_id = $1 AND email = $2 LIMIT 1`,
+          `SELECT id FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
           [e.business_id, e.client_email]
         );
         if (emailMatch.rows.length > 0) existingWlClient = emailMatch.rows[0];
@@ -2292,12 +4745,44 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       // Create booking
       const bk = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, client_id,
-          channel, start_at, end_at, status)
-         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed')
+          channel, start_at, end_at, status, locked, appointment_mode)
+         VALUES ($1, $2, $3, $4, 'web', $5, $6, 'confirmed', true, 'cabinet')
          RETURNING id, public_token, start_at, end_at, status`,
         [e.business_id, e.practitioner_id, e.service_id, clientId,
          e.offer_booking_start, e.offer_booking_end]
       );
+
+      // H10: Check deposit requirement (same as normal booking flow)
+      const bizSettingsWl = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [e.business_id]);
+      const wlBizSettings = bizSettingsWl.rows[0]?.settings || {};
+      const svcPriceWl = await client.query(
+        `SELECT COALESCE(price_cents, 0) AS price, COALESCE(duration_min, 0) AS duration FROM services WHERE id = $1`, [e.service_id]
+      );
+      const wlPrice = parseInt(svcPriceWl.rows[0]?.price) || 0;
+      const wlDuration = parseInt(svcPriceWl.rows[0]?.duration) || 0;
+      let wlNoShow = 0, wlIsVip = false;
+      if (clientId) {
+        const nsWl = await client.query(`SELECT no_show_count, is_vip FROM clients WHERE id = $1`, [clientId]);
+        wlNoShow = nsWl.rows[0]?.no_show_count || 0;
+        wlIsVip = !!nsWl.rows[0]?.is_vip;
+      }
+      const wlDepResult = shouldRequireDeposit(wlBizSettings, wlPrice, wlDuration, wlNoShow, wlIsVip);
+      if (wlDepResult.required) {
+        const startWl = new Date(e.offer_booking_start);
+        const hoursUntilWlRdv = (startWl.getTime() - Date.now()) / 3600000;
+        // Skip deposit only if RDV is less than 2h away
+        if (hoursUntilWlRdv >= 2) {
+          const deadlineWl = computeDepositDeadline(startWl, wlBizSettings);
+          await client.query(
+            `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+              deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+              deposit_requested_at = NOW(), deposit_request_count = 1
+             WHERE id = $3 AND business_id = $4`,
+            [wlDepResult.depCents, deadlineWl.toISOString(), bk.rows[0].id, e.business_id]
+          );
+          bk.rows[0].status = 'pending_deposit';
+        }
+      }
 
       // Update waitlist entry (TOCTOU fix: require status = 'offered' to prevent double-accept)
       const wlUpdate = await client.query(
@@ -2310,8 +4795,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         throw Object.assign(new Error('Cette offre a déjà été utilisée ou a expiré'), { type: 'expired', status: 410 });
       }
 
-      // Queue confirmation notification
-      // NOTE: notification types may need a DB migration to add to the CHECK constraint
+      // Queue confirmation notification + pro notification
       try {
         await client.query('SAVEPOINT notif_sp1');
         await client.query(
@@ -2323,6 +4807,17 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
         console.error('Notification insert failed:', notifErr.message);
       }
+      // M2: Pro notification for waitlist-accepted booking
+      try {
+        await client.query('SAVEPOINT notif_sp2');
+        await client.query(
+          `INSERT INTO notifications (business_id, booking_id, type, status)
+           VALUES ($1, $2, 'email_new_booking_pro', 'queued')`,
+          [e.business_id, bk.rows[0].id]
+        );
+      } catch (notifErr) {
+        await client.query('ROLLBACK TO SAVEPOINT notif_sp2');
+      }
 
       return bk.rows[0];
     });
@@ -2333,6 +4828,31 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       throw err;
     }
 
+    // Post-transaction: SSE broadcast + confirmation email (non-blocking)
+    broadcast(e.business_id, 'booking_update', { action: 'waitlist_accepted', booking_id: booking.id });
+    // H4: calSyncPush for waitlist-accepted booking
+    try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(e.business_id, booking.id); } catch (_) {}
+
+    (async () => {
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name, c.full_name AS client_name, c.email AS client_email
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           WHERE b.id = $1`, [booking.id]
+        );
+        const bizRow = await query(`SELECT name, email, address, phone, theme, settings FROM businesses WHERE id = $1`, [e.business_id]);
+        if (fullBk.rows[0]?.client_email && bizRow.rows[0]) {
+          const { sendBookingConfirmation } = require('../../services/email');
+          await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0] });
+        }
+      } catch (emailErr) { console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message); }
+    })();
+
     res.status(201).json({
       booked: true,
       booking: {
@@ -2340,7 +4860,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         token: booking.public_token,
         start_at: booking.start_at,
         end_at: booking.end_at,
-        manage_url: `${process.env.BASE_URL || process.env.APP_BASE_URL}/booking/${booking.public_token}`
+        manage_url: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${booking.public_token}`
       }
     });
   } catch (err) { next(err); }
@@ -2434,13 +4954,16 @@ router.post('/waitlist/:token/decline', async (req, res, next) => {
 router.get('/booking/:token/ics', async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT b.id, b.start_at, b.end_at, b.appointment_mode,
-              s.name AS service_name, s.duration_min,
+      `SELECT b.id, b.start_at, b.end_at, b.appointment_mode, b.group_id, b.business_id,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+              COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               c.full_name AS client_name,
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.address AS business_address
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
        LEFT JOIN clients c ON c.id = b.client_id
        JOIN practitioners p ON p.id = b.practitioner_id
        JOIN businesses biz ON biz.id = b.business_id
@@ -2450,9 +4973,27 @@ router.get('/booking/:token/ics', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).send('Rendez-vous introuvable');
 
     const bk = result.rows[0];
+    // Override end_at and summary for group bookings
+    let endAt = bk.end_at;
+    let serviceName = bk.service_name || 'Rendez-vous';
+    if (bk.group_id) {
+      const grp = await query(
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, b2.end_at
+         FROM bookings b2
+         LEFT JOIN services s ON s.id = b2.service_id
+         LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+         WHERE b2.group_id = $1 AND b2.business_id = $2
+         ORDER BY b2.group_order, b2.start_at`,
+        [bk.group_id, bk.business_id]
+      );
+      if (grp.rows.length > 1) {
+        endAt = grp.rows[grp.rows.length - 1].end_at;
+        serviceName = grp.rows.map(r => r.name).join(' + ');
+      }
+    }
     const start = new Date(bk.start_at);
-    const end = new Date(bk.end_at);
-    const summary = `${bk.service_name || 'Rendez-vous'} — ${bk.practitioner_name || ''}`;
+    const end = new Date(endAt);
+    const summary = `${serviceName} — ${bk.practitioner_name || ''}`;
     const loc = bk.appointment_mode === 'visio' ? 'Visioconférence' : bk.appointment_mode === 'phone' ? 'Téléphone' : (bk.business_address || bk.business_name);
     const desc = [bk.service_name || 'Rendez-vous', bk.practitioner_name ? `Avec ${bk.practitioner_name}` : '', bk.business_name].filter(Boolean).join('\\n');
 
@@ -2470,46 +5011,523 @@ router.get('/booking/:token/ics', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ============================================================
-// GET /api/public/wb/:token — view shared whiteboard (no auth)
-// ============================================================
-router.get('/wb/:token', async (req, res, next) => {
+// ─── Review submission page ─────────────────────────────────────────
+router.get('/review/:token', async (req, res, next) => {
   try {
     const { token } = req.params;
-    const link = await query(
-      `SELECT wl.*, w.canvas_data, w.text_layers, w.title, w.bg_type,
-              biz.name AS business_name,
-              c.full_name AS client_name
-       FROM whiteboard_links wl
-       JOIN whiteboards w ON w.id = wl.whiteboard_id AND w.deleted_at IS NULL
-       JOIN businesses biz ON biz.id = w.business_id
-       LEFT JOIN clients c ON c.id = w.client_id
-       WHERE wl.token = $1`,
+    // Check if review already exists
+    const existing = await query(
+      `SELECT r.id, r.rating, r.comment, r.created_at, r.updated_at,
+              b.business_id, biz.name as business_name, biz.settings,
+              s.name as service_name, sv.name as variant_name,
+              p.display_name as practitioner_name
+       FROM reviews r
+       JOIN bookings b ON b.id = r.booking_id
+       JOIN businesses biz ON biz.id = r.business_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       WHERE r.token = $1`,
       [token]
     );
-
-    if (link.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
-
-    const row = link.rows[0];
-    if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Ce lien a expiré' });
-
-    // Atomic increment: only bumps if still under limit (prevents TOCTOU race)
-    const upd = await query(
-      `UPDATE whiteboard_links SET accessed_count = accessed_count + 1
-       WHERE id = $1 AND accessed_count < max_accesses
-       RETURNING accessed_count`,
-      [row.id]
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      return res.json({
+        already_submitted: true,
+        review: { rating: row.rating, comment: row.comment, created_at: row.created_at, updated_at: row.updated_at },
+        business_name: row.business_name,
+        service_name: row.variant_name ? `${row.service_name} — ${row.variant_name}` : row.service_name,
+        practitioner_name: row.practitioner_name,
+        primary_color: row.settings?.theme?.primary_color || '#6B5E54'
+      });
+    }
+    // No review yet — find the booking via review_token
+    const bk = await query(
+      `SELECT b.id, b.business_id, b.service_id, b.service_variant_id, b.practitioner_id, b.client_id,
+              b.start_at, b.review_token,
+              biz.name as business_name, biz.settings,
+              s.name as service_name, sv.name as variant_name,
+              p.display_name as practitioner_name,
+              SPLIT_PART(c.full_name, ' ', 1) as client_first_name
+       FROM bookings b
+       JOIN businesses biz ON biz.id = b.business_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.review_token = $1 AND b.status = 'completed'`,
+      [token]
     );
-    if (upd.rows.length === 0) return res.status(410).json({ error: 'Nombre maximum d\'accès atteint' });
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    const b = bk.rows[0];
+    res.json({
+      already_submitted: false,
+      business_name: b.business_name,
+      service_name: b.variant_name ? `${b.service_name} — ${b.variant_name}` : b.service_name,
+      practitioner_name: b.practitioner_name,
+      client_first_name: b.client_first_name,
+      appointment_date: b.start_at,
+      primary_color: b.settings?.theme?.primary_color || '#6B5E54'
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── Submit a review ────────────────────────────────────────────────
+router.post('/review/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { rating, comment } = req.body;
+    // Validate
+    const r = parseInt(rating);
+    if (!r || r < 1 || r > 5) return res.status(400).json({ error: 'Note invalide (1-5)' });
+    const safeComment = (comment || '').replace(/<[^>]*>/g, '').trim().substring(0, 1000);
+    // Find booking
+    const bk = await query(
+      `SELECT id, business_id, client_id, practitioner_id, review_token
+       FROM bookings WHERE review_token = $1 AND status = 'completed'`,
+      [token]
+    );
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    const b = bk.rows[0];
+    // Check if review already exists for this booking
+    const dup = await query(`SELECT id FROM reviews WHERE booking_id = $1`, [b.id]);
+    if (dup.rows.length > 0) {
+      // Update existing review
+      const upd = await query(
+        `UPDATE reviews SET rating = $1, comment = $2, updated_at = NOW() WHERE booking_id = $3 RETURNING *`,
+        [r, safeComment, b.id]
+      );
+      return res.json({ review: upd.rows[0], updated: true });
+    }
+    // Insert new review (reuse booking's review_token)
+    const result = await query(
+      `INSERT INTO reviews (business_id, booking_id, client_id, practitioner_id, rating, comment, token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [b.business_id, b.id, b.client_id, b.practitioner_id, r, safeComment, token]
+    );
+    res.json({ review: result.rows[0], created: true });
+  } catch (err) { next(err); }
+});
+
+// ─── Public guide: dynamic flow documentation for clients ──────────
+router.get('/:slug/guide', async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const biz = await query(
+      `SELECT id, name, slug, settings, logo_url, sector, category,
+              theme->>'primary' AS primary_color
+       FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [slug]
+    );
+    if (biz.rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+
+    const b = biz.rows[0];
+    const s = b.settings || {};
 
     res.json({
-      title: row.title,
-      business_name: row.business_name,
-      client_name: row.client_name,
-      canvas_data: row.canvas_data,
-      text_layers: row.text_layers,
-      bg_type: row.bg_type,
-      expires_at: row.expires_at
+      business: {
+        name: b.name,
+        slug: b.slug,
+        logo_url: b.logo_url,
+        primary_color: b.primary_color || '#0D7377',
+        sector: b.sector || 'autre'
+      },
+      flows: {
+        // Confirmation
+        confirmation_required: !!s.booking_confirmation_required,
+        confirmation_timeout_min: s.booking_confirmation_timeout_min || 30,
+
+        // Deposit
+        deposit_enabled: !!s.deposit_enabled,
+        deposit_type: s.deposit_type || 'percent',
+        deposit_percent: s.deposit_percent || 50,
+        deposit_fixed_cents: s.deposit_fixed_cents || 2500,
+        deposit_price_threshold_cents: s.deposit_price_threshold_cents || 0,
+        deposit_duration_threshold_min: s.deposit_duration_threshold_min || 0,
+        deposit_threshold_mode: s.deposit_threshold_mode || 'any',
+        deposit_deadline_hours: s.deposit_deadline_hours ?? 48,
+        deposit_noshow_threshold: s.deposit_noshow_threshold || 2,
+
+        // Cancellation
+        cancel_deadline_hours: s.cancel_deadline_hours ?? s.cancellation_window_hours ?? 24,
+        cancel_policy_text: s.cancel_policy_text || null,
+
+        // Reschedule
+        reschedule_max_count: s.reschedule_max_count ?? 1,
+        reschedule_window_days: s.reschedule_window_days ?? 30,
+
+        // Reminders
+        reminder_email_24h: s.reminder_email_24h !== false,
+        reminder_sms_24h: !!s.reminder_sms_24h,
+        reminder_sms_2h: !!s.reminder_sms_2h,
+
+        // Gift cards
+        giftcard_enabled: !!s.giftcard_enabled,
+
+        // Multi-service
+        multi_service_enabled: !!s.multi_service_enabled,
+
+        // Waitlist
+        waitlist_enabled: !!s.waitlist_enabled,
+
+        // Last-minute promo
+        last_minute_enabled: !!s.last_minute_enabled,
+        last_minute_discount_pct: s.last_minute_discount_pct || 0,
+        last_minute_deadline: s.last_minute_deadline || 'j-1',
+
+        // Payment
+        payment_methods: s.payment_methods || []
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── Public reviews for minisite ────────────────────────────────────
+router.get('/:slug/reviews', async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    // Find business
+    const biz = await query(`SELECT id FROM businesses WHERE slug = $1`, [slug]);
+    if (biz.rows.length === 0) return res.status(404).json({ error: 'Établissement introuvable' });
+    const bid = biz.rows[0].id;
+    // Get published reviews
+    const reviews = await query(
+      `SELECT r.rating, r.comment, r.owner_reply, r.owner_reply_at, r.created_at,
+              SPLIT_PART(c.full_name, ' ', 1) as first_name, LEFT(SPLIT_PART(c.full_name, ' ', 2), 1) as last_initial,
+              p.display_name as practitioner_name
+       FROM reviews r
+       LEFT JOIN clients c ON c.id = r.client_id
+       LEFT JOIN practitioners p ON p.id = r.practitioner_id
+       WHERE r.business_id = $1 AND r.status = 'published'
+       ORDER BY r.created_at DESC
+       LIMIT 50`,
+      [bid]
+    );
+    // Stats
+    const stats = await query(
+      `SELECT COUNT(*)::int as total, ROUND(AVG(rating)::numeric, 1)::float as average
+       FROM reviews WHERE business_id = $1 AND status = 'published'`,
+      [bid]
+    );
+    res.json({
+      reviews: reviews.rows,
+      stats: stats.rows[0] || { total: 0, average: 0 }
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GIFT CARDS — Public endpoints
+// ============================================================
+
+// GET /api/public/:slug/gift-card-config
+router.get('/:slug/gift-card-config', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, name, slug, settings, theme, logo_url FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+    const biz = rows[0];
+    const s = biz.settings || {};
+
+    if (!s.giftcard_enabled) return res.status(404).json({ error: 'Cartes cadeau non disponibles' });
+
+    res.json({
+      business_name: biz.name,
+      slug: biz.slug,
+      theme: biz.theme,
+      logo_url: biz.logo_url || null,
+      amounts: s.giftcard_amounts || [2500, 5000, 7500, 10000],
+      custom_amount: s.giftcard_custom_amount !== false,
+      min_amount_cents: s.giftcard_min_amount_cents || 1000,
+      max_amount_cents: s.giftcard_max_amount_cents || 50000,
+      expiry_days: s.giftcard_expiry_days || 365
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/:slug/gift-card/checkout — Stripe Checkout for gift card purchase
+router.post('/:slug/gift-card/checkout', async (req, res, next) => {
+  try {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
+    const stripe = require('stripe')(key);
+
+    const { rows } = await query(
+      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+    const biz = rows[0];
+    const s = biz.settings || {};
+
+    if (!s.giftcard_enabled) return res.status(400).json({ error: 'Cartes cadeau non disponibles' });
+
+    const { amount_cents, buyer_name, buyer_email, recipient_name, recipient_email, message } = req.body;
+
+    if (!amount_cents || amount_cents < (s.giftcard_min_amount_cents || 1000)) {
+      return res.status(400).json({ error: 'Montant trop faible' });
+    }
+    if (amount_cents > (s.giftcard_max_amount_cents || 50000)) {
+      return res.status(400).json({ error: 'Montant trop élevé' });
+    }
+    if (!buyer_email) return res.status(400).json({ error: 'Email acheteur requis' });
+
+    const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: amount_cents,
+          product_data: {
+            name: `Carte cadeau — ${biz.name}`,
+            description: `Valeur : ${(amount_cents / 100).toFixed(2)}€`
+          }
+        },
+        quantity: 1
+      }],
+      customer_email: buyer_email,
+      metadata: {
+        type: 'gift_card',
+        business_id: biz.id,
+        amount_cents: String(amount_cents),
+        buyer_name: buyer_name || '',
+        buyer_email,
+        recipient_name: recipient_name || '',
+        recipient_email: recipient_email || '',
+        message: (message || '').substring(0, 500)
+      },
+      success_url: `${baseUrl}/${biz.slug}/gift-card?success=1`,
+      cancel_url: `${baseUrl}/${biz.slug}/gift-card`,
+      locale: 'fr',
+      expires_at: Math.floor(Date.now() / 1000) + 1800
+    });
+
+    res.json({ url: session.url, session_id: session.id });
+  } catch (err) {
+    console.error('[GIFT-CARD CHECKOUT] Error:', err);
+    next(err);
+  }
+});
+
+// POST /api/public/deposit/:token/gift-card — pay deposit (fully or partially) with gift card
+router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { token } = req.params;
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code requis' });
+
+    await client.query('BEGIN');
+
+    // 1. Fetch booking
+    const bkRes = await client.query(
+      `SELECT b.id, b.business_id, b.status, b.deposit_required, b.deposit_status,
+              b.deposit_amount_cents, b.deposit_deadline, b.public_token, b.group_id,
+              b.start_at, c.email AS client_email, c.full_name AS client_name,
+              biz.name AS business_name
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.public_token = $1 FOR UPDATE OF b`,
+      [token]
+    );
+    if (bkRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Rendez-vous introuvable' }); }
+    const bk = bkRes.rows[0];
+
+    if (!bk.deposit_required || bk.status !== 'pending_deposit' || bk.deposit_status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Aucun acompte en attente' });
+    }
+    if (bk.deposit_deadline && new Date(bk.deposit_deadline) < new Date()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Le délai de paiement est dépassé' });
+    }
+
+    // 2. Fetch gift card
+    const gcRes = await client.query(
+      `SELECT id, code, balance_cents, status, expires_at FROM gift_cards
+       WHERE code = $1 AND business_id = $2 FOR UPDATE`,
+      [code.toUpperCase().trim(), bk.business_id]
+    );
+    if (gcRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Code carte cadeau invalide' }); }
+    const gc = gcRes.rows[0];
+
+    if (gc.status !== 'active') { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Carte inactive ou expirée' }); }
+    if (gc.expires_at && new Date(gc.expires_at) < new Date()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Carte expirée' }); }
+
+    const depositAmount = bk.deposit_amount_cents;
+    const gcDebit = Math.min(gc.balance_cents, depositAmount);
+    const remaining = depositAmount - gcDebit;
+
+    // 3. Debit gift card
+    const newBalance = gc.balance_cents - gcDebit;
+    await client.query(
+      `UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+      [newBalance, newBalance === 0 ? 'used' : 'active', gc.id]
+    );
+    await client.query(
+      `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
+      [gc.id, bk.business_id, bk.id, gcDebit, `Acompte RDV — carte ${gc.code}`]
+    );
+
+    if (remaining <= 0) {
+      // 4a. Fully paid by gift card → confirm booking
+      await client.query(
+        `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW(),
+                deposit_payment_intent_id = $1
+         WHERE id = $2`,
+        [`gc_${gc.code}`, bk.id]
+      );
+
+      // Also update group siblings
+      if (bk.group_id) {
+        await client.query(
+          `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid', deposit_paid_at = NOW()
+                  WHERE group_id = $1 AND id != $2 AND status = 'pending_deposit'`,
+          [bk.group_id, bk.id]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Send deposit-paid confirmation email
+      try {
+        const fullBk = await query(
+          `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name,
+                  c.full_name AS client_name, c.email AS client_email,
+                  biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+           FROM bookings b
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
+           LEFT JOIN clients c ON c.id = b.client_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1`, [bk.id]
+        );
+        if (fullBk.rows[0]?.client_email) {
+          const row = fullBk.rows[0];
+          let groupServices = null;
+          if (row.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              [row.group_id, row.business_id]
+            );
+            if (grp.rows.length > 1) {
+              const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+              if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              groupServices = grp.rows;
+            }
+          }
+          const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const { getGcPaidCents } = require('../../services/gift-card-refund');
+          const gcPaidForEmail = await getGcPaidCents(bk.id);
+          const { sendDepositPaidEmail } = require('../../services/email');
+          await sendDepositPaidEmail({
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token },
+            business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
+            groupServices
+          });
+        }
+      } catch (e) { console.error('[GC DEPOSIT] Email error:', e.message); }
+
+      // Broadcast SSE
+      try {
+        const { broadcast } = require('../../services/sse');
+        if (broadcast) broadcast(bk.business_id, { type: 'booking', action: 'updated', booking_id: bk.id });
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        fully_paid: true,
+        gc_amount_used: gcDebit,
+        remaining: 0,
+        gc_balance: newBalance
+      });
+    } else {
+      // 4b. Partially paid — remaining needs Stripe
+      await client.query('COMMIT');
+
+      return res.json({
+        success: true,
+        fully_paid: false,
+        gc_amount_used: gcDebit,
+        remaining,
+        gc_balance: newBalance
+      });
+    }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[GC DEPOSIT] Error:', err);
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/public/deposit/:token/check-gift-cards — check if client email has gift cards
+router.post('/deposit/:token/check-gift-cards', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const bkRes = await query(
+      `SELECT b.business_id, c.email FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.public_token = $1 AND b.status = 'pending_deposit'`,
+      [token]
+    );
+    if (bkRes.rows.length === 0 || !bkRes.rows[0].email) return res.json({ cards: [] });
+
+    const { business_id, email } = bkRes.rows[0];
+
+    const gcRes = await query(
+      `SELECT code, balance_cents, expires_at FROM gift_cards
+       WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
+         AND (recipient_email = $2 OR buyer_email = $2)
+         AND (expires_at IS NULL OR expires_at > NOW())
+       ORDER BY balance_cents DESC`,
+      [business_id, email]
+    );
+
+    res.json({ cards: gcRes.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/gift-card/validate — validate code + return balance
+router.post('/gift-card/validate', async (req, res, next) => {
+  try {
+    const { code, business_id } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code requis' });
+
+    let sql = `SELECT id, code, amount_cents, balance_cents, status, expires_at, business_id
+               FROM gift_cards WHERE code = $1`;
+    const params = [code.toUpperCase().trim()];
+
+    if (business_id) {
+      sql += ' AND business_id = $2';
+      params.push(business_id);
+    }
+
+    const result = await query(sql, params);
+    if (result.rows.length === 0) return res.json({ valid: false, error: 'Code invalide' });
+
+    const gc = result.rows[0];
+    if (gc.status !== 'active') return res.json({ valid: false, error: gc.status === 'expired' ? 'Carte expirée' : 'Carte inactive' });
+    if (gc.expires_at && new Date(gc.expires_at) < new Date()) return res.json({ valid: false, error: 'Carte expirée' });
+
+    res.json({
+      valid: true,
+      balance_cents: gc.balance_cents,
+      amount_cents: gc.amount_cents,
+      expires_at: gc.expires_at
     });
   } catch (err) { next(err); }
 });

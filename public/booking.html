@@ -78,6 +78,7 @@ body { background: var(--bg); font-family: var(--sans); color: var(--text); min-
 .st-pending { background: var(--gold-bg); color: var(--gold); }
 .st-cancelled { background: var(--red-bg); color: var(--red); }
 .st-completed { background: var(--surface); color: var(--text-4); }
+.st-pending_deposit { background: #FEF3E2; color: #B45309; }
 
 /* Actions */
 .actions { padding: 0 28px 28px; display: flex; gap: 10px; }
@@ -280,7 +281,8 @@ function renderBooking(data) {
   // Status
   const statusLabels = {
     confirmed: 'Confirmé', modified_pending: 'Modification en attente',
-    pending: 'En attente', cancelled: 'Annulé', completed: 'Terminé', no_show: 'Absent'
+    pending: 'En attente', cancelled: 'Annulé', completed: 'Terminé', no_show: 'Absent',
+    pending_deposit: 'Acompte requis'
   };
   document.getElementById('valStatus').innerHTML =
     `<span class="status-pill st-${booking.status}">${statusLabels[booking.status] || booking.status}</span>`;
@@ -300,6 +302,12 @@ function renderBooking(data) {
     alert.className = 'alert alert-confirmed';
     alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Rendez-vous confirmé`;
     alert.style.display = 'block';
+  } else if (booking.status === 'pending_deposit') {
+    alert.className = 'alert alert-modified';
+    const depEuros = booking.deposit_amount_cents ? (booking.deposit_amount_cents / 100).toFixed(2).replace('.00', '') + ' €' : '';
+    alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div class="alert-text"><strong>Acompte requis${depEuros ? ' — ' + depEuros : ''}</strong>Un acompte est nécessaire pour confirmer votre rendez-vous.</div>`;
+    alert.style.display = 'flex';
   } else if (booking.status === 'cancelled') {
     alert.className = 'alert alert-cancelled';
     alert.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Ce rendez-vous a été annulé`;
@@ -336,7 +344,7 @@ function renderBooking(data) {
   document.getElementById('valPractitioner').textContent = booking.practitioner.name;
   document.getElementById('valPracTitle').textContent = booking.practitioner.title || '';
 
-  // Mode / address — hide "Au cabinet" (default for salons)
+  // Mode / address — hide "Au salon" (default for salons)
   const modes = { visio: 'En visio', phone: 'Par téléphone', domicile: 'À domicile' };
   const modeEl = document.getElementById('valMode');
   if (booking.appointment_mode && booking.appointment_mode !== 'cabinet' && modes[booking.appointment_mode]) {
@@ -352,6 +360,11 @@ function renderBooking(data) {
     actionsEl.innerHTML = `
       <button class="btn btn-confirm" onclick="confirmBooking()">Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
       <button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler</button>`;
+    actionsEl.style.display = 'flex';
+  } else if (booking.status === 'pending_deposit') {
+    actionsEl.innerHTML = `
+      <a href="/deposit/${booking.token}" class="btn btn-confirm" style="text-decoration:none;text-align:center">Payer l'acompte <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></a>
+      ${cancellation.allowed ? '<button class="btn btn-cancel" onclick="showCancelConfirm()">Annuler</button>' : ''}`;
     actionsEl.style.display = 'flex';
   } else if (booking.status === 'confirmed' && cancellation.allowed) {
     actionsEl.innerHTML = `
@@ -383,7 +396,7 @@ async function confirmBooking() {
     document.getElementById('rowDate').classList.remove('changed');
   } catch (e) {
     btn.disabled = false;
-    btn.textContent = 'Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    btn.innerHTML = 'Ça me convient <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     alert('Erreur lors de la confirmation. Veuillez réessayer.');
   }
 }

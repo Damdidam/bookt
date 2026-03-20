@@ -136,7 +136,8 @@
 .drag-handle:hover{opacity:1}
 .drag-handle svg{width:16px;height:16px}
 @media(pointer:coarse){.drag-handle{min-width:44px;min-height:44px;opacity:.7}}
-.svc-category.dragging,.svc-row.dragging{opacity:.35}
+.svc-category.dragging,.svc-row.dragging,.gal-item.dragging{opacity:.35}
+.gal-item.drag-over{box-shadow:0 0 0 2px var(--primary)}
 .svc-category.drag-over{box-shadow:0 0 0 2px var(--primary)}
 .svc-row.drag-over{border-top:2px solid var(--primary)}
 .svc-drag-clone{position:fixed;z-index:9999;pointer-events:none;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);opacity:.92;background:var(--white);overflow:hidden;border:1.5px solid var(--primary)}
@@ -168,6 +169,12 @@
 .svc-icon-btn.danger{color:#C62828;border-color:#FFCDD2}
 .svc-icon-btn.danger:hover{background:#FFF5F5}
 .svc-icon-btn svg{width:14px;height:14px}
+.svc-toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;cursor:pointer;vertical-align:middle}
+.svc-toggle input{opacity:0;width:0;height:0;position:absolute}
+.svc-toggle-slider{position:absolute;inset:0;background:#ccc;border-radius:20px;transition:.2s}
+.svc-toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.svc-toggle input:checked+.svc-toggle-slider{background:var(--primary)}
+.svc-toggle input:checked+.svc-toggle-slider:before{transform:translateX(16px)}
 
 /* Template picker (keep existing) */
 .svc-tpl-picker{z-index:1000;min-width:280px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg,0 4px 24px rgba(0,0,0,.15));overflow:hidden}
@@ -505,8 +512,8 @@
 .plan-box .plan-price{font-size:1.7rem;font-weight:700;color:var(--primary)}
 .plan-box .plan-price span{font-size:.78rem;font-weight:400;color:var(--text-4)}
 .plan-box ul{list-style:none;text-align:left;margin:12px 0;font-size:.8rem;color:var(--text-3)}
-.plan-box ul li{padding:4px 0}
-.plan-box ul li::before{content:'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ';color:var(--green);font-weight:700}
+.plan-box ul li{padding:4px 0;display:flex;align-items:baseline;gap:6px}
+.plan-box ul li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
 .plan-box .current-badge{position:absolute;top:-10px;right:12px;background:var(--primary);color:#fff;padding:2px 10px;border-radius:8px;font-size:.68rem;font-weight:700}
 .danger-zone{background:var(--red-bg);border-color:#FECACA}
 .danger-zone .sc-h{border-color:#FECACA}

@@ -26,7 +26,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 .card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
 .card-header{padding:24px 28px;border-bottom:1px solid var(--border-light);text-align:center}
 .card-header .status{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:16px;font-size:.78rem;font-weight:700;margin-bottom:10px}
-.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}.status.modified_pending{background:#FFF7ED;color:#D97706}
+.status.confirmed{background:var(--green-bg);color:var(--green)}.status.cancelled{background:var(--red-bg);color:var(--red)}.status.completed{background:var(--surface);color:var(--text-3)}.status.no_show{background:var(--gold-bg);color:var(--gold)}.status.pending{background:var(--gold-bg);color:var(--gold)}.status.modified_pending{background:#FFF7ED;color:#D97706}.status.pending_deposit{background:#FEF3E2;color:#B45309}
 .card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin-bottom:4px}
 .card-header .biz{font-size:.88rem;color:var(--text-3)}
 .details{padding:24px 28px}
@@ -66,6 +66,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 .cal-btn .ci{font-size:.95rem}
 .maps-link{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;color:var(--primary);text-decoration:none;font-weight:600;margin-top:2px}
 .maps-link:hover{text-decoration:underline}
+
+/* ── Reschedule UI ── */
+.reschedule-section{padding:20px 28px;border-top:1px solid var(--border-light)}
+.reschedule-section h3{font-size:.88rem;font-weight:700;margin-bottom:8px;color:var(--primary)}
+.reschedule-section p{font-size:.82rem;color:var(--text-3);margin-bottom:12px}
+.btn-reschedule{width:100%;padding:12px;background:var(--white);color:var(--primary);border:2px solid var(--primary);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-reschedule:hover{background:var(--primary-light)}
+.btn-reschedule:disabled{opacity:.5;cursor:not-allowed}
+.reschedule-disabled{padding:12px 16px;background:var(--surface);border-radius:8px;font-size:.82rem;color:var(--text-3)}
+.date-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 0;gap:8px}
+.date-nav button{width:40px;height:40px;border:1.5px solid var(--border);border-radius:10px;background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.date-nav button:hover:not(:disabled){border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.date-nav button:disabled{opacity:.3;cursor:not-allowed}
+.date-nav .date-label{font-size:.92rem;font-weight:600;text-align:center;flex:1}
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 16px}
+.slot-btn{padding:10px 4px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);font-family:var(--sans);font-size:.82rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+.slot-btn:hover{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.slot-btn.selected{border-color:var(--primary);background:var(--primary);color:#fff}
+.no-slots{text-align:center;padding:24px;color:var(--text-4);font-size:.85rem}
+.slots-loading{text-align:center;padding:24px}
+.confirm-box{background:var(--surface);border-radius:var(--radius-sm);padding:16px;margin:12px 0}
+.confirm-box .old-time{color:var(--text-4);text-decoration:line-through;font-size:.85rem;margin-bottom:4px}
+.confirm-box .new-time{font-weight:700;font-size:.95rem;color:var(--primary)}
+.btn-back{display:inline-flex;align-items:center;gap:4px;padding:8px 0;background:none;border:none;font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text-3);cursor:pointer;margin-bottom:8px}
+.btn-back:hover{color:var(--primary)}
+.btn-confirm{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer;transition:opacity .15s;margin-top:12px}
+.btn-confirm:hover{opacity:.9}
+.btn-confirm:disabled{opacity:.5;cursor:not-allowed}
+.deposit-warn{padding:10px 14px;background:#FEF3E2;border-radius:8px;font-size:.78rem;color:#B45309;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 </style>
 </head>
 <body>
@@ -78,27 +107,43 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 </div>
 
 <script>
+function escH(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 const token = window.location.pathname.split('/').pop();
+let _data = null;
+let _selectedSlot = null;
+let _currentDate = null;
+let _slotsData = null;
+
 if (!token) { showError('Lien invalide'); }
 else { loadBooking(); }
 
 async function loadBooking() {
   try {
-    const res = await fetch(`/api/public/booking/${token}`);
-    if (!res.ok) { showError('Rendez-vous introuvable'); return; }
+    const res = await fetch(`/api/public/manage/${token}`);
+    if (!res.ok) {
+      // Fallback to old endpoint for backward compat
+      const res2 = await fetch(`/api/public/booking/${token}`);
+      if (!res2.ok) { showError('Rendez-vous introuvable'); return; }
+      const data2 = await res2.json();
+      data2.reschedule = { enabled: false };
+      _data = data2;
+      render(data2);
+      return;
+    }
     const data = await res.json();
+    _data = data;
     render(data);
   } catch (err) { showError('Erreur de chargement'); }
 }
 
 function render(d) {
-  const bk = d.booking, biz = d.business, can = d.cancellation;
+  const bk = d.booking, biz = d.business, can = d.cancellation, resch = d.reschedule;
   const start = new Date(bk.start_at), end = new Date(bk.end_at);
   const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
   const modeLabels = { visio: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> En visio', phone: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Par téléphone' };
-  const statusLabels = { confirmed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmé', cancelled: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulé', completed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Terminé', no_show: 'No-show', pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente', modified_pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Modification proposée' };
+  const statusLabels = { confirmed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmé', cancelled: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulé', completed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Terminé', no_show: 'No-show', pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente', modified_pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Modification proposée', pending_deposit: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Acompte requis' };
   const price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(0)} €` : 'Gratuit';
 
   // Apply theme
@@ -110,7 +155,7 @@ function render(d) {
     <div class="card-header">
       <div class="status ${bk.status}">${statusLabels[bk.status] || bk.status}</div>
       <h1>Votre rendez-vous</h1>
-      <div class="biz">${biz.name}</div>
+      <div class="biz">${escH(biz.name)}</div>
     </div>
     <div class="details">
       <div class="detail-row">
@@ -119,20 +164,41 @@ function render(d) {
       </div>
       <div class="detail-row">
         <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
-        <div class="info"><div class="label">Prestation</div><div class="value">${bk.service.name}</div><div class="sub">${bk.service.duration_min} min · ${price}${modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : ''}</div></div>
+        <div class="info"><div class="label">Prestation${bk.service.members && bk.service.members.length > 1 ? 's' : ''}</div>${bk.service.members && bk.service.members.length > 1
+          ? bk.service.members.map(function(m) {
+              var pracInfo = m.practitioner_name ? ' <span style="color:var(--text-4);font-size:.78rem">— ' + escH(m.practitioner_name) + '</span>' : '';
+              return '<div class="value" style="margin-bottom:2px">' + escH(m.name) + pracInfo + '</div><div class="sub">' + m.duration_min + ' min' + (m.price_cents ? ' · ' + (m.price_cents/100).toFixed(0) + ' €' : '') + '</div>';
+            }).join('') + '<div class="sub" style="margin-top:4px;font-weight:600">Total : ' + bk.service.duration_min + ' min · ' + price + '</div>'
+          : '<div class="value">' + escH(bk.service.name) + '</div><div class="sub">' + bk.service.duration_min + ' min · ' + price + (modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : '') + '</div>'
+        }</div>
       </div>
       <div class="detail-row">
         <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-        <div class="info"><div class="label">Praticien</div><div class="value">${bk.practitioner.name}</div>${bk.practitioner.title ? `<div class="sub">${bk.practitioner.title}</div>` : ''}</div>
+        <div class="info"><div class="label">${escH(biz.practitioner_label || 'Praticien')}</div><div class="value">${escH(bk.practitioner.name)}</div>${bk.practitioner.title ? `<div class="sub">${escH(bk.practitioner.title)}</div>` : ''}</div>
       </div>
-      ${biz.address ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="info"><div class="label">Adresse</div><div class="value">${biz.address}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
-      ${biz.phone ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="info"><div class="label">Contact</div><div class="value">${biz.phone}</div>${biz.email ? `<div class="sub">${biz.email}</div>` : ''}</div></div>` : ''}
-      ${bk.comment ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="info"><div class="label">Votre remarque</div><div class="sub">${bk.comment}</div></div></div>` : ''}
+      ${biz.address ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div class="info"><div class="label">Adresse</div><div class="value">${escH(biz.address)}</div><a class="maps-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.address)}" target="_blank" rel="noopener">Ouvrir dans Google Maps →</a></div></div>` : ''}
+      ${biz.phone ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="info"><div class="label">Contact</div><div class="value">${escH(biz.phone)}</div>${biz.email ? `<div class="sub">${escH(biz.email)}</div>` : ''}</div></div>` : ''}
+      ${bk.comment ? `<div class="detail-row"><div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="info"><div class="label">Votre remarque</div><div class="sub">${escH(bk.comment)}</div></div></div>` : ''}
     </div>
   `;
 
-  // Calendar buttons (for active bookings)
-  if (['confirmed','pending','modified_pending'].includes(bk.status)) {
+  // Deposit info section
+  if (bk.status === 'pending_deposit' && bk.deposit_amount_cents) {
+    const depEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');
+    const depDeadline = bk.deposit_deadline ? new Date(bk.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const depUrl = '/deposit/' + bk.token;
+    html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#FEF3E2">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;color:#B45309">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Acompte de ${depEuros} € requis
+      </div>
+      <p style="font-size:.82rem;color:#92400E;margin-bottom:6px">Un acompte est requis pour confirmer votre rendez-vous.${depDeadline ? ' Payez avant le ' + depDeadline + '.' : ''}</p>
+      <a href="${depUrl}" style="display:block;text-align:center;padding:12px;background:#B45309;color:#fff;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;text-decoration:none;margin-top:12px">Payer l'acompte</a>
+    </div>`;
+  }
+
+  // Calendar buttons
+  if (['confirmed','modified_pending'].includes(bk.status)) {
     const gcalUrl = buildGCalUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
     const outlookUrl = buildOutlookUrl(start, end, bk.service.name + ' — ' + bk.practitioner.name, biz.address, biz.name);
     html += `<div class="cal-row">
@@ -143,7 +209,24 @@ function render(d) {
     </div>`;
   }
 
-  // Cancel section
+  // ── Reschedule section ──
+  if (resch && resch.enabled && ['confirmed','pending_deposit'].includes(bk.status)) {
+    const remaining = resch.max_count - resch.count;
+    html += `<div class="reschedule-section">
+      <h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg> Modifier la date</h3>`;
+    if (resch.allowed) {
+      html += `<p>${remaining} modification${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''}</p>`;
+      if (bk.deposit_status === 'pending') {
+        html += `<div class="deposit-warn"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Acompte en attente — le déplacement vers une date plus proche pourrait être limité.</div>`;
+      }
+      html += `<button class="btn-reschedule" onclick="showRescheduleUI()">Choisir un autre créneau</button>`;
+    } else if (resch.reason) {
+      html += `<div class="reschedule-disabled">${escH(resch.reason)}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Cancel / modification sections ──
   if (bk.status === 'modified_pending') {
     html += `<div class="cancel-section" style="border-top-color:var(--gold);background:var(--gold-bg)">
       <h3 style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Horaire modifié par votre praticien</h3>
@@ -156,7 +239,7 @@ function render(d) {
         <button style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--sans);font-size:.9rem;font-weight:600;cursor:pointer" id="refuseBtn" onclick="refuseModification()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser</button>
       </div>
     </div>`;
-  } else if (bk.status === 'confirmed') {
+  } else if (bk.status === 'confirmed' || bk.status === 'pending_deposit') {
     const deadlineDate = new Date(can.deadline);
     const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 
@@ -173,8 +256,8 @@ function render(d) {
     } else {
       html += `
         <div class="deadline-info past-deadline"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Le délai d'annulation (${can.window_hours}h avant) est dépassé</div>
-        <p>Contactez directement le cabinet pour modifier ou annuler votre rendez-vous.</p>
-        ${biz.phone ? `<a href="tel:${biz.phone}" style="display:inline-block;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.88rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Appeler le cabinet</a>` : ''}
+        <p>Contactez directement le salon pour modifier ou annuler votre rendez-vous.</p>
+        ${biz.phone ? `<a href="tel:${biz.phone}" style="display:inline-block;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.88rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Appeler le salon</a>` : ''}
       `;
     }
     html += `</div>`;
@@ -192,6 +275,131 @@ function render(d) {
   fl.innerHTML = `<a href="/${biz.slug}/book">Prendre un nouveau rendez-vous →</a>`;
 }
 
+// ── Reschedule UI ──
+function showRescheduleUI() {
+  _selectedSlot = null;
+  // Default to tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  _currentDate = tomorrow.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  renderSlotPicker();
+}
+
+function renderSlotPicker() {
+  const bk = _data.booking, resch = _data.reschedule;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const _mx = new Date(new Date(today + 'T12:00:00').getTime() + resch.window_days * 86400000);
+  const maxDate = _mx.getFullYear()+'-'+String(_mx.getMonth()+1).padStart(2,'0')+'-'+String(_mx.getDate()).padStart(2,'0');
+  const isPrevDisabled = _currentDate <= today;
+  const isNextDisabled = _currentDate >= maxDate;
+
+  const dateObj = new Date(_currentDate + 'T12:00:00');
+  const dateLabel = dateObj.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  let html = `<div style="padding:24px 28px">
+    <button class="btn-back" onclick="loadBooking()">← Retour</button>
+    <h2 style="font-family:var(--serif);font-size:1.3rem;margin-bottom:4px">Choisir un nouveau créneau</h2>
+    <p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">${escH(bk.service.name)} · ${bk.service.duration_min} min</p>
+    <div class="date-nav">
+      <button onclick="navDate(-1)" ${isPrevDisabled ? 'disabled' : ''}><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="date-label">${dateLabel}</div>
+      <button onclick="navDate(1)" ${isNextDisabled ? 'disabled' : ''}><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+    <div id="slotsContainer"><div class="slots-loading"><div class="spinner"></div></div></div>
+  </div>`;
+
+  document.getElementById('cardContent').innerHTML = html;
+  loadSlots(_currentDate);
+}
+
+function navDate(delta) {
+  const d = new Date(_currentDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  _currentDate = d.toLocaleDateString('en-CA');
+  _selectedSlot = null;
+  renderSlotPicker();
+}
+
+async function loadSlots(dateStr) {
+  const container = document.getElementById('slotsContainer');
+  container.innerHTML = '<div class="slots-loading"><div class="spinner"></div></div>';
+  try {
+    const res = await fetch(`/api/public/manage/${token}/slots?date=${dateStr}`);
+    if (!res.ok) { const d = await res.json(); container.innerHTML = `<div class="no-slots">${escH(d.error || 'Erreur')}</div>`; return; }
+    const data = await res.json();
+    _slotsData = data.slots || [];
+    if (_slotsData.length === 0) {
+      container.innerHTML = '<div class="no-slots">Aucun cr\u00e9neau disponible ce jour</div>';
+      return;
+    }
+    let html = '<div class="slot-grid">';
+    _slotsData.forEach(function(s, idx) {
+      html += `<button class="slot-btn" data-start="${s.start_at}" data-end="${s.end_at}" onclick="selectSlot(this,'${s.start_at}','${s.end_at}',${idx})">${s.start_time}</button>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = '<div class="no-slots">Erreur de chargement</div>';
+  }
+}
+
+function selectSlot(el, startAt, endAt, slotIdx) {
+  var slotData = _slotsData && _slotsData[slotIdx];
+  _selectedSlot = { start_at: startAt, end_at: endAt };
+  if (slotData && slotData.practitioners) {
+    _selectedSlot.practitioners = slotData.practitioners;
+  }
+  document.querySelectorAll('.slot-btn').forEach(function(b) { b.classList.remove('selected'); });
+  el.classList.add('selected');
+
+  // Show confirmation below grid
+  const bk = _data.booking;
+  const oldStart = new Date(bk.start_at);
+  const newStart = new Date(startAt);
+  const newEnd = new Date(endAt);
+  const oldDateStr = oldStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
+  const oldTimeStr = oldStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const newDateStr = newStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
+  const newTimeStr = newStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const newEndStr = newEnd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+
+  let confirmEl = document.getElementById('confirmSection');
+  if (!confirmEl) {
+    confirmEl = document.createElement('div');
+    confirmEl.id = 'confirmSection';
+    document.getElementById('slotsContainer').appendChild(confirmEl);
+  }
+  confirmEl.innerHTML = `
+    <div class="confirm-box">
+      <div class="old-time">${oldDateStr} à ${oldTimeStr}</div>
+      <div class="new-time">${newDateStr} · ${newTimeStr} – ${newEndStr}</div>
+    </div>
+    <button class="btn-confirm" id="confirmBtn" onclick="confirmReschedule()">Confirmer le déplacement</button>
+  `;
+}
+
+async function confirmReschedule() {
+  if (!_selectedSlot) return;
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true; btn.textContent = 'Déplacement en cours...';
+  try {
+    const res = await fetch(`/api/public/manage/${token}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_selectedSlot)
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Erreur'); }
+    const newStart = new Date(_selectedSlot.start_at);
+    const newDateStr = newStart.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const newTimeStr = newStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg" style="padding:40px 28px"><div class="check" style="color:var(--green)"><svg class="gi gi-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>Rendez-vous déplacé</h2><p>${newDateStr} à ${newTimeStr}</p><p style="margin-top:12px;font-size:.82rem">Un email de confirmation vous a été envoyé.</p><button class="btn-back" style="margin-top:20px;display:inline-flex" onclick="loadBooking()">Voir mon rendez-vous</button></div>`;
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Confirmer le déplacement';
+    alert('Erreur : ' + err.message);
+  }
+}
+
+// ── Existing functions ──
 async function acceptModification() {
   const btn = document.getElementById('acceptBtn');
   btn.disabled = true; btn.textContent = 'Confirmation...';
@@ -199,7 +407,7 @@ async function acceptModification() {
     const res = await fetch(`/api/public/booking/${token}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>Nouvel horaire confirmé</h2><p>Votre rendez-vous est confirmé au nouvel horaire. À bientôt !</p></div>`;
-  } catch (e) { btn.disabled = false; btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ça me convient'; alert('Erreur: ' + e.message); }
+  } catch (e) { btn.disabled = false; btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ça me convient'; alert('Erreur: ' + e.message); }
 }
 
 async function refuseModification() {
@@ -210,7 +418,7 @@ async function refuseModification() {
     const res = await fetch(`/api/public/booking/${token}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Client a refusé la modification d\'horaire' }) });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg"><div class="check"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><h2>Modification refusée</h2><p>Votre rendez-vous a été annulé. Vous pouvez reprendre un nouveau créneau.</p></div>`;
-  } catch (e) { btn.disabled = false; btn.textContent = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; alert('Erreur: ' + e.message); }
+  } catch (e) { btn.disabled = false; btn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Refuser'; alert('Erreur: ' + e.message); }
 }
 
 async function cancelBooking() {
@@ -223,11 +431,7 @@ async function cancelBooking() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason })
     });
-    if (!res.ok) {
-      const d = await res.json();
-      throw new Error(d.error);
-    }
-    // Reload to show cancelled state
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
     loadBooking();
   } catch (err) {
     btn.disabled = false; btn.textContent = 'Annuler mon rendez-vous';
@@ -236,7 +440,7 @@ async function cancelBooking() {
 }
 
 function showError(msg) {
-  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><h2 style="font-family:var(--serif);font-size:1.3rem">${msg}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><h2 style="font-family:var(--serif);font-size:1.3rem">${escH(msg)}</h2><p style="color:var(--text-4);margin-top:6px">Le lien est peut-être expiré ou invalide.</p></div>`;
 }
 
 function buildGCalUrl(start, end, title, location, bizName) {
@@ -251,9 +455,5 @@ function buildOutlookUrl(start, end, title, location, bizName) {
 }
 </script>
 <script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
-<script>/* Kill mobile helpers */
-document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});
-document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});
-</script>
 </body>
 </html>

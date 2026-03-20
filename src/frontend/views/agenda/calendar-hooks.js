@@ -10,17 +10,97 @@ import { fcOpenDetail } from './booking-detail.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { fcShowTooltip, fcMoveTooltip, fcHideTooltip } from './tooltip-renderer.js';
+import { fcHexAlpha } from './calendar-init.js';
 
 const DEFAULT_ACCENT = '#0D7377';
+
+// Cache touch detection once (constant during session)
+const _isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
+// ── Debounced schedule for redistributePoseColumns ──
+let _redistScheduled = false;
+function scheduleRedistribute() {
+  if (_redistScheduled) return;
+  _redistScheduled = true;
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      _redistScheduled = false;
+      redistributePoseColumns();
+    });
+  });
+}
+
+// ── Delegated tooltip hover (set up once on container, avoids 240 listeners) ──
+let _hoverReady = false;
+let _hoverContainer = null;
+let _hoveredEl = null;
+let _hideTimer = null;
+
+function findEventEl(target) {
+  if (!target || !target.closest) return null;
+  var el = target.closest('.fc-event');
+  if (!el || el.classList.contains('fc-bg-event')) return null;
+  return el;
+}
+
+function getFCEvent(el) {
+  var eid = el.getAttribute('data-eid');
+  if (!eid) return null;
+  return calState.fcCal?.getEventById(eid) || null;
+}
+
+function setupHoverDelegation() {
+  if (_isTouch) return;
+  var container = document.getElementById('fcCalendar');
+  if (!container) return;
+  // Re-attach if container DOM element changed (FC re-render)
+  if (_hoverReady && _hoverContainer === container) return;
+  _hoverReady = true;
+  _hoverContainer = container;
+
+  container.addEventListener('mouseover', function (e) {
+    if (fsIsActive()) return;
+    var el = findEventEl(e.target);
+    // If hoveredEl was detached from DOM (FC re-render), reset it
+    if (_hoveredEl && !_hoveredEl.isConnected) { _hoveredEl = null; fcHideTooltip(); }
+    if (el === _hoveredEl) { clearTimeout(_hideTimer); return; }
+    if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+    if (_hoveredEl) fcHideTooltip();
+    _hoveredEl = el;
+    if (!el) return;
+    var ev = getFCEvent(el);
+    if (ev) fcShowTooltip(ev, e.clientX, e.clientY);
+  });
+
+  container.addEventListener('mousemove', function (e) {
+    if (fsIsActive() || !_hoveredEl) return;
+    // If hoveredEl was detached, clean up
+    if (!_hoveredEl.isConnected) { _hoveredEl = null; fcHideTooltip(); return; }
+    fcMoveTooltip(e.clientX, e.clientY);
+  });
+
+  container.addEventListener('mouseout', function (e) {
+    if (!_hoveredEl) return;
+    var related = findEventEl(e.relatedTarget);
+    if (related === _hoveredEl) return;
+    _hideTimer = setTimeout(function () {
+      _hoveredEl = null;
+      fcHideTooltip();
+      _hideTimer = null;
+    }, 50);
+  });
+}
 
 /**
  * Redistribute harness positions in columns that contain pose-children.
  * FC creates N sub-columns for N overlapping events, but pose-children should
  * overlay their parent — not occupy their own sub-column. This function
  * recalculates: M real events → M equal columns, children match their parent.
+ *
+ * Optimized: read/compute/write phases to avoid layout thrashing.
  */
 function redistributePoseColumns() {
-  // ── CSS helpers: FC Scheduler v6 may use `inset` shorthand or left/right ──
+  // ── CSS helper: FC Scheduler v6 may use `inset` shorthand or left/right ──
   function setHoriz(h, newLeft, newRight) {
     var css = h.style.cssText;
     var m = css.match(/inset:\s*([^;!]+)/i);
@@ -36,128 +116,190 @@ function redistributePoseColumns() {
     }
   }
 
-  // If resource view is active, FC already handles practitioner columns — skip redistribution
   var viewType = calState.fcCal?.view?.type || '';
   var isResourceView = viewType.indexOf('resource') === 0;
 
-  // Build stable practitioner order
   var pracIds = (calState.fcCurrentFilter !== 'all')
     ? [calState.fcCurrentFilter]
     : (calState.fcPractitioners || []).map(function (p) { return String(p.id); });
 
-  // Helper: get practitioner_id from a harness element
-  function getPracId(h) {
-    var evEl = h.querySelector('[data-eid]');
-    if (!evEl) return null;
-    var eid = evEl.dataset.eid;
-    var cal = calState.fcCal;
-    if (!cal) return null;
-    var ev = cal.getEventById(eid);
-    if (!ev) return null;
-    var ep = ev.extendedProps;
-    return String(ep?.practitioner_id || (ep?._isGroup ? ep._members?.[0]?.practitioner_id : '') || '');
-  }
+  var needsPracRedist = pracIds.length >= 2 && !isResourceView;
 
-  var processed = new Set();
-  // Process ALL day columns (not just those with pose-children)
+  // ═══ PHASE 1: READ — collect all geometry + metadata (no DOM writes) ═══
+  var columns = [];
+  var parentBounds = {}; // { eid: { left, right } } — shared across columns for pose-child lookup
+
   document.querySelectorAll('.fc-timegrid-col-events').forEach(function (colEvents) {
-    if (processed.has(colEvents)) return;
-    processed.add(colEvents);
-
-    var harnesses = [];
+    var items = [];
     for (var i = 0; i < colEvents.children.length; i++) {
       var h = colEvents.children[i];
-      if (h.classList.contains('fc-timegrid-event-harness')) harnesses.push(h);
+      if (!h.classList.contains('fc-timegrid-event-harness')) continue;
+
+      // Skip hidden events (category filter → display:none) and cancelled (opacity .25)
+      var evEl = h.querySelector('.fc-event');
+      if (evEl && (evEl.style.display === 'none' || evEl.classList.contains('ev-cancelled'))) continue;
+
+      var pracEl = h.querySelector('[data-prac-id]');
+      var eidEl = h.querySelector('[data-eid]');
+      items.push({
+        h: h,
+        rect: h.getBoundingClientRect(),
+        pracId: pracEl ? pracEl.dataset.pracId : null,
+        eid: eidEl ? eidEl.getAttribute('data-eid') : null,
+        isChild: !!h.querySelector('.ev-pose-child')
+      });
     }
-    if (harnesses.length < 2) return;
+    if (items.length < 2) return;
 
-    var isChild = function (h) { return !!h.querySelector('.ev-pose-child'); };
-    var realHarnesses = harnesses.filter(function (h) { return !isChild(h); });
-    var childHarnesses = harnesses.filter(function (h) { return isChild(h); });
+    var hasChildren = items.some(function (it) { return it.isChild; });
+    // Skip column entirely if no pose children AND no multi-practitioner redistribution needed
+    if (!hasChildren && !needsPracRedist) return;
 
-    // ── Redistribute real harnesses by practitioner column ──
-    // Only split into columns when events from different practitioners overlap in time.
-    // If only one practitioner has events at a given time → full width.
-    // Skip if resource view is active (FC Scheduler handles columns natively).
-    if (pracIds.length >= 2 && !isResourceView) {
-      // Annotate each harness with its practitioner and bounding rect
-      var annotated = realHarnesses.map(function (h) {
-        return { h: h, pid: getPracId(h), rect: h.getBoundingClientRect() };
-      }).filter(function (a) { return a.pid && pracIds.indexOf(a.pid) !== -1; });
+    columns.push({ items: items, hasChildren: hasChildren });
+  });
 
-      // For each harness, find all overlapping harnesses (by vertical bounds)
+  // ═══ PHASE 2: COMPUTE — determine all positions (no DOM reads or writes) ═══
+  var writes = []; // { h, left, right, z }
+
+  columns.forEach(function (col) {
+    var real = col.items.filter(function (it) { return !it.isChild; });
+    var children = col.items.filter(function (it) { return it.isChild; });
+
+    // ── Multi-practitioner overlap detection ──
+    if (needsPracRedist) {
+      var annotated = real.filter(function (a) {
+        return a.pracId && pracIds.indexOf(a.pracId) !== -1;
+      });
+
       annotated.forEach(function (a) {
-        var overlappingPracs = new Set();
-        overlappingPracs.add(a.pid);
+        var overlappingPracs = new Set([a.pracId]);
         annotated.forEach(function (b) {
           if (b === a) return;
-          // Check vertical overlap
           if (a.rect.top < b.rect.bottom - 1 && b.rect.top < a.rect.bottom - 1) {
-            overlappingPracs.add(b.pid);
+            overlappingPracs.add(b.pracId);
           }
         });
 
+        var left, right;
         if (overlappingPracs.size >= 2) {
-          // Multiple practitioners overlap at this time → split into columns
-          var idx = pracIds.indexOf(a.pid);
+          var idx = pracIds.indexOf(a.pracId);
           var total = pracIds.length;
           var w = 100 / total;
-          setHoriz(a.h, (idx * w) + '%', (100 - (idx + 1) * w) + '%');
-          a.h.style.zIndex = String(idx + 1);
+          left = (idx * w) + '%';
+          right = (100 - (idx + 1) * w) + '%';
+          writes.push({ h: a.h, left: left, right: right, z: String(idx + 1) });
         } else {
-          // Only one practitioner at this time → full width
-          setHoriz(a.h, '0%', '0%');
-          a.h.style.zIndex = '1';
+          left = '0%'; right = '0%';
+          writes.push({ h: a.h, left: left, right: right, z: '1' });
         }
+        if (a.eid) parentBounds[a.eid] = { left: left, right: right };
       });
     }
 
-    // ── Fix real harness widths when single-practitioner or resource view ──
-    // FC creates sub-columns for pose children overlapping parents; undo that.
-    if (childHarnesses.length > 0 && (pracIds.length < 2 || isResourceView)) {
+    // ── Single-practitioner pose fix ──
+    if (col.hasChildren && !needsPracRedist) {
       var groups = [];
-      realHarnesses.forEach(function (h) {
-        var hRect = h.getBoundingClientRect();
+      real.forEach(function (a) {
         var placed = false;
         for (var g = 0; g < groups.length; g++) {
-          if (groups[g].some(function (m) { var r = m.getBoundingClientRect(); return hRect.top < r.bottom - 1 && r.top < hRect.bottom - 1; })) {
-            groups[g].push(h); placed = true; break;
-          }
+          if (groups[g].some(function (m) {
+            return a.rect.top < m.rect.bottom - 1 && m.rect.top < a.rect.bottom - 1;
+          })) { groups[g].push(a); placed = true; break; }
         }
-        if (!placed) groups.push([h]);
+        if (!placed) groups.push([a]);
       });
       groups.forEach(function (group) {
         var w = 100 / group.length;
-        group.forEach(function (h, i) {
-          setHoriz(h, (i * w) + '%', (100 - (i + 1) * w) + '%');
+        group.forEach(function (a, i) {
+          var left = (i * w) + '%';
+          var right = (100 - (i + 1) * w) + '%';
+          writes.push({ h: a.h, left: left, right: right, z: null });
+          if (a.eid) parentBounds[a.eid] = { left: left, right: right };
         });
       });
     }
 
-    // ── Position each pose-child on its parent ──
-    childHarnesses.forEach(function (ch) {
-      var evEl = ch.querySelector('.ev-pose-child');
-      if (!evEl) return;
-      var parentId = evEl.dataset.poseParent;
-      if (!parentId) return;
-      var parentEl = document.querySelector('[data-eid="' + parentId + '"]');
-      if (!parentEl) return;
-      var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
-      if (!parentHarness) return;
-      var pm = parentHarness.style.cssText.match(/inset:\s*([^;!]+)/i);
-      if (pm) {
-        var pp = pm[1].trim().split(/\s+/);
-        setHoriz(ch, pp.length >= 4 ? pp[3] : '0%', pp.length >= 2 ? pp[1] : '0%');
-      } else {
-        setHoriz(ch, parentHarness.style.left || '0%', parentHarness.style.right || '0%');
-      }
-      ch.style.zIndex = '10';
-    });
+    // ── Pose-child positioning ──
+    if (col.hasChildren) {
+      var childByParent = {};
+      children.forEach(function (ci) {
+        var evEl = ci.h.querySelector('.ev-pose-child');
+        if (!evEl) return;
+        var parentId = evEl.dataset.poseParent;
+        if (!parentId) return;
+        // Look up parent bounds from computed map (no DOM read needed)
+        var bounds = parentBounds[parentId];
+        if (!bounds) {
+          // Fallback: parent might be in another column or not yet computed — try DOM
+          var parentEl = document.querySelector('[data-eid="' + parentId + '"]');
+          if (!parentEl) return;
+          var parentHarness = parentEl.closest('.fc-timegrid-event-harness');
+          if (!parentHarness) return;
+          var pm = parentHarness.style.cssText.match(/inset:\s*([^;!]+)/i);
+          if (pm) {
+            var pp = pm[1].trim().split(/\s+/);
+            bounds = { left: pp.length >= 4 ? pp[3] : '0%', right: pp.length >= 2 ? pp[1] : '0%' };
+          } else {
+            bounds = { left: parentHarness.style.left || '0%', right: parentHarness.style.right || '0%' };
+          }
+        }
+        if (!childByParent[parentId]) childByParent[parentId] = { pLeft: bounds.left, pRight: bounds.right, children: [] };
+        childByParent[parentId].children.push(ci);
+      });
+
+      Object.keys(childByParent).forEach(function (pid) {
+        var info = childByParent[pid];
+        var kids = info.children;
+
+        if (kids.length === 1) {
+          writes.push({ h: kids[0].h, left: info.pLeft, right: info.pRight, z: '10' });
+          return;
+        }
+
+        var pLeftPct = parseFloat(info.pLeft) || 0;
+        var pRightPct = parseFloat(info.pRight) || 0;
+        var parentWidth = 100 - pLeftPct - pRightPct;
+        if (parentWidth <= 0) parentWidth = 100;
+
+        // Group overlapping children using cached rects
+        var overlapGroups = [];
+        kids.forEach(function (ci) {
+          var placed = false;
+          for (var g = 0; g < overlapGroups.length; g++) {
+            if (overlapGroups[g].some(function (m) {
+              return ci.rect.top < m.rect.bottom - 1 && m.rect.top < ci.rect.bottom - 1;
+            })) { overlapGroups[g].push(ci); placed = true; break; }
+          }
+          if (!placed) overlapGroups.push([ci]);
+        });
+
+        overlapGroups.forEach(function (group) {
+          if (group.length === 1) {
+            writes.push({ h: group[0].h, left: info.pLeft, right: info.pRight, z: '10' });
+          } else {
+            var w = parentWidth / group.length;
+            group.forEach(function (ci, i) {
+              var left = pLeftPct + i * w;
+              var right = 100 - left - w;
+              writes.push({ h: ci.h, left: left + '%', right: right + '%', z: String(10 + i) });
+            });
+          }
+        });
+      });
+    }
+  });
+
+  // ═══ PHASE 3: WRITE — apply all DOM mutations in one batch ═══
+  writes.forEach(function (w) {
+    setHoriz(w.h, w.left, w.right);
+    if (w.z != null) w.h.style.zIndex = w.z;
   });
 }
 
 /**
  * Returns the `eventDidMount` callback.
+ * Tooltip hover is delegated (3 listeners on container instead of 240).
+ * Click/touch listeners remain direct on each event (FC blocks bubbling).
  */
 function buildEventDidMount() {
   return function (info) {
@@ -165,6 +307,9 @@ function buildEventDidMount() {
 
     // Skip styling for featured background events
     if (p._isFeaturedSlot) return;
+
+    // Set up delegated tooltip hover (runs once)
+    setupHoverDelegation();
 
     // ── Internal task: separate handling ──
     if (p._isTask) {
@@ -175,14 +320,8 @@ function buildEventDidMount() {
       info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
       info.el.style.borderTopWidth = '0'; info.el.style.borderRightWidth = '0'; info.el.style.borderBottomWidth = '0';
       info.el.setAttribute('data-eid', info.event.id);
+      info.el.setAttribute('data-prac-id', String(p.practitioner_id || ''));
       const taskId = info.event.id.replace('task_', '');
-      // Tooltip
-      const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      if (!isTouch) {
-        info.el.addEventListener('mouseenter', e => { if (!fsIsActive()) fcShowTooltip(info.event, e.clientX, e.clientY); });
-        info.el.addEventListener('mousemove', e => { if (!fsIsActive()) fcMoveTooltip(e.clientX, e.clientY); });
-        info.el.addEventListener('mouseleave', () => fcHideTooltip());
-      }
       // Desktop dblclick → open task detail
       info.el.addEventListener('dblclick', e => { e.stopPropagation(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); });
       // Touch: single tap → tooltip, double tap → detail
@@ -194,6 +333,12 @@ function buildEventDidMount() {
         if (now - lastTap < 600) { e.preventDefault(); fcHideTooltip(); window.fcOpenTaskDetail?.(taskId); lastTap = 0; }
         else { lastTap = now; const touch = e.changedTouches?.[0]; if (touch) { fcShowTooltip(info.event, touch.clientX, touch.clientY); clearTimeout(window._ttAutoHide); window._ttAutoHide = setTimeout(fcHideTooltip, 2500); } }
       }, { passive: false });
+      // Task pose child: mark for redistribution
+      if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
+        info.el.classList.add('ev-pose-child');
+        info.el.setAttribute('data-pose-parent', p._poseParentId);
+        scheduleRedistribute();
+      }
       return; // Skip all booking-specific logic
     }
 
@@ -214,7 +359,6 @@ function buildEventDidMount() {
         const evStart = info.event.start.getTime();
         const evEnd = (info.event.end || info.event.start).getTime();
         const clickTime = new Date(evStart + clickRatio * (evEnd - evStart));
-        // Snap to 15min grid
         clickTime.setMinutes(Math.floor(clickTime.getMinutes() / 15) * 15, 0, 0);
         const iso = clickTime.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) + 'T' + clickTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) + ':00';
         fcOpenQuickCreate(iso);
@@ -223,31 +367,38 @@ function buildEventDidMount() {
     }
 
     // ── Pose child: mark for deferred redistribution ──
-    // FC creates too many sub-columns because it counts children as separate events.
-    // We mark children here, then redistributePoseColumns() fixes ALL harness positions
-    // after all events have rendered (scheduled once via setTimeout).
     if (p._isPoseChild && info.view.type !== 'dayGridMonth') {
       info.el.classList.add('ev-pose-child');
       info.el.setAttribute('data-pose-parent', p._poseParentId);
     }
     // Schedule redistribution for practitioner columns + pose-child positioning
-    // (debounced, run twice to survive FC re-layouts)
     if (info.view.type !== 'dayGridMonth') {
-      clearTimeout(window._poseRedistTimer);
-      clearTimeout(window._poseRedistTimer2);
-      window._poseRedistTimer = setTimeout(redistributePoseColumns, 0);
-      window._poseRedistTimer2 = setTimeout(redistributePoseColumns, 120);
+      scheduleRedistribute();
     }
 
     // ── Border styling ──
     info.el.style.borderLeftWidth = '3px';
     info.el.style.borderLeftStyle = 'solid';
-    info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
     info.el.style.borderTopWidth = '0';
     info.el.style.borderRightWidth = '0';
     info.el.style.borderBottomWidth = '0';
 
+    const isPending = p.status === 'pending_deposit' || p.status === 'pending'
+      || (p._isGroup && p._members?.some(m => m.status === 'pending_deposit' || m.status === 'pending'));
+    if (isPending) {
+      info.el.style.borderLeftStyle = 'dashed';
+      info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
+    } else if (p._borderSegments) {
+      const stops = p._borderSegments.flatMap(s => [`${s.color} ${s.from.toFixed(1)}%`, `${s.color} ${s.to.toFixed(1)}%`]);
+      info.el.style.borderImage = `linear-gradient(to bottom, ${stops.join(', ')}) 1`;
+      const bgStops = p._borderSegments.flatMap(s => [`${fcHexAlpha(s.color, 0.22)} ${s.from.toFixed(1)}%`, `${fcHexAlpha(s.color, 0.22)} ${s.to.toFixed(1)}%`]);
+      info.el.style.background = `linear-gradient(to bottom, ${bgStops.join(', ')})`;
+    } else {
+      info.el.style.borderLeftColor = info.event.borderColor || safeAccent;
+    }
+
     info.el.setAttribute('data-eid', info.event.id);
+    info.el.setAttribute('data-prac-id', String(p.practitioner_id || (p._isGroup ? p._members?.[0]?.practitioner_id : '') || ''));
 
     // ── Category filtering display ──
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
@@ -259,6 +410,7 @@ function buildEventDidMount() {
         if (!anyVisible) { info.el.style.display = 'none'; }
         else if (anyHidden) {
           info.el.classList.add('ev-partial-match');
+          info.el.style.borderImage = 'none';
           info.el.style.setProperty('border-left-color', safeAccent + '55', 'important');
         }
       } else {
@@ -274,30 +426,13 @@ function buildEventDidMount() {
     // Resolve booking ID (for groups -> first member)
     const bookingId = p._isGroup ? p._members?.[0]?.id : info.event.id;
 
-    // ── Tooltip (hover desktop only, tap touch) ──
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouch) {
-      info.el.addEventListener('mouseenter', function (e) {
-        if (fsIsActive()) return;
-        fcShowTooltip(info.event, e.clientX, e.clientY);
-      });
-      info.el.addEventListener('mousemove', function (e) {
-        if (fsIsActive()) return;
-        fcMoveTooltip(e.clientX, e.clientY);
-      });
-      info.el.addEventListener('mouseleave', function () {
-        fcHideTooltip();
-      });
-    }
-
-    // ── Desktop: native dblclick ──
+    // ── Desktop: dblclick → open detail (direct listener, FC blocks bubbling) ──
     info.el.addEventListener('dblclick', function (e) {
       if (fsIsActive()) return;
       e.stopPropagation();
       fcHideTooltip();
       fcOpenDetail(bookingId);
     });
-    // Desktop: dblclick on resizer too (for short 15-min events where resizer covers most of the area)
     const resizerForDbl = info.el.querySelector('.fc-event-resizer-end');
     if (resizerForDbl) {
       resizerForDbl.addEventListener('dblclick', function (e) {
@@ -308,39 +443,32 @@ function buildEventDidMount() {
       });
     }
 
-    // ── Touch: single tap -> tooltip (brief), double tap -> detail ──
+    // ── Touch: single tap → tooltip, double tap → detail ──
     let lastTap = 0;
     info.el.addEventListener('touchend', function (e) {
-      // In vedette mode, tap on event toggles featured slot
       if (fsIsActive()) {
         fsHandleDateClick(info.event.startStr);
         return;
       }
-      // Skip during active drag/resize
       if (info.el.classList.contains('fc-event-dragging') || info.el.classList.contains('fc-event-resizing')) return;
-      const onResizer = !!e.target.closest('.fc-event-resizer');
       const now = Date.now();
       if (now - lastTap < 600) {
-        // Double tap — always open detail (even on resizer for short events)
         e.preventDefault();
         fcHideTooltip();
         fcOpenDetail(bookingId);
         lastTap = 0;
       } else {
         lastTap = now;
-        // Single tap -> show tooltip briefly, hide on next touch anywhere
         const touch = e.changedTouches?.[0];
         if (touch) {
           fcShowTooltip(info.event, touch.clientX, touch.clientY);
           clearTimeout(window._ttAutoHide);
           window._ttAutoHide = setTimeout(fcHideTooltip, 2500);
-          // Hide tooltip on next touch anywhere
           const dismiss = function () { fcHideTooltip(); document.removeEventListener('touchstart', dismiss, true); };
           setTimeout(function () { document.addEventListener('touchstart', dismiss, true); }, 100);
         }
       }
     }, { passive: false });
-
   };
 }
 

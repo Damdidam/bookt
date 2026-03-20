@@ -20,9 +20,9 @@ async function loadSettings(){
     const b=bd.business, u=ud.user, lk=ld;
     let h='';
 
-    // 1. Infos cabinet
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Informations du cabinet</h3></div><div class="sc-body">
-      <div class="field-row"><div class="field"><label>Nom du cabinet *</label><input id="s_name" value="${esc(b.name||'')}"></div><div class="field"><label>URL personnalisée</label><div class="copy-input"><span style="padding:9px 0;font-size:.85rem;color:var(--text-4)">genda.be/</span><input id="s_slug" value="${esc(b.slug||'')}" style="flex:1"></div><div class="hint">Modifie l'URL de votre page publique</div></div></div>
+    // 1. Infos salon
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Informations du salon</h3></div><div class="sc-body">
+      <div class="field-row"><div class="field"><label>Nom du salon *</label><input id="s_name" value="${esc(b.name||'')}"></div><div class="field"><label>URL personnalisée</label><div class="copy-input"><span style="padding:9px 0;font-size:.85rem;color:var(--text-4)">genda.be/</span><input id="s_slug" value="${esc(b.slug||'')}" style="flex:1"></div><div class="hint">Modifie l'URL de votre page publique</div></div></div>
       <div class="field-row"><div class="field"><label>Email professionnel</label><input id="s_email" type="email" value="${esc(b.email||'')}"></div><div class="field"><label>Téléphone</label><input id="s_phone" value="${esc(b.phone||'')}"></div></div>
       <div class="field"><label>Adresse</label><input id="s_address" value="${esc(b.address||'')}" placeholder="Ex: Rue de la Loi 42, 1000 Bruxelles"></div>
       <div class="field-row"><div class="field"><label>N° BCE / TVA</label><input id="s_bce" value="${esc(b.bce_number||'')}" placeholder="BE 0xxx.xxx.xxx"></div><div class="field"><label>Accréditation</label><input id="s_accred" value="${esc(b.accreditation||'')}" placeholder="Ex: Barreau de Bruxelles"></div></div>
@@ -37,7 +37,7 @@ async function loadSettings(){
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveBusiness()">Enregistrer</button></div></div>`;
 
     // 1b. Secteur d'activité
-    const sectorOptions=[['coiffeur','Coiffeur\u00b7se'],['esthetique','Esthétique'],['barbier','Barbier'],['bien_etre','Massage & Bien-être'],['kine','Kinésithérapie'],['medecin','Médecin'],['dentiste','Dentiste'],['osteopathe','Ostéopathe'],['veterinaire','Vétérinaire / Toilettage'],['comptable','Comptable'],['avocat','Avocat'],['photographe','Photographe'],['coaching','Coaching sportif'],['garage','Garage / Auto'],['autre','Autre']];
+    const sectorOptions=[['coiffeur','Coiffeur\u00b7se'],['esthetique','Esthétique'],['barbier','Barbier'],['bien_etre','Massage & Bien-être'],['kine','Kinésithérapie'],['medecin','Médecin'],['dentiste','Dentiste'],['osteopathe','Ostéopathe'],['veterinaire','Vétérinaire / Toilettage'],['photographe','Photographe'],['coaching','Coaching sportif'],['garage','Garage / Auto'],['autre','Autre']];
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Secteur d'activité</h3></div><div class="sc-body">
       <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le secteur détermine les catégories de prestations et la terminologie de votre interface.</p>
       <div class="field"><label>Secteur</label><select id="s_sector" style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;background:var(--surface);color:var(--text);font-family:var(--sans)">${sectorOptions.map(([v,l])=>`<option value="${v}"${b.sector===v?' selected':''}>${l}</option>`).join('')}</select></div>
@@ -74,6 +74,17 @@ async function loadSettings(){
           <span style="position:absolute;left:${!!(b.settings?.multi_service_enabled)?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
         </label>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);margin-top:10px">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Vue par d\u00e9faut du calendrier</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Choisissez la vue affich\u00e9e \u00e0 l'ouverture de l'agenda</div>
+        </div>
+        <div style="display:flex;gap:4px;margin-left:16px" id="defaultViewBtns">
+          <button class="btn-sm${(b.settings?.default_calendar_view||'week')==='day'?' active':''}" onclick="saveDefaultView('day')">Jour</button>
+          <button class="btn-sm${(b.settings?.default_calendar_view||'week')==='week'?' active':''}" onclick="saveDefaultView('week')">Semaine</button>
+          <button class="btn-sm${(b.settings?.default_calendar_view||'week')==='month'?' active':''}" onclick="saveDefaultView('month')">Mois</button>
+        </div>
+      </div>
     </div></div>`;
 
     // 3a-bis. Réservation en ligne
@@ -96,6 +107,13 @@ async function loadSettings(){
     const slotInc = b.settings?.slot_increment_min || 15;
     const wlMode = b.settings?.waitlist_mode || 'off';
     const colorMode = b.settings?.calendar_color_mode || 'category';
+    const autoOpt = b.settings?.slot_auto_optimize !== false;
+    const gapOn = b.settings?.gap_analyzer_enabled === true;
+    const fsOn = b.settings?.featured_slots_enabled === true;
+    const lmOn = b.settings?.last_minute_enabled === true;
+    const lmDeadline = b.settings?.last_minute_deadline || 'j-1';
+    const lmDiscount = b.settings?.last_minute_discount_pct || 10;
+    const lmMinPrice = b.settings?.last_minute_min_price_cents || 0;
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Calendrier</h3></div><div class="sc-body">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
         <div class="field"><label>Incrément agenda</label><select id="s_slot_inc" class="field-input">
@@ -111,17 +129,79 @@ async function loadSettings(){
           <option value="practitioner"${colorMode === 'practitioner' ? ' selected' : ''}>Par praticien</option>
         </select><div class="hint">Couleur des RDV sur l'agenda</div></div>
       </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_slot_auto_optimize" style="opacity:0;width:0;height:0;position:absolute"${autoOpt?' checked':''}>
+            <span style="position:absolute;inset:0;background:${autoOpt?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_slot_auto_optimize');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${autoOpt?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Optimisation auto des créneaux</span>
+        </div>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Calcule automatiquement l'espacement optimal des créneaux à partir de vos prestations et priorise les horaires qui comblent les trous</div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_gap_analyzer" style="opacity:0;width:0;height:0;position:absolute"${gapOn?' checked':''}>
+            <span style="position:absolute;inset:0;background:${gapOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_gap_analyzer');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${gapOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Analyseur de gaps</span>
+        </div>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Détecte automatiquement les créneaux libres entre les RDV et suggère des services compatibles</div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_featured_slots" style="opacity:0;width:0;height:0;position:absolute"${fsOn?' checked':''}>
+            <span style="position:absolute;inset:0;background:${fsOn?'var(--primary)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_featured_slots');c.checked=!c.checked;this.style.background=c.checked?'var(--primary)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${fsOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Mode vedette</span>
+        </div>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Met en avant les créneaux prioritaires à remplir sur le calendrier</div>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <span style="position:relative;display:inline-block;width:36px;height:20px">
+            <input type="checkbox" id="s_last_minute" style="opacity:0;width:0;height:0;position:absolute"${lmOn?' checked':''}>
+            <span style="position:absolute;inset:0;background:${lmOn?'#f59e0b':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'#f59e0b':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
+            <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${lmOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
+          </span>
+          <span style="font-weight:600;font-size:.85rem">Promotions dernière minute</span>
+        </div>
+        <div class="hint" style="margin-top:4px;margin-left:46px">Propose les créneaux restants avec une réduction pour maximiser le remplissage</div>
+        <div id="lm_details" style="display:${lmOn?'grid':'none'};grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;margin-left:46px">
+          <div class="field"><label>Fenêtre</label><select id="s_lm_deadline" class="field-input">
+            <option value="j-2"${lmDeadline==='j-2'?' selected':''}>J-2 avant le RDV</option>
+            <option value="j-1"${lmDeadline==='j-1'?' selected':''}>J-1 (veille)</option>
+            <option value="same_day"${lmDeadline==='same_day'?' selected':''}>Jour même</option>
+          </select><div class="hint">Quand les créneaux deviennent "dernière minute"</div></div>
+          <div class="field"><label>Réduction</label><select id="s_lm_discount" class="field-input">
+            ${[5,10,15,20,25].map(v=>`<option value="${v}"${lmDiscount===v?' selected':''}>${v}%</option>`).join('')}
+          </select><div class="hint">Pourcentage de réduction affiché</div></div>
+          <div class="field"><label>Prix min. service</label><input type="number" id="s_lm_min_price" class="field-input" value="${lmMinPrice}" min="0" step="100" placeholder="0">
+          <div class="hint">En centimes. Services sous ce prix ne sont pas remisés (0 = pas de seuil)</div></div>
+        </div>
+      </div>
     </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
 
-    // 3b. Rappels patients
+    // 3a-bis. Paiements (Stripe Connect)
+    // Fetch connect status async — render placeholder first
+    h+=`<div class="settings-card" id="connectCard"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Paiements</h3></div><div class="sc-body" id="connectBody"><div style="text-align:center;padding:20px;color:var(--text-4);font-size:.82rem">Chargement...</div></div></div>`;
+    // Load connect status after render
+    setTimeout(()=>loadConnectStatus(),100);
+
+    // 3b. Rappels clients
     const plan=b.plan||'free';
     const re24=b.settings?.reminder_email_24h!==false;
     const rs24=b.settings?.reminder_sms_24h===true;
     const rs2=b.settings?.reminder_sms_2h===true;
     const re2=b.settings?.reminder_email_2h===true;
     const hasSms=plan==='pro'||plan==='premium';
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels patients</h3></div><div class="sc-body">`;
-    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Les rappels sont envoyés automatiquement aux patients avant leur rendez-vous. Réduisez les no-shows jusqu'à 50%.</p>`;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels clients</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Les rappels sont envoyés automatiquement aux clients avant leur rendez-vous. Réduisez les no-shows jusqu'à 50%.</p>`;
 
     h+=`<div style="display:flex;flex-direction:column;gap:10px">`;
 
@@ -143,13 +223,16 @@ async function loadSettings(){
       h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--coral-lighter);border:1px solid var(--coral-border);border-radius:8px;font-size:.82rem;color:var(--coral-dark)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Les rappels SMS sont disponibles à partir du plan <strong>Pro (39\u20ac/mois)</strong>. <a href="#" onclick="document.querySelector('[data-section=settings]').click();setTimeout(()=>document.querySelector('.plan-box:nth-child(2) .btn-primary')?.scrollIntoView({behavior:'smooth'}),100)" style="color:var(--coral-dark);font-weight:600">Voir les plans \u2192</a></div>`;
     }
 
-    h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">\u2139 Les SMS sont envoyés uniquement aux patients ayant donné leur consentement SMS. Les rappels ne sont pas envoyés pour les RDV annulés.</div>`;
+    h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">\u2139 Les SMS sont envoyés uniquement aux clients ayant donné leur consentement SMS. Les rappels ne sont pas envoyés pour les RDV annulés.</div>`;
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveReminderSettings()">Enregistrer les rappels</button></div></div>`;
 
     // 3c. Politique d'acompte
     const depOn=b.settings?.deposit_enabled===true;
     const depThresh=b.settings?.deposit_noshow_threshold||2;
+    const depPriceThresh=b.settings?.deposit_price_threshold_cents||0;
+    const depDurThresh=b.settings?.deposit_duration_threshold_min||0;
+    const depThreshMode=b.settings?.deposit_threshold_mode||'any';
     const depType=b.settings?.deposit_type||'percent';
     const depPct=b.settings?.deposit_percent||50;
     const depFixed=b.settings?.deposit_fixed_cents||2500;
@@ -173,7 +256,28 @@ async function loadSettings(){
     h+=`<div id="depositOptions" style="display:${depOn?'block':'none'}">`;
 
     // Threshold
-    h+=`<div class="field"><label>Seuil de déclenchement</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Exiger un acompte après</span><input type="number" id="s_dep_threshold" value="${depThresh}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">no-show(s)</span></div></div>`;
+    h+=`<div class="field"><label>Seuil de déclenchement (no-shows)</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Exiger un acompte après</span><input type="number" id="s_dep_threshold" value="${depThresh}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">no-show(s)</span></div></div>`;
+
+    // Price/duration auto-suggestion thresholds
+    h+=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:.82rem;font-weight:600;color:var(--text);margin-bottom:6px">Suggestion automatique (RDV staff)</div>
+      <p style="font-size:.75rem;color:var(--text-4);margin-bottom:12px">Quand le staff crée un RDV dépassant ces seuils, un toggle « Demander un acompte » s'active automatiquement. Le staff peut l'ignorer.</p>
+      <div class="field"><label>Seuil de prix</label><div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="s_dep_price_thresh" value="${depPriceThresh?depPriceThresh/100:''}" min="0" step="10" placeholder="Ex: 150" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
+        <span style="font-size:.85rem;color:var(--text-3)">EUR</span>
+        <span style="font-size:.75rem;color:var(--text-4);margin-left:4px">(vide = pas de seuil prix)</span>
+      </div></div>
+      <div class="field"><label>Seuil de durée</label><div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="s_dep_dur_thresh" value="${depDurThresh||''}" min="0" step="15" placeholder="Ex: 120" style="width:100px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:right">
+        <span style="font-size:.85rem;color:var(--text-3)">min</span>
+        <span style="font-size:.75rem;color:var(--text-4);margin-left:4px">(vide = pas de seuil durée)</span>
+      </div></div>
+      <div class="field"><label>Mode</label><div style="display:flex;gap:8px">
+        <button class="btn-sm ${depThreshMode==='any'?'active':''}" onclick="document.getElementById('s_dep_thresh_mode').value='any';this.classList.add('active');this.nextElementSibling.classList.remove('active')">L'un ou l'autre</button>
+        <button class="btn-sm ${depThreshMode==='both'?'active':''}" onclick="document.getElementById('s_dep_thresh_mode').value='both';this.classList.add('active');this.previousElementSibling.classList.remove('active')">Les deux</button>
+        <input type="hidden" id="s_dep_thresh_mode" value="${depThreshMode}">
+      </div></div>
+    </div>`;
 
     // Type selector
     h+=`<div class="field"><label>Type de montant</label><div style="display:flex;gap:8px">
@@ -229,6 +333,75 @@ async function loadSettings(){
     h+=`</div>`; // close depositOptions
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveDepositSettings()">Enregistrer la politique d'acompte</button></div></div>`;
+
+    // 3c-bis. Déplacement des rendez-vous
+    const moveOn=!!(b.settings?.move_restriction_enabled);
+    const moveDeadline=b.settings?.move_deadline_hours||48;
+    const moveGrace=b.settings?.move_grace_hours||0;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 12H3"/><path d="m7 8-4 4 4 4"/><path d="M21 12h-8"/><path d="m15 16 4-4-4-4"/></svg> Déplacement des rendez-vous</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Restreignez la possibilité de déplacer les rendez-vous sur le calendrier. Les RDV avec acompte sont toujours verrouillés.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Restreindre le déplacement</div><div style="font-size:.75rem;color:var(--text-4)">Empêche le déplacement des RDV trop proches de l'échéance</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_move_enabled" ${moveOn?'checked':''} onchange="document.getElementById('moveOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${moveOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${moveOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="moveOptions" style="display:${moveOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Délai avant le RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Ne plus déplacer si le RDV est dans moins de</span><input type="number" id="s_move_deadline" value="${moveDeadline}" min="1" max="720" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures</span></div></div>`;
+    h+=`<div class="field"><label>Période de grâce après la prise de RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Autoriser le déplacement dans les</span><input type="number" id="s_move_grace" value="${moveGrace}" min="0" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures suivant la prise de RDV</span></div><div class="hint">0 = pas de période de grâce</div></div>`;
+    h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les RDV avec acompte sont toujours verrouillés, indépendamment de ces paramètres.</div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveMoveSettings()">Enregistrer</button></div></div>`;
+
+    // 3c-ter. Modification par le client (reschedule)
+    const reschOn=!!(b.settings?.reschedule_enabled);
+    const reschDeadline=b.settings?.reschedule_deadline_hours||24;
+    const reschMax=b.settings?.reschedule_max_count||1;
+    const reschWindow=b.settings?.reschedule_window_days||30;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M14 14l2 2-2 2"/></svg> Modification par le client</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Permettez à vos clients de déplacer eux-mêmes leur rendez-vous via le lien dans l'email de confirmation.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Autoriser la modification</div><div style="font-size:.75rem;color:var(--text-4)">Le client peut changer la date/heure de son RDV depuis son email</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_reschedule_enabled" ${reschOn?'checked':''} onchange="document.getElementById('rescheduleOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${reschOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${reschOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="rescheduleOptions" style="display:${reschOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Délai minimum avant le RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Modification possible jusqu'à</span><input type="number" id="s_reschedule_deadline" value="${reschDeadline}" min="1" max="720" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures avant le RDV</span></div><div class="hint">Passé ce délai, le client ne pourra plus modifier</div></div>`;
+    h+=`<div class="field"><label>Nombre max de modifications</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Le client peut modifier</span><input type="number" id="s_reschedule_max" value="${reschMax}" min="1" max="10" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">fois maximum</span></div></div>`;
+    h+=`<div class="field"><label>Fenêtre de choix</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Le client peut choisir un créneau dans les</span><input type="number" id="s_reschedule_window" value="${reschWindow}" min="7" max="90" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">jours à venir</span></div></div>`;
+    h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les RDV verrouillés ne peuvent pas être modifiés par le client. Les acomptes restent attachés au RDV déplacé.</div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveRescheduleSettings()">Enregistrer</button></div></div>`;
+
+    // 3a-bis. Gift cards
+    const gcOn=!!b.settings?.giftcard_enabled;
+    const gcAmounts=b.settings?.giftcard_amounts||[2500,5000,7500,10000];
+    const gcCustom=b.settings?.giftcard_custom_amount!==false;
+    const gcMin=(b.settings?.giftcard_min_amount_cents||1000)/100;
+    const gcMax=(b.settings?.giftcard_max_amount_cents||50000)/100;
+    const gcExpiry=b.settings?.giftcard_expiry_days||365;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8v12"/><path d="M8 1l4 3.5L16 1"/></svg> Cartes cadeau</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Permettez à vos clients d'acheter des cartes cadeau en ligne depuis votre minisite.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les cartes cadeau</div><div style="font-size:.75rem;color:var(--text-4)">Un bouton "Carte cadeau" apparaîtra sur votre minisite</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_gc_enabled" ${gcOn?'checked':''} onchange="document.getElementById('gcOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${gcOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${gcOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="gcOptions" style="display:${gcOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Montants prédéfinis (€)</label><input type="text" id="s_gc_amounts" value="${gcAmounts.map(a=>(a/100)).join(', ')}" placeholder="25, 50, 75, 100" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;width:100%;font-family:var(--sans)"><div class="hint">Séparez les montants par des virgules</div></div>`;
+    h+=`<div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s_gc_custom" ${gcCustom?'checked':''}> Autoriser un montant libre</label></div>`;
+    h+=`<div class="field"><label>Montant min/max (€)</label><div style="display:flex;gap:10px"><input type="number" id="s_gc_min" value="${gcMin}" min="5" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="align-self:center;color:var(--text-3)">à</span><input type="number" id="s_gc_max" value="${gcMax}" min="10" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"></div></div>`;
+    h+=`<div class="field"><label>Validité</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_gc_expiry" value="${gcExpiry}" min="30" max="730" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="font-size:.82rem;color:var(--text-3)">jours</span></div></div>`;
+    h+=`</div>`;
+    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveGiftCardSettings()">Enregistrer</button></div></div>`;
 
     // 3b. Confirmation de réservation en ligne
     const confOn=!!b.settings?.booking_confirmation_required;
@@ -344,9 +517,24 @@ async function loadSettings(){
     window._settingsGuard?.destroy();
     window._settingsGuard = guardModal(c);
 
+    // Global toggle visual sync — updates track color + knob on any checkbox change
+    c.addEventListener('change', e=>{
+      const cb=e.target;
+      if(cb.type!=='checkbox')return;
+      const label=cb.closest('label');
+      if(!label)return;
+      const track=label.querySelector('span:nth-child(2)');
+      const knob=label.querySelector('span:nth-child(3)');
+      if(track&&knob){
+        const on=cb.checked;
+        track.style.background=on?'var(--primary)':'var(--border)';
+        knob.style.left=on?'22px':'2px';
+      }
+    });
+
     // Draw QR code
     setTimeout(()=>drawQR(lk.qr_data||lk.booking_url||''),50);
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${e.message}</div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
 async function savePractitionerChoiceSetting(){
@@ -367,10 +555,31 @@ async function saveCalendarSettings(){
     const data={
       settings_slot_increment_min:parseInt(document.getElementById('s_slot_inc').value)||15,
       settings_waitlist_mode:document.getElementById('s_waitlist').value||'off',
-      settings_calendar_color_mode:cm
+      settings_calendar_color_mode:cm,
+      settings_slot_auto_optimize:document.getElementById('s_slot_auto_optimize')?.checked??true,
+      settings_gap_analyzer_enabled:document.getElementById('s_gap_analyzer')?.checked||false,
+      settings_featured_slots_enabled:document.getElementById('s_featured_slots')?.checked||false,
+      settings_last_minute_enabled:document.getElementById('s_last_minute')?.checked||false,
+      settings_last_minute_deadline:document.getElementById('s_lm_deadline')?.value||'j-1',
+      settings_last_minute_discount_pct:parseInt(document.getElementById('s_lm_discount')?.value)||10,
+      settings_last_minute_min_price_cents:parseInt(document.getElementById('s_lm_min_price')?.value)||0
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
+    // Update local biz cache so other modules see new settings immediately
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.slot_increment_min=data.settings_slot_increment_min;
+    freshBiz.settings.waitlist_mode=data.settings_waitlist_mode;
+    freshBiz.settings.calendar_color_mode=data.settings_calendar_color_mode;
+    freshBiz.settings.slot_auto_optimize=data.settings_slot_auto_optimize;
+    freshBiz.settings.gap_analyzer_enabled=data.settings_gap_analyzer_enabled;
+    freshBiz.settings.featured_slots_enabled=data.settings_featured_slots_enabled;
+    freshBiz.settings.last_minute_enabled=data.settings_last_minute_enabled;
+    freshBiz.settings.last_minute_deadline=data.settings_last_minute_deadline;
+    freshBiz.settings.last_minute_discount_pct=data.settings_last_minute_discount_pct;
+    freshBiz.settings.last_minute_min_price_cents=data.settings_last_minute_min_price_cents;
+    api.setBusiness(freshBiz);
     calState.fcColorMode=cm;
     if(window.fcRefresh)window.fcRefresh();
     GendaUI.toast('Paramètres calendrier enregistrés','success');window._settingsGuard?.markClean();
@@ -386,6 +595,156 @@ async function saveMultiServicePolicy(){
     const span=document.getElementById('s_multi_service').parentElement;
     span.querySelector('span:nth-child(2)').style.background=on?'var(--primary)':'var(--border)';
     span.querySelector('span:nth-child(3)').style.left=on?'22px':'2px';
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+// ===== Stripe Connect =====
+async function loadConnectStatus(){
+  const el=document.getElementById('connectBody');
+  if(!el)return;
+  try{
+    const r=await fetch('/api/stripe/connect/status',{headers:{'Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    const st=d.connect_status||'none';
+    let html='';
+    if(st==='none'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600">Recevoir les paiements</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Connectez votre compte Stripe pour encaisser les acomptes de vos clients</div>
+        </div>
+        <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg> Connecter Stripe</button>
+      </div>`;
+    }else if(st==='onboarding'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--gold-border,var(--border));border-radius:var(--radius-sm);background:var(--gold-bg,#FFFBEB)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold,#F59E0B);margin-right:6px"></span>Configuration en cours</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Finalisez votre inscription Stripe pour activer les paiements</div>
+        </div>
+        <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px">Reprendre</button>
+      </div>`;
+    }else if(st==='active'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--green-border,#BBF7D0);border-radius:var(--radius-sm);background:var(--green-bg,#F0FDF4)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22C55E;margin-right:6px"></span>Paiements actifs</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Votre compte Stripe est connect\u00e9. Les acomptes sont encaiss\u00e9s directement sur votre compte.</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px">
+          <button class="btn-outline btn-sm" onclick="openStripeDashboard()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Dashboard Stripe</button>
+          <button class="btn-outline btn-sm" onclick="disconnectStripe()" style="color:var(--red,#EF4444)">D\u00e9connecter</button>
+        </div>
+      </div>`;
+    }else if(st==='restricted'){
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--coral-border,var(--border));border-radius:var(--radius-sm);background:var(--coral-lighter,#FFF1F2)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--coral,#F97316);margin-right:6px"></span>Action requise</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Stripe n\u00e9cessite des informations suppl\u00e9mentaires pour activer les paiements</div>
+        </div>
+        <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px">Compl\u00e9ter</button>
+      </div>`;
+    }else{
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--red-border,var(--border));border-radius:var(--radius-sm);background:var(--red-bg,#FEF2F2)">
+        <div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red,#EF4444);margin-right:6px"></span>Compte d\u00e9sactiv\u00e9</div>
+          <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Votre compte Stripe a \u00e9t\u00e9 d\u00e9sactiv\u00e9. Contactez le support Stripe.</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="connectStripe()">R\u00e9activer</button>
+      </div>`;
+    }
+    // Payment methods accepted on-site
+    html+=buildPaymentMethodsUI();
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML=`<div style="font-size:.82rem;color:var(--text-4);padding:10px">Impossible de charger le statut Stripe</div>`;
+  }
+}
+
+const PAYMENT_METHODS=[
+  {id:'cash',label:'Espèces',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M2 10h2m16 0h2M2 14h2m16 0h2"/></svg>'},
+  {id:'card',label:'Carte bancaire',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>'},
+  {id:'bancontact',label:'Bancontact',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/><path d="M6 15h4"/></svg>'},
+  {id:'apple_pay',label:'Apple Pay',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-1.5 4.5c0 2 1 3.5 2.5 4.5-1 1.5-2 3-3.5 3-1.5 0-2-.8-3.5-.8s-2.2.8-3.5.8C1 14 0 11 0 8.5 0 4.5 3 2 5.5 2c1.5 0 2.8.8 3.5.8S11 2 12 2z"/><path d="M12 2c0-1 1-2 2.5-2"/></svg>'},
+  {id:'google_pay',label:'Google Pay',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 0-3.3 6.5"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>'},
+  {id:'payconiq',label:'Payconiq',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><path d="M21 14h-1v3h-3v1h3v3h1v-3h3v-1h-3z"/></svg>'},
+  {id:'instant_transfer',label:'Virement instantané',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'},
+  {id:'bank_transfer',label:'Virement bancaire',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M12 3l9 7H3z"/><path d="M5 10v8m4-8v8m6-8v8m4-8v8"/></svg>'}
+];
+
+function buildPaymentMethodsUI(){
+  const b=api.getBusiness();
+  const methods=(b&&b.settings&&b.settings.payment_methods)||[];
+  let h='<div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px">';
+  h+='<div style="font-size:.88rem;font-weight:600;margin-bottom:4px">Moyens de paiement acceptés sur place</div>';
+  h+='<div style="font-size:.75rem;color:var(--text-4);margin-bottom:14px">Affiché sur la page de réservation pour informer vos clients.</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="payMethodsGrid">';
+  PAYMENT_METHODS.forEach(pm=>{
+    const checked=methods.includes(pm.id);
+    h+=`<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid ${checked?'var(--primary)':'var(--border)'};border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;background:${checked?'var(--primary-lightest,#F0FDFA)':'var(--surface)'}" data-pm="${pm.id}">
+      <input type="checkbox" value="${pm.id}" ${checked?'checked':''} style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" onchange="savePaymentMethods()">
+      <span style="display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:500;color:var(--text)">${pm.icon.replace('<svg ','<svg class="gi" style="width:16px;height:16px;flex-shrink:0" ')}${pm.label}</span>
+    </label>`;
+  });
+  h+='</div></div>';
+  return h;
+}
+
+async function savePaymentMethods(){
+  const grid=document.getElementById('payMethodsGrid');
+  if(!grid)return;
+  const checked=[...grid.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>cb.value);
+  // Update label styling
+  grid.querySelectorAll('label[data-pm]').forEach(lbl=>{
+    const isOn=checked.includes(lbl.dataset.pm);
+    lbl.style.borderColor=isOn?'var(--primary)':'var(--border)';
+    lbl.style.background=isOn?'var(--primary-lightest,#F0FDFA)':'var(--surface)';
+  });
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_payment_methods:checked})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const d=await r.json();
+    api.setBusiness(d.business);
+    GendaUI.toast('Moyens de paiement enregistrés','success');
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function connectStripe(){
+  try{
+    GendaUI.toast('Redirection vers Stripe...','info');
+    const r=await fetch('/api/stripe/connect/onboard',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    window.location.href=d.url;
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function openStripeDashboard(){
+  try{
+    GendaUI.toast('Ouverture du dashboard...','info');
+    const r=await fetch('/api/stripe/connect/dashboard',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()}});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    window.location.href=d.url;
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function disconnectStripe(){
+  if(!confirm('D\u00e9connecter votre compte Stripe ? Les paiements d\'acomptes ne seront plus possibles.'))return;
+  try{
+    const r=await fetch('/api/stripe/connect',{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Compte Stripe d\u00e9connect\u00e9','success');
+    loadConnectStatus();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveDefaultView(view){
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({settings_default_calendar_view:view})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const labels={day:'Jour',week:'Semaine',month:'Mois'};
+    GendaUI.toast('Vue par d\u00e9faut : '+labels[view],'success');
+    document.querySelectorAll('#defaultViewBtns .btn-sm').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`#defaultViewBtns .btn-sm[onclick="saveDefaultView('${view}')"]`)?.classList.add('active');
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -442,6 +801,9 @@ async function saveDepositSettings(){
       settings_deposit_deadline_hours:parseInt(document.getElementById('s_dep_deadline')?.value)||48,
       settings_deposit_message:document.getElementById('s_dep_message')?.value||'',
       settings_deposit_deduct:document.getElementById('s_dep_deduct')?.checked??true,
+      settings_deposit_price_threshold_cents:Math.round((parseFloat(document.getElementById('s_dep_price_thresh')?.value)||0)*100),
+      settings_deposit_duration_threshold_min:parseInt(document.getElementById('s_dep_dur_thresh')?.value)||0,
+      settings_deposit_threshold_mode:document.getElementById('s_dep_thresh_mode')?.value||'any',
       settings_cancel_deadline_hours:parseInt(document.getElementById('s_cancel_deadline')?.value)||48,
       settings_cancel_grace_minutes:(parseInt(document.getElementById('s_cancel_grace')?.value)||4)*60,
       settings_cancel_policy_text:document.getElementById('s_cancel_policy')?.value||''
@@ -449,6 +811,78 @@ async function saveDepositSettings(){
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
     GendaUI.toast('Politique d\'acompte enregistrée','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveMoveSettings(){
+  try{
+    const data={
+      settings_move_restriction_enabled:document.getElementById('s_move_enabled').checked,
+      settings_move_deadline_hours:parseInt(document.getElementById('s_move_deadline')?.value)||48,
+      settings_move_grace_hours:parseInt(document.getElementById('s_move_grace')?.value)||0
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.move_restriction_enabled=data.settings_move_restriction_enabled;
+    freshBiz.settings.move_deadline_hours=data.settings_move_deadline_hours;
+    freshBiz.settings.move_grace_hours=data.settings_move_grace_hours;
+    api.setBusiness(freshBiz);
+    if(calState.fcBusinessSettings){
+      calState.fcBusinessSettings.move_restriction_enabled=data.settings_move_restriction_enabled;
+      calState.fcBusinessSettings.move_deadline_hours=data.settings_move_deadline_hours;
+      calState.fcBusinessSettings.move_grace_hours=data.settings_move_grace_hours;
+    }
+    GendaUI.toast('Paramètres de déplacement enregistrés','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveGiftCardSettings(){
+  try{
+    const amountsStr=document.getElementById('s_gc_amounts')?.value||'';
+    const amounts=amountsStr.split(',').map(s=>Math.round(parseFloat(s.trim())*100)).filter(n=>n>0&&!isNaN(n));
+    const data={
+      settings_giftcard_enabled:document.getElementById('s_gc_enabled').checked,
+      settings_giftcard_amounts:amounts.length?amounts:[2500,5000,7500,10000],
+      settings_giftcard_custom_amount:document.getElementById('s_gc_custom').checked,
+      settings_giftcard_min_amount_cents:Math.round((parseFloat(document.getElementById('s_gc_min')?.value)||10)*100),
+      settings_giftcard_max_amount_cents:Math.round((parseFloat(document.getElementById('s_gc_max')?.value)||500)*100),
+      settings_giftcard_expiry_days:parseInt(document.getElementById('s_gc_expiry')?.value)||365
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.giftcard_enabled=data.settings_giftcard_enabled;
+    freshBiz.settings.giftcard_amounts=data.settings_giftcard_amounts;
+    freshBiz.settings.giftcard_custom_amount=data.settings_giftcard_custom_amount;
+    freshBiz.settings.giftcard_min_amount_cents=data.settings_giftcard_min_amount_cents;
+    freshBiz.settings.giftcard_max_amount_cents=data.settings_giftcard_max_amount_cents;
+    freshBiz.settings.giftcard_expiry_days=data.settings_giftcard_expiry_days;
+    api.setBusiness(freshBiz);
+    GendaUI.toast('Paramètres cartes cadeau enregistrés','success');window._settingsGuard?.markClean();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
+async function saveRescheduleSettings(){
+  try{
+    const data={
+      settings_reschedule_enabled:document.getElementById('s_reschedule_enabled').checked,
+      settings_reschedule_deadline_hours:parseInt(document.getElementById('s_reschedule_deadline')?.value)||24,
+      settings_reschedule_max_count:parseInt(document.getElementById('s_reschedule_max')?.value)||1,
+      settings_reschedule_window_days:parseInt(document.getElementById('s_reschedule_window')?.value)||30
+    };
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    freshBiz.settings.reschedule_enabled=data.settings_reschedule_enabled;
+    freshBiz.settings.reschedule_deadline_hours=data.settings_reschedule_deadline_hours;
+    freshBiz.settings.reschedule_max_count=data.settings_reschedule_max_count;
+    freshBiz.settings.reschedule_window_days=data.settings_reschedule_window_days;
+    api.setBusiness(freshBiz);
+    GendaUI.toast('Paramètres de modification client enregistrés','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
@@ -536,7 +970,7 @@ function copyField(id){
 }
 
 function confirmDeleteAccount(){
-  const name=prompt('Tapez le nom de votre cabinet pour confirmer la suppression :');
+  const name=prompt('Tapez le nom de votre salon pour confirmer la suppression :');
   if(!name)return;
   GendaUI.toast('Suppression de compte — contactez support@genda.be','info');
 }
@@ -574,6 +1008,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveOverlapPolicy, saveReminderSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };

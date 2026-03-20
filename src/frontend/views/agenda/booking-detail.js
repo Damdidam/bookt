@@ -6,30 +6,46 @@ import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
-import { cswHTML, cswSelect } from './color-swatches.js';
-import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
-import { calCheckConflict } from './booking-edit.js';
+import { calCheckConflict, calResetSlotCheck } from './booking-edit.js';
+import { fmtSvcLabel } from './calendar-render.js';
+import { fcRefresh } from './calendar-init.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 import { trapFocus, releaseFocus } from '../../utils/focus-trap.js';
 import { enableSwipeClose } from '../../utils/swipe-close.js';
 import { IC } from '../../utils/icons.js';
+import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 
 let _openingDetail = false;
+let _countdownTimer = null;
+
+function fmtCountdown(ms) {
+  if (ms <= 0) return 'Expiré';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return min + 'min';
+  const h = Math.floor(min / 60);
+  const rm = min % 60;
+  if (h < 24) return h + 'h ' + (rm > 0 ? rm + 'min' : '');
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return d + 'j ' + (rh > 0 ? rh + 'h' : '');
+}
 async function fcOpenDetail(bookingId) {
   if (_openingDetail) return; // Prevent concurrent opens (e.g. double-click firing twice)
+  if (!bookingId || bookingId === 'undefined') return; // Guard against undefined ID
   _openingDetail = true;
   calState.fcCurrentEventId = bookingId;
   const modal = document.getElementById('calDetailModal');
 
-  // Cleanup: remove any leftover deposit banners from previous opens
+  // Cleanup: clear countdown timer + remove leftover deposit banners
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
   document.querySelectorAll('.m-deposit-banner').forEach(el => el.remove());
 
   try {
     const r = await fetch(`/api/bookings/${bookingId}/detail`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     if (!r.ok) throw new Error('RDV introuvable');
     const d = await r.json();
-    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [] };
+    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [], group_siblings: d.group_siblings || [] };
     const b = d.booking;
     calState.fcCurrentBooking = b;
     const isFreestyle = !b.service_name;
@@ -53,17 +69,19 @@ async function fcOpenDetail(bookingId) {
     const initials = (b.client_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const heroEl = document.getElementById('mClientHero');
     const freeTag = isFreestyle ? `<span class="m-free-tag" style="background:${accentColor}18;color:${accentColor}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> LIBRE</span>` : '';
+    const vipTag = b.is_vip ? `<span style="font-size:.55rem;font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.5px;background:#FEF9E7;color:#D4A017;border:1px solid #F5E6A3">★ VIP</span>` : '';
     heroEl.innerHTML = `
       <div class="m-avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC)">${initials}</div>
       <div class="m-client-info">
         <div class="m-client-name" id="calDetailTitle">
           <a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${safeClientId}')">${esc(b.client_name || '\u2014')}</a>
+          ${vipTag}
           ${freeTag}
         </div>
         <div class="m-client-meta">
-          ${b.client_phone ? `<a href="tel:${encodeURIComponent(b.client_phone)}">${esc(b.client_phone)}</a>` : ''}
-          ${b.client_phone && b.client_email ? '<span>\u00b7</span>' : ''}
-          ${b.client_email ? `<a href="mailto:${encodeURIComponent(b.client_email)}">${esc(b.client_email)}</a>` : ''}
+          <span class="m-inline-edit" onclick="fcInlineEdit(this,'phone')">${b.client_phone ? esc(b.client_phone) : '<em style="opacity:.4">+ Tél</em>'}<svg class="gi m-edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
+          <span>\u00b7</span>
+          <span class="m-inline-edit" onclick="fcInlineEdit(this,'email')">${b.client_email ? esc(b.client_email) : '<em style="opacity:.4">+ Email</em>'}<svg class="gi m-edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
         </div>
       </div>
       <div class="m-quick-actions">
@@ -92,14 +110,53 @@ async function fcOpenDetail(bookingId) {
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'no_show\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No-show</button>');
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'cancelled\')">Annuler</button>');
     }
-    if (b.status === 'pending_deposit') acts.push('<button class="m-st-btn green" onclick="fcMarkDepositPaid()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Marquer pay\u00e9</button>');
+    // "Confirmer sans acompte" is in the deposit banner, no need for a status strip button
     if (['completed', 'cancelled', 'no_show'].includes(b.status)) acts.push('<button class="m-st-btn" onclick="fcSetStatus(\'confirmed\')">↩ R\u00e9tablir</button>');
+    if (!fcIsMobile() && !['cancelled', 'no_show', 'completed'].includes(b.status)) {
+      acts.push('<button class="m-st-btn m-st-move" onclick="fcScrollToHoraire()">\u2195 D\u00e9placer</button>');
+    }
+    if (!['cancelled', 'no_show'].includes(b.status)) {
+      // For grouped bookings, check lock on ANY sibling (calendar shows lock if any member is locked)
+      const siblings = d.group_siblings || [];
+      const isLocked = !!b.locked || siblings.some(s => s.locked);
+      acts.push(`<button class="m-st-btn m-st-lock${isLocked ? ' active' : ''}" onclick="fcToggleLockFromStrip()" id="mStripLockBtn" title="${isLocked ? 'Déverrouiller' : 'Verrouiller'}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>`);
+    }
     document.getElementById('mStatusStrip').innerHTML = `
-      <span class="m-st-current" style="background:${st.bg};color:${st.c}">
+      <span class="m-st-current" style="color:${st.c}">
         <span class="m-st-dot" style="background:${st.c}"></span>
         ${st.l}
       </span>
       <div class="m-st-actions">${acts.join('')}</div>`;
+
+    // -- Countdown for pending confirmation --
+    if (b.status === 'pending' && b.confirmation_expires_at) {
+      const dlDate = new Date(b.confirmation_expires_at);
+      const cdEl = document.createElement('span');
+      cdEl.style.cssText = 'font-size:.72rem;font-weight:500;margin-left:8px;opacity:.8';
+      const update = () => {
+        const diff = dlDate - Date.now();
+        cdEl.textContent = '· ' + fmtCountdown(diff);
+        if (diff <= 0 && _countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+      };
+      update();
+      _countdownTimer = setInterval(update, 30000);
+      document.querySelector('.m-st-current')?.appendChild(cdEl);
+    }
+
+    // -- Countdown for deposit deadline --
+    if (b.status === 'pending_deposit' && b.deposit_deadline) {
+      const dlDate = new Date(b.deposit_deadline);
+      const cdEl = document.createElement('span');
+      cdEl.style.cssText = 'font-size:.72rem;font-weight:500;margin-left:8px;opacity:.8';
+      const update = () => {
+        const diff = dlDate - Date.now();
+        cdEl.textContent = '· ' + fmtCountdown(diff);
+        if (diff <= 0 && _countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+      };
+      update();
+      _countdownTimer = setInterval(update, 30000);
+      document.querySelector('.m-st-current')?.appendChild(cdEl);
+    }
 
     // -- Deposit banner --
     if (b.deposit_required) {
@@ -107,8 +164,15 @@ async function fcOpenDetail(bookingId) {
       const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       const depPaid = b.deposit_status === 'paid';
       const depRefunded = b.deposit_status === 'refunded';
-      const depKept = b.deposit_status === 'cancelled';
+      const depKept = b.deposit_status === 'cancelled' && !!b.deposit_paid_at;
+      const depWaived = b.deposit_status === 'waived';
       const isFuture = new Date(b.start_at) > new Date();
+      const bizSettings = calState.fcBusinessSettings || {};
+      const cancelDeadlineH = bizSettings.cancel_deadline_hours ?? 48;
+      const hoursUntilRdv = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
+      const tooCloseForDeposit = hoursUntilRdv < cancelDeadlineH;
+      const reqCount = b.deposit_request_count || 0;
+      const maxResends = 3;
 
       let borderCol = '#F59E0B', bgCol = '#FEF3E2', textCol = '#B45309';
       let statusText = 'En attente';
@@ -117,6 +181,28 @@ async function fcOpenDetail(bookingId) {
       if (depRefunded) {
         borderCol = '#60A5FA'; bgCol = '#EFF6FF'; textCol = '#1D4ED8';
         statusText = 'Remboursé';
+        if (isFuture && ['confirmed', 'pending', 'modified_pending'].includes(b.status) && userRole !== 'practitioner') {
+          const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+          let defCents = bizSettings.deposit_type === 'fixed' ? (bizSettings.deposit_fixed_cents || 2500) : Math.round(svcPrice * (bizSettings.deposit_percent || 50) / 100);
+          if (defCents <= 0) defCents = b.deposit_amount_cents || 2500;
+          const defDlH = bizSettings.deposit_deadline_hours ?? 48;
+          if (!tooCloseForDeposit) {
+            extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" id="mReReqDepBtn" style="font-size:.72rem;padding:4px 12px;background:#EFF6FF;color:#1D4ED8;border:1px solid #93C5FD;border-radius:6px;cursor:pointer;font-weight:600" onclick="document.getElementById('mReReqDepPanel').style.display='';this.style.display='none'">Redemander l'acompte</button></div>
+              <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid #F59E0B;background:#FEF9E7">
+                <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+                  <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
+                  <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+                  <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReReqDepPanel').style.display='none';document.getElementById('mReReqDepBtn').style.display=''">Annuler</button></div>
+                </div>
+              </div>`;
+          } else {
+            extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#6B7280;font-style:italic">\u26a0\ufe0f Trop proche du RDV pour redemander (< ${cancelDeadlineH}h)</div>`;
+          }
+        }
+      } else if (depWaived) {
+        borderCol = '#A8A29E'; bgCol = '#F5F5F4'; textCol = '#78716C';
+        statusText = 'Dispens\u00e9';
+        extraHtml += `<div style="font-size:.72rem;color:#78716C;margin-top:4px">RDV confirm\u00e9 sans acompte</div>`;
       } else if (depKept) {
         borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
         statusText = 'Conserv\u00e9 (annulation tardive)';
@@ -128,7 +214,47 @@ async function fcOpenDetail(bookingId) {
           extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
         }
       } else {
-        if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px">Deadline : ${depDl}</div>`;
+        // -- Pending deposit: show sent status + resend controls --
+        const neverSent = !b.deposit_requested_at && reqCount === 0;
+
+        if (b.deposit_requested_at) {
+          const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
+        } else if (neverSent) {
+          extraHtml += `<div style="font-size:.72rem;color:#DC2626;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Demande non envoy\u00e9e</div>`;
+        }
+        if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px">Deadline : ${depDl}</div>`;
+        // Auto-reminder info
+        if (b.deposit_reminder_sent) {
+          extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Relance automatique envoy\u00e9e</div>`;
+        } else if (b.deposit_deadline && !neverSent) {
+          const reminderDate = new Date(new Date(b.deposit_deadline).getTime() - 48 * 3600000);
+          if (reminderDate > new Date()) {
+            const reminderStr = reminderDate.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            extraHtml += `<div style="font-size:.72rem;color:#6B7280;margin-top:2px;font-style:italic">Relance auto pr\u00e9vue le ${reminderStr}</div>`;
+          }
+        }
+
+        // Time guard warning
+        if (tooCloseForDeposit) {
+          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">\u26a0\ufe0f Trop proche du RDV pour envoyer une demande (moins de ${cancelDeadlineH}h avant)</div>`;
+        } else if (reqCount >= maxResends) {
+          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">Maximum de ${maxResends} envois atteint. Contactez le client directement.</div>`;
+        } else {
+          extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+          if (neverSent) {
+            // Primary send button (first time — never sent)
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 14px;background:#F59E0B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer la demande</button>`;
+          } else {
+            // Resend button (secondary — already sent at least once)
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
+            extraHtml += `<span style="font-size:.68rem;color:#A8A29E">${reqCount}/${maxResends}</span>`;
+          }
+          extraHtml += '</div>';
+        }
+        extraHtml += '<div id="mDepositSendStatus" style="display:none;margin-top:6px;font-size:.75rem;padding:6px 10px;border-radius:6px"></div>';
+        // Waive deposit: confirm without payment
+        extraHtml += `<div style="margin-top:6px;border-top:1px solid #E7E5E4;padding-top:6px"><button style="font-size:.7rem;padding:3px 10px;background:transparent;color:#78716C;border:none;cursor:pointer;font-weight:500;font-family:inherit;text-decoration:underline" onclick="fcWaiveDeposit()">Confirmer sans acompte</button></div>`;
       }
 
       const depEl = document.createElement('div');
@@ -136,9 +262,59 @@ async function fcOpenDetail(bookingId) {
       depEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid ' + borderCol + ';background:' + bgCol;
       depEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:${textCol}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Acompte : ${depAmt} EUR \u2014 ${statusText}
+        Acompte : ${depAmt} \u20ac \u2014 ${statusText}
       </div>${extraHtml}`;
       document.getElementById('mStatusStrip').insertAdjacentElement('afterend', depEl);
+    }
+
+    // -- "Exiger un acompte" button for confirmed bookings without deposit --
+    document.querySelectorAll('.m-require-deposit-wrap').forEach(el => el.remove());
+    if (!b.deposit_required && ['pending', 'confirmed', 'modified_pending'].includes(b.status) && new Date(b.start_at) > new Date() && userRole !== 'practitioner') {
+      const s = calState.fcBusinessSettings || {};
+      const rdvCancelDlH = s.cancel_deadline_hours ?? 48;
+      const rdvHoursLeft = (new Date(b.start_at).getTime() - Date.now()) / 3600000;
+      // Only show "Exiger un acompte" if RDV is far enough away
+      if (rdvHoursLeft >= rdvCancelDlH) {
+        const svcPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+        let defaultCents = s.deposit_type === 'fixed'
+          ? (s.deposit_fixed_cents || 2500)
+          : Math.round(svcPrice * (s.deposit_percent || 50) / 100);
+        if (defaultCents <= 0) defaultCents = 2500;
+        const defaultDlHours = s.deposit_deadline_hours ?? 48;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'm-require-deposit-wrap';
+        wrap.style.cssText = 'padding:0 24px 8px';
+        wrap.innerHTML = `<button class="m-st-btn orange" id="mReqDepBtn" onclick="document.getElementById('mReqDepPanel').style.display='';this.style.display='none'"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Exiger un acompte</button>
+          <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF9E7">
+            <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+              <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defaultCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
+              <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
+              <div style="display:flex;gap:6px"><button class="m-st-btn green" onclick="fcRequireDeposit()">Confirmer</button><button class="m-st-btn" onclick="document.getElementById('mReqDepPanel').style.display='none';document.getElementById('mReqDepBtn').style.display=''">Annuler</button></div>
+            </div>
+          </div>`;
+        document.getElementById('mStatusStrip').insertAdjacentElement('afterend', wrap);
+      }
+    }
+
+    // -- Promo banner (last-minute discount) --
+    document.querySelectorAll('.m-promo-banner').forEach(el => el.remove());
+    if (b.discount_pct) {
+      const origPrice = b.variant_price_cents ?? b.price_cents ?? 0;
+      const discPrice = origPrice > 0 ? Math.round(origPrice * (100 - b.discount_pct) / 100) : 0;
+      const priceHtml = origPrice > 0
+        ? ' <s style="opacity:.5">' + (origPrice / 100).toFixed(2) + '€</s> → <strong>' + (discPrice / 100).toFixed(2) + '€</strong>'
+        : '';
+      const promoEl = document.createElement('div');
+      promoEl.className = 'm-promo-banner';
+      promoEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #f59e0b;background:#FFFBEB';
+      promoEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:#B45309">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+        Dernière minute : -${b.discount_pct}%${priceHtml}
+      </div>`;
+      const depBanner = document.querySelector('.m-deposit-banner');
+      if (depBanner) depBanner.insertAdjacentElement('afterend', promoEl);
+      else document.getElementById('mStatusStrip').insertAdjacentElement('afterend', promoEl);
     }
 
     // -- Group siblings (fetched early for service card + horaire) --
@@ -154,12 +330,16 @@ async function fcOpenDetail(bookingId) {
     calState._convertAction = null;
 
     if (isFreestyle) {
-      freeCard.style.display = 'block';
+      freeCard.style.display = 'flex';
       svcCard.style.display = 'none';
       bufSec.style.display = '';
       document.getElementById('uFreeLabel').value = b.custom_label || '';
       document.getElementById('uBufBefore').value = 0;
       document.getElementById('uBufAfter').value = 0;
+      // Color dot for freestyle
+      let freeDot = freeCard.querySelector('.m-color-dot');
+      if (!freeDot) { freeDot = document.createElement('span'); freeDot.className = 'm-color-dot'; freeDot.onclick = function(){ fcShowColorPopover(this); }; freeDot.title = 'Couleur'; freeCard.appendChild(freeDot); }
+      freeDot.style.background = accentColor;
       // "Assign service" link
       const wrap = document.getElementById('mConvertToSvcWrap');
       if (wrap) wrap.innerHTML = canConvert ? '<button class="m-link-btn" onclick="fcStartConvert(\'to-service\')" style="font-size:.72rem;color:var(--primary)">Assigner une prestation</button>' : '';
@@ -173,13 +353,14 @@ async function fcOpenDetail(bookingId) {
       const groupEnd = new Date(siblings[siblings.length - 1].end_at);
       const totalDur = Math.round((groupEnd - groupStart) / 60000);
       const totalPrice = siblings.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
-      const svcNames = siblings.map(sib => { const nm = sib.service_name || 'RDV libre'; return esc(sib.variant_name ? nm + ' \u2014 ' + sib.variant_name : nm); }).join(' + ');
+      const svcNames = siblings.map(sib => esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name))).join(' + ');
       svcCard.innerHTML = `
         <div style="flex:1;min-width:0">
           <div class="m-svc-name">${svcNames}</div>
           <div class="m-svc-meta">${siblings.length} prestations \u00b7 ${totalDur} min</div>
         </div>
-        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2) + '\u20ac</div>' : ''}`;
+        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>`;
     } else {
       freeCard.style.display = 'none';
       bufSec.style.display = 'none';
@@ -187,7 +368,16 @@ async function fcOpenDetail(bookingId) {
       svcCard.style.borderLeftColor = accentColor;
       const dur = b.variant_duration_min || b.duration_min || Math.round((e - s) / 60000);
       const displayPrice = b.variant_price_cents ?? b.price_cents;
-      const svcDisplayName = b.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : b.service_name;
+      const svcDisplayName = fmtSvcLabel(b.service_category, b.service_name, b.variant_name);
+      let priceHtml = '';
+      if (displayPrice) {
+        if (b.discount_pct) {
+          const disc = Math.round(displayPrice * (100 - b.discount_pct) / 100);
+          priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (displayPrice / 100).toFixed(2) + '\u20ac</s> ' + (disc / 100).toFixed(2) + '\u20ac</div>';
+        } else {
+          priceHtml = '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>';
+        }
+      }
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
       const convertFreeBtn = canConvert ? '<button class="m-convert-free-btn" onclick="fcStartConvert(\'to-free\')" title="Convertir en RDV libre">&times;</button>' : '';
       svcCard.innerHTML = `
@@ -195,9 +385,10 @@ async function fcOpenDetail(bookingId) {
           <div class="m-svc-name">${esc(svcDisplayName)}</div>
           <div class="m-svc-meta">${dur} min${b.buffer_after_min ? ' \u00b7 buffer ' + b.buffer_after_min + ' min apr\u00e8s' : ''}</div>
         </div>
-        ${displayPrice ? '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        ${priceHtml}
+        <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>
         ${convertFreeBtn}
-        ${canAddSvc ? '<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
+        ${canAddSvc ? '<button class="g-add-btn" onclick="fcStartConvert(&#39;group-add&#39;)" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }
 
     // -- Save button color (custom or freestyle = accent color) --
@@ -210,20 +401,11 @@ async function fcOpenDetail(bookingId) {
       saveBtn.style.boxShadow = '';
     }
 
-    // -- Booking color swatch (all types) --
+    // -- Booking color (hidden input for save) --
     const defaultColor = isFreestyle ? (b.practitioner_color || '#0D7377') : (b.service_color || b.practitioner_color || '#0D7377');
     const bookingColor = b.color || defaultColor;
-    document.getElementById('uBookingColorWrap').innerHTML = cswHTML('uBookingColor', bookingColor, true);
-    document.getElementById('mColorReset').style.display = b.color ? '' : 'none';
-    calState._fcDefaultColor = defaultColor; // store for reset
-    document.getElementById('uBookingColor').onchange = function () {
-      const c = this.value;
-      document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
-      document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
-      saveBtn.style.background = c; saveBtn.style.boxShadow = `0 2px 8px ${c}40`;
-      if (svcCard.style.display !== 'none') svcCard.style.borderLeftColor = c;
-      document.getElementById('mColorReset').style.display = '';
-    };
+    document.getElementById('uBookingColor').value = b.color || '';
+    calState._fcDefaultColor = defaultColor;
 
     // -- Frozen status (used by group detach buttons and bottom bar) --
     const isFrozen = ['cancelled', 'no_show'].includes(b.status);
@@ -233,7 +415,7 @@ async function fcOpenDetail(bookingId) {
     calState.fcGroupSiblings = siblings; // store for ungroup module
     if (isGroup) {
       const canDetach = !isFrozen && userRole !== 'practitioner';
-      const addBtn = canDetach ? `<button class="g-add-btn" onclick="fcShowGroupAddPanel()" title="Ajouter une prestation"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>` : '';
+      const addBtn = canDetach ? `<button class="g-add-btn" onclick="fcStartConvert('group-add')" title="Ajouter une prestation"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>` : '';
       let gh = `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Groupe (${siblings.length} prestations)</span>${addBtn}<span class="m-sec-line"></span></div><div style="display:flex;flex-direction:column;gap:3px">`;
       siblings.forEach((sib, sibIdx) => {
         const isCur = String(sib.id) === String(bookingId);
@@ -247,7 +429,7 @@ async function fcOpenDetail(bookingId) {
         const deleteBtn = canDetach ? `<button class="g-delete-btn" onclick="fcRemoveFromGroup('${sib.id}','${safeSibName}')" title="Supprimer du groupe"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : '';
         gh += `<div class="m-group-item${isCur ? ' current' : ''}" data-sib-id="${sib.id}"${canDrag ? ' data-draggable="true"' : ''}>
           <span class="g-dot" style="background:${safeSibColor}"></span>
-          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(sib.variant_name ? (sib.service_name||'RDV libre')+' \u2014 '+sib.variant_name : (sib.service_name || 'RDV libre'))}</span>
+          <span style="font-weight:${isCur ? '700' : '400'};flex:1;min-width:0">${esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name))}</span>
           <span class="g-time">${sT} \u2013 ${eT}</span>
           ${detachBtn}${deleteBtn}
         </div>`;
@@ -266,13 +448,31 @@ async function fcOpenDetail(bookingId) {
     document.getElementById('calEditDate').value = ds;
     document.getElementById('calEditStart').value = stm;
     document.getElementById('calEditEnd').value = etm;
-    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', custom_label: b.custom_label || '', color: b.color || '', _swatchColor: bookingColor, client_phone: b.client_phone || '', client_email: b.client_email || '', locked: !!b.locked };
+    const _grpSibs = calState.fcDetailData?.group_siblings || [];
+    const _effectiveLocked = !!b.locked || _grpSibs.some(s => s.locked);
+    calState.fcEditOriginal = { date: ds, start: stm, end: etm, practitioner_id: b.practitioner_id, comment: b.comment_client || '', custom_label: b.custom_label || '', color: b.color || '', _swatchColor: bookingColor, client_phone: b.client_phone || '', client_email: b.client_email || '', locked: _effectiveLocked };
     const dm = Math.round((groupEndDate - s) / 60000);
     document.querySelectorAll('.m-chip').forEach(c => c.classList.toggle('active', parseInt(c.textContent) === dm || ({ '1h': 60, '1h30': 90, '2h': 120 }[c.textContent.trim()] === dm)));
     document.getElementById('calEditDiff').style.display = 'none';
     document.getElementById('calNotifyPanel').style.display = 'none';
     document.getElementById('calConflictWarn').style.display = 'none';
+    const schedWarnEl = document.getElementById('calScheduleWarn');
+    if (schedWarnEl) schedWarnEl.style.display = 'none';
+    const poseInfoEl = document.getElementById('calPoseInfo');
+    if (poseInfoEl) { poseInfoEl.style.display = 'none'; }
+    // Show pose window if booking has processing_time
+    const bPt = parseInt(b.processing_time) || 0;
+    if (bPt > 0 && poseInfoEl) {
+      const bPs = parseInt(b.processing_start) || 0;
+      const bBuf = parseInt(b.buffer_before_min) || 0;
+      const poseStartMs = s.getTime() + (bBuf + bPs) * 60000;
+      const poseEndMs = poseStartMs + bPt * 60000;
+      const fmt = d => new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      poseInfoEl.style.display = 'block';
+      poseInfoEl.innerHTML = `\u23f3 Temps de pose : ${fmt(poseStartMs)} \u2013 ${fmt(poseEndMs)} (${bPt}min)`;
+    }
     calState.fcSelectedNotifyChannel = null;
+    calResetSlotCheck();
     // Check conflicts with current time (in case it already overlaps)
     setTimeout(calCheckConflict, 50);
 
@@ -296,18 +496,42 @@ async function fcOpenDetail(bookingId) {
     // -- Comment --
     document.getElementById('uComment').value = b.comment_client || '';
 
-    // -- Lock toggle --
-    document.getElementById('calLocked').checked = !!b.locked;
-    document.getElementById('mLockSec').style.display = isFrozen ? 'none' : '';
+    // -- Lock toggle (hidden input + bottom bar button) --
+    // For groups: locked if ANY sibling is locked (matches calendar badge logic)
+    const groupSiblings = calState.fcDetailData?.group_siblings || d.group_siblings || [];
+    const effectiveLocked = !!b.locked || groupSiblings.some(s => s.locked);
+    document.getElementById('calLocked').value = effectiveLocked ? 'true' : 'false';
+    const lockBtn = document.getElementById('mBtnLock');
+    if (lockBtn) {
+      lockBtn.classList.toggle('active', effectiveLocked);
+      lockBtn.title = effectiveLocked ? 'Déverrouiller' : 'Verrouiller';
+      lockBtn.style.display = isFrozen ? 'none' : '';
+    }
 
     // -- Render sub-tabs --
     fcRenderTodos(); fcRenderReminders();
+
+    // -- Accordion state: open if content, show badges --
+    const comment = b.comment_client || '';
+    const todoCount = (calState.fcDetailData.todos || []).length;
+    const reminderCount = (calState.fcDetailData.reminders || []).length;
+    const accNote = document.getElementById('accNote');
+    const accTodos = document.getElementById('accTodos');
+    const accReminders = document.getElementById('accReminders');
+    if (comment) accNote?.classList.add('open'); else accNote?.classList.remove('open');
+    if (todoCount > 0) accTodos?.classList.add('open'); else accTodos?.classList.remove('open');
+    if (reminderCount > 0) accReminders?.classList.add('open'); else accReminders?.classList.remove('open');
+    const noteBadge = document.getElementById('accNoteBadge');
+    if (noteBadge) { noteBadge.style.display = comment ? '' : 'none'; }
+    const todosBadge = document.getElementById('accTodosBadge');
+    if (todosBadge) { todosBadge.textContent = todoCount; todosBadge.style.display = todoCount > 0 ? '' : 'none'; }
+    const remindersBadge = document.getElementById('accRemindersBadge');
+    if (remindersBadge) { remindersBadge.textContent = reminderCount; remindersBadge.style.display = reminderCount > 0 ? '' : 'none'; }
 
     // -- Bottom bar: show/hide buttons based on status --
     document.getElementById('mBtnSave').style.display = isFrozen ? 'none' : '';
     document.getElementById('mBtnNotify').style.display = isFrozen ? 'none' : '';
     document.getElementById('mBtnCancel').style.display = isFrozen ? 'none' : '';
-    // Only owners/managers can permanently delete
     document.getElementById('mBtnPurge').style.display = (isFrozen && userRole !== 'practitioner') ? '' : 'none';
 
     // -- Dirty guard (warn on close if unsaved changes) --
@@ -331,6 +555,7 @@ async function closeCalModal(id) {
   }
   modal._dirtyGuard?.destroy();
   releaseFocus();
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
   modal.classList.remove('open');
 }
 
@@ -352,7 +577,8 @@ const ACTION_LABELS = {
   ungroup: 'D\u00e9tach\u00e9 du groupe',
   group_remove: 'Supprim\u00e9 du groupe',
   group_reorder: 'Groupe r\u00e9ordonn\u00e9',
-  confirmation_expired: 'Confirmation expir\u00e9e'
+  confirmation_expired: 'Confirmation expir\u00e9e',
+  client_cancel: 'Annul\u00e9 par le client'
 };
 const ACTION_ICONS = {
   create: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
@@ -366,7 +592,8 @@ const ACTION_ICONS = {
   ungroup: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="4" y1="20" x2="20" y2="4"/></svg>',
   group_remove: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
   group_reorder: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>',
-  confirmation_expired: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+  confirmation_expired: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  client_cancel: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="22" y2="16"/><line x1="22" y1="11" x2="17" y2="16"/></svg>'
 };
 const STATUS_MAP = {
   pending: 'En attente', confirmed: 'Confirm\u00e9', completed: 'Termin\u00e9',
@@ -432,6 +659,8 @@ function historyDetail(entry) {
       return nd.amount_cents ? (nd.amount_cents / 100).toFixed(2) + '\u20ac' : '';
     case 'confirmation_expired':
       return 'Annul\u00e9 \u2014 non confirm\u00e9 par le client';
+    case 'client_cancel':
+      return nd.cancel_reason || '';
     default:
       return '';
   }
@@ -440,6 +669,7 @@ function historyDetail(entry) {
 async function loadBookingHistory() {
   const el = document.getElementById('mHistoryTimeline');
   if (!el) return;
+  if (!calState.fcCurrentEventId || calState.fcCurrentEventId === 'undefined') return;
   el.innerHTML = '<div class="m-empty" style="padding:20px;opacity:.6">Chargement...</div>';
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/history`, {
@@ -473,16 +703,15 @@ async function loadBookingHistory() {
 
 function fcResetBookingColor() {
   const c = calState._fcDefaultColor || '#0D7377';
-  cswSelect('uBookingColor', c);
+  document.getElementById('uBookingColor').value = '';
   document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
   document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${c},${c}CC)`;
   const sb = document.getElementById('mBtnSave');
   const svc = document.getElementById('mSvcCard');
   if (svc && svc.style.display !== 'none') svc.style.borderLeftColor = c;
   sb.style.background = ''; sb.style.boxShadow = '';
-  document.getElementById('mColorReset').style.display = 'none';
-  // Mark as "no custom color" — save will send color: null
-  document.getElementById('uBookingColor').value = '';
+  document.querySelectorAll('.m-color-dot').forEach(d => d.style.background = c);
+  document.querySelector('.m-color-popover')?.remove();
 }
 
 // Touch-friendly drag & drop reorder for group siblings
@@ -570,6 +799,30 @@ function initGroupDnD(container) {
   list.addEventListener('touchcancel', cancel);
 }
 
+// ── Service picker helpers (shared by convert + group-add) ──
+
+/** Return unique category names from services available to a practitioner */
+function fcGetServiceCategories(pracId) {
+  const svcs = calState.fcServices.filter(s => {
+    if (s.is_active === false) return false;
+    if (pracId && s.practitioner_ids?.length > 0)
+      return s.practitioner_ids.some(pid => String(pid) === String(pracId));
+    return true;
+  });
+  return [...new Set(svcs.map(s => s.category || ''))].filter(Boolean).sort();
+}
+
+/** Return services filtered by practitioner + optional category */
+function fcGetFilteredServices(pracId, category) {
+  return calState.fcServices.filter(s => {
+    if (s.is_active === false) return false;
+    if (pracId && s.practitioner_ids?.length > 0)
+      if (!s.practitioner_ids.some(pid => String(pid) === String(pracId))) return false;
+    if (category && (s.category || '') !== category) return false;
+    return true;
+  });
+}
+
 // ── Conversion freestyle ↔ service ──
 
 function fcStartConvert(action) {
@@ -579,66 +832,154 @@ function fcStartConvert(action) {
   const bufSec = document.getElementById('mBufferSec');
   const convertPanel = document.getElementById('mConvertSvc');
 
-  if (action === 'to-service') {
-    freeCard.style.display = 'none';
-    bufSec.style.display = 'none';
+  if (action === 'to-service' || action === 'group-add') {
+    if (freeCard) freeCard.style.display = 'none';
+    if (svcCard && action === 'to-service') svcCard.style.display = 'none';
+    if (bufSec) bufSec.style.display = 'none';
     convertPanel.style.display = '';
-    // Populate service dropdown filtered by current practitioner
     const pracId = document.getElementById('uPracSelect')?.value;
-    const services = calState.fcServices.filter(s => {
-      if (s.is_active === false) return false;
-      if (pracId && s.practitioner_ids?.length > 0) return s.practitioner_ids.some(pid => String(pid) === String(pracId));
-      return true;
-    });
-    const sel = document.getElementById('mConvertSvcSel');
-    sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
-      `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${s.duration_min} min${s.price_cents ? ' \u00b7 '+(s.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+    // Populate category dropdown
+    const catSel = document.getElementById('mConvertCatSel');
+    const cats = fcGetServiceCategories(pracId);
+    catSel.innerHTML = '<option value="">\u2014 Toutes \u2014</option>' + cats.map(c =>
+      `<option value="${esc(c)}">${esc(c)}</option>`
     ).join('');
-    document.getElementById('mConvertVarSel').style.display = 'none';
+    // Populate service dropdown (all categories)
+    fcConvertRebuildServices(pracId, '');
+    // Reset variant + info + conflict banner + button
+    document.getElementById('mConvertVarWrap').style.display = 'none';
+    document.getElementById('mConvertInfo').textContent = '';
+    const conflictBanner = document.getElementById('mConvertConflict');
+    if (conflictBanner) conflictBanner.style.display = 'none';
+    const addBtn = document.getElementById('mConvertAddBtn');
+    if (addBtn) { addBtn.disabled = true; addBtn.textContent = '+ Ajouter'; }
     // Store original end time for cancel
     calState._convertOrigEnd = document.getElementById('calEditEnd').value;
   } else {
     // to-free: swap service card for freestyle card
-    svcCard.style.display = 'none';
-    freeCard.style.display = 'block';
-    bufSec.style.display = '';
-    // Pre-fill label with service name
+    if (svcCard) svcCard.style.display = 'none';
+    if (freeCard) freeCard.style.display = 'flex';
+    if (bufSec) bufSec.style.display = '';
     const b = calState.fcCurrentBooking;
-    const svcName = b?.variant_name ? b.service_name + ' \u2014 ' + b.variant_name : (b?.service_name || '');
+    const svcName = fmtSvcLabel(b?.service_category, b?.service_name, b?.variant_name);
     document.getElementById('uFreeLabel').value = svcName;
     document.getElementById('uBufBefore').value = 0;
     document.getElementById('uBufAfter').value = 0;
-    // Hide the assign button in freeCard
     const wrap = document.getElementById('mConvertToSvcWrap');
-    if (wrap) wrap.innerHTML = '';
+    if (wrap) wrap.innerHTML = '<button class="m-link-btn" onclick="fcStartConvert(\'to-service\')" style="font-size:.72rem;color:var(--primary)">Assigner une prestation</button>';
   }
+}
+
+/** Build "duration · price" label — variant-range-aware */
+function svcDurPriceLabel(svc) {
+  const vars = svc?.variants || [];
+  const vDurs = vars.map(v => v.duration_min).filter(d => d > 0);
+  const vPrices = vars.map(v => v.price_cents).filter(p => p > 0);
+  let dur, price = '';
+  if (vDurs.length > 0) {
+    const mn = Math.min(...vDurs), mx = Math.max(...vDurs);
+    dur = mn === mx ? mn + ' min' : mn + '\u2013' + mx + ' min';
+  } else {
+    dur = (svc?.duration_min || 0) + ' min';
+  }
+  if (vPrices.length > 0) {
+    const mn = Math.min(...vPrices) / 100, mx = Math.max(...vPrices) / 100;
+    price = mn === mx ? mn + '\u20ac' : mn + '\u2013' + mx + '\u20ac';
+  } else if (svc?.price_cents) {
+    price = (svc.price_cents / 100).toFixed(0) + '\u20ac';
+  }
+  return dur + (price ? ' \u00b7 ' + price : '');
+}
+
+/** Rebuild service dropdown for convert panel */
+function fcConvertRebuildServices(pracId, category) {
+  const services = fcGetFilteredServices(pracId, category);
+  const sel = document.getElementById('mConvertSvcSel');
+  sel.innerHTML = '<option value="">\u2014 Choisir \u2014</option>' + services.map(s =>
+    `<option value="${s.id}" data-dur="${s.duration_min}" data-buf-before="${s.buffer_before_min||0}" data-buf-after="${s.buffer_after_min||0}">${esc(s.name)} (${svcDurPriceLabel(s)})</option>`
+  ).join('');
+}
+
+/** Category changed → rebuild service dropdown */
+function fcConvertCatChanged() {
+  const cat = document.getElementById('mConvertCatSel')?.value || '';
+  const pracId = document.getElementById('uPracSelect')?.value;
+  fcConvertRebuildServices(pracId, cat);
+  // Reset variant + info + button
+  document.getElementById('mConvertVarWrap').style.display = 'none';
+  document.getElementById('mConvertVarSel').innerHTML = '';
+  document.getElementById('mConvertInfo').textContent = '';
+  fcConvertUpdateAddBtn();
 }
 
 function fcConvertSvcChanged() {
   const sel = document.getElementById('mConvertSvcSel');
+  const varWrap = document.getElementById('mConvertVarWrap');
   const varSel = document.getElementById('mConvertVarSel');
+  const info = document.getElementById('mConvertInfo');
   const svcId = sel.value;
-  if (!svcId) { varSel.style.display = 'none'; return; }
+  if (!svcId) { varWrap.style.display = 'none'; info.textContent = ''; return; }
   const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
   const variants = svc?.variants || [];
   if (variants.length > 0) {
     varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
-      `<option value="${v.id}" data-dur="${v.duration_min}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+      `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
     ).join('');
-    varSel.style.display = '';
+    varWrap.style.display = 'block';
   } else {
     varSel.innerHTML = '';
-    varSel.style.display = 'none';
+    varWrap.style.display = 'none';
   }
+  // Show info line (duration + price) — service-level values (variant overrides in fcConvertUpdateInfo)
+  fcConvertUpdateInfo();
+  fcConvertUpdateAddBtn();
   // Recalculate end time from service duration
   fcConvertRecalcEnd();
 }
 
+/** Update the info line with the correct duration + price (variant-aware) */
+function fcConvertUpdateInfo() {
+  const sel = document.getElementById('mConvertSvcSel');
+  const varSel = document.getElementById('mConvertVarSel');
+  const info = document.getElementById('mConvertInfo');
+  const svcId = sel?.value;
+  if (!svcId) { info.textContent = ''; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  // If a variant is selected, use variant's duration + price
+  const varOpt = varSel?.selectedOptions?.[0];
+  const varId = varOpt?.value;
+  if (varId) {
+    const variant = svc?.variants?.find(v => String(v.id) === String(varId));
+    const dur = variant?.duration_min || parseInt(varOpt.dataset.dur) || 0;
+    const price = variant?.price_cents ?? parseInt(varOpt.dataset.price) ?? 0;
+    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  } else {
+    // No variant selected — show range if service has variants, else service-level values
+    info.textContent = svcDurPriceLabel(svc);
+  }
+}
+
+/** Enable/disable the Ajouter button based on selection state */
+function fcConvertUpdateAddBtn() {
+  const btn = document.getElementById('mConvertAddBtn');
+  if (!btn) return;
+  const svcId = document.getElementById('mConvertSvcSel')?.value;
+  if (!svcId) { btn.disabled = true; return; }
+  const svc = calState.fcServices.find(s => String(s.id) === String(svcId));
+  const hasVariants = (svc?.variants || []).length > 0;
+  const varSelected = !!document.getElementById('mConvertVarSel')?.value;
+  btn.disabled = hasVariants && !varSelected;
+}
+
 function fcConvertVarChanged() {
+  fcConvertUpdateInfo();
+  fcConvertUpdateAddBtn();
   fcConvertRecalcEnd();
 }
 
 function fcConvertRecalcEnd() {
+  // In group-add mode, the new service chains after the last sibling — don't modify calEditEnd
+  if (calState._convertAction === 'group-add') return;
   const sel = document.getElementById('mConvertSvcSel');
   const varSel = document.getElementById('mConvertVarSel');
   const opt = sel.selectedOptions[0];
@@ -662,10 +1003,12 @@ function fcConvertRecalcEnd() {
 function fcCancelConvert() {
   calState._convertAction = null;
   document.getElementById('mConvertSvc').style.display = 'none';
+  const conflictBanner = document.getElementById('mConvertConflict');
+  if (conflictBanner) conflictBanner.style.display = 'none';
   const b = calState.fcCurrentBooking;
   const isFreestyle = !b?.service_name;
   if (isFreestyle) {
-    document.getElementById('mFreeCard').style.display = 'block';
+    document.getElementById('mFreeCard').style.display = 'flex';
     document.getElementById('mBufferSec').style.display = '';
   } else {
     document.getElementById('mSvcCard').style.display = 'flex';
@@ -677,8 +1020,228 @@ function fcCancelConvert() {
   }
 }
 
+// ── Direct add: send to server immediately ──
+
+/** Send the selected service/variant directly to the server */
+async function fcConvertDirectAdd(force) {
+  const btn = document.getElementById('mConvertAddBtn');
+  const svcId = document.getElementById('mConvertSvcSel')?.value;
+  const varId = document.getElementById('mConvertVarSel')?.value || null;
+  if (!svcId) return;
+
+  // Disable + spinner
+  if (btn) { btn.disabled = true; btn.textContent = 'En cours\u2026'; }
+  const conflictEl = document.getElementById('mConvertConflict');
+  if (conflictEl) conflictEl.style.display = 'none';
+
+  const bookingId = calState.fcCurrentEventId;
+  try {
+    if (calState._convertAction === 'to-service') {
+      // Freestyle → service conversion via PATCH /edit
+      const r = await fetch(`/api/bookings/${bookingId}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ service_id: svcId, service_variant_id: varId })
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur conversion'); }
+    } else {
+      // group-add: POST /group-add
+      const body = { service_id: svcId, variant_id: varId };
+      if (force) body.force = true;
+      const r = await fetch(`/api/bookings/${bookingId}/group-add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify(body)
+      });
+
+      if (r.status === 409) {
+        // Conflict → show alert banner with force option
+        const d = await r.json().catch(() => ({}));
+        if (conflictEl) {
+          conflictEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+            + '<span style="flex:1">' + esc(d.error || 'Conflit horaire d\u00e9tect\u00e9') + '</span>'
+            + '<button class="m-convert-conflict-force" onclick="fcConvertDirectAdd(true)">Ajouter quand m\u00eame</button>';
+          conflictEl.style.display = 'flex';
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '+ Ajouter'; }
+        return; // Wait for user decision
+      }
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur ajout'); }
+    }
+
+    // Success → toast, close panel, refresh modal without closing
+    gToast('Prestation ajout\u00e9e', 'success');
+    calState._convertAction = null;
+    document.getElementById('mConvertSvc').style.display = 'none';
+    // Restore card visibility
+    const b = calState.fcCurrentBooking;
+    if (!b?.service_name) {
+      document.getElementById('mFreeCard').style.display = 'flex';
+      document.getElementById('mBufferSec').style.display = '';
+    } else {
+      document.getElementById('mSvcCard').style.display = 'flex';
+    }
+    fcRefresh();
+    await fcOpenDetail(bookingId);
+  } catch (e) {
+    gToast('Erreur : ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '+ Ajouter'; }
+  }
+}
+
+// ── Mobile reschedule: scroll to time picker ──
+function fcScrollToHoraire() {
+  const sec = document.getElementById('calEditStart')?.closest('.m-sec');
+  if (!sec) return;
+  sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  sec.classList.add('m-sec-highlight');
+  setTimeout(() => sec.classList.remove('m-sec-highlight'), 1500);
+  setTimeout(() => {
+    document.getElementById('calEditStart')?.focus();
+    document.getElementById('calEditStart')?.click();
+  }, 400);
+}
+
+async function fcToggleLockFromStrip() {
+  const locked = await _toggleLockAndSave();
+  if (locked === null) return;
+  const btn = document.getElementById('mStripLockBtn');
+  if (btn) {
+    btn.classList.toggle('active', locked);
+    btn.title = locked ? 'Déverrouiller' : 'Verrouiller';
+    btn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 ${locked ? '10 0v4' : '9.9 0 1 1 2.1 1.4'}"/></svg>`;
+  }
+  const bottomBtn = document.getElementById('mBtnLock');
+  if (bottomBtn) { bottomBtn.classList.toggle('active', locked); bottomBtn.title = locked ? 'Déverrouiller' : 'Verrouiller'; }
+}
+
+// ── Accordion toggle ──
+function fcToggleAccordion(id) {
+  const acc = document.getElementById(id);
+  if (acc) acc.classList.toggle('open');
+}
+
+// ── Lock toggle from bottom bar ──
+async function fcToggleLockFromBottom() {
+  const locked = await _toggleLockAndSave();
+  if (locked === null) return;
+  const btn = document.getElementById('mBtnLock');
+  if (btn) { btn.classList.toggle('active', locked); btn.title = locked ? 'Déverrouiller' : 'Verrouiller'; }
+  const stripBtn = document.getElementById('mStripLockBtn');
+  if (stripBtn) {
+    stripBtn.classList.toggle('active', locked);
+    stripBtn.title = locked ? 'Déverrouiller' : 'Verrouiller';
+    stripBtn.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 ${locked ? '10 0v4' : '9.9 0 1 1 2.1 1.4'}"/></svg>`;
+  }
+}
+
+/**
+ * Shared lock toggle: PATCH to API immediately + refresh calendar.
+ * Returns the new locked state, or null on error.
+ */
+async function _toggleLockAndSave() {
+  const hidden = document.getElementById('calLocked');
+  const wasLocked = hidden?.value === 'true';
+  const locked = !wasLocked;
+  const bookingId = calState.fcCurrentEventId;
+  if (!bookingId) return null;
+  try {
+    // Lock/unlock this booking
+    const r = await fetch(`/api/bookings/${bookingId}/edit`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ locked })
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); }
+    // For grouped bookings, lock/unlock ALL siblings too
+    const siblings = calState.fcDetailData?.group_siblings || [];
+    for (const sib of siblings) {
+      if (sib.id === bookingId) continue;
+      await fetch(`/api/bookings/${sib.id}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ locked })
+      }).catch(() => {});
+    }
+    if (hidden) hidden.value = locked ? 'true' : 'false';
+    if (calState.fcEditOriginal) calState.fcEditOriginal.locked = locked;
+    if (calState.fcCurrentBooking) calState.fcCurrentBooking.locked = locked;
+    gToast(locked ? 'RDV verrouillé' : 'RDV déverrouillé', 'success');
+    fcRefresh();
+    return locked;
+  } catch (e) {
+    gToast('Erreur: ' + e.message, 'error');
+    return null;
+  }
+}
+
+// ── Color popover ──
+const CSW_COLORS = ['#1E3A8A','#B91C1C','#059669','#EA580C','#7C3AED','#DB2777','#0EA5A4','#374151'];
+
+function fcShowColorPopover(dotEl) {
+  const existing = document.querySelector('.m-color-popover');
+  if (existing) { existing.remove(); return; }
+  const pop = document.createElement('div');
+  pop.className = 'm-color-popover open';
+  const cur = document.getElementById('uBookingColor')?.value || '';
+  pop.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">${CSW_COLORS.map(c => `<span style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:2.5px solid ${c === cur ? 'var(--text)' : 'transparent'};transition:all .15s;display:inline-block" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform=''" onclick="fcPickColor('${c}')"></span>`).join('')}</div><button class="m-color-reset" onclick="fcResetBookingColor()">R\u00e9initialiser</button>`;
+  const card = dotEl.closest('.m-svc-card,.m-free-card');
+  if (card) { card.style.position = 'relative'; card.appendChild(pop); }
+  setTimeout(() => {
+    const closer = e => { if (!pop.contains(e.target) && e.target !== dotEl) { pop.remove(); document.removeEventListener('click', closer); } };
+    document.addEventListener('click', closer);
+  }, 10);
+}
+
+function fcPickColor(color) {
+  document.getElementById('uBookingColor').value = color;
+  document.getElementById('mHeaderBg').style.background = `linear-gradient(135deg,${color} 0%,${color}AA 60%,${color}55 100%)`;
+  document.querySelector('.m-avatar').style.background = `linear-gradient(135deg,${color},${color}CC)`;
+  const sb = document.getElementById('mBtnSave');
+  sb.style.background = color; sb.style.boxShadow = `0 2px 8px ${color}40`;
+  const svc = document.getElementById('mSvcCard');
+  if (svc && svc.style.display !== 'none') svc.style.borderLeftColor = color;
+  document.querySelectorAll('.m-color-dot').forEach(d => d.style.background = color);
+  document.querySelector('.m-color-popover')?.remove();
+}
+
+// ── Inline edit (phone/email in header) ──
+function fcInlineEdit(span, field) {
+  const inputId = field === 'phone' ? 'uClientPhone' : 'uClientEmail';
+  const hidden = document.getElementById(inputId);
+  const currentVal = hidden?.value || '';
+  const input = document.createElement('input');
+  input.className = 'm-inline-input';
+  input.type = field === 'email' ? 'email' : 'tel';
+  input.value = currentVal;
+  input.placeholder = field === 'phone' ? '+32 ...' : 'email@exemple.com';
+  const origHTML = span.innerHTML;
+  span.innerHTML = '';
+  span.appendChild(input);
+  span.onclick = null;
+  input.focus();
+  input.select();
+  const editIcon = '<svg class="gi m-edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+  const commit = () => {
+    const v = input.value.trim();
+    if (hidden) hidden.value = v;
+    span.innerHTML = v ? esc(v) + editIcon : '<em style="opacity:.4">+ ' + (field === 'phone' ? 'T\u00e9l' : 'Email') + '</em>' + editIcon;
+    span.onclick = function() { fcInlineEdit(this, field); };
+  };
+  let committed = false;
+  input.addEventListener('blur', () => { if (!committed) { committed = true; commit(); } });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); committed = true; commit(); }
+    if (e.key === 'Escape') { if (hidden) hidden.value = currentVal; span.innerHTML = origHTML; span.onclick = function() { fcInlineEdit(this, field); }; committed = true; }
+  });
+}
+
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
-         fcStartConvert, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert });
+         fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
+         fcConvertDirectAdd,
+         fcGetServiceCategories, fcGetFilteredServices, svcDurPriceLabel,
+         fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
+         fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });
 
 export { fcOpenDetail, closeCalModal, switchCalTab };

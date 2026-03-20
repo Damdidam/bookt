@@ -26,7 +26,7 @@ async function main() {
   // 1. Create product
   const product = await stripe.products.create({
     name: 'Genda SaaS',
-    description: 'Plateforme de gestion de cabinet pour professions libérales en Belgique',
+    description: 'Plateforme de gestion de salon pour la beauté et le bien-être en Belgique',
     metadata: { app: 'genda' }
   });
   console.log(`✅ Product created: ${product.id}`);
@@ -93,12 +93,18 @@ async function main() {
   console.log('            customer.subscription.updated,');
   console.log('            customer.subscription.deleted,');
   console.log('            invoice.paid,');
-  console.log('            invoice.payment_failed');
+  console.log('            invoice.payment_failed,');
+  console.log('            account.updated (Connect)');
   console.log('  → Copy the webhook signing secret (whsec_...)');
   console.log('  → Add as STRIPE_WEBHOOK_SECRET in your env\n');
   console.log('Payment methods to enable in Stripe Dashboard:');
   console.log('  → Settings > Payments > Payment methods');
   console.log('  → Enable: Cards + Bancontact\n');
+  console.log('Stripe Connect (merchant payouts):');
+  console.log('  → Settings > Connect > Get started');
+  console.log('  → Platform type: Express');
+  console.log('  → Country: Belgium');
+  console.log('  → Merchants can then connect from Settings > Paiements\n');
 }
 
 main().catch(err => {

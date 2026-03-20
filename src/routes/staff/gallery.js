@@ -3,10 +3,21 @@
  * All routes require auth + business context
  */
 const router = require('express').Router();
+const fs = require('fs');
+const path = require('path');
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { requireAuth, requireRole } = require('../../middleware/auth');
+const { checkQuota, getBusinessUsage, QUOTA_BYTES, formatBytes } = require('../../services/storage-quota');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Storage quota
+router.get('/quota', requireAuth, async (req, res, next) => {
+  try {
+    const used = await getBusinessUsage(req.businessId, queryWithRLS);
+    res.json({ used, quota: QUOTA_BYTES, remaining: QUOTA_BYTES - used, used_formatted: formatBytes(used), quota_formatted: formatBytes(QUOTA_BYTES), remaining_formatted: formatBytes(QUOTA_BYTES - used), percent: Math.round((used / QUOTA_BYTES) * 100) });
+  } catch (err) { next(err); }
+});
 
 // List gallery images
 router.get('/', requireAuth, async (req, res, next) => {
@@ -63,10 +74,79 @@ router.put('/:id', requireAuth, requireRole('owner','manager'), async (req, res,
   } catch (err) { next(err); }
 });
 
+// Upload gallery image (Base64 → disk)
+router.post('/upload', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
+  try {
+    const { photo, title, caption } = req.body;
+    if (!photo) return res.status(400).json({ error: 'Photo requise' });
+
+    const match = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Format invalide (JPEG, PNG ou WebP requis)' });
+
+    const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+
+    if (buffer.length > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Photo trop lourde (max 2 Mo)' });
+    }
+
+    // Check storage quota
+    const quota = await checkQuota(req.businessId, buffer.length, queryWithRLS);
+    if (!quota.allowed) return res.status(413).json({ error: quota.message });
+
+    const uploadDir = path.join(__dirname, '../../../public/uploads/gallery');
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    // Get next sort_order
+    const countResult = await queryWithRLS(req.businessId,
+      `SELECT COALESCE(MAX(sort_order),0)+1 AS next FROM gallery_images WHERE business_id = $1`,
+      [req.businessId]
+    );
+
+    // Insert first to get the UUID
+    const result = await queryWithRLS(req.businessId,
+      `INSERT INTO gallery_images (business_id, title, caption, image_url, sort_order)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.businessId, title || null, caption || null, 'pending', countResult.rows[0].next]
+    );
+
+    const imgId = result.rows[0].id;
+    const filename = `${imgId}.${ext}`;
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Nom de fichier invalide' });
+    }
+
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+    const imageUrl = `/uploads/gallery/${filename}?t=${Date.now()}`;
+
+    await queryWithRLS(req.businessId,
+      `UPDATE gallery_images SET image_url = $3 WHERE id = $1 AND business_id = $2`,
+      [imgId, req.businessId, imageUrl]
+    );
+
+    result.rows[0].image_url = imageUrl;
+    res.status(201).json(result.rows[0]);
+  } catch (err) { next(err); }
+});
+
 // Delete gallery image
 router.delete('/:id', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID invalide' });
+
+    // Clean up file if it's a local upload
+    const existing = await queryWithRLS(req.businessId,
+      `SELECT image_url FROM gallery_images WHERE id = $1 AND business_id = $2`,
+      [req.params.id, req.businessId]
+    );
+    if (existing.rows[0]?.image_url?.startsWith('/uploads/gallery/')) {
+      const filePath = path.resolve(__dirname, '../../../public', existing.rows[0].image_url.split('?')[0]);
+      const uploadBase = path.resolve(__dirname, '../../../public/uploads');
+      if (filePath.startsWith(uploadBase)) {
+        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+    }
+
     await queryWithRLS(req.businessId,
       `DELETE FROM gallery_images WHERE id = $1 AND business_id = $2`,
       [req.params.id, req.businessId]

@@ -21,11 +21,14 @@ router.get('/', async (req, res, next) => {
              b.cancel_reason, b.created_at,
              c.id AS client_id, c.full_name AS client_name, c.email AS client_email,
              c.phone AS client_phone, c.no_show_count,
-             s.name AS service_name, s.price_cents AS service_price_cents,
-             p.display_name AS practitioner_name
+             CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+             COALESCE(sv.price_cents, s.price_cents) AS service_price_cents,
+             p.display_name AS practitioner_name,
+             COALESCE((SELECT SUM(gct.amount_cents) FROM gift_card_transactions gct WHERE gct.booking_id = b.id AND gct.type = 'debit'), 0) AS gc_paid_cents
       FROM bookings b
       JOIN clients c ON c.id = b.client_id
       JOIN services s ON s.id = b.service_id
+      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
       JOIN practitioners p ON p.id = b.practitioner_id
       WHERE b.business_id = $1 AND b.deposit_required = true`;
     const params = [bid];
@@ -114,11 +117,14 @@ router.get('/export', async (req, res, next) => {
              b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
              b.deposit_payment_intent_id, b.deposit_deadline, b.cancel_reason,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
-             s.name AS service_name, s.price_cents AS service_price_cents,
-             p.display_name AS practitioner_name
+             CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+             COALESCE(sv.price_cents, s.price_cents) AS service_price_cents,
+             p.display_name AS practitioner_name,
+             COALESCE((SELECT SUM(gct.amount_cents) FROM gift_card_transactions gct WHERE gct.booking_id = b.id AND gct.type = 'debit'), 0) AS gc_paid_cents
       FROM bookings b
       JOIN clients c ON c.id = b.client_id
       JOIN services s ON s.id = b.service_id
+      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
       JOIN practitioners p ON p.id = b.practitioner_id
       WHERE b.business_id = $1 AND b.deposit_required = true`;
     const params = [bid];
@@ -152,23 +158,29 @@ router.get('/export', async (req, res, next) => {
     const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-BE') : '';
     const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
 
-    const header = 'Date cr\u00e9ation;Date RDV;Client;Email;T\u00e9l\u00e9phone;Prestation;Prix prestation;Montant acompte;Statut acompte;Date paiement;Statut RDV;Praticien;Stripe PI;Raison annulation\n';
-    const rows = result.rows.map(r => [
-      fmt(r.created_at),
-      fmt(r.start_at),
-      `"${(r.client_name || '').replace(/"/g, '""')}"`,
-      r.client_email || '',
-      r.client_phone || '',
-      `"${(r.service_name || '').replace(/"/g, '""')}"`,
-      fmtEur(r.service_price_cents),
-      fmtEur(r.deposit_amount_cents),
-      statusLabels[r.deposit_status] || r.deposit_status || '',
-      fmt(r.deposit_paid_at),
-      bkLabels[r.booking_status] || r.booking_status || '',
-      `"${(r.practitioner_name || '').replace(/"/g, '""')}"`,
-      r.deposit_payment_intent_id || '',
-      `"${(r.cancel_reason || '').replace(/"/g, '""')}"`
-    ].join(';')).join('\n');
+    const header = 'Date cr\u00e9ation;Date RDV;Client;Email;T\u00e9l\u00e9phone;Prestation;Prix prestation;Montant acompte;Dont carte cadeau;Dont Stripe;Statut acompte;Date paiement;Statut RDV;Praticien;Stripe PI;Raison annulation\n';
+    const rows = result.rows.map(r => {
+      const gcCents = parseInt(r.gc_paid_cents) || 0;
+      const stripeCents = Math.max(0, (r.deposit_amount_cents || 0) - gcCents);
+      return [
+        fmt(r.created_at),
+        fmt(r.start_at),
+        `"${(r.client_name || '').replace(/"/g, '""')}"`,
+        r.client_email || '',
+        r.client_phone || '',
+        `"${(r.service_name || '').replace(/"/g, '""')}"`,
+        fmtEur(r.service_price_cents),
+        fmtEur(r.deposit_amount_cents),
+        gcCents > 0 ? fmtEur(gcCents) : '',
+        gcCents > 0 ? fmtEur(stripeCents) : fmtEur(r.deposit_amount_cents),
+        statusLabels[r.deposit_status] || r.deposit_status || '',
+        fmt(r.deposit_paid_at),
+        bkLabels[r.booking_status] || r.booking_status || '',
+        `"${(r.practitioner_name || '').replace(/"/g, '""')}"`,
+        r.deposit_payment_intent_id || '',
+        `"${(r.cancel_reason || '').replace(/"/g, '""')}"`
+      ].join(';');
+    }).join('\n');
 
     const csv = '\uFEFF' + header + rows;
     const filename = `acomptes-${new Date().toISOString().split('T')[0]}.csv`;

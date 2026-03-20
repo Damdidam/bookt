@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Votre avis — Genda</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+.gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
+
+/* ── Kill mobile browser helpers ── */
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
+body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+textarea{-webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#FAFAF9;--white:#FFF;--surface:#F5F4F1;--border:#E0DDD8;--border-light:#ECEAE6;--text:#1A1816;--text-2:#3D3832;--text-3:#6B6560;--text-4:#9C958E;--primary:#0D7377;--primary-hover:#0A5E61;--primary-light:#EFF9F8;--green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;--gold:#D4A017;--gold-light:#FBF5E0;--serif:'Instrument Serif',Georgia,serif;--sans:'Plus Jakarta Sans',-apple-system,sans-serif;--radius:14px;--radius-sm:10px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.container{width:100%;max-width:520px}
+.logo{text-align:center;margin-bottom:24px}
+.logo a{font-family:var(--serif);font-size:1.3rem;color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.logo .l{width:32px;height:32px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);overflow:hidden}
+.card-header{padding:28px 32px;text-align:center;color:#fff}
+.card-header h1{font-family:var(--serif);font-size:1.5rem;font-weight:400;margin:0}
+.card-header .biz-sub{font-size:.85rem;opacity:.85;margin-top:4px}
+.body{padding:32px}
+.appt-info{text-align:center;padding:0 0 24px;border-bottom:1px solid var(--border-light);margin-bottom:28px}
+.appt-info .label{font-size:.72rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.appt-info .value{font-size:.92rem;font-weight:600;color:var(--text-2)}
+.section-label{font-size:.82rem;font-weight:600;color:var(--text-3);margin-bottom:12px}
+
+/* Star rating */
+.stars{display:flex;justify-content:center;gap:8px;margin-bottom:28px;padding:8px 0}
+.star{font-size:48px;cursor:pointer;color:var(--border);transition:color .15s,transform .15s;line-height:1;-webkit-tap-highlight-color:transparent;user-select:none}
+.star:hover{transform:scale(1.15)}
+.star.active{color:var(--gold)}
+.star.hover-preview{color:var(--gold);opacity:.6}
+.star-error{text-align:center;font-size:.82rem;color:var(--red);margin-top:-16px;margin-bottom:16px;display:none}
+
+/* Textarea */
+.comment-wrap{margin-bottom:24px}
+.comment-wrap textarea{width:100%;min-height:100px;padding:14px 16px;border:1.5px solid var(--border-light);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.88rem;color:var(--text);resize:vertical;outline:none;transition:border-color .15s;line-height:1.5}
+.comment-wrap textarea:focus{border-color:var(--primary)}
+.comment-wrap textarea::placeholder{color:var(--text-4)}
+.char-count{text-align:right;font-size:.72rem;color:var(--text-4);margin-top:6px}
+.char-count.warn{color:var(--red)}
+
+/* Submit button */
+.submit-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 24px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-family:var(--sans);font-size:.92rem;font-weight:700;cursor:pointer;transition:all .15s}
+.submit-btn:hover{filter:brightness(.92);transform:translateY(-1px)}
+.submit-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.submit-btn .spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite}
+
+/* Loading / error / success states */
+.loading{text-align:center;padding:60px}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{text-align:center;padding:60px}
+.error .e-icon{font-size:3rem;margin-bottom:12px}
+
+/* Success state */
+.success-state{text-align:center;padding:40px 28px}
+.success-icon{width:64px;height:64px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.success-state h2{font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px}
+.success-state p{font-size:.88rem;color:var(--text-3)}
+
+/* Already submitted state */
+.existing-review{text-align:center;padding:32px}
+.existing-review .existing-stars{font-size:32px;color:var(--gold);margin-bottom:12px;letter-spacing:4px}
+.existing-review .existing-comment{font-size:.88rem;color:var(--text-2);background:var(--surface);border-radius:var(--radius-sm);padding:16px;margin:16px 0;text-align:left;line-height:1.5;font-style:italic}
+.edit-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border:1.5px solid var(--border-light);border-radius:8px;background:var(--white);font-family:var(--sans);font-size:.82rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all .15s;margin-top:8px}
+.edit-btn:hover{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+
+.footer-link{text-align:center;margin-top:16px}
+.footer-link a{font-size:.82rem;color:var(--primary);text-decoration:none;font-weight:600}
+.footer-link a:hover{text-decoration:underline}
+
+/* Confetti animation */
+@keyframes confetti-fall{0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(120px) rotate(720deg);opacity:0}}
+.confetti-piece{position:absolute;width:8px;height:8px;border-radius:2px;animation:confetti-fall 1.5s ease-out forwards}
+.confetti-container{position:relative;width:100%;height:0;overflow:visible;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo"><a href="/"><span class="l">G</span>Genda</a></div>
+  <div class="card" id="cardContent">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:12px;color:var(--text-4);font-size:.85rem">Chargement...</p></div>
+  </div>
+  <div class="footer-link" id="footerLink" style="display:none"></div>
+</div>
+
+<script>
+const token = window.location.pathname.split('/review/')[1];
+let reviewData = null;
+let selectedRating = 0;
+
+if (!token) { showError('Lien invalide'); }
+else { loadReview(); }
+
+// Check for pre-selected rating from email link (?r=N)
+const preselectedRating = parseInt(new URLSearchParams(window.location.search).get('r'));
+
+async function loadReview() {
+  try {
+    const res = await fetch(`/api/public/review/${token}`);
+    if (!res.ok) {
+      if (res.status === 404) showError('Ce lien n\'est plus valide ou a expiré.');
+      else showError('Erreur de chargement');
+      return;
+    }
+    reviewData = await res.json();
+    render(reviewData);
+  } catch (err) {
+    showError('Erreur de chargement');
+  }
+}
+
+function render(d) {
+  const primaryColor = d.primary_color || d.business?.theme?.primary_color || 'var(--primary)';
+
+  // Apply primary color
+  document.documentElement.style.setProperty('--primary', primaryColor);
+
+  if (d.already_submitted) {
+    renderExisting(d, primaryColor);
+  } else {
+    renderForm(d, primaryColor);
+  }
+
+  showFooter(d);
+}
+
+function renderExisting(d, primaryColor) {
+  const stars = renderStarsStatic(d.rating || d.existing_rating);
+  const comment = d.comment || d.existing_comment || '';
+
+  let html = `
+    <div class="card-header" style="background:${esc(primaryColor)}">
+      <h1>${esc(d.business_name || d.business?.name || '')}</h1>
+    </div>
+    <div class="existing-review">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 style="font-family:var(--serif);font-size:1.3rem;font-weight:400;margin-bottom:4px">Merci ! Votre avis a été enregistré.</h2>
+      <p style="font-size:.85rem;color:var(--text-3);margin-bottom:20px">Votre retour nous aide à nous améliorer.</p>
+      <div class="existing-stars">${stars}</div>`;
+
+  if (comment) {
+    html += `<div class="existing-comment">"${esc(comment)}"</div>`;
+  }
+
+  html += `<button class="edit-btn" onclick="switchToEditMode()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Modifier mon avis
+      </button>
+    </div>`;
+
+  document.getElementById('cardContent').innerHTML = html;
+}
+
+function switchToEditMode() {
+  if (!reviewData) return;
+  selectedRating = reviewData.rating || reviewData.existing_rating || 0;
+  renderForm(reviewData, reviewData.primary_color || reviewData.business?.theme?.primary_color || 'var(--primary)', true);
+}
+
+function renderForm(d, primaryColor, isEdit) {
+  const serviceName = d.service_name || d.service?.name || '';
+  const practitionerName = d.practitioner_name || d.practitioner?.name || '';
+  const existingComment = isEdit ? (d.comment || d.existing_comment || '') : '';
+
+  // Pre-select rating from URL param or existing review
+  if (!isEdit && preselectedRating >= 1 && preselectedRating <= 5) {
+    selectedRating = preselectedRating;
+  } else if (isEdit) {
+    selectedRating = d.rating || d.existing_rating || 0;
+  }
+
+  let html = `
+    <div class="card-header" style="background:${esc(primaryColor)}">
+      <h1>${esc(d.business_name || d.business?.name || '')}</h1>
+      <div class="biz-sub">Donnez-nous votre avis</div>
+    </div>
+    <div class="body">`;
+
+  if (serviceName || practitionerName) {
+    html += `<div class="appt-info">
+        <div class="label">Votre rendez-vous</div>
+        <div class="value">`;
+    if (serviceName && practitionerName) {
+      html += `${esc(serviceName)} avec ${esc(practitionerName)}`;
+    } else if (serviceName) {
+      html += esc(serviceName);
+    } else {
+      html += `avec ${esc(practitionerName)}`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `
+      <div class="section-label">Votre note</div>
+      <div class="stars" id="starsContainer">`;
+  for (let i = 1; i <= 5; i++) {
+    const active = i <= selectedRating ? ' active' : '';
+    html += `<span class="star${active}" data-value="${i}" onclick="selectStar(${i})" onmouseenter="hoverStar(${i})" onmouseleave="resetHover()">${i <= selectedRating ? '\u2605' : '\u2606'}</span>`;
+  }
+  html += `</div>
+      <div class="star-error" id="starError">Veuillez sélectionner une note</div>
+
+      <div class="comment-wrap">
+        <div class="section-label">Votre commentaire (optionnel)</div>
+        <textarea id="commentInput" maxlength="1000" placeholder="Partagez votre expérience...">${esc(existingComment)}</textarea>
+        <div class="char-count" id="charCount">0 / 1000</div>
+      </div>
+
+      <button class="submit-btn" id="submitBtn" onclick="submitReview()" style="background:${esc(primaryColor)}">
+        ${isEdit ? 'Mettre à jour mon avis' : 'Envoyer mon avis'}
+      </button>
+    </div>`;
+
+  document.getElementById('cardContent').innerHTML = html;
+
+  // Init char counter
+  const textarea = document.getElementById('commentInput');
+  const charCount = document.getElementById('charCount');
+  updateCharCount();
+  textarea.addEventListener('input', updateCharCount);
+
+  function updateCharCount() {
+    const len = textarea.value.length;
+    charCount.textContent = len + ' / 1000';
+    charCount.classList.toggle('warn', len > 900);
+  }
+}
+
+function selectStar(n) {
+  selectedRating = n;
+  const stars = document.querySelectorAll('#starsContainer .star');
+  stars.forEach((s, i) => {
+    const val = i + 1;
+    s.classList.toggle('active', val <= n);
+    s.classList.remove('hover-preview');
+    s.textContent = val <= n ? '\u2605' : '\u2606';
+  });
+  // Hide error
+  document.getElementById('starError').style.display = 'none';
+}
+
+function hoverStar(n) {
+  const stars = document.querySelectorAll('#starsContainer .star');
+  stars.forEach((s, i) => {
+    const val = i + 1;
+    if (val <= n && !s.classList.contains('active')) {
+      s.classList.add('hover-preview');
+      s.textContent = '\u2605';
+    }
+  });
+}
+
+function resetHover() {
+  const stars = document.querySelectorAll('#starsContainer .star');
+  stars.forEach((s, i) => {
+    const val = i + 1;
+    s.classList.remove('hover-preview');
+    if (!s.classList.contains('active')) {
+      s.textContent = '\u2606';
+    }
+  });
+}
+
+async function submitReview() {
+  const btn = document.getElementById('submitBtn');
+  if (!btn || btn.disabled) return;
+
+  // Validate rating
+  if (selectedRating < 1) {
+    document.getElementById('starError').style.display = 'block';
+    return;
+  }
+
+  const comment = (document.getElementById('commentInput').value || '').trim();
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.innerHTML = '<span class="spinner-sm"></span> Envoi en cours...';
+
+  try {
+    const res = await fetch(`/api/public/review/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating: selectedRating, comment })
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Une erreur est survenue. Veuillez réessayer.');
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+
+    showSuccess();
+  } catch (err) {
+    alert('Erreur de connexion. Veuillez réessayer.');
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+function showSuccess() {
+  const primaryColor = reviewData?.primary_color || reviewData?.business?.theme?.primary_color || 'var(--primary)';
+  const stars = renderStarsStatic(selectedRating);
+
+  document.getElementById('cardContent').innerHTML = `
+    <div class="card-header" style="background:${esc(primaryColor)}">
+      <h1>${esc(reviewData?.business_name || reviewData?.business?.name || '')}</h1>
+    </div>
+    <div class="confetti-container" id="confettiContainer"></div>
+    <div class="success-state">
+      <div class="success-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Merci pour votre avis !</h2>
+      <p>Votre retour est précieux et nous aide à nous améliorer.</p>
+      <div style="margin-top:20px;font-size:32px;color:var(--gold);letter-spacing:4px">${stars}</div>
+    </div>`;
+
+  launchConfetti();
+}
+
+function renderStarsStatic(rating) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) {
+    s += i <= rating ? '\u2605' : '\u2606';
+  }
+  return s;
+}
+
+function launchConfetti() {
+  const container = document.getElementById('confettiContainer');
+  if (!container) return;
+  const colors = ['#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899'];
+  for (let i = 0; i < 30; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + '%';
+    piece.style.top = '-10px';
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.animationDelay = Math.random() * 0.8 + 's';
+    piece.style.animationDuration = (1 + Math.random() * 1) + 's';
+    piece.style.width = (6 + Math.random() * 6) + 'px';
+    piece.style.height = (6 + Math.random() * 6) + 'px';
+    container.appendChild(piece);
+  }
+  // Clean up after animation
+  setTimeout(() => { container.innerHTML = ''; }, 3000);
+}
+
+function showFooter(d) {
+  const fl = document.getElementById('footerLink');
+  const slug = d.business_slug || d.business?.slug;
+  const name = d.business_name || d.business?.name;
+  if (slug) {
+    fl.innerHTML = `<a href="/${slug}/book">Réserver un autre rendez-vous chez ${esc(name)}</a>`;
+    fl.style.display = '';
+  }
+}
+
+function showError(msg) {
+  document.getElementById('cardContent').innerHTML = `<div class="error"><div class="e-icon">\u26a0\ufe0f</div><p style="font-size:.92rem;font-weight:600">${msg}</p><p style="font-size:.82rem;color:var(--text-3);margin-top:6px">Vérifiez le lien ou contactez le salon.</p></div>`;
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

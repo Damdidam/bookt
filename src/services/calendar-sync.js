@@ -18,7 +18,7 @@ const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.events https://w
 function getGoogleAuthUrl(state) {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: `${process.env.BASE_URL}/api/calendar/google/callback`,
+    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/google/callback`,
     response_type: 'code',
     scope: GOOGLE_SCOPES,
     access_type: 'offline',
@@ -36,7 +36,7 @@ async function exchangeGoogleCode(code) {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${process.env.BASE_URL}/api/calendar/google/callback`,
+      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/google/callback`,
       grant_type: 'authorization_code'
     }),
     signal: AbortSignal.timeout(15000)
@@ -106,7 +106,7 @@ const MS_SCOPES = 'Calendars.ReadWrite User.Read offline_access';
 function getOutlookAuthUrl(state) {
   const params = new URLSearchParams({
     client_id: process.env.OUTLOOK_CLIENT_ID,
-    redirect_uri: `${process.env.BASE_URL}/api/calendar/outlook/callback`,
+    redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/outlook/callback`,
     response_type: 'code',
     scope: MS_SCOPES,
     state
@@ -122,7 +122,7 @@ async function exchangeOutlookCode(code) {
       code,
       client_id: process.env.OUTLOOK_CLIENT_ID,
       client_secret: process.env.OUTLOOK_CLIENT_SECRET,
-      redirect_uri: `${process.env.BASE_URL}/api/calendar/outlook/callback`,
+      redirect_uri: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/calendar/outlook/callback`,
       grant_type: 'authorization_code'
     }),
     signal: AbortSignal.timeout(15000)
@@ -202,7 +202,7 @@ async function getValidToken(connection, queryFn) {
 
       // Re-read the connection from DB with FOR UPDATE to prevent concurrent refresh races
       const freshConn = await client.query(
-        `SELECT access_token, token_expires_at FROM calendar_connections WHERE id = $1 FOR UPDATE`,
+        `SELECT access_token, token_expires_at, refresh_token FROM calendar_connections WHERE id = $1 FOR UPDATE`,
         [connection.id]
       );
       if (freshConn.rows.length > 0) {
@@ -214,11 +214,13 @@ async function getValidToken(connection, queryFn) {
         }
       }
 
+      // Use the freshest refresh_token from DB (may have been rotated by another process)
+      const freshRefreshToken = freshConn.rows[0]?.refresh_token || connection.refresh_token;
       let tokenData;
       if (connection.provider === 'google') {
-        tokenData = await refreshGoogleToken(connection.refresh_token);
+        tokenData = await refreshGoogleToken(freshRefreshToken);
       } else {
-        tokenData = await refreshOutlookToken(connection.refresh_token);
+        tokenData = await refreshOutlookToken(freshRefreshToken);
       }
 
       // Update stored tokens
@@ -336,6 +338,7 @@ async function deleteCalendarEvent(connection, bookingId, queryFn) {
   if (existing.rows.length === 0) return;
 
   const ext = existing.rows[0];
+  let apiDeleteOk = false;
   try {
     const accessToken = await getValidToken(connection, queryFn);
     if (connection.provider === 'google') {
@@ -347,11 +350,18 @@ async function deleteCalendarEvent(connection, bookingId, queryFn) {
     } else {
       await outlookApiCall(accessToken, `/me/events/${encodeURIComponent(ext.external_event_id)}`, 'DELETE');
     }
+    apiDeleteOk = true;
   } catch (err) {
     console.warn('[CAL-SYNC] Delete event failed:', err.message);
+    // 404/410 = event already gone → safe to delete DB record
+    if (err.message && (err.message.includes('404') || err.message.includes('410'))) {
+      apiDeleteOk = true;
+    }
   }
 
-  await queryFn(`DELETE FROM calendar_events WHERE id = $1`, [ext.id]);
+  if (apiDeleteOk) {
+    await queryFn(`DELETE FROM calendar_events WHERE id = $1`, [ext.id]);
+  }
 }
 
 function buildCalendarEvent(booking, provider) {
@@ -362,7 +372,7 @@ function buildCalendarEvent(booking, provider) {
     booking.service_name,
     booking.client_phone ? ` ${booking.client_phone}` : null,
     booking.client_email ? ` ${booking.client_email}` : null,
-    booking.notes ? `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${booking.notes}` : null,
+    booking.notes ? `📝 ${booking.notes}` : null,
     '—\nGéré via Genda.be'
   ].filter(Boolean).join('\n');
 
@@ -521,5 +531,7 @@ module.exports = {
   getValidToken, pushBookingToCalendar, deleteCalendarEvent,
   pullBusyTimes, getBusyBlocks,
   // Helpers
-  buildCalendarEvent
+  buildCalendarEvent,
+  // Low-level API (used by DELETE booking for post-commit cleanup)
+  googleApiCall, outlookApiCall
 };

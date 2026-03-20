@@ -111,12 +111,26 @@ router.patch('/:id/ungroup', async (req, res, next) => {
       result = await transactionWithRLS(bid, async (client) => {
         // Lock the booking FOR UPDATE
         const lock = await client.query(
-          `SELECT id, group_id, status, start_at, end_at, practitioner_id, service_id
+          `SELECT id, group_id, status, start_at, end_at, practitioner_id, service_id,
+                  deposit_payment_intent_id, deposit_status, deposit_amount_cents
            FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
           [id, bid]
         );
         if (lock.rows.length === 0) throw Object.assign(new Error('RDV introuvable'), { type: 'not_found' });
         const locked = lock.rows[0];
+
+        // If booking has pending deposit, inherit deposit_payment_intent_id from group leader
+        if (locked.deposit_status === 'pending' && !locked.deposit_payment_intent_id && locked.group_id) {
+          const leader = await client.query(
+            `SELECT deposit_payment_intent_id, deposit_payment_url FROM bookings
+             WHERE group_id = $1 AND business_id = $2 AND deposit_payment_intent_id IS NOT NULL LIMIT 1`,
+            [locked.group_id, bid]
+          );
+          if (leader.rows.length > 0) {
+            locked._inheritPiId = leader.rows[0].deposit_payment_intent_id;
+            locked._inheritPayUrl = leader.rows[0].deposit_payment_url;
+          }
+        }
 
         // Re-check group_id + status (concurrency guard)
         if (!locked.group_id) throw Object.assign(new Error('Ce RDV ne fait plus partie d\'un groupe'), { type: 'bad_request' });
@@ -151,6 +165,17 @@ router.patch('/:id/ungroup', async (req, res, next) => {
         if (timeChanged) {
           sets.push(`end_at = $${idx}`);
           params.push(newEndAt);
+          idx++;
+        }
+        // Inherit deposit payment info so webhook can find this booking after ungroup
+        if (locked._inheritPiId) {
+          sets.push(`deposit_payment_intent_id = $${idx}`);
+          params.push(locked._inheritPiId);
+          idx++;
+        }
+        if (locked._inheritPayUrl) {
+          sets.push(`deposit_payment_url = $${idx}`);
+          params.push(locked._inheritPayUrl);
           idx++;
         }
 
@@ -369,7 +394,7 @@ router.post('/:id/group-add', async (req, res, next) => {
     const { id } = req.params;
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
 
-    const { service_id, variant_id } = req.body;
+    const { service_id, variant_id, force } = req.body;
 
     // Only owner/manager/staff can add to group — not practitioners
     if (req.user.role === 'practitioner') {
@@ -480,8 +505,8 @@ router.post('/:id/group-add', async (req, res, next) => {
           [booking.group_id, bid]
         );
 
-        // Conflict check for the new time range
-        if (!globalAllowOverlap) {
+        // Conflict check for the new time range (skip if force=true)
+        if (!globalAllowOverlap && !force) {
           const maxConc = await getMaxConcurrent(bid, booking.practitioner_id);
           const conflicts = await checkBookingConflicts(client, { bid, pracId: booking.practitioner_id, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() });
           if (conflicts.length >= maxConc) {

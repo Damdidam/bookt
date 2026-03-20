@@ -32,11 +32,11 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: 'Référence invalide' });
   }
 
-  // Default
+  // M10: Default safe — only expose error in development mode explicitly
   res.status(500).json({
-    error: process.env.NODE_ENV === 'production'
-      ? 'Erreur interne du serveur'
-      : err.message
+    error: process.env.NODE_ENV === 'development'
+      ? err.message
+      : 'Erreur interne du serveur'
   });
 }
 

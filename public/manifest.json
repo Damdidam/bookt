@@ -1,14 +1,12 @@
 {
-  "name": "Genda",
-  "short_name": "Genda",
-  "description": "Votre cabinet en ligne — agenda, clients, facturation",
-  "start_url": "/dashboard",
+  "name": "GENDA - Réservation en ligne",
+  "short_name": "GENDA",
+  "description": "Réservez vos rendez-vous en ligne",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAFAF9",
-  "theme_color": "#0D7377",
-  "orientation": "any",
-  "categories": ["business", "productivity", "medical"],
-  "lang": "fr-BE",
+  "background_color": "#FFFFFF",
+  "theme_color": "#E8694A",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -19,12 +17,6 @@
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-512-maskable.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }

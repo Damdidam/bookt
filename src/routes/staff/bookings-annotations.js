@@ -3,7 +3,6 @@
  */
 const router = require('express').Router();
 const { queryWithRLS } = require('../../services/db');
-const { sendPreRdvEmail } = require('../../services/email');
 
 // BK-V13-005: UUID validation regex
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -448,88 +447,6 @@ router.delete('/:bookingId/reminders/:reminderId', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
-
-// ============================================================
-// POST /api/bookings/:id/send-document — Send a pre-RDV document manually
-// UI: Calendar detail modal → Docs tab → "Envoyer un document"
-// ============================================================
-router.post('/:id/send-document', async (req, res, next) => {
-  try {
-    const bid = req.businessId;
-    const bookingId = req.params.id;
-    if (!UUID_RE.test(bookingId)) return res.status(400).json({ error: 'ID invalide' });
-    const { template_id } = req.body;
-    if (!template_id) return res.status(400).json({ error: 'template_id requis' });
-
-    if (!(await checkPracScope(req, res, bid, bookingId))) return;
-
-    // Get booking + client email
-    const bk = await queryWithRLS(bid,
-      `SELECT b.id, b.start_at, b.end_at, b.client_id, b.service_id, b.practitioner_id, b.status,
-              c.full_name AS client_name, c.email AS client_email,
-              s.name AS service_name
-       FROM bookings b
-       LEFT JOIN clients c ON c.id = b.client_id
-       LEFT JOIN services s ON s.id = b.service_id
-       WHERE b.id = $1 AND b.business_id = $2`,
-      [bookingId, bid]
-    );
-    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
-    const booking = bk.rows[0];
-    // BK-V13-009: Explicit check for missing client (LEFT JOIN no longer hides this)
-    if (!booking.client_id) return res.status(400).json({ error: 'Ce RDV n\'a pas de client associé' });
-    if (['cancelled', 'no_show'].includes(booking.status)) {
-      return res.status(400).json({ error: 'Impossible d\'envoyer un document pour un RDV annulé ou no-show' });
-    }
-    if (!booking.client_email) return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
-
-    // Get template
-    const tpl = await queryWithRLS(bid,
-      `SELECT * FROM document_templates WHERE id = $1 AND business_id = $2 AND is_active = true`,
-      [template_id, bid]
-    );
-    if (tpl.rows.length === 0) return res.status(404).json({ error: 'Template introuvable ou inactif' });
-    const template = tpl.rows[0];
-
-    // CRT-V12-007: Limit send-document count per booking
-    const sendCount = await queryWithRLS(bid,
-      `SELECT COUNT(*)::int AS cnt FROM pre_rdv_sends WHERE booking_id = $1 AND business_id = $2`,
-      [bookingId, bid]
-    );
-    if (sendCount.rows[0].cnt >= 10) return res.status(400).json({ error: 'Maximum 10 documents envoyés par RDV' });
-
-    // Generate unique token
-    const token = require('crypto').randomUUID();
-
-    // Create pre_rdv_sends record with status 'pending' (CRT-V10-10)
-    const send = await queryWithRLS(bid,
-      `INSERT INTO pre_rdv_sends (business_id, booking_id, client_id, template_id, token, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
-       RETURNING *`,
-      [bid, bookingId, booking.client_id, template_id, token]
-    );
-
-    // Get business info for email
-    const biz = await queryWithRLS(bid, `SELECT name, email, address, theme FROM businesses WHERE id = $1`, [bid]);
-
-    // Send email (non-blocking) — update status to 'sent' or 'error' after attempt
-    sendPreRdvEmail({
-      booking: { ...booking, service_name: booking.service_name || 'Rendez-vous' },
-      template,
-      token,
-      business: biz.rows[0]
-    })
-      .then(() => queryWithRLS(bid, `UPDATE pre_rdv_sends SET status = 'sent', sent_at = NOW() WHERE id = $1 AND business_id = $2`, [send.rows[0].id, bid]))
-      .catch(e => {
-        console.warn('[EMAIL] Pre-RDV send error:', e.message);
-        queryWithRLS(bid, `UPDATE pre_rdv_sends SET status = 'error' WHERE id = $1 AND business_id = $2`, [send.rows[0].id, bid]).catch(() => {});
-      });
-
-    res.status(201).json({
-      send: { ...send.rows[0], template_name: template.name, template_type: template.type }
-    });
-  } catch (err) { next(err); }
 });
 
 module.exports = router;

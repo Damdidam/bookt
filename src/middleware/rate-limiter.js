@@ -38,4 +38,28 @@ const authLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { bookingLimiter, slotsLimiter, authLimiter };
+/**
+ * Rate limiter for client-phone PII lookup.
+ * Strict: 5 requests per 10 minutes per IP to prevent enumeration.
+ */
+const clientPhoneLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5,
+  message: { error: 'Trop de tentatives. Réessayez plus tard.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+/**
+ * Rate limiter for deposit checkout/pay.
+ * 10 requests per 15 minutes per IP to prevent abuse.
+ */
+const depositLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: { error: 'Trop de tentatives de paiement. Réessayez plus tard.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { bookingLimiter, slotsLimiter, authLimiter, clientPhoneLimiter, depositLimiter };

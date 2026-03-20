@@ -7,10 +7,20 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "dev:client": "vite --config vite.config.js",
+    "build": "vite build --config vite.config.js",
     "build:client": "vite build --config vite.config.js",
     "preview:client": "vite preview --config vite.config.js",
     "db:init": "node src/utils/db-init.js",
-    "stripe:setup": "node scripts/stripe-setup.js"
+    "stripe:setup": "node scripts/stripe-setup.js",
+    "test": "node tests/sanity.js",
+    "test:slots": "node tests/sanity.js --section slots",
+    "test:booking": "node tests/sanity.js --section booking",
+    "test:staff": "node tests/sanity.js --section staff",
+    "test:lifecycle": "node tests/sanity.js --section lifecycle",
+    "test:deposit": "node tests/sanity.js --section deposit",
+    "test:calendar": "node tests/sanity.js --section calendar",
+    "test:edge": "node tests/sanity.js --section edge",
+    "test:verbose": "node tests/sanity.js --verbose"
   },
   "dependencies": {
     "@fullcalendar/core": "~6.1.20",
@@ -32,13 +42,11 @@
     "pg": "^8.12.0",
     "stripe": "^14.0.0",
     "twilio": "^4.23.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "vite": "^7.3.1"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "private": true,
-  "devDependencies": {
-    "vite": "^7.3.1"
-  }
+  "private": true
 }
