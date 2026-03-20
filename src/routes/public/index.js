@@ -2370,7 +2370,7 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
         isSplitGroup = pracIds.size > 1;
         if (isSplitGroup) {
           splitServiceIds = grpMembers.rows.map(r => r.service_id);
-          splitVariantIds = grpMembers.rows.map(r => r.service_variant_id).filter(Boolean);
+          splitVariantIds = grpMembers.rows.map(r => r.service_variant_id || null);
         }
       }
     }
