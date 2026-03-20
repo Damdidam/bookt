@@ -788,7 +788,6 @@ img { max-width: 100%; display: block; }
       <li><a href="#realisations" id="navRealisations" style="display:none">Réalisations</a></li>
       <li><a href="#info">Contact</a></li>
       <li><a href="#news" id="navNews" style="display:none">Actus</a></li>
-      <li id="navGuideLi" style="display:none"><a id="navGuideLink" href="#">Guide</a></li>
       <li id="navGiftCardLi" style="display:none"><a href="#" id="navGiftCardBtn">Carte cadeau</a></li>
       <li><a href="#" class="btn-outline" id="navBookBtn">R&eacute;server</a></li>
     </ul>
@@ -1338,10 +1337,8 @@ img { max-width: 100%; display: block; }
       var ctaGcBtn = document.getElementById('ctaGiftCardBtn');
       if (ctaGcBtn) { ctaGcBtn.href = gcUrl; ctaGcBtn.style.display = ''; }
     }
-    // Guide link
+    // Guide link (footer only)
     var guideUrl = '/' + b.slug + '/guide';
-    document.getElementById('navGuideLi').style.display = '';
-    document.getElementById('navGuideLink').href = guideUrl;
     var footerGuide = document.getElementById('footerGuideLink');
     if (footerGuide) { footerGuide.href = guideUrl; footerGuide.style.display = 'inline'; }
 
