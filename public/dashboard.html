@@ -15,6 +15,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 </head>
 <body>
+<div class="drawer-overlay"></div>
 <aside class="sidebar">
   <div class="sb-logo"><div class="l">G</div><span class="w">Genda</span><span class="plan" id="planBadge">FREE</span></div>
   <nav class="sb-nav">
@@ -58,7 +59,7 @@
   </div>
 </aside>
 <div class="main">
-  <div class="topbar"><h1 id="pageTitle">Dashboard</h1><div><span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span></div></div>
+  <div class="topbar"><button class="hamburger" onclick="toggleDrawer()" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="pageTitle">Dashboard</h1><div><span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span></div></div>
   <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
 </div>
 <!-- CALENDAR DETAIL MODAL -->

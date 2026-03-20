@@ -20,6 +20,7 @@ import './styles/responsive.css';
 import { api, user, biz, userRole, sectorLabels, categoryLabels, allowedSections, GendaUI } from './state.js';
 import { initRouter, loadSection } from './router.js';
 import { initTouchBlockers } from './utils/touch.js';
+import { initDrawer, toggleDrawer } from './utils/drawer.js';
 import { bridge } from './utils/window-bridge.js';
 import { closeModal } from './utils/dirty-guard.js';
 
@@ -142,10 +143,13 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Bridge global functions ──
-bridge({ doLogout, toggleSbSection });
+bridge({ doLogout, toggleSbSection, toggleDrawer });
 
 // ── Init touch blockers ──
 initTouchBlockers();
+
+// ── Init sidebar drawer (tablet) ──
+initDrawer();
 
 // ── Init router & load default view ──
 initRouter();
