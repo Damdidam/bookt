@@ -9,6 +9,8 @@ import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { guardModal } from '../../utils/dirty-guard.js';
+import { trapFocus } from '../../utils/focus-trap.js';
+import { enableSwipeClose } from '../../utils/swipe-close.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO, toBrusselsISO } from '../../utils/format.js';
 import { IC } from '../../utils/icons.js';
@@ -136,6 +138,8 @@ function fcOpenQuickCreate(startStr, endStr, resourceId) {
   const qcModal = document.getElementById('calCreateModal');
   guardModal(qcModal, { noBackdropClose: true });
   qcModal.classList.add('open');
+  trapFocus(qcModal, () => closeCalModal('calCreateModal'));
+  enableSwipeClose(qcModal.querySelector('.m-dialog'), () => closeCalModal('calCreateModal'));
 }
 
 // ── Gradient header ──
@@ -767,11 +771,10 @@ function qcRenderReminders() {
 
 // ── Create booking ──
 async function calCreateBooking() {
-  // If in task mode, delegate to task creation
-  if (_qcCurrentMode === 'task') return qcCreateTask();
-
   if (calCreateBooking._busy) return;
   calCreateBooking._busy = true;
+  const _qcBtn = document.getElementById('qcBtnCreate');
+  if (_qcBtn) { _qcBtn.disabled = true; _qcBtn.classList.add('is-loading'); }
   try {
     const clientName = document.getElementById('qcClient').value.trim();
     const clientId = document.getElementById('qcClientId').value;
@@ -977,7 +980,10 @@ async function calCreateBooking() {
       }
     }
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { calCreateBooking._busy = false; }
+  finally {
+    calCreateBooking._busy = false;
+    if (_qcBtn) { _qcBtn.classList.remove('is-loading'); _qcBtn.disabled = false; }
+  }
 }
 
 /**
@@ -1008,61 +1014,41 @@ function _qcSetMode(mode) {
   const modal = document.getElementById('calCreateModal');
   if (!modal) return;
 
-  // Toggle buttons
+  // Toggle buttons — always highlight RDV since task now redirects
   modal.querySelectorAll('.qc-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 
   const panelRdv = document.getElementById('qcPanelRdv');
-  const panelTask = document.getElementById('qcPanelTask');
   const headerTitle = modal.querySelector('.m-client-name');
   const btn = document.getElementById('qcBtnCreate');
 
-  if (mode === 'task') {
-    if (panelRdv) { panelRdv.style.display = 'none'; panelRdv.classList.remove('active'); }
-    if (panelTask) { panelTask.style.display = ''; panelTask.classList.add('active'); }
-    if (headerTitle) headerTitle.textContent = 'Nouvelle tâche';
-    if (btn) btn.textContent = 'Créer la tâche';
-
-    // Sync date/time from RDV fields
-    const qcDate = document.getElementById('qcDate')?.value;
-    const qcTime = document.getElementById('qcTime')?.value;
-    if (qcDate) document.getElementById('qcTaskDate').value = qcDate;
-    if (qcTime) {
-      document.getElementById('qcTaskStart').value = qcTime;
-      // Default end = +1h
-      const [h, m] = qcTime.split(':').map(Number);
-      const eh = (h + 1) % 24;
-      document.getElementById('qcTaskEnd').value = String(eh).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    }
-
-    // Populate practitioner checkboxes (multi-select)
-    const pracWrap = document.getElementById('qcTaskPracWrap');
-    const currentPrac = document.getElementById('qcPrac')?.value;
-    let pracHtml = '<div class="td-prac-checks" id="qcTaskPracChecks">';
-    (calState.fcPractitioners || []).forEach(p => {
-      const checked = String(p.id) === String(currentPrac) ? 'checked' : '';
-      pracHtml += `<label class="td-prac-check"><input type="checkbox" value="${p.id}" ${checked}><span class="td-prac-dot" style="background:${p.color || 'var(--primary)'}"></span><span>${esc(p.display_name)}</span></label>`;
-    });
-    pracHtml += '</div>';
-    if (pracWrap) pracWrap.innerHTML = pracHtml;
-
-    // Color swatch
-    const wrap = document.getElementById('qcTaskColorWrap');
-    if (wrap) wrap.innerHTML = cswHTML('qcTaskColor', '#6B7280', false);
-
-    // Header gradient → gray for tasks
-    qcUpdateGradient('#6B7280');
-  } else {
-    if (panelRdv) { panelRdv.style.display = ''; panelRdv.classList.add('active'); }
-    if (panelTask) { panelTask.style.display = 'none'; panelTask.classList.remove('active'); }
-    if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
-    if (btn) btn.textContent = 'Créer le RDV';
-
-    // Restore header gradient from service color
-    qcUpdateTotal();
-  }
+  // Only RDV mode is handled inline now (task redirects to Task Detail modal)
+  if (panelRdv) { panelRdv.style.display = ''; panelRdv.classList.add('active'); }
+  if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
+  if (btn) btn.textContent = 'Créer le RDV';
+  qcUpdateTotal();
 }
 
 function qcSwitchMode(mode) {
+  if (mode === 'task') {
+    // Gather current date/time/practitioner from RDV form
+    const date = document.getElementById('qcDate')?.value || '';
+    const startTime = document.getElementById('qcTime')?.value || '';
+    // Default end = start + 1h
+    let endTime = '';
+    if (startTime) {
+      const [h, m] = startTime.split(':').map(Number);
+      const eh = (h + 1) % 24;
+      endTime = String(eh).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+    const pracId = document.getElementById('qcPrac')?.value || '';
+
+    // Close Quick Create and open Task Detail in creation mode
+    document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+    closeCalModal('calCreateModal');
+    // Use setTimeout to let the close animation complete before opening the new modal
+    setTimeout(() => { window.fcNewTask?.(date, startTime, endTime, pracId); }, 50);
+    return;
+  }
   if (mode === _qcCurrentMode) return;
   _qcSetMode(mode);
 }

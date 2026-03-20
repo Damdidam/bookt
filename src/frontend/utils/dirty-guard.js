@@ -18,6 +18,27 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
+// ── Generic confirmation dialog (replaces window.confirm) ──
+export function showConfirmDialog(title, message, confirmLabel = 'Confirmer', confirmStyle = 'primary') {
+  return new Promise(resolve => {
+    const el = document.createElement('div');
+    el.className = 'dg-overlay';
+    const btnColor = confirmStyle === 'danger' ? '#DC2626' : 'var(--primary)';
+    el.innerHTML = `<div class="dg-card">
+      <p class="dg-msg" style="font-weight:600;margin-bottom:6px">${title}</p>
+      <p class="dg-msg">${message}</p>
+      <div class="dg-actions">
+        <button class="dg-btn dg-cancel" style="background:var(--bg);color:var(--text)">Annuler</button>
+        <button class="dg-btn dg-confirm" style="background:${btnColor};color:#fff">${confirmLabel}</button>
+      </div>
+    </div>`;
+    el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(false); };
+    el.querySelector('.dg-confirm').onclick = () => { el.remove(); resolve(true); };
+    el.addEventListener('click', e => { if (e.target === el) { el.remove(); resolve(false); } });
+    document.body.appendChild(el);
+  });
+}
+
 // ── Custom confirmation prompt (not window.confirm) ──
 export function showDirtyPrompt(dialogEl) {
   return new Promise(resolve => {

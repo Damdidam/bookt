@@ -41,7 +41,7 @@ async function fcUndoLast() {
   const { bookingId, type, oldData } = lastAction;
   clearUndo();
   // Hide the current toast immediately
-  document.getElementById('gToast').style.display = 'none';
+  document.getElementById('gToastStack').textContent = '';
 
   try {
     let r;

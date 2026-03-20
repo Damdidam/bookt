@@ -62,11 +62,12 @@
   <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
 </div>
 <!-- CALENDAR DETAIL MODAL -->
-<div class="m-overlay" id="calDetailModal">
+<div class="m-overlay" id="calDetailModal" role="dialog" aria-modal="true" aria-labelledby="calDetailTitle">
   <div class="m-dialog m-flex">
+    <div class="m-drag-handle"></div>
     <div class="m-header">
       <div class="m-header-bg" id="mHeaderBg"></div>
-      <button class="m-close" onclick="closeCalModal('calDetailModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeCalModal('calDetailModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <div class="m-header-content">
         <div class="m-client-hero" id="mClientHero"></div>
       </div>
@@ -95,11 +96,11 @@
           </div>
         </div>
         <div id="mConvertSvc" class="m-convert-panel" style="display:none">
-          <div class="m-field-label">Assigner une prestation</div>
+          <label class="m-field-label" for="mConvertSvcSel">Assigner une prestation</label>
           <div class="m-svc-picker">
-            <div class="m-svc-picker-field"><label>Catégorie</label><select id="mConvertCatSel" onchange="fcConvertCatChanged()"><option value="">— Toutes —</option></select></div>
-            <div class="m-svc-picker-field"><label>Prestation</label><select id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select></div>
-            <div class="m-svc-picker-field" id="mConvertVarWrap"><label>Variante</label><select id="mConvertVarSel" onchange="fcConvertVarChanged()"></select></div>
+            <div class="m-svc-picker-field"><label for="mConvertCatSel">Catégorie</label><select id="mConvertCatSel" onchange="fcConvertCatChanged()"><option value="">— Toutes —</option></select></div>
+            <div class="m-svc-picker-field"><label for="mConvertSvcSel">Prestation</label><select id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select></div>
+            <div class="m-svc-picker-field" id="mConvertVarWrap"><label for="mConvertVarSel">Variante</label><select id="mConvertVarSel" onchange="fcConvertVarChanged()"></select></div>
           </div>
           <div id="mConvertConflict" class="m-convert-conflict" style="display:none"></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
@@ -115,9 +116,9 @@
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
-            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="calEditDate" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="calEditStart" onchange="calOnStartChange()"></div>
-            <div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><label class="m-field-label" for="calEditDate">Date</label><input type="date" class="m-input" id="calEditDate" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><label class="m-field-label" for="calEditStart">Début</label><input type="time" class="m-input" id="calEditStart" onchange="calOnStartChange()"></div>
+            <div><label class="m-field-label" for="calEditEnd">Fin</label><input type="time" class="m-input" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
           </div>
           <div class="m-chips" id="calDurChips">
             <span class="m-chip" onclick="calSetDuration(15,this)">15</span>
@@ -131,6 +132,7 @@
           <div id="calScheduleWarn" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:#FFF3E0;color:#E65100"></div>
           <div id="calPoseInfo" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:#F0FDF4;color:#15803D"></div>
           <!-- Praticien inline -->
+          <label class="m-field-label" for="uPracSelect">Praticien</label>
           <div class="m-prac-wrap" style="margin-top:8px">
             <span class="m-prac-dot" id="mPracDot"></span>
             <select class="m-input" id="uPracSelect"></select>
@@ -140,8 +142,8 @@
         <div class="m-sec" id="mBufferSec" style="display:none">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Buffers</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-2">
-            <div><div class="m-field-label">Avant (min)</div><input class="m-input" type="number" id="uBufBefore" value="0" min="0" step="5"></div>
-            <div><div class="m-field-label">Après (min)</div><input class="m-input" type="number" id="uBufAfter" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="uBufBefore">Avant (min)</label><input class="m-input" type="number" id="uBufBefore" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="uBufAfter">Après (min)</label><input class="m-input" type="number" id="uBufAfter" value="0" min="0" step="5"></div>
           </div>
         </div>
         <!-- Note — accordion -->
@@ -156,6 +158,13 @@
             <div class="m-accordion-inner">
               <textarea class="m-input" id="uComment" rows="2" maxlength="500" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
             </div>
+          </div>
+        </div>
+        <div class="m-sec" id="mClientContactSec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Coordonnées</span><span class="m-sec-line"></span></div>
+          <div class="m-row m-row-2">
+            <div><label class="m-field-label" for="uClientPhone">Téléphone</label><input type="tel" class="m-input" id="uClientPhone" placeholder="0470 12 34 56"></div>
+            <div><label class="m-field-label" for="uClientEmail">Email</label><input type="email" class="m-input" id="uClientEmail" placeholder="email@exemple.com"></div>
           </div>
         </div>
         <!-- Tâches — accordion -->
@@ -233,16 +242,17 @@
 </div>
 
 <!-- QUICK CREATE MODAL — same structure as Detail -->
-<div class="m-overlay" id="calCreateModal">
+<div class="m-overlay" id="calCreateModal" role="dialog" aria-modal="true" aria-labelledby="qcModalTitle">
   <div class="m-dialog m-flex">
+    <div class="m-drag-handle"></div>
     <div class="m-header">
       <div class="m-header-bg" id="qcHeaderBg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary)AA 60%,var(--primary)55 100%)"></div>
-      <button class="m-close" onclick="closeCalModal('calCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeCalModal('calCreateModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <div class="m-header-content">
         <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px">
           <div class="m-avatar" id="qcAvatar" style="background:linear-gradient(135deg,var(--primary),var(--primary)CC)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
           <div style="flex:1;min-width:0">
-            <div class="m-client-name" style="font-size:1.15rem">Nouveau rendez-vous</div>
+            <div class="m-client-name" id="qcModalTitle" style="font-size:1.15rem">Nouveau rendez-vous</div>
           </div>
         </div>
       </div>
@@ -257,6 +267,7 @@
         <!-- Client -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-client">Client</span></span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcClient">Client</label>
           <div style="position:relative">
             <input class="m-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)">
             <div id="qcAcResults" class="ac-results" style="display:none"></div>
@@ -264,8 +275,8 @@
           </div>
           <div id="qcClientDetails" style="display:none;margin-top:8px">
             <div class="m-row m-row-2">
-              <div><div class="m-field-label">Email</div><input class="m-input" type="email" id="qcClientEmail" placeholder="email@exemple.com"></div>
-              <div><div class="m-field-label">T\u00e9l\u00e9phone</div><input class="m-input" type="tel" id="qcClientPhone" placeholder="+32 ..."></div>
+              <div><label class="m-field-label" for="qcClientEmail">Email</label><input class="m-input" type="email" id="qcClientEmail" placeholder="email@exemple.com"></div>
+              <div><label class="m-field-label" for="qcClientPhone">Téléphone</label><input class="m-input" type="tel" id="qcClientPhone" placeholder="+32 ..."></div>
             </div>
           </div>
         </div>
@@ -296,27 +307,28 @@
             <div id="qcTotalDuration" style="font-size:.72rem;color:var(--text-4);margin-top:6px"></div>
           </div>
           <div id="qcFreestyleMode" style="display:none">
-            <div style="margin-bottom:8px"><div class="m-field-label">Intitulé du RDV</div><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
-            <div><div class="m-field-label">Couleur</div><div id="qcFreeColorWrap"></div></div>
+            <div style="margin-bottom:8px"><label class="m-field-label" for="qcFreeLabel">Intitulé du RDV</label><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
+            <div><label class="m-field-label">Couleur</label><div id="qcFreeColorWrap"></div></div>
           </div>
         </div>
         <!-- Horaire -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
-            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="qcDate"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="qcTime" value="09:00"></div>
-            <div id="qcEndTimeWrap" style="display:none"><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcFreeEnd" value="10:00"></div>
+            <div><label class="m-field-label" for="qcDate">Date</label><input type="date" class="m-input" id="qcDate"></div>
+            <div><label class="m-field-label" for="qcTime">Début</label><input type="time" class="m-input" id="qcTime" value="09:00"></div>
+            <div id="qcEndTimeWrap" style="display:none"><label class="m-field-label" for="qcFreeEnd">Fin</label><input type="time" class="m-input" id="qcFreeEnd" value="10:00"></div>
           </div>
           <div class="m-row m-row-2" id="qcBufferRow" style="display:none;margin-top:8px">
-            <div><div class="m-field-label">Buffer avant (min)</div><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
-            <div><div class="m-field-label">Buffer après (min)</div><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="qcFreeBufBefore">Buffer avant (min)</label><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="qcFreeBufAfter">Buffer après (min)</label><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
           </div>
           <div id="qcFreeDuration" style="font-size:.72rem;color:var(--text-4);margin-top:4px;display:none"></div>
         </div>
         <!-- Praticien -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-practitioner">Praticien</span></span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcPrac">Praticien</label>
           <div class="m-prac-wrap">
             <span class="m-prac-dot" id="qcPracDot"></span>
             <select class="m-input" id="qcPrac"></select>
@@ -325,11 +337,13 @@
         <!-- Mode -->
         <div class="m-sec" id="qcModeRow">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/></svg> Mode</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcMode">Mode</label>
           <select class="m-input" id="qcMode"><option value="cabinet">Au salon</option></select>
         </div>
         <!-- Note -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Note</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcComment">Note</label>
           <textarea class="m-input" id="qcComment" rows="2" maxlength="500" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
         </div>
         <!-- Tâches -->
@@ -374,33 +388,8 @@
           </label>
         </div>
       </div>
-      <!-- PANEL: Tâche interne (hidden by default) -->
-      <div class="m-panel" id="qcPanelTask" style="display:none">
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Titre</span><span class="m-sec-line"></span></div>
-          <input class="m-input" id="qcTaskTitle" placeholder="Ex: Nettoyage, Réunion, Pause…" maxlength="150">
-        </div>
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Horaire</span><span class="m-sec-line"></span></div>
-          <div class="m-row m-row-3">
-            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="qcTaskDate"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="qcTaskStart"></div>
-            <div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcTaskEnd"></div>
-          </div>
-        </div>
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Praticiens</span><span class="m-sec-line"></span></div>
-          <div id="qcTaskPracWrap"></div>
-        </div>
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Couleur</span><span class="m-sec-line"></span></div>
-          <div id="qcTaskColorWrap"></div>
-        </div>
-        <div class="m-sec">
-          <div class="m-sec-head"><span class="m-sec-title">Note</span><span class="m-sec-line"></span></div>
-          <textarea class="m-input" id="qcTaskNote" rows="2" placeholder="Détails optionnels…" style="resize:vertical"></textarea>
-        </div>
-      </div>
+      <!-- PANEL: Tâche — now redirects to Task Detail modal (empty placeholder) -->
+      <div id="qcPanelTask" style="display:none"></div>
     </div>
     <div id="qcDepositToggle" style="display:none;padding:10px 14px;margin:0 20px 8px;background:#FEF9E7;border:1.5px solid #F5D08B;border-radius:10px">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -439,13 +428,20 @@
 </div>
 
 <!-- TASK DETAIL / CREATE MODAL -->
-<div class="m-overlay" id="calTaskModal">
+<div class="m-overlay" id="calTaskModal" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle">
   <div class="m-dialog" style="max-width:440px">
-    <div class="m-header" style="padding:18px 20px 14px">
-      <button class="m-close" onclick="closeCalModal('calTaskModal')">
-        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <div class="m-drag-handle"></div>
+    <div class="m-header">
+      <div class="m-header-bg" id="tdHeaderBg" style="background:linear-gradient(135deg,#6B7280 0%,#6B7280AA 60%,#6B728055 100%)"></div>
+      <button class="m-close" onclick="closeCalModal('calTaskModal')" aria-label="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
-      <h3 class="m-title" id="tdModalTitle" style="margin:0;font-size:1rem">Tâche interne</h3>
+      <div class="m-header-content">
+        <div class="m-avatar" id="tdAvatar" style="background:linear-gradient(135deg,#6B7280,#6B7280CC)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        </div>
+        <div class="m-client-name" id="tdModalTitle">Tâche interne</div>
+      </div>
     </div>
     <div class="m-body" style="padding:14px 20px 8px;gap:12px;display:flex;flex-direction:column">
       <!-- Title -->
@@ -496,7 +492,7 @@
   </div>
 </div>
 
-<div id="gToast" class="g-toast" style="display:none"></div>
+<div id="gToastStack" class="g-toast-stack" aria-live="polite" role="status"></div>
 
 <!-- Admin impersonation handler -->
 <script>

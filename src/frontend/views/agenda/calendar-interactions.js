@@ -231,7 +231,7 @@ function buildEventDrop() {
       // In month view + collision -> offer to switch to day view for precise placement
       if (isCollision && calState.fcCal?.view?.type === 'dayGridMonth') {
         window._atPendingDaySwitch = targetDate;
-        gToast('✘ Créneau occupé — voir le jour pour replacer ?', 'error', { label: 'Voir le jour →', fn: () => { atView('resourceTimeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToast').style.display = 'none'; } });
+        gToast('✘ Créneau occupé — voir le jour pour replacer ?', 'error', { label: 'Voir le jour →', fn: () => { atView('resourceTimeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToastStack').textContent = ''; } });
       } else {
         gToast(isCollision ? '✘ Créneau occupé — impossible de déplacer ici' : e.message, 'error');
       }

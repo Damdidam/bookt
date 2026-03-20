@@ -1,12 +1,15 @@
 /**
- * Task Detail — open, edit, delete internal tasks.
+ * Task Detail — open, create, edit, delete internal tasks.
  * v47: Multi-practitioner group support.
- * Creation is handled by the quick-create modal (qcSwitchMode).
+ * Creation mode is triggered by the Tâche toggle in Quick Create.
  */
 import { api, calState } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
+import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { closeCalModal } from './booking-detail.js';
+import { trapFocus } from '../../utils/focus-trap.js';
+import { enableSwipeClose } from '../../utils/swipe-close.js';
 import { fcRefresh } from './calendar-init.js';
 import { cswHTML } from './color-swatches.js';
 import { toBrusselsISO } from '../../utils/format.js';
@@ -14,6 +17,49 @@ import { toBrusselsISO } from '../../utils/format.js';
 let _currentTaskId = null;
 let _isGroupTask = false;
 let _currentGroupId = null;
+
+// ── Gradient header ──
+function tdUpdateGradient(color) {
+  const safe = /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : '#6B7280';
+  const hdr = document.getElementById('tdHeaderBg');
+  const avatar = document.getElementById('tdAvatar');
+  if (hdr) hdr.style.background = `linear-gradient(135deg,${safe} 0%,${safe}AA 60%,${safe}55 100%)`;
+  if (avatar) avatar.style.background = `linear-gradient(135deg,${safe},${safe}CC)`;
+}
+
+// Listen for color swatch changes to update gradient live
+document.addEventListener('change', e => {
+  if (e.target?.id === 'tdColor') {
+    tdUpdateGradient(e.target.value);
+  }
+});
+
+// ── Open task detail in CREATION mode ──
+function fcNewTask(date, startTime, endTime, pracId) {
+  _currentTaskId = null; // null = creation mode
+  const modal = document.getElementById('calTaskModal');
+  if (!modal) return;
+
+  document.getElementById('tdModalTitle').textContent = 'Nouvelle tâche';
+  document.getElementById('tdTitle').value = '';
+  document.getElementById('tdNote').value = '';
+  document.getElementById('tdDate').value = date || '';
+  document.getElementById('tdStart').value = startTime || '';
+  document.getElementById('tdEnd').value = endTime || '';
+
+  _populatePracSelect(pracId || '');
+  document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', '#6B7280', false);
+  tdUpdateGradient('#6B7280');
+
+  // Hide status row and delete button (creation only)
+  document.getElementById('tdStatusRow').style.display = 'none';
+  document.getElementById('tdDeleteBtn').style.display = 'none';
+  document.getElementById('tdSaveBtn').textContent = 'Créer';
+
+  modal.classList.add('open');
+  trapFocus(modal, () => closeCalModal('calTaskModal'));
+  enableSwipeClose(modal.querySelector('.m-dialog'), () => closeCalModal('calTaskModal'));
+}
 
 // ── Open task detail/edit modal ──
 async function fcOpenTaskDetail(taskId) {
@@ -59,6 +105,7 @@ async function fcOpenTaskDetail(taskId) {
     pracField.innerHTML = pracHtml;
 
     document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', task.color || '#6B7280', false);
+    tdUpdateGradient(task.color || '#6B7280');
 
     // Status row
     document.getElementById('tdStatusRow').style.display = '';
@@ -67,6 +114,8 @@ async function fcOpenTaskDetail(taskId) {
     _renderStatusBtns(task.status || 'planned');
 
     modal.classList.add('open');
+    trapFocus(modal, () => closeCalModal('calTaskModal'));
+    enableSwipeClose(modal.querySelector('.m-dialog'), () => closeCalModal('calTaskModal'));
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
@@ -121,6 +170,9 @@ async function fcSaveTask() {
   const start_at = toBrusselsISO(date, startTime);
   const end_at = toBrusselsISO(date, endTime);
 
+  const _sBtn = document.getElementById('tdSaveBtn');
+  if (_sBtn) { _sBtn.disabled = true; _sBtn.classList.add('is-loading'); }
+
   const body = { title, start_at, end_at, color: color || null, note: note || null };
 
   // Collect practitioner(s)
@@ -136,22 +188,31 @@ async function fcSaveTask() {
   }
 
   try {
-    const r = await fetch(`/api/tasks/${_currentTaskId}`, {
-      method: 'PATCH',
+    const isCreation = !_currentTaskId;
+    const url = isCreation ? '/api/tasks' : `/api/tasks/${_currentTaskId}`;
+    const method = isCreation ? 'POST' : 'PATCH';
+
+    const r = await fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify(body)
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-    gToast('Tâche mise à jour', 'success');
+    gToast(isCreation ? 'Tâche créée' : 'Tâche mise à jour', 'success');
     closeCalModal('calTaskModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally {
+    if (_sBtn) { _sBtn.classList.remove('is-loading'); _sBtn.disabled = false; }
+  }
 }
 
 async function fcDeleteTask() {
   if (!_currentTaskId) return;
   const msg = _isGroupTask ? 'Supprimer cette tâche pour tous les praticiens ?' : 'Supprimer cette tâche ?';
-  if (!confirm(msg)) return;
+  if (!(await showConfirmDialog('Supprimer la tâche', msg, 'Supprimer', 'danger'))) return;
+  const _dBtn = document.getElementById('tdDeleteBtn');
+  if (_dBtn) { _dBtn.disabled = true; _dBtn.classList.add('is-loading'); }
   try {
     const r = await fetch(`/api/tasks/${_currentTaskId}`, {
       method: 'DELETE',
@@ -162,8 +223,11 @@ async function fcDeleteTask() {
     closeCalModal('calTaskModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally {
+    if (_dBtn) { _dBtn.classList.remove('is-loading'); _dBtn.disabled = false; }
+  }
 }
 
-bridge({ fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus });
+bridge({ fcNewTask, fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus, tdUpdateGradient });
 
-export { fcOpenTaskDetail };
+export { fcNewTask, fcOpenTaskDetail };
