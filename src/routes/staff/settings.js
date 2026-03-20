@@ -18,7 +18,7 @@ router.get('/', async (req, res, next) => {
       `SELECT * FROM businesses WHERE id = $1`,
       [req.businessId]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
 
     const business = result.rows[0];
 
@@ -38,7 +38,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PATCH /api/business — update business info
-// UI: Settings > Cabinet form + Onboarding bio step
+// UI: Settings > Salon form + Onboarding bio step
 router.patch('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
@@ -323,7 +323,7 @@ router.get('/public-link', async (req, res, next) => {
     );
 
     // V13-024: Guard against no rows
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Cabinet introuvable' });
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
 
     const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
     const slug = result.rows[0].slug;

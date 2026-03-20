@@ -67,7 +67,7 @@ document.querySelectorAll('.sb-section').forEach(sec => {
 // ── Category-aware sidebar labels ──
 if (biz) {
   const sbBiz = document.getElementById('sbBizName');
-  if (sbBiz) { const sp = sbBiz.querySelector('span'); if (sp) sp.textContent = biz.name || 'Cabinet'; }
+  if (sbBiz) { const sp = sbBiz.querySelector('span'); if (sp) sp.textContent = biz.name || 'Mon salon'; }
   const sbClients = document.getElementById('sbClientsLabel');
   if (sbClients) sbClients.textContent = categoryLabels.clients;
   const sbServices = document.getElementById('sbServicesLabel');

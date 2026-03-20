@@ -26,7 +26,7 @@ async function main() {
   // 1. Create product
   const product = await stripe.products.create({
     name: 'Genda SaaS',
-    description: 'Plateforme de gestion de cabinet pour professions libérales en Belgique',
+    description: 'Plateforme de gestion de salon pour la beauté et le bien-être en Belgique',
     metadata: { app: 'genda' }
   });
   console.log(`✅ Product created: ${product.id}`);
