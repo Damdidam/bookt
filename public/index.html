@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Genda — La plateforme tout-en-un pour salons et instituts</title>
-<meta name="description" content="Réservation en ligne, gestion d'équipe, acomptes Stripe, cartes cadeau, liste d'attente intelligente et minisite pro. Conçu pour les salons de beauté et bien-être en Belgique.">
+<title>Genda — Le moteur de planning le plus intelligent pour salons et instituts</title>
+<meta name="description" content="Moteur de cr&eacute;neaux intelligent : temps de pose optimis&eacute;s, multi-praticiens sur un m&ecirc;me RDV, gap analyzer. Booking en ligne, acomptes, cartes cadeau. Con&ccedil;u pour la beaut&eacute; et le bien-&ecirc;tre.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -71,6 +71,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes slideRight { from { width: 0; } to { width: 100%; } }
+@keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 .rv { opacity: 0; transform: translateY(36px); transition: opacity .8s cubic-bezier(.22,1,.36,1), transform .8s cubic-bezier(.22,1,.36,1); }
 .rv.vis { opacity: 1; transform: translateY(0); }
@@ -102,7 +104,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 .hero-badge span { font-size: .75rem; font-weight: 600; color: var(--coral-dark); }
 .hero h1 { font-family: var(--serif); font-size: clamp(2.4rem, 4.5vw, 3.6rem); font-weight: 400; line-height: 1.1; color: var(--text); margin-bottom: 20px; letter-spacing: -.03em; }
 .hero h1 .accent { color: var(--coral); font-style: italic; }
-.hero-sub { font-size: 1.05rem; color: var(--text-3); max-width: 480px; line-height: 1.7; margin-bottom: 32px; font-weight: 300; }
+.hero-sub { font-size: 1.05rem; color: var(--text-3); max-width: 500px; line-height: 1.7; margin-bottom: 32px; font-weight: 300; }
 .hero-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 28px; }
 .btn { padding: 15px 30px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: .92rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; }
 .btn-primary { background: var(--coral); color: white; border: none; }
@@ -124,18 +126,29 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 .hvc-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .hvc-today { font-size: .68rem; font-weight: 600; color: var(--text-2); }
 .hvc-body { padding: 16px; }
-.hvc-header { display: grid; grid-template-columns: 50px repeat(5,1fr); gap: 4px; margin-bottom: 8px; }
-.hvc-day { text-align: center; font-size: .6rem; font-weight: 700; text-transform: uppercase; color: var(--text-4); padding: 4px 0; }
-.hvc-day.active { color: var(--coral); }
-.hvc-grid { display: grid; grid-template-columns: 50px repeat(5,1fr); gap: 4px; }
-.hvc-time { font-size: .62rem; color: var(--text-4); padding: 8px 0; text-align: right; padding-right: 8px; font-weight: 500; }
-.hvc-slot { border-radius: 6px; padding: 4px 6px; font-size: .58rem; font-weight: 600; min-height: 32px; display: flex; flex-direction: column; justify-content: center; line-height: 1.3; }
-.hvc-slot.booked { background: var(--coral-light); color: var(--coral-dark); border-left: 3px solid var(--coral); }
-.hvc-slot.booked2 { background: var(--teal-bg); color: var(--teal); border-left: 3px solid var(--teal); }
-.hvc-slot.booked3 { background: var(--purple-bg); color: var(--purple); border-left: 3px solid var(--purple); }
-.hvc-slot.booked4 { background: var(--gold-bg); color: var(--gold); border-left: 3px solid var(--gold); }
-.hvc-slot.empty { background: transparent; }
-.hvc-slot .cl { font-weight: 500; opacity: .7; font-size: .52rem; }
+
+/* Timeline mockup for hero */
+.hero-timeline { display: flex; flex-direction: column; gap: 0; }
+.ht-header { display: grid; grid-template-columns: 50px 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.ht-prac-label { text-align: center; font-size: .6rem; font-weight: 700; text-transform: uppercase; color: var(--text-4); padding: 4px 6px; }
+.ht-prac-label.active { color: var(--coral); background: var(--coral-light); border-radius: 6px; }
+.ht-row { display: grid; grid-template-columns: 50px 1fr 1fr; gap: 8px; margin-bottom: 3px; }
+.ht-time { font-size: .6rem; color: var(--text-4); padding: 6px 4px 6px 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ht-cell { border-radius: 6px; padding: 4px 8px; font-size: .56rem; font-weight: 600; min-height: 28px; display: flex; flex-direction: column; justify-content: center; line-height: 1.3; position: relative; }
+.ht-cell.booked { background: var(--coral-light); color: var(--coral-dark); border-left: 3px solid var(--coral); }
+.ht-cell.booked2 { background: var(--teal-bg); color: var(--teal); border-left: 3px solid var(--teal); }
+.ht-cell.pose { background: repeating-linear-gradient(135deg, var(--gold-bg), var(--gold-bg) 4px, #f7f0de 4px, #f7f0de 8px); color: var(--gold); border-left: 3px solid var(--gold-border); font-style: italic; }
+.ht-cell.freed { background: var(--green-bg); color: var(--green); border-left: 3px dashed var(--green); }
+.ht-cell.empty { background: transparent; border: 1px dashed var(--border-light); }
+.ht-cell .cl { font-weight: 500; opacity: .7; font-size: .5rem; }
+
+/* Pose indicator */
+.ht-pose-badge { display: inline-flex; align-items: center; gap: 3px; font-size: .48rem; font-weight: 700; color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-border); border-radius: 100px; padding: 1px 6px; margin-top: 1px; }
+.ht-freed-badge { display: inline-flex; align-items: center; gap: 3px; font-size: .48rem; font-weight: 700; color: var(--green); background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 100px; padding: 1px 6px; margin-top: 1px; }
+
+/* Connector line between practitioners */
+.ht-connector { position: relative; }
+.ht-connector::after { content: ''; position: absolute; top: 50%; right: -4px; width: 8px; height: 2px; background: var(--coral-border); }
 
 /* Floating cards */
 .hero-float { position: absolute; z-index: 2; }
@@ -147,10 +160,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 .hf-ico svg { width: 14px; height: 14px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .hf-ico.green { background: var(--green-bg); } .hf-ico.green svg { stroke: var(--green); }
 .hf-ico.coral { background: var(--coral-light); } .hf-ico.coral svg { stroke: var(--coral); }
+.hf-ico.gold { background: var(--gold-bg); } .hf-ico.gold svg { stroke: var(--gold); }
 .hf-txt { font-size: .72rem; font-weight: 600; color: var(--text-2); }
 .hf-sub { font-size: .6rem; color: var(--text-4); }
-.hf-num { font-family: var(--serif); font-size: 1.4rem; color: var(--coral); }
-.hf-label { font-size: .62rem; color: var(--text-4); }
 
 /* ── SECTORS ── */
 .sectors { background: var(--surface); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); padding: 18px 24px; }
@@ -168,6 +180,59 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .s-desc { font-size: 1rem; color: var(--text-3); max-width: 560px; line-height: 1.7; font-weight: 300; }
 .s-center { text-align: center; }
 .s-center .s-desc { margin: 0 auto; }
+
+/* ── ENGINE SHOWCASE ── */
+.engine-section { background: var(--text); margin: 0; max-width: 100%; padding: 100px 32px; position: relative; overflow: hidden; }
+.engine-section::before { content: ''; position: absolute; top: 0; right: 0; width: 500px; height: 500px; background: radial-gradient(circle, rgba(224,122,95,0.08) 0%, transparent 70%); pointer-events: none; }
+.engine-wrap { max-width: var(--max-w); margin: 0 auto; }
+.engine-header { margin-bottom: 64px; }
+.engine-header .s-label { color: var(--coral); }
+.engine-header .s-title { color: var(--white); }
+.engine-header .s-desc { color: rgba(255,255,255,.5); }
+
+.engine-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+
+.engine-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 36px; transition: all .3s; }
+.engine-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(224,122,95,0.3); }
+.engine-card .ec-num { font-family: var(--serif); font-size: 3rem; color: var(--coral); opacity: .3; line-height: 1; margin-bottom: 8px; }
+.engine-card h3 { font-family: var(--serif); font-size: 1.35rem; color: white; margin-bottom: 10px; line-height: 1.2; }
+.engine-card p { font-size: .88rem; color: rgba(255,255,255,.55); line-height: 1.7; margin-bottom: 20px; }
+
+/* Engine demo — timeline */
+.engine-demo { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+.ed-title { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,.3); margin-bottom: 14px; }
+
+/* Timeline inside engine demo */
+.ed-row { display: flex; align-items: stretch; gap: 0; margin-bottom: 6px; }
+.ed-time { font-size: .62rem; color: rgba(255,255,255,.3); width: 38px; flex-shrink: 0; padding-top: 5px; font-variant-numeric: tabular-nums; }
+.ed-blocks { flex: 1; display: flex; gap: 4px; }
+.ed-block { border-radius: 6px; padding: 6px 10px; font-size: .6rem; font-weight: 600; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 32px; }
+.ed-block.work { background: rgba(224,122,95,0.15); color: var(--coral); border-left: 3px solid var(--coral); }
+.ed-block.work2 { background: rgba(13,115,119,0.15); color: #4db8bb; border-left: 3px solid #4db8bb; }
+.ed-block.pose { background: repeating-linear-gradient(135deg, rgba(201,168,76,0.08), rgba(201,168,76,0.08) 4px, rgba(201,168,76,0.04) 4px, rgba(201,168,76,0.04) 8px); color: var(--gold); border-left: 3px solid rgba(201,168,76,0.4); font-style: italic; }
+.ed-block.freed { background: rgba(58,158,92,0.12); color: #5eca7a; border-left: 3px dashed #5eca7a; }
+.ed-block.empty { background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.08); }
+.ed-block .sub { font-size: .5rem; opacity: .6; font-weight: 400; }
+
+.ed-legend { display: flex; gap: 16px; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); }
+.ed-leg { display: flex; align-items: center; gap: 5px; font-size: .56rem; color: rgba(255,255,255,.4); }
+.ed-leg .dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.ed-leg .dot.c-work { background: var(--coral); }
+.ed-leg .dot.c-pose { background: var(--gold); }
+.ed-leg .dot.c-freed { background: #5eca7a; }
+.ed-leg .dot.c-work2 { background: #4db8bb; }
+
+/* Split demo */
+.ed-pracs { display: flex; gap: 4px; margin-bottom: 8px; }
+.ed-prac-label { font-size: .58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 10px; border-radius: 100px; }
+.ed-prac-label.p1 { color: var(--coral); background: rgba(224,122,95,0.12); }
+.ed-prac-label.p2 { color: #4db8bb; background: rgba(13,115,119,0.12); }
+.ed-arrow { display: flex; align-items: center; justify-content: center; padding: 6px 0; }
+.ed-arrow svg { width: 16px; height: 16px; stroke: rgba(255,255,255,.2); fill: none; stroke-width: 2; stroke-linecap: round; }
+
+/* Engine feature pills */
+.engine-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.engine-pill { padding: 5px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 100px; font-size: .68rem; font-weight: 500; color: rgba(255,255,255,.5); }
 
 /* ── BENTO FEATURES ── */
 .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 56px; }
@@ -239,6 +304,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .dmm-badge { padding: 2px 8px; border-radius: 100px; font-size: .52rem; font-weight: 700; }
 .dmm-badge.ok { background: var(--green-bg); color: var(--green); }
 .dmm-badge.pending { background: var(--gold-bg); color: var(--gold); }
+.dmm-badge.split { background: var(--purple-bg); color: var(--purple); }
 
 /* ── STATS BAR ── */
 .stats-bar { background: var(--coral); padding: 48px 32px; }
@@ -277,8 +343,6 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .plan-btn.outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
 .plan-btn.outline:hover { border-color: var(--text-4); background: var(--surface); }
 .pricing-note { text-align: center; font-size: .76rem; color: var(--text-4); margin-top: 20px; }
-
-/* check SVG for plan features */
 .ck-svg { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
 
 /* ── FAQ ── */
@@ -327,6 +391,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; margin-top: 48px; }
   .stats-inner { grid-template-columns: 1fr 1fr; gap: 24px; }
   .footer-inner { grid-template-columns: 1fr 1fr; }
+  .engine-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -341,20 +406,21 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   .footer-inner { grid-template-columns: 1fr; gap: 28px; }
   .footer-bottom { flex-direction: column; gap: 6px; }
   .final-cta { margin: 0 16px 60px; padding: 56px 24px; }
-  .feat-section, .steps-section, .stats-bar { padding-left: 20px; padding-right: 20px; }
+  .feat-section, .steps-section, .stats-bar, .engine-section { padding-left: 20px; padding-right: 20px; }
   .dmm-kpis { grid-template-columns: 1fr 1fr; }
+  .ht-header, .ht-row { grid-template-columns: 36px 1fr 1fr; gap: 4px; }
 }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════ NAV ═══════════════ -->
+<!-- NAV -->
 <nav class="nav" id="nav">
   <div class="nav-inner">
     <a class="nav-brand" href="#"><div class="nav-logo"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="nav-wm">Genda</span></a>
     <div class="nav-right">
+      <a class="nav-link" href="#engine">Le moteur</a>
       <a class="nav-link" href="#features">Fonctionnalités</a>
-      <a class="nav-link" href="#how">Comment ça marche</a>
       <a class="nav-link" href="#pricing">Tarifs</a>
       <a class="nav-link" href="#faq">FAQ</a>
       <a class="nav-login" href="/login.html">Se connecter</a>
@@ -364,72 +430,69 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   </div>
 </nav>
 
-<!-- ═══════════════ HERO ═══════════════ -->
+<!-- HERO -->
 <header class="hero">
   <div class="hero-text">
-    <div class="hero-badge"><span class="pulse-dot"></span><span>Nouveau : Cartes cadeau en ligne</span></div>
-    <h1>Votre salon,<br><span class="accent">enfin digitalisé.</span></h1>
-    <p class="hero-sub">Agenda intelligent, réservation en ligne, acomptes, cartes cadeau, gestion d'équipe et minisite pro. Tout ce qu'il faut pour gérer votre salon sans stress.</p>
+    <div class="hero-badge"><span class="pulse-dot"></span><span>Moteur de planning nouvelle génération</span></div>
+    <h1>Chaque minute<br><span class="accent">compte.</span></h1>
+    <p class="hero-sub">Genda optimise vos temps de pose pour caser d'autres clients, assigné automatiquement le bon praticien au bon moment, et remplit les trous de votre agenda. Le moteur de planning le plus intelligent du marché.</p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="/signup.html">Créer mon salon gratuitement →</a>
-      <a class="btn btn-outline" href="#features">Découvrir</a>
+      <a class="btn btn-primary" href="/signup.html">Créer mon salon gratuitement</a>
+      <a class="btn btn-outline" href="#engine">Voir le moteur en action</a>
     </div>
     <div class="hero-proof">
-      <div class="hero-proof-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Gratuit pour commencer</div>
-      <div class="hero-proof-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> En ligne en 10 min</div>
-      <div class="hero-proof-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Sans engagement</div>
+      <div class="hero-proof-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Temps de pose rentabilisés</div>
+      <div class="hero-proof-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Multi-praticien par RDV</div>
+      <div class="hero-proof-item"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> 0 trou dans l'agenda</div>
     </div>
   </div>
 
   <div class="hero-visual">
-    <div class="hero-float hf1"><div class="hf-card"><div class="hf-num">12 RDV</div><div class="hf-label">aujourd'hui · 2 nouveaux</div></div></div>
-    <div class="hero-float hf2"><div class="hf-card"><div class="hf-row"><div class="hf-ico green"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="hf-txt">Nouveau RDV en ligne</div><div class="hf-sub">Sophie M. · Balayage</div></div></div></div></div>
+    <!-- Float: pose optimization indicator -->
+    <div class="hero-float hf1"><div class="hf-card"><div class="hf-row"><div class="hf-ico gold"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div><div><div class="hf-txt">Temps de pose optimisé</div><div class="hf-sub">+1 cliente pendant la pause</div></div></div></div></div>
+    <div class="hero-float hf2"><div class="hf-card"><div class="hf-row"><div class="hf-ico green"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="hf-txt">Split multi-praticien</div><div class="hf-sub">Lisa M. : V&eacute;ronique + Ashley</div></div></div></div></div>
+
+    <!-- Calendar mockup showing multi-practitioner + pose -->
     <div class="hv-cal">
-      <div class="hvc-bar"><div class="hvc-dots"><div class="hvc-dot r"></div><div class="hvc-dot y"></div><div class="hvc-dot g"></div></div><div class="hvc-nav"><span class="hvc-today">Mars 2026 · Semaine</span></div></div>
+      <div class="hvc-bar"><div class="hvc-dots"><div class="hvc-dot r"></div><div class="hvc-dot y"></div><div class="hvc-dot g"></div></div><div class="hvc-nav"><span class="hvc-today">Mars 2026 &middot; Mercredi</span></div></div>
       <div class="hvc-body">
-        <div class="hvc-header">
-          <div class="hvc-day"></div>
-          <div class="hvc-day">Lun 16</div>
-          <div class="hvc-day">Mar 17</div>
-          <div class="hvc-day active">Mer 18</div>
-          <div class="hvc-day">Jeu 19</div>
-          <div class="hvc-day">Ven 20</div>
-        </div>
-        <div class="hvc-grid">
-          <div class="hvc-time">09:00</div>
-          <div class="hvc-slot booked">Coupe<div class="cl">L. Martin</div></div>
-          <div class="hvc-slot booked2">Massage<div class="cl">A. Dubois</div></div>
-          <div class="hvc-slot booked">Balayage<div class="cl">S. Moens</div></div>
-          <div class="hvc-slot empty"></div>
-          <div class="hvc-slot booked3">Soin visage<div class="cl">M. Peeters</div></div>
-
-          <div class="hvc-time">10:00</div>
-          <div class="hvc-slot booked4">Couleur<div class="cl">C. Janssen</div></div>
-          <div class="hvc-slot empty"></div>
-          <div class="hvc-slot booked2">Manucure<div class="cl">E. Lambert</div></div>
-          <div class="hvc-slot booked">Coupe H<div class="cl">T. Willems</div></div>
-          <div class="hvc-slot booked4">Mèches<div class="cl">N. Claes</div></div>
-
-          <div class="hvc-time">11:00</div>
-          <div class="hvc-slot empty"></div>
-          <div class="hvc-slot booked3">Épilation<div class="cl">J. Vermeer</div></div>
-          <div class="hvc-slot booked4">Brushing<div class="cl">I. Maes</div></div>
-          <div class="hvc-slot booked2">Massage<div class="cl">R. De Smet</div></div>
-          <div class="hvc-slot empty"></div>
-
-          <div class="hvc-time">14:00</div>
-          <div class="hvc-slot booked2">Pédicure<div class="cl">V. Leclercq</div></div>
-          <div class="hvc-slot booked">Coupe F<div class="cl">H. Dupont</div></div>
-          <div class="hvc-slot empty"></div>
-          <div class="hvc-slot booked3">Soin capill.<div class="cl">P. Renard</div></div>
-          <div class="hvc-slot booked">Barbe<div class="cl">K. Ahmed</div></div>
+        <div class="hero-timeline">
+          <div class="ht-header">
+            <div class="ht-prac-label"></div>
+            <div class="ht-prac-label active">Véronique</div>
+            <div class="ht-prac-label">Ashley</div>
+          </div>
+          <!-- 09:00 — Véronique: Coloration (client A), Ashley: Manucure (client B) -->
+          <div class="ht-row">
+            <div class="ht-time">09:00</div>
+            <div class="ht-cell booked">Coloration<div class="cl">Lisa M.</div></div>
+            <div class="ht-cell booked2">Manucure<div class="cl">Sophie D.</div></div>
+          </div>
+          <!-- 09:30 — Véronique: POSE (Lisa), Ashley: continues manucure -->
+          <div class="ht-row">
+            <div class="ht-time">09:30</div>
+            <div class="ht-cell pose">Pose coloration<div class="ht-pose-badge"><svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83"/></svg> Praticien libre</div></div>
+            <div class="ht-cell booked2">Onglerie<div class="cl">Lisa M.</div></div>
+          </div>
+          <!-- 10:00 — Véronique: Coupe EXPRESS (pendant la pose), Ashley: finishes onglerie -->
+          <div class="ht-row">
+            <div class="ht-time">10:00</div>
+            <div class="ht-cell freed">Coupe homme<div class="cl">Marc W.</div><div class="ht-freed-badge"><svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Casé pendant la pose</div></div>
+            <div class="ht-cell empty"></div>
+          </div>
+          <!-- 10:30 — Véronique: finishes Lisa (rincage + coupe), Ashley: new client -->
+          <div class="ht-row">
+            <div class="ht-time">10:30</div>
+            <div class="ht-cell booked">Rinçage + Coupe<div class="cl">Lisa M.</div></div>
+            <div class="ht-cell booked2">Pédicure<div class="cl">Julie L.</div></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </header>
 
-<!-- ═══════════════ SECTORS ═══════════════ -->
+<!-- SECTORS -->
 <div class="sectors">
   <div class="sectors-inner">
     <span class="sectors-label">Pour tous les pros</span>
@@ -447,55 +510,165 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   </div>
 </div>
 
-<!-- ═══════════════ BENTO FEATURES ═══════════════ -->
-<section id="features">
-  <div class="s-center rv"><div class="s-label">Tout-en-un</div><div class="s-title">Tout ce qu'il faut pour gérer votre salon</div><p class="s-desc">Chaque fonctionnalité a été pensée pour les salons de beauté et les instituts. Rien de superflu, tout ce qui compte.</p></div>
-
-  <div class="bento">
-    <!-- 1. Agenda intelligent -->
-    <div class="bento-card span2 rv d1">
-      <div class="bento-ico coral"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-      <h3>Agenda intelligent</h3>
-      <p>Vue jour, semaine, mois. Multi-praticiens avec codes couleurs. Le moteur de créneaux calcule la disponibilité en temps réel : buffers, temps de pose, capacité concurrente, congés, jours fériés. Il optimise même le remplissage des trous.</p>
-      <div class="bento-pills">
-        <span class="bento-pill">Multi-praticiens</span>
-        <span class="bento-pill">Temps de pose</span>
-        <span class="bento-pill">Buffers avant/après</span>
-        <span class="bento-pill">Gap analyzer</span>
-        <span class="bento-pill">Smart ranking</span>
-      </div>
+<!-- ENGINE SHOWCASE (dark section) -->
+<div class="engine-section" id="engine">
+  <div class="engine-wrap">
+    <div class="engine-header rv">
+      <div class="s-label">Le moteur</div>
+      <div class="s-title" style="max-width:640px;">Un moteur de planning qui pense comme vous, en mieux.</div>
+      <p class="s-desc">Les autres outils vous donnent un calendrier. Genda vous donne un moteur d'optimisation qui comprend la réalité du terrain : temps de pose, praticiens spécialisés, enchaînements de prestations.</p>
     </div>
 
-    <!-- 2. Réservation en ligne -->
-    <div class="bento-card rv d2">
+    <div class="engine-grid">
+      <!-- Card 1: Pose optimization -->
+      <div class="engine-card rv d1">
+        <div class="ec-num">01</div>
+        <h3>Les temps de pose deviennent du chiffre d'affaires</h3>
+        <p>Pendant qu'une coloration pose 30 minutes, votre praticien est libre. Le moteur le sait et propose ce créneau à d'autres clients. Automatiquement.</p>
+        <div class="engine-demo">
+          <div class="ed-title">Exemple : coloration avec pose de 30 min</div>
+          <div class="ed-row">
+            <div class="ed-time">09:00</div>
+            <div class="ed-blocks"><div class="ed-block work">Application couleur<div class="sub">Lisa M. &middot; 30 min</div></div></div>
+          </div>
+          <div class="ed-row">
+            <div class="ed-time">09:30</div>
+            <div class="ed-blocks"><div class="ed-block pose">Temps de pose<div class="sub">Praticien libre &middot; 30 min</div></div></div>
+          </div>
+          <div class="ed-row">
+            <div class="ed-time">09:30</div>
+            <div class="ed-blocks"><div class="ed-block freed">Coupe homme<div class="sub">Marc W. &middot; Casé automatiquement</div></div></div>
+          </div>
+          <div class="ed-row">
+            <div class="ed-time">10:00</div>
+            <div class="ed-blocks"><div class="ed-block work">Rinçage + Brushing<div class="sub">Lisa M. &middot; 30 min</div></div></div>
+          </div>
+          <div class="ed-legend">
+            <div class="ed-leg"><span class="dot c-work"></span> Travail actif</div>
+            <div class="ed-leg"><span class="dot c-pose"></span> Temps de pose</div>
+            <div class="ed-leg"><span class="dot c-freed"></span> Créneau libéré</div>
+          </div>
+        </div>
+        <div class="engine-pills" style="margin-top:20px;">
+          <span class="engine-pill">Capacité concurrente</span>
+          <span class="engine-pill">Pose configurable</span>
+          <span class="engine-pill">Buffers avant/après</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Multi-practitioner -->
+      <div class="engine-card rv d2">
+        <div class="ec-num">02</div>
+        <h3>Un RDV, plusieurs praticiens, zéro friction</h3>
+        <p>Votre cliente veut sourcils + onglerie. Véronique fait les sourcils, Ashley fait les ongles. Le moteur les assigné automatiquement et chaîne les créneaux. Le client ne voit qu'un seul RDV.</p>
+        <div class="engine-demo">
+          <div class="ed-title">Exemple : combo multi-praticien</div>
+          <div class="ed-pracs">
+            <span class="ed-prac-label p1">Véronique</span>
+            <span class="ed-prac-label p2">Ashley</span>
+          </div>
+          <div class="ed-row">
+            <div class="ed-time">14:00</div>
+            <div class="ed-blocks">
+              <div class="ed-block work" style="flex:2;">Contour ombré<div class="sub">Véronique &middot; 1h</div></div>
+            </div>
+          </div>
+          <div class="ed-arrow"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
+          <div class="ed-row">
+            <div class="ed-time">15:00</div>
+            <div class="ed-blocks">
+              <div class="ed-block work2" style="flex:2;">Pose d'ongles<div class="sub">Ashley &middot; 1h30</div></div>
+            </div>
+          </div>
+          <div class="ed-legend">
+            <div class="ed-leg"><span class="dot c-work"></span> Praticien A</div>
+            <div class="ed-leg"><span class="dot c-work2"></span> Praticien B</div>
+          </div>
+        </div>
+        <div class="engine-pills" style="margin-top:20px;">
+          <span class="engine-pill">Auto-assignation</span>
+          <span class="engine-pill">Services exclusifs</span>
+          <span class="engine-pill">Chaînage intelligent</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Gap Analyzer -->
+      <div class="engine-card rv d3">
+        <div class="ec-num">03</div>
+        <h3>Zéro trou dans votre planning</h3>
+        <p>Le gap analyzer détecte les créneaux vides entre deux RDV et propose des prestations de durée compatible. Un trou de 30 minutes ? Il propose une coupe. Smart ranking classe les créneaux par taux de remplissage.</p>
+        <div class="engine-pills" style="margin-top:20px;">
+          <span class="engine-pill">Gap analyzer</span>
+          <span class="engine-pill">Smart ranking</span>
+          <span class="engine-pill">Quick booking staff</span>
+          <span class="engine-pill">Dernière minute promo</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Absences & Conflicts -->
+      <div class="engine-card rv d4">
+        <div class="ec-num">04</div>
+        <h3>Le contexte réel, pas juste un calendrier</h3>
+        <p>Conges, demi-journées, jours fériés, sync Google/Outlook, buffers entre clients, horaires spécifiques par praticien. Le moteur calcule la vraie disponibilité, pas juste les cases vides.</p>
+        <div class="engine-pills" style="margin-top:20px;">
+          <span class="engine-pill">Conges AM/PM</span>
+          <span class="engine-pill">Jours fériés</span>
+          <span class="engine-pill">Sync bidirectionnelle</span>
+          <span class="engine-pill">Horaires individuels</span>
+          <span class="engine-pill">Anti-double-booking</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar rv">
+  <div class="stats-inner">
+    <div><div class="stat-num">+30%</div><div class="stat-label">de créneaux récupérés via les temps de pose</div></div>
+    <div><div class="stat-num">-60%</div><div class="stat-label">de no-shows avec acomptes automatiques</div></div>
+    <div><div class="stat-num">0</div><div class="stat-label">conflit de planning grâce au moteur</div></div>
+    <div><div class="stat-num">24/7</div><div class="stat-label">réservation en ligne, 0 appel à gérer</div></div>
+  </div>
+</div>
+
+<!-- BENTO FEATURES -->
+<section id="features">
+  <div class="s-center rv"><div class="s-label">Tout-en-un</div><div class="s-title">Tout le reste est là aussi</div><p class="s-desc">Au-delà du moteur, Genda est une plateforme complète. Booking, acomptes, cartes cadeau, rappels, analytics, minisite. Tout est intégré.</p></div>
+
+  <div class="bento">
+    <!-- 1. Booking en ligne -->
+    <div class="bento-card span2 rv d1">
       <div class="bento-ico teal"><svg viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
       <h3>Réservation en ligne 24/7</h3>
-      <p>Vos clients réservent en 30 secondes depuis votre minisite. Choix du service, du praticien, du créneau. Confirmation email instantanée.</p>
+      <p>Vos clients réservent en 30 secondes depuis votre minisite. Choix du service, du praticien, du creneau. Multi-services en un seul RDV : coupe + couleur + brushing, le moteur gère tout. Confirmation automatique, replanification par le client.</p>
       <div class="bento-pills">
         <span class="bento-pill">Multi-services</span>
         <span class="bento-pill">Variantes</span>
         <span class="bento-pill">Replanification</span>
+        <span class="bento-pill">Confirmation auto</span>
+        <span class="bento-pill">Mobile-first</span>
       </div>
     </div>
 
-    <!-- 3. Acomptes -->
-    <div class="bento-card rv d3">
+    <!-- 2. Acomptes -->
+    <div class="bento-card rv d2">
       <div class="bento-ico green"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
       <h3>Acomptes & paiements</h3>
-      <p>Demandez un acompte Stripe automatiquement. Deadline configurable, annulation auto si impayé. Moins de no-shows, plus de tranquillité.</p>
+      <p>Acompte Stripe automatique. Le client a le même délai que pour confirmer un RDV. Pas de paiement, annulation auto. Compatible cartes cadeau.</p>
       <div class="bento-pills">
         <span class="bento-pill">Stripe</span>
         <span class="bento-pill">Deadline auto</span>
-        <span class="bento-pill">Réconciliation</span>
+        <span class="bento-pill">Cartes cadeau</span>
       </div>
     </div>
 
-    <!-- 4. Cartes cadeau -->
-    <div class="bento-card rv d4">
+    <!-- 3. Cartes cadeau -->
+    <div class="bento-card rv d3">
       <div class="bento-tag new">Nouveau</div>
       <div class="bento-ico gold"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="14" rx="2"/><path d="M12 8V22"/><path d="M19 8c0-3-2.5-6-7-2.5C7.5 2 5 5 5 8"/></svg></div>
       <h3>Cartes cadeau</h3>
-      <p>Vos clients offrent des cartes cadeau depuis votre site. Code unique, solde partiel, applicable sur les acomptes. Nouveau canal de revenus sans effort.</p>
+      <p>Vos clients offrent des cartes cadeau depuis votre site. Code unique, solde partiel, applicable sur les acomptes.</p>
       <div class="bento-pills">
         <span class="bento-pill">Vente en ligne</span>
         <span class="bento-pill">Email + PDF</span>
@@ -503,11 +676,24 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
       </div>
     </div>
 
+    <!-- 4. Minisite pro -->
+    <div class="bento-card rv d4">
+      <div class="bento-ico coral"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+      <h3>Minisite professionnel</h3>
+      <p>Votre vitrine en ligne. Galerie, avis clients, réalisations, équipe, horaires et bouton de réservation. 3 familles de themes.</p>
+      <div class="bento-pills">
+        <span class="bento-pill">3 thèmes</span>
+        <span class="bento-pill">Galerie</span>
+        <span class="bento-pill">Avis clients</span>
+        <span class="bento-pill">SEO</span>
+      </div>
+    </div>
+
     <!-- 5. Liste d'attente -->
     <div class="bento-card rv d5">
       <div class="bento-ico purple"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
       <h3>Liste d'attente intelligente</h3>
-      <p>Un créneau se libère ? Le client suivant est notifié automatiquement. Mode FIFO avec timer de 2h. Zéro trou dans votre planning.</p>
+      <p>Un créneau se libère ? Le client suivant est notifié. Mode FIFO avec timer de 2h. Zéro trou dans votre planning.</p>
       <div class="bento-pills">
         <span class="bento-pill">Auto-FIFO</span>
         <span class="bento-pill">Préférences jours</span>
@@ -515,89 +701,82 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
       </div>
     </div>
 
-    <!-- 6. Minisite pro -->
-    <div class="bento-card span2 rv d6">
-      <div class="bento-ico coral"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
-      <h3>Minisite professionnel</h3>
-      <p>Votre vitrine en ligne en 3 clics. Galerie, avis clients, réalisations avant/après, équipe, horaires et bouton de réservation. 3 familles de thèmes, domaine personnalisé, SEO optimisé.</p>
-      <div class="bento-pills">
-        <span class="bento-pill">3 thèmes</span>
-        <span class="bento-pill">Galerie & avant/après</span>
-        <span class="bento-pill">Avis clients</span>
-        <span class="bento-pill">SEO</span>
-        <span class="bento-pill">Domaine perso</span>
-      </div>
+    <!-- 6. Rappels -->
+    <div class="bento-card rv d6">
+      <div class="bento-ico green"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+      <h3>Rappels automatiques</h3>
+      <p>Email + SMS 24h et 2h avant le RDV. Moins de no-shows, moins de stress. Le bon message au bon moment.</p>
     </div>
 
     <!-- 7. Gestion clients -->
-    <div class="bento-card rv d1">
+    <div class="bento-card span2 rv d1">
       <div class="bento-ico teal"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
       <h3>Fiche client enrichie</h3>
-      <p>Historique complet, notes internes, VIP, blocage no-show, cartes cadeau. Tout est centralisé.</p>
+      <p>Historique complet, notes internes, VIP, blocage no-show, cartes cadeau. Tout est centralisé. Importez vos clients existants en CSV.</p>
+      <div class="bento-pills">
+        <span class="bento-pill">Historique</span>
+        <span class="bento-pill">Notes internes</span>
+        <span class="bento-pill">VIP</span>
+        <span class="bento-pill">Import CSV</span>
+        <span class="bento-pill">No-show tracking</span>
+      </div>
     </div>
 
-    <!-- 8. Rappels -->
+    <!-- 8. Équipe -->
     <div class="bento-card rv d2">
-      <div class="bento-ico green"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-      <h3>Rappels automatiques</h3>
-      <p>Email 24h + SMS 24h et 2h avant le RDV. Vos clients n'oublient plus. Moins de no-shows, moins de stress.</p>
+      <div class="bento-ico purple"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <h3>Gestion d'équipe</h3>
+      <p>Planning individuel, congés (AM/PM), rôles, attribution services par praticien. Chacun son espace.</p>
     </div>
 
     <!-- 9. Facturation -->
     <div class="bento-card rv d3">
       <div class="bento-ico gold"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
       <h3>Facturation belge</h3>
-      <p>Factures, devis et notes de crédit conformes. Communication structurée +++, PDF téléchargeable, numérotation auto.</p>
+      <p>Factures, devis et notes de crédit conformes. Communication structurée, PDF, numérotation auto.</p>
     </div>
 
-    <!-- 10. Équipe -->
+    <!-- 10. Analytics -->
     <div class="bento-card rv d4">
-      <div class="bento-ico purple"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-      <h3>Gestion d'équipe</h3>
-      <p>Planning individuel, congés (AM/PM), rôles & permissions, attribution services. Chaque praticien a son espace.</p>
-    </div>
-
-    <!-- 11. Analytics -->
-    <div class="bento-card rv d5">
       <div class="bento-ico red"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
       <h3>Analytics & rapports</h3>
-      <p>CA, panier moyen, taux de no-show, top services, heatmap heures de pointe. Tout pour piloter votre activité.</p>
+      <p>CA, panier moyen, taux de no-show, top services, heatmap heures de pointe.</p>
     </div>
 
-    <!-- 12. Sync calendrier -->
-    <div class="bento-card rv d6">
+    <!-- 11. Sync -->
+    <div class="bento-card rv d5">
       <div class="bento-ico teal"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
       <h3>Sync Google & Outlook</h3>
-      <p>Push vos RDV + pull les indisponibilités. Bidirectionnel, automatique. Plus jamais de double-booking.</p>
+      <p>Push vos RDV + pull les indisponibilités. Bidirectionnel. Plus jamais de double-booking.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════ FEATURE BLOCKS (détail) ═══════════════ -->
+<!-- FEATURE BLOCKS -->
 <div class="feat-section">
   <div class="feat-wrap">
-    <!-- Booking -->
+    <!-- Booking detail -->
     <div class="feat-block rv">
       <div class="feat-text">
-        <div class="s-label">Réservation en ligne</div>
-        <h3>Vos clients réservent en 30 secondes</h3>
-        <p>Un flow de booking fluide et mobile-first. Le client choisit son service, son praticien et son créneau. Multi-service possible : coupe + couleur + brushing en un seul RDV.</p>
+        <div class="s-label">Réservation intelligente</div>
+        <h3>Un booking qui comprend les prestations composées</h3>
+        <p>Votre client choisit sourcils + ongles. Le moteur détecte que ca nécessite deux praticiennes différentes, les assigné automatiquement, et chaîne les créneaux sans chevauchement. Le client ne voit qu'un seul rendez-vous fluide.</p>
         <ul class="feat-list">
-          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Créneaux calculés en temps réel</li>
-          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Temps de pose + buffers intégrés</li>
-          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Rappels email + SMS automatiques</li>
-          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Annulation et replanification par le client</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Multi-services : combinez jusqu'à 5 prestations</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Split automatique par praticien spécialisé</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Temps de pose pris en compte dans le calcul</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Rappels email + SMS 24h et 2h avant</li>
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Carte cadeau applicable au checkout</li>
         </ul>
       </div>
       <div class="feat-visual">
         <div class="phone"><div class="phone-notch"></div><div class="phone-screen">
-          <div class="ps-header"><div class="ps-logo">LS</div><div class="ps-name">Le Studio</div><div class="ps-tag">Salon de coiffure · Ixelles</div></div>
+          <div class="ps-header"><div class="ps-logo">VA</div><div class="ps-name">VA Institut</div><div class="ps-tag">Institut de beauté &middot; Charleroi</div></div>
           <div class="ps-services">
-            <div class="ps-svc"><span class="nm">Coupe femme</span><span class="pr">45€</span><span class="bk">Réserver</span></div>
-            <div class="ps-svc"><span class="nm">Balayage</span><span class="pr">85€</span><span class="bk">Réserver</span></div>
-            <div class="ps-svc"><span class="nm">Coupe + Couleur</span><span class="pr">120€</span><span class="bk">Réserver</span></div>
-            <div class="ps-svc"><span class="nm">Brushing</span><span class="pr">30€</span><span class="bk">Réserver</span></div>
+            <div class="ps-svc"><span class="nm">Contour ombré</span><span class="pr">150&#8364;</span><span class="bk">Réserver</span></div>
+            <div class="ps-svc"><span class="nm">Pose d'ongles</span><span class="pr">45&#8364;</span><span class="bk">Réserver</span></div>
+            <div class="ps-svc"><span class="nm">Soin visage</span><span class="pr">65&#8364;</span><span class="bk">Réserver</span></div>
+            <div class="ps-svc"><span class="nm">Épilation complète</span><span class="pr">80&#8364;</span><span class="bk">Réserver</span></div>
           </div>
         </div></div>
       </div>
@@ -607,14 +786,14 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
     <div class="feat-block reverse rv">
       <div class="feat-text">
         <div class="s-label">Dashboard</div>
-        <h3>Votre journée en un coup d'oeil</h3>
-        <p>RDV du jour, alertes, tâches, analytics. Tout est centralisé dans un tableau de bord clair et rapide. Mise à jour en temps réel grâce au SSE.</p>
+        <h3>Votre journée, optimisée en un coup d'oeil</h3>
+        <p>RDV du jour, alertes, splits multi-praticiens, analytics. Mise à jour en temps réel grâce au SSE. Le Quick Booking cote staff trouve le meilleur créneau en 1 clic, même pour les combos multi-praticiens.</p>
         <ul class="feat-list">
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> KPIs : CA, RDV, no-shows, nouveaux clients</li>
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Calendrier temps réel (SSE)</li>
-          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Alertes : impayés, no-shows, congés</li>
-          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Notes et tâches par RDV</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Quick Booking staff : le moteur propose le créneau optimal</li>
           <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Heatmap heures de pointe</li>
+          <li><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Multi-praticien visible directement sur l'agenda</li>
         </ul>
       </div>
       <div class="feat-visual">
@@ -622,16 +801,16 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
           <div class="dmm-bar"><div class="dmm-dots"><div class="dmm-dot r"></div><div class="dmm-dot y"></div><div class="dmm-dot g"></div></div><div class="dmm-url">genda.be/dashboard</div></div>
           <div class="dmm-body">
             <div class="dmm-kpis">
-              <div class="dmm-kpi"><div class="v">12</div><div class="l">RDV aujourd'hui</div></div>
-              <div class="dmm-kpi"><div class="v">842€</div><div class="l">CA du jour</div></div>
-              <div class="dmm-kpi"><div class="v">3</div><div class="l">Nouveaux clients</div></div>
-              <div class="dmm-kpi"><div class="v">2%</div><div class="l">No-show rate</div></div>
+              <div class="dmm-kpi"><div class="v">14</div><div class="l">RDV aujourd'hui</div></div>
+              <div class="dmm-kpi"><div class="v">1 240&#8364;</div><div class="l">CA du jour</div></div>
+              <div class="dmm-kpi"><div class="v">+3</div><div class="l">Cases pendant pose</div></div>
+              <div class="dmm-kpi"><div class="v">0%</div><div class="l">No-show rate</div></div>
             </div>
             <div class="dmm-rows">
-              <div class="dmm-row"><span class="time">09:00</span><span class="name">Sophie M.</span><span class="svc">Balayage</span><span class="dmm-badge ok">Confirmé</span></div>
-              <div class="dmm-row"><span class="time">10:30</span><span class="name">Léa D.</span><span class="svc">Coupe + Couleur</span><span class="dmm-badge ok">Confirmé</span></div>
-              <div class="dmm-row"><span class="time">11:45</span><span class="name">Marc W.</span><span class="svc">Coupe homme</span><span class="dmm-badge pending">En attente</span></div>
-              <div class="dmm-row"><span class="time">14:00</span><span class="name">Julie L.</span><span class="svc">Mèches + Brushing</span><span class="dmm-badge ok">Confirmé</span></div>
+              <div class="dmm-row"><span class="time">09:00</span><span class="name">Lisa M.</span><span class="svc">Coloration + Ongles</span><span class="dmm-badge split">Multi-prac</span></div>
+              <div class="dmm-row"><span class="time">10:00</span><span class="name">Marc W.</span><span class="svc">Coupe homme</span><span class="dmm-badge ok">Confirmé</span></div>
+              <div class="dmm-row"><span class="time">11:00</span><span class="name">Sophie D.</span><span class="svc">Sourcils + Ongles</span><span class="dmm-badge split">Multi-prac</span></div>
+              <div class="dmm-row"><span class="time">14:00</span><span class="name">Julie L.</span><span class="svc">Soin visage</span><span class="dmm-badge ok">Confirmé</span></div>
             </div>
           </div>
         </div>
@@ -640,105 +819,96 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   </div>
 </div>
 
-<!-- ═══════════════ STATS ═══════════════ -->
-<div class="stats-bar rv">
-  <div class="stats-inner">
-    <div><div class="stat-num">10 min</div><div class="stat-label">pour être en ligne</div></div>
-    <div><div class="stat-num">-60%</div><div class="stat-label">de no-shows avec acomptes</div></div>
-    <div><div class="stat-num">24/7</div><div class="stat-label">réservation en ligne</div></div>
-    <div><div class="stat-num">0€</div><div class="stat-label">pour commencer</div></div>
-  </div>
-</div>
-
-<!-- ═══════════════ STEPS ═══════════════ -->
+<!-- STEPS -->
 <div class="steps-section" id="how">
   <div class="steps-wrap">
-    <div class="s-center rv"><div class="s-label">Comment ça marche</div><div class="s-title">En ligne en 4 étapes</div><p class="s-desc">Pas besoin de compétences techniques. Templates pré-remplis par secteur, votre page est prête en 10 minutes.</p></div>
+    <div class="s-center rv"><div class="s-label">Comment ça marche</div><div class="s-title">En ligne en 4 étapes</div><p class="s-desc">Pas besoin de compétences techniques. Votre salon est en ligne en 10 minutes, moteur d'optimisation inclus.</p></div>
     <div class="steps-grid">
-      <div class="step rv d1"><div class="step-num">1</div><h4>Créez votre compte</h4><p>Nom du salon, secteur, email. 30 secondes.</p><div class="step-arrow">→</div></div>
-      <div class="step rv d2"><div class="step-num">2</div><h4>Ajoutez vos prestations</h4><p>Templates par secteur : coiffure, esthétique, barbier...</p><div class="step-arrow">→</div></div>
-      <div class="step rv d3"><div class="step-num">3</div><h4>Configurez votre équipe</h4><p>Praticiens, horaires, services. Chacun son planning.</p><div class="step-arrow">→</div></div>
-      <div class="step rv d4"><div class="step-num">4</div><h4>Publiez votre minisite</h4><p>Votre salon est en ligne. Partagez le lien.</p></div>
+      <div class="step rv d1"><div class="step-num">1</div><h4>Créez votre compte</h4><p>Nom du salon, secteur, email. 30 secondes.</p><div class="step-arrow">&rarr;</div></div>
+      <div class="step rv d2"><div class="step-num">2</div><h4>Configurez vos prestations</h4><p>Durée, prix, temps de pose, buffers. Le moteur fait le reste.</p><div class="step-arrow">&rarr;</div></div>
+      <div class="step rv d3"><div class="step-num">3</div><h4>Ajoutez votre équipe</h4><p>Praticiens, horaires, spécialités. Chacun son planning.</p><div class="step-arrow">&rarr;</div></div>
+      <div class="step rv d4"><div class="step-num">4</div><h4>Publiez et réservez</h4><p>Votre minisite est en ligne. Le moteur optimise chaque creneau.</p></div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════ PRICING ═══════════════ -->
+<!-- PRICING -->
 <section id="pricing" class="s-center">
-  <div class="rv"><div class="s-label">Tarifs</div><div class="s-title">Simple, transparent, sans surprise</div><p class="s-desc">Commencez gratuitement. Passez au Pro quand vous êtes prêt.</p></div>
+  <div class="rv"><div class="s-label">Tarifs</div><div class="s-title">Simple, transparent, sans surprise</div><p class="s-desc">Le moteur est inclus dans tous les plans. Commencez gratuitement.</p></div>
   <div class="pricing-grid">
     <div class="price-card rv d1">
-      <div class="plan-name">Gratuit</div><div class="plan-price">0€ <span>/mois</span></div><p class="plan-desc">Pour tester et démarrer</p>
+      <div class="plan-name">Gratuit</div><div class="plan-price">0&#8364; <span>/mois</span></div><p class="plan-desc">Pour tester et démarrer</p>
       <ul class="plan-features">
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Moteur de planning intelligent</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Minisite professionnel</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Booking en ligne (1 praticien)</li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Temps de pose + optimisation</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Confirmation email</li>
-        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Fiche client + historique</li>
-        <li><span class="x">—</span> <span style="color:var(--text-4);">Rappels SMS</span></li>
-        <li><span class="x">—</span> <span style="color:var(--text-4);">Acomptes Stripe</span></li>
+        <li><span class="x">&mdash;</span> <span style="color:var(--text-4);">Multi-praticiens</span></li>
+        <li><span class="x">&mdash;</span> <span style="color:var(--text-4);">Rappels SMS</span></li>
       </ul>
       <a class="plan-btn outline" href="/signup.html">Commencer gratuitement</a>
     </div>
     <div class="price-card feat rv d2">
-      <div class="plan-name">Pro</div><div class="plan-price">39€ <span>/mois</span></div><p class="plan-desc">Pour les salons établis</p>
+      <div class="plan-name">Pro</div><div class="plan-price">39&#8364; <span>/mois</span></div><p class="plan-desc">Pour les salons établis</p>
       <ul class="plan-features">
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Tout du plan Gratuit</li>
-        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Praticiens illimités</strong></li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Praticiens illimités + split auto</strong></li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Acomptes Stripe + Cartes cadeau</strong></li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Rappels SMS 24h + 2h</strong></li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Liste d'attente intelligente</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Analytics + heatmap</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Sync Google/Outlook</li>
       </ul>
-      <a class="plan-btn primary" href="/signup.html">Essai gratuit 14 jours →</a>
+      <a class="plan-btn primary" href="/signup.html">Essai gratuit 14 jours</a>
     </div>
     <div class="price-card rv d3">
-      <div class="plan-name">Premium</div><div class="plan-price">79€ <span>/mois</span></div><p class="plan-desc">Pour les instituts multi-praticiens</p>
+      <div class="plan-name">Premium</div><div class="plan-price">79&#8364; <span>/mois</span></div><p class="plan-desc">Pour les instituts multi-praticiens</p>
       <ul class="plan-features">
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Tout du plan Pro</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Domaine personnalisé</strong></li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> <strong>Facturation belge (PDF)</strong></li>
-        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Rôles & permissions avancées</li>
+        <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Roles & permissions avancées</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Planning absences + congés</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Export données CSV</li>
         <li><span class="ck"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span> Support prioritaire</li>
       </ul>
-      <a class="plan-btn outline" href="/signup.html">Essai gratuit 14 jours →</a>
+      <a class="plan-btn outline" href="/signup.html">Essai gratuit 14 jours</a>
     </div>
   </div>
-  <p class="pricing-note">Tous les prix sont HTVA. Annulable à tout moment. Sans engagement.</p>
+  <p class="pricing-note">Tous les prix sont HTVA. Annulable a tout moment. Sans engagement.</p>
 </section>
 
-<!-- ═══════════════ FAQ ═══════════════ -->
+<!-- FAQ -->
 <section id="faq">
   <div class="s-center rv"><div class="s-label">Questions fréquentes</div><div class="s-title">Tout ce que vous devez savoir</div></div>
   <div class="faq-list">
-    <div class="faq-item open"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce que mes clients doivent créer un compte ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Non. Vos clients remplissent simplement leur nom, email et téléphone pour réserver. Pas de compte, pas de mot de passe, zéro friction. Ils peuvent aussi se connecter via Google, Apple ou Facebook en un clic.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment fonctionne le système d'acomptes ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Vous configurez un montant d'acompte par prestation. Quand un client réserve, il reçoit un email avec un lien de paiement Stripe et une deadline. Si l'acompte n'est pas payé dans le délai, le créneau est automatiquement libéré. Si le client a une carte cadeau, il peut l'appliquer pour couvrir tout ou partie de l'acompte.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">C'est quoi la liste d'attente intelligente ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Quand un créneau est complet, votre client peut s'inscrire sur la liste d'attente avec ses préférences (jours, horaire, praticien). Dès qu'un créneau se libère, le premier de la liste reçoit une offre avec un timer de 2 heures. S'il ne répond pas, l'offre passe au suivant. Tout est automatique.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment sont gérés les temps de pose et les buffers ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Pour chaque prestation, vous pouvez configurer un temps de pause avant, un temps de pose (processing) pendant lequel le praticien est libre, et un buffer après. Le moteur de créneaux prend tout en compte pour calculer la disponibilité réelle et peut même utiliser les temps de pose libres pour caser d'autres clients.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Puis-je utiliser mon propre nom de domaine ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui, avec le plan Premium. Vous pointez votre domaine existant vers votre minisite Genda. Le certificat SSL est provisionné automatiquement.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce conforme au RGPD ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui. Données hébergées en Europe, consentements explicites, droit à la suppression, isolation des données par salon (Row-Level Security). Conforme dès le premier jour.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Je peux annuler à tout moment ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui. Sans engagement. Votre minisite reste actif en mode gratuit. Vos données ne sont jamais supprimées sans votre demande.</div></div>
+    <div class="faq-item open"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment le moteur optimise les temps de pose ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Quand vous configurez une prestation avec un temps de pose (ex: 30 min de pause pendant une coloration), le moteur sait que votre praticien est libre pendant cette periode. Il propose automatiquement ce créneau pour d'autres clients dont la prestation tient dans la fenetre. Résultat : plus de clients sans plus de stress.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment fonctionne le multi-praticien sur un meme RDV ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Quand un client combine des prestations assignees a des praticiens differents (ex: sourcils par Véronique + ongles par Ashley), le moteur détecte automatiquement qu'aucun praticien ne couvre tout. Il passe en mode "split" : chaque prestation est assignée au bon praticien, les créneaux sont chaînés sans chevauchement, et le client ne voit qu'un seul RDV. Cote staff, chaque praticien voit sa partie sur son planning.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce que mes clients doivent creer un compte ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Non. Vos clients remplissent simplement leur nom, email et telephone pour reserver. Pas de compte, pas de mot de passe, zéro friction.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment fonctionne le systeme d'acomptes ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Le client reçoit un lien de paiement Stripe avec le même délai que pour confirmer un RDV (30 min par defaut, configurable). Pas de paiement dans le délai = annulation automatique et créneau libéré. Les cartes cadeau sont applicables sur l'acompte.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">C'est quoi la liste d'attente intelligente ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Quand un créneau est complet, votre client peut s'inscrire sur la liste d'attente avec ses preferences (jours, horaire, praticien). Dès qu'un créneau se libere, le premier de la liste reçoit une offre avec un timer de 2 heures. S'il ne repond pas, l'offre passe au suivant. Tout est automatique.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce conforme au RGPD ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui. Données hébergées en Europe, consentements explicites, droit a la suppression, isolation des données par salon (Row-Level Security). Conforme des le premier jour.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Je peux annuler a tout moment ? <span class="arr"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span></div><div class="faq-a">Oui. Sans engagement. Votre minisite reste actif en mode gratuit. Vos données ne sont jamais supprimées sans votre demande.</div></div>
   </div>
 </section>
 
-<!-- ═══════════════ FINAL CTA ═══════════════ -->
+<!-- FINAL CTA -->
 <div class="final-cta rv">
-  <h2>Prêt à digitaliser votre salon ?</h2>
-  <p>Rejoignez Genda et laissez vos clients réserver 24/7. Gratuit, sans engagement.</p>
-  <a class="btn-white" href="/signup.html">Créer mon salon gratuitement →</a>
+  <h2>Chaque minute de pose est du CA en plus.</h2>
+  <p>Rejoignez Genda et laissez le moteur optimiser chaque creneau. Gratuit, sans engagement.</p>
+  <a class="btn-white" href="/signup.html">Créer mon salon gratuitement</a>
 </div>
 
-<!-- ═══════════════ FOOTER ═══════════════ -->
+<!-- FOOTER -->
 <footer class="footer">
   <div class="footer-inner">
-    <div class="footer-brand"><div class="f-logo"><div class="nav-logo"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="nav-wm">Genda</span></div><p class="f-tagline">La plateforme tout-en-un pour salons de beauté et instituts. Agenda, booking, acomptes, cartes cadeau et minisite pro.</p></div>
-    <div class="footer-col"><h4>Produit</h4><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a><a href="#">Changelog</a></div>
+    <div class="footer-brand"><div class="f-logo"><div class="nav-logo"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="nav-wm">Genda</span></div><p class="f-tagline">Le moteur de planning intelligent pour salons de beauté et instituts. Temps de pose optimises, multi-praticiens, zero trou.</p></div>
+    <div class="footer-col"><h4>Produit</h4><a href="#engine">Le moteur</a><a href="#features">Fonctionnalités</a><a href="#pricing">Tarifs</a><a href="#faq">FAQ</a></div>
     <div class="footer-col"><h4>Secteurs</h4><a href="#">Coiffure</a><a href="#">Esthétique</a><a href="#">Barbier</a><a href="#">Massage</a><a href="#">Onglerie</a><a href="#">Bien-être</a></div>
-    <div class="footer-col"><h4>Légal</h4><a href="/privacy-policy.html">Politique de confidentialité</a><a href="#">Conditions d'utilisation</a><a href="#">RGPD</a><a href="#">Contact</a></div>
+    <div class="footer-col"><h4>Legal</h4><a href="/privacy-policy.html">Politique de confidentialité</a><a href="#">Conditions d'utilisation</a><a href="#">RGPD</a><a href="#">Contact</a></div>
   </div>
-  <div class="footer-bottom"><span>© 2026 Genda · H3001 · Belgique</span><span>Fait avec soin à Charleroi</span></div>
+  <div class="footer-bottom"><span>&copy; 2026 Genda &middot; H3001 &middot; Belgique</span><span>Fait avec soin a Charleroi</span></div>
 </footer>
 
 <script>
