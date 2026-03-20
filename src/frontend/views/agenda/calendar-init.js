@@ -264,6 +264,42 @@ function initCalendar(initView, initSlotDur) {
 
   calState.fcCalOptions.plugins = [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin];
   calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
+
+  // ── Responsive calendar for tablet ──
+  const _mqTabletLand = window.matchMedia('(max-width:1024px) and (min-width:769px)');
+  const _mqTabletPort = window.matchMedia('(max-width:768px)');
+
+  function _updateResourceWidth() {
+    if (!calState.fcCal) return;
+    if (_mqTabletPort.matches) {
+      calState.fcCal.setOption('resourceAreaWidth', '100px');
+    } else if (_mqTabletLand.matches) {
+      calState.fcCal.setOption('resourceAreaWidth', '120px');
+    } else {
+      calState.fcCal.setOption('resourceAreaWidth', '140px');
+    }
+  }
+
+  _mqTabletLand.addEventListener('change', _updateResourceWidth);
+  _mqTabletPort.addEventListener('change', _updateResourceWidth);
+  _updateResourceWidth();
+
+  function _updateWeekDuration() {
+    if (!calState.fcCal) return;
+    var view = calState.fcCal.view;
+    if (!view || (view.type !== 'rollingWeek' && view.type !== 'timeGridWeek')) return;
+
+    var days = _mqTabletPort.matches ? 5 : 7;
+    // Only update if duration actually changed
+    var currentDays = view.currentEnd ?
+      Math.round((view.currentEnd - view.currentStart) / 86400000) : 7;
+    if (currentDays !== days) {
+      calState.fcCal.setOption('duration', { days: days });
+    }
+  }
+
+  _mqTabletPort.addEventListener('change', _updateWeekDuration);
+
   calState.fcCal.render();
 
   // Bug B6 fix: remove before re-adding to prevent listener leak on re-init
