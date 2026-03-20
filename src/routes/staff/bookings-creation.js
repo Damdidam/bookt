@@ -168,14 +168,13 @@ router.post('/manual', async (req, res, next) => {
               ? deposit_amount_cents
               : (dc.settings.deposit_fixed_cents || 2500);
             if (depCents > 0) {
-              const dlHours = dc.settings.deposit_deadline_hours ?? 48;
               const hoursUntilRdv = (realStart.getTime() - Date.now()) / 3600000;
-              // Skip auto-deposit if RDV is within deadline window (unless staff forced it)
-              let deadline = new Date(realStart.getTime() - dlHours * 3600000);
-              if (force_deposit && deadline <= new Date()) {
-                deadline = new Date(Date.now() + 2 * 3600000);
-              }
-              if ((force_deposit || hoursUntilRdv >= dlHours) && deadline > new Date()) {
+              if (force_deposit || hoursUntilRdv >= 2) {
+                const timeoutMin = parseInt(dc.settings.booking_confirmation_timeout_min) || 30;
+                let deadline = new Date(Date.now() + timeoutMin * 60000);
+                const minBefore = new Date(realStart.getTime() - 2 * 3600000);
+                if (minBefore.getTime() > Date.now() && minBefore < deadline) deadline = minBefore;
+                if (deadline.getTime() < Date.now() + 5 * 60000) deadline = new Date(Date.now() + 5 * 60000);
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -493,13 +492,13 @@ router.post('/manual', async (req, res, next) => {
             depCents = Math.round(totalPrice * (dc.settings.deposit_percent || 50) / 100);
           }
           if (depCents > 0) {
-            const dlHours = dc.settings.deposit_deadline_hours ?? 48;
             const hoursUntilRdv = (new Date(start_at).getTime() - Date.now()) / 3600000;
-            let deadline = new Date(new Date(start_at).getTime() - dlHours * 3600000);
-            if (force_deposit && deadline <= new Date()) {
-              deadline = new Date(Date.now() + 2 * 3600000);
-            }
-            if ((force_deposit || hoursUntilRdv >= dlHours) && deadline > new Date()) {
+            if (force_deposit || hoursUntilRdv >= 2) {
+              const timeoutMin = parseInt(dc.settings.booking_confirmation_timeout_min) || 30;
+              let deadline = new Date(Date.now() + timeoutMin * 60000);
+              const minBefore = new Date(new Date(start_at).getTime() - 2 * 3600000);
+              if (minBefore.getTime() > Date.now() && minBefore < deadline) deadline = minBefore;
+              if (deadline.getTime() < Date.now() + 5 * 60000) deadline = new Date(Date.now() + 5 * 60000);
               // CRT-V10-7: Deposit amount on the first booking only
               await client.query(
                 `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,

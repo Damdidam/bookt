@@ -1252,12 +1252,11 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       return res.status(400).json({ error: 'L\'acompte n\'est plus en attente' });
     }
 
-    // 3. Time guard: don't allow sending if RDV is within cancel_deadline_hours
-    const cancelDeadlineH = bk.settings?.cancel_deadline_hours ?? 48;
+    // 3. Time guard: don't allow sending if RDV is less than 2h away
     const hoursUntilRdv = (new Date(bk.start_at).getTime() - Date.now()) / 3600000;
-    if (hoursUntilRdv < cancelDeadlineH) {
+    if (hoursUntilRdv < 2) {
       return res.status(400).json({
-        error: `Trop proche du RDV pour envoyer une demande d'acompte (moins de ${cancelDeadlineH}h avant).`
+        error: 'Trop proche du RDV pour envoyer une demande d\'acompte (moins de 2h avant).'
       });
     }
 
@@ -1468,13 +1467,12 @@ router.post('/:id/require-deposit', async (req, res, next) => {
         return { error: 400, message: `Trop proche du RDV pour exiger un acompte (moins de ${bizCancelH}h avant).` };
       }
 
-      // Calculate deadline
-      const dlHours = deadline_hours || 48;
-      let deadline = new Date(new Date(b.start_at).getTime() - dlHours * 3600000);
-      // If deadline already past, give at least 2h from now
-      if (deadline <= new Date()) {
-        deadline = new Date(Date.now() + 2 * 3600000);
-      }
+      // Calculate deadline: same as confirmation timeout
+      const timeoutMin = parseInt(b.settings?.booking_confirmation_timeout_min) || 30;
+      let deadline = new Date(Date.now() + timeoutMin * 60000);
+      const minBefore = new Date(new Date(b.start_at).getTime() - 2 * 3600000);
+      if (minBefore.getTime() > Date.now() && minBefore < deadline) deadline = minBefore;
+      if (deadline.getTime() < Date.now() + 5 * 60000) deadline = new Date(Date.now() + 5 * 60000);
 
       // Build deposit URL
       const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';

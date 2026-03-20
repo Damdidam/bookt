@@ -98,6 +98,30 @@ function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, no
 }
 
 /**
+ * Compute deposit payment deadline.
+ * Same logic as booking confirmation: NOW + confirmation_timeout (default 30 min),
+ * capped at start_at - 2h minimum. Deposit payment = confirmation.
+ * @param {Date} startAt - Appointment start time
+ * @param {object} bizSettings - Business settings
+ * @returns {Date} deadline
+ */
+function computeDepositDeadline(startAt, bizSettings) {
+  const timeoutMin = parseInt(bizSettings?.booking_confirmation_timeout_min) || 30;
+  const confirmDeadline = new Date(Date.now() + timeoutMin * 60000);
+  const minBefore = new Date(startAt.getTime() - 2 * 3600000); // 2h before RDV
+  // Use confirmation timeout, but don't exceed start_at - 2h
+  let deadline = confirmDeadline;
+  if (minBefore.getTime() > Date.now() && minBefore < deadline) {
+    deadline = minBefore;
+  }
+  // Safety: deadline must be in the future (at least 5 min from now)
+  if (deadline.getTime() < Date.now() + 5 * 60000) {
+    deadline = new Date(Date.now() + 5 * 60000);
+  }
+  return deadline;
+}
+
+/**
  * Check if a slot date falls within the last-minute promotional window.
  * @param {string} slotDate - YYYY-MM-DD
  * @param {string} todayBrussels - YYYY-MM-DD (today in Europe/Brussels)
@@ -1305,7 +1329,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
             if (depResult.required) {
-              const dlHours = bizSettings.deposit_deadline_hours ?? 48;
               const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
               // Skip deposit only if RDV is less than 2h away (not enough time to pay)
               if (hoursUntilRdv >= 2) {
@@ -1385,10 +1408,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 }
 
                 if (!gcAutoPaid) {
-                  // Cap deadline: configured deadline OR 2h before RDV, whichever is sooner
-                  const normalDeadline = new Date(startDate.getTime() - dlHours * 3600000);
-                  const minDeadline = new Date(startDate.getTime() - 2 * 3600000);
-                  const deadline = normalDeadline.getTime() > Date.now() ? normalDeadline : (minDeadline.getTime() > Date.now() ? minDeadline : new Date(Date.now() + 30 * 60000));
+                  const deadline = computeDepositDeadline(startDate, bizSettings);
                   await client.query(
                     `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                       deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -1843,7 +1863,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
           if (depResult.required) {
-            const dlHours = bizSettings.deposit_deadline_hours ?? 48;
             const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
             // Skip deposit only if RDV is less than 2h away (not enough time to pay)
             if (hoursUntilRdv >= 2) {
@@ -1911,10 +1930,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               }
 
               if (!gcAutoPaid) {
-                // Cap deadline: configured deadline OR 2h before RDV, whichever is sooner
-                const normalDeadline = new Date(startDate.getTime() - dlHours * 3600000);
-                const minDeadline = new Date(startDate.getTime() - 2 * 3600000);
-                const deadline = normalDeadline.getTime() > Date.now() ? normalDeadline : (minDeadline.getTime() > Date.now() ? minDeadline : new Date(Date.now() + 30 * 60000));
+                const deadline = computeDepositDeadline(startDate, bizSettings);
                 await client.query(
                   `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
                     deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
@@ -2592,20 +2608,9 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       );
     }
 
-    // Deposit deadline shift
+    // Deposit deadline: recalculate based on new start (same as confirmation timeout)
     if (bk.deposit_deadline && bk.deposit_status === 'pending') {
-      let newDeadline;
-      if (delta < 0) {
-        // Approaching: recalculate from new start
-        const dlHours = settings.deposit_deadline_hours ?? 48;
-        newDeadline = new Date(newStart.getTime() - dlHours * 3600000);
-      } else {
-        // Pushing out: shift proportionally
-        newDeadline = new Date(new Date(bk.deposit_deadline).getTime() + delta);
-      }
-      // Floor: at least now + 1h
-      const minDeadline = new Date(Date.now() + 3600000);
-      if (newDeadline < minDeadline) newDeadline = minDeadline;
+      const newDeadline = computeDepositDeadline(newStart, settings);
 
       const updateIds = bk.group_id
         ? (await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2`, [bk.group_id, bk.business_id])).rows.map(r => r.id)
@@ -4763,14 +4768,11 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
       }
       const wlDepResult = shouldRequireDeposit(wlBizSettings, wlPrice, wlDuration, wlNoShow, wlIsVip);
       if (wlDepResult.required) {
-        const dlHoursWl = wlBizSettings.deposit_deadline_hours ?? 48;
         const startWl = new Date(e.offer_booking_start);
         const hoursUntilWlRdv = (startWl.getTime() - Date.now()) / 3600000;
         // Skip deposit only if RDV is less than 2h away
         if (hoursUntilWlRdv >= 2) {
-          const normalDeadlineWl = new Date(startWl.getTime() - dlHoursWl * 3600000);
-          const minDeadlineWl = new Date(startWl.getTime() - 2 * 3600000);
-          const deadlineWl = normalDeadlineWl.getTime() > Date.now() ? normalDeadlineWl : (minDeadlineWl.getTime() > Date.now() ? minDeadlineWl : new Date(Date.now() + 30 * 60000));
+          const deadlineWl = computeDepositDeadline(startWl, wlBizSettings);
           await client.query(
             `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
               deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
