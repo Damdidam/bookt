@@ -421,6 +421,34 @@ function qcUpdateTotal() {
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
 
+  // ── Multi-practitioner split info ──
+  document.getElementById('qcSplitInfo')?.remove();
+  if (cards.length > 1) {
+    const pracId = document.getElementById('qcPrac')?.value;
+    const assignments = [];
+    let needsSplit = false;
+    cards.forEach(card => {
+      const svcId = card.dataset.serviceId;
+      const svc = calState.fcServices?.find(s => String(s.id) === String(svcId));
+      const svcName = svc?.name || '?';
+      // Check if the selected practitioner covers this service
+      const selPrac = calState.fcPractitioners.find(p => String(p.id) === String(pracId));
+      if (selPrac && !selPrac.service_ids?.includes(svcId)) {
+        // Find which practitioner(s) cover this service
+        const covering = calState.fcPractitioners.filter(p => p.service_ids?.includes(svcId));
+        const assignedName = covering.length > 0 ? covering[0].display_name : '?';
+        assignments.push(`<span style="font-weight:600">${esc(svcName)}</span> \u2192 ${esc(assignedName)}`);
+        needsSplit = true;
+      } else if (selPrac) {
+        assignments.push(`<span style="font-weight:600">${esc(svcName)}</span> \u2192 ${esc(selPrac.display_name)}`);
+      }
+    });
+    if (needsSplit && el) {
+      const splitHtml = `<div id="qcSplitInfo" style="margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.6;background:var(--bg-2);border:1px solid var(--border)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;width:14px;height:14px;margin-right:4px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Multi-praticien : ${assignments.join(' <span style="color:var(--text-4)">\u00b7</span> ')}</div>`;
+      el.insertAdjacentHTML('afterend', splitHtml);
+    }
+  }
+
   // Pose info
   let poseHtml = '';
   const timeVal = document.getElementById('qcTime')?.value;

@@ -296,21 +296,22 @@ router.post('/manual', async (req, res, next) => {
     );
     const assignedSvcIds = new Set(psCheck.rows.map(r => r.service_id));
     let isSplitMode = false;
+    // Collect ALL candidate practitioners per unassigned service (for availability fallback)
+    const candidatesPerService = {};
     for (const s of serviceList) {
       if (!assignedSvcIds.has(s.service_id)) {
-        // Auto-assign: find another practitioner who covers this service
-        const altPrac = await queryWithRLS(bid,
-          `SELECT ps.practitioner_id FROM practitioner_services ps
+        const altPracs = await queryWithRLS(bid,
+          `SELECT ps.practitioner_id, p.display_name FROM practitioner_services ps
            JOIN practitioners p ON p.id = ps.practitioner_id
-           WHERE ps.service_id = $1 AND p.business_id = $2 AND p.is_active = true
-           LIMIT 1`,
+           WHERE ps.service_id = $1 AND p.business_id = $2 AND p.is_active = true`,
           [s.service_id, bid]
         );
-        if (altPrac.rows.length === 0) {
+        if (altPracs.rows.length === 0) {
           const svcName = svcMap[s.service_id]?.name || s.service_id;
           return res.status(400).json({ error: `Aucun praticien ne propose la prestation "${svcName}"` });
         }
-        s._practitioner_id = altPrac.rows[0].practitioner_id;
+        candidatesPerService[s.service_id] = altPracs.rows;
+        s._practitioner_id = altPracs.rows[0].practitioner_id;
         isSplitMode = true;
       }
     }
@@ -380,12 +381,31 @@ router.post('/manual', async (req, res, next) => {
     }
 
     // Check practitioner availability (absences, exceptions, hours)
+    // In split mode: try each candidate practitioner per slot, pick first available
     if (isSplitMode) {
-      // Per-practitioner availability check for each slot
       for (const slot of slots) {
-        const availCheck = await checkPracAvailability(bid, slot.practitioner_id, slot.start_at, slot.end_at);
-        if (!availCheck.ok) {
-          return res.status(409).json({ error: availCheck.reason });
+        const candidates = candidatesPerService[slot.service_id];
+        if (!candidates) {
+          // Primary practitioner slot — check normally
+          const availCheck = await checkPracAvailability(bid, slot.practitioner_id, slot.start_at, slot.end_at);
+          if (!availCheck.ok) {
+            return res.status(409).json({ error: availCheck.reason });
+          }
+          continue;
+        }
+        // Try each candidate until one is available
+        let assigned = false;
+        for (const cand of candidates) {
+          const availCheck = await checkPracAvailability(bid, cand.practitioner_id, slot.start_at, slot.end_at);
+          if (availCheck.ok) {
+            slot.practitioner_id = cand.practitioner_id;
+            assigned = true;
+            break;
+          }
+        }
+        if (!assigned) {
+          const svcName = svcMap[slot.service_id]?.name || '';
+          return res.status(409).json({ error: `Aucun praticien disponible pour "${svcName}" à cette heure` });
         }
       }
     } else {
