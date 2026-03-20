@@ -49,6 +49,7 @@ const S = {
   timePref: 'all',        // 'all' | 'matin' | 'apresmidi' | 'heure'
   timeFrom: 600,          // minutes (600 = 10:00), used when timePref === 'heure'
   cachedEvents: [],       // bookings + tasks from API (independent of FC visibility filters)
+  lastSlots: [],          // last computed slots (for split assignment lookup)
 };
 
 function soIsActive() { return S.active; }
@@ -248,6 +249,22 @@ function soCanPracDoServices(pracId) {
   });
 }
 
+/** Check if selected services need split across multiple practitioners */
+function soNeedsSplitMode() {
+  if (S.selectedServices.length <= 1) return false;
+  // Check if any single practitioner covers ALL services
+  return !calState.fcPractitioners.some(p => soCanPracDoServices(p.id));
+}
+
+/** For each service, find which practitioners can do it */
+function soGetServicePractitioners(svcId) {
+  const full = calState.fcServices.find(s => String(s.id) === String(svcId));
+  if (!full?.practitioner_ids || full.practitioner_ids.length === 0) {
+    return calState.fcPractitioners.map(p => p.id);
+  }
+  return full.practitioner_ids.map(String);
+}
+
 /* ═══════════════════════════════════════════════════════════
    7. SCORING ALGORITHM
    ═══════════════════════════════════════════════════════════ */
@@ -325,57 +342,173 @@ function soFindSlots() {
     }
     if (daySkipped) { skippedDayCount++; continue; }
 
-    for (const pracId of pracIds) {
-      if (S.pracId === 'all' && !soCanPracDoServices(pracId)) continue;
+    // ── Split mode: multi-practitioner combo ──
+    const isSplit = S.pracId === 'all' && soNeedsSplitMode();
 
-      const absPeriod = soGetAbsencePeriod(pracId, dateStr);
-      if (absPeriod === 'full') continue;
-
-      const pracHours = calState.fcPracBusinessHours[pracId] || calState.fcBusinessHours || [];
-      const todayHours = pracHours.filter(h => h.daysOfWeek.includes(jsDay));
-      if (todayHours.length === 0) continue;
-
-      let workWindows = todayHours.map(h => {
-        const [sh, sm] = h.startTime.split(':').map(Number);
-        const [eh, em] = h.endTime.split(':').map(Number);
-        return { start: sh * 60 + sm, end: eh * 60 + em };
-      }).sort((a, b) => a.start - b.start);
-
-      if (absPeriod) {
-        workWindows = soFilterWorkWindows(workWindows, absPeriod);
-        if (workWindows.length === 0) continue;
-      }
-
-      if (svcTimeWindows !== null) {
-        workWindows = soIntersectWindows(workWindows, svcTimeWindows);
-        if (workWindows.length === 0) continue;
-      }
-
-      // Apply time preference filter
-      if (S.timePref === 'matin') {
-        workWindows = workWindows.map(w => ({ start: w.start, end: Math.min(w.end, 780) })).filter(w => w.start < w.end);
-        if (workWindows.length === 0) continue;
-      } else if (S.timePref === 'apresmidi') {
-        workWindows = workWindows.map(w => ({ start: Math.max(w.start, 780), end: w.end })).filter(w => w.start < w.end);
-        if (workWindows.length === 0) continue;
-      } else if (S.timePref === 'heure') {
-        workWindows = workWindows.map(w => ({ start: Math.max(w.start, S.timeFrom), end: w.end })).filter(w => w.start < w.end);
-        if (workWindows.length === 0) continue;
-      }
-
+    if (isSplit) {
+      // For split mode: find time slots where each service's practitioner is free in sequence
+      const step = soGetStep();
+      const minStart = dateStr === todayStr ? nowMin : 0;
       const dayStartDt = new Date(dateStr + 'T00:00:00');
       const dayEndDt = new Date(dateStr + 'T23:59:59');
-      const events = allCalEvents.filter(ev => {
-        if (['cancelled', 'no_show'].includes(ev.status)) return false;
-        if (ev.status === 'pending' && ev.start && ev.start <= now) return false;
-        if (ev.practitioner_id !== String(pracId)) return false;
-        return ev.start < dayEndDt && ev.end > dayStartDt;
-      }).sort((a, b) => a.start - b.start);
 
-      const minStart = dateStr === todayStr ? nowMin : 0;
-      const step = soGetStep();
-      const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', pracColors[pracId] || 'var(--primary)', minStart, step);
-      allResults.push(...daySlots);
+      // Build per-practitioner free windows for this day
+      const pracFree = {};
+      const pracOccupied = {};
+      for (const p of calState.fcPractitioners) {
+        const pid = p.id;
+        const absPeriod = soGetAbsencePeriod(pid, dateStr);
+        if (absPeriod === 'full') continue;
+        const pracHours = calState.fcPracBusinessHours[pid] || calState.fcBusinessHours || [];
+        const todayHours = pracHours.filter(h => h.daysOfWeek.includes(jsDay));
+        if (todayHours.length === 0) continue;
+        let ww = todayHours.map(h => {
+          const [sh, sm] = h.startTime.split(':').map(Number);
+          const [eh, em] = h.endTime.split(':').map(Number);
+          return { start: sh * 60 + sm, end: eh * 60 + em };
+        }).sort((a, b) => a.start - b.start);
+        if (absPeriod) { ww = soFilterWorkWindows(ww, absPeriod); if (ww.length === 0) continue; }
+        if (S.timePref === 'matin') ww = ww.map(w => ({ start: w.start, end: Math.min(w.end, 780) })).filter(w => w.start < w.end);
+        else if (S.timePref === 'apresmidi') ww = ww.map(w => ({ start: Math.max(w.start, 780), end: w.end })).filter(w => w.start < w.end);
+        else if (S.timePref === 'heure') ww = ww.map(w => ({ start: Math.max(w.start, S.timeFrom), end: w.end })).filter(w => w.start < w.end);
+        if (ww.length === 0) continue;
+
+        const events = allCalEvents.filter(ev => {
+          if (['cancelled', 'no_show'].includes(ev.status)) return false;
+          if (ev.status === 'pending' && ev.start && ev.start <= now) return false;
+          if (ev.practitioner_id !== String(pid)) return false;
+          return ev.start < dayEndDt && ev.end > dayStartDt;
+        });
+        const occ = events.map(ev => {
+          const s2 = ev.start.getHours() * 60 + ev.start.getMinutes();
+          let e2 = ev.end.getHours() * 60 + ev.end.getMinutes();
+          if (localDate(ev.end) !== dateStr) e2 = 1440;
+          return { start: s2, end: e2 };
+        }).sort((a, b) => a.start - b.start);
+        pracOccupied[pid] = occ;
+
+        // Compute free windows
+        const free = [];
+        ww.forEach(w => {
+          const segs = occ.filter(o => o.end > w.start && o.start < w.end)
+            .map(o => ({ start: Math.max(o.start, w.start), end: Math.min(o.end, w.end) }))
+            .sort((a, b) => a.start - b.start);
+          let cursor = w.start;
+          segs.forEach(seg => {
+            if (seg.start > cursor) free.push({ start: cursor, end: seg.start });
+            cursor = Math.max(cursor, seg.end);
+          });
+          if (cursor < w.end) free.push({ start: cursor, end: w.end });
+        });
+        pracFree[pid] = free;
+      }
+
+      // For each service, determine which practitioners can do it
+      const svcPracs = S.selectedServices.map(svc => soGetServicePractitioners(svc.id).filter(pid => pracFree[pid]));
+
+      // Check that every service has at least one available practitioner
+      if (svcPracs.every(pp => pp.length > 0)) {
+        // Use first service's practitioners as the scan base
+        const firstSvcDur = S.selectedServices[0].duration_min + (S.selectedServices[0].buffer_before_min || 0);
+        for (const firstPracId of svcPracs[0]) {
+          const freeWins = pracFree[firstPracId];
+          if (!freeWins) continue;
+          for (const gap of freeWins) {
+            for (let t = Math.max(gap.start, minStart); t + firstSvcDur <= gap.end; t += step) {
+              // Try to chain all services starting at t
+              let cursor = t;
+              let valid = true;
+              const assignments = [];
+              for (let si = 0; si < S.selectedServices.length; si++) {
+                const svc = S.selectedServices[si];
+                const dur = svc.duration_min + (si === 0 ? (svc.buffer_before_min || 0) : 0) + (si === S.selectedServices.length - 1 ? (svc.buffer_after_min || 0) : 0);
+                // Find a practitioner available for [cursor, cursor+dur]
+                let found = false;
+                for (const pid of svcPracs[si]) {
+                  const occ = pracOccupied[pid] || [];
+                  const hasConflict = occ.some(o => o.start < cursor + dur && o.end > cursor);
+                  // Also check practitioner works at this time
+                  const inFree = (pracFree[pid] || []).some(f => f.start <= cursor && f.end >= cursor + dur);
+                  if (!hasConflict && inFree) {
+                    assignments.push({ svcId: svc.id, pracId: pid });
+                    found = true;
+                    break;
+                  }
+                }
+                if (!found) { valid = false; break; }
+                cursor += dur;
+              }
+              if (valid) {
+                // Build practitioner label: "Ashley + Veronique"
+                const uniquePracs = [...new Set(assignments.map(a => a.pracId))];
+                const splitLabel = uniquePracs.map(pid => pracNames[pid] || '').join(' + ');
+                const splitColor = pracColors[assignments[0].pracId] || 'var(--primary)';
+                allResults.push({
+                  start: t, end: cursor, score: 60,
+                  type: 'split', label: 'Multi-praticien', icon: ICO.gap,
+                  pracId: 'split', pracName: splitLabel, pracColor: splitColor,
+                  dateStr, dayLabel: dayLabel(dateStr), poseTime: totalPoseTime,
+                  _assignments: assignments,
+                });
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // ── Normal mode: single practitioner covers all ──
+      for (const pracId of pracIds) {
+        if (S.pracId === 'all' && !soCanPracDoServices(pracId)) continue;
+
+        const absPeriod = soGetAbsencePeriod(pracId, dateStr);
+        if (absPeriod === 'full') continue;
+
+        const pracHours = calState.fcPracBusinessHours[pracId] || calState.fcBusinessHours || [];
+        const todayHours = pracHours.filter(h => h.daysOfWeek.includes(jsDay));
+        if (todayHours.length === 0) continue;
+
+        let workWindows = todayHours.map(h => {
+          const [sh, sm] = h.startTime.split(':').map(Number);
+          const [eh, em] = h.endTime.split(':').map(Number);
+          return { start: sh * 60 + sm, end: eh * 60 + em };
+        }).sort((a, b) => a.start - b.start);
+
+        if (absPeriod) {
+          workWindows = soFilterWorkWindows(workWindows, absPeriod);
+          if (workWindows.length === 0) continue;
+        }
+
+        if (svcTimeWindows !== null) {
+          workWindows = soIntersectWindows(workWindows, svcTimeWindows);
+          if (workWindows.length === 0) continue;
+        }
+
+        // Apply time preference filter
+        if (S.timePref === 'matin') {
+          workWindows = workWindows.map(w => ({ start: w.start, end: Math.min(w.end, 780) })).filter(w => w.start < w.end);
+          if (workWindows.length === 0) continue;
+        } else if (S.timePref === 'apresmidi') {
+          workWindows = workWindows.map(w => ({ start: Math.max(w.start, 780), end: w.end })).filter(w => w.start < w.end);
+          if (workWindows.length === 0) continue;
+        } else if (S.timePref === 'heure') {
+          workWindows = workWindows.map(w => ({ start: Math.max(w.start, S.timeFrom), end: w.end })).filter(w => w.start < w.end);
+          if (workWindows.length === 0) continue;
+        }
+
+        const dayStartDt = new Date(dateStr + 'T00:00:00');
+        const dayEndDt = new Date(dateStr + 'T23:59:59');
+        const events = allCalEvents.filter(ev => {
+          if (['cancelled', 'no_show'].includes(ev.status)) return false;
+          if (ev.status === 'pending' && ev.start && ev.start <= now) return false;
+          if (ev.practitioner_id !== String(pracId)) return false;
+          return ev.start < dayEndDt && ev.end > dayStartDt;
+        }).sort((a, b) => a.start - b.start);
+
+        const minStart = dateStr === todayStr ? nowMin : 0;
+        const step = soGetStep();
+        const daySlots = _soCalcDaySlots(events, workWindows, totalDuration, totalPoseTime, pracId, dateStr, pracNames[pracId] || '', pracColors[pracId] || 'var(--primary)', minStart, step);
+        allResults.push(...daySlots);
+      }
     }
   }
 
@@ -727,6 +860,7 @@ function soRenderRight() {
   }
 
   const { slots, scheduleConflict, skippedDayCount, totalDayCount } = soFindSlots();
+  S.lastSlots = slots;
 
   if (slots.length === 0) {
     if (scheduleConflict && skippedDayCount === totalDayCount) {
@@ -950,8 +1084,18 @@ function soUpdateServicesDom() {
 
 function soFillSlot(startMin, slotPracId, dateStr) {
   const startStr = dateStr + 'T' + timeStr(startMin) + ':00';
-  const _pracId = slotPracId || S.pracId;
   const _services = [...S.selectedServices];
+
+  // For split slots, look up the assignments from last computed slots
+  let _splitAssignments = null;
+  let _pracId = slotPracId || S.pracId;
+  if (slotPracId === 'split') {
+    const match = S.lastSlots.find(s => s.start === startMin && s.dateStr === dateStr && s.pracId === 'split');
+    if (match && match._assignments) {
+      _splitAssignments = match._assignments;
+      _pracId = _splitAssignments[0].pracId; // use first service's practitioner as primary
+    }
+  }
 
   const overlay = document.getElementById('soOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -976,7 +1120,7 @@ function soFillSlot(startMin, slotPracId, dateStr) {
 
   requestAnimationFrame(() => {
     const qcPrac = document.getElementById('qcPrac');
-    if (qcPrac && _pracId && _pracId !== 'all') {
+    if (qcPrac && _pracId && _pracId !== 'all' && _pracId !== 'split') {
       qcPrac.value = _pracId;
       qcPrac.dispatchEvent(new Event('change', { bubbles: true }));
     }
