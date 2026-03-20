@@ -20,6 +20,7 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 - Breakpoints: 1200px, 1000px, 768px, 680px, 640px, 500px — no dedicated tablet range
 - Touch targets: many elements below 44px minimum (nav items 18px, buttons 30px, modal close 28px)
 - Modals: full-screen only at ≤680px, no intermediate tablet optimization
+- `fcIsMobile()` in `touch.js` returns true at ≤768px — gates mobile toolbar rows, FAB visibility, mobile list view
 
 ## Design
 
@@ -42,16 +43,25 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 **Desktop (>1024px):**
 - Sidebar stays at 234px fixed (unchanged)
 
+**Breakpoint migration — replacing the 1000px sidebar collapse:**
+The existing `@media(max-width:1000px)` rules in `responsive.css` that collapse the sidebar to 60px icons must be **removed and replaced** by the new `@media(max-width:1024px)` drawer behavior. The 60px icon-only mode is eliminated — the sidebar is either fully visible (>1024px) or hidden as a drawer (≤1024px). All associated rules (`.main { margin-left: 60px }`, `.sidebar { width: 60px }`, `.sb-label { display: none }`, etc.) at 1000px are replaced by the drawer rules at 1024px.
+
 **CSS approach:**
-- `@media(max-width:1024px)` on `.sidebar` for transform/position
+- `@media(max-width:1024px)` on `.sidebar` for transform/position/width
 - New `.sidebar.open` class for slide-in
 - `.drawer-overlay` element for the backdrop
 - Transition: `transform .25s cubic-bezier(.4,0,.2,1)`
 
 **JS approach:**
-- Toggle function on hamburger click
-- Close on overlay click, nav item click, swipe gesture
-- Store state in memory (not persisted)
+- New `src/frontend/utils/drawer.js` module
+- `toggleDrawer()`, `openDrawer()`, `closeDrawer()` functions
+- Close on: overlay click, nav item click, swipe left gesture, orientation change
+- Swipe detection: touchstart/touchmove/touchend on sidebar element, threshold 80px leftward, direction-locked (ignore vertical movement >30px)
+
+**Orientation change handling:**
+- Drawer closes on orientation change
+- Modals reflow but stay open
+- In-progress drag operations are cancelled by FullCalendar natively
 
 ### 2. Calendar Full Width
 
@@ -63,24 +73,29 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 - Desktop (>1024px): `140px` (unchanged)
 - Tablet landscape (769px–1024px): `120px`
 - Tablet portrait (≤768px): `100px`
-- Names displayed as "Prénom I." format on tablet if truncated
+- Implementation: JS `matchMedia` listener that calls `calendar.setOption('resourceAreaWidth', value)` on breakpoint change
+- Names displayed as "Prénom I." format on tablet if truncated (CSS `text-overflow: ellipsis`)
 
 **Week view:**
-- Landscape: 7 days visible (full week)
-- Portrait (≤768px): 5 days visible (Monday–Friday), scrollable to weekend
-- Implementation: FullCalendar `dayCount` or `visibleRange` adjusted via JS `matchMedia`
+- Landscape (>768px): 7 days visible (full week)
+- Portrait (≤768px): 5 days visible (Monday–Friday)
+- Implementation: The existing `rollingWeek` custom view (defined in `calendar-init.js` with `duration: { days: 7 }`) must have its duration changed dynamically. On portrait tablets, call `calendar.setOption('duration', { days: 5 })` or use `calendar.changeView('rollingWeek', { duration: { days: 5 } })`. Use a `matchMedia('(max-width:768px)')` listener to toggle between 5 and 7 days.
 
 **Day view:**
 - Full width, unchanged behavior
-- Swipe left/right to navigate to next/previous day
+- Swipe left/right to navigate to next/previous day (see Section 4)
 
 **Slot height:**
-- Landscape: 26px (unchanged)
-- Portrait with >3 practitioners: consider 22px to show more time slots
+- All tablet orientations: 26px (unchanged). Reducing slot height was considered but rejected — maintaining consistent 44px touch targets on events is more important than fitting extra time slots.
 
 ### 3. Toolbar Optimization (≤1024px)
 
-**Layout:**
+**The mobile detection threshold problem:**
+The existing `fcIsMobile()` function in `touch.js` returns true only at ≤768px. The mobile toolbar rows (`.at-row1`, `.at-row2`) and FAB are gated behind this function and the `@media(min-width:769px)` CSS rule that hides them.
+
+**Solution:** Introduce `fcIsTablet()` in `touch.js`: `() => window.innerWidth <= 1024 && window.innerWidth > 768`. Keep `fcIsMobile()` unchanged at ≤768px. The tablet toolbar uses a **hybrid approach**: keep the desktop toolbar structure (`.at-row-nav`) but restyle it for touch, and show the FAB.
+
+**Tablet toolbar layout (769px–1024px):**
 ```
 ┌──────────────────────────────────────────────────────────┐
 │ ☰  [◄] [►] [Auj.]  Mer. 20 mars 2026     [J] [S] [M]  │
@@ -88,21 +103,38 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 └──────────────────────────────────────────────────────────┘
 ```
 
-**Row 1 (navigation):**
-- Hamburger ☰: 44×44px, opens drawer
+**Row 1 (navigation) — restyle `.at-row-nav`:**
+- Hamburger ☰: 44×44px, opens drawer, inserted as first child
 - Nav buttons ◄ ►: 44×44px (up from 30px)
 - Today button: padding 10px 16px, 44px height
 - Title: current date, 1rem font
 - View buttons: labels "J" / "S" / "M" (short), 44px touch targets
 
-**Row 2 (practitioners):**
+**Row 2 (practitioners) — restyle `.at-filter-panel` or practitioner pills row:**
 - Practitioner pills: `max-width: 60vw` (up from 40vw), horizontal scroll if overflow
 - Pill touch targets: padding 8px 14px, min-height 40px
 - Search: icon-only (🔍), expands to 200px input on tap
 
 **Hidden on tablet:**
 - Vedette/Gap/Lock buttons → moved into a "⋯" overflow menu
-- Stats bar (fill rate) → hidden, accessible via ⋯ menu
+- Stats bar (`.at-row-stats`) → `display: none`
+
+**Overflow menu (⋯) specification:**
+- Trigger: 44×44px button with three dots icon, positioned at end of Row 1
+- Dropdown panel: `position: absolute; right: 0; top: 100%`
+- Width: `200px`, background `var(--white)`, border `1px solid var(--border-light)`, border-radius `var(--radius-sm)`, box-shadow `var(--shadow-md)`
+- Z-index: 35 (above toolbar at 30, below modals at 300)
+- Items: Vedette toggle, Gap Analyzer toggle, Lock toggle, Stats toggle — each 48px height, full width
+- Close on: item click, click outside, scroll
+- CSS class: `.at-overflow-menu`, `.at-overflow-item`
+
+**Mobile toolbar (≤768px):**
+- Unchanged — continues using `.at-row1`/`.at-row2` mobile layout
+- FAB visible (unchanged)
+
+**FAB visibility:**
+- Change the `@media(min-width:769px)` rule that hides `.cal-fab` to `@media(min-width:1025px)` — FAB visible on both tablet and mobile
+- FAB position: `bottom: calc(24px + env(safe-area-inset-bottom))`
 
 ### 4. Touch Targets (≤1024px)
 
@@ -121,12 +153,20 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 | Modal status buttons | current | min-height 44px |
 | Modal duration chips | current | min-height 44px |
 | Modal tabs | current | min-height 44px |
+| Sidebar nav items (in drawer) | 18px height | 48px height |
 
 **Calendar interactions (unchanged):**
 - Tap → open detail
 - Long press (800ms) → drag to move
 - Double-tap empty slot → Quick Create
-- Swipe left/right on day view → navigate days
+
+**Day view swipe navigation:**
+- Swipe left → `calendar.next()` (next day)
+- Swipe right → `calendar.prev()` (previous day)
+- Implementation: touchstart/touchmove/touchend on the calendar container
+- Threshold: 60px horizontal, direction-locked (ignore if vertical movement >30px)
+- Only active in day view (`timeGridDay`), not week/month
+- File: `src/frontend/views/agenda/calendar-interactions.js`
 
 ### 5. Modals on Tablet (680px–1024px)
 
@@ -143,7 +183,7 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 - Width: `min(540px, 90vw)`
 - "Créer le RDV" button: sticky at bottom, visible above virtual keyboard
 - All inputs/selects: 44px touch targets
-- Virtual keyboard handling: `.m-body` scrolls, bottom bar stays visible
+- Virtual keyboard handling: listen to `visualViewport.resize` event on Android, ensure `.m-body` scrolls and `.m-bottom` remains visible
 
 **Booking Detail modal:**
 - Same approach: centered, `min(540px, 90vw)`
@@ -164,27 +204,36 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 
 ### 6. Quick Booking (⚡)
 
-- Lightning bolt button: 44px minimum touch target on tablet
-- The modal/panel that opens: same rules as Quick Create — centered dialog `min(540px, 90vw)`, 44px touch targets, sticky action button
-- Exact flow preserved from current implementation (to be analyzed during implementation)
+The Quick Booking feature (lightning bolt button) opens a specialized panel for fast phone-in bookings. Its exact UI flow will be analyzed during implementation by reading the associated JS files.
+
+**Tablet rules (same as other modals/panels):**
+- Lightning bolt button: 44px minimum touch target
+- Whatever panel/modal it opens: `max-width: min(540px, 90vw)`, 44px touch targets, sticky action button at bottom
+- Preserve existing flow — responsive adaptation only, no functional changes
+
+**Note:** This section is intentionally light. The Quick Booking flow is complex and will be fully specified during the implementation planning phase after code analysis.
 
 ## Files to Modify
 
 ### CSS
-- `src/frontend/styles/responsive.css` — main responsive rules, new ≤1024px breakpoint
-- `src/frontend/styles/sidebar.css` — drawer mode, overlay, transition
-- `src/frontend/styles/calendar.css` — toolbar hamburger, resource column
-- `src/frontend/styles/modal.css` — extend 44px touch targets to ≤1024px
-- `src/frontend/styles/topbar.css` — full width, hamburger space
+- `src/frontend/styles/responsive.css` — refactor 1000px breakpoint to 1024px drawer, add tablet toolbar/touch rules
+- `src/frontend/styles/sidebar.css` — drawer mode, overlay, transition, touch targets
+- `src/frontend/styles/calendar.css` — toolbar hamburger, overflow menu, resource column
+- `src/frontend/styles/modal.css` — extend 44px touch targets to ≤1024px breakpoint
+- `src/frontend/styles/topbar.css` — full width at ≤1024px, hamburger space
+- `src/frontend/styles/buttons.css` — 44px touch targets on `.btn-primary`, `.btn-outline`, `.btn-sm` at ≤1024px
+- `src/frontend/styles/components.css` — touch target adjustments for `.cal-btn`, `.dg-btn` at ≤1024px
 
 ### JS
 - New: `src/frontend/utils/drawer.js` — sidebar drawer toggle, overlay, swipe-to-close
-- `src/frontend/views/agenda/calendar-init.js` — responsive resourceAreaWidth, week day count
-- `src/frontend/views/agenda/calendar-toolbar.js` or equivalent — hamburger button, overflow menu
-- Possibly: `src/frontend/utils/touch.js` — day view swipe navigation
+- `src/frontend/utils/touch.js` — add `fcIsTablet()` function
+- `src/frontend/views/agenda/calendar-init.js` — responsive resourceAreaWidth, week day count via matchMedia
+- `src/frontend/views/agenda/calendar-toolbar.js` or equivalent — hamburger button, overflow menu rendering
+- `src/frontend/views/agenda/calendar-interactions.js` — day view swipe navigation
+- `src/frontend/views/agenda/index.js` — import and wire drawer.js
 
 ### HTML
-- `public/dashboard.html` — hamburger button in topbar, drawer overlay element, toolbar restructure
+- `public/dashboard.html` — hamburger button in topbar, drawer overlay element, overflow menu trigger in toolbar
 
 ## Constraints
 
@@ -193,3 +242,5 @@ Bookt is a SaaS booking platform for Belgian aesthetic practitioners and hairdre
 - No breaking changes to existing calendar functionality
 - FullCalendar Scheduler Premium API for view/resource configuration
 - Performance: no layout thrashing on orientation change
+- The existing 1000px sidebar collapse rules are fully replaced by the 1024px drawer behavior
+- `fcIsMobile()` stays at ≤768px threshold — new `fcIsTablet()` added for 769px–1024px range
