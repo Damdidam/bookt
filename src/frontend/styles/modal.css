@@ -293,6 +293,8 @@ textarea.m-input{resize:vertical;min-height:38px}
 .g-toast button{padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-family:var(--sans);font-size:var(--text-base);font-weight:700;cursor:pointer;transition:var(--transition)}
 .g-toast button:hover{background:var(--primary-hover)}
 .g-toast.info{background:#1E3A5F;border-left:4px solid #60A5FA}
+.g-toast.success{border-left:4px solid var(--green)}
+.g-toast.error{border-left:4px solid var(--red)}
 .g-toast .dismiss{background:transparent;color:rgba(255,255,255,.4);font-size:var(--text-sm);padding:4px 8px}
 
 /* =============================================
