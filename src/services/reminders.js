@@ -237,21 +237,27 @@ async function process24hReminders(stats) {
 async function process2hReminders(stats) {
   const bookings = await query(`
     SELECT
-      bk.id, bk.start_at, bk.public_token,
+      bk.id, bk.start_at, bk.end_at, bk.public_token,
+      bk.group_id, bk.group_order,
       c.full_name AS client_name, c.email AS client_email,
       c.phone AS client_phone, c.consent_sms,
       p.display_name AS practitioner_name,
+      CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
       b.id AS business_id, b.name AS business_name,
-      b.plan, b.settings
+      b.plan, b.settings, b.theme
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
     JOIN practitioners p ON p.id = bk.practitioner_id
+    JOIN services s ON s.id = bk.service_id
+    LEFT JOIN service_variants sv ON sv.id = bk.service_variant_id
     JOIN businesses b ON b.id = bk.business_id
     WHERE bk.status = 'confirmed'
       AND bk.reminder_2h_sent_at IS NULL
       AND bk.start_at > NOW() + INTERVAL '1 hour'
       AND bk.start_at <= NOW() + INTERVAL '2 hours 15 minutes'
       AND b.is_active = true
+      AND (bk.group_id IS NULL OR bk.group_order = 0)
     ORDER BY bk.start_at
     LIMIT 200
   `);
@@ -268,9 +274,37 @@ async function process2hReminders(stats) {
         hour: '2-digit', minute: '2-digit'
       });
 
+      // Fetch group services if multi-service booking
+      let groupServices = null;
+      if (bk.group_id) {
+        const grp = await query(
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  b2.end_at, b2.practitioner_id, p.display_name AS practitioner_name
+           FROM bookings b2 LEFT JOIN services s ON s.id = b2.service_id
+           LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b2.practitioner_id
+           WHERE b2.group_id = $1 AND b2.business_id = $2 ORDER BY b2.group_order, b2.start_at`,
+          [bk.group_id, bk.business_id]
+        );
+        if (grp.rows.length > 1) {
+          const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+          if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+          groupServices = grp.rows;
+        }
+      }
+
+      const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+
       // SMS 2h
       if (smsEnabled && bk.client_phone && bk.consent_sms) {
-        const smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) avec ${bk.practitioner_name}. À bientôt !`;
+        let smsBody;
+        if (isMulti) {
+          const serviceNames = groupServices.map(s => s.name).join(' + ');
+          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}. À bientôt !`;
+        } else {
+          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) avec ${bk.practitioner_name}. À bientôt !`;
+        }
 
         const result = await sendSMS({
           to: bk.client_phone,
@@ -292,6 +326,25 @@ async function process2hReminders(stats) {
       if (emailEnabled && bk.client_email) {
         const baseUrl2h = process.env.APP_BASE_URL || 'https://genda.be';
         const manageUrl2h = `${baseUrl2h}/booking/${bk.public_token}`;
+        const primaryColor = bk.theme?.primary_color || '#0D7377';
+
+        let serviceHTML;
+        if (isMulti) {
+          serviceHTML = groupServices.map(s => {
+            const pName = s.practitioner_name ? ` — ${escHtml(s.practitioner_name)}` : '';
+            return `<div style="padding:2px 0;font-weight:600">• ${escHtml(s.name)} (${s.duration_min} min)${pName}</div>`;
+          }).join('');
+          const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+          const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
+          serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
+        } else {
+          serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)`;
+        }
+
+        const bodyHTML = isMulti
+          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, à <strong>${timeShort}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div><p>À bientôt !</p>`
+          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p>À bientôt !</p>`;
+
         const result = await sendEmail({
           to: bk.client_email,
           toName: bk.client_name,
@@ -300,7 +353,8 @@ async function process2hReminders(stats) {
             title: 'Votre rendez-vous approche',
             preheader: `RDV à ${timeShort} chez ${bk.business_name}`,
             businessName: bk.business_name,
-            bodyHTML: `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p>À bientôt !</p>`,
+            primaryColor,
+            bodyHTML,
             ctaText: 'Gérer mon rendez-vous',
             ctaUrl: manageUrl2h,
             cancelText: null,
@@ -312,17 +366,23 @@ async function process2hReminders(stats) {
         if (result.success) {
           stats.email_2h++;
           anySent = true;
-          // Bug B3 fix: was incorrectly using 'email_reminder_24h'
           await logNotification(bk, 'email_reminder_2h', 'sent', 'brevo', result.messageId);
         }
       }
 
-      // Mark as sent only if at least one notification succeeded
+      // Mark as sent — if group, mark all siblings
       if (anySent) {
-        await query(
-          `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
-          [bk.id, bk.business_id]
-        );
+        if (bk.group_id) {
+          await query(
+            `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE group_id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            [bk.group_id, bk.business_id]
+          );
+        } else {
+          await query(
+            `UPDATE bookings SET reminder_2h_sent_at = NOW() WHERE id = $1 AND business_id = $2 AND status = 'confirmed'`,
+            [bk.id, bk.business_id]
+          );
+        }
       }
     } catch (err) {
       console.error(`[REMINDERS] Error processing 2h for booking ${bk.id}:`, err.message);
