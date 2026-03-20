@@ -417,7 +417,7 @@ function qcUpdateTotal() {
   } else {
     modeRow.style.display = '';
     const curVal = modeSel.value;
-    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Cabinet', visio: 'Visio', phone: 'T\u00e9l\u00e9phone' })[m] || esc(m)}</option>`).join('');
+    modeSel.innerHTML = modes.map(m => `<option value="${m}">${MODE_ICO[m] || ''} ${({ cabinet: 'Au salon', visio: 'Visio', phone: 'T\u00e9l\u00e9phone' })[m] || esc(m)}</option>`).join('');
     if (modes.includes(curVal)) modeSel.value = curVal;
   }
 

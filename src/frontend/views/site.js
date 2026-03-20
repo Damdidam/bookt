@@ -856,7 +856,7 @@ function openValueModal(item){
         <input class="m-input" id="valIcon" value="${item?.icon||'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>'}" placeholder="Emoji ou texte" style="max-width:80px">
       </div>
       <div><label class="m-field-label">Titre *</label><input class="m-input" id="valTitle" value="${item?.title||''}" placeholder="Ex: Écoute, Expertise, Qualité"></div>
-      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque patient est unique, nous prenons le temps"></div>
+      <div><label class="m-field-label">Description *</label><input class="m-input" id="valDesc" value="${item?.description||''}" placeholder="Ex: Chaque client est unique, nous prenons le temps"></div>
     </div>
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('valModal')">Annuler</button><button class="m-btn m-btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;

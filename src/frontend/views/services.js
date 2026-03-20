@@ -608,7 +608,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   const showModes=!physicalOnlySectors.includes(userSector);
   if(showModes){
     m+=`<div class="field"><label>Mode</label><div style="display:flex;gap:10px;margin-top:4px">
-      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Cabinet</label>
+      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Au salon</label>
       <label class="svc-mode-opt"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> Visio</label>
       <label class="svc-mode-opt"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> Tél.</label>
     </div></div>`;

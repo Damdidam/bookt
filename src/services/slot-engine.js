@@ -36,7 +36,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     `SELECT settings FROM businesses WHERE id = $1 AND is_active = true`,
     [businessId]
   );
-  if (bizResult.rows.length === 0) throw Object.assign(new Error('Cabinet introuvable'), { type: 'not_found' });
+  if (bizResult.rows.length === 0) throw Object.assign(new Error('Salon introuvable'), { type: 'not_found' });
 
   const settings = bizResult.rows[0].settings;
   // SVC-V11-9: Guard against zero/negative granularity (would cause infinite loop)
@@ -414,7 +414,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     `SELECT settings FROM businesses WHERE id = $1 AND is_active = true`,
     [businessId]
   );
-  if (bizResult.rows.length === 0) throw Object.assign(new Error('Cabinet introuvable'), { type: 'not_found' });
+  if (bizResult.rows.length === 0) throw Object.assign(new Error('Salon introuvable'), { type: 'not_found' });
 
   const settings = bizResult.rows[0].settings;
   let granularity;
@@ -839,7 +839,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     `SELECT settings FROM businesses WHERE id = $1 AND is_active = true`,
     [businessId]
   );
-  if (bizResult.rows.length === 0) throw Object.assign(new Error('Cabinet introuvable'), { type: 'not_found' });
+  if (bizResult.rows.length === 0) throw Object.assign(new Error('Salon introuvable'), { type: 'not_found' });
 
   const settings = bizResult.rows[0].settings;
   let granularity;

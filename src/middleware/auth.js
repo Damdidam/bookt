@@ -68,7 +68,7 @@ async function requireAuth(req, res, next) {
  */
 function requireOwner(req, res, next) {
   if (req.user.role !== 'owner') {
-    return res.status(403).json({ error: 'Accès réservé au propriétaire du cabinet' });
+    return res.status(403).json({ error: 'Accès réservé au propriétaire du salon' });
   }
   next();
 }

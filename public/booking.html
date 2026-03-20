@@ -344,7 +344,7 @@ function renderBooking(data) {
   document.getElementById('valPractitioner').textContent = booking.practitioner.name;
   document.getElementById('valPracTitle').textContent = booking.practitioner.title || '';
 
-  // Mode / address — hide "Au cabinet" (default for salons)
+  // Mode / address — hide "Au salon" (default for salons)
   const modes = { visio: 'En visio', phone: 'Par téléphone', domicile: 'À domicile' };
   const modeEl = document.getElementById('valMode');
   if (booking.appointment_mode && booking.appointment_mode !== 'cabinet' && modes[booking.appointment_mode]) {

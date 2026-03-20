@@ -472,10 +472,10 @@ function buildMessages(lang, s, bookingUrl, mode) {
       : null;
 
     return {
-      announcement: vacMsg || `Bonjour. Le cabinet ${name} est actuellement fermé${until ? ' jusqu\'au ' + until : ''}. Vous pouvez prendre rendez-vous en ligne via le SMS que nous vous envoyons.`,
+      announcement: vacMsg || `Bonjour. ${name} est actuellement fermé${until ? ' jusqu\'au ' + until : ''}. Vous pouvez prendre rendez-vous en ligne via le SMS que nous vous envoyons.`,
       redirect: s.vacation_redirect_name ? `Nous vous transférons vers ${s.vacation_redirect_name}.` : 'Nous vous transférons vers le remplaçant.',
       goodbye: 'Un SMS avec le lien de réservation vous a été envoyé. Au revoir.',
-      sms: customSms || `${name} : Cabinet fermé${until ? ' jusqu\'au ' + until : ''}. Prenez RDV en ligne : ${bookingUrl}`
+      sms: customSms || `${name} : Fermé${until ? ' jusqu\'au ' + until : ''}. Prenez RDV en ligne : ${bookingUrl}`
     };
   }
 

@@ -6,11 +6,11 @@ const { authLimiter } = require('../../middleware/rate-limiter');
 
 // ============================================================
 // POST /api/auth/signup
-// Self-service registration: professional creates their cabinet
-// UI: Landing page Genda.be → "Créer mon cabinet" → formulaire
+// Self-service registration: professional creates their salon
+// UI: Landing page Genda.be → "Créer mon salon" → formulaire
 //
 // Creates: business + user (owner) + default practitioner
-//          + default services (template comptable)
+//          + default services (sector template)
 //          + default availability (Lun-Ven 9-17)
 //          + onboarding_progress
 //          + call_settings (off by default)
@@ -22,7 +22,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
       email,
       password,
       full_name,
-      // Cabinet info
+      // Salon info
       business_name,
       business_phone,
       business_address,
@@ -262,11 +262,13 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 
 function getSectorTagline(sector, name, lang) {
   const taglines = {
-    comptable: { fr: `Cabinet comptable à votre service`, nl: `Boekhouder aan uw zijde` },
-    avocat: { fr: `Cabinet d'avocats`, nl: `Advocatenkantoor` },
-    medecin: { fr: `Cabinet médical`, nl: `Medisch kabinet` },
-    dentiste: { fr: `Cabinet dentaire`, nl: `Tandartspraktijk` },
-    kine: { fr: `Cabinet de kinésithérapie`, nl: `Kinesitherapie praktijk` },
+    coiffeur: { fr: `Votre salon de coiffure`, nl: `Uw kapsalon` },
+    esthetique: { fr: `Institut de beauté`, nl: `Schoonheidsinstituut` },
+    barbier: { fr: `Barbershop`, nl: `Barbershop` },
+    massage: { fr: `Salon de massage et bien-être`, nl: `Massage en wellness salon` },
+    onglerie: { fr: `Onglerie & Nail art`, nl: `Nagelstudio & Nail art` },
+    tatouage: { fr: `Studio de tatouage`, nl: `Tattoo studio` },
+    bienetre: { fr: `Espace bien-être`, nl: `Wellness ruimte` },
     autre: { fr: `Prenez rendez-vous en ligne`, nl: `Maak online een afspraak` }
   };
   return (taglines[sector] || taglines.autre)[lang] || taglines.autre.fr;
@@ -274,11 +276,13 @@ function getSectorTagline(sector, name, lang) {
 
 function getSectorTitle(sector, lang) {
   const titles = {
-    comptable: { fr: 'Expert-comptable', nl: 'Boekhouder' },
-    avocat: { fr: 'Avocat', nl: 'Advocaat' },
-    medecin: { fr: 'Médecin', nl: 'Arts' },
-    dentiste: { fr: 'Dentiste', nl: 'Tandarts' },
-    kine: { fr: 'Kinésithérapeute', nl: 'Kinesitherapeut' },
+    coiffeur: { fr: 'Coiffeur/Coiffeuse', nl: 'Kapper' },
+    esthetique: { fr: 'Esthéticien(ne)', nl: 'Schoonheidsspecialist' },
+    barbier: { fr: 'Barbier', nl: 'Barbier' },
+    massage: { fr: 'Masseur/Masseuse', nl: 'Masseur/Masseuse' },
+    onglerie: { fr: 'Prothésiste ongulaire', nl: 'Nagelstyliste' },
+    tatouage: { fr: 'Tatoueur/Tatoueuse', nl: 'Tattoo artiest' },
+    bienetre: { fr: 'Praticien(ne) bien-être', nl: 'Wellness praktijk' },
     autre: { fr: 'Professionnel', nl: 'Professional' }
   };
   return (titles[sector] || titles.autre)[lang] || titles.autre.fr;

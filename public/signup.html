@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Créer mon salon — Genda</title>
+<title>Lancez votre salon en ligne — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 .gi{display:inline-block;width:1em;height:1em;vertical-align:-.125em;flex-shrink:0}
@@ -22,14 +22,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 /* Layout */
 .page{display:flex;min-height:100vh}
-.left{width:400px;background:linear-gradient(160deg,#2C2420,#3D2F28);color:#fff;padding:40px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-.left-logo{display:flex;align-items:center;gap:8px;margin-bottom:auto}
-.left-logo .l{width:32px;height:32px;border-radius:9px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.95rem}
-.left-logo .w{font-family:var(--serif);font-size:1.15rem}
-.left-body{margin:auto 0}
+.left{width:420px;background:linear-gradient(160deg,#1A1614,#2C2420,#3D2F28);color:#fff;padding:40px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:hidden}
+.left::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(224,122,95,.12) 0%,transparent 70%);pointer-events:none}
+.left-logo{display:flex;align-items:center;gap:10px;margin-bottom:auto;text-decoration:none;color:#fff}
+.left-logo .l{width:34px;height:34px;flex-shrink:0}
+.left-logo .l svg{width:100%;height:100%}
+.left-logo .w{font-family:var(--serif);font-size:1.2rem}
+.left-body{margin:auto 0;position:relative;z-index:1}
 .left-body h2{font-family:var(--serif);font-size:1.7rem;line-height:1.2;margin-bottom:10px;font-weight:400}
 .left-body h2 em{font-style:italic;color:#E8A090}
 .left-body p{font-size:.85rem;color:rgba(255,255,255,.45);line-height:1.6}
+.left-perks{margin-top:20px;display:flex;flex-direction:column;gap:8px;position:relative;z-index:1}
+.left-perk{display:flex;align-items:center;gap:8px;font-size:.72rem;color:rgba(255,255,255,.35)}
+.left-perk .lp-dot{width:5px;height:5px;border-radius:50%;background:var(--primary);flex-shrink:0;opacity:.7}
 .left-foot{margin-top:auto;font-size:.7rem;color:rgba(255,255,255,.25)}
 
 .right{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px;overflow-y:auto}
@@ -139,10 +144,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
 <div class="page">
   <aside class="left">
-    <div class="left-logo"><div class="l">G</div><span class="w">Genda</span></div>
+    <a class="left-logo" href="/"><div class="l"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="6" fill="rgba(255,255,255,.12)"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="rgba(255,255,255,.7)" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="rgba(255,255,255,.7)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="w">Genda</span></a>
     <div class="left-body">
-      <h2 id="lTitle">Créez votre <em>salon en ligne</em></h2>
-      <p id="lDesc">En quelques minutes, une page pro avec réservation en ligne, rappels et paiements.</p>
+      <h2 id="lTitle">Chaque minute <em>compte.</em></h2>
+      <p id="lDesc">Le moteur de planning le plus intelligent pour salons et instituts de beauté.</p>
+    </div>
+    <div class="left-perks" id="lPerks">
+      <div class="left-perk"><span class="lp-dot"></span>Temps de pose optimisés automatiquement</div>
+      <div class="left-perk"><span class="lp-dot"></span>Multi-praticiens sur un même RDV</div>
+      <div class="left-perk"><span class="lp-dot"></span>Gap analyzer : 0 trou dans l'agenda</div>
+      <div class="left-perk"><span class="lp-dot"></span>Booking en ligne 24/7, acomptes, rappels</div>
     </div>
     <div class="left-foot">© 2026 Genda · Belgique <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg></div>
   </aside>
@@ -160,8 +171,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
       <!-- ===== STEP 0: CREATE ACCOUNT ===== -->
       <div class="step active" data-step="0">
         <div class="step-hdr">
-          <h2>Créer votre compte</h2>
-          <p>30 secondes. Gratuit, sans engagement.</p>
+          <h2>Lancez votre salon</h2>
+          <p>Gratuit, sans engagement. En ligne en 5 minutes.</p>
         </div>
         <div class="fg"><label class="fl">Votre nom complet</label><input class="fi" id="f_name" placeholder="Sarah Delcourt"></div>
         <div class="fg"><label class="fl">Email professionnel</label><input class="fi" type="email" id="f_email" placeholder="sarah@lestudio-coiffure.be"></div>
@@ -186,23 +197,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         </div>
       </div>
 
-      <!-- ===== STEP 1: CABINET INFO ===== -->
+      <!-- ===== STEP 1: SALON INFO ===== -->
       <div class="step" data-step="1">
-        <div class="step-hdr"><div class="lbl">Étape 1 · Salon</div><h2>Informations du salon</h2><p>Apparaîtront sur votre page publique.</p></div>
+        <div class="step-hdr"><div class="lbl">Étape 1 · Salon</div><h2>Informations du salon</h2><p>Visibles sur votre page de réservation.</p></div>
         <div class="fr">
           <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f_phone" placeholder="+32 2 123 45 67"></div>
           <div class="fg"><label class="fl">Langue</label><select class="fi" id="f_lang"><option value="fr">Français</option><option value="nl">Nederlands</option></select></div>
         </div>
         <div class="fg"><label class="fl">Adresse</label><input class="fi" id="f_addr" placeholder="Rue du Midi 42, 1000 Bruxelles"></div>
         <div class="fg"><label class="fl">Info parking <span class="opt">(optionnel)</span></label><input class="fi" id="f_parking" placeholder="Parking gratuit derrière le bâtiment"></div>
-        <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveCabinetInfo()">Continuer →</button></div>
+        <div class="snav"><button class="btn-back" onclick="go(0)">← Retour</button><button class="btn-next" onclick="saveSalonInfo()">Continuer →</button></div>
       </div>
 
       <!-- ===== STEP 2: SCHEDULE ===== -->
       <div class="step" data-step="2">
-        <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Vos disponibilités</h2><p>Horaires par défaut. Modifiables à tout moment.</p></div>
+        <div class="step-hdr"><div class="lbl">Étape 2 · Horaires</div><h2>Vos disponibilités</h2><p>Le moteur optimise automatiquement vos créneaux.</p></div>
         <div id="schedGrid"></div>
-        <div class="clo tip" style="margin-top:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Pause midi pré-configurée. Exceptions (congés) éditables depuis le dashboard.</div>
+        <div class="clo tip" style="margin-top:12px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Pause midi pré-configurée. Le moteur gère les temps de pose et les gaps entre créneaux.</div>
         <div class="snav"><button class="btn-back" onclick="go(1)">← Retour</button><button class="btn-next" onclick="saveSchedule()">Continuer →</button></div>
       </div>
 
@@ -210,13 +221,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
       <div class="step" data-step="3">
         <div class="step-hdr"><div class="lbl">Étape 3 · Prestations</div><h2>Vos prestations</h2><p>Pré-remplies pour votre secteur.</p></div>
         <div id="svcList"></div>
-        <div class="clo info" style="margin-top:10px">Personnalisez durées, tarifs et modes depuis le dashboard.</div>
+        <div class="clo info" style="margin-top:10px">Le moteur optimise les temps de pose entre prestations. Personnalisez durées et tarifs depuis le dashboard.</div>
         <div class="snav"><button class="btn-back" onclick="go(2)">← Retour</button><button class="btn-next" onclick="saveOnboardingStep('services',4)">Continuer →</button></div>
       </div>
 
       <!-- ===== STEP 4: TEAM ===== -->
       <div class="step" data-step="4">
-        <div class="step-hdr"><div class="lbl">Étape 4 · Équipe</div><h2>Votre équipe</h2><p>Vous êtes déjà ajouté. Complétez votre bio.</p></div>
+        <div class="step-hdr"><div class="lbl">Étape 4 · Équipe</div><h2>Votre équipe</h2><p>Chaque praticien a son agenda. Le moteur assigne automatiquement les bons créneaux.</p></div>
         <div style="background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:18px;margin-bottom:10px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
             <div style="width:42px;height:42px;border-radius:11px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem" id="ownerAvatar">PD</div>
@@ -262,7 +273,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
 
       <!-- ===== STEP 8: NOTIFICATIONS ===== -->
       <div class="step" data-step="8">
-        <div class="step-hdr"><div class="lbl">Étape 8 · Notifications</div><h2>Rappels automatiques</h2><p>Réduisez les no-shows.</p></div>
+        <div class="step-hdr"><div class="lbl">Étape 8 · Notifications</div><h2>Rappels automatiques</h2><p>-60% de no-shows grâce aux rappels email et SMS.</p></div>
         <div class="trow"><div class="tlbl">Confirmation email<span class="sub">Dès la réservation</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
         <div class="trow"><div class="tlbl">Rappel email J-1<span class="sub">24h avant</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
         <div class="trow"><div class="tlbl">Rappel SMS J-1 <span style="padding:1px 5px;background:var(--gold-bg);border-radius:3px;font-size:.6rem;font-weight:700;color:var(--gold)">PRO</span><span class="sub">~0.05€/SMS</span></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
@@ -345,7 +356,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
         <div class="golive">
           <div class="icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#22C55E"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></div>
           <h3 id="goliveName">Votre salon</h3>
-          <p>Votre page pro est en ligne et prête à recevoir des réservations.</p>
+          <p>Le moteur de créneaux intelligent est activé. Vos clients peuvent réserver 24/7.</p>
           <div class="url" id="goliveUrl" onclick="copyUrl()">genda.be/votre-salon</div>
           <div class="acts">
             <a onclick="copyUrl()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</a>
@@ -353,7 +364,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font
             <a href="/dashboard.html" class="pri">Mon dashboard →</a>
           </div>
         </div>
-        <div class="clo tip" style="margin-top:16px"><strong>Prochaines étapes :</strong><br>• Partagez le lien sur vos réseaux sociaux<br>• Ajoutez-le sur Google My Business<br>• Testez une réservation vous-même</div>
+        <div class="clo tip" style="margin-top:16px"><strong>Prochaines étapes :</strong><br>• Partagez le lien sur vos réseaux sociaux et Google My Business<br>• Configurez les temps de pose par prestation dans le dashboard<br>• Ajoutez vos collaborateurs pour activer le multi-praticiens<br>• Testez une réservation vous-même</div>
       </div>
 
     </div>
@@ -423,24 +434,27 @@ function hideError() {
 }
 
 const leftTexts = {
-  0: ['Créez votre <em>salon en ligne</em>', 'En quelques minutes, une page pro avec réservation intégrée.'],
-  1: ['<em>Identité</em> de votre salon', 'Visible sur votre page publique et confirmations.'],
-  2: ['Définissez vos <em>horaires</em>', 'Vos clients ne voient que les créneaux disponibles.'],
-  3: ['Configurez vos <em>prestations</em>', 'Templates adaptés à votre secteur.'],
-  4: ['Présentez votre <em>équipe</em>', 'Chaque collaborateur a son propre agenda.'],
+  0: ['Chaque minute <em>compte.</em>', 'Le moteur de planning le plus intelligent pour salons et instituts de beauté.'],
+  1: ['Votre <em>identité</em>', 'Visible sur votre page de réservation et vos confirmations.'],
+  2: ['Vos <em>horaires,</em> optimisés', 'Le moteur maximise chaque créneau et gère les temps de pose.'],
+  3: ['Vos <em>prestations</em>', 'Pré-remplies pour votre secteur. Le moteur gère les durées et les poses.'],
+  4: ['Votre <em>équipe</em>', 'Multi-praticiens sur un même RDV : le moteur assigne le bon créneau à chacun.'],
   5: ['Racontez votre <em>histoire</em>', 'Un salon avec description inspire 3x plus confiance.'],
-  6: ['Montrez votre <em>expertise</em>', 'Aide vos clients et votre référencement Google.'],
+  6: ['Votre <em>expertise</em>', 'Aide vos clients et votre référencement Google.'],
   7: ['La preuve <em>sociale</em>', 'Témoignages = facteur #1 de conversion.'],
-  8: ['Zéro <em>no-show</em>', 'Les rappels réduisent les absences de 60%.'],
-  9: ['Finies les <em>interruptions</em>', '78% des appels filtrés → RDV en ligne.'],
-  10: ['Synchronisez votre <em>agenda</em>', 'Vos créneaux occupés bloquent les réservations.'],
-  11: ['<em>Félicitations !</em>', 'Votre salon est en ligne. Partagez le lien.']
+  8: ['Zéro <em>no-show</em>', '-60% d\'absences grâce aux rappels automatiques.'],
+  9: ['Finies les <em>interruptions</em>', '78% des appels filtrés, redirigés vers la réservation en ligne.'],
+  10: ['Synchronisez votre <em>agenda</em>', 'Vos créneaux occupés bloquent les réservations. 0 conflit.'],
+  11: ['C\'est <em>prêt !</em>', 'Votre moteur de créneaux intelligent est activé. Partagez le lien.']
 };
 
 function updateLeftPanel(n) {
   const t = leftTexts[n] || leftTexts[0];
   document.getElementById('lTitle').innerHTML = t[0];
   document.getElementById('lDesc').textContent = t[1];
+  // Show perks only on step 0
+  const perks = document.getElementById('lPerks');
+  if (perks) perks.style.display = n === 0 ? 'flex' : 'none';
 }
 
 // ============================================================
@@ -486,7 +500,7 @@ async function doSignup() {
     buildServiceList();
     buildSpecTags();
 
-    GendaUI.toast('Compte créé ! Configurons votre salon.', 'success');
+    GendaUI.toast('Compte créé ! Configurons votre moteur de planning.', 'success');
     go(1);
 
   } catch (err) {
@@ -497,9 +511,9 @@ async function doSignup() {
 }
 
 // ============================================================
-// STEP 1: CABINET INFO → PATCH /api/business
+// STEP 1: SALON INFO → PATCH /api/business
 // ============================================================
-async function saveCabinetInfo() {
+async function saveSalonInfo() {
   const phone = document.getElementById('f_phone').value.trim();
   const address = document.getElementById('f_addr').value.trim();
   const parking = document.getElementById('f_parking').value.trim();
@@ -758,7 +772,7 @@ function copyUrl() {
 
 // Expose functions to inline onclick handlers
 Object.assign(window, {
-  selSec, updSlug, go, doSignup, saveCabinetInfo, saveSchedule,
+  selSec, updSlug, go, doSignup, saveSalonInfo, saveSchedule,
   saveOnboardingStep, saveTeam, saveBio, addTestimonialForm,
   selectCalendar, saveCalendarChoice, goLive, copyUrl
 });

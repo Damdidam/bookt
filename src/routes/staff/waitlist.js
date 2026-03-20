@@ -100,7 +100,7 @@ router.post('/', async (req, res, next) => {
       [finalPracId, bid]
     );
     if (pracCheck.rows.length === 0) {
-      return res.status(400).json({ error: 'Praticien invalide pour ce cabinet' });
+      return res.status(400).json({ error: 'Praticien invalide pour ce salon' });
     }
 
     // Verify service belongs to business
@@ -109,7 +109,7 @@ router.post('/', async (req, res, next) => {
       [service_id, bid]
     );
     if (svcCheck.rows.length === 0) {
-      return res.status(400).json({ error: 'Prestation invalide pour ce cabinet' });
+      return res.status(400).json({ error: 'Prestation invalide pour ce salon' });
     }
 
     // Validate preferred_days: must be an array of integers 0-6

@@ -76,7 +76,7 @@ router.put('/', async (req, res, next) => {
       [practitioner_id, bid]
     );
     if (pracCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Praticien introuvable dans ce cabinet' });
+      return res.status(404).json({ error: 'Praticien introuvable dans ce salon' });
     }
 
     // V11-003: Wrap DELETE + INSERT in a transaction for atomicity

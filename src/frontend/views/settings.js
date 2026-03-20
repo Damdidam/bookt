@@ -20,9 +20,9 @@ async function loadSettings(){
     const b=bd.business, u=ud.user, lk=ld;
     let h='';
 
-    // 1. Infos cabinet
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Informations du cabinet</h3></div><div class="sc-body">
-      <div class="field-row"><div class="field"><label>Nom du cabinet *</label><input id="s_name" value="${esc(b.name||'')}"></div><div class="field"><label>URL personnalisée</label><div class="copy-input"><span style="padding:9px 0;font-size:.85rem;color:var(--text-4)">genda.be/</span><input id="s_slug" value="${esc(b.slug||'')}" style="flex:1"></div><div class="hint">Modifie l'URL de votre page publique</div></div></div>
+    // 1. Infos salon
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Informations du salon</h3></div><div class="sc-body">
+      <div class="field-row"><div class="field"><label>Nom du salon *</label><input id="s_name" value="${esc(b.name||'')}"></div><div class="field"><label>URL personnalisée</label><div class="copy-input"><span style="padding:9px 0;font-size:.85rem;color:var(--text-4)">genda.be/</span><input id="s_slug" value="${esc(b.slug||'')}" style="flex:1"></div><div class="hint">Modifie l'URL de votre page publique</div></div></div>
       <div class="field-row"><div class="field"><label>Email professionnel</label><input id="s_email" type="email" value="${esc(b.email||'')}"></div><div class="field"><label>Téléphone</label><input id="s_phone" value="${esc(b.phone||'')}"></div></div>
       <div class="field"><label>Adresse</label><input id="s_address" value="${esc(b.address||'')}" placeholder="Ex: Rue de la Loi 42, 1000 Bruxelles"></div>
       <div class="field-row"><div class="field"><label>N° BCE / TVA</label><input id="s_bce" value="${esc(b.bce_number||'')}" placeholder="BE 0xxx.xxx.xxx"></div><div class="field"><label>Accréditation</label><input id="s_accred" value="${esc(b.accreditation||'')}" placeholder="Ex: Barreau de Bruxelles"></div></div>
@@ -193,15 +193,15 @@ async function loadSettings(){
     // Load connect status after render
     setTimeout(()=>loadConnectStatus(),100);
 
-    // 3b. Rappels patients
+    // 3b. Rappels clients
     const plan=b.plan||'free';
     const re24=b.settings?.reminder_email_24h!==false;
     const rs24=b.settings?.reminder_sms_24h===true;
     const rs2=b.settings?.reminder_sms_2h===true;
     const re2=b.settings?.reminder_email_2h===true;
     const hasSms=plan==='pro'||plan==='premium';
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels patients</h3></div><div class="sc-body">`;
-    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Les rappels sont envoyés automatiquement aux patients avant leur rendez-vous. Réduisez les no-shows jusqu'à 50%.</p>`;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels clients</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Les rappels sont envoyés automatiquement aux clients avant leur rendez-vous. Réduisez les no-shows jusqu'à 50%.</p>`;
 
     h+=`<div style="display:flex;flex-direction:column;gap:10px">`;
 
@@ -223,7 +223,7 @@ async function loadSettings(){
       h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--coral-lighter);border:1px solid var(--coral-border);border-radius:8px;font-size:.82rem;color:var(--coral-dark)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Les rappels SMS sont disponibles à partir du plan <strong>Pro (39\u20ac/mois)</strong>. <a href="#" onclick="document.querySelector('[data-section=settings]').click();setTimeout(()=>document.querySelector('.plan-box:nth-child(2) .btn-primary')?.scrollIntoView({behavior:'smooth'}),100)" style="color:var(--coral-dark);font-weight:600">Voir les plans \u2192</a></div>`;
     }
 
-    h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">\u2139 Les SMS sont envoyés uniquement aux patients ayant donné leur consentement SMS. Les rappels ne sont pas envoyés pour les RDV annulés.</div>`;
+    h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">\u2139 Les SMS sont envoyés uniquement aux clients ayant donné leur consentement SMS. Les rappels ne sont pas envoyés pour les RDV annulés.</div>`;
 
     h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveReminderSettings()">Enregistrer les rappels</button></div></div>`;
 
@@ -970,7 +970,7 @@ function copyField(id){
 }
 
 function confirmDeleteAccount(){
-  const name=prompt('Tapez le nom de votre cabinet pour confirmer la suppression :');
+  const name=prompt('Tapez le nom de votre salon pour confirmer la suppression :');
   if(!name)return;
   GendaUI.toast('Suppression de compte — contactez support@genda.be','info');
 }
