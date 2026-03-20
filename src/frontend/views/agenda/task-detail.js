@@ -12,6 +12,22 @@ import { toBrusselsISO } from '../../utils/format.js';
 
 let _currentTaskId = null;
 
+// ── Gradient header ──
+function tdUpdateGradient(color) {
+  const safe = /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : '#6B7280';
+  const hdr = document.getElementById('tdHeaderBg');
+  const avatar = document.getElementById('tdAvatar');
+  if (hdr) hdr.style.background = `linear-gradient(135deg,${safe} 0%,${safe}AA 60%,${safe}55 100%)`;
+  if (avatar) avatar.style.background = `linear-gradient(135deg,${safe},${safe}CC)`;
+}
+
+// Listen for color swatch changes to update gradient live
+document.addEventListener('change', e => {
+  if (e.target?.id === 'tdColor') {
+    tdUpdateGradient(e.target.value);
+  }
+});
+
 // ── Open task detail/edit modal ──
 async function fcOpenTaskDetail(taskId) {
   _currentTaskId = taskId;
@@ -38,6 +54,7 @@ async function fcOpenTaskDetail(taskId) {
 
     _populatePracSelect(task.practitioner_id);
     document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', task.color || '#6B7280', false);
+    tdUpdateGradient(task.color || '#6B7280');
 
     // Status row
     document.getElementById('tdStatusRow').style.display = '';
@@ -128,6 +145,6 @@ async function fcDeleteTask() {
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 
-bridge({ fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus });
+bridge({ fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus, tdUpdateGradient });
 
 export { fcOpenTaskDetail };

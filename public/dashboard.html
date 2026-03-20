@@ -373,11 +373,17 @@
 <!-- TASK DETAIL / CREATE MODAL -->
 <div class="m-overlay" id="calTaskModal">
   <div class="m-dialog" style="max-width:440px">
-    <div class="m-header" style="padding:18px 20px 14px">
+    <div class="m-header">
+      <div class="m-header-bg" id="tdHeaderBg" style="background:linear-gradient(135deg,#6B7280 0%,#6B7280AA 60%,#6B728055 100%)"></div>
       <button class="m-close" onclick="closeCalModal('calTaskModal')">
-        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
-      <h3 class="m-title" id="tdModalTitle" style="margin:0;font-size:1rem">Tâche interne</h3>
+      <div class="m-header-content">
+        <div class="m-avatar" id="tdAvatar" style="background:linear-gradient(135deg,#6B7280,#6B7280CC)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        </div>
+        <div class="m-client-name" id="tdModalTitle">Tâche interne</div>
+      </div>
     </div>
     <div class="m-body" style="padding:14px 20px 8px;gap:12px;display:flex;flex-direction:column">
       <!-- Title -->
