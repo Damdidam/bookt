@@ -8,6 +8,7 @@ import { bridge } from '../../utils/window-bridge.js';
 import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { closeCalModal } from './booking-detail.js';
 import { trapFocus } from '../../utils/focus-trap.js';
+import { enableSwipeClose } from '../../utils/swipe-close.js';
 import { fcRefresh } from './calendar-init.js';
 import { cswHTML } from './color-swatches.js';
 import { toBrusselsISO } from '../../utils/format.js';
@@ -54,6 +55,7 @@ function fcNewTask(date, startTime, endTime, pracId) {
 
   modal.classList.add('open');
   trapFocus(modal, () => closeCalModal('calTaskModal'));
+  enableSwipeClose(modal.querySelector('.m-dialog'), () => closeCalModal('calTaskModal'));
 }
 
 // ── Open task detail/edit modal ──
@@ -92,6 +94,7 @@ async function fcOpenTaskDetail(taskId) {
 
     modal.classList.add('open');
     trapFocus(modal, () => closeCalModal('calTaskModal'));
+    enableSwipeClose(modal.querySelector('.m-dialog'), () => closeCalModal('calTaskModal'));
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 

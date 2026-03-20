@@ -12,6 +12,7 @@ import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
 import { trapFocus, releaseFocus } from '../../utils/focus-trap.js';
+import { enableSwipeClose } from '../../utils/swipe-close.js';
 import { IC } from '../../utils/icons.js';
 
 let _openingDetail = false;
@@ -316,6 +317,7 @@ async function fcOpenDetail(bookingId) {
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'), 'rdv');
     modal.classList.add('open');
     trapFocus(modal, () => closeCalModal('calDetailModal'));
+    enableSwipeClose(modal.querySelector('.m-dialog'), () => closeCalModal('calDetailModal'));
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
   finally { _openingDetail = false; }
 }

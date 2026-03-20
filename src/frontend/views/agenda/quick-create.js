@@ -10,6 +10,7 @@ import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { guardModal } from '../../utils/dirty-guard.js';
 import { trapFocus } from '../../utils/focus-trap.js';
+import { enableSwipeClose } from '../../utils/swipe-close.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO, toBrusselsISO } from '../../utils/format.js';
 import { IC } from '../../utils/icons.js';
@@ -113,6 +114,7 @@ function fcOpenQuickCreate(startStr, endStr) {
   guardModal(qcModal, { noBackdropClose: true });
   qcModal.classList.add('open');
   trapFocus(qcModal, () => closeCalModal('calCreateModal'));
+  enableSwipeClose(qcModal.querySelector('.m-dialog'), () => closeCalModal('calCreateModal'));
 }
 
 // ── Gradient header ──

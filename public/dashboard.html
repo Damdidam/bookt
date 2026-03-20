@@ -62,6 +62,7 @@
 <!-- CALENDAR DETAIL MODAL -->
 <div class="m-overlay" id="calDetailModal" role="dialog" aria-modal="true" aria-labelledby="calDetailTitle">
   <div class="m-dialog m-flex">
+    <div class="m-drag-handle"></div>
     <div class="m-header">
       <div class="m-header-bg" id="mHeaderBg"></div>
       <button class="m-close" onclick="closeCalModal('calDetailModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -208,6 +209,7 @@
 <!-- QUICK CREATE MODAL — same structure as Detail -->
 <div class="m-overlay" id="calCreateModal" role="dialog" aria-modal="true" aria-labelledby="qcModalTitle">
   <div class="m-dialog m-flex">
+    <div class="m-drag-handle"></div>
     <div class="m-header">
       <div class="m-header-bg" id="qcHeaderBg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary)AA 60%,var(--primary)55 100%)"></div>
       <button class="m-close" onclick="closeCalModal('calCreateModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -344,6 +346,7 @@
 <!-- TASK DETAIL / CREATE MODAL -->
 <div class="m-overlay" id="calTaskModal" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle">
   <div class="m-dialog" style="max-width:440px">
+    <div class="m-drag-handle"></div>
     <div class="m-header">
       <div class="m-header-bg" id="tdHeaderBg" style="background:linear-gradient(135deg,#6B7280 0%,#6B7280AA 60%,#6B728055 100%)"></div>
       <button class="m-close" onclick="closeCalModal('calTaskModal')" aria-label="Fermer">

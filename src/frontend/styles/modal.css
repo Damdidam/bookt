@@ -31,11 +31,36 @@ body.has-modal{overflow:hidden}
 .m-panel{display:none}
 .m-panel.active{display:flex;flex-direction:column;min-height:100%}
 
+/* ── Drag handle — hidden on desktop, visible on mobile ── */
+.m-drag-handle{display:none;width:36px;height:4px;border-radius:2px;background:var(--border);margin:8px auto 0;flex-shrink:0}
+
 /* ── Responsive ── */
 @media(max-width:680px){
   .m-overlay{padding:0}
   .m-dialog{max-width:100%!important;max-height:100vh;border-radius:0;height:100vh}
   .m-dialog.m-flex{height:100vh}
+
+  /* Touch targets minimum 44px */
+  .m-close{width:44px;height:44px}
+  .m-st-btn{min-height:44px;padding:10px 14px}
+  .m-chip{min-height:44px;padding:8px 14px}
+  .m-tab{min-height:44px;padding:12px 16px}
+  .m-qbtn{width:44px;height:44px}
+  .csw-dot{width:32px;height:32px}
+  .cal-btn{min-height:44px}
+  .dg-btn{min-height:48px}
+
+  /* Adjusted padding for mobile */
+  .m-body{padding:16px}
+  .m-bottom{padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  .m-header-content{padding:0 16px}
+  .m-status-strip{margin:0 16px 12px}
+
+  /* Drag handle for swipe-to-close */
+  .m-drag-handle{display:block}
+
+  /* Bottom bar sticky for mobile */
+  .m-bottom{position:sticky;bottom:0;background:var(--white);z-index:5}
 }
 
 /* ── Header — rich (gradient + avatar) ── */
