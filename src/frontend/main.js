@@ -21,6 +21,7 @@ import { api, user, biz, userRole, sectorLabels, categoryLabels, allowedSections
 import { initRouter, loadSection } from './router.js';
 import { initTouchBlockers } from './utils/touch.js';
 import { initDrawer, toggleDrawer } from './utils/drawer.js';
+import { initTimeInputs } from './utils/dom.js';
 import { bridge } from './utils/window-bridge.js';
 import { closeModal } from './utils/dirty-guard.js';
 
@@ -150,6 +151,9 @@ initTouchBlockers();
 
 // ── Init sidebar drawer (tablet) ──
 initDrawer();
+
+// ── Init simple digit time inputs (replaces Android clock picker) ──
+initTimeInputs();
 
 // ── Init router & load default view ──
 initRouter();

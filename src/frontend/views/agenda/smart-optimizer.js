@@ -7,7 +7,7 @@
  * Pattern follows gap-analyzer.js (prefix so instead of ga).
  */
 import { calState, api } from '../../state.js';
-import { esc, gToast } from '../../utils/dom.js';
+import { esc, gToast, initTimeInputs } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcOpenQuickCreate } from './quick-create.js';
 import { fcIsMobile } from '../../utils/touch.js';
@@ -809,7 +809,7 @@ function soRenderTimePrefHTML() {
   const showTime = S.timePref === 'heure' ? '' : ' style="display:none"';
   const timeVal = timeStr(S.timeFrom);
   html += `<div class="so-time-input"${showTime}><label class="so-label" style="margin-top:6px">À partir de</label>`;
-  html += `<input type="time" class="so-select" id="soTimeFrom" value="${timeVal}" onchange="soTimeFromChanged()">`;
+  html += `<input type="text" class="so-select m-time" id="soTimeFrom" value="${timeVal}" onchange="soTimeFromChanged()">`;
   html += '</div>';
   html += '</div>';
   return html;
@@ -911,6 +911,7 @@ function soRenderRight() {
 
   html += '</div>';
   right.innerHTML = html;
+  initTimeInputs(right);
 }
 
 // Alias for bridge compatibility

@@ -118,8 +118,8 @@
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
             <div><label class="m-field-label" for="calEditDate">Date</label><input type="date" class="m-input" id="calEditDate" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
-            <div><label class="m-field-label" for="calEditStart">Début</label><input type="time" class="m-input" id="calEditStart" onchange="calOnStartChange()"></div>
-            <div><label class="m-field-label" for="calEditEnd">Fin</label><input type="time" class="m-input" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><label class="m-field-label" for="calEditStart">Début</label><input type="text" class="m-input m-time" id="calEditStart" onchange="calOnStartChange()"></div>
+            <div><label class="m-field-label" for="calEditEnd">Fin</label><input type="text" class="m-input m-time" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
           </div>
           <div class="m-chips" id="calDurChips">
             <span class="m-chip" onclick="calSetDuration(15,this)">15</span>
@@ -315,8 +315,8 @@
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
             <div><label class="m-field-label" for="qcDate">Date</label><input type="date" class="m-input" id="qcDate"></div>
-            <div><label class="m-field-label" for="qcTime">Début</label><input type="time" class="m-input" id="qcTime" value="09:00"></div>
-            <div id="qcEndTimeWrap" style="display:none"><label class="m-field-label" for="qcFreeEnd">Fin</label><input type="time" class="m-input" id="qcFreeEnd" value="10:00"></div>
+            <div><label class="m-field-label" for="qcTime">Début</label><input type="text" class="m-input m-time" id="qcTime" value="09:00"></div>
+            <div id="qcEndTimeWrap" style="display:none"><label class="m-field-label" for="qcFreeEnd">Fin</label><input type="text" class="m-input m-time" id="qcFreeEnd" value="10:00"></div>
           </div>
           <div class="m-row m-row-2" id="qcBufferRow" style="display:none;margin-top:8px">
             <div><label class="m-field-label" for="qcFreeBufBefore">Buffer avant (min)</label><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
@@ -458,11 +458,11 @@
         </div>
         <div class="m-field">
           <label class="m-field-label" for="tdStart">Début</label>
-          <input type="time" id="tdStart" class="m-input">
+          <input type="text" id="tdStart" class="m-input m-time">
         </div>
         <div class="m-field">
           <label class="m-field-label" for="tdEnd">Fin</label>
-          <input type="time" id="tdEnd" class="m-input">
+          <input type="text" id="tdEnd" class="m-input m-time">
         </div>
       </div>
       <!-- Practitioner(s) -->
