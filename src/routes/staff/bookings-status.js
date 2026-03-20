@@ -1274,13 +1274,13 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       return res.status(403).json({ error: 'L\'envoi SMS nécessite le plan Pro ou Premium' });
     }
 
-    // 7. Anti-spam: min 30 min between sends (reduced from 60 since we have max 3 cap)
+    // 7. Anti-spam: min 30 min between sends PER CHANNEL (so email+sms combo works)
     const notifType = channel === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
     const lastSent = await queryWithRLS(bid, `
       SELECT sent_at FROM notifications
-      WHERE booking_id = $1 AND business_id = $2 AND type IN ('email_deposit_request', 'sms_deposit_request') AND status = 'sent'
+      WHERE booking_id = $1 AND business_id = $2 AND type = $3 AND status = 'sent'
       ORDER BY sent_at DESC LIMIT 1
-    `, [id, bid]);
+    `, [id, bid, notifType]);
 
     let lastSentAt = null;
     if (lastSent.rows.length > 0) {
@@ -1300,13 +1300,23 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
 
     // 9. Store deposit_payment_url + increment counter atomically (with race guard on max 3)
+    // If the other channel was sent < 10s ago (same batch), don't increment counter
+    const recentOther = await queryWithRLS(bid, `
+      SELECT 1 FROM notifications
+      WHERE booking_id = $1 AND business_id = $2
+        AND type IN ('email_deposit_request', 'sms_deposit_request') AND type != $3
+        AND status = 'sent' AND sent_at > NOW() - INTERVAL '10 seconds'
+      LIMIT 1
+    `, [id, bid, notifType]);
+    const skipIncrement = recentOther.rows.length > 0;
+
     const incResult = await queryWithRLS(bid,
       `UPDATE bookings SET deposit_payment_url = $1,
-        deposit_request_count = COALESCE(deposit_request_count, 0) + 1,
+        deposit_request_count = COALESCE(deposit_request_count, 0) + ${skipIncrement ? 0 : 1},
         deposit_requested_at = COALESCE(deposit_requested_at, NOW())
        WHERE id = $2 AND business_id = $3
          AND status = 'pending_deposit' AND deposit_required = true AND deposit_status = 'pending'
-         AND COALESCE(deposit_request_count, 0) < 3
+         AND COALESCE(deposit_request_count, 0) < ${skipIncrement ? 4 : 3}
        RETURNING deposit_request_count`,
       [depositUrl, id, bid]
     );
@@ -1366,14 +1376,16 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
     `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, sendResult.error || null]);
 
     if (!sendResult.success) {
-      // Rollback counter + deposit_requested_at atomically on failure
-      await queryWithRLS(bid,
-        `UPDATE bookings SET
-          deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0),
-          deposit_requested_at = CASE WHEN COALESCE(deposit_request_count, 1) <= 1 THEN NULL ELSE deposit_requested_at END
-         WHERE id = $1 AND business_id = $2`,
-        [id, bid]
-      );
+      // Rollback counter only if we actually incremented it
+      if (!skipIncrement) {
+        await queryWithRLS(bid,
+          `UPDATE bookings SET
+            deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0),
+            deposit_requested_at = CASE WHEN COALESCE(deposit_request_count, 1) <= 1 THEN NULL ELSE deposit_requested_at END
+           WHERE id = $1 AND business_id = $2`,
+          [id, bid]
+        );
+      }
       return res.status(500).json({ error: 'Envoi échoué: ' + (sendResult.error || 'erreur inconnue') });
     }
 
