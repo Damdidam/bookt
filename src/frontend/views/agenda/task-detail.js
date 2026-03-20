@@ -7,6 +7,7 @@ import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { closeCalModal } from './booking-detail.js';
+import { trapFocus } from '../../utils/focus-trap.js';
 import { fcRefresh } from './calendar-init.js';
 import { cswHTML } from './color-swatches.js';
 import { toBrusselsISO } from '../../utils/format.js';
@@ -52,6 +53,7 @@ function fcNewTask(date, startTime, endTime, pracId) {
   document.getElementById('tdSaveBtn').textContent = 'Créer';
 
   modal.classList.add('open');
+  trapFocus(modal, () => closeCalModal('calTaskModal'));
 }
 
 // ── Open task detail/edit modal ──
@@ -89,6 +91,7 @@ async function fcOpenTaskDetail(taskId) {
     _renderStatusBtns(task.status || 'planned');
 
     modal.classList.add('open');
+    trapFocus(modal, () => closeCalModal('calTaskModal'));
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
 }
 

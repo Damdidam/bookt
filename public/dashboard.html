@@ -60,11 +60,11 @@
   <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
 </div>
 <!-- CALENDAR DETAIL MODAL -->
-<div class="m-overlay" id="calDetailModal">
+<div class="m-overlay" id="calDetailModal" role="dialog" aria-modal="true" aria-labelledby="calDetailTitle">
   <div class="m-dialog m-flex">
     <div class="m-header">
       <div class="m-header-bg" id="mHeaderBg"></div>
-      <button class="m-close" onclick="closeCalModal('calDetailModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeCalModal('calDetailModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <div class="m-header-content">
         <div class="m-client-hero" id="mClientHero"></div>
       </div>
@@ -206,16 +206,16 @@
 </div>
 
 <!-- QUICK CREATE MODAL — same structure as Detail -->
-<div class="m-overlay" id="calCreateModal">
+<div class="m-overlay" id="calCreateModal" role="dialog" aria-modal="true" aria-labelledby="qcModalTitle">
   <div class="m-dialog m-flex">
     <div class="m-header">
       <div class="m-header-bg" id="qcHeaderBg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary)AA 60%,var(--primary)55 100%)"></div>
-      <button class="m-close" onclick="closeCalModal('calCreateModal')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeCalModal('calCreateModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <div class="m-header-content">
         <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px">
           <div class="m-avatar" id="qcAvatar" style="background:linear-gradient(135deg,var(--primary),var(--primary)CC)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
           <div style="flex:1;min-width:0">
-            <div class="m-client-name" style="font-size:1.15rem">Nouveau rendez-vous</div>
+            <div class="m-client-name" id="qcModalTitle" style="font-size:1.15rem">Nouveau rendez-vous</div>
           </div>
         </div>
       </div>
@@ -342,11 +342,11 @@
 </div>
 
 <!-- TASK DETAIL / CREATE MODAL -->
-<div class="m-overlay" id="calTaskModal">
+<div class="m-overlay" id="calTaskModal" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle">
   <div class="m-dialog" style="max-width:440px">
     <div class="m-header">
       <div class="m-header-bg" id="tdHeaderBg" style="background:linear-gradient(135deg,#6B7280 0%,#6B7280AA 60%,#6B728055 100%)"></div>
-      <button class="m-close" onclick="closeCalModal('calTaskModal')">
+      <button class="m-close" onclick="closeCalModal('calTaskModal')" aria-label="Fermer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div class="m-header-content">
@@ -405,7 +405,7 @@
   </div>
 </div>
 
-<div id="gToastStack" class="g-toast-stack"></div>
+<div id="gToastStack" class="g-toast-stack" aria-live="polite" role="status"></div>
 
 <!-- Vite entry point -->
 <script type="module" src="/src/frontend/main.js"></script>

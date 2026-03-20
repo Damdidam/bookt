@@ -327,3 +327,11 @@ textarea.m-input{resize:vertical;min-height:38px}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* Light-background buttons: dark spinner */
 .m-st-btn.is-loading::after,.m-btn-ghost.is-loading::after,.m-btn-danger.is-loading::after,.cal-btn:not(.primary):not(.cal-green).is-loading::after{border-color:rgba(0,0,0,.15);border-top-color:var(--text-3)}
+
+/* Screen reader only */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Focus visible indicators for modal elements */
+.m-dialog :focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:var(--radius-xs)}
+.m-dialog button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.m-dialog input:focus-visible,.m-dialog select:focus-visible,.m-dialog textarea:focus-visible{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(13,115,119,.12)}

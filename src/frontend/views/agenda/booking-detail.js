@@ -11,6 +11,7 @@ import '../whiteboards.js'; // registers openWhiteboard on window
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict } from './booking-edit.js';
 import { guardModal, showDirtyPrompt } from '../../utils/dirty-guard.js';
+import { trapFocus, releaseFocus } from '../../utils/focus-trap.js';
 import { IC } from '../../utils/icons.js';
 
 let _openingDetail = false;
@@ -54,7 +55,7 @@ async function fcOpenDetail(bookingId) {
     heroEl.innerHTML = `
       <div class="m-avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC)">${initials}</div>
       <div class="m-client-info">
-        <div class="m-client-name">
+        <div class="m-client-name" id="calDetailTitle">
           <a href="#" onclick="event.preventDefault();closeCalModal('calDetailModal');openClientDetail('${safeClientId}')">${esc(b.client_name || '\u2014')}</a>
           ${freeTag}
         </div>
@@ -65,10 +66,10 @@ async function fcOpenDetail(bookingId) {
         </div>
       </div>
       <div class="m-quick-actions">
-        ${b.client_phone ? `<a class="m-qbtn" href="tel:${encodeURIComponent(b.client_phone)}" title="Appeler"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>` : ''}
-        ${b.client_email ? `<a class="m-qbtn" href="mailto:${encodeURIComponent(b.client_email)}" title="Email"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></a>` : ''}
-        <button class="m-qbtn" onclick="closeCalModal('calDetailModal');openClientDetail('${safeClientId}')" title="Fiche client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-        <button class="m-qbtn" onclick="openWhiteboard('${safeBookingId}','${safeClientId}')" title="Whiteboard" style="border-color:var(--primary);background:var(--primary-light)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D7377" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg></button>
+        ${b.client_phone ? `<a class="m-qbtn" href="tel:${encodeURIComponent(b.client_phone)}" title="Appeler" aria-label="Appeler le client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>` : ''}
+        ${b.client_email ? `<a class="m-qbtn" href="mailto:${encodeURIComponent(b.client_email)}" title="Email" aria-label="Envoyer un email"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></a>` : ''}
+        <button class="m-qbtn" onclick="closeCalModal('calDetailModal');openClientDetail('${safeClientId}')" title="Fiche client" aria-label="Voir la fiche client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+        <button class="m-qbtn" onclick="openWhiteboard('${safeBookingId}','${safeClientId}')" title="Whiteboard" aria-label="Ouvrir le whiteboard" style="border-color:var(--primary);background:var(--primary-light)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D7377" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg></button>
       </div>`;
 
     // -- Status strip --
@@ -314,6 +315,7 @@ async function fcOpenDetail(bookingId) {
     // -- Show modal --
     switchCalTab(document.querySelector('.m-tab[data-tab="rdv"]'), 'rdv');
     modal.classList.add('open');
+    trapFocus(modal, () => closeCalModal('calDetailModal'));
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
   finally { _openingDetail = false; }
 }
@@ -326,6 +328,7 @@ async function closeCalModal(id) {
     if (!leave) return;
   }
   modal._dirtyGuard?.destroy();
+  releaseFocus();
   modal.classList.remove('open');
 }
 

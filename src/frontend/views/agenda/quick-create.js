@@ -9,6 +9,7 @@ import { bridge } from '../../utils/window-bridge.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { guardModal } from '../../utils/dirty-guard.js';
+import { trapFocus } from '../../utils/focus-trap.js';
 import { cswHTML } from './color-swatches.js';
 import { MODE_ICO, toBrusselsISO } from '../../utils/format.js';
 import { IC } from '../../utils/icons.js';
@@ -111,6 +112,7 @@ function fcOpenQuickCreate(startStr, endStr) {
   const qcModal = document.getElementById('calCreateModal');
   guardModal(qcModal, { noBackdropClose: true });
   qcModal.classList.add('open');
+  trapFocus(qcModal, () => closeCalModal('calCreateModal'));
 }
 
 // ── Gradient header ──
