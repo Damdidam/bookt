@@ -14,7 +14,7 @@
 <meta name="theme-color" id="themeColor" content="#B8977E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
 /* ════════════════════════════════════════
    RESET & VARIABLES
@@ -645,6 +645,228 @@ img { max-width: 100%; display: block; }
 .sticky-cta { display: none; }
 
 /* ════════════════════════════════════════
+   TEMPLATE: BOLD (dark theme)
+   ════════════════════════════════════════ */
+body.tpl-bold {
+  --radius: 8px;
+  --font-primary: 'Space Grotesk', sans-serif;
+  --font-serif: 'Instrument Serif', serif;
+  font-family: var(--font-primary);
+}
+
+/* Navbar dark */
+body.tpl-bold .navbar {
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+body.tpl-bold .navbar-brand { letter-spacing: 3px; }
+body.tpl-bold .navbar-links a { color: var(--text-light); }
+body.tpl-bold .navbar-links a:hover { color: var(--text); }
+
+/* Hero: left-aligned, no blobs, circle decorations */
+body.tpl-bold .hero { text-align: left; padding: 160px 0 100px; }
+body.tpl-bold .hero-blobs { display: none; }
+body.tpl-bold .hero-cover::after { background: linear-gradient(to bottom, transparent 40%, var(--bg)); }
+body.tpl-bold .hero-label { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 4px; }
+body.tpl-bold .hero-name-wrap { padding: 0; margin-bottom: 24px; }
+body.tpl-bold .hero-name-wrap::before, body.tpl-bold .hero-name-wrap::after { display: none; }
+body.tpl-bold .hero-name-inner { font-size: 62px; font-weight: 700; }
+body.tpl-bold .hero-name-inner .serif { color: var(--accent); }
+body.tpl-bold .hero-ornament { display: none; }
+body.tpl-bold .hero-subtitle { margin-left: 0; margin-right: 0; max-width: 520px; font-size: 17px; }
+body.tpl-bold .hero-logo { margin: 0 0 20px; }
+body.tpl-bold .hero .btn-outline { padding: 14px 32px; font-size: 15px; }
+
+/* Bold hero circles */
+body.tpl-bold .hero::before {
+  content: ''; position: absolute; width: 380px; height: 380px;
+  border: 2px solid var(--accent); border-radius: 50%; opacity: 0.12;
+  right: -60px; top: 50%; transform: translateY(-50%); pointer-events: none;
+}
+body.tpl-bold .hero::after {
+  content: ''; position: absolute; width: 200px; height: 200px;
+  border: 1px solid var(--accent); border-radius: 50%; opacity: 0.08;
+  left: 5%; bottom: 10%; pointer-events: none;
+}
+
+/* Bold hero divider */
+body.tpl-bold .hero .container::after {
+  content: ''; display: block; width: 100px; height: 4px;
+  background: var(--accent); border-radius: 2px; margin-top: 48px;
+}
+
+/* Section labels in accent */
+body.tpl-bold .section-label { color: var(--accent); font-weight: 700; }
+body.tpl-bold .section-heading { font-size: 42px; font-weight: 700; }
+body.tpl-bold .section-heading .serif { color: var(--accent); }
+
+/* Cards dark */
+body.tpl-bold .service-item { background: var(--subtle); border-color: var(--border); }
+body.tpl-bold .service-item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+body.tpl-bold .team-card { background: var(--subtle); border-color: var(--border); }
+body.tpl-bold .team-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+body.tpl-bold .team-photo { background: var(--bg); }
+body.tpl-bold .gallery-item { background: var(--subtle); border-color: var(--border); }
+body.tpl-bold .info-card { background: var(--subtle); border-color: var(--border); }
+body.tpl-bold .news-card { background: var(--subtle); border-color: var(--border); }
+body.tpl-bold .realisation-card { background: var(--subtle); border-color: var(--border); }
+body.tpl-bold .review-reply { background: var(--subtle); }
+
+/* CTA dark */
+body.tpl-bold .final-cta { background: var(--subtle); }
+
+/* Cart + sticky dark */
+body.tpl-bold .cart-bar { background: var(--subtle); border-top-color: var(--accent); }
+body.tpl-bold .sticky-cta { background: var(--bg); border-top-color: var(--border); }
+
+/* Stats bold */
+body.tpl-bold .stat-number { font-size: 42px; font-weight: 700; }
+
+/* Category label bold */
+body.tpl-bold .category-label { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+
+/* ════════════════════════════════════════
+   TEMPLATE: FUNKY (warm colorful)
+   ════════════════════════════════════════ */
+body.tpl-funky {
+  --radius: 20px;
+  --font-primary: 'DM Sans', sans-serif;
+}
+
+/* Navbar funky — pill-style links */
+body.tpl-funky .navbar {
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+}
+body.tpl-funky .navbar-brand {
+  font-weight: 800; letter-spacing: -0.5px; color: var(--accent);
+}
+body.tpl-funky .navbar-links a {
+  font-size: 12px; font-weight: 500; padding: 6px 14px;
+  border-radius: 100px; transition: all 0.15s;
+}
+body.tpl-funky .navbar-links a:hover {
+  background: var(--subtle); color: var(--text);
+}
+body.tpl-funky .navbar-links .btn-outline {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+  border-radius: 100px; font-weight: 700; padding: 10px 24px;
+}
+body.tpl-funky .navbar-links .btn-outline:hover {
+  opacity: 0.9; transform: translateY(-1px);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Hero funky — gradient blobs, eyebrow badge */
+body.tpl-funky .hero { padding: 100px 0 60px; }
+body.tpl-funky .hero-blobs { display: block; }
+body.tpl-funky .hero-blob { filter: blur(80px); opacity: 0.15; }
+body.tpl-funky .hero-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-radius: 100px; background: var(--subtle);
+  font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 1px;
+}
+body.tpl-funky .hero-name-wrap { padding: 0; margin-bottom: 16px; }
+body.tpl-funky .hero-name-wrap::before, body.tpl-funky .hero-name-wrap::after { display: none; }
+body.tpl-funky .hero-name-inner {
+  font-size: 52px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.08;
+}
+body.tpl-funky .hero-name-inner .serif { font-style: italic; font-weight: 400; font-size: 56px; }
+body.tpl-funky .hero-ornament { display: none; }
+body.tpl-funky .hero .btn-outline {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+  border-radius: 100px; padding: 15px 32px; font-weight: 700;
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+body.tpl-funky .hero .btn-outline:hover {
+  opacity: 0.9; transform: translateY(-2px);
+  box-shadow: 0 10px 32px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Section labels funky — pill badges */
+body.tpl-funky .section-label {
+  display: inline-flex; padding: 5px 14px; border-radius: 100px;
+  background: var(--subtle); color: var(--accent); font-weight: 800;
+  letter-spacing: 2px; font-size: 10px;
+}
+body.tpl-funky .section-heading {
+  font-size: 32px; font-weight: 800; letter-spacing: -0.8px;
+}
+body.tpl-funky .section-heading .serif { font-style: italic; font-weight: 400; font-size: 36px; }
+
+/* Service cards funky — colorful left border on hover */
+body.tpl-funky .service-item {
+  background: #fff; border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 14px 18px; position: relative; overflow: hidden;
+}
+body.tpl-funky .service-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 4px; border-radius: 0 3px 3px 0; opacity: 0;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #F15BB5));
+  transition: opacity 0.2s;
+}
+body.tpl-funky .service-item:hover::before { opacity: 1; }
+body.tpl-funky .service-item:hover {
+  box-shadow: 0 2px 16px color-mix(in srgb, var(--accent) 8%, transparent);
+  transform: translateX(4px);
+}
+
+/* Team cards funky */
+body.tpl-funky .team-card {
+  border: 1.5px solid var(--border); border-radius: 20px; overflow: hidden;
+}
+body.tpl-funky .team-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+body.tpl-funky .team-tag {
+  border-radius: 100px; font-size: 10px; padding: 3px 10px; font-weight: 600;
+}
+
+/* Gallery funky — rounded */
+body.tpl-funky .gallery-item { border-radius: 14px; }
+
+/* Stats funky — gradient numbers */
+body.tpl-funky .stat-number {
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #F15BB5));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  font-weight: 800; font-size: 32px;
+}
+body.tpl-funky .stat-item + .stat-item::before { display: none; }
+
+/* CTA funky — gradient bg */
+body.tpl-funky .final-cta {
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 50%, #9B5DE5));
+  color: #fff;
+}
+body.tpl-funky .final-cta .section-heading { color: #fff; }
+body.tpl-funky .final-cta .section-subtitle { color: rgba(255,255,255,0.85); }
+body.tpl-funky .final-cta .btn-solid { background: #fff; color: var(--accent); }
+body.tpl-funky .final-cta .btn-outline { border-color: #fff; color: #fff; }
+
+/* Info cards funky */
+body.tpl-funky .info-card { border: 1.5px solid var(--border); border-radius: 20px; }
+body.tpl-funky .news-card { border: 1.5px solid var(--border); border-radius: 20px; }
+
+/* Reviews funky */
+body.tpl-funky .review-stars { color: #D4A04A; }
+
+/* Category label funky */
+body.tpl-funky .category-label {
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent);
+}
+
+/* Cart funky */
+body.tpl-funky .cart-bar { border-radius: 20px 20px 0 0; }
+body.tpl-funky .cart-chip { border-radius: 100px; }
+
+/* ════════════════════════════════════════
    RESPONSIVE — 768px
    ════════════════════════════════════════ */
 @media (max-width: 768px) {
@@ -662,6 +884,17 @@ img { max-width: 100%; display: block; }
   .hero-name-wrap::before, .hero-name-wrap::after { width: 40px; height: 40px; }
   .hero-name-inner { font-size: 34px; }
   .hero-subtitle { font-size: 15px; }
+
+  /* Bold mobile */
+  body.tpl-bold .hero { padding: 100px 0 60px; }
+  body.tpl-bold .hero-name-inner { font-size: 36px; }
+  body.tpl-bold .hero::before { width: 200px; height: 200px; right: -40px; }
+  body.tpl-bold .hero::after { width: 120px; height: 120px; }
+  body.tpl-bold .hero .container::after { margin-top: 32px; }
+
+  /* Funky mobile */
+  body.tpl-funky .hero-name-inner { font-size: 36px; }
+  body.tpl-funky .hero-name-inner .serif { font-size: 38px; }
 
   .about-grid { grid-template-columns: 1fr; gap: 40px; }
   .about-image { aspect-ratio: 4/3; }
@@ -1035,21 +1268,44 @@ img { max-width: 100%; display: block; }
      THEME VARIANTS
      ════════════════════════════════════════ */
   var VARIANTS = {
+    /* ── Epure ── */
     nude:    { accent:'#B8977E', bg:'#FEFDFB', text:'#2C2C2C', subtle:'#F5F0EB', border:'#E8E0D8', textLight:'#888' },
     sauge:   { accent:'#7D8B75', bg:'#FAFCF9', text:'#2C2C2C', subtle:'#F0F4ED', border:'#D8E0D4', textLight:'#888' },
     blush:   { accent:'#C4898A', bg:'#FFFBFB', text:'#2C2C2C', subtle:'#FBF0F0', border:'#F0D8D8', textLight:'#888' },
-    charbon: { accent:'#555555', bg:'#FEFEFE', text:'#1A1A1A', subtle:'#F5F5F5', border:'#E0E0E0', textLight:'#888' }
+    charbon: { accent:'#555555', bg:'#FEFEFE', text:'#1A1A1A', subtle:'#F5F5F5', border:'#E0E0E0', textLight:'#888' },
+    /* ── Bold (dark) ── */
+    nuit:       { accent:'#D4AF37', bg:'#111827', text:'#F9FAFB', subtle:'#1F2937', border:'#374151', textLight:'#9CA3AF' },
+    foret:      { accent:'#6EE7B7', bg:'#0F172A', text:'#F1F5F9', subtle:'#1E293B', border:'#334155', textLight:'#94A3B8' },
+    bordeaux:   { accent:'#F87171', bg:'#1C1017', text:'#FBF0F0', subtle:'#2D1A24', border:'#4A2535', textLight:'#B08898' },
+    electrique: { accent:'#818CF8', bg:'#0F0F23', text:'#F0F0FF', subtle:'#1A1A3E', border:'#2E2E5E', textLight:'#9898C8' },
+    /* ── Funky (warm) ── */
+    funky:      { accent:'#E8694A', bg:'#FFFAF7', text:'#1E1210', subtle:'#FFF3ED', border:'#F0D5C4', textLight:'#8A7068' }
   };
+
+  function getFamily(preset) {
+    if (!preset) return 'epure';
+    if (preset.indexOf('bold') === 0 || preset === 'nuit' || preset === 'foret' || preset === 'bordeaux' || preset === 'electrique') return 'bold';
+    if (preset.indexOf('funky') === 0 || preset === 'funky') return 'funky';
+    return 'epure';
+  }
 
   function getVariant(preset) {
     if (!preset) return 'nude';
+    /* Bold variants */
+    if (preset.indexOf('nuit') >= 0) return 'nuit';
+    if (preset.indexOf('foret') >= 0) return 'foret';
+    if (preset.indexOf('bordeaux') >= 0) return 'bordeaux';
+    if (preset.indexOf('electrique') >= 0) return 'electrique';
+    /* Funky */
+    if (preset.indexOf('funky') >= 0) return 'funky';
+    /* Epure variants */
     if (preset.indexOf('sauge') >= 0) return 'sauge';
     if (preset.indexOf('blush') >= 0) return 'blush';
     if (preset.indexOf('charbon') >= 0) return 'charbon';
-    return 'nude'; // default for all unknown presets (bold_*, funky, etc.)
+    return 'nude';
   }
 
-  function applyTheme(name) {
+  function applyTheme(name, family) {
     var t = VARIANTS[name];
     if (!t) return;
     var r = document.documentElement;
@@ -1060,6 +1316,9 @@ img { max-width: 100%; display: block; }
     r.style.setProperty('--border', t.border);
     r.style.setProperty('--text-light', t.textLight);
     document.getElementById('themeColor').content = t.accent;
+    /* Apply family class */
+    document.body.classList.remove('tpl-epure', 'tpl-bold', 'tpl-funky');
+    document.body.classList.add('tpl-' + (family || 'epure'));
   }
 
   /* ════════════════════════════════════════
@@ -1299,7 +1558,8 @@ img { max-width: 100%; display: block; }
     var preset = (b.theme && b.theme.preset) ? b.theme.preset : 'epure_nude';
 
     // Apply theme
-    applyTheme(getVariant(preset));
+    var family = getFamily(preset);
+    applyTheme(getVariant(preset), family);
 
     // SEO
     var title = b.seo_title || b.name + ' \u2014 ' + (b.tagline || 'Prenez rendez-vous en ligne');
