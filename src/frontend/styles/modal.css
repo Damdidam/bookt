@@ -320,3 +320,10 @@ textarea.m-input{resize:vertical;min-height:38px}
 .dg-btn{min-height:44px;min-width:100px;border-radius:var(--radius-sm);font-size:var(--text-base);font-weight:700;cursor:pointer;border:none;font-family:var(--sans);transition:all .15s}
 .dg-stay{background:var(--surface);color:var(--text-3)}.dg-stay:hover{background:var(--border-light)}
 .dg-leave{background:var(--red);color:#fff;margin-left:10px}.dg-leave:hover{opacity:.85}
+
+/* ── Loading state for action buttons ── */
+.is-loading{position:relative;pointer-events:none;opacity:.7}
+.is-loading::after{content:'';position:absolute;right:8px;top:50%;width:14px;height:14px;margin-top:-7px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Light-background buttons: dark spinner */
+.m-st-btn.is-loading::after,.m-btn-ghost.is-loading::after,.m-btn-danger.is-loading::after,.cal-btn:not(.primary):not(.cal-green).is-loading::after{border-color:rgba(0,0,0,.15);border-top-color:var(--text-3)}

@@ -70,6 +70,21 @@ function _dismissToast(el) {
   setTimeout(() => { if (el.parentNode) el.remove(); }, 300);
 }
 
+/** Loading state helper for async button actions */
+export async function withLoading(btn, fn) {
+  if (!btn || btn.disabled) return;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add('is-loading');
+  try {
+    return await fn();
+  } finally {
+    btn.classList.remove('is-loading');
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
 /** Get the main content area element */
 export function getContentArea() {
   return document.getElementById('contentArea');

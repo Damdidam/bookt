@@ -505,6 +505,8 @@ async function calCreateBooking() {
 
   if (calCreateBooking._busy) return;
   calCreateBooking._busy = true;
+  const _qcBtn = document.getElementById('qcBtnCreate');
+  if (_qcBtn) { _qcBtn.disabled = true; _qcBtn.classList.add('is-loading'); }
   try {
     const clientName = document.getElementById('qcClient').value.trim();
     const clientId = document.getElementById('qcClientId').value;
@@ -657,7 +659,10 @@ async function calCreateBooking() {
     closeCalModal('calCreateModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { calCreateBooking._busy = false; }
+  finally {
+    calCreateBooking._busy = false;
+    if (_qcBtn) { _qcBtn.classList.remove('is-loading'); _qcBtn.disabled = false; }
+  }
 }
 
 /**
@@ -747,6 +752,8 @@ function qcSwitchMode(mode) {
 async function qcCreateTask() {
   if (qcCreateTask._busy) return;
   qcCreateTask._busy = true;
+  const _tBtn = document.getElementById('qcBtnCreate');
+  if (_tBtn) { _tBtn.disabled = true; _tBtn.classList.add('is-loading'); }
   try {
     const title = document.getElementById('qcTaskTitle').value.trim();
     const date = document.getElementById('qcTaskDate').value;
@@ -772,7 +779,10 @@ async function qcCreateTask() {
     closeCalModal('calCreateModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { qcCreateTask._busy = false; }
+  finally {
+    qcCreateTask._busy = false;
+    if (_tBtn) { _tBtn.classList.remove('is-loading'); _tBtn.disabled = false; }
+  }
 }
 
 // Expose to global scope for onclick handlers

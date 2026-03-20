@@ -12,6 +12,8 @@ import { storeUndoAction } from './booking-undo.js';
 async function fcSetStatus(newStatus) {
   if (fcSetStatus._busy) return;
   fcSetStatus._busy = true;
+  const _stBtns = document.querySelectorAll('.m-st-btn');
+  _stBtns.forEach(b => { b.disabled = true; b.classList.add('is-loading'); });
   try {
     const oldStatus = calState.fcCurrentBooking?.status;
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
@@ -31,13 +33,18 @@ async function fcSetStatus(newStatus) {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { fcSetStatus._busy = false; }
+  finally {
+    fcSetStatus._busy = false;
+    _stBtns.forEach(b => { b.classList.remove('is-loading'); b.disabled = false; });
+  }
 }
 
 async function fcPurgeBooking() {
   if (fcPurgeBooking._busy) return;
   if (!(await showConfirmDialog('Supprimer le RDV', 'Supprimer d\u00e9finitivement ce RDV ? Cette action est irr\u00e9versible.', 'Supprimer', 'danger'))) return;
   fcPurgeBooking._busy = true;
+  const _prgBtns = document.querySelectorAll('.m-st-btn');
+  _prgBtns.forEach(b => { b.disabled = true; b.classList.add('is-loading'); });
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}`, {
       method: 'DELETE',
@@ -49,13 +56,18 @@ async function fcPurgeBooking() {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { fcPurgeBooking._busy = false; }
+  finally {
+    fcPurgeBooking._busy = false;
+    _prgBtns.forEach(b => { b.classList.remove('is-loading'); b.disabled = false; });
+  }
 }
 
 async function fcMarkDepositPaid() {
   if (fcMarkDepositPaid._busy) return;
   if (!(await showConfirmDialog('Confirmer le paiement', 'Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.', 'Confirmer', 'primary'))) return;
   fcMarkDepositPaid._busy = true;
+  const _depBtns = document.querySelectorAll('.m-st-btn');
+  _depBtns.forEach(b => { b.disabled = true; b.classList.add('is-loading'); });
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
       method: 'PATCH',
@@ -68,7 +80,10 @@ async function fcMarkDepositPaid() {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { fcMarkDepositPaid._busy = false; }
+  finally {
+    fcMarkDepositPaid._busy = false;
+    _depBtns.forEach(b => { b.classList.remove('is-loading'); b.disabled = false; });
+  }
 }
 
 async function fcRefundDeposit(amountCents) {
@@ -76,6 +91,8 @@ async function fcRefundDeposit(amountCents) {
   const amt = ((amountCents || 0) / 100).toFixed(2);
   if (!(await showConfirmDialog('Rembourser l\u2019acompte', 'Rembourser l\u2019acompte de ' + amt + '\u20ac ? Le RDV sera annul\u00e9.', 'Rembourser', 'danger'))) return;
   fcRefundDeposit._busy = true;
+  const _refBtns = document.querySelectorAll('.m-st-btn');
+  _refBtns.forEach(b => { b.disabled = true; b.classList.add('is-loading'); });
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/deposit-refund`, {
       method: 'PATCH',
@@ -87,7 +104,10 @@ async function fcRefundDeposit(amountCents) {
     closeCalModal('calDetailModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally { fcRefundDeposit._busy = false; }
+  finally {
+    fcRefundDeposit._busy = false;
+    _refBtns.forEach(b => { b.classList.remove('is-loading'); b.disabled = false; });
+  }
 }
 
 // Expose to global scope for onclick handlers

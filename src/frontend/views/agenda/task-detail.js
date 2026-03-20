@@ -118,6 +118,8 @@ async function fcSaveTask() {
   const start_at = toBrusselsISO(date, startTime);
   const end_at = toBrusselsISO(date, endTime);
 
+  const _sBtn = document.getElementById('tdSaveBtn');
+  if (_sBtn) { _sBtn.disabled = true; _sBtn.classList.add('is-loading'); }
   try {
     const r = await fetch(`/api/tasks/${_currentTaskId}`, {
       method: 'PATCH',
@@ -129,11 +131,16 @@ async function fcSaveTask() {
     closeCalModal('calTaskModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally {
+    if (_sBtn) { _sBtn.classList.remove('is-loading'); _sBtn.disabled = false; }
+  }
 }
 
 async function fcDeleteTask() {
   if (!_currentTaskId) return;
   if (!(await showConfirmDialog('Supprimer la tâche', 'Supprimer cette tâche ?', 'Supprimer', 'danger'))) return;
+  const _dBtn = document.getElementById('tdDeleteBtn');
+  if (_dBtn) { _dBtn.disabled = true; _dBtn.classList.add('is-loading'); }
   try {
     const r = await fetch(`/api/tasks/${_currentTaskId}`, {
       method: 'DELETE',
@@ -144,6 +151,9 @@ async function fcDeleteTask() {
     closeCalModal('calTaskModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally {
+    if (_dBtn) { _dBtn.classList.remove('is-loading'); _dBtn.disabled = false; }
+  }
 }
 
 bridge({ fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus, tdUpdateGradient });

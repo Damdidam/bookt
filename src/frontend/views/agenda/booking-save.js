@@ -14,6 +14,8 @@ async function calSaveAll() {
   // Bug M13 fix: double-click guard
   if (calSaveAll._busy) return;
   calSaveAll._busy = true;
+  const _btn = document.getElementById('mBtnSave');
+  if (_btn) { _btn.disabled = true; _btn.classList.add('is-loading'); }
   try {
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
@@ -136,6 +138,7 @@ async function calSaveAll() {
   fcRefresh();
   } finally {
     calSaveAll._busy = false;
+    if (_btn) { _btn.classList.remove('is-loading'); _btn.disabled = false; }
   }
 }
 
@@ -192,6 +195,8 @@ async function calDoSaveTime(notify, channel) {
   // Bug M13 fix: double-click guard
   if (calDoSaveTime._busy) return;
   calDoSaveTime._busy = true;
+  const _btn2 = document.getElementById('calSendNotifyBtn');
+  if (_btn2) { _btn2.disabled = true; _btn2.classList.add('is-loading'); }
   try {
   const nd = document.getElementById('calEditDate').value;
   const ns = document.getElementById('calEditStart').value;
@@ -246,6 +251,7 @@ async function calDoSaveTime(notify, channel) {
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
   finally {
     calDoSaveTime._busy = false;
+    if (_btn2) { _btn2.classList.remove('is-loading'); _btn2.disabled = false; }
   }
 }
 
