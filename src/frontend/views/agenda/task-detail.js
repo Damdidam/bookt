@@ -1,6 +1,6 @@
 /**
- * Task Detail — open, edit, delete internal tasks.
- * Creation is handled by the quick-create modal (qcSwitchMode).
+ * Task Detail — open, create, edit, delete internal tasks.
+ * Creation mode is triggered by the Tâche toggle in Quick Create.
  */
 import { api, calState } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
@@ -28,6 +28,31 @@ document.addEventListener('change', e => {
     tdUpdateGradient(e.target.value);
   }
 });
+
+// ── Open task detail in CREATION mode ──
+function fcNewTask(date, startTime, endTime, pracId) {
+  _currentTaskId = null; // null = creation mode
+  const modal = document.getElementById('calTaskModal');
+  if (!modal) return;
+
+  document.getElementById('tdModalTitle').textContent = 'Nouvelle tâche';
+  document.getElementById('tdTitle').value = '';
+  document.getElementById('tdNote').value = '';
+  document.getElementById('tdDate').value = date || '';
+  document.getElementById('tdStart').value = startTime || '';
+  document.getElementById('tdEnd').value = endTime || '';
+
+  _populatePracSelect(pracId || '');
+  document.getElementById('tdColorWrap').innerHTML = cswHTML('tdColor', '#6B7280', false);
+  tdUpdateGradient('#6B7280');
+
+  // Hide status row and delete button (creation only)
+  document.getElementById('tdStatusRow').style.display = 'none';
+  document.getElementById('tdDeleteBtn').style.display = 'none';
+  document.getElementById('tdSaveBtn').textContent = 'Créer';
+
+  modal.classList.add('open');
+}
 
 // ── Open task detail/edit modal ──
 async function fcOpenTaskDetail(taskId) {
@@ -121,13 +146,17 @@ async function fcSaveTask() {
   const _sBtn = document.getElementById('tdSaveBtn');
   if (_sBtn) { _sBtn.disabled = true; _sBtn.classList.add('is-loading'); }
   try {
-    const r = await fetch(`/api/tasks/${_currentTaskId}`, {
-      method: 'PATCH',
+    const isCreation = !_currentTaskId;
+    const url = isCreation ? '/api/tasks' : `/api/tasks/${_currentTaskId}`;
+    const method = isCreation ? 'POST' : 'PATCH';
+
+    const r = await fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
     });
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-    gToast('Tâche mise à jour', 'success');
+    gToast(isCreation ? 'Tâche créée' : 'Tâche mise à jour', 'success');
     closeCalModal('calTaskModal');
     fcRefresh();
   } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
@@ -156,6 +185,6 @@ async function fcDeleteTask() {
   }
 }
 
-bridge({ fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus, tdUpdateGradient });
+bridge({ fcNewTask, fcOpenTaskDetail, fcSaveTask, fcDeleteTask, fcSetTaskStatus, tdUpdateGradient });
 
-export { fcOpenTaskDetail };
+export { fcNewTask, fcOpenTaskDetail };

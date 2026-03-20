@@ -107,10 +107,6 @@ function fcOpenQuickCreate(startStr, endStr) {
   // Reset mode toggle to RDV
   _qcSetMode('rdv');
 
-  // Reset task fields
-  const ttl = document.getElementById('qcTaskTitle'); if (ttl) ttl.value = '';
-  const tn = document.getElementById('qcTaskNote'); if (tn) tn.value = '';
-
   // Dirty guard (warn on close if user started filling)
   const qcModal = document.getElementById('calCreateModal');
   guardModal(qcModal, { noBackdropClose: true });
@@ -500,9 +496,6 @@ function qcRenderReminders() {
 
 // ── Create booking ──
 async function calCreateBooking() {
-  // If in task mode, delegate to task creation
-  if (_qcCurrentMode === 'task') return qcCreateTask();
-
   if (calCreateBooking._busy) return;
   calCreateBooking._busy = true;
   const _qcBtn = document.getElementById('qcBtnCreate');
@@ -690,99 +683,43 @@ function _qcSetMode(mode) {
   const modal = document.getElementById('calCreateModal');
   if (!modal) return;
 
-  // Toggle buttons
+  // Toggle buttons — always highlight RDV since task now redirects
   modal.querySelectorAll('.qc-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
 
   const panelRdv = document.getElementById('qcPanelRdv');
-  const panelTask = document.getElementById('qcPanelTask');
   const headerTitle = modal.querySelector('.m-client-name');
   const btn = document.getElementById('qcBtnCreate');
 
-  if (mode === 'task') {
-    if (panelRdv) { panelRdv.style.display = 'none'; panelRdv.classList.remove('active'); }
-    if (panelTask) { panelTask.style.display = ''; panelTask.classList.add('active'); }
-    if (headerTitle) headerTitle.textContent = 'Nouvelle tâche';
-    if (btn) btn.textContent = 'Créer la tâche';
-
-    // Sync date/time from RDV fields
-    const qcDate = document.getElementById('qcDate')?.value;
-    const qcTime = document.getElementById('qcTime')?.value;
-    if (qcDate) document.getElementById('qcTaskDate').value = qcDate;
-    if (qcTime) {
-      document.getElementById('qcTaskStart').value = qcTime;
-      // Default end = +1h
-      const [h, m] = qcTime.split(':').map(Number);
-      const eh = (h + 1) % 24;
-      document.getElementById('qcTaskEnd').value = String(eh).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    }
-
-    // Populate practitioner select
-    const sel = document.getElementById('qcTaskPrac');
-    const dot = document.getElementById('qcTaskPracDot');
-    const currentPrac = document.getElementById('qcPrac')?.value;
-    sel.innerHTML = '';
-    (calState.fcPractitioners || []).forEach(p => {
-      sel.innerHTML += `<option value="${p.id}" ${String(p.id) === String(currentPrac) ? 'selected' : ''}>${esc(p.display_name)}</option>`;
-    });
-    const selP = calState.fcPractitioners.find(p => String(p.id) === String(sel.value));
-    if (dot) dot.style.background = selP?.color || 'var(--primary)';
-
-    // Color swatch
-    const wrap = document.getElementById('qcTaskColorWrap');
-    if (wrap) wrap.innerHTML = cswHTML('qcTaskColor', '#6B7280', false);
-
-    // Header gradient → gray for tasks
-    qcUpdateGradient('#6B7280');
-  } else {
-    if (panelRdv) { panelRdv.style.display = ''; panelRdv.classList.add('active'); }
-    if (panelTask) { panelTask.style.display = 'none'; panelTask.classList.remove('active'); }
-    if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
-    if (btn) btn.textContent = 'Créer le RDV';
-
-    // Restore header gradient from service color
-    qcUpdateTotal();
-  }
+  // Only RDV mode is handled inline now (task redirects to Task Detail modal)
+  if (panelRdv) { panelRdv.style.display = ''; panelRdv.classList.add('active'); }
+  if (headerTitle) headerTitle.textContent = 'Nouveau rendez-vous';
+  if (btn) btn.textContent = 'Créer le RDV';
+  qcUpdateTotal();
 }
 
 function qcSwitchMode(mode) {
+  if (mode === 'task') {
+    // Gather current date/time/practitioner from RDV form
+    const date = document.getElementById('qcDate')?.value || '';
+    const startTime = document.getElementById('qcTime')?.value || '';
+    // Default end = start + 1h
+    let endTime = '';
+    if (startTime) {
+      const [h, m] = startTime.split(':').map(Number);
+      const eh = (h + 1) % 24;
+      endTime = String(eh).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+    const pracId = document.getElementById('qcPrac')?.value || '';
+
+    // Close Quick Create and open Task Detail in creation mode
+    document.getElementById('calCreateModal')._dirtyGuard?.markClean();
+    closeCalModal('calCreateModal');
+    // Use setTimeout to let the close animation complete before opening the new modal
+    setTimeout(() => { window.fcNewTask?.(date, startTime, endTime, pracId); }, 50);
+    return;
+  }
   if (mode === _qcCurrentMode) return;
   _qcSetMode(mode);
-}
-
-async function qcCreateTask() {
-  if (qcCreateTask._busy) return;
-  qcCreateTask._busy = true;
-  const _tBtn = document.getElementById('qcBtnCreate');
-  if (_tBtn) { _tBtn.disabled = true; _tBtn.classList.add('is-loading'); }
-  try {
-    const title = document.getElementById('qcTaskTitle').value.trim();
-    const date = document.getElementById('qcTaskDate').value;
-    const startTime = document.getElementById('qcTaskStart').value;
-    const endTime = document.getElementById('qcTaskEnd').value;
-    const pracId = document.getElementById('qcTaskPrac').value;
-    const color = document.getElementById('qcTaskColor')?.value || '';
-    const note = document.getElementById('qcTaskNote').value.trim();
-
-    if (!title) { gToast('Titre requis', 'error'); return; }
-    if (!date || !startTime || !endTime) { gToast('Date et heures requises', 'error'); return; }
-
-    const start_at = toBrusselsISO(date, startTime);
-    const end_at = toBrusselsISO(date, endTime);
-
-    const r = await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ title, start_at, end_at, practitioner_id: pracId, color: color || null, note: note || null })
-    });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
-    gToast('Tâche créée', 'success');
-    closeCalModal('calCreateModal');
-    fcRefresh();
-  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
-  finally {
-    qcCreateTask._busy = false;
-    if (_tBtn) { _tBtn.classList.remove('is-loading'); _tBtn.disabled = false; }
-  }
 }
 
 // Expose to global scope for onclick handlers
