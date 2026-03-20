@@ -230,6 +230,7 @@
         <!-- Client -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-client">Client</span></span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcClient">Client</label>
           <div style="position:relative">
             <input class="m-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)">
             <div id="qcAcResults" class="ac-results" style="display:none"></div>
@@ -237,8 +238,8 @@
           </div>
           <div id="qcClientDetails" style="display:none;margin-top:8px">
             <div class="m-row m-row-2">
-              <div><div class="m-field-label">Email</div><input class="m-input" type="email" id="qcClientEmail" placeholder="email@exemple.com"></div>
-              <div><div class="m-field-label">T\u00e9l\u00e9phone</div><input class="m-input" type="tel" id="qcClientPhone" placeholder="+32 ..."></div>
+              <div><label class="m-field-label" for="qcClientEmail">Email</label><input class="m-input" type="email" id="qcClientEmail" placeholder="email@exemple.com"></div>
+              <div><label class="m-field-label" for="qcClientPhone">Téléphone</label><input class="m-input" type="tel" id="qcClientPhone" placeholder="+32 ..."></div>
             </div>
           </div>
         </div>
@@ -254,27 +255,28 @@
             <div id="qcTotalDuration" style="font-size:.72rem;color:var(--text-4);margin-top:6px"></div>
           </div>
           <div id="qcFreestyleMode" style="display:none">
-            <div style="margin-bottom:8px"><div class="m-field-label">Intitulé du RDV</div><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
-            <div><div class="m-field-label">Couleur</div><div id="qcFreeColorWrap"></div></div>
+            <div style="margin-bottom:8px"><label class="m-field-label" for="qcFreeLabel">Intitulé du RDV</label><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
+            <div><label class="m-field-label">Couleur</label><div id="qcFreeColorWrap"></div></div>
           </div>
         </div>
         <!-- Horaire -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
-            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="qcDate"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="qcTime" value="09:00"></div>
-            <div id="qcEndTimeWrap" style="display:none"><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcFreeEnd" value="10:00"></div>
+            <div><label class="m-field-label" for="qcDate">Date</label><input type="date" class="m-input" id="qcDate"></div>
+            <div><label class="m-field-label" for="qcTime">Début</label><input type="time" class="m-input" id="qcTime" value="09:00"></div>
+            <div id="qcEndTimeWrap" style="display:none"><label class="m-field-label" for="qcFreeEnd">Fin</label><input type="time" class="m-input" id="qcFreeEnd" value="10:00"></div>
           </div>
           <div class="m-row m-row-2" id="qcBufferRow" style="display:none;margin-top:8px">
-            <div><div class="m-field-label">Buffer avant (min)</div><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
-            <div><div class="m-field-label">Buffer après (min)</div><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="qcFreeBufBefore">Buffer avant (min)</label><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="qcFreeBufAfter">Buffer après (min)</label><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
           </div>
           <div id="qcFreeDuration" style="font-size:.72rem;color:var(--text-4);margin-top:4px;display:none"></div>
         </div>
         <!-- Praticien -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-practitioner">Praticien</span></span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcPrac">Praticien</label>
           <div class="m-prac-wrap">
             <span class="m-prac-dot" id="qcPracDot"></span>
             <select class="m-input" id="qcPrac"></select>
@@ -283,11 +285,13 @@
         <!-- Mode -->
         <div class="m-sec" id="qcModeRow">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/></svg> Mode</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcMode">Mode</label>
           <select class="m-input" id="qcMode"><option value="cabinet">Cabinet</option></select>
         </div>
         <!-- Note -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Note</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcComment">Note</label>
           <textarea class="m-input" id="qcComment" rows="2" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
         </div>
         <!-- Tâches -->
@@ -331,26 +335,30 @@
       <div class="m-panel" id="qcPanelTask" style="display:none">
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Titre</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcTaskTitle">Titre</label>
           <input class="m-input" id="qcTaskTitle" placeholder="Ex: Nettoyage, Réunion, Pause…" maxlength="150">
         </div>
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Horaire</span><span class="m-sec-line"></span></div>
           <div class="m-row m-row-3">
-            <div><div class="m-field-label">Date</div><input type="date" class="m-input" id="qcTaskDate"></div>
-            <div><div class="m-field-label">Début</div><input type="time" class="m-input" id="qcTaskStart"></div>
-            <div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="qcTaskEnd"></div>
+            <div><label class="m-field-label" for="qcTaskDate">Date</label><input type="date" class="m-input" id="qcTaskDate"></div>
+            <div><label class="m-field-label" for="qcTaskStart">Début</label><input type="time" class="m-input" id="qcTaskStart"></div>
+            <div><label class="m-field-label" for="qcTaskEnd">Fin</label><input type="time" class="m-input" id="qcTaskEnd"></div>
           </div>
         </div>
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Praticien</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcTaskPrac">Praticien</label>
           <div class="m-prac-wrap"><span class="m-prac-dot" id="qcTaskPracDot"></span><select class="m-input" id="qcTaskPrac"></select></div>
         </div>
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Couleur</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label">Couleur</label>
           <div id="qcTaskColorWrap"></div>
         </div>
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title">Note</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcTaskNote">Note</label>
           <textarea class="m-input" id="qcTaskNote" rows="2" placeholder="Détails optionnels…" style="resize:vertical"></textarea>
         </div>
       </div>
