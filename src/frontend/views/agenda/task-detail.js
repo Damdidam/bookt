@@ -5,6 +5,7 @@
 import { api, calState } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
+import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { closeCalModal } from './booking-detail.js';
 import { fcRefresh } from './calendar-init.js';
 import { cswHTML } from './color-swatches.js';
@@ -132,7 +133,7 @@ async function fcSaveTask() {
 
 async function fcDeleteTask() {
   if (!_currentTaskId) return;
-  if (!confirm('Supprimer cette tâche ?')) return;
+  if (!(await showConfirmDialog('Supprimer la tâche', 'Supprimer cette tâche ?', 'Supprimer', 'danger'))) return;
   try {
     const r = await fetch(`/api/tasks/${_currentTaskId}`, {
       method: 'DELETE',

@@ -4,6 +4,7 @@
 import { api, calState } from '../../state.js';
 import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
+import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 import { storeUndoAction } from './booking-undo.js';
@@ -35,7 +36,7 @@ async function fcSetStatus(newStatus) {
 
 async function fcPurgeBooking() {
   if (fcPurgeBooking._busy) return;
-  if (!confirm('Supprimer d\u00e9finitivement ce RDV ? Cette action est irr\u00e9versible.')) return;
+  if (!(await showConfirmDialog('Supprimer le RDV', 'Supprimer d\u00e9finitivement ce RDV ? Cette action est irr\u00e9versible.', 'Supprimer', 'danger'))) return;
   fcPurgeBooking._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}`, {
@@ -53,7 +54,7 @@ async function fcPurgeBooking() {
 
 async function fcMarkDepositPaid() {
   if (fcMarkDepositPaid._busy) return;
-  if (!confirm('Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.')) return;
+  if (!(await showConfirmDialog('Confirmer le paiement', 'Confirmer le paiement de l\u2019acompte ? Le RDV passera en statut Confirm\u00e9.', 'Confirmer', 'primary'))) return;
   fcMarkDepositPaid._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/status`, {
@@ -73,7 +74,7 @@ async function fcMarkDepositPaid() {
 async function fcRefundDeposit(amountCents) {
   if (fcRefundDeposit._busy) return;
   const amt = ((amountCents || 0) / 100).toFixed(2);
-  if (!confirm(`Rembourser l\u2019acompte de ${amt}\u20ac ? Le RDV sera annul\u00e9.`)) return;
+  if (!(await showConfirmDialog('Rembourser l\u2019acompte', 'Rembourser l\u2019acompte de ' + amt + '\u20ac ? Le RDV sera annul\u00e9.', 'Rembourser', 'danger'))) return;
   fcRefundDeposit._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/deposit-refund`, {
