@@ -11,7 +11,7 @@ import { fcIsMobile, fcIsTouch } from '../../utils/touch.js';
 import { buildEventsCallback } from './calendar-data.js';
 import { buildEventContent, buildEventClassNames } from './calendar-render.js';
 import { buildEventDidMount, buildEventWillUnmount } from './calendar-hooks.js';
-import { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow, buildEventDragStart, buildEventDragStop } from './calendar-interactions.js';
+import { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow, buildEventDragStart, buildEventDragStop, initDaySwipe } from './calendar-interactions.js';
 import { fcHideTooltip } from './tooltip-renderer.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { atUpdateTitle } from './calendar-toolbar.js';
@@ -302,8 +302,11 @@ function initCalendar(initView, initSlotDur) {
 
   calState.fcCal.render();
 
-  // Bug B6 fix: remove before re-adding to prevent listener leak on re-init
+  // Swipe left/right to navigate days in day view (touch devices only)
   const calEl = document.getElementById('fcCalendar');
+  initDaySwipe(calEl);
+
+  // Bug B6 fix: remove before re-adding to prevent listener leak on re-init
   if (calEl) {
     calEl.removeEventListener('scroll', fcHideTooltip, true);
     calEl.addEventListener('scroll', fcHideTooltip, true);

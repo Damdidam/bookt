@@ -387,4 +387,36 @@ function buildEventAllow() {
   };
 }
 
+export function initDaySwipe(calendarEl) {
+  if (!('ontouchstart' in window)) return;
+
+  let startX = 0, startY = 0, swiping = false;
+  const THRESHOLD = 60;
+  const VERTICAL_LOCK = 30;
+
+  calendarEl.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    swiping = true;
+  }, { passive: true });
+
+  calendarEl.addEventListener('touchmove', e => {
+    if (!swiping) return;
+    const dy = Math.abs(e.touches[0].clientY - startY);
+    if (dy > VERTICAL_LOCK) swiping = false;
+  }, { passive: true });
+
+  calendarEl.addEventListener('touchend', e => {
+    if (!swiping) return;
+    swiping = false;
+    const endX = e.changedTouches[0].clientX;
+    const diff = endX - startX;
+    const view = calState.fcCal?.view;
+    if (!view || (view.type !== 'timeGridDay' && view.type !== 'resourceTimeGridDay')) return;
+
+    if (diff < -THRESHOLD) calState.fcCal.next();
+    else if (diff > THRESHOLD) calState.fcCal.prev();
+  });
+}
+
 export { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow, buildEventDragStart, buildEventDragStop };
