@@ -112,18 +112,17 @@ async function fcSendDepositRequest(channel) {
         body: JSON.stringify({ phone: newPhone || null, email: newEmail || null })
       });
       if (!cr.ok) { const d = await cr.json().catch(() => ({})); throw new Error(d.error || 'Erreur sauvegarde contact'); }
-      // Update original so subsequent saves don't re-patch
       if (calState.fcEditOriginal) { calState.fcEditOriginal.client_email = newEmail; calState.fcEditOriginal.client_phone = newPhone; }
     }
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/send-deposit-request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ channel })
+      body: JSON.stringify({ channels: [channel] })
     });
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
-    const label = channel === 'sms' ? 'SMS' : 'email';
-    gToast(`Demande d'acompte envoyée par ${label}`, 'success');
-    if (statusEl) { statusEl.style.background = '#F0FDF4'; statusEl.style.color = '#15803D'; statusEl.textContent = `✓ Demande envoyée par ${label}`; }
+    const data = await r.json();
+    gToast(`Demande d'acompte envoyée par ${data.label || channel}`, 'success');
+    if (statusEl) { statusEl.style.background = '#F0FDF4'; statusEl.style.color = '#15803D'; statusEl.textContent = `\u2713 Demande envoyée par ${data.label || channel}`; }
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
     if (statusEl) { statusEl.style.background = '#FEF2F2'; statusEl.style.color = '#DC2626'; statusEl.textContent = e.message; }

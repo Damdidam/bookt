@@ -953,7 +953,7 @@ async function calCreateBooking() {
     closeCalModal('calCreateModal');
     fcRefresh();
 
-    // Auto-send deposit request in background using selected channels
+    // Auto-send deposit request in background using selected channels (single API call)
     if (mainBooking?.status === 'pending_deposit' && mainBooking.deposit_required) {
       const wantEmail = document.getElementById('qcDepEmail')?.checked;
       const wantSms = document.getElementById('qcDepSms')?.checked;
@@ -962,16 +962,16 @@ async function calCreateBooking() {
       if (wantSms && clientPhone) channels.push('sms');
       // Fallback: if nothing selected but contact exists, send email
       if (!channels.length && clientEmail) channels.push('email');
-      for (const channel of channels) {
+      if (channels.length > 0) {
         try {
           const dr = await fetch(`/api/bookings/${mainBooking.id}/send-deposit-request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-            body: JSON.stringify({ channel })
+            body: JSON.stringify({ channels })
           });
           if (dr.ok) {
-            const label = channel === 'sms' ? 'SMS' : 'email';
-            gToast(`Demande d\u2019acompte envoy\u00e9e par ${label}`, 'success');
+            const data = await dr.json();
+            gToast(`Demande d\u2019acompte envoy\u00e9e par ${data.label || channels.join(' + ')}`, 'success');
           }
         } catch (_) { /* silent — booking already created */ }
       }
@@ -1169,15 +1169,15 @@ async function qcSendDepositRequest(bookingId, channel) {
     const r = await fetch(`/api/bookings/${bookingId}/send-deposit-request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ channel })
+      body: JSON.stringify({ channels: [channel] })
     });
     if (!r.ok) {
       const d = await r.json();
       throw new Error(d.error || 'Erreur d\u2019envoi');
     }
-    const channelLabel = channel === 'sms' ? 'SMS' : 'email';
+    const data = await r.json();
     if (statusEl) {
-      statusEl.innerHTML = `<div style="font-size:.88rem;color:var(--green);font-weight:700">\u2713 Demande envoy\u00e9e par ${channelLabel}</div>`;
+      statusEl.innerHTML = `<div style="font-size:.88rem;color:var(--green);font-weight:700">\u2713 Demande envoy\u00e9e par ${data.label || channel}</div>`;
     }
     setTimeout(() => {
       document.getElementById('calCreateModal')._dirtyGuard?.markClean();

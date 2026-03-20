@@ -1192,20 +1192,28 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
 
 // ============================================================
 // POST /api/bookings/:id/send-deposit-request
-// Send deposit request notification via SMS or email
+// Send deposit request notification via email, SMS, or both
+// Accepts { channels: ['email','sms'] } or legacy { channel: 'email' }
 // UI: Quick-create post-creation panel + Detail modal deposit banner
 // ============================================================
 router.post('/:id/send-deposit-request', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { channel } = req.body;
+
+    // Accept both legacy { channel } and new { channels } format
+    let channels = req.body.channels;
+    if (!channels && req.body.channel) channels = [req.body.channel];
+    if (!Array.isArray(channels) || channels.length === 0) {
+      return res.status(400).json({ error: 'channels requis (["email"], ["sms"], ou ["email","sms"])' });
+    }
+    channels = [...new Set(channels.filter(c => ['email', 'sms'].includes(c)))];
+    if (channels.length === 0) {
+      return res.status(400).json({ error: 'Channel doit être "sms" ou "email"' });
+    }
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
-    if (!['sms', 'email'].includes(channel)) {
-      return res.status(400).json({ error: 'Channel doit \u00eatre "sms" ou "email"' });
-    }
 
     // 1. Fetch booking + client + business + service
     const bkResult = await queryWithRLS(bid, `
@@ -1261,62 +1269,51 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       });
     }
 
-    // 5. Validate client contact
-    if (channel === 'email' && !bk.client_email) {
-      return res.status(400).json({ error: 'Le client n\'a pas d\'adresse email' });
+    // 5. Validate client contacts per channel & filter out invalid ones
+    const validChannels = [];
+    const skipped = [];
+    for (const ch of channels) {
+      if (ch === 'email' && !bk.client_email) { skipped.push('email (pas d\'adresse email)'); continue; }
+      if (ch === 'sms' && !bk.client_phone) { skipped.push('sms (pas de numéro)'); continue; }
+      if (ch === 'sms' && !['pro', 'premium'].includes(bk.plan)) { skipped.push('sms (plan Pro requis)'); continue; }
+      validChannels.push(ch);
     }
-    if (channel === 'sms' && !bk.client_phone) {
-      return res.status(400).json({ error: 'Le client n\'a pas de numéro de téléphone' });
+    if (validChannels.length === 0) {
+      return res.status(400).json({ error: 'Impossible d\'envoyer: ' + skipped.join(', ') });
     }
 
-    // 6. Plan gating: SMS requires Pro/Premium
-    if (channel === 'sms' && !['pro', 'premium'].includes(bk.plan)) {
-      return res.status(403).json({ error: 'L\'envoi SMS nécessite le plan Pro ou Premium' });
-    }
-
-    // 7. Anti-spam: min 30 min between sends PER CHANNEL (so email+sms combo works)
-    const notifType = channel === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
-    const lastSent = await queryWithRLS(bid, `
-      SELECT sent_at FROM notifications
-      WHERE booking_id = $1 AND business_id = $2 AND type = $3 AND status = 'sent'
-      ORDER BY sent_at DESC LIMIT 1
-    `, [id, bid, notifType]);
-
-    let lastSentAt = null;
-    if (lastSent.rows.length > 0) {
-      lastSentAt = new Date(lastSent.rows[0].sent_at);
-      const minSince = (Date.now() - lastSentAt.getTime()) / 60000;
-      if (minSince < 30) {
-        const waitMin = Math.ceil(30 - minSince);
-        return res.status(429).json({
-          error: `Demande déjà envoyée récemment. Réessayez dans ${waitMin} min.`,
-          last_sent_at: lastSentAt.toISOString()
-        });
+    // 6. Anti-spam: min 30 min per channel
+    for (const ch of [...validChannels]) {
+      const notifType = ch === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
+      const lastSent = await queryWithRLS(bid, `
+        SELECT sent_at FROM notifications
+        WHERE booking_id = $1 AND business_id = $2 AND type = $3 AND status = 'sent'
+        ORDER BY sent_at DESC LIMIT 1
+      `, [id, bid, notifType]);
+      if (lastSent.rows.length > 0) {
+        const minSince = (Date.now() - new Date(lastSent.rows[0].sent_at).getTime()) / 60000;
+        if (minSince < 30) {
+          validChannels.splice(validChannels.indexOf(ch), 1);
+          skipped.push(`${ch} (réessayez dans ${Math.ceil(30 - minSince)} min)`);
+        }
       }
     }
+    if (validChannels.length === 0) {
+      return res.status(429).json({ error: 'Déjà envoyé récemment: ' + skipped.join(', ') });
+    }
 
-    // 8. Build deposit URL
+    // 7. Build deposit URL
     const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
     const depositUrl = `${baseUrl}/deposit/${bk.public_token}`;
 
-    // 9. Store deposit_payment_url + increment counter atomically (with race guard on max 3)
-    // If the other channel was sent < 10s ago (same batch), don't increment counter
-    const recentOther = await queryWithRLS(bid, `
-      SELECT 1 FROM notifications
-      WHERE booking_id = $1 AND business_id = $2
-        AND type IN ('email_deposit_request', 'sms_deposit_request') AND type != $3
-        AND status = 'sent' AND sent_at > NOW() - INTERVAL '10 seconds'
-      LIMIT 1
-    `, [id, bid, notifType]);
-    const skipIncrement = recentOther.rows.length > 0;
-
+    // 8. Increment counter once for the whole batch
     const incResult = await queryWithRLS(bid,
       `UPDATE bookings SET deposit_payment_url = $1,
-        deposit_request_count = COALESCE(deposit_request_count, 0) + ${skipIncrement ? 0 : 1},
+        deposit_request_count = COALESCE(deposit_request_count, 0) + 1,
         deposit_requested_at = COALESCE(deposit_requested_at, NOW())
        WHERE id = $2 AND business_id = $3
          AND status = 'pending_deposit' AND deposit_required = true AND deposit_status = 'pending'
-         AND COALESCE(deposit_request_count, 0) < ${skipIncrement ? 4 : 3}
+         AND COALESCE(deposit_request_count, 0) < 3
        RETURNING deposit_request_count`,
       [depositUrl, id, bid]
     );
@@ -1324,72 +1321,92 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
       return res.status(429).json({ error: 'Maximum de 3 envois atteint ou le statut a changé. Actualisez la page.' });
     }
 
-    // 10. Send
-    let sendResult;
-    if (channel === 'email') {
-      let groupServices = null;
-      if (bk.group_id) {
-        const grp = await queryWithRLS(bid,
-          `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
-                  COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                  COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name
-           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
-           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-           LEFT JOIN practitioners p ON p.id = b.practitioner_id
-           WHERE b.group_id = $1 AND b.business_id = $2
-           ORDER BY b.group_order, b.start_at`,
-          [bk.group_id, bid]
-        );
-        if (grp.rows.length > 1) {
-          const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
-          if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
-          groupServices = grp.rows;
+    // 9. Prepare group services (for email) once
+    let groupServices = null;
+    if (validChannels.includes('email') && bk.group_id) {
+      const grp = await queryWithRLS(bid,
+        `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name
+         FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+         LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
+         WHERE b.group_id = $1 AND b.business_id = $2
+         ORDER BY b.group_order, b.start_at`,
+        [bk.group_id, bid]
+      );
+      if (grp.rows.length > 1) {
+        const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
+        if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+        groupServices = grp.rows;
+      }
+    }
+    if (groupServices) bk.end_at = groupServices[groupServices.length - 1].end_at;
+
+    // 10. Send all channels in parallel
+    const results = {};
+    const promises = validChannels.map(async (ch) => {
+      try {
+        if (ch === 'email') {
+          const { sendDepositRequestEmail } = require('../../services/email');
+          const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
+          const r = await sendDepositRequestEmail({
+            booking: bk,
+            business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme, settings: bk.settings },
+            depositUrl, payUrl, groupServices
+          });
+          results[ch] = r;
+        } else {
+          const { sendSMS } = require('../../services/sms');
+          const amtStr = ((bk.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+          const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+            timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
+          });
+          const body = `${bk.business_name} — Acompte de ${amtStr}€ requis pour votre RDV du ${dateStr}. Détails : ${depositUrl}`;
+          const r = await sendSMS({ to: bk.client_phone, body, businessId: bid });
+          results[ch] = r;
         }
+      } catch (e) {
+        results[ch] = { success: false, error: e.message };
       }
-      if (groupServices) bk.end_at = groupServices[groupServices.length - 1].end_at;
-      const { sendDepositRequestEmail } = require('../../services/email');
-      const payUrl = `${baseUrl}/api/public/deposit/${bk.public_token}/pay`;
-      sendResult = await sendDepositRequestEmail({
-        booking: bk,
-        business: { name: bk.business_name, email: bk.business_email, address: bk.business_address, theme: bk.theme, settings: bk.settings },
-        depositUrl,
-        payUrl,
-        groupServices
-      });
-    } else {
-      const { sendSMS } = require('../../services/sms');
-      const amtStr = ((bk.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
-      const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
-        timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
-      });
-      const body = `${bk.business_name} — Acompte de ${amtStr}€ requis pour votre RDV du ${dateStr}. Détails : ${depositUrl}`;
-      sendResult = await sendSMS({ to: bk.client_phone, body, businessId: bid });
+    });
+    await Promise.all(promises);
+
+    // 11. Log notifications for each channel
+    const sent = [];
+    const failed = [];
+    for (const ch of validChannels) {
+      const r = results[ch];
+      const status = r?.success ? 'sent' : 'failed';
+      const provider = ch === 'sms' ? 'twilio' : 'brevo';
+      const providerId = r?.messageId || r?.sid || null;
+      const notifType = ch === 'sms' ? 'sms_deposit_request' : 'email_deposit_request';
+      await queryWithRLS(bid, `
+        INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status, provider, provider_message_id, error, sent_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${status === 'sent' ? 'NOW()' : 'NULL'})
+      `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, r?.error || null]);
+      if (r?.success) sent.push(ch);
+      else failed.push(ch);
     }
 
-    // 11. Log notification
-    const status = sendResult.success ? 'sent' : 'failed';
-    const provider = channel === 'sms' ? 'twilio' : 'brevo';
-    const providerId = sendResult.messageId || sendResult.sid || null;
-    await queryWithRLS(bid, `
-      INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status, provider, provider_message_id, error, sent_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${status === 'sent' ? 'NOW()' : 'NULL'})
-    `, [bid, id, notifType, bk.client_email || null, bk.client_phone || null, status, provider, providerId, sendResult.error || null]);
-
-    if (!sendResult.success) {
-      // Rollback counter only if we actually incremented it
-      if (!skipIncrement) {
-        await queryWithRLS(bid,
-          `UPDATE bookings SET
-            deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0),
-            deposit_requested_at = CASE WHEN COALESCE(deposit_request_count, 1) <= 1 THEN NULL ELSE deposit_requested_at END
-           WHERE id = $1 AND business_id = $2`,
-          [id, bid]
-        );
-      }
-      return res.status(500).json({ error: 'Envoi échoué: ' + (sendResult.error || 'erreur inconnue') });
+    // 12. If ALL channels failed, rollback counter
+    if (sent.length === 0) {
+      await queryWithRLS(bid,
+        `UPDATE bookings SET
+          deposit_request_count = GREATEST(COALESCE(deposit_request_count, 1) - 1, 0),
+          deposit_requested_at = CASE WHEN COALESCE(deposit_request_count, 1) <= 1 THEN NULL ELSE deposit_requested_at END
+         WHERE id = $1 AND business_id = $2`,
+        [id, bid]
+      );
+      return res.status(500).json({ error: 'Envoi échoué: ' + failed.map(c => c + ' — ' + (results[c]?.error || 'erreur')).join('; ') });
     }
 
-    res.json({ sent: true, channel, deposit_url: depositUrl, request_count: incResult.rows[0].deposit_request_count });
+    // Build response summary
+    const sentLabel = sent.map(c => c === 'sms' ? 'SMS' : 'email').join(' + ');
+    const response = { sent: true, channels: sent, label: sentLabel, deposit_url: depositUrl, request_count: incResult.rows[0].deposit_request_count };
+    if (failed.length > 0) response.failed = failed;
+    if (skipped.length > 0) response.skipped = skipped;
+    res.json(response);
   } catch (err) { next(err); }
 });
 
