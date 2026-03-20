@@ -35,7 +35,8 @@ export function showConfirmDialog(title, message, confirmLabel = 'Confirmer', co
     el.querySelector('.dg-cancel').onclick = () => { el.remove(); resolve(false); };
     el.querySelector('.dg-confirm').onclick = () => { el.remove(); resolve(true); };
     el.addEventListener('click', e => { if (e.target === el) { el.remove(); resolve(false); } });
-    document.body.appendChild(el);
+    const parent = document.querySelector('.m-overlay.open .m-dialog') || document.body;
+    parent.appendChild(el);
   });
 }
 
