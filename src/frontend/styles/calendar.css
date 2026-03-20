@@ -137,6 +137,7 @@
 .fc .fc-timegrid-event .fc-event-resizer-end::after{content:'';width:24px;height:3px;border-radius:2px;background:rgba(255,255,255,.3);transition:all .15s}
 .fc .fc-timegrid-event:hover .fc-event-resizer-end::after{background:rgba(255,255,255,.7);width:32px}
 @media(pointer:coarse){.fc .fc-timegrid-event .fc-event-resizer-end{height:28px;touch-action:none}.fc .fc-timegrid-event .fc-event-resizer-end::after{width:32px;height:4px;background:rgba(255,255,255,.45)}}
+@media(max-width:1024px){.fc-timegrid-event .fc-event-resizer-end{height:28px}}
 .fc .fc-event-dragging{box-shadow:0 8px 24px rgba(0,0,0,.15);opacity:.85;transform:scale(1.04);z-index:100!important}
 .fc .fc-event-mirror{border:2px dashed var(--primary)!important;background:rgba(13,115,119,.06)!important;box-shadow:none!important}
 .fc .fc-timegrid-event .fc-event-main{padding:5px 8px}
