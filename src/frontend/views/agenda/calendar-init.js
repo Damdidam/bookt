@@ -266,7 +266,7 @@ function initCalendar(initView, initSlotDur) {
   calState.fcCal = new Calendar(document.getElementById('fcCalendar'), calState.fcCalOptions);
 
   // ── Responsive calendar for tablet ──
-  const _mqTabletLand = window.matchMedia('(max-width:1024px) and (min-width:769px)');
+  const _mqTabletLand = window.matchMedia('(max-width:1280px) and (min-width:769px)');
   const _mqTabletPort = window.matchMedia('(max-width:768px)');
 
   function _updateResourceWidth() {

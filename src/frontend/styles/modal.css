@@ -34,8 +34,8 @@ body.has-modal{overflow:hidden}
 /* ── Drag handle — hidden on desktop, visible on mobile ── */
 .m-drag-handle{display:none;width:36px;height:4px;border-radius:2px;background:var(--border);margin:8px auto 0;flex-shrink:0}
 
-/* ── Tablet touch targets (≤1024px) ── */
-@media(max-width:1024px){
+/* ── Tablet touch targets (≤1280px) ── */
+@media(max-width:1280px){
   .m-close{width:44px;height:44px}
   .m-st-btn{min-height:44px;padding:10px 14px}
   .m-chip{min-height:44px;padding:8px 14px}
