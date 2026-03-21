@@ -106,8 +106,8 @@ async function loadTeam() {
     const practs = d.practitioners || [];
     const pracLabel = sectorLabels.practitioner.toLowerCase();
 
-    let h = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 style="font-size:.95rem;font-weight:700">${practs.length} membre${practs.length > 1 ? 's' : ''} de l'équipe</h3>
+    let h = `<div class="tm-list-header">
+      <h3>${practs.length} membre${practs.length > 1 ? 's' : ''} de l'équipe</h3>
       <button class="btn-primary" onclick="openPractModal()">+ Ajouter</button>
     </div>`;
 
@@ -117,64 +117,40 @@ async function loadTeam() {
       h += `<div class="team-grid2">`;
       practs.forEach(p => {
         const initials = p.display_name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??';
-        const hasLogin = !!p.user_email;
-        const avatarContent = p.photo_url
-          ? `<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
-          : initials;
-
         const regime = computeRegime(p.work_days);
-        const leave = getLeaveBalance(p.leave_balance);
-        const anciennete = computeAnciennete(p.hire_date);
-        const today = new Date(new Date().toDateString());
+        const isInactive = !p.is_active;
 
-        h += `<div class="team-member${p.is_active ? '' : ' inactive'}">
-          <div class="tm-header">
-            <div class="tm-avatar" style="background:${p.color || 'var(--primary)'}">${avatarContent}</div>
-            <div class="tm-info">
-              <h4>${p.display_name}</h4>
-              <div class="tm-title">${p.title || '—'}${p.years_experience ? ' · ' + p.years_experience + ' ans' : ''}</div>
-              ${p.user_email ? `<div class="tm-email"><svg class="gi" ${ICONS.key.slice(4)}> ${p.user_email}</div>` : `<div class="tm-email" style="color:var(--text-4)">Pas de compte</div>`}
-            </div>
-          </div>
+        h += `<div class="tm-card${isInactive ? ' inactive' : ''}" onclick="openPractModal('${p.id}')">`;
 
-          <!-- Work dots -->
-          <div class="tm-work-dots" title="${regime.label}${regime.detail ? ' (' + regime.detail + ')' : ''}">
-            ${DAY_LABELS.map((d, i) => `<div class="tm-work-dot-wrap"><span class="tm-work-dot ${p.work_days && p.work_days.includes(i) ? 'on' : 'off'}"></span><span class="tm-work-dot-label">${d}</span></div>`).join('')}
-            <span class="tm-regime-label">${regime.label}</span>
-          </div>
+        // Avatar
+        if (p.photo_url) {
+          h += `<div class="tm-avatar"><img src="${esc(p.photo_url)}" alt="${esc(p.display_name)}" loading="lazy"></div>`;
+        } else {
+          h += `<div class="tm-avatar" style="background:linear-gradient(135deg,${esc(p.color || '#0D7377')},${esc(p.color || '#0D7377')}CC)">${initials}</div>`;
+        }
 
-          <div class="tm-stats">
-            <div class="tm-stat"><div class="v">${p.bookings_30d || 0}</div><div class="l">RDV / 30j</div></div>
-            <div class="tm-stat"><div class="v">${leave ? leave.solde + 'j' : '—'}</div><div class="l">Solde congés</div></div>
-            <div class="tm-stat"><div class="v">${anciennete}</div><div class="l">Ancienneté</div></div>
-            <div class="tm-stat"><div class="v">${p.service_count || 0}</div><div class="l">${categoryLabels.services}</div></div>
-          </div>
+        // Info
+        h += `<div class="tm-info">`;
+        h += `<p class="tm-name">${esc(p.display_name)}${isInactive ? ' <span class="tm-badge-inactive">Inactif</span>' : ''}</p>`;
+        h += `<p class="tm-title">${esc(p.title || '')}</p>`;
+        if (regime.label !== '—') h += `<p class="tm-regime">${regime.label}${regime.detail ? ' · ' + regime.detail : ''}</p>`;
 
-          <div class="tm-badges">
-            <span class="tm-badge ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'Actif' : 'Inactif'}</span>
-            ${p.contract_type && p.contract_type !== 'cdi' ? `<span class="tm-badge" style="background:#F0F9FF;color:#0369A1">${CONTRACT_LABELS[p.contract_type] || p.contract_type}</span>` : ''}
-            <span class="tm-badge ${p.booking_enabled ? 'booking' : 'no-booking'}">${p.booking_enabled ? 'Réservable' : 'Non réservable'}</span>
-            ${p.waitlist_mode && p.waitlist_mode !== 'off' ? `<span class="tm-badge" style="background:${p.waitlist_mode === 'auto' ? '#DCFCE7;color:#15803D' : '#FEF3C7;color:#92400E'}"><svg class="gi" ${ICONS.hourglass.slice(4)}> ${p.waitlist_mode === 'auto' ? 'WL auto' : 'WL manuelle'}</span>` : ''}
+        // Summary line
+        const parts = [];
+        if (p.bookings_30d != null) parts.push(p.bookings_30d + ' RDV/mois');
+        if (p.contract_type && CONTRACT_LABELS[p.contract_type]) parts.push(CONTRACT_LABELS[p.contract_type]);
+        if (parts.length) h += `<p class="tm-summary">${parts.join(' · ')}</p>`;
 
-            ${p.vacation_until && new Date(p.vacation_until) >= today ? `<span class="tm-badge" style="background:#FEF3C7;color:#92400E"><svg class="gi" ${ICONS.sun.slice(4)}> Vacances → ${new Date(p.vacation_until).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' })}</span>` : ''}
-            ${(() => {
-              const pc = calConns.filter(c => c.practitioner_id === p.id);
-              if (pc.length === 0) return '';
-              const providers = pc.map(c => c.provider === 'google' ? 'Google' : c.provider === 'outlook' ? 'Outlook' : 'iCal').join(', ');
-              return `<span class="tm-badge" style="background:#EFF9F8;color:#0D7377"><svg class="gi" ${ICONS.calendar.slice(4)}> ${providers}</span>`;
-            })()}
-            ${hasLogin ? `<span class="tm-badge has-login">${sectorLabels[p.user_role] || p.user_role || 'Compte lié'}</span>` : ''}
-          </div>
-
-          <div class="tm-actions">
-            <button class="btn-outline btn-sm" onclick="openPracTasks('${p.id}','${esc(p.display_name)}')"><svg class="gi" ${ICONS.tasks.slice(4)}> Tâches</button>
-            <button class="btn-outline btn-sm" onclick="openPractModal('${p.id}')"><svg class="gi" ${ICONS.edit.slice(4)}> Modifier</button>
-            ${hasLogin ? `<button class="btn-outline btn-sm" onclick="openRoleModal('${p.id}','${esc(p.display_name)}','${p.user_role || 'practitioner'}')"><svg class="gi" ${ICONS.role.slice(4)}> Rôle</button>` : ''}
-            ${!hasLogin ? `<button class="btn-outline btn-sm" onclick="openInviteModal('${p.id}','${esc(p.display_name)}')"><svg class="gi" ${ICONS.key.slice(4)}> Créer un accès</button>` : ''}
-            ${p.is_active ? `<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver ${esc(p.display_name)} ?'))deactivatePract('${p.id}')">Désactiver</button>` : `<button class="btn-outline btn-sm" onclick="reactivatePract('${p.id}')">Réactiver</button>`}
-          </div>
-        </div>`;
+        h += `</div>`;
+        h += `</div>`;
       });
+
+      // Add button card
+      h += `<div class="tm-card tm-add" onclick="openPractModal()">
+        <div class="tm-avatar tm-add-icon">${ICONS.plus}</div>
+        <div class="tm-info"><p class="tm-name">Ajouter un ${esc(pracLabel)}</p></div>
+      </div>`;
+
       h += `</div>`;
     }
     c.innerHTML = h;
