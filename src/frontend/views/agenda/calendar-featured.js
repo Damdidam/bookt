@@ -2,6 +2,7 @@
  * Calendar Featured Slots — "Mode vedette" toggle for the calendar.
  * When active, clicking on the calendar toggles featured start times
  * (gold background events). Save to persist vedette slots.
+ * Supports multi-week selection — slots are grouped by week for save.
  */
 import { api, calState } from '../../state.js';
 import { gToast } from '../../utils/dom.js';
@@ -10,9 +11,7 @@ import { fcRefresh } from './calendar-init.js';
 
 // ── Featured mode state ──
 let fsActive = false;            // is vedette mode on?
-let fsPendingSlots = {};         // { 'YYYY-MM-DD_HH:MM': true } — current selection
-let fsSavedSlots = [];           // raw from API: [{id, date, start_time, practitioner_id}]
-let fsCurrentWeekStart = null;   // Monday ISO of currently viewed week
+let fsPendingSlots = {};         // { 'YYYY-MM-DD_HH:MM': true } — current selection (all weeks)
 let fsDirty = false;             // has user changed anything since last save?
 
 /** Check if vedette mode is active */
@@ -33,7 +32,7 @@ function localDate(d) {
 }
 
 function getMonday(d) {
-  const dt = new Date(d);
+  const dt = new Date(d + 'T12:00:00');
   const day = dt.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   dt.setDate(dt.getDate() + diff);
@@ -47,6 +46,12 @@ function timeToMin(t) {
 
 function minToTime(m) {
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+function fsGetPracId() {
+  return calState.fcCurrentFilter !== 'all'
+    ? calState.fcCurrentFilter
+    : calState.fcPractitioners[0]?.id;
 }
 
 // ── Toggle mode on/off ──
@@ -91,10 +96,10 @@ async function fsActivate() {
   fsDirty = false;
   fsPendingSlots = {};
 
-  // Load data BEFORE changing slotDuration to avoid race condition.
-  await fsLoadCurrentWeek();
+  // Load ALL future featured slots before changing slotDuration (race condition fix)
+  await fsLoadAllSlots();
 
-  // Now switch calendar to 15-min grid
+  // Switch calendar to 15-min grid
   if (calState.fcCal) {
     fsOriginalSlotDuration = calState.fcCal.getOption('slotDuration');
     calState.fcCal.setOption('slotDuration', '00:15:00');
@@ -113,7 +118,6 @@ function fsDeactivate() {
   fsActive = false;
   fsDirty = false;
   fsPendingSlots = {};
-  fsSavedSlots = [];
 
   // Restore original slot duration
   if (calState.fcCal && fsOriginalSlotDuration) {
@@ -130,56 +134,42 @@ function fsDeactivate() {
   fcRefresh();
 }
 
-/** Load featured slots for the currently visible week */
-async function fsLoadCurrentWeek() {
-  const view = calState.fcCal?.view;
-  if (!view) return;
-  const weekStart = getMonday(view.currentStart);
-  fsCurrentWeekStart = weekStart;
-
-  const pracId = calState.fcCurrentFilter !== 'all'
-    ? calState.fcCurrentFilter
-    : calState.fcPractitioners[0]?.id;
-
+/**
+ * Load ALL future featured slots for the practitioner (not just one week).
+ * This allows multi-week selection and navigation without losing data.
+ */
+async function fsLoadAllSlots() {
+  const pracId = fsGetPracId();
   if (!pracId) return;
 
   try {
-    const slotsRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
+    // No week_start param → backend returns all future slots
+    const res = await fetch(`/api/featured-slots?practitioner_id=${pracId}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
     });
-    const slotsData = await slotsRes.json();
+    const data = await res.json();
+    const savedSlots = data.featured_slots || [];
 
-    fsSavedSlots = slotsData.featured_slots || [];
-
-    // Build pending slots from saved
-    fsPendingSlots = {};
-    fsSavedSlots.forEach(s => {
+    // Merge into fsPendingSlots (keep any unsaved local selections)
+    if (!fsDirty) {
+      fsPendingSlots = {};
+    }
+    savedSlots.forEach(s => {
       const dateKey = (s.date || '').slice(0, 10);
       const st = (s.start_time || '').slice(0, 5);
       fsPendingSlots[dateKey + '_' + st] = true;
     });
-    fsDirty = false;
     fsUpdateCount();
   } catch (e) {
-    console.error('fsLoadCurrentWeek error:', e);
+    console.error('fsLoadAllSlots error:', e);
   }
 }
 
-/** Called when calendar navigates — reload featured data */
+/** Called when calendar navigates — just refresh, data is already loaded */
 async function fsOnDatesSet() {
   if (!fsActive) return;
-  const view = calState.fcCal?.view;
-  if (!view) return;
-  const newWeek = getMonday(view.currentStart);
-  if (newWeek !== fsCurrentWeekStart) {
-    // Always update the week — old code blocked on dirty and caused week_start mismatch
-    if (fsDirty) {
-      gToast('Modifications non enregistrées perdues', 'info');
-      fsDirty = false;
-    }
-    await fsLoadCurrentWeek();
-    fcRefresh();
-  }
+  // No need to reload — we already have all future slots
+  // Just refresh to render background events for the new visible range
 }
 
 /**
@@ -214,11 +204,10 @@ function fsHandleDateClick(dateStr) {
 
 /**
  * Build background events array from fsPendingSlots for FullCalendar.
- * Each slot = a 15-min background event.
+ * Each slot = a 15-min background event. Works across all weeks.
  */
 function fsBuildBackgroundEvents() {
   if (!fsActive) return [];
-
   const events = [];
   Object.keys(fsPendingSlots).forEach(key => {
     const [date, time] = key.split('_');
@@ -269,38 +258,52 @@ function fsUpdateCount() {
 }
 
 // ── Save / Cancel / Clear ──
+
+/**
+ * Save featured slots — groups by week and sends one PUT per week.
+ * This allows slots across multiple weeks to be saved in one click.
+ */
 async function fsSaveSlots() {
-  const pracId = calState.fcCurrentFilter !== 'all'
-    ? calState.fcCurrentFilter
-    : calState.fcPractitioners[0]?.id;
+  const pracId = fsGetPracId();
   if (!pracId) return;
 
-  // Convert pending map to flat list of {date, start_time}
-  const slots = [];
+  // Convert pending map to flat list grouped by week
+  const slotsByWeek = {};
   Object.keys(fsPendingSlots).sort().forEach(key => {
     const [date, time] = key.split('_');
-    slots.push({ date, start_time: time });
+    const weekStart = getMonday(date);
+    if (!slotsByWeek[weekStart]) slotsByWeek[weekStart] = [];
+    slotsByWeek[weekStart].push({ date, start_time: time });
   });
 
-  if (slots.length === 0) {
+  const weeks = Object.keys(slotsByWeek);
+  if (weeks.length === 0) {
     gToast('Aucun créneau à enregistrer', 'info');
     return;
   }
 
-  // Compute week_start from actual slot dates (not stale fsCurrentWeekStart)
-  const weekStart = getMonday(slots[0].date);
-
   try {
-    const r = await fetch('/api/featured-slots', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots })
-    });
-    if (!r.ok) throw new Error((await r.json()).error);
-    fsCurrentWeekStart = weekStart;
+    // Save each week in parallel
+    const results = await Promise.all(weeks.map(weekStart =>
+      fetch('/api/featured-slots', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots: slotsByWeek[weekStart] })
+      })
+    ));
+
+    // Check all responses
+    for (const r of results) {
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.error);
+      }
+    }
+
     fsDirty = false;
-    const count = slots.length;
-    gToast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
+    const totalCount = Object.keys(fsPendingSlots).length;
+    const weekLabel = weeks.length > 1 ? ` sur ${weeks.length} semaines` : '';
+    gToast(`${totalCount} créneau${totalCount > 1 ? 'x' : ''} vedette${totalCount > 1 ? 's' : ''} enregistré${totalCount > 1 ? 's' : ''}${weekLabel}`, 'success');
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
   }
