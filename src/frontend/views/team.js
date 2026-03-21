@@ -1263,7 +1263,7 @@ async function generateIcalFeed(pracId){
 // ============================================================
 
 bridge({
-  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract,
+  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract,
   openPracTasks, togglePracTodo, closeTasksModal,
   openInviteModal, generateTempPwd, sendInvite, closeInviteModal,
   openRoleModal, saveRole, closeRoleModal,
@@ -1276,7 +1276,7 @@ bridge({
 });
 
 export {
-  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract,
+  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract,
   openPracTasks, togglePracTodo, closeTasksModal,
   openInviteModal, sendInvite, closeInviteModal, openRoleModal, saveRole, closeRoleModal,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
