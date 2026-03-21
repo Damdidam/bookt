@@ -1813,13 +1813,22 @@ function renderSlots(){
   // only keep slots whose start_time falls within the featured time range for that day
   if(Object.keys(featuredRanges).length>0){
     var monday=getMonday(selectedDate);
+    // Get service duration to check that the entire service fits in the featured window
+    var svcDuration=0;
+    if(selectedService)svcDuration=selectedService.duration_min||0;
+    if(multiServiceMode&&selectedServices.length>0)svcDuration=selectedServices.reduce(function(sum,s){return sum+(s.duration_min||0);},0);
     slots=slots.filter(function(s){
       var pracId=s.practitioner_id;
       if(!pracId)return true;
       if(!lockedSet[pracId+'_'+monday])return true; // not locked → keep
       var range=featuredRanges[pracId+'_'+selectedDate];
       if(!range)return false; // locked but no featured slots this day → hide
-      return s.start_time>=range.min&&s.start_time<=range.max;
+      if(s.start_time<range.min)return false;
+      // Featured window ends at range.max + 15 min (each featured slot = 15 min block)
+      // Service must fit: start_time + duration <= window end
+      var maxParts=range.max.split(':'),maxMin=parseInt(maxParts[0])*60+parseInt(maxParts[1])+15;
+      var stParts=s.start_time.split(':'),stMin=parseInt(stParts[0])*60+parseInt(stParts[1]);
+      return stMin+svcDuration<=maxMin;
     });
   }
   if(!slots.length){document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau ce jour.</div>';return;}
