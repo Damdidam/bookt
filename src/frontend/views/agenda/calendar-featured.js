@@ -275,7 +275,7 @@ async function fsSaveSlots() {
   const pracId = calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
     : calState.fcPractitioners[0]?.id;
-  if (!pracId || !fsCurrentWeekStart) return;
+  if (!pracId || !fsCurrentWeekStart) { console.log('[FS DEBUG] fsSaveSlots: missing pracId or weekStart, returning'); return; }
 
   // Convert pending map to flat list of {date, start_time}
   const slots = [];
@@ -284,13 +284,17 @@ async function fsSaveSlots() {
     slots.push({ date, start_time: time });
   });
 
+  const body = { practitioner_id: pracId, week_start: fsCurrentWeekStart, slots };
+  console.log('[FS DEBUG] fsSaveSlots: sending PUT', JSON.stringify(body));
   try {
     const r = await fetch('/api/featured-slots', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify({ practitioner_id: pracId, week_start: fsCurrentWeekStart, slots })
+      body: JSON.stringify(body)
     });
-    if (!r.ok) throw new Error((await r.json()).error);
+    const responseData = await r.json();
+    console.log('[FS DEBUG] fsSaveSlots: response status=' + r.status, JSON.stringify(responseData));
+    if (!r.ok) throw new Error(responseData.error);
     fsDirty = false;
     const count = slots.length;
     gToast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
