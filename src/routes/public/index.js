@@ -210,6 +210,20 @@ router.get('/:slug', async (req, res, next) => {
 
     const biz = bizResult.rows[0];
     const bid = biz.id;
+
+    // Test mode protection
+    const bizSettings = biz.settings || {};
+    if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
+      const cookies = {};
+      (req.headers.cookie || '').split(';').forEach(c => {
+        const [k, v] = c.trim().split('=');
+        if (k) cookies[k] = decodeURIComponent(v || '');
+      });
+      if (cookies['minisite_access_' + biz.slug] !== bizSettings.minisite_test_password) {
+        return res.status(401).json({ error: 'protected', requires_password: true });
+      }
+    }
+
     const sections = biz.page_sections || {};
 
     // ===== PARALLEL QUERIES — all independent, run concurrently =====
