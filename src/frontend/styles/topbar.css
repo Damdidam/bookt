@@ -5,4 +5,4 @@
 .topbar h1{font-family:var(--serif);font-size:1.35rem;font-weight:400;color:var(--text)}
 .hamburger{display:flex;width:44px;height:44px;border:none;background:none;cursor:pointer;color:var(--text);flex-shrink:0;align-items:center;justify-content:center;border-radius:var(--radius-xs)}
 .hamburger:hover{background:var(--surface)}
-.content{padding:28px 32px;max-width:1120px}
+.content{padding:28px 32px;max-width:1120px;margin:0 auto}
