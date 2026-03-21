@@ -606,7 +606,7 @@
 .fs-cell.fs-selected{background:var(--primary-bg);border-color:var(--primary);color:var(--primary)}
 .fs-cell.fs-booked{background:var(--bg-3);color:var(--text-4);cursor:not-allowed}
 .fs-cell.fs-booked:hover{background:var(--bg-3)}
-.fs-cell.fs-drag-preview{border:2px dashed var(--primary);background:rgba(99,102,241,.08)}
+.fs-cell.fs-drag-preview{border:2px dashed var(--primary);background:var(--primary-bg)}
 .fs-header .fs-time-col{border-bottom:2px solid var(--border)}
 
 /* Responsive: tablet */

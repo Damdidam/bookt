@@ -21,6 +21,10 @@ let slotMin = '08:00';
 let slotMax = '19:00';
 let dragState = null; // { day, startKey, startMin, selecting, lastMin, previewKeys }
 
+function _beforeUnloadGuard(e) {
+  if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+}
+
 function localDate(d) {
   const dt = d instanceof Date ? d : new Date(d);
   return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
@@ -80,12 +84,8 @@ async function loadFeaturedSlots() {
     await loadWeekData();
     renderGrid();
 
-    window.addEventListener('beforeunload', (e) => {
-      if (isDirty()) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    });
+    window.removeEventListener('beforeunload', _beforeUnloadGuard);
+    window.addEventListener('beforeunload', _beforeUnloadGuard);
   } catch (e) {
     c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;
   }
@@ -421,11 +421,12 @@ async function fsClear() {
     savedSlots = {};
     // Also unlock if locked
     if (weekLocked) {
-      await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
+      const lr = await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
         method: 'DELETE',
         headers: { 'Authorization': 'Bearer ' + api.getToken() }
       });
-      weekLocked = false;
+      if (lr.ok) weekLocked = false;
+      else GendaUI.toast('Créneaux effacés mais déverrouillage échoué — retentez', 'error');
     }
     GendaUI.toast('Créneaux vedettes effacés', 'success');
     updateCells();
