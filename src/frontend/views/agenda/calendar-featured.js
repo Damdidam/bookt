@@ -292,22 +292,24 @@ async function fsSaveSlots() {
   }
 
   try {
-    // Save each week in parallel
-    const results = await Promise.all(weeks.map(weekStart =>
-      fetch('/api/featured-slots', {
+    // Save slots + lock each week in parallel (lock = visible on public booking page)
+    const results = await Promise.all(weeks.map(async weekStart => {
+      // Save slots
+      const saveRes = await fetch('/api/featured-slots', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
         body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots: slotsByWeek[weekStart] })
-      })
-    ));
+      });
+      if (!saveRes.ok) throw new Error((await saveRes.json()).error);
 
-    // Check all responses
-    for (const r of results) {
-      if (!r.ok) {
-        const err = await r.json();
-        throw new Error(err.error);
-      }
-    }
+      // Auto-lock the week so featured slots are exposed on the minisite
+      const lockRes = await fetch('/api/featured-slots/lock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+        body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart })
+      });
+      if (!lockRes.ok) throw new Error((await lockRes.json()).error);
+    }));
 
     const totalCount = Object.keys(fsPendingSlots).length;
     const weekLabel = weeks.length > 1 ? ` sur ${weeks.length} semaines` : '';
