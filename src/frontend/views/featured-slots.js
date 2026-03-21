@@ -249,8 +249,13 @@ function fsToggle(key) {
   updateCells();
 }
 
-async function fsSave() {
-  // Convert selectedSlots map to flat list of {date, start_time}
+async function fsPublish() {
+  const selCount = Object.keys(selectedSlots).length;
+  if (selCount === 0) {
+    GendaUI.toast('Sélectionnez au moins un créneau', 'info');
+    return;
+  }
+
   const slots = [];
   Object.keys(selectedSlots).sort().forEach(key => {
     const [date, time] = key.split('_');
@@ -258,54 +263,45 @@ async function fsSave() {
   });
 
   try {
-    const r = await fetch('/api/featured-slots', {
+    // Save slots
+    const r1 = await fetch('/api/featured-slots', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ practitioner_id: selectedPractId, week_start: weekStart, slots })
     });
-    if (!r.ok) throw new Error((await r.json()).error);
-    const count = slots.length;
-    GendaUI.toast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
-    await loadWeekData();
-    renderGrid();
+    if (!r1.ok) throw new Error((await r1.json()).error);
+
+    // Lock week
+    const r2 = await fetch('/api/featured-slots/lock', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ practitioner_id: selectedPractId, week_start: weekStart })
+    });
+    if (!r2.ok) {
+      GendaUI.toast('Créneaux sauvegardés mais verrouillage échoué — retentez Publier', 'error');
+      await loadWeekData();
+      updateCells();
+      return;
+    }
+
+    weekLocked = true;
+    GendaUI.toast(`${selCount} créneau${selCount > 1 ? 'x' : ''} publié${selCount > 1 ? 's' : ''}`, 'success');
+    updateCells();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
   }
 }
 
-async function fsToggleLock() {
-  if (!selectedPractId || !weekStart) return;
-
+async function fsUnpublish() {
   try {
-    if (weekLocked) {
-      // Unlock
-      const r = await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + api.getToken() }
-      });
-      if (!r.ok) throw new Error((await r.json()).error);
-      weekLocked = false;
-      GendaUI.toast('Semaine déverrouillée — booking normal réactivé', 'success');
-    } else {
-      // Save first if there are unsaved changes
-      const selCount = Object.keys(selectedSlots).length;
-      if (selCount === 0) {
-        GendaUI.toast('Ajoutez des créneaux vedette avant de verrouiller', 'info');
-        return;
-      }
-      // Auto-save before locking
-      await fsSave();
-
-      const r = await fetch('/api/featured-slots/lock', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ practitioner_id: selectedPractId, week_start: weekStart })
-      });
-      if (!r.ok) throw new Error((await r.json()).error);
-      weekLocked = true;
-      GendaUI.toast(`Semaine verrouillée — ${selCount} créneau${selCount > 1 ? 'x' : ''} vedette${selCount > 1 ? 's' : ''} en ligne`, 'success');
-    }
-    renderGrid();
+    const r = await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    if (!r.ok) throw new Error((await r.json()).error);
+    weekLocked = false;
+    GendaUI.toast('Semaine dépubliée — vous pouvez modifier vos créneaux', 'success');
+    updateCells();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
   }
@@ -329,8 +325,7 @@ async function fsClear() {
       weekLocked = false;
     }
     GendaUI.toast('Créneaux vedettes effacés', 'success');
-    await loadWeekData();
-    renderGrid();
+    updateCells();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
   }
@@ -362,6 +357,6 @@ async function fsSwitchPract(pid) {
   renderGrid();
 }
 
-bridge({ loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock, fsToggleColumn: () => {}, fsPublish: () => {}, fsUnpublish: () => {} });
+bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn: () => {} });
 
-export { loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock };
+export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract };
