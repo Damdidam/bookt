@@ -245,7 +245,7 @@
 .fc .fc-bg-event.fs-bg-event{background:rgba(251,191,36,.25)!important;border:2px dashed rgba(217,119,6,.5)!important;border-radius:0;opacity:1!important}
 .fc .fc-bg-event.fs-bg-event::after{content:'★';position:absolute;top:2px;right:4px;font-size:10px;color:#D97706;opacity:.6}
 /* Floating action bar */
-.fs-action-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:2px solid #E5D9A8;padding:12px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;animation:fsBarIn .2s ease}
+.fs-action-bar{position:sticky;bottom:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:2px solid #E5D9A8;padding:12px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;animation:fsBarIn .2s ease}
 @keyframes fsBarIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .fs-action-left{display:flex;align-items:center;gap:10px}
 .fs-action-label{font-size:.82rem;font-weight:700;color:#92400E}

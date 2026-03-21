@@ -96,6 +96,10 @@ async function fsActivate() {
   fsDirty = false;
   fsPendingSlots = {};
 
+  // Expose dirty guard for router navigation check
+  window._fsFeaturedDirty = () => fsActive && fsDirty;
+  window._fsFeaturedDeactivate = () => fsDeactivate();
+
   // Load ALL future featured slots before changing slotDuration (race condition fix)
   await fsLoadAllSlots();
 
@@ -118,6 +122,10 @@ function fsDeactivate() {
   fsActive = false;
   fsDirty = false;
   fsPendingSlots = {};
+
+  // Clean up router guard
+  window._fsFeaturedDirty = null;
+  window._fsFeaturedDeactivate = null;
 
   // Restore original slot duration
   if (calState.fcCal && fsOriginalSlotDuration) {
@@ -300,10 +308,11 @@ async function fsSaveSlots() {
       }
     }
 
-    fsDirty = false;
     const totalCount = Object.keys(fsPendingSlots).length;
     const weekLabel = weeks.length > 1 ? ` sur ${weeks.length} semaines` : '';
-    gToast(`${totalCount} créneau${totalCount > 1 ? 'x' : ''} vedette${totalCount > 1 ? 's' : ''} enregistré${totalCount > 1 ? 's' : ''}${weekLabel}`, 'success');
+    // Close featured mode after save
+    fsDeactivate();
+    gToast(`${totalCount} créneau${totalCount > 1 ? 'x' : ''} mis en vedette${weekLabel}`, 'success');
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
   }

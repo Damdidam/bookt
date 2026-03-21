@@ -53,6 +53,12 @@ async function loadSection(section) {
     window._settingsGuard = null;
   }
 
+  // Check featured-slots mode dirty guard
+  if (window._fsFeaturedDirty?.()) {
+    if (!confirm('Vous avez des créneaux vedette non enregistrés. Quitter quand même ?')) return;
+    window._fsFeaturedDeactivate?.();
+  }
+
   const c = getContentArea();
 
   // Reset agenda-specific classes
