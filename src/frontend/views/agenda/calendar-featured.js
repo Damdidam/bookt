@@ -91,10 +91,8 @@ async function fsActivate() {
   fsDirty = false;
   fsPendingSlots = {};
 
-  // FIX: Load data BEFORE changing slotDuration to avoid race condition.
+  // Load data BEFORE changing slotDuration to avoid race condition.
   await fsLoadCurrentWeek();
-  console.log('[FS DEBUG] After fsLoadCurrentWeek, fsPendingSlots:', JSON.stringify(fsPendingSlots));
-  console.log('[FS DEBUG] fsSavedSlots from API:', JSON.stringify(fsSavedSlots));
 
   // Now switch calendar to 15-min grid
   if (calState.fcCal) {
@@ -143,9 +141,8 @@ async function fsLoadCurrentWeek() {
     ? calState.fcCurrentFilter
     : calState.fcPractitioners[0]?.id;
 
-  if (!pracId) { console.log('[FS DEBUG] fsLoadCurrentWeek: no pracId, returning early'); return; }
+  if (!pracId) return;
 
-  console.log('[FS DEBUG] fsLoadCurrentWeek: pracId=' + pracId + ', weekStart=' + weekStart);
   try {
     const slotsRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
@@ -175,9 +172,10 @@ async function fsOnDatesSet() {
   if (!view) return;
   const newWeek = getMonday(view.currentStart);
   if (newWeek !== fsCurrentWeekStart) {
+    // Always update the week — old code blocked on dirty and caused week_start mismatch
     if (fsDirty) {
-      gToast('Enregistrez d\'abord les modifications de la semaine en cours', 'info');
-      return;
+      gToast('Modifications non enregistrées perdues', 'info');
+      fsDirty = false;
     }
     await fsLoadCurrentWeek();
     fcRefresh();
@@ -220,7 +218,7 @@ function fsHandleDateClick(dateStr) {
  */
 function fsBuildBackgroundEvents() {
   if (!fsActive) return [];
-  console.log('[FS DEBUG] fsBuildBackgroundEvents called, fsPendingSlots keys:', Object.keys(fsPendingSlots).length);
+
   const events = [];
   Object.keys(fsPendingSlots).forEach(key => {
     const [date, time] = key.split('_');
@@ -275,7 +273,7 @@ async function fsSaveSlots() {
   const pracId = calState.fcCurrentFilter !== 'all'
     ? calState.fcCurrentFilter
     : calState.fcPractitioners[0]?.id;
-  if (!pracId || !fsCurrentWeekStart) { console.log('[FS DEBUG] fsSaveSlots: missing pracId or weekStart, returning'); return; }
+  if (!pracId) return;
 
   // Convert pending map to flat list of {date, start_time}
   const slots = [];
@@ -284,25 +282,22 @@ async function fsSaveSlots() {
     slots.push({ date, start_time: time });
   });
 
-  const body = { practitioner_id: pracId, week_start: fsCurrentWeekStart, slots };
-  console.log('[FS DEBUG] fsSaveSlots: sending PUT', JSON.stringify(body));
+  if (slots.length === 0) {
+    gToast('Aucun créneau à enregistrer', 'info');
+    return;
+  }
+
+  // Compute week_start from actual slot dates (not stale fsCurrentWeekStart)
+  const weekStart = getMonday(slots[0].date);
+
   try {
     const r = await fetch('/api/featured-slots', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots })
     });
-    const responseData = await r.json();
-    console.log('[FS DEBUG] fsSaveSlots: response status=' + r.status, JSON.stringify(responseData));
-    if (!r.ok) throw new Error(responseData.error);
-    // Verify: re-fetch immediately to confirm persistence
-    const verifyRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${fsCurrentWeekStart}`, {
-      headers: { 'Authorization': 'Bearer ' + api.getToken() }
-    });
-    const verifyData = await verifyRes.json();
-    console.log('[FS DEBUG] fsSaveSlots: VERIFY after save, got', (verifyData.featured_slots || []).length, 'slots back from API');
-    console.log('[FS DEBUG] fsSaveSlots: VERIFY data:', JSON.stringify(verifyData.featured_slots || []));
-
+    if (!r.ok) throw new Error((await r.json()).error);
+    fsCurrentWeekStart = weekStart;
     fsDirty = false;
     const count = slots.length;
     gToast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
