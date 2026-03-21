@@ -90,6 +90,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_reviews_enabled, settings_review_delay_hours, settings_review_auto_publish,
       // Minisite template
       settings_minisite_template,
+      // Minisite test mode
+      settings_minisite_test_mode, settings_minisite_test_password,
       // Client reschedule
       settings_reschedule_enabled, settings_reschedule_deadline_hours,
       settings_reschedule_max_count, settings_reschedule_window_days,
@@ -126,6 +128,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_payment_methods !== undefined
         || settings_reviews_enabled !== undefined || settings_review_delay_hours !== undefined || settings_review_auto_publish !== undefined
         || settings_minisite_template !== undefined
+        || settings_minisite_test_mode !== undefined || settings_minisite_test_password !== undefined
         || settings_reschedule_enabled !== undefined || settings_reschedule_deadline_hours !== undefined
         || settings_reschedule_max_count !== undefined || settings_reschedule_window_days !== undefined
         || settings_giftcard_enabled !== undefined || settings_giftcard_amounts !== undefined
@@ -202,6 +205,13 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_minisite_template !== undefined) {
         const validTemplates = ['funky', 'epure', 'bold'];
         cur.minisite_template = validTemplates.includes(settings_minisite_template) ? settings_minisite_template : 'funky';
+      }
+      // Minisite test mode
+      if (settings_minisite_test_mode !== undefined) {
+        cur.minisite_test_mode = !!settings_minisite_test_mode;
+      }
+      if (settings_minisite_test_password !== undefined) {
+        cur.minisite_test_password = settings_minisite_test_password || '';
       }
       // Client reschedule
       if (settings_reschedule_enabled !== undefined) cur.reschedule_enabled = !!settings_reschedule_enabled;

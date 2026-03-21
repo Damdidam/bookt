@@ -212,6 +212,76 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Parse cookies manually from request header (no cookie-parser dependency)
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || '').split(';').forEach(c => {
+    const [k, v] = c.trim().split('=');
+    if (k) cookies[k] = decodeURIComponent(v || '');
+  });
+  return cookies;
+}
+
+// Build "Site en préparation" password prompt page for test mode
+function buildTestModePage(bizName, slug, logoUrl, wrongPassword) {
+  const safeName = (bizName || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${safeName} — Site en préparation</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F8F9FA;font-family:'Plus Jakarta Sans',sans-serif;padding:24px}
+.card{background:#fff;border-radius:16px;padding:48px 40px;max-width:400px;width:100%;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.logo{width:48px;height:48px;border-radius:10px;background:#0D7377;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;margin-bottom:20px}
+h1{font-size:1.3rem;font-weight:700;color:#1A2332;margin-bottom:6px}
+p{font-size:.88rem;color:#6B7A8D;margin-bottom:24px;line-height:1.5}
+.error{color:#C62828;font-size:.82rem;margin-bottom:12px;display:${wrongPassword ? 'block' : 'none'}}
+input{width:100%;padding:12px 16px;border:1.5px solid #E8ECF0;border-radius:10px;font-family:inherit;font-size:.92rem;text-align:center;outline:none;transition:border-color .15s}
+input:focus{border-color:#0D7377}
+button{width:100%;padding:12px;background:#0D7377;color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;margin-top:12px;transition:background .15s}
+button:hover{background:#0A5E61}
+</style>
+</head><body>
+<div class="card">
+  <div class="logo">${safeName.charAt(0)}</div>
+  <h1>${safeName}</h1>
+  <p>Ce site est en cours de préparation.<br>Entrez le mot de passe pour y accéder.</p>
+  <p class="error">Mot de passe incorrect</p>
+  <form method="POST" action="/${slug}/access">
+    <input type="password" name="password" placeholder="Mot de passe" required autofocus>
+    <button type="submit">Accéder</button>
+  </form>
+</div>
+</body></html>`;
+}
+
+// Minisite test mode — password verification
+app.post('/:slug/access', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1',
+      [req.params.slug]
+    );
+    if (!rows.length) return res.redirect('/' + req.params.slug);
+    const settings = rows[0].settings || {};
+    if (settings.minisite_test_mode && settings.minisite_test_password) {
+      if (req.body?.password === settings.minisite_test_password) {
+        res.cookie('minisite_access_' + req.params.slug, settings.minisite_test_password, {
+          maxAge: 24 * 60 * 60 * 1000, // 24h
+          httpOnly: true,
+          sameSite: 'lax'
+        });
+        return res.redirect('/' + req.params.slug);
+      }
+      return res.redirect('/' + req.params.slug + '?wrong=1');
+    }
+    res.redirect('/' + req.params.slug);
+  } catch (e) {
+    res.redirect('/' + req.params.slug);
+  }
+});
+
 app.get('/:slug', async (req, res, next) => {
   // Skip if it looks like a file request
   if (req.params.slug.includes('.')) return next();
@@ -220,12 +290,24 @@ app.get('/:slug', async (req, res, next) => {
   if (reserved.includes(req.params.slug)) return next();
 
   try {
+    const slug = req.params.slug;
     const { rows } = await pool.query(
-      `SELECT name, tagline, description, logo_url, cover_image_url, seo_title, seo_description, theme->>'preset' as preset FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
-      [req.params.slug]
+      `SELECT name, tagline, description, logo_url, cover_image_url, seo_title, seo_description, theme->>'preset' as preset, settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [slug]
     );
 
     let biz = rows.length > 0 ? rows[0] : null;
+
+    // Test mode protection
+    if (biz) {
+      const bizSettings = biz.settings || {};
+      if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
+        const cookies = parseCookies(req);
+        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+          return res.send(buildTestModePage(biz.name, slug, biz.logo_url, req.query.wrong === '1'));
+        }
+      }
+    }
 
     const filePath = path.join(__dirname, '../public/site.html');
     let html = fs.readFileSync(filePath, 'utf8');
@@ -255,14 +337,50 @@ app.get('/:slug', async (req, res, next) => {
   }
 });
 
-// /:slug/book → booking flow
-app.get('/:slug/book', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/book.html'));
+// /:slug/book → booking flow (protected by test mode)
+app.get('/:slug/book', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { rows } = await pool.query(
+      'SELECT settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1',
+      [slug]
+    );
+    if (rows.length) {
+      const bizSettings = rows[0].settings || {};
+      if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
+        const cookies = parseCookies(req);
+        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+          return res.redirect('/' + slug);
+        }
+      }
+    }
+    res.sendFile(path.join(__dirname, '../public/book.html'));
+  } catch (e) {
+    res.sendFile(path.join(__dirname, '../public/book.html'));
+  }
 });
 
-// /:slug/gift-card → gift card purchase page
-app.get('/:slug/gift-card', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/gift-card.html'));
+// /:slug/gift-card → gift card purchase page (protected by test mode)
+app.get('/:slug/gift-card', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { rows } = await pool.query(
+      'SELECT settings FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1',
+      [slug]
+    );
+    if (rows.length) {
+      const bizSettings = rows[0].settings || {};
+      if (bizSettings.minisite_test_mode && bizSettings.minisite_test_password) {
+        const cookies = parseCookies(req);
+        if (cookies['minisite_access_' + slug] !== bizSettings.minisite_test_password) {
+          return res.redirect('/' + slug);
+        }
+      }
+    }
+    res.sendFile(path.join(__dirname, '../public/gift-card.html'));
+  } catch (e) {
+    res.sendFile(path.join(__dirname, '../public/gift-card.html'));
+  }
 });
 
 // /:slug/guide → client-facing flow documentation

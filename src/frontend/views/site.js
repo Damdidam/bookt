@@ -83,6 +83,24 @@ async function loadSiteSection(){
 
     let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}?preview" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
 
+    // -- TEST MODE --
+    h+=`<div class="card" style="margin-bottom:0;border-left:3px solid ${b.settings?.minisite_test_mode?'#E6A817':'transparent'}">
+      <div style="padding:18px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <h4 style="font-size:.88rem;font-weight:700;margin:0">Mode test</h4>
+          <p style="font-size:.78rem;color:var(--text-3);margin:4px 0 0">Protégez votre site par mot de passe pendant sa configuration</p>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="siteTestMode" ${b.settings?.minisite_test_mode?'checked':''} onchange="toggleTestMode(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div id="testModeFields" style="${b.settings?.minisite_test_mode?'':'display:none'};padding:0 18px 18px">
+        <div class="fg"><label class="fl">Mot de passe</label><input class="fi" id="siteTestPassword" value="${esc(b.settings?.minisite_test_password||'')}" placeholder="Ex: test2026"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn-primary" onclick="saveTestMode()">Enregistrer</button></div>
+      </div>
+    </div>`;
+
     // -- HERO CONTENT --
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Contenu du site</h3></div>
       <div style="padding:18px">
@@ -766,6 +784,23 @@ async function saveSocialLinks(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+function toggleTestMode(checked){
+  document.getElementById('testModeFields').style.display=checked?'':'none';
+}
+
+async function saveTestMode(){
+  try{
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
+      body:JSON.stringify({
+        settings_minisite_test_mode:document.getElementById('siteTestMode')?.checked||false,
+        settings_minisite_test_password:document.getElementById('siteTestPassword')?.value||''
+      })});
+    if(!r.ok){const d=await r.json();throw new Error(d.error);}
+    GendaUI.toast('Mode test mis à jour','success');
+    loadSiteSection();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+}
+
 async function saveSEO(){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
@@ -976,7 +1011,7 @@ bridge({
   openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem, clearGalFile,
   galDragStart, galDragOver, galDragLeave, galDrop,
   openNewsModal, saveNewsItem, editNewsItem, toggleNewsItem, deleteNewsItem,
-  toggleSiteSection, saveSiteContent, saveSocialLinks, saveSEO,
+  toggleSiteSection, saveSiteContent, saveSocialLinks, saveSEO, toggleTestMode, saveTestMode,
   openTestimonialModal, saveTestimonial, editTestimonial, deleteTestimonial,
   openValueModal, saveValue, editValue, deleteValue,
   saveReviewSettings
