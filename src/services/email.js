@@ -230,7 +230,7 @@ function buildEmailHTML({ title, preheader, bodyHTML, ctaText, ctaUrl, cancelTex
 ${safePreheader ? `<span style="display:none!important;font-size:1px;color:#fff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${safePreheader}</span>` : ''}
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F4F1;padding:24px 0">
 <tr><td align="center">
-<table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+<table cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);max-width:580px;width:100%;margin:0 auto">
 
 <!-- Header -->
 <tr><td style="background:${color};padding:24px 32px;text-align:center">
