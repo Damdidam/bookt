@@ -195,35 +195,30 @@ function renderPractModal(p) {
   }
 
   const isEdit = !!p;
-  const photoSrc = p?.photo_url || '';
-  const initials = p?.display_name ? p.display_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '';
   const pracLbl = sectorLabels.practitioner.toLowerCase();
   const accentColor = p?.color || '#0D7377';
+  const initials = p?.display_name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??';
+  const photoHtml = p?.photo_url
+    ? `<img src="${esc(p.photo_url)}" alt="${esc(p.display_name)}" style="width:100%;height:100%;object-fit:cover">`
+    : initials;
+  const modalTitle = p ? esc(p.display_name) : 'Nouveau ' + sectorLabels.practitioner;
 
   let h = `<div id="teamModalOverlay" class="m-overlay open">
-    <div class="m-dialog m-flex m-lg" style="height:85vh">
+    <div class="m-dialog m-flex m-lg">
+    <div class="m-drag-handle"></div>
 
     <!-- M-HEADER -->
     <div class="m-header">
-      <div class="m-header-bg" style="background:linear-gradient(135deg,${accentColor} 0%,${accentColor}AA 60%,${accentColor}55 100%)"></div>
-      <button class="m-close" onclick="closeTeamModal()">×</button>
+      <div class="m-header-bg" id="tmHeaderBg" style="background:linear-gradient(135deg,${accentColor} 0%,${accentColor}AA 60%,${accentColor}55 100%)"></div>
+      <button class="m-close" onclick="closeTeamModal()" aria-label="Fermer">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <div class="m-header-content">
-        <div class="m-client-hero">
-          <div class="m-avatar" id="tm_avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC);cursor:pointer" onclick="document.getElementById('p_photo_input').click()" title="Changer la photo">
-            ${photoSrc ? `<img src="${photoSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : `<span style="color:#fff;font-size:1.1rem;font-weight:700">${initials || '+'}</span>`}
+        <div class="m-client-hero" style="align-items:center">
+          <div class="m-avatar" id="tmAvatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC);cursor:pointer" onclick="document.getElementById('pPhotoInput').click()">
+            ${photoHtml}
           </div>
-          <input type="file" id="p_photo_input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="pPhotoPreview(this)">
-          <div class="m-client-info">
-            <div class="m-client-name">${isEdit ? p.display_name : 'Nouveau ' + pracLbl}</div>
-            <div class="m-client-meta">
-              ${p?.title ? esc(p.title) : ''}
-              ${p?.email ? ` · ${esc(p.email)}` : ''}
-            </div>
-          </div>
-          ${isEdit ? `<div class="m-quick-actions">
-            ${p.phone ? `<a class="m-qbtn" href="tel:${esc(p.phone)}" title="Appeler"><svg class="gi" style="width:14px;height:14px" ${ICONS.phone.slice(4)}></a>` : ''}
-            ${p.email ? `<a class="m-qbtn" href="mailto:${esc(p.email)}" title="Email"><svg class="gi" style="width:14px;height:14px" ${ICONS.mail.slice(4)}></a>` : ''}
-          </div>` : ''}
+          <div class="m-modal-title" id="tmModalTitle">${modalTitle}</div>
         </div>
       </div>
     </div>
@@ -239,6 +234,7 @@ function renderPractModal(p) {
 
     <!-- BODY -->
     <div class="m-body">
+      <input type="file" id="pPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="pPhotoPreview(this)">
 
       <!-- TAB: PROFIL -->
       <div class="m-panel active" id="team-panel-profile">
@@ -288,7 +284,7 @@ function renderPractModal(p) {
           <textarea class="m-input" id="p_note" style="min-height:60px" placeholder="Notes privées (visibles par le manager uniquement)...">${esc(p?.internal_note || '')}</textarea>
         </div>
 
-        ${isEdit && photoSrc ? `<div style="text-align:center;margin-top:8px"><button onclick="pRemovePhoto('${p.id}')" style="font-size:.7rem;color:var(--red);background:none;border:none;cursor:pointer">Supprimer la photo</button></div>` : ''}
+        ${isEdit && p?.photo_url ? `<div style="text-align:center;margin-top:8px"><button onclick="pRemovePhoto('${p.id}')" style="font-size:.7rem;color:var(--red);background:none;border:none;cursor:pointer">Supprimer la photo</button></div>` : ''}
       </div>
 
       <!-- TAB: COMPÉTENCES -->
@@ -363,6 +359,18 @@ function renderPractModal(p) {
   document.body.insertAdjacentHTML('beforeend', h);
   guardModal(document.getElementById('teamModalOverlay'));
   document.getElementById('p_color_wrap').innerHTML = cswHTML('p_color', p?.color || '#1E3A8A', false);
+
+  // Dynamic gradient update on color change
+  const colorInput = document.getElementById('p_color');
+  if (colorInput) {
+    colorInput.addEventListener('change', () => {
+      const c = colorInput.value || '#0D7377';
+      const bg = document.getElementById('tmHeaderBg');
+      const av = document.getElementById('tmAvatar');
+      if (bg) bg.style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
+      if (av) av.style.background = `linear-gradient(135deg,${c},${c}CC)`;
+    });
+  }
 
   // Initialize schedule editor
   teamEditPracId = p?.id || null;
@@ -748,7 +756,7 @@ function pPhotoPreview(input) {
   const reader = new FileReader();
   reader.onload = function (e) {
     pPendingPhoto = e.target.result;
-    document.getElementById('tm_avatar').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
+    document.getElementById('tmAvatar').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
   };
   reader.readAsDataURL(file);
 }
