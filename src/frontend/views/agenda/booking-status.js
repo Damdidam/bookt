@@ -31,7 +31,7 @@ async function fcSetStatus(newStatus) {
     } else if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
       // Store undo (only for reversible status changes)
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
-      gToast('Statut mis à jour', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
+      gToast('Statut mis à jour', 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
     } else {
       gToast('Statut mis à jour', 'success');
     }

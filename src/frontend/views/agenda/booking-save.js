@@ -239,7 +239,7 @@ async function calDoSaveTime(notify, channel) {
     // Store undo for non-grouped time changes
     if (!isGrouped) {
       storeUndoAction(calState.fcCurrentEventId, 'modify', { start_at: oldStartAt, end_at: oldEndAt });
-      gToast(label, 'success', { label: 'Annuler \u21b6', fn: () => window.fcUndoLast() }, 8000);
+      gToast(label, 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
     } else {
       gToast(label, 'success');
     }

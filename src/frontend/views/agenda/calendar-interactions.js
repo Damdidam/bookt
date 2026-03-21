@@ -220,7 +220,7 @@ function buildEventDrop() {
       const msg = result.group_moved
         ? `${p.client_name || 'Client'} — ${result.count} prestations déplacées`
         : (p.client_name || 'RDV') + ' déplacé' + (pracChanged ? ' → ' + pracName : '');
-      gToast(msg, 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
+      gToast(msg, 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
       calState.fcCal.refetchEvents();
     } catch (e) {
       // Save target date BEFORE revert (revert resets event.start to original)
@@ -277,7 +277,7 @@ function buildEventResize() {
       const evEnd = ev.end || ev.start;
       const dur = Math.round((evEnd - ev.start) / 60000);
       storeUndoAction(ev.id, 'resize', { end_at: dateToBrusselsISO(oldEnd || ev.start) });
-      gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
+      gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
     } catch (e) {
       info.revert();
       gToast(e.message.includes('hevauche') || e.message.includes('créneau')
