@@ -295,6 +295,14 @@ async function fsSaveSlots() {
     const responseData = await r.json();
     console.log('[FS DEBUG] fsSaveSlots: response status=' + r.status, JSON.stringify(responseData));
     if (!r.ok) throw new Error(responseData.error);
+    // Verify: re-fetch immediately to confirm persistence
+    const verifyRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${fsCurrentWeekStart}`, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    const verifyData = await verifyRes.json();
+    console.log('[FS DEBUG] fsSaveSlots: VERIFY after save, got', (verifyData.featured_slots || []).length, 'slots back from API');
+    console.log('[FS DEBUG] fsSaveSlots: VERIFY data:', JSON.stringify(verifyData.featured_slots || []));
+
     fsDirty = false;
     const count = slots.length;
     gToast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
