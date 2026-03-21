@@ -377,6 +377,23 @@ async function fsSwitchPract(pid) {
   renderGrid();
 }
 
-bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn: () => {} });
+function fsToggleColumn(day) {
+  if (weekLocked) return;
+  const startMin = timeToMin(slotMin);
+  const endMin = timeToMin(slotMax);
+  const keys = [];
+  for (let m = startMin; m < endMin; m += 30) {
+    const key = day + '_' + minToTime(m);
+    if (!bookedSlots[key]) keys.push(key);
+  }
+  const allSelected = keys.every(k => !!selectedSlots[k]);
+  keys.forEach(k => {
+    if (allSelected) delete selectedSlots[k];
+    else selectedSlots[k] = true;
+  });
+  updateCells();
+}
 
-export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract };
+bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn });
+
+export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn };
