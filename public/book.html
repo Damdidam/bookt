@@ -1809,14 +1809,20 @@ function renderSlots(){
   // Filter by featured slots: if a slot's practitioner has a locked week for this date,
   // only keep the slot if its start_time matches a featured slot
   if(Object.keys(featuredSet).length>0){
+    var monday=getMonday(selectedDate);
+    console.log('[BOOK DEBUG] renderSlots date='+selectedDate+' monday='+monday);
+    console.log('[BOOK DEBUG] lockedSet=', JSON.stringify(lockedSet));
+    console.log('[BOOK DEBUG] featuredSet keys=', Object.keys(featuredSet).length, Object.keys(featuredSet).slice(0,5));
+    console.log('[BOOK DEBUG] first slot=', slots[0]?JSON.stringify({pracId:slots[0].practitioner_id,time:slots[0].start_time}):'none');
     slots=slots.filter(function(s){
       var pracId=s.practitioner_id;
       if(!pracId)return true; // no practitioner info → keep
-      var monday=getMonday(selectedDate);
       if(!lockedSet[pracId+'_'+monday])return true; // practitioner not locked this week → keep
       // Practitioner has locked week → only keep if start_time matches a featured slot
-      return !!featuredSet[pracId+'_'+selectedDate+'_'+s.start_time];
+      var key=pracId+'_'+selectedDate+'_'+s.start_time;
+      return !!featuredSet[key];
     });
+    console.log('[BOOK DEBUG] after filter: '+slots.length+' slots remain');
   }
   if(!slots.length){document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau ce jour.</div>';return;}
   // Deduplicate by start_time when no specific practitioner selected (any mode)
