@@ -92,9 +92,9 @@ async function fsActivate() {
   fsPendingSlots = {};
 
   // FIX: Load data BEFORE changing slotDuration to avoid race condition.
-  // setOption('slotDuration') triggers a FullCalendar re-render which calls
-  // fsBuildBackgroundEvents() — if data isn't loaded yet, slots appear empty.
   await fsLoadCurrentWeek();
+  console.log('[FS DEBUG] After fsLoadCurrentWeek, fsPendingSlots:', JSON.stringify(fsPendingSlots));
+  console.log('[FS DEBUG] fsSavedSlots from API:', JSON.stringify(fsSavedSlots));
 
   // Now switch calendar to 15-min grid
   if (calState.fcCal) {
@@ -143,8 +143,9 @@ async function fsLoadCurrentWeek() {
     ? calState.fcCurrentFilter
     : calState.fcPractitioners[0]?.id;
 
-  if (!pracId) return;
+  if (!pracId) { console.log('[FS DEBUG] fsLoadCurrentWeek: no pracId, returning early'); return; }
 
+  console.log('[FS DEBUG] fsLoadCurrentWeek: pracId=' + pracId + ', weekStart=' + weekStart);
   try {
     const slotsRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
       headers: { 'Authorization': 'Bearer ' + api.getToken() }
@@ -219,6 +220,7 @@ function fsHandleDateClick(dateStr) {
  */
 function fsBuildBackgroundEvents() {
   if (!fsActive) return [];
+  console.log('[FS DEBUG] fsBuildBackgroundEvents called, fsPendingSlots keys:', Object.keys(fsPendingSlots).length);
   const events = [];
   Object.keys(fsPendingSlots).forEach(key => {
     const [date, time] = key.split('_');
