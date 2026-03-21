@@ -84,20 +84,16 @@ async function loadSiteSection(){
     let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}?preview" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
 
     // -- TEST MODE --
-    h+=`<div class="card" style="margin-bottom:0;border-left:3px solid ${b.settings?.minisite_test_mode?'#E6A817':'transparent'}">
-      <div style="padding:18px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <h4 style="font-size:.88rem;font-weight:700;margin:0">Mode test</h4>
-          <p style="font-size:.78rem;color:var(--text-3);margin:4px 0 0">Protégez votre site par mot de passe pendant sa configuration</p>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="siteTestMode" ${b.settings?.minisite_test_mode?'checked':''} onchange="toggleTestMode(this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
+    h+=`<div class="card" style="margin-bottom:24px">
+      <div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Mode test</h3>
+        <label class="svc-toggle"><input type="checkbox" id="siteTestMode" ${b.settings?.minisite_test_mode?'checked':''} onchange="toggleTestMode(this.checked)"><span class="svc-toggle-slider"></span></label>
       </div>
-      <div id="testModeFields" style="${b.settings?.minisite_test_mode?'':'display:none'};padding:0 18px 18px">
-        <div class="fg"><label class="fl">Mot de passe</label><input class="fi" id="siteTestPassword" value="${esc(b.settings?.minisite_test_password||'')}" placeholder="Ex: test2026"></div>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn-primary" onclick="saveTestMode()">Enregistrer</button></div>
+      <div style="padding:18px">
+        <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Protégez votre site par mot de passe pendant sa configuration.</p>
+        <div id="testModeFields" style="${b.settings?.minisite_test_mode?'':'display:none'}">
+          <div class="fg"><label class="fl">Mot de passe</label><input class="fi" id="siteTestPassword" value="${esc(b.settings?.minisite_test_password||'')}" placeholder="Ex: test2026"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn-primary" onclick="saveTestMode()">Enregistrer</button></div>
+        </div>
       </div>
     </div>`;
 
