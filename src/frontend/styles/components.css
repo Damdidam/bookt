@@ -594,17 +594,36 @@
 .theme-card.active .check{display:flex}
 .lock-icon{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;z-index:2}
 
-/* ===== FEATURED SLOTS GRID ===== */
+/* Featured Slots Grid */
 .fs-grid{display:grid;gap:0;min-width:500px}
 .fs-row{display:grid;grid-template-columns:56px repeat(7,1fr);gap:0}
-.fs-header .fs-day-col{font-size:.72rem;font-weight:700;text-align:center;padding:8px 2px;color:var(--text-3);border-bottom:2px solid var(--border);text-transform:uppercase}
+.fs-header .fs-day-col{font-size:.72rem;font-weight:700;text-align:center;padding:8px 2px;color:var(--text-3);border-bottom:2px solid var(--border);text-transform:uppercase;user-select:none}
+.fs-header .fs-day-col[onclick]{cursor:pointer}
+.fs-header .fs-day-col[onclick]:hover{background:var(--surface);color:var(--primary)}
 .fs-time-col{font-size:.7rem;color:var(--text-4);padding:4px 6px 4px 0;text-align:right;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:flex-end}
-.fs-cell{min-height:28px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .12s;border-radius:0}
+.fs-cell{min-height:36px;min-width:36px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .1s,border-color .1s;border-radius:0;user-select:none;-webkit-user-select:none}
 .fs-cell:hover{background:var(--surface)}
 .fs-cell.fs-selected{background:var(--primary-bg);border-color:var(--primary);color:var(--primary)}
-.fs-cell.fs-booked{background:var(--bg-3);color:var(--text-4)}
+.fs-cell.fs-booked{background:var(--bg-3);color:var(--text-4);cursor:not-allowed}
+.fs-cell.fs-booked:hover{background:var(--bg-3)}
+.fs-cell.fs-drag-preview{border:2px dashed var(--primary);background:rgba(99,102,241,.08)}
 .fs-header .fs-time-col{border-bottom:2px solid var(--border)}
-@media(max-width:640px){.fs-row{grid-template-columns:44px repeat(7,1fr)}.fs-day-col{font-size:.6rem;padding:6px 1px}.fs-time-col{font-size:.6rem;padding:2px 3px 2px 0}.fs-cell{min-height:24px}}
+
+/* Responsive: tablet */
+@media(max-width:768px){
+  .fs-grid{min-width:400px}
+  .fs-row{grid-template-columns:44px repeat(7,1fr)}
+  .fs-day-col{font-size:.6rem;padding:6px 1px}
+  .fs-time-col{font-size:.6rem;padding:2px 3px 2px 0}
+  .fs-cell{min-height:44px;min-width:44px}
+}
+
+/* Responsive: small mobile */
+@media(max-width:480px){
+  .fs-grid{min-width:340px}
+  .fs-row{grid-template-columns:36px repeat(7,1fr)}
+  .fs-cell{min-height:44px}
+}
 
 /* ===== QUICK START WIZARD ===== */
 
