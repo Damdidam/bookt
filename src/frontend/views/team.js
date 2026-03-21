@@ -5,7 +5,10 @@
 import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
+import { enableSwipeClose } from '../utils/swipe-close.js';
+import { initTimeInputs } from '../utils/dom.js';
 
 let pPendingPhoto = null;
 let teamCurrentTab = 'profile';
@@ -106,8 +109,8 @@ async function loadTeam() {
     const practs = d.practitioners || [];
     const pracLabel = sectorLabels.practitioner.toLowerCase();
 
-    let h = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 style="font-size:.95rem;font-weight:700">${practs.length} membre${practs.length > 1 ? 's' : ''} de l'équipe</h3>
+    let h = `<div class="tm-list-header">
+      <h3>${practs.length} membre${practs.length > 1 ? 's' : ''} de l'équipe</h3>
       <button class="btn-primary" onclick="openPractModal()">+ Ajouter</button>
     </div>`;
 
@@ -117,64 +120,40 @@ async function loadTeam() {
       h += `<div class="team-grid2">`;
       practs.forEach(p => {
         const initials = p.display_name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??';
-        const hasLogin = !!p.user_email;
-        const avatarContent = p.photo_url
-          ? `<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
-          : initials;
-
         const regime = computeRegime(p.work_days);
-        const leave = getLeaveBalance(p.leave_balance);
-        const anciennete = computeAnciennete(p.hire_date);
-        const today = new Date(new Date().toDateString());
+        const isInactive = !p.is_active;
 
-        h += `<div class="team-member${p.is_active ? '' : ' inactive'}">
-          <div class="tm-header">
-            <div class="tm-avatar" style="background:${p.color || 'var(--primary)'}">${avatarContent}</div>
-            <div class="tm-info">
-              <h4>${p.display_name}</h4>
-              <div class="tm-title">${p.title || '—'}${p.years_experience ? ' · ' + p.years_experience + ' ans' : ''}</div>
-              ${p.user_email ? `<div class="tm-email"><svg class="gi" ${ICONS.key.slice(4)}> ${p.user_email}</div>` : `<div class="tm-email" style="color:var(--text-4)">Pas de compte</div>`}
-            </div>
-          </div>
+        h += `<div class="tm-card${isInactive ? ' inactive' : ''}" onclick="openPractModal('${p.id}')">`;
 
-          <!-- Work dots -->
-          <div class="tm-work-dots" title="${regime.label}${regime.detail ? ' (' + regime.detail + ')' : ''}">
-            ${DAY_LABELS.map((d, i) => `<div class="tm-work-dot-wrap"><span class="tm-work-dot ${p.work_days && p.work_days.includes(i) ? 'on' : 'off'}"></span><span class="tm-work-dot-label">${d}</span></div>`).join('')}
-            <span class="tm-regime-label">${regime.label}</span>
-          </div>
+        // Avatar
+        if (p.photo_url) {
+          h += `<div class="tm-avatar"><img src="${esc(p.photo_url)}" alt="${esc(p.display_name)}" loading="lazy"></div>`;
+        } else {
+          h += `<div class="tm-avatar" style="background:linear-gradient(135deg,${esc(p.color || '#0D7377')},${esc(p.color || '#0D7377')}CC)">${initials}</div>`;
+        }
 
-          <div class="tm-stats">
-            <div class="tm-stat"><div class="v">${p.bookings_30d || 0}</div><div class="l">RDV / 30j</div></div>
-            <div class="tm-stat"><div class="v">${leave ? leave.solde + 'j' : '—'}</div><div class="l">Solde congés</div></div>
-            <div class="tm-stat"><div class="v">${anciennete}</div><div class="l">Ancienneté</div></div>
-            <div class="tm-stat"><div class="v">${p.service_count || 0}</div><div class="l">${categoryLabels.services}</div></div>
-          </div>
+        // Info
+        h += `<div class="tm-info">`;
+        h += `<p class="tm-name">${esc(p.display_name)}${isInactive ? ' <span class="tm-badge-inactive">Inactif</span>' : ''}</p>`;
+        h += `<p class="tm-title">${esc(p.title || '')}</p>`;
+        if (regime.label !== '—') h += `<p class="tm-regime">${regime.label}${regime.detail ? ' · ' + regime.detail : ''}</p>`;
 
-          <div class="tm-badges">
-            <span class="tm-badge ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'Actif' : 'Inactif'}</span>
-            ${p.contract_type && p.contract_type !== 'cdi' ? `<span class="tm-badge" style="background:#F0F9FF;color:#0369A1">${CONTRACT_LABELS[p.contract_type] || p.contract_type}</span>` : ''}
-            <span class="tm-badge ${p.booking_enabled ? 'booking' : 'no-booking'}">${p.booking_enabled ? 'Réservable' : 'Non réservable'}</span>
-            ${p.waitlist_mode && p.waitlist_mode !== 'off' ? `<span class="tm-badge" style="background:${p.waitlist_mode === 'auto' ? '#DCFCE7;color:#15803D' : '#FEF3C7;color:#92400E'}"><svg class="gi" ${ICONS.hourglass.slice(4)}> ${p.waitlist_mode === 'auto' ? 'WL auto' : 'WL manuelle'}</span>` : ''}
+        // Summary line
+        const parts = [];
+        if (p.bookings_30d != null) parts.push(p.bookings_30d + ' RDV/mois');
+        if (p.contract_type && CONTRACT_LABELS[p.contract_type]) parts.push(CONTRACT_LABELS[p.contract_type]);
+        if (parts.length) h += `<p class="tm-summary">${parts.join(' · ')}</p>`;
 
-            ${p.vacation_until && new Date(p.vacation_until) >= today ? `<span class="tm-badge" style="background:#FEF3C7;color:#92400E"><svg class="gi" ${ICONS.sun.slice(4)}> Vacances → ${new Date(p.vacation_until).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' })}</span>` : ''}
-            ${(() => {
-              const pc = calConns.filter(c => c.practitioner_id === p.id);
-              if (pc.length === 0) return '';
-              const providers = pc.map(c => c.provider === 'google' ? 'Google' : c.provider === 'outlook' ? 'Outlook' : 'iCal').join(', ');
-              return `<span class="tm-badge" style="background:#EFF9F8;color:#0D7377"><svg class="gi" ${ICONS.calendar.slice(4)}> ${providers}</span>`;
-            })()}
-            ${hasLogin ? `<span class="tm-badge has-login">${sectorLabels[p.user_role] || p.user_role || 'Compte lié'}</span>` : ''}
-          </div>
-
-          <div class="tm-actions">
-            <button class="btn-outline btn-sm" onclick="openPracTasks('${p.id}','${esc(p.display_name)}')"><svg class="gi" ${ICONS.tasks.slice(4)}> Tâches</button>
-            <button class="btn-outline btn-sm" onclick="openPractModal('${p.id}')"><svg class="gi" ${ICONS.edit.slice(4)}> Modifier</button>
-            ${hasLogin ? `<button class="btn-outline btn-sm" onclick="openRoleModal('${p.id}','${esc(p.display_name)}','${p.user_role || 'practitioner'}')"><svg class="gi" ${ICONS.role.slice(4)}> Rôle</button>` : ''}
-            ${!hasLogin ? `<button class="btn-outline btn-sm" onclick="openInviteModal('${p.id}','${esc(p.display_name)}')"><svg class="gi" ${ICONS.key.slice(4)}> Créer un accès</button>` : ''}
-            ${p.is_active ? `<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Désactiver ${esc(p.display_name)} ?'))deactivatePract('${p.id}')">Désactiver</button>` : `<button class="btn-outline btn-sm" onclick="reactivatePract('${p.id}')">Réactiver</button>`}
-          </div>
-        </div>`;
+        h += `</div>`;
+        h += `</div>`;
       });
+
+      // Add button card
+      h += `<div class="tm-card tm-add" onclick="openPractModal()">
+        <div class="tm-avatar tm-add-icon">${ICONS.plus}</div>
+        <div class="tm-info"><p class="tm-name">Ajouter un ${esc(pracLabel)}</p></div>
+      </div>`;
+
       h += `</div>`;
     }
     c.innerHTML = h;
@@ -219,35 +198,30 @@ function renderPractModal(p) {
   }
 
   const isEdit = !!p;
-  const photoSrc = p?.photo_url || '';
-  const initials = p?.display_name ? p.display_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '';
   const pracLbl = sectorLabels.practitioner.toLowerCase();
   const accentColor = p?.color || '#0D7377';
+  const initials = p?.display_name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??';
+  const photoHtml = p?.photo_url
+    ? `<img src="${esc(p.photo_url)}" alt="${esc(p.display_name)}" style="width:100%;height:100%;object-fit:cover">`
+    : initials;
+  const modalTitle = p ? esc(p.display_name) : 'Nouveau ' + sectorLabels.practitioner;
 
   let h = `<div id="teamModalOverlay" class="m-overlay open">
-    <div class="m-dialog m-flex m-lg" style="height:85vh">
+    <div class="m-dialog m-flex m-lg">
+    <div class="m-drag-handle"></div>
 
     <!-- M-HEADER -->
     <div class="m-header">
-      <div class="m-header-bg" style="background:linear-gradient(135deg,${accentColor} 0%,${accentColor}AA 60%,${accentColor}55 100%)"></div>
-      <button class="m-close" onclick="closeTeamModal()">×</button>
+      <div class="m-header-bg" id="tmHeaderBg" style="background:linear-gradient(135deg,${accentColor} 0%,${accentColor}AA 60%,${accentColor}55 100%)"></div>
+      <button class="m-close" onclick="closeTeamModal()" aria-label="Fermer">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <div class="m-header-content">
-        <div class="m-client-hero">
-          <div class="m-avatar" id="tm_avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC);cursor:pointer" onclick="document.getElementById('p_photo_input').click()" title="Changer la photo">
-            ${photoSrc ? `<img src="${photoSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : `<span style="color:#fff;font-size:1.1rem;font-weight:700">${initials || '+'}</span>`}
+        <div class="m-client-hero" style="align-items:center">
+          <div class="m-avatar" id="tmAvatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC);cursor:pointer" onclick="document.getElementById('pPhotoInput').click()">
+            ${photoHtml}
           </div>
-          <input type="file" id="p_photo_input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="pPhotoPreview(this)">
-          <div class="m-client-info">
-            <div class="m-client-name">${isEdit ? p.display_name : 'Nouveau ' + pracLbl}</div>
-            <div class="m-client-meta">
-              ${p?.title ? esc(p.title) : ''}
-              ${p?.email ? ` · ${esc(p.email)}` : ''}
-            </div>
-          </div>
-          ${isEdit ? `<div class="m-quick-actions">
-            ${p.phone ? `<a class="m-qbtn" href="tel:${esc(p.phone)}" title="Appeler"><svg class="gi" style="width:14px;height:14px" ${ICONS.phone.slice(4)}></a>` : ''}
-            ${p.email ? `<a class="m-qbtn" href="mailto:${esc(p.email)}" title="Email"><svg class="gi" style="width:14px;height:14px" ${ICONS.mail.slice(4)}></a>` : ''}
-          </div>` : ''}
+          <div class="m-modal-title" id="tmModalTitle">${modalTitle}</div>
         </div>
       </div>
     </div>
@@ -263,6 +237,7 @@ function renderPractModal(p) {
 
     <!-- BODY -->
     <div class="m-body">
+      <input type="file" id="pPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="pPhotoPreview(this)">
 
       <!-- TAB: PROFIL -->
       <div class="m-panel active" id="team-panel-profile">
@@ -312,7 +287,7 @@ function renderPractModal(p) {
           <textarea class="m-input" id="p_note" style="min-height:60px" placeholder="Notes privées (visibles par le manager uniquement)...">${esc(p?.internal_note || '')}</textarea>
         </div>
 
-        ${isEdit && photoSrc ? `<div style="text-align:center;margin-top:8px"><button onclick="pRemovePhoto('${p.id}')" style="font-size:.7rem;color:var(--red);background:none;border:none;cursor:pointer">Supprimer la photo</button></div>` : ''}
+        ${isEdit && p?.photo_url ? `<div style="text-align:center;margin-top:8px"><button onclick="pRemovePhoto('${p.id}')" style="font-size:.7rem;color:var(--red);background:none;border:none;cursor:pointer">Supprimer la photo</button></div>` : ''}
       </div>
 
       <!-- TAB: COMPÉTENCES -->
@@ -376,7 +351,7 @@ function renderPractModal(p) {
 
     <!-- BOTTOM BAR -->
     <div class="m-bottom">
-      ${isEdit ? `<button class="m-btn m-btn-danger" onclick="if(confirm('Désactiver ${esc(p.display_name)} ?')){closeTeamModal();deactivatePract('${p.id}')}">Désactiver</button>` : ''}
+      ${isEdit ? `<button class="m-btn m-btn-danger" onclick="confirmDeactivatePract('${p.id}','${esc(p.display_name)}')">Désactiver</button>` : ''}
       <div style="flex:1"></div>
       <button class="m-btn m-btn-ghost" onclick="closeTeamModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="savePract(${isEdit ? "'" + p.id + "'" : 'null'})">${isEdit ? 'Enregistrer' : 'Créer'}</button>
@@ -385,8 +360,24 @@ function renderPractModal(p) {
   </div></div>`;
 
   document.body.insertAdjacentHTML('beforeend', h);
-  guardModal(document.getElementById('teamModalOverlay'));
+  const teamModal = document.getElementById('teamModalOverlay');
+  guardModal(teamModal, { noBackdropClose: true });
+  trapFocus(teamModal, () => closeTeamModal());
+  enableSwipeClose(teamModal.querySelector('.m-dialog'), () => closeTeamModal());
+  initTimeInputs(teamModal);
   document.getElementById('p_color_wrap').innerHTML = cswHTML('p_color', p?.color || '#1E3A8A', false);
+
+  // Dynamic gradient update on color change
+  const colorInput = document.getElementById('p_color');
+  if (colorInput) {
+    colorInput.addEventListener('change', () => {
+      const c = colorInput.value || '#0D7377';
+      const bg = document.getElementById('tmHeaderBg');
+      const av = document.getElementById('tmAvatar');
+      if (bg) bg.style.background = `linear-gradient(135deg,${c} 0%,${c}AA 60%,${c}55 100%)`;
+      if (av) av.style.background = `linear-gradient(135deg,${c},${c}CC)`;
+    });
+  }
 
   // Initialize schedule editor
   teamEditPracId = p?.id || null;
@@ -401,8 +392,9 @@ function renderPractModal(p) {
   }
 }
 
-function closeTeamModal() {
-  closeModal('teamModalOverlay');
+async function closeTeamModal() {
+  releaseFocus();
+  await closeModal('teamModalOverlay');
 }
 
 function teamSwitchTab(tab) {
@@ -572,14 +564,22 @@ function teamAddSlot(day) {
   const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
 
   let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
-    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="time" class="m-input" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="tm_slot_end" value="${de}"></div></div>
+    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${de}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
+  initTimeInputs(document.getElementById('teamSlotModal'));
 }
 
 function teamConfirmAddSlot(day) {
-  const st = document.getElementById('tm_slot_start').value + ':00';
-  const en = document.getElementById('tm_slot_end').value + ':00';
+  const startVal = document.getElementById('tm_slot_start').value;
+  const endVal = document.getElementById('tm_slot_end').value;
+  if (!startVal || !endVal) { GendaUI.toast('Heures requises', 'error'); return; }
+  if (startVal >= endVal) { GendaUI.toast("L'heure de fin doit être après le début", 'error'); return; }
+  const existing = teamEditSchedule[day] || [];
+  const hasOverlap = existing.some(s => startVal < (s.end_time || '').slice(0, 5) && endVal > (s.start_time || '').slice(0, 5));
+  if (hasOverlap) { GendaUI.toast('Ce créneau chevauche un autre', 'error'); return; }
+  const st = startVal + ':00';
+  const en = endVal + ':00';
   if (!teamEditSchedule[day]) teamEditSchedule[day] = [];
   teamEditSchedule[day].push({ start_time: st, end_time: en });
   teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -594,14 +594,25 @@ function teamEditSlot(day, idx) {
   const en = (slot.end_time || '18:00:00').slice(0, 5);
 
   let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
-    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="time" class="m-input" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="tm_slot_end" value="${en}"></div></div>
+    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${en}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});document.getElementById('teamSlotModal').remove()" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
+  initTimeInputs(document.getElementById('teamSlotModal'));
 }
 
 function teamConfirmEditSlot(day, idx) {
-  const st = document.getElementById('tm_slot_start').value + ':00';
-  const en = document.getElementById('tm_slot_end').value + ':00';
+  const startVal = document.getElementById('tm_slot_start').value;
+  const endVal = document.getElementById('tm_slot_end').value;
+  if (!startVal || !endVal) { GendaUI.toast('Heures requises', 'error'); return; }
+  if (startVal >= endVal) { GendaUI.toast("L'heure de fin doit être après le début", 'error'); return; }
+  const existing = teamEditSchedule[day] || [];
+  const hasOverlap = existing.some((s, i) => {
+    if (i === idx) return false;
+    return startVal < (s.end_time || '').slice(0, 5) && endVal > (s.start_time || '').slice(0, 5);
+  });
+  if (hasOverlap) { GendaUI.toast('Ce créneau chevauche un autre', 'error'); return; }
+  const st = startVal + ':00';
+  const en = endVal + ':00';
   if (teamEditSchedule[day] && teamEditSchedule[day][idx]) {
     teamEditSchedule[day][idx] = { start_time: st, end_time: en };
     teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -673,6 +684,8 @@ async function teamLoadLeave(pracId, year) {
 // ============================================================
 
 async function savePract(id) {
+  const saveBtn = document.querySelector('#teamModalOverlay .m-bottom .m-btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.classList.add('is-loading'); }
   const body = {
     display_name: document.getElementById('p_name').value,
     title: document.getElementById('p_title').value || null,
@@ -758,7 +771,11 @@ async function savePract(id) {
     document.getElementById('teamModalOverlay')?._dirtyGuard?.markClean(); closeTeamModal();
     GendaUI.toast(id ? sectorLabels.practitioner + ' modifié' : sectorLabels.practitioner + ' ajouté', 'success');
     loadTeam();
-  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+  } catch (e) {
+    GendaUI.toast('Erreur: ' + e.message, 'error');
+  } finally {
+    if (saveBtn) { saveBtn.classList.remove('is-loading'); saveBtn.disabled = false; }
+  }
 }
 
 // ============================================================
@@ -772,13 +789,19 @@ function pPhotoPreview(input) {
   const reader = new FileReader();
   reader.onload = function (e) {
     pPendingPhoto = e.target.result;
-    document.getElementById('tm_avatar').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
+    document.getElementById('tmAvatar').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
   };
   reader.readAsDataURL(file);
 }
 
 async function pRemovePhoto(id) {
-  if (!confirm('Supprimer la photo ?')) return;
+  const confirmed = await showConfirmDialog(
+    'Supprimer la photo',
+    'Supprimer la photo de profil ?',
+    'Supprimer',
+    'danger'
+  );
+  if (!confirmed) return;
   try {
     await fetch(`/api/practitioners/${id}/photo`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     GendaUI.toast('Photo supprimée', 'success');
@@ -791,6 +814,18 @@ async function pRemovePhoto(id) {
 // Deactivate / Reactivate
 // ============================================================
 
+async function confirmDeactivatePract(id, name) {
+  const confirmed = await showConfirmDialog(
+    'Désactiver ' + sectorLabels.practitioner,
+    `Désactiver ${name} ? Ses RDV futurs pourront être annulés.`,
+    'Désactiver',
+    'danger'
+  );
+  if (!confirmed) return;
+  closeTeamModal();
+  deactivatePract(id);
+}
+
 async function deactivatePract(id) {
   try {
     // First call: check for future bookings (no query params → 409 if bookings exist)
@@ -801,10 +836,21 @@ async function deactivatePract(id) {
       const count = data.future_bookings_count || 0;
 
       // Step 1: Confirm deactivation
-      if (!confirm(`Ce ${sectorLabels.practitioner.toLowerCase()} a ${count} RDV à venir.\n\nVoulez-vous quand même le désactiver ?`)) return;
+      const step1 = await showConfirmDialog(
+        'Désactiver ' + sectorLabels.practitioner,
+        `Ce ${sectorLabels.practitioner.toLowerCase()} a ${count} RDV à venir. Voulez-vous quand même le désactiver ?`,
+        'Désactiver',
+        'danger'
+      );
+      if (!step1) return;
 
       // Step 2: Ask about the bookings
-      const cancelThem = confirm(`Souhaitez-vous annuler les ${count} RDV à venir ?\n\n• OK = Annuler les RDV\n• Annuler = Garder les RDV tels quels`);
+      const cancelThem = await showConfirmDialog(
+        'Annuler les RDV ?',
+        `Souhaitez-vous annuler les ${count} RDV à venir ?`,
+        'Annuler les RDV',
+        'danger'
+      );
 
       const qp = cancelThem ? '?cancel_bookings=true' : '?keep_bookings=true';
       const r2 = await fetch(`/api/practitioners/${id}${qp}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
@@ -849,7 +895,7 @@ async function openPracTasks(pracId, pracName) {
     let h = `<div class="m-overlay open" id="tasksModalOverlay"><div class="m-dialog m-flex m-md">
       <div class="m-header" style="flex-shrink:0">
         <div class="m-header-bg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 60%,rgba(13,115,119,.3) 100%)"></div>
-        <button class="m-close" onclick="document.getElementById('tasksModalOverlay').remove()">×</button>
+        <button class="m-close" onclick="closeTasksModal()">×</button>
         <div class="m-header-content">
           <div class="m-client-hero">
             <div class="m-avatar" style="background:var(--primary)"><svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.tasks.slice(4)}></div>
@@ -908,7 +954,16 @@ async function openPracTasks(pracId, pracName) {
 
     h += `</div></div></div>`;
     document.body.insertAdjacentHTML('beforeend', h);
+    const tasksOv = document.getElementById('tasksModalOverlay');
+    guardModal(tasksOv, { noBackdropClose: true });
+    trapFocus(tasksOv, () => closeTasksModal());
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+
+function closeTasksModal() {
+  releaseFocus();
+  document.getElementById('tasksModalOverlay')?.remove();
+  if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
 }
 
 async function togglePracTodo(todoId, bookingId, done, pracId, pracName) {
@@ -918,7 +973,7 @@ async function togglePracTodo(todoId, bookingId, done, pracId, pracName) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ is_done: done })
     });
-    document.getElementById('tasksModalOverlay')?.remove();
+    closeTasksModal();
     openPracTasks(pracId, pracName);
   } catch (e) { GendaUI.toast('Erreur', 'error'); }
 }
@@ -932,7 +987,7 @@ function openInviteModal(practId, name) {
   let m = `<div class="m-overlay open" id="inviteModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Créer un accès — ${name}</h3>
-      <button class="m-close" onclick="closeModal('inviteModalOverlay')">${ICONS.close}</button>
+      <button class="m-close" onclick="closeInviteModal()">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
@@ -956,12 +1011,19 @@ function openInviteModal(practId, name) {
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="closeModal('inviteModalOverlay')">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeInviteModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="sendInvite('${practId}')">Créer le compte</button>
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('inviteModalOverlay'));
+  const invOv = document.getElementById('inviteModalOverlay');
+  guardModal(invOv, { noBackdropClose: true });
+  trapFocus(invOv, () => closeInviteModal());
+}
+
+async function closeInviteModal() {
+  releaseFocus();
+  await closeModal('inviteModalOverlay');
 }
 
 function generateTempPwd() { const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let pwd = ''; for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)]; return pwd; }
@@ -974,7 +1036,7 @@ async function sendInvite(practId) {
   try {
     const r = await fetch(`/api/practitioners/${practId}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ email, password, role }) });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.getElementById('inviteModalOverlay')?._dirtyGuard?.markClean(); closeModal('inviteModalOverlay');
+    document.getElementById('inviteModalOverlay')?._dirtyGuard?.markClean(); closeInviteModal();
     GendaUI.toast('Compte créé ! Communiquez les identifiants.', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -994,7 +1056,7 @@ function openRoleModal(practId, name, currentRole) {
   let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Modifier le rôle — ${name}</h3>
-      <button class="m-close" onclick="closeModal('roleModalOverlay')">${ICONS.close}</button>
+      <button class="m-close" onclick="closeRoleModal()">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <div style="display:flex;flex-direction:column;gap:8px">`;
@@ -1009,12 +1071,19 @@ function openRoleModal(practId, name, currentRole) {
   m += `</div></div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="closeModal('roleModalOverlay')">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeRoleModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="saveRole('${practId}')">Enregistrer</button>
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('roleModalOverlay'));
+  const roleOv = document.getElementById('roleModalOverlay');
+  guardModal(roleOv, { noBackdropClose: true });
+  trapFocus(roleOv, () => closeRoleModal());
+}
+
+async function closeRoleModal() {
+  releaseFocus();
+  await closeModal('roleModalOverlay');
 }
 
 async function saveRole(practId) {
@@ -1023,7 +1092,7 @@ async function saveRole(practId) {
   try {
     const r = await fetch(`/api/practitioners/${practId}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ role: picked.value }) });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.getElementById('roleModalOverlay')?._dirtyGuard?.markClean(); closeModal('roleModalOverlay');
+    document.getElementById('roleModalOverlay')?._dirtyGuard?.markClean(); closeRoleModal();
     GendaUI.toast('Rôle modifié', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -1118,7 +1187,14 @@ async function connectCalendar(provider,pracId){
 }
 
 async function disconnectCalendar(connId,provider,pracId){
-  if(!confirm('Déconnecter '+(provider==='google'?'Google Calendar':'Outlook')+' ?'))return;
+  const provLabel = provider==='google' ? 'Google Calendar' : 'Outlook';
+  const confirmed = await showConfirmDialog(
+    'Déconnecter ' + provLabel,
+    'Déconnecter ' + provLabel + ' ?',
+    'Déconnecter',
+    'danger'
+  );
+  if(!confirmed)return;
   try{
     await api.delete(`/api/calendar/connections/${connId}`);
     GendaUI.toast('Calendrier déconnecté','success');
@@ -1187,10 +1263,10 @@ async function generateIcalFeed(pracId){
 // ============================================================
 
 bridge({
-  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract,
-  openPracTasks, togglePracTodo,
-  openInviteModal, generateTempPwd, sendInvite,
-  openRoleModal, saveRole,
+  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract,
+  openPracTasks, togglePracTodo, closeTasksModal,
+  openInviteModal, generateTempPwd, sendInvite, closeInviteModal,
+  openRoleModal, saveRole, closeRoleModal,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
@@ -1200,9 +1276,9 @@ bridge({
 });
 
 export {
-  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract,
-  openPracTasks, togglePracTodo,
-  openInviteModal, sendInvite, openRoleModal, saveRole,
+  loadTeam, openPractModal, savePract, deactivatePract, reactivatePract, confirmDeactivatePract,
+  openPracTasks, togglePracTodo, closeTasksModal,
+  openInviteModal, sendInvite, closeInviteModal, openRoleModal, saveRole, closeRoleModal,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,

@@ -523,36 +523,25 @@
 .copy-input button{flex-shrink:0}
 
 /* ===== TEAM ===== */
-.team-grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-.team-member{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:22px;position:relative;transition:var(--transition)}
-.team-member:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
-.team-member.inactive{opacity:.45}
-.team-member .tm-header{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.team-member .tm-avatar{width:50px;height:50px;border-radius:14px;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.15rem;flex-shrink:0;box-shadow:var(--shadow-xs);overflow:hidden}
-.team-member .tm-info h4{font-size:.95rem;font-weight:700;color:var(--text)}
-.team-member .tm-info .tm-title{font-size:.78rem;color:var(--text-3)}
-.team-member .tm-info .tm-email{font-size:.72rem;color:var(--text-4)}
-.team-member .tm-stats{display:flex;gap:12px;margin-bottom:12px;padding:10px 0;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light)}
-.team-member .tm-stat{text-align:center;flex:1}
-.team-member .tm-stat .v{font-weight:700;font-size:.9rem;color:var(--text)}
-.team-member .tm-stat .l{font-size:.63rem;color:var(--text-4);text-transform:uppercase;letter-spacing:.3px}
-.team-member .tm-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
-.team-member .tm-badge{padding:3px 9px;border-radius:6px;font-size:.65rem;font-weight:600}
-.tm-badge.active{background:var(--green-bg);color:var(--green)}
-.tm-badge.inactive{background:var(--red-bg);color:var(--red)}
-.tm-badge.booking{background:var(--primary-light);color:var(--primary)}
-.tm-badge.no-booking{background:var(--surface);color:var(--text-4)}
-.tm-badge.has-login{background:var(--gold-bg);color:var(--gold)}
-.team-member .tm-actions{display:flex;gap:6px;flex-wrap:wrap}
-
-/* Work dots */
-.tm-work-dots{display:flex;gap:2px;align-items:center;margin-bottom:10px;padding:6px 0}
-.tm-work-dot-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
-.tm-work-dot{width:8px;height:8px;border-radius:50%;transition:var(--transition)}
-.tm-work-dot.on{background:var(--green)}
-.tm-work-dot.off{background:var(--border-light)}
-.tm-work-dot-label{font-size:.5rem;color:var(--text-4);font-weight:600}
-.tm-regime-label{font-size:.65rem;font-weight:700;color:var(--text-3);margin-left:6px}
+/* ── Team cards ── */
+.tm-list-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.tm-list-header h3{font-size:.95rem;font-weight:700}
+.team-grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.tm-card{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);cursor:pointer;transition:all .15s}
+.tm-card:hover{border-color:var(--primary-soft);box-shadow:var(--shadow)}
+.tm-card.inactive{opacity:.5}
+.tm-card.tm-add{border-style:dashed;justify-content:center}
+.tm-card.tm-add:hover{border-color:var(--primary);background:var(--primary-light)}
+.tm-avatar{width:64px;height:64px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;font-weight:700;flex-shrink:0;overflow:hidden}
+.tm-avatar img{width:100%;height:100%;object-fit:cover}
+.tm-add-icon{background:var(--surface);color:var(--text-4)}
+.tm-add-icon svg{width:24px;height:24px}
+.tm-info{min-width:0;flex:1}
+.tm-name{font-size:.92rem;font-weight:600;color:var(--text);margin-bottom:2px;display:flex;align-items:center;gap:8px}
+.tm-title{font-size:.78rem;color:var(--text-3);margin-bottom:4px}
+.tm-regime{font-size:.72rem;color:var(--text-4);margin-bottom:4px}
+.tm-summary{font-size:.72rem;color:var(--text-4)}
+.tm-badge-inactive{font-size:.62rem;font-weight:700;background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:100px}
 
 /* Service assignments in practitioner modal */
 .svc-assign-group{margin-bottom:6px;border:1px solid var(--border-light);border-radius:8px;overflow:hidden}

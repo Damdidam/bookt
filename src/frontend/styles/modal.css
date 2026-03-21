@@ -45,6 +45,7 @@ body.has-modal{overflow:hidden}
   .cal-btn{min-height:44px}
   .dg-btn{min-height:48px}
   .m-dialog{max-width:min(540px,90vw)}
+  .m-dialog.m-lg{max-width:min(680px,90vw)}
   .g-toast-stack{bottom:calc(90px + env(safe-area-inset-bottom))}
 }
 

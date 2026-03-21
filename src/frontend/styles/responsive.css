@@ -130,6 +130,10 @@
   .mob-empty-icon{font-size:2rem;margin-bottom:8px}
   .mob-empty-text{font-size:.88rem}
   .mob-empty-sub{font-size:.78rem;margin-top:4px}
+
+  /* Team cards mobile */
+  .team-grid2{grid-template-columns:1fr}
+  .tm-card{padding:14px 16px}
 }
 /* Hide mobile rows above phone breakpoint */
 @media(min-width:601px){
