@@ -351,7 +351,7 @@ function renderPractModal(p) {
 
     <!-- BOTTOM BAR -->
     <div class="m-bottom">
-      ${isEdit ? `<button class="m-btn m-btn-danger" onclick="if(confirm('Désactiver ${esc(p.display_name)} ?')){closeTeamModal();deactivatePract('${p.id}')}">Désactiver</button>` : ''}
+      ${isEdit ? `<button class="m-btn m-btn-danger" onclick="confirmDeactivatePract('${p.id}','${esc(p.display_name)}')">Désactiver</button>` : ''}
       <div style="flex:1"></div>
       <button class="m-btn m-btn-ghost" onclick="closeTeamModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="savePract(${isEdit ? "'" + p.id + "'" : 'null'})">${isEdit ? 'Enregistrer' : 'Créer'}</button>
@@ -564,14 +564,22 @@ function teamAddSlot(day) {
   const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
 
   let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
-    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="time" class="m-input" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="tm_slot_end" value="${de}"></div></div>
+    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${de}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
+  initTimeInputs(document.getElementById('teamSlotModal'));
 }
 
 function teamConfirmAddSlot(day) {
-  const st = document.getElementById('tm_slot_start').value + ':00';
-  const en = document.getElementById('tm_slot_end').value + ':00';
+  const startVal = document.getElementById('tm_slot_start').value;
+  const endVal = document.getElementById('tm_slot_end').value;
+  if (!startVal || !endVal) { GendaUI.toast('Heures requises', 'error'); return; }
+  if (startVal >= endVal) { GendaUI.toast("L'heure de fin doit être après le début", 'error'); return; }
+  const existing = teamEditSchedule[day] || [];
+  const hasOverlap = existing.some(s => startVal < (s.end_time || '').slice(0, 5) && endVal > (s.start_time || '').slice(0, 5));
+  if (hasOverlap) { GendaUI.toast('Ce créneau chevauche un autre', 'error'); return; }
+  const st = startVal + ':00';
+  const en = endVal + ':00';
   if (!teamEditSchedule[day]) teamEditSchedule[day] = [];
   teamEditSchedule[day].push({ start_time: st, end_time: en });
   teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -586,14 +594,25 @@ function teamEditSlot(day, idx) {
   const en = (slot.end_time || '18:00:00').slice(0, 5);
 
   let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
-    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="time" class="m-input" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="time" class="m-input" id="tm_slot_end" value="${en}"></div></div>
+    <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${en}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});document.getElementById('teamSlotModal').remove()" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
+  initTimeInputs(document.getElementById('teamSlotModal'));
 }
 
 function teamConfirmEditSlot(day, idx) {
-  const st = document.getElementById('tm_slot_start').value + ':00';
-  const en = document.getElementById('tm_slot_end').value + ':00';
+  const startVal = document.getElementById('tm_slot_start').value;
+  const endVal = document.getElementById('tm_slot_end').value;
+  if (!startVal || !endVal) { GendaUI.toast('Heures requises', 'error'); return; }
+  if (startVal >= endVal) { GendaUI.toast("L'heure de fin doit être après le début", 'error'); return; }
+  const existing = teamEditSchedule[day] || [];
+  const hasOverlap = existing.some((s, i) => {
+    if (i === idx) return false;
+    return startVal < (s.end_time || '').slice(0, 5) && endVal > (s.start_time || '').slice(0, 5);
+  });
+  if (hasOverlap) { GendaUI.toast('Ce créneau chevauche un autre', 'error'); return; }
+  const st = startVal + ':00';
+  const en = endVal + ':00';
   if (teamEditSchedule[day] && teamEditSchedule[day][idx]) {
     teamEditSchedule[day][idx] = { start_time: st, end_time: en };
     teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -665,6 +684,8 @@ async function teamLoadLeave(pracId, year) {
 // ============================================================
 
 async function savePract(id) {
+  const saveBtn = document.querySelector('#teamModalOverlay .m-bottom .m-btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.classList.add('is-loading'); }
   const body = {
     display_name: document.getElementById('p_name').value,
     title: document.getElementById('p_title').value || null,
@@ -750,7 +771,11 @@ async function savePract(id) {
     document.getElementById('teamModalOverlay')?._dirtyGuard?.markClean(); closeTeamModal();
     GendaUI.toast(id ? sectorLabels.practitioner + ' modifié' : sectorLabels.practitioner + ' ajouté', 'success');
     loadTeam();
-  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+  } catch (e) {
+    GendaUI.toast('Erreur: ' + e.message, 'error');
+  } finally {
+    if (saveBtn) { saveBtn.classList.remove('is-loading'); saveBtn.disabled = false; }
+  }
 }
 
 // ============================================================
@@ -770,7 +795,13 @@ function pPhotoPreview(input) {
 }
 
 async function pRemovePhoto(id) {
-  if (!confirm('Supprimer la photo ?')) return;
+  const confirmed = await showConfirmDialog(
+    'Supprimer la photo',
+    'Supprimer la photo de profil ?',
+    'Supprimer',
+    'danger'
+  );
+  if (!confirmed) return;
   try {
     await fetch(`/api/practitioners/${id}/photo`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     GendaUI.toast('Photo supprimée', 'success');
@@ -783,6 +814,18 @@ async function pRemovePhoto(id) {
 // Deactivate / Reactivate
 // ============================================================
 
+async function confirmDeactivatePract(id, name) {
+  const confirmed = await showConfirmDialog(
+    'Désactiver ' + sectorLabels.practitioner,
+    `Désactiver ${name} ? Ses RDV futurs pourront être annulés.`,
+    'Désactiver',
+    'danger'
+  );
+  if (!confirmed) return;
+  closeTeamModal();
+  deactivatePract(id);
+}
+
 async function deactivatePract(id) {
   try {
     // First call: check for future bookings (no query params → 409 if bookings exist)
@@ -793,10 +836,21 @@ async function deactivatePract(id) {
       const count = data.future_bookings_count || 0;
 
       // Step 1: Confirm deactivation
-      if (!confirm(`Ce ${sectorLabels.practitioner.toLowerCase()} a ${count} RDV à venir.\n\nVoulez-vous quand même le désactiver ?`)) return;
+      const step1 = await showConfirmDialog(
+        'Désactiver ' + sectorLabels.practitioner,
+        `Ce ${sectorLabels.practitioner.toLowerCase()} a ${count} RDV à venir. Voulez-vous quand même le désactiver ?`,
+        'Désactiver',
+        'danger'
+      );
+      if (!step1) return;
 
       // Step 2: Ask about the bookings
-      const cancelThem = confirm(`Souhaitez-vous annuler les ${count} RDV à venir ?\n\n• OK = Annuler les RDV\n• Annuler = Garder les RDV tels quels`);
+      const cancelThem = await showConfirmDialog(
+        'Annuler les RDV ?',
+        `Souhaitez-vous annuler les ${count} RDV à venir ?`,
+        'Annuler les RDV',
+        'danger'
+      );
 
       const qp = cancelThem ? '?cancel_bookings=true' : '?keep_bookings=true';
       const r2 = await fetch(`/api/practitioners/${id}${qp}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
@@ -1133,7 +1187,14 @@ async function connectCalendar(provider,pracId){
 }
 
 async function disconnectCalendar(connId,provider,pracId){
-  if(!confirm('Déconnecter '+(provider==='google'?'Google Calendar':'Outlook')+' ?'))return;
+  const provLabel = provider==='google' ? 'Google Calendar' : 'Outlook';
+  const confirmed = await showConfirmDialog(
+    'Déconnecter ' + provLabel,
+    'Déconnecter ' + provLabel + ' ?',
+    'Déconnecter',
+    'danger'
+  );
+  if(!confirmed)return;
   try{
     await api.delete(`/api/calendar/connections/${connId}`);
     GendaUI.toast('Calendrier déconnecté','success');
