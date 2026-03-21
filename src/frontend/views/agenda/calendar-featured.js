@@ -115,6 +115,7 @@ async function fsActivate() {
   if (btn) { btn.classList.add('active'); }
 
   fsShowActionBar();
+  fsUpdateCount(); // update count AFTER action bar is created
   fcRefresh();
 }
 
