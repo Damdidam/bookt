@@ -285,9 +285,11 @@ async function fsClear() {
 - [ ] **Step 5: Update bridge and exports**
 
 ```js
-bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn });
-export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn };
+bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract });
+export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract };
 ```
+
+Note: `fsToggle` is kept here — it's removed later in Task 5. `fsToggleColumn` is added in Task 4.
 
 - [ ] **Step 6: Verify manually — Publish button saves + locks, Unpublish unlocks, badge updates**
 
@@ -360,9 +362,22 @@ async function fsSwitchPract(pid) {
 }
 ```
 
-- [ ] **Step 3: Verify manually — modify slots, navigate away, confirm dialog appears**
+- [ ] **Step 3: Add `beforeunload` handler for browser close/URL navigation**
 
-- [ ] **Step 4: Commit**
+In `loadFeaturedSlots()`, after `renderGrid()`, add:
+
+```js
+window.addEventListener('beforeunload', (e) => {
+  if (isDirty()) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+```
+
+- [ ] **Step 4: Verify manually — modify slots, navigate away, confirm dialog appears; close tab with unsaved changes, browser warns**
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/frontend/views/featured-slots.js
@@ -399,9 +414,16 @@ function fsToggleColumn(day) {
 }
 ```
 
-- [ ] **Step 2: Verify — click day header selects all free slots, click again deselects**
+- [ ] **Step 2: Update bridge and exports to add `fsToggleColumn`**
 
-- [ ] **Step 3: Commit**
+```js
+bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn });
+export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn };
+```
+
+- [ ] **Step 3: Verify — click day header selects all free slots, click again deselects**
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/frontend/views/featured-slots.js
@@ -501,60 +523,31 @@ function updateDragPreview() {
 }
 ```
 
-- [ ] **Step 3: Add `fsToggle()` update — only fires on click (not drag)**
+- [ ] **Step 3: Add document-level listeners at module scope (once, not per render)**
 
-Update `fsToggle` to handle click vs drag. Replace inline onclick with event delegation in `renderGrid()`:
+These handlers already bail out with `if (!dragState) return`, so they are safe to register once at module scope. This avoids accumulating duplicate listeners on each `renderGrid()` call.
 
-After `c.innerHTML = h;` in `renderGrid()`, add event binding:
+At module scope (top of file, after drag state variable):
 
 ```js
-// Event delegation for cell interactions
-const grid = document.getElementById('fsGrid');
-if (grid && !isPast) {
-  grid.addEventListener('mousedown', fsDragStart);
-  document.addEventListener('mousemove', fsDragMove);
-  document.addEventListener('mouseup', fsDragEnd);
-
-  // Touch events
-  grid.addEventListener('touchstart', fsDragStart, { passive: false });
-  document.addEventListener('touchmove', fsDragMove, { passive: false });
-  document.addEventListener('touchend', fsDragEnd);
-
-  // Simple click fallback (for single taps on mobile)
-  grid.addEventListener('click', (e) => {
-    const cell = e.target.closest('.fs-cell');
-    if (!cell || !cell.dataset.key) return;
-    if (weekLocked) return;
-    const key = cell.dataset.key;
-    if (bookedSlots[key]) return;
-    // Only toggle on click if no drag happened (drag handles its own)
-    // Click fires after mouseup, so check if drag was a single cell
-  });
-}
+// Document-level drag listeners — registered once, gated on dragState
+document.addEventListener('mousemove', fsDragMove);
+document.addEventListener('mouseup', fsDragEnd);
+document.addEventListener('touchmove', fsDragMove, { passive: false });
+document.addEventListener('touchend', fsDragEnd);
 ```
 
-Actually, simplify: the drag handlers already handle single-click (drag with 0 movement = single cell toggle via `fsDragEnd`). Remove the old `fsToggle` click handler. The `fsDragEnd` applies the preview which includes the start cell.
+- [ ] **Step 4: Add grid-level listeners in `renderGrid()` + mobile fallback**
 
-- [ ] **Step 4: Remove old `fsToggle()` and inline onclick from cells**
-
-In `renderGrid()`, cells no longer have `onclick`. The grid event delegation handles everything.
-
-Remove the old `fsToggle(key)` function — drag start/end replaces it.
-
-- [ ] **Step 5: Disable drag on small screens**
-
-In the event binding after `c.innerHTML = h;`:
+After `c.innerHTML = h;` in `renderGrid()`:
 
 ```js
+const grid = document.getElementById('fsGrid');
 const canDrag = window.matchMedia('(min-width: 768px) and (pointer: fine)').matches;
 if (grid && !isPast) {
   if (canDrag) {
     grid.addEventListener('mousedown', fsDragStart);
-    document.addEventListener('mousemove', fsDragMove);
-    document.addEventListener('mouseup', fsDragEnd);
     grid.addEventListener('touchstart', fsDragStart, { passive: false });
-    document.addEventListener('touchmove', fsDragMove, { passive: false });
-    document.addEventListener('touchend', fsDragEnd);
   } else {
     // Tap-only mode for mobile
     grid.addEventListener('click', (e) => {
@@ -568,6 +561,19 @@ if (grid && !isPast) {
     });
   }
 }
+```
+
+Note: grid-level listeners are fine to re-add since the grid DOM element is new each time `renderGrid()` runs. Document-level ones are at module scope to avoid duplication.
+
+- [ ] **Step 5: Remove old `fsToggle()` function and update bridge/exports**
+
+Delete `fsToggle(key)` — drag start/end replaces it for desktop, click handler replaces it for mobile.
+
+Update bridge and exports to remove `fsToggle`:
+
+```js
+bridge({ loadFeaturedSlots, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn });
+export { loadFeaturedSlots, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn };
 ```
 
 - [ ] **Step 6: Verify manually — drag vertically selects range, drag across columns stays in original column, single click toggles on mobile**
