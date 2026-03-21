@@ -5,7 +5,10 @@
 import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
+import { enableSwipeClose } from '../utils/swipe-close.js';
+import { initTimeInputs } from '../utils/dom.js';
 
 let pPendingPhoto = null;
 let teamCurrentTab = 'profile';
@@ -357,7 +360,11 @@ function renderPractModal(p) {
   </div></div>`;
 
   document.body.insertAdjacentHTML('beforeend', h);
-  guardModal(document.getElementById('teamModalOverlay'));
+  const teamModal = document.getElementById('teamModalOverlay');
+  guardModal(teamModal, { noBackdropClose: true });
+  trapFocus(teamModal, () => closeTeamModal());
+  enableSwipeClose(teamModal.querySelector('.m-dialog'), () => closeTeamModal());
+  initTimeInputs(teamModal);
   document.getElementById('p_color_wrap').innerHTML = cswHTML('p_color', p?.color || '#1E3A8A', false);
 
   // Dynamic gradient update on color change
@@ -385,8 +392,9 @@ function renderPractModal(p) {
   }
 }
 
-function closeTeamModal() {
-  closeModal('teamModalOverlay');
+async function closeTeamModal() {
+  releaseFocus();
+  await closeModal('teamModalOverlay');
 }
 
 function teamSwitchTab(tab) {
@@ -833,7 +841,7 @@ async function openPracTasks(pracId, pracName) {
     let h = `<div class="m-overlay open" id="tasksModalOverlay"><div class="m-dialog m-flex m-md">
       <div class="m-header" style="flex-shrink:0">
         <div class="m-header-bg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 60%,rgba(13,115,119,.3) 100%)"></div>
-        <button class="m-close" onclick="document.getElementById('tasksModalOverlay').remove()">×</button>
+        <button class="m-close" onclick="closeTasksModal()">×</button>
         <div class="m-header-content">
           <div class="m-client-hero">
             <div class="m-avatar" style="background:var(--primary)"><svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2" ${ICONS.tasks.slice(4)}></div>
@@ -892,7 +900,16 @@ async function openPracTasks(pracId, pracName) {
 
     h += `</div></div></div>`;
     document.body.insertAdjacentHTML('beforeend', h);
+    const tasksOv = document.getElementById('tasksModalOverlay');
+    guardModal(tasksOv, { noBackdropClose: true });
+    trapFocus(tasksOv, () => closeTasksModal());
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
+}
+
+function closeTasksModal() {
+  releaseFocus();
+  document.getElementById('tasksModalOverlay')?.remove();
+  if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
 }
 
 async function togglePracTodo(todoId, bookingId, done, pracId, pracName) {
@@ -902,7 +919,7 @@ async function togglePracTodo(todoId, bookingId, done, pracId, pracName) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
       body: JSON.stringify({ is_done: done })
     });
-    document.getElementById('tasksModalOverlay')?.remove();
+    closeTasksModal();
     openPracTasks(pracId, pracName);
   } catch (e) { GendaUI.toast('Erreur', 'error'); }
 }
@@ -916,7 +933,7 @@ function openInviteModal(practId, name) {
   let m = `<div class="m-overlay open" id="inviteModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Créer un accès — ${name}</h3>
-      <button class="m-close" onclick="closeModal('inviteModalOverlay')">${ICONS.close}</button>
+      <button class="m-close" onclick="closeInviteModal()">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Créez un compte pour que <strong>${name}</strong> puisse se connecter au dashboard.</p>
@@ -940,12 +957,19 @@ function openInviteModal(practId, name) {
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="closeModal('inviteModalOverlay')">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeInviteModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="sendInvite('${practId}')">Créer le compte</button>
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('inviteModalOverlay'));
+  const invOv = document.getElementById('inviteModalOverlay');
+  guardModal(invOv, { noBackdropClose: true });
+  trapFocus(invOv, () => closeInviteModal());
+}
+
+async function closeInviteModal() {
+  releaseFocus();
+  await closeModal('inviteModalOverlay');
 }
 
 function generateTempPwd() { const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let pwd = ''; for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)]; return pwd; }
@@ -958,7 +982,7 @@ async function sendInvite(practId) {
   try {
     const r = await fetch(`/api/practitioners/${practId}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ email, password, role }) });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.getElementById('inviteModalOverlay')?._dirtyGuard?.markClean(); closeModal('inviteModalOverlay');
+    document.getElementById('inviteModalOverlay')?._dirtyGuard?.markClean(); closeInviteModal();
     GendaUI.toast('Compte créé ! Communiquez les identifiants.', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -978,7 +1002,7 @@ function openRoleModal(practId, name, currentRole) {
   let m = `<div class="m-overlay open" id="roleModalOverlay"><div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Modifier le rôle — ${name}</h3>
-      <button class="m-close" onclick="closeModal('roleModalOverlay')">${ICONS.close}</button>
+      <button class="m-close" onclick="closeRoleModal()">${ICONS.close}</button>
     </div>
     <div class="m-body">
       <div style="display:flex;flex-direction:column;gap:8px">`;
@@ -993,12 +1017,19 @@ function openRoleModal(practId, name, currentRole) {
   m += `</div></div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="closeModal('roleModalOverlay')">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeRoleModal()">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="saveRole('${practId}')">Enregistrer</button>
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('roleModalOverlay'));
+  const roleOv = document.getElementById('roleModalOverlay');
+  guardModal(roleOv, { noBackdropClose: true });
+  trapFocus(roleOv, () => closeRoleModal());
+}
+
+async function closeRoleModal() {
+  releaseFocus();
+  await closeModal('roleModalOverlay');
 }
 
 async function saveRole(practId) {
@@ -1007,7 +1038,7 @@ async function saveRole(practId) {
   try {
     const r = await fetch(`/api/practitioners/${practId}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() }, body: JSON.stringify({ role: picked.value }) });
     if (!r.ok) throw new Error((await r.json()).error);
-    document.getElementById('roleModalOverlay')?._dirtyGuard?.markClean(); closeModal('roleModalOverlay');
+    document.getElementById('roleModalOverlay')?._dirtyGuard?.markClean(); closeRoleModal();
     GendaUI.toast('Rôle modifié', 'success');
     loadTeam();
   } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
@@ -1172,9 +1203,9 @@ async function generateIcalFeed(pracId){
 
 bridge({
   loadTeam, openPractModal, savePract, deactivatePract, reactivatePract,
-  openPracTasks, togglePracTodo,
-  openInviteModal, generateTempPwd, sendInvite,
-  openRoleModal, saveRole,
+  openPracTasks, togglePracTodo, closeTasksModal,
+  openInviteModal, generateTempPwd, sendInvite, closeInviteModal,
+  openRoleModal, saveRole, closeRoleModal,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
@@ -1185,8 +1216,8 @@ bridge({
 
 export {
   loadTeam, openPractModal, savePract, deactivatePract, reactivatePract,
-  openPracTasks, togglePracTodo,
-  openInviteModal, sendInvite, openRoleModal, saveRole,
+  openPracTasks, togglePracTodo, closeTasksModal,
+  openInviteModal, sendInvite, closeInviteModal, openRoleModal, saveRole, closeRoleModal,
   pPhotoPreview, pRemovePhoto, closeTeamModal,
   teamSwitchTab, teamLoadLeave,
   teamLoadSchedule, teamAddSlot, teamConfirmAddSlot, teamRemoveSlot,
