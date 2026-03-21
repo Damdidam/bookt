@@ -372,6 +372,7 @@ img { max-width: 100%; display: block; }
 .team-body { padding: 20px 20px 24px; text-align: center; }
 .team-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .team-role { font-size: 13px; color: var(--text-light); margin-bottom: 10px; transition: color var(--transition); }
+.team-bio { font-size: 13px; color: var(--text-3); line-height: 1.5; margin-bottom: 14px; text-align: left; }
 .team-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 16px; }
 .team-tag {
   font-size: 11px; padding: 3px 10px; border: 1px solid var(--accent);
@@ -1757,6 +1758,9 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
         tH += '<div class="team-body">';
         tH += '<p class="team-name">' + esc(p.display_name) + '</p>';
         tH += '<p class="team-role">' + esc(p.title || '') + '</p>';
+        if (p.bio) {
+          tH += '<p class="team-bio">' + esc(p.bio) + '</p>';
+        }
         if (canChoosePractitioner) {
           tH += '<a href="/' + esc(b.slug) + '/book?practitioner=' + p.id + '" class="team-link">R\u00e9server \u2192</a>';
         }
