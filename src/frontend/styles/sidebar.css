@@ -1,5 +1,6 @@
 /* ===== SIDEBAR ===== */
-.sidebar{position:fixed;top:0;left:0;bottom:0;width:234px;background:var(--sidebar-bg);color:#fff;display:flex;flex-direction:column;z-index:50;border-right:1px solid rgba(255,255,255,.06)}
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:234px;background:var(--sidebar-bg);color:#fff;display:flex;flex-direction:column;z-index:50;border-right:1px solid rgba(255,255,255,.06);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.sidebar.hidden{transform:translateX(-100%)}
 .sb-logo{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sb-logo .l{width:32px;height:32px;border-radius:9px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem;font-weight:400;box-shadow:0 2px 8px rgba(13,115,119,.35)}
 .sb-logo .w{font-size:.85rem;font-weight:700;letter-spacing:.3px}
