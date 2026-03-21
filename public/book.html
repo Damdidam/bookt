@@ -561,7 +561,7 @@ let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selecte
 let noPrefSelected=false; // true when client explicitly chose "Pas de préférence"
 let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
-let lockedSet={},featuredSet={};
+let lockedSet={},featuredRanges={};
 let selectedServices=[];
 let selectedVariants={};
 let multiServiceMode=false;
@@ -647,12 +647,15 @@ async function loadSiteData(){
     // Build locked week set: { "pracId_weekStart": true }
     lockedSet={};
     lockedWeeks.forEach(function(lw){lockedSet[lw.practitioner_id+'_'+lw.week_start]=true;});
-    // Build featured slot set: { "pracId_date_HH:MM": true } for fast lookup in renderSlots
-    featuredSet={};
+    // Build featured time ranges per practitioner+date: { "pracId_date": { min: "09:00", max: "11:45" } }
+    featuredRanges={};
     allFeatured.forEach(function(f){
       var monday=getMonday(f.date);
       if(lockedSet[f.practitioner_id+'_'+monday]){
-        featuredSet[f.practitioner_id+'_'+f.date+'_'+(f.start_time||'').slice(0,5)]=true;
+        var key=f.practitioner_id+'_'+f.date;
+        var t=(f.start_time||'').slice(0,5);
+        if(!featuredRanges[key]){featuredRanges[key]={min:t,max:t};}
+        else{if(t<featuredRanges[key].min)featuredRanges[key].min=t;if(t>featuredRanges[key].max)featuredRanges[key].max=t;}
       }
     });
     initPage();
@@ -1807,22 +1810,17 @@ function selectDate(key){
 function renderSlots(){
   let slots=slotsData[selectedDate]||[];
   // Filter by featured slots: if a slot's practitioner has a locked week for this date,
-  // only keep the slot if its start_time matches a featured slot
-  if(Object.keys(featuredSet).length>0){
+  // only keep slots whose start_time falls within the featured time range for that day
+  if(Object.keys(featuredRanges).length>0){
     var monday=getMonday(selectedDate);
-    console.log('[BOOK DEBUG] renderSlots date='+selectedDate+' monday='+monday);
-    console.log('[BOOK DEBUG] lockedSet=', JSON.stringify(lockedSet));
-    console.log('[BOOK DEBUG] featuredSet keys=', Object.keys(featuredSet).length, Object.keys(featuredSet).slice(0,5));
-    console.log('[BOOK DEBUG] first slot=', slots[0]?JSON.stringify({pracId:slots[0].practitioner_id,time:slots[0].start_time}):'none');
     slots=slots.filter(function(s){
       var pracId=s.practitioner_id;
-      if(!pracId)return true; // no practitioner info → keep
-      if(!lockedSet[pracId+'_'+monday])return true; // practitioner not locked this week → keep
-      // Practitioner has locked week → only keep if start_time matches a featured slot
-      var key=pracId+'_'+selectedDate+'_'+s.start_time;
-      return !!featuredSet[key];
+      if(!pracId)return true;
+      if(!lockedSet[pracId+'_'+monday])return true; // not locked → keep
+      var range=featuredRanges[pracId+'_'+selectedDate];
+      if(!range)return false; // locked but no featured slots this day → hide
+      return s.start_time>=range.min&&s.start_time<=range.max;
     });
-    console.log('[BOOK DEBUG] after filter: '+slots.length+' slots remain');
   }
   if(!slots.length){document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau ce jour.</div>';return;}
   // Deduplicate by start_time when no specific practitioner selected (any mode)
