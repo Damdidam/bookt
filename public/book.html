@@ -561,7 +561,7 @@ let slug='',siteData=null,selectedService=null,selectedPractitioner=null,selecte
 let noPrefSelected=false; // true when client explicitly chose "Pas de préférence"
 let stepOrder=[1,2,3,4,5]; // dynamic: if single practitioner, step 2 is removed
 let currentStepIdx=0;
-let vedetteMode=false,vedetteSlots=[],lockedSet={};
+let lockedSet={},featuredSet={};
 let selectedServices=[];
 let selectedVariants={};
 let multiServiceMode=false;
@@ -644,21 +644,17 @@ async function loadSiteData(){
     const fsData=fsRes.ok?await fsRes.json():{};
     const allFeatured=(fsData.featured_slots||[]).map(function(f){return Object.assign({},f,{date:(f.date||'').slice(0,10)});});
     const lockedWeeks=(fsData.locked_weeks||[]).map(function(lw){return Object.assign({},lw,{week_start:(lw.week_start||'').slice(0,10)});});
-    // Vedette mode: only if at least one week is locked AND there are featured slots in that locked week
-    if(lockedWeeks.length>0&&allFeatured.length>0){
-      // Build a set of locked (practitioner_id, week_start) pairs
-      lockedSet={};
-      lockedWeeks.forEach(function(lw){lockedSet[lw.practitioner_id+'_'+lw.week_start]=true;});
-      // Filter featured slots to only those in a locked week
-      var lockedFeatured=allFeatured.filter(function(f){
-        var monday=getMonday(f.date);
-        return lockedSet[f.practitioner_id+'_'+monday];
-      });
-      if(lockedFeatured.length>0){
-        vedetteMode=true;
-        vedetteSlots=buildVedetteSlots(lockedFeatured);
+    // Build locked week set: { "pracId_weekStart": true }
+    lockedSet={};
+    lockedWeeks.forEach(function(lw){lockedSet[lw.practitioner_id+'_'+lw.week_start]=true;});
+    // Build featured slot set: { "pracId_date_HH:MM": true } for fast lookup in renderSlots
+    featuredSet={};
+    allFeatured.forEach(function(f){
+      var monday=getMonday(f.date);
+      if(lockedSet[f.practitioner_id+'_'+monday]){
+        featuredSet[f.practitioner_id+'_'+f.date+'_'+(f.start_time||'').slice(0,5)]=true;
       }
-    }
+    });
     initPage();
   }catch(err){document.getElementById('loadingState').innerHTML='<p style="color:var(--red)">'+escH(err.message)+'</p>';}
 }
@@ -1059,19 +1055,8 @@ function initPage(){
 
   document.getElementById('loadingState').style.display='none';
 
-  // Vedette mode: skip service/practitioner selection
-  if(vedetteMode){
-    document.getElementById('btnStepVedette').addEventListener('click',function(){goNext();});
-    document.getElementById('btnVedetteMore').addEventListener('click',function(){
-      vedetteMode=false;
-      computeStepOrder();
-      goToStep(1);
-    });
-    renderVedetteList();
-    stepOrder=['vedette',4,5];
-    currentStepIdx=0;
-    computeProgressDots();
-    goToStep('vedette');
+  // Vedette mode removed — featured slots are now filtered inline in renderSlots()
+  if(false){
     return;
   }
 
@@ -1397,7 +1382,7 @@ function buildPractitioners(){
 
 // ──────── STEP ORDER ────────
 function computeStepOrder(){
-  if(vedetteMode){stepOrder=['vedette',4,5];computeProgressDots();return;}
+  // vedette mode removed — featured slots filtered inline in renderSlots()
   let showPrac=false;
   if(splitMode){
     // Split mode: skip practitioner step entirely (auto-assign)
@@ -1645,7 +1630,7 @@ function goToStep(n){
       else{recapEl.style.display='none';}
     }
   }
-  if(n===3&&!vedetteMode){
+  if(n===3){
     // When practitioner choice is disabled → "no preference" mode
     // so the slot engine returns ALL available practitioners
     if(!siteData.business.practitioner_choice_enabled){
@@ -1768,15 +1753,7 @@ async function loadSlots(){
   const today=new Date();today.setDate(today.getDate()+weekOffset*7);
   const endDate=new Date(today);endDate.setDate(today.getDate()+6);
   const dateFrom=localDateStr(today),dateTo=localDateStr(endDate);
-  // Check if week is locked — show message instead of recursive skip
-  if(selectedPractitioner&&Object.keys(lockedSet).length>0){
-    var weekMonday=getMonday(dateFrom);
-    if(lockedSet[selectedPractitioner.id+'_'+weekMonday]){
-      buildDateRow();
-      document.getElementById('slotsArea').innerHTML='<div class="no-slots">Cette semaine est verrouillée. Essayez une autre semaine.</div>';
-      return;
-    }
-  }
+  // Locked weeks are now handled by filtering slots in renderSlots()
   let slotsUrl;
   if(multiServiceMode&&selectedServices.length>1){
     // Sort: morning-restricted first, unrestricted middle, afternoon-restricted last
@@ -1829,6 +1806,18 @@ function selectDate(key){
 }
 function renderSlots(){
   let slots=slotsData[selectedDate]||[];
+  // Filter by featured slots: if a slot's practitioner has a locked week for this date,
+  // only keep the slot if its start_time matches a featured slot
+  if(Object.keys(featuredSet).length>0){
+    slots=slots.filter(function(s){
+      var pracId=s.practitioner_id;
+      if(!pracId)return true; // no practitioner info → keep
+      var monday=getMonday(selectedDate);
+      if(!lockedSet[pracId+'_'+monday])return true; // practitioner not locked this week → keep
+      // Practitioner has locked week → only keep if start_time matches a featured slot
+      return !!featuredSet[pracId+'_'+selectedDate+'_'+s.start_time];
+    });
+  }
   if(!slots.length){document.getElementById('slotsArea').innerHTML='<div class="no-slots">Aucun créneau ce jour.</div>';return;}
   // Deduplicate by start_time when no specific practitioner selected (any mode)
   if(!selectedPractitioner){
