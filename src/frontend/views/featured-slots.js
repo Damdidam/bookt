@@ -76,7 +76,7 @@ async function loadFeaturedSlots() {
     }
 
     await loadWeekData();
-    render();
+    renderGrid();
   } catch (e) {
     c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;
   }
@@ -125,97 +125,128 @@ async function loadWeekData() {
   });
 }
 
-function render() {
+function renderGrid() {
   const c = document.getElementById('contentArea');
   const pract = practitioners.find(p => p.id === selectedPractId);
   const practName = pract?.display_name || '';
-
-  // Week label
   const weekEndDate = addDays(weekStart, 6);
   const wsLabel = fmtDate(weekStart);
   const weLabel = fmtDate(weekEndDate);
   const isPast = weekStart < getMonday(new Date());
 
-  // Count selected
-  const selCount = Object.keys(selectedSlots).length;
-
   // Practitioner selector
   let practSelect = '';
   if (practitioners.length > 1) {
-    const opts = practitioners.map(p => `<option value="${p.id}"${p.id === selectedPractId ? ' selected' : ''}>${p.display_name}</option>`).join('');
+    const opts = practitioners.map(p =>
+      `<option value="${p.id}"${p.id === selectedPractId ? ' selected' : ''}>${esc(p.display_name)}</option>`
+    ).join('');
     practSelect = `<select id="fsPractSelect" onchange="fsSwitchPract(this.value)" style="font-size:.85rem;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg)">${opts}</select>`;
   } else {
-    practSelect = `<span style="font-weight:600;font-size:.9rem">${practName}</span>`;
+    practSelect = `<span style="font-weight:600;font-size:.9rem">${esc(practName)}</span>`;
   }
 
-  // Week navigation
+  // Week nav
   const weekNav = `<div style="display:flex;align-items:center;gap:10px">
     <button class="btn-outline btn-sm" onclick="fsWeekNav(-1)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="15 18 9 12 15 6"/></svg></button>
     <span style="font-size:.85rem;font-weight:600;min-width:200px;text-align:center">${wsLabel} — ${weLabel}</span>
     <button class="btn-outline btn-sm" onclick="fsWeekNav(1)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>`;
 
-  // Build grid
+  // Grid
   const startMin = timeToMin(slotMin);
   const endMin = timeToMin(slotMax);
   const days = [];
   for (let i = 0; i < 7; i++) days.push(addDays(weekStart, i));
 
-  let grid = '<div class="fs-grid">';
-  // Header row
+  let grid = '<div class="fs-grid" id="fsGrid">';
   grid += '<div class="fs-row fs-header"><div class="fs-time-col"></div>';
   days.forEach(d => {
-    grid += `<div class="fs-day-col">${fmtDate(d)}</div>`;
+    const clickable = isPast ? '' : `onclick="fsToggleColumn('${d}')" style="cursor:pointer"`;
+    grid += `<div class="fs-day-col" data-day="${d}" ${clickable}>${fmtDate(d)}</div>`;
   });
   grid += '</div>';
 
-  // Time rows
   for (let m = startMin; m < endMin; m += 30) {
     const timeStr = minToTime(m);
     grid += `<div class="fs-row"><div class="fs-time-col">${timeStr}</div>`;
     days.forEach(d => {
       const key = d + '_' + timeStr;
-      const isSelected = !!selectedSlots[key];
       const isBooked = !!bookedSlots[key];
-      let cls = 'fs-cell';
-      if (isSelected) cls += ' fs-selected';
-      else if (isBooked) cls += ' fs-booked';
-      const onclick = isPast ? '' : `onclick="fsToggle('${key}')"`;
-      const icon = isSelected ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' : isBooked ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;opacity:.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' : '';
-      grid += `<div class="${cls}" ${onclick}>${icon}</div>`;
+      const title = isBooked ? 'title="Créneau déjà réservé"' : '';
+      const onclick = (!isPast && !isBooked) ? `onclick="fsToggle('${key}')"` : '';
+      grid += `<div class="fs-cell" data-key="${key}" data-day="${d}" ${title} ${onclick}></div>`;
     });
     grid += '</div>';
   }
   grid += '</div>';
 
-  // Lock badge for header
-  const lockBadge = weekLocked ? ` <span style="color:var(--primary);font-size:.78rem">${IC.lock} Verrouillée</span>` : '';
-
-  let h = `<p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Sélectionnez les créneaux à mettre en avant sur votre page de réservation. Verrouillez la semaine pour n'exposer que ces créneaux aux clients.</p>`;
-  h += `<div class="card"><div class="card-h" style="flex-wrap:wrap;gap:10px"><div style="display:flex;align-items:center;gap:12px">${practSelect}${weekNav}${lockBadge}</div>`;
+  // State badge + buttons placeholder
+  let h = `<p style="font-size:.85rem;color:var(--text-3);margin-bottom:16px">Sélectionnez vos créneaux disponibles, puis publiez pour les rendre visibles aux clients.</p>`;
+  h += `<div class="card"><div class="card-h" style="flex-wrap:wrap;gap:10px">`;
+  h += `<div style="display:flex;align-items:center;gap:12px">${practSelect}${weekNav}<span id="fsBadge"></span></div>`;
   if (!isPast) {
-    h += `<div style="display:flex;gap:8px;align-items:center"><span style="font-size:.8rem;color:var(--text-4)">${selCount} créneau${selCount > 1 ? 'x' : ''} sélectionné${selCount > 1 ? 's' : ''}</span>`;
-    h += `<button class="btn-outline btn-sm btn-danger" onclick="fsClear()" ${selCount === 0 ? 'disabled' : ''}>Tout effacer</button>`;
-    h += `<button class="btn-primary btn-sm" onclick="fsSave()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer</button>`;
-    // Lock/unlock button
-    if (weekLocked) {
-      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()" style="border-color:var(--primary);color:var(--primary)">${IC.unlock} Déverrouiller</button>`;
-    } else {
-      h += `<button class="btn-outline btn-sm" onclick="fsToggleLock()">${IC.lock} Verrouiller</button>`;
-    }
-    h += `</div>`;
+    h += `<div style="display:flex;gap:8px;align-items:center" id="fsActions"></div>`;
   }
   h += `</div><div style="padding:14px 18px;overflow-x:auto">${grid}`;
-  h += `<div style="display:flex;gap:16px;margin-top:12px;font-size:.78rem;color:var(--text-4)"><span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:var(--primary-bg);border:1.5px solid var(--primary)"></span>Sélectionné</span><span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:var(--bg-3);border:1.5px solid var(--border)"></span>Déjà réservé</span></div>`;
-  h += `</div></div>`;
+  h += `<div style="display:flex;gap:16px;margin-top:12px;font-size:.78rem;color:var(--text-4)">`;
+  h += `<span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:var(--primary-bg);border:1.5px solid var(--primary)"></span>Sélectionné</span>`;
+  h += `<span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:var(--bg-3);border:1.5px solid var(--border)"></span>Déjà réservé</span>`;
+  h += `</div></div></div>`;
 
   c.innerHTML = h;
+  updateCells();
+}
+
+function updateCells() {
+  const isPast = weekStart < getMonday(new Date());
+  const selCount = Object.keys(selectedSlots).length;
+
+  // Update each cell
+  document.querySelectorAll('.fs-cell').forEach(cell => {
+    const key = cell.dataset.key;
+    const isSelected = !!selectedSlots[key];
+    const isBooked = !!bookedSlots[key];
+
+    cell.className = 'fs-cell';
+    if (isBooked) cell.classList.add('fs-booked');
+    else if (isSelected) cell.classList.add('fs-selected');
+
+    // Icon
+    if (isSelected) {
+      cell.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    } else if (isBooked) {
+      cell.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;opacity:.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    } else {
+      cell.innerHTML = '';
+    }
+  });
+
+  // Update badge
+  const badge = document.getElementById('fsBadge');
+  if (badge) {
+    badge.innerHTML = weekLocked
+      ? `<span style="color:var(--green);font-size:.78rem;font-weight:600">${IC.check || '✓'} Publié</span>`
+      : `<span style="color:var(--text-4);font-size:.78rem">● Brouillon</span>`;
+  }
+
+  // Update action buttons
+  const actions = document.getElementById('fsActions');
+  if (actions && !isPast) {
+    let btns = `<span style="font-size:.8rem;color:var(--text-4)">${selCount} créneau${selCount > 1 ? 'x' : ''}</span>`;
+    if (!weekLocked) {
+      btns += `<button class="btn-outline btn-sm btn-danger" onclick="fsClear()" ${selCount === 0 ? 'disabled' : ''}>Tout effacer</button>`;
+      btns += `<button class="btn-primary btn-sm" onclick="fsPublish()" ${selCount === 0 ? 'disabled title="Sélectionnez au moins un créneau"' : ''}>${IC.send || '▶'} Publier</button>`;
+    } else {
+      btns += `<button class="btn-outline btn-sm btn-danger" onclick="fsUnpublish()">Dépublier</button>`;
+    }
+    actions.innerHTML = btns;
+  }
 }
 
 function fsToggle(key) {
   if (selectedSlots[key]) delete selectedSlots[key];
   else selectedSlots[key] = true;
-  render();
+  updateCells();
 }
 
 async function fsSave() {
@@ -236,7 +267,7 @@ async function fsSave() {
     const count = slots.length;
     GendaUI.toast(`${count} créneau${count > 1 ? 'x' : ''} vedette${count > 1 ? 's' : ''} enregistré${count > 1 ? 's' : ''}`, 'success');
     await loadWeekData();
-    render();
+    renderGrid();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
   }
@@ -274,7 +305,7 @@ async function fsToggleLock() {
       weekLocked = true;
       GendaUI.toast(`Semaine verrouillée — ${selCount} créneau${selCount > 1 ? 'x' : ''} vedette${selCount > 1 ? 's' : ''} en ligne`, 'success');
     }
-    render();
+    renderGrid();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
   }
@@ -299,7 +330,7 @@ async function fsClear() {
     }
     GendaUI.toast('Créneaux vedettes effacés', 'success');
     await loadWeekData();
-    render();
+    renderGrid();
   } catch (e) {
     GendaUI.toast('Erreur: ' + e.message, 'error');
   }
@@ -310,7 +341,7 @@ async function fsWeekNav(dir) {
   const c = document.getElementById('contentArea');
   c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   await loadWeekData();
-  render();
+  renderGrid();
 }
 
 async function fsSwitchPract(pid) {
@@ -328,9 +359,9 @@ async function fsSwitchPract(pid) {
     }
   } catch (e) { /* use defaults */ }
   await loadWeekData();
-  render();
+  renderGrid();
 }
 
-bridge({ loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock });
+bridge({ loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock, fsToggleColumn: () => {}, fsPublish: () => {}, fsUnpublish: () => {} });
 
 export { loadFeaturedSlots, fsToggle, fsSave, fsClear, fsWeekNav, fsSwitchPract, fsToggleLock };
