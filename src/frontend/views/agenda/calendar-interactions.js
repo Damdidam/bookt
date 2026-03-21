@@ -209,19 +209,18 @@ function buildEventDrop() {
       });
       if (!r.ok) { if (r.status === 401) { api.clearToken(); window.location.href = '/login.html?expired=1'; return; } const d = await r.json(); throw new Error(d.error || 'Erreur'); }
       const result = await r.json();
-      // Store undo state (only for non-group moves — group undo is complex)
-      if (!result.group_moved) {
-        storeUndoAction(bookingId, 'move', {
-          start_at: dateToBrusselsISO(oldStart),
-          end_at: dateToBrusselsISO(oldEnd || oldStart),
-          practitioner_id: oldPracId
-        });
-      }
+      // Store undo state — works for both single and group moves
+      // (backend moves all siblings when we move the first member)
+      storeUndoAction(bookingId, 'move', {
+        start_at: dateToBrusselsISO(oldStart),
+        end_at: dateToBrusselsISO(oldEnd || oldStart),
+        practitioner_id: oldPracId
+      });
       const pracName = pracChanged ? (calState.fcPractitioners.find(pr => String(pr.id) === String(pracId))?.display_name || '') : '';
       const msg = result.group_moved
         ? `${p.client_name || 'Client'} — ${result.count} prestations déplacées`
         : (p.client_name || 'RDV') + ' déplacé' + (pracChanged ? ' → ' + pracName : '');
-      gToast(msg, 'success', !result.group_moved ? { label: 'Annuler ↶', fn: () => window.fcUndoLast() } : undefined, 8000);
+      gToast(msg, 'success', { label: 'Annuler ↶', fn: () => window.fcUndoLast() }, 8000);
       calState.fcCal.refetchEvents();
     } catch (e) {
       // Save target date BEFORE revert (revert resets event.start to original)
