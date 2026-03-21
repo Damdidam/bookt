@@ -16,6 +16,7 @@ let featuredSlots = []; // current saved featured slots
 let selectedSlots = {}; // { 'YYYY-MM-DD_HH:MM': true }
 let bookedSlots = {}; // { 'YYYY-MM-DD_HH:MM': true }
 let weekLocked = false; // is current week locked?
+let savedSlots = {}; // snapshot of selectedSlots after last load/save
 let slotMin = '08:00';
 let slotMax = '19:00';
 
@@ -77,6 +78,13 @@ async function loadFeaturedSlots() {
 
     await loadWeekData();
     renderGrid();
+
+    window.addEventListener('beforeunload', (e) => {
+      if (isDirty()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
   } catch (e) {
     c.innerHTML = `<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;
   }
@@ -107,6 +115,8 @@ async function loadWeekData() {
     const st = (s.start_time || '').slice(0, 5);
     selectedSlots[dateKey + '_' + st] = true;
   });
+
+  savedSlots = { ...selectedSlots };
 
   // Build booked map
   bookedSlots = {};
@@ -285,6 +295,7 @@ async function fsPublish() {
     }
 
     weekLocked = true;
+    savedSlots = { ...selectedSlots };
     GendaUI.toast(`${selCount} créneau${selCount > 1 ? 'x' : ''} publié${selCount > 1 ? 's' : ''}`, 'success');
     updateCells();
   } catch (e) {
@@ -316,6 +327,7 @@ async function fsClear() {
     });
     if (!r.ok) throw new Error((await r.json()).error);
     selectedSlots = {};
+    savedSlots = {};
     // Also unlock if locked
     if (weekLocked) {
       await fetch(`/api/featured-slots/lock?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
@@ -331,7 +343,14 @@ async function fsClear() {
   }
 }
 
+function isDirty() {
+  const selKeys = Object.keys(selectedSlots).sort().join(',');
+  const savedKeys = Object.keys(savedSlots).sort().join(',');
+  return selKeys !== savedKeys;
+}
+
 async function fsWeekNav(dir) {
+  if (isDirty() && !confirm('Vos modifications ne sont pas publiées. Quitter quand même ?')) return;
   weekStart = addDays(weekStart, dir * 7);
   const c = document.getElementById('contentArea');
   c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -340,6 +359,7 @@ async function fsWeekNav(dir) {
 }
 
 async function fsSwitchPract(pid) {
+  if (isDirty() && !confirm('Vos modifications ne sont pas publiées. Quitter quand même ?')) return;
   selectedPractId = pid;
   const c = document.getElementById('contentArea');
   c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
