@@ -3227,7 +3227,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rendez-vous introuvable' });
 
     const bk = result.rows[0];
-    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
+    if (!['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) {
       return res.status(400).json({ error: 'Ce rendez-vous ne peut plus être annulé' });
     }
 
