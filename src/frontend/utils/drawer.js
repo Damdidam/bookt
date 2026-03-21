@@ -57,11 +57,17 @@ export function initDrawer() {
   }
 }
 
+function _afterTransition() {
+  // Notify FullCalendar and other components to recalculate size
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 280);
+}
+
 export function openDrawer() {
   if (!_sidebar || !_overlay) return;
   if (_isDesktop()) {
     _sidebar.classList.remove('hidden');
     localStorage.setItem('sidebar_hidden', '0');
+    _afterTransition();
   } else {
     _sidebar.classList.add('open');
     _overlay.classList.add('open');
@@ -73,6 +79,7 @@ export function closeDrawer() {
   if (_isDesktop()) {
     _sidebar.classList.add('hidden');
     localStorage.setItem('sidebar_hidden', '1');
+    _afterTransition();
   } else {
     _sidebar.classList.remove('open');
     _overlay.classList.remove('open');
