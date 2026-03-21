@@ -19,6 +19,7 @@ let weekLocked = false; // is current week locked?
 let savedSlots = {}; // snapshot of selectedSlots after last load/save
 let slotMin = '08:00';
 let slotMax = '19:00';
+let dragState = null; // { day, startKey, startMin, selecting, lastMin, previewKeys }
 
 function localDate(d) {
   const dt = d instanceof Date ? d : new Date(d);
@@ -183,8 +184,7 @@ function renderGrid() {
       const key = d + '_' + timeStr;
       const isBooked = !!bookedSlots[key];
       const title = isBooked ? 'title="Créneau déjà réservé"' : '';
-      const onclick = (!isPast && !isBooked) ? `onclick="fsToggle('${key}')"` : '';
-      grid += `<div class="fs-cell" data-key="${key}" data-day="${d}" ${title} ${onclick}></div>`;
+      grid += `<div class="fs-cell" data-key="${key}" data-day="${d}" ${title}></div>`;
     });
     grid += '</div>';
   }
@@ -204,6 +204,27 @@ function renderGrid() {
   h += `</div></div></div>`;
 
   c.innerHTML = h;
+
+  const gridEl = document.getElementById('fsGrid');
+  const canDrag = window.matchMedia('(min-width: 768px) and (pointer: fine)').matches;
+  if (gridEl && !isPast) {
+    if (canDrag) {
+      gridEl.addEventListener('mousedown', fsDragStart);
+      gridEl.addEventListener('touchstart', fsDragStart, { passive: false });
+    } else {
+      // Tap-only mode for mobile
+      gridEl.addEventListener('click', (e) => {
+        const cell = e.target.closest('.fs-cell');
+        if (!cell || !cell.dataset.key || weekLocked) return;
+        const key = cell.dataset.key;
+        if (bookedSlots[key]) return;
+        if (selectedSlots[key]) delete selectedSlots[key];
+        else selectedSlots[key] = true;
+        updateCells();
+      });
+    }
+  }
+
   updateCells();
 }
 
@@ -253,10 +274,80 @@ function updateCells() {
   }
 }
 
-function fsToggle(key) {
-  if (selectedSlots[key]) delete selectedSlots[key];
-  else selectedSlots[key] = true;
+function fsDragStart(e) {
+  if (weekLocked) return;
+  const cell = e.target.closest('.fs-cell');
+  if (!cell || !cell.dataset.key) return;
+  const key = cell.dataset.key;
+  if (bookedSlots[key]) return;
+
+  e.preventDefault();
+  const [day, time] = key.split('_');
+  const m = timeToMin(time);
+  const selecting = !selectedSlots[key]; // true = adding, false = removing
+
+  dragState = { day, startKey: key, startMin: m, selecting, lastMin: m, previewKeys: [key] };
+  updateDragPreview();
+}
+
+function fsDragMove(e) {
+  if (!dragState) return;
+  e.preventDefault();
+
+  let target;
+  if (e.touches) {
+    const touch = e.touches[0];
+    target = document.elementFromPoint(touch.clientX, touch.clientY);
+  } else {
+    target = e.target;
+  }
+
+  const cell = target?.closest?.('.fs-cell');
+  if (!cell || cell.dataset.day !== dragState.day) return;
+
+  const key = cell.dataset.key;
+  const [, time] = key.split('_');
+  const m = timeToMin(time);
+  if (m === dragState.lastMin) return;
+
+  dragState.lastMin = m;
+
+  // Build preview keys for the range
+  const minM = Math.min(dragState.startMin, m);
+  const maxM = Math.max(dragState.startMin, m);
+  const previewKeys = [];
+  for (let t = minM; t <= maxM; t += 30) {
+    const k = dragState.day + '_' + minToTime(t);
+    if (!bookedSlots[k]) previewKeys.push(k);
+  }
+  dragState.previewKeys = previewKeys;
+  updateDragPreview();
+}
+
+function fsDragEnd(e) {
+  if (!dragState) return;
+  e.preventDefault();
+
+  // Apply selection/deselection
+  dragState.previewKeys.forEach(k => {
+    if (dragState.selecting) selectedSlots[k] = true;
+    else delete selectedSlots[k];
+  });
+
+  // Clear preview
+  document.querySelectorAll('.fs-cell.fs-drag-preview').forEach(c => c.classList.remove('fs-drag-preview'));
+  dragState = null;
   updateCells();
+}
+
+function updateDragPreview() {
+  // Clear old previews
+  document.querySelectorAll('.fs-cell.fs-drag-preview').forEach(c => c.classList.remove('fs-drag-preview'));
+  if (!dragState) return;
+  dragState.previewKeys.forEach(k => {
+    const cell = document.querySelector(`.fs-cell[data-key="${k}"]`);
+    if (cell) cell.classList.add('fs-drag-preview');
+  });
 }
 
 async function fsPublish() {
@@ -394,6 +485,12 @@ function fsToggleColumn(day) {
   updateCells();
 }
 
-bridge({ loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn });
+// Document-level drag listeners — registered once, gated on dragState
+document.addEventListener('mousemove', fsDragMove);
+document.addEventListener('mouseup', fsDragEnd);
+document.addEventListener('touchmove', fsDragMove, { passive: false });
+document.addEventListener('touchend', fsDragEnd);
 
-export { loadFeaturedSlots, fsToggle, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn };
+bridge({ loadFeaturedSlots, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn });
+
+export { loadFeaturedSlots, fsPublish, fsUnpublish, fsClear, fsWeekNav, fsSwitchPract, fsToggleColumn };
