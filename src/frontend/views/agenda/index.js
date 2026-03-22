@@ -15,8 +15,8 @@ import { atUpdateTitle } from './calendar-toolbar.js';
 import { fcLoadMobileList } from './calendar-mobile.js';
 import { setupSSE } from './calendar-sse.js';
 import { fcOpenQuickCreate, setupQuickCreateListeners } from './quick-create.js';
-import { fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
-import { gaOnDatesSet, gaOnFilterChanged, gaDeactivate } from './gap-analyzer.js';
+import { fsIsActive, fsOnDatesSet, fsDeactivate } from './calendar-featured.js';
+import { gaIsActive, gaOnDatesSet, gaOnFilterChanged, gaDeactivate } from './gap-analyzer.js';
 import { soIsActive, soDeactivate, soOnDatesSet, soRefreshSlots } from './smart-optimizer.js';
 import { buildEventsCallback } from './calendar-data.js';
 
@@ -473,6 +473,28 @@ document.addEventListener('click', (e) => {
 function toggleOverflowMenu() {
   const menu = document.getElementById('atOverflowMenu');
   if (!menu) return;
+
+  // Populate menu items before opening
+  const isAdmin = ['owner', 'manager'].includes(userRole);
+  let items = '';
+
+  if (isAdmin && calState.fcBusinessSettings?.featured_slots_enabled) {
+    items += `<button class="at-overflow-item${fsIsActive() ? ' active' : ''}" onclick="fsToggleMode(); toggleOverflowMenu();">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Créneaux vedettes</button>`;
+  }
+  if (isAdmin && calState.fcBusinessSettings?.featured_slots_enabled) {
+    items += `<button class="at-overflow-item${gaIsActive() ? ' active' : ''}" onclick="gaToggleMode(); toggleOverflowMenu();">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Analyseur de gaps</button>`;
+  }
+  if (isAdmin) {
+    items += `<button class="at-overflow-item${soIsActive() ? ' active' : ''}" onclick="soToggleMode(); toggleOverflowMenu();">
+      <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Quick booking</button>`;
+  }
+
+  menu.innerHTML = items;
   menu.classList.toggle('open');
   if (menu.classList.contains('open')) {
     setTimeout(() => {
