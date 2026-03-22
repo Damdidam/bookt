@@ -19,7 +19,9 @@ async function loadSettings(){
     ]);
     const bd=await br.json(),ud=await ur.json(),ld=await lr.json();
     const b=bd.business, u=ud.user, lk=ld;
+    window._initialSector=b.sector;
     let h='';
+    h+=`<div class="plan-top" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 0;margin-bottom:16px;border-bottom:1px solid var(--border-light)"><div style="display:flex;align-items:center;justify-content:flex-end"><button class="btn-primary" onclick="saveAllSettings()" id="settingsSaveBtn">Enregistrer</button></div></div>`;
 
     // 1. Infos salon
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> Informations du salon</h3></div><div class="sc-body">
@@ -35,20 +37,20 @@ async function loadSettings(){
       <div style="font-size:.75rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px">Facturation</div>
       <div class="field-row"><div class="field"><label>IBAN</label><input id="s_iban" value="${esc(b.settings?.iban||'')}" placeholder="BE00 0000 0000 0000"></div><div class="field"><label>BIC</label><input id="s_bic" value="${esc(b.settings?.bic||'')}" placeholder="GEBABEBB"></div></div>
       <div class="field"><label>Pied de page facture</label><input id="s_inv_footer" value="${esc(b.settings?.invoice_footer||'')}" placeholder="Ex: Petit entrepreneur - TVA non applicable art. 56bis CTVA"></div>
-    </div><div class="sc-foot"><button class="btn-primary" onclick="saveBusiness()">Enregistrer</button></div></div>`;
+    </div></div>`;
 
     // 1b. Secteur d'activité
     const sectorOptions=[['coiffeur','Coiffeur\u00b7se'],['esthetique','Esthétique'],['barbier','Barbier'],['bien_etre','Massage & Bien-être'],['kine','Kinésithérapie'],['medecin','Médecin'],['dentiste','Dentiste'],['osteopathe','Ostéopathe'],['veterinaire','Vétérinaire / Toilettage'],['photographe','Photographe'],['coaching','Coaching sportif'],['garage','Garage / Auto'],['autre','Autre']];
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Secteur d'activité</h3></div><div class="sc-body">
       <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le secteur détermine les catégories de prestations et la terminologie de votre interface.</p>
       <div class="field"><label>Secteur</label><select id="s_sector" style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;background:var(--surface);color:var(--text);font-family:var(--sans)">${sectorOptions.map(([v,l])=>`<option value="${v}"${b.sector===v?' selected':''}>${l}</option>`).join('')}</select></div>
-    </div><div class="sc-foot"><button class="btn-primary" onclick="saveSector()">Enregistrer</button></div></div>`;
+    </div></div>`;
 
     // 2. SEO
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> SEO & Référencement</h3></div><div class="sc-body">
       <div class="field"><label>Titre SEO</label><input id="s_seo_title" value="${esc(b.seo_title||'')}" placeholder="Titre affiché dans Google (max 60 car.)"><div class="hint">Par défaut : "[Nom] — [Tagline]"</div></div>
       <div class="field"><label>Meta description</label><textarea id="s_seo_desc" style="min-height:60px">${esc(b.seo_description||'')}</textarea><div class="hint">Description affichée dans Google (max 160 car.)</div></div>
-    </div><div class="sc-foot"><button class="btn-primary" onclick="saveSEO()">Enregistrer</button></div></div>`;
+    </div></div>`;
 
     // 3. Politique agenda
     const overlapOn=!!(b.settings?.allow_overlap);
@@ -186,7 +188,7 @@ async function loadSettings(){
           <div class="hint">En centimes. Services sous ce prix ne sont pas remisés (0 = pas de seuil)</div></div>
         </div>
       </div>
-    </div><div class="sc-foot"><button class="btn-primary" onclick="saveCalendarSettings()">Enregistrer</button></div></div>`;
+    </div></div>`;
 
     // 3a-bis. Paiements (Stripe Connect)
     // Fetch connect status async — render placeholder first
@@ -226,7 +228,7 @@ async function loadSettings(){
 
     h+=`<div style="margin-top:14px;padding:12px 16px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">\u2139 Les SMS sont envoyés uniquement aux clients ayant donné leur consentement SMS. Les rappels ne sont pas envoyés pour les RDV annulés.</div>`;
 
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveReminderSettings()">Enregistrer les rappels</button></div></div>`;
+    h+=`</div></div>`;
 
     // 3c. Politique d'acompte
     const depOn=b.settings?.deposit_enabled===true;
@@ -333,7 +335,7 @@ async function loadSettings(){
 
     h+=`</div>`; // close depositOptions
 
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveDepositSettings()">Enregistrer la politique d'acompte</button></div></div>`;
+    h+=`</div></div>`;
 
     // 3c-bis. Déplacement des rendez-vous
     const moveOn=!!(b.settings?.move_restriction_enabled);
@@ -354,7 +356,7 @@ async function loadSettings(){
     h+=`<div class="field"><label>Période de grâce après la prise de RDV</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Autoriser le déplacement dans les</span><input type="number" id="s_move_grace" value="${moveGrace}" min="0" max="168" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">heures suivant la prise de RDV</span></div><div class="hint">0 = pas de période de grâce</div></div>`;
     h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les RDV avec acompte sont toujours verrouillés, indépendamment de ces paramètres.</div>`;
     h+=`</div>`;
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveMoveSettings()">Enregistrer</button></div></div>`;
+    h+=`</div></div>`;
 
     // 3c-ter. Modification par le client (reschedule)
     const reschOn=!!(b.settings?.reschedule_enabled);
@@ -377,7 +379,7 @@ async function loadSettings(){
     h+=`<div class="field"><label>Fenêtre de choix</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Le client peut choisir un créneau dans les</span><input type="number" id="s_reschedule_window" value="${reschWindow}" min="7" max="90" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">jours à venir</span></div></div>`;
     h+=`<div style="margin-top:10px;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les RDV verrouillés ne peuvent pas être modifiés par le client. Les acomptes restent attachés au RDV déplacé.</div>`;
     h+=`</div>`;
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveRescheduleSettings()">Enregistrer</button></div></div>`;
+    h+=`</div></div>`;
 
     // 3a-bis. Gift cards
     const gcOn=!!b.settings?.giftcard_enabled;
@@ -402,7 +404,7 @@ async function loadSettings(){
     h+=`<div class="field"><label>Montant min/max (€)</label><div style="display:flex;gap:10px"><input type="number" id="s_gc_min" value="${gcMin}" min="5" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="align-self:center;color:var(--text-3)">à</span><input type="number" id="s_gc_max" value="${gcMax}" min="10" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"></div></div>`;
     h+=`<div class="field"><label>Validité</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_gc_expiry" value="${gcExpiry}" min="30" max="730" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="font-size:.82rem;color:var(--text-3)">jours</span></div></div>`;
     h+=`</div>`;
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveGiftCardSettings()">Enregistrer</button></div></div>`;
+    h+=`</div></div>`;
 
     // 3b. Confirmation de réservation en ligne
     const confOn=!!b.settings?.booking_confirmation_required;
@@ -431,7 +433,7 @@ async function loadSettings(){
     </select><div class="hint">Le client reçoit un lien de confirmation par le canal choisi</div></div>`;
     h+=`</div>`;
 
-    h+=`</div><div class="sc-foot"><button class="btn-primary" onclick="saveBookingConfirmSettings()">Enregistrer</button></div></div>`;
+    h+=`</div></div>`;
 
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
@@ -536,6 +538,176 @@ async function loadSettings(){
     // Draw QR code
     setTimeout(()=>drawQR(lk.qr_data||lk.booking_url||''),50);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
+}
+
+async function saveAllSettings(){
+  const btn=document.getElementById('settingsSaveBtn');
+  if(!btn)return;
+  btn.disabled=true;btn.textContent='Enregistrement...';
+
+  try{
+    // Collect ALL fields into one PATCH body
+    const body={};
+
+    // Business info
+    const el=id=>document.getElementById(id);
+    if(el('s_name'))Object.assign(body,{
+      name:el('s_name').value,slug:el('s_slug').value,email:el('s_email').value,
+      phone:el('s_phone').value,address:el('s_address').value,
+      bce_number:el('s_bce').value,accreditation:el('s_accred').value,
+      tagline:el('s_tagline').value,description:el('s_desc').value,
+      founded_year:el('s_year').value||null,languages_spoken:el('s_langs').value,
+      parking_info:el('s_parking').value,
+      settings_iban:el('s_iban').value,settings_bic:el('s_bic').value,
+      settings_invoice_footer:el('s_inv_footer').value
+    });
+
+    // Sector
+    if(el('s_sector'))body.sector=el('s_sector').value;
+
+    // SEO
+    if(el('s_seo_title'))Object.assign(body,{
+      seo_title:el('s_seo_title').value,seo_description:el('s_seo_desc').value
+    });
+
+    // Calendar settings
+    if(el('s_slot_inc')){
+      const cm=el('s_color_mode').value||'category';
+      Object.assign(body,{
+        settings_slot_increment_min:parseInt(el('s_slot_inc').value)||15,
+        settings_waitlist_mode:el('s_waitlist').value||'off',
+        settings_calendar_color_mode:cm,
+        settings_slot_auto_optimize:el('s_slot_auto_optimize')?.checked??true,
+        settings_gap_analyzer_enabled:el('s_gap_analyzer')?.checked||false,
+        settings_featured_slots_enabled:el('s_featured_slots')?.checked||false,
+        settings_last_minute_enabled:el('s_last_minute')?.checked||false,
+        settings_last_minute_deadline:el('s_lm_deadline')?.value||'j-1',
+        settings_last_minute_discount_pct:parseInt(el('s_lm_discount')?.value)||10,
+        settings_last_minute_min_price_cents:parseInt(el('s_lm_min_price')?.value)||0
+      });
+    }
+
+    // Reminder settings
+    if(el('s_rem_email_24h'))Object.assign(body,{
+      settings_reminder_email_24h:el('s_rem_email_24h').checked,
+      settings_reminder_sms_24h:el('s_rem_sms_24h')?.checked||false,
+      settings_reminder_sms_2h:el('s_rem_sms_2h')?.checked||false,
+      settings_reminder_email_2h:el('s_rem_email_2h').checked
+    });
+
+    // Deposit / cancel settings
+    if(el('s_dep_enabled'))Object.assign(body,{
+      settings_deposit_enabled:el('s_dep_enabled').checked,
+      settings_deposit_noshow_threshold:el('s_dep_threshold')?.value||2,
+      settings_deposit_type:el('s_dep_type')?.value||'percent',
+      settings_deposit_percent:parseInt(el('s_dep_percent')?.value)||50,
+      settings_deposit_fixed_cents:Math.round((parseFloat(el('s_dep_fixed')?.value)||25)*100),
+      settings_deposit_deadline_hours:parseInt(el('s_dep_deadline')?.value)||48,
+      settings_deposit_message:el('s_dep_message')?.value||'',
+      settings_deposit_deduct:el('s_dep_deduct')?.checked??true,
+      settings_deposit_price_threshold_cents:Math.round((parseFloat(el('s_dep_price_thresh')?.value)||0)*100),
+      settings_deposit_duration_threshold_min:parseInt(el('s_dep_dur_thresh')?.value)||0,
+      settings_deposit_threshold_mode:el('s_dep_thresh_mode')?.value||'any',
+      settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||48,
+      settings_cancel_grace_minutes:(parseInt(el('s_cancel_grace')?.value)||4)*60,
+      settings_cancel_policy_text:el('s_cancel_policy')?.value||''
+    });
+
+    // Move settings
+    if(el('s_move_enabled'))Object.assign(body,{
+      settings_move_restriction_enabled:el('s_move_enabled').checked,
+      settings_move_deadline_hours:parseInt(el('s_move_deadline')?.value)||48,
+      settings_move_grace_hours:parseInt(el('s_move_grace')?.value)||0
+    });
+
+    // Gift card settings
+    if(el('s_gc_enabled')){
+      const amountsStr=el('s_gc_amounts')?.value||'';
+      const amounts=amountsStr.split(',').map(s=>Math.round(parseFloat(s.trim())*100)).filter(n=>n>0&&!isNaN(n));
+      Object.assign(body,{
+        settings_giftcard_enabled:el('s_gc_enabled').checked,
+        settings_giftcard_amounts:amounts.length?amounts:[2500,5000,7500,10000],
+        settings_giftcard_custom_amount:el('s_gc_custom').checked,
+        settings_giftcard_min_amount_cents:Math.round((parseFloat(el('s_gc_min')?.value)||10)*100),
+        settings_giftcard_max_amount_cents:Math.round((parseFloat(el('s_gc_max')?.value)||500)*100),
+        settings_giftcard_expiry_days:parseInt(el('s_gc_expiry')?.value)||365
+      });
+    }
+
+    // Reschedule settings
+    if(el('s_reschedule_enabled'))Object.assign(body,{
+      settings_reschedule_enabled:el('s_reschedule_enabled').checked,
+      settings_reschedule_deadline_hours:parseInt(el('s_reschedule_deadline')?.value)||24,
+      settings_reschedule_max_count:parseInt(el('s_reschedule_max')?.value)||1,
+      settings_reschedule_window_days:parseInt(el('s_reschedule_window')?.value)||30
+    });
+
+    // Booking confirmation settings
+    if(el('s_booking_confirm_required'))Object.assign(body,{
+      settings_booking_confirmation_required:el('s_booking_confirm_required').checked,
+      settings_booking_confirmation_timeout:parseInt(el('s_booking_confirm_timeout')?.value)||30,
+      settings_booking_confirmation_channel:el('s_booking_confirm_channel')?.value||'email'
+    });
+
+    // Send ONE PATCH
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+
+    // Update local cache
+    const freshBiz=api.getBusiness()||{};
+    if(!freshBiz.settings)freshBiz.settings={};
+    if(body.settings_calendar_color_mode){
+      freshBiz.settings.calendar_color_mode=body.settings_calendar_color_mode;
+      freshBiz.settings.slot_increment_min=body.settings_slot_increment_min;
+      freshBiz.settings.slot_auto_optimize=body.settings_slot_auto_optimize;
+      freshBiz.settings.gap_analyzer_enabled=body.settings_gap_analyzer_enabled;
+      freshBiz.settings.featured_slots_enabled=body.settings_featured_slots_enabled;
+      freshBiz.settings.last_minute_enabled=body.settings_last_minute_enabled;
+      freshBiz.settings.last_minute_deadline=body.settings_last_minute_deadline;
+      freshBiz.settings.last_minute_discount_pct=body.settings_last_minute_discount_pct;
+      freshBiz.settings.last_minute_min_price_cents=body.settings_last_minute_min_price_cents;
+      calState.fcColorMode=body.settings_calendar_color_mode;
+      if(window.fcRefresh)window.fcRefresh();
+    }
+    if(body.settings_move_restriction_enabled!==undefined){
+      freshBiz.settings.move_restriction_enabled=body.settings_move_restriction_enabled;
+      freshBiz.settings.move_deadline_hours=body.settings_move_deadline_hours;
+      freshBiz.settings.move_grace_hours=body.settings_move_grace_hours;
+      if(calState.fcBusinessSettings){
+        calState.fcBusinessSettings.move_restriction_enabled=body.settings_move_restriction_enabled;
+        calState.fcBusinessSettings.move_deadline_hours=body.settings_move_deadline_hours;
+        calState.fcBusinessSettings.move_grace_hours=body.settings_move_grace_hours;
+      }
+    }
+    if(body.settings_giftcard_enabled!==undefined){
+      freshBiz.settings.giftcard_enabled=body.settings_giftcard_enabled;
+      freshBiz.settings.giftcard_amounts=body.settings_giftcard_amounts;
+      freshBiz.settings.giftcard_custom_amount=body.settings_giftcard_custom_amount;
+      freshBiz.settings.giftcard_min_amount_cents=body.settings_giftcard_min_amount_cents;
+      freshBiz.settings.giftcard_max_amount_cents=body.settings_giftcard_max_amount_cents;
+      freshBiz.settings.giftcard_expiry_days=body.settings_giftcard_expiry_days;
+    }
+    if(body.settings_reschedule_enabled!==undefined){
+      freshBiz.settings.reschedule_enabled=body.settings_reschedule_enabled;
+      freshBiz.settings.reschedule_deadline_hours=body.settings_reschedule_deadline_hours;
+      freshBiz.settings.reschedule_max_count=body.settings_reschedule_max_count;
+      freshBiz.settings.reschedule_window_days=body.settings_reschedule_window_days;
+    }
+    api.setBusiness(freshBiz);
+
+    window._settingsGuard?.markClean();
+    GendaUI.toast('Paramètres enregistrés','success');
+    btn.disabled=false;btn.textContent='Enregistrer';
+
+    // If sector changed, reload
+    if(body.sector && body.sector!==window._initialSector){
+      GendaUI.toast('Secteur modifié — rechargement...','success');
+      setTimeout(()=>location.reload(),1200);
+    }
+  }catch(e){
+    GendaUI.toast('Erreur: '+e.message,'error');
+    btn.disabled=false;btn.textContent='Enregistrer';
+  }
 }
 
 async function savePractitionerChoiceSetting(){
@@ -1009,6 +1181,6 @@ function downloadQR(){
 
 function doLogout(){api.logout();}
 
-bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
+bridge({ loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveDepositSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, saveBookingConfirmSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods });
 
-export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
+export { loadSettings, loadConnectStatus, connectStripe, openStripeDashboard, disconnectStripe, saveAllSettings, saveCalendarSettings, savePractitionerChoiceSetting, saveMultiServicePolicy, saveDefaultView, saveOverlapPolicy, saveReminderSettings, saveMoveSettings, saveRescheduleSettings, saveGiftCardSettings, startCheckout, openStripePortal, saveBusiness, saveSEO, saveSector, changePassword, copyField, confirmDeleteAccount, downloadQR, doLogout, savePaymentMethods };
