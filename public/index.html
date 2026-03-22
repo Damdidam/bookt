@@ -409,8 +409,6 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
   .feat-section, .steps-section, .stats-bar, .engine-section { padding-left: 20px; padding-right: 20px; }
   .dmm-kpis { grid-template-columns: 1fr 1fr; }
   .ht-header, .ht-row { grid-template-columns: 36px 1fr 1fr; gap: 4px; }
-  .pain-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .pain-card { padding: 18px 14px; }
   .anti-mp h2 { font-size: 1.5rem; }
   .anti-mp-grid { grid-template-columns: 1fr; gap: 16px; }
 }
@@ -430,6 +428,7 @@ section { max-width: var(--max-w); margin: 0 auto; padding: 100px 32px; }
 .pain-card h4{font-size:.88rem;font-weight:600;margin-bottom:6px;line-height:1.3;}
 .pain-card p{font-size:.78rem;color:var(--text-3);line-height:1.5;}
 @media(max-width:900px){.pain-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:640px){.pain-grid{grid-template-columns:1fr;max-width:360px;margin-left:auto;margin-right:auto;gap:12px;}.pain-card{text-align:left;display:flex;align-items:center;gap:14px;padding:16px 18px;}.pain-card .pain-ico{margin:0;flex-shrink:0;}.pain-card h4{margin-bottom:2px;}.pain-card p{font-size:.75rem;}}
 
 /* Anti-marketplace positioning */
 .anti-mp{padding:80px 24px;background:var(--text);color:var(--white);text-align:center;}
