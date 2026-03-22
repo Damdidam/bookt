@@ -46,6 +46,12 @@ router.get('/', async (req, res, next) => {
       sql += ` AND c.expired_pending_count > 0`;
     } else if (filter === 'vip') {
       sql += ` AND c.is_vip = true`;
+    } else if (filter === 'birthday_week') {
+      sql += ` AND c.birthday IS NOT NULL AND (
+        TO_CHAR(c.birthday, 'MM-DD') BETWEEN TO_CHAR(CURRENT_DATE, 'MM-DD') AND TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
+        OR (TO_CHAR(CURRENT_DATE, 'MM-DD') > TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
+            AND (TO_CHAR(c.birthday, 'MM-DD') >= TO_CHAR(CURRENT_DATE, 'MM-DD') OR TO_CHAR(c.birthday, 'MM-DD') <= TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')))
+      )`;
     }
 
     sql += ` GROUP BY c.id ORDER BY last_visit DESC NULLS LAST`;
@@ -72,6 +78,13 @@ router.get('/', async (req, res, next) => {
     else if (filter === 'flagged') { countSql += ` AND no_show_count > 0`; }
     else if (filter === 'fantome') { countSql += ` AND expired_pending_count > 0`; }
     else if (filter === 'vip') { countSql += ` AND is_vip = true`; }
+    else if (filter === 'birthday_week') {
+      countSql += ` AND birthday IS NOT NULL AND (
+        TO_CHAR(birthday, 'MM-DD') BETWEEN TO_CHAR(CURRENT_DATE, 'MM-DD') AND TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
+        OR (TO_CHAR(CURRENT_DATE, 'MM-DD') > TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
+            AND (TO_CHAR(birthday, 'MM-DD') >= TO_CHAR(CURRENT_DATE, 'MM-DD') OR TO_CHAR(birthday, 'MM-DD') <= TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')))
+      )`;
+    }
     const countResult = await queryWithRLS(bid, countSql, countParams);
 
     // Stats
@@ -82,7 +95,12 @@ router.get('/', async (req, res, next) => {
         COUNT(*) FILTER (WHERE no_show_count > 0 AND is_blocked = false) AS flagged,
         COUNT(*) FILTER (WHERE expired_pending_count > 0 AND is_blocked = false) AS fantome,
         COUNT(*) FILTER (WHERE no_show_count = 0 AND expired_pending_count = 0 AND is_blocked = false) AS clean,
-        COUNT(*) FILTER (WHERE is_vip = true) AS vip
+        COUNT(*) FILTER (WHERE is_vip = true) AS vip,
+        COUNT(*) FILTER (WHERE birthday IS NOT NULL AND (
+          TO_CHAR(birthday, 'MM-DD') BETWEEN TO_CHAR(CURRENT_DATE, 'MM-DD') AND TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
+          OR (TO_CHAR(CURRENT_DATE, 'MM-DD') > TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')
+              AND (TO_CHAR(birthday, 'MM-DD') >= TO_CHAR(CURRENT_DATE, 'MM-DD') OR TO_CHAR(birthday, 'MM-DD') <= TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'MM-DD')))
+        )) AS birthday_week
        FROM clients WHERE business_id = $1`,
       [bid]
     );
