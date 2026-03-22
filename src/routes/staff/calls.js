@@ -85,7 +85,7 @@ router.post('/activate', requireOwner, async (req, res, next) => {
         voiceMethod: 'POST',
         statusCallback: `${baseUrl}/webhooks/twilio/voice/status`,
         statusCallbackMethod: 'POST',
-        smsUrl: `${baseUrl}/webhooks/twilio/sms/status`,
+        smsUrl: `${baseUrl}/webhooks/twilio/sms/inbound`,
         friendlyName: `Genda - ${bid.slice(0, 8)}`
       });
     } else {
@@ -103,7 +103,7 @@ router.post('/activate', requireOwner, async (req, res, next) => {
         voiceMethod: 'POST',
         statusCallback: `${baseUrl}/webhooks/twilio/voice/status`,
         statusCallbackMethod: 'POST',
-        smsUrl: `${baseUrl}/webhooks/twilio/sms/status`,
+        smsUrl: `${baseUrl}/webhooks/twilio/sms/inbound`,
         friendlyName: `Genda - ${bid.slice(0, 8)}`
       });
     }
