@@ -4,11 +4,11 @@
  * holiday support, CSV export, email planning, minimalist labels C/M/F/A,
  * premium modal, activity logs, email notification, per-practitioner counters.
  */
-import { api, sectorLabels } from '../state.js';
+import { api, GendaUI, sectorLabels } from '../state.js';
+import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
-
-function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+import { closeModal } from '../utils/dirty-guard.js';
 
 const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -41,10 +41,10 @@ const ICONS = {
 
 const TYPE_ICONS = { conge: ICONS.sun, maladie: ICONS.thermometer, formation: ICONS.graduationCap, autre: ICONS.pauseCircle };
 const TYPE_COLORS = {
-  conge: { bg: '#DBEAFE', border: '#93C5FD', text: '#1E3A8A', grad: 'linear-gradient(135deg,#3B82F6,#1D4ED8)' },
-  maladie: { bg: 'var(--red-bg)', border: '#FECACA', text: '#991B1B', grad: 'linear-gradient(135deg,#EF4444,#B91C1C)' },
-  formation: { bg: 'var(--purple-bg)', border: '#C4B5FD', text: '#5B21B6', grad: 'linear-gradient(135deg,#8B5CF6,#6D28D9)' },
-  autre: { bg: '#F3F4F6', border: '#D1D5DB', text: '#374151', grad: 'linear-gradient(135deg,var(--text-3),#374151)' }
+  conge: { bg: 'var(--blue-bg)', border: 'var(--blue-light)', text: 'var(--blue)', grad: 'linear-gradient(135deg,var(--blue),#1D4ED8)' },
+  maladie: { bg: 'var(--red-bg)', border: 'var(--red-bg)', text: 'var(--red)', grad: 'linear-gradient(135deg,var(--red),#B91C1C)' },
+  formation: { bg: 'var(--purple-bg)', border: 'var(--purple-light)', text: 'var(--purple)', grad: 'linear-gradient(135deg,var(--purple),#6D28D9)' },
+  autre: { bg: 'var(--surface)', border: 'var(--border)', text: 'var(--text-2)', grad: 'linear-gradient(135deg,var(--text-3),var(--text-2))' }
 };
 
 let currentYear, currentMonth;
@@ -252,7 +252,7 @@ function buildHTML() {
   const pracStats = statsData.stats || {};
   practitioners.forEach(p => {
     const initials = (p.display_name || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-    const color = p.color || '#1E3A8A';
+    const color = p.color || 'var(--blue)';
     const pAbsMap = absenceMap[p.id] || {};
     const ps = pracStats[p.id];
 
@@ -380,13 +380,12 @@ async function planExportCSV() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  } catch (e) { _showToast('Erreur lors de l\'export', 'error'); }
+  } catch (e) { GendaUI.toast('Erreur lors de l\'export', 'error'); }
 }
 
 // ── Send planning modal ──
 function planOpenSendModal() {
-  const old = document.getElementById('planSendOverlay');
-  if (old) old.remove();
+  closeModal('planSendOverlay');
 
   const pracOptions = practitioners.map(p =>
     `<option value="${p.id}">${esc(p.display_name)}${p.email ? '' : ' (pas d\'email)'}</option>`
@@ -400,7 +399,7 @@ function planOpenSendModal() {
     <div class="m-dialog m-sm">
       <div class="m-header-simple">
         <h3>Envoyer le planning</h3>
-        <button class="m-close" onclick="document.getElementById('planSendOverlay').remove()">${ICONS.close}</button>
+        <button class="m-close" onclick="closeModal('planSendOverlay')">${ICONS.close}</button>
       </div>
       <div class="m-body">
         <div class="m-sec">
@@ -414,7 +413,7 @@ function planOpenSendModal() {
       </div>
       <div class="m-bottom">
         <div style="flex:1"></div>
-        <button class="m-btn m-btn-ghost" onclick="document.getElementById('planSendOverlay').remove()">Annuler</button>
+        <button class="m-btn m-btn-ghost" onclick="closeModal('planSendOverlay')">Annuler</button>
         <button class="m-btn m-btn-primary" id="planSendBtn" onclick="planDoSendPlanning()" style="display:flex;align-items:center;gap:4px">${ICONS.send} Envoyer</button>
       </div>
     </div>`;
@@ -440,7 +439,7 @@ async function planDoSendPlanning() {
     const data = await r.json();
     if (r.ok) {
       btn.innerHTML = `${ICONS.checkCircle} Envoyé`;
-      setTimeout(() => { document.getElementById('planSendOverlay')?.remove(); }, 1500);
+      setTimeout(() => { closeModal('planSendOverlay'); }, 1500);
     } else {
       alert(data.error || 'Erreur d\'envoi');
       btn.disabled = false;
@@ -458,8 +457,7 @@ let _editingAbsenceId = null;
 let _currentTab = 'details';
 
 function planOpenModal(pracId, dateStr, absId) {
-  const old = document.getElementById('planAbsOverlay');
-  if (old) old.remove();
+  closeModal('planAbsOverlay');
 
   _editingAbsenceId = absId || null;
   _currentTab = 'details';
@@ -488,7 +486,7 @@ function planOpenModal(pracId, dateStr, absId) {
   const selectedPracId = absData?.practitioner_id || pracId || practitioners[0]?.id;
   const selectedPrac = practitioners.find(p => p.id === selectedPracId);
   const pracInitials = selectedPrac ? (selectedPrac.display_name || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
-  const pracColor = selectedPrac?.color || '#1E3A8A';
+  const pracColor = selectedPrac?.color || 'var(--blue)';
 
   // For single day, Fin segments mirror Début
   const startSeg = isMultiDay ? currentPeriod : currentPeriod;
@@ -627,8 +625,7 @@ function planOpenModal(pracId, dateStr, absId) {
 }
 
 function planCloseModal() {
-  const m = document.getElementById('planAbsOverlay');
-  if (m) m.remove();
+  closeModal('planAbsOverlay');
   _editingAbsenceId = null;
 }
 
@@ -745,7 +742,7 @@ function planUpdateHeader() {
   if (title) title.textContent = prac.display_name;
   const avatar = document.querySelector('#planAbsOverlay .m-avatar');
   if (avatar) {
-    avatar.style.background = prac.color || '#1E3A8A';
+    avatar.style.background = prac.color || 'var(--blue)';
     avatar.textContent = (prac.display_name || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   }
 }
@@ -994,17 +991,17 @@ async function planReassign(bookingId, newPracId) {
     });
     const data = await r.json();
     if (r.ok && data.reassigned) {
-      _showToast(`RDV réassigné à ${data.new_practitioner}`, 'success');
+      GendaUI.toast(`RDV réassigné à ${data.new_practitioner}`, 'success');
       // Refresh impact
       planCheckImpact();
     } else {
-      _showToast(data.error || 'Erreur de réassignation', 'error');
+      GendaUI.toast(data.error || 'Erreur de réassignation', 'error');
       if (altZone) altZone.querySelectorAll('button').forEach(b => b.disabled = false);
       const sp = altZone?.querySelector('.spinner');
       if (sp) sp.remove();
     }
   } catch (e) {
-    _showToast('Erreur: ' + e.message, 'error');
+    GendaUI.toast('Erreur: ' + e.message, 'error');
     if (altZone) altZone.querySelectorAll('button').forEach(b => b.disabled = false);
     const sp = altZone?.querySelector('.spinner');
     if (sp) sp.remove();
@@ -1043,17 +1040,17 @@ async function planNotifyClients() {
       if (data.sent_sms > 0) parts.push(`${data.sent_sms} SMS`);
       const msg = parts.length > 0 ? parts.join(' + ') + ' envoyé' + (data.sent_email + data.sent_sms > 1 ? 's' : '') : 'Aucun contact trouvé';
       btn.innerHTML = `${ICONS.checkCircle} ${msg}`;
-      _showToast(msg, 'success');
+      GendaUI.toast(msg, 'success');
       setTimeout(() => { btn.innerHTML = `${ICONS.send} Prévenir les clients`; btn.disabled = false; }, 5000);
     } else {
       btn.innerHTML = `${ICONS.send} Prévenir les clients`;
       btn.disabled = false;
-      _showToast(data.error || 'Erreur d\'envoi', 'error');
+      GendaUI.toast(data.error || 'Erreur d\'envoi', 'error');
     }
   } catch (e) {
     btn.innerHTML = `${ICONS.send} Prévenir les clients`;
     btn.disabled = false;
-    _showToast('Erreur: ' + e.message, 'error');
+    GendaUI.toast('Erreur: ' + e.message, 'error');
   }
 }
 
@@ -1099,7 +1096,7 @@ async function planSaveAbsence() {
     const data = await r.json();
 
     if (!r.ok) {
-      _showToast(data.error || 'Erreur', 'error');
+      GendaUI.toast(data.error || 'Erreur', 'error');
       btn.disabled = false;
       btn.textContent = "Enregistrer l'absence";
       return;
@@ -1109,22 +1106,10 @@ async function planSaveAbsence() {
     planCloseModal();
     await renderPlanning();
   } catch (e) {
-    _showToast('Erreur: ' + e.message, 'error');
+    GendaUI.toast('Erreur: ' + e.message, 'error');
     btn.disabled = false;
     btn.textContent = "Enregistrer l'absence";
   }
-}
-
-/** Simple toast notification */
-function _showToast(msg, type) {
-  const existing = document.getElementById('planToast');
-  if (existing) existing.remove();
-  const toast = document.createElement('div');
-  toast.id = 'planToast';
-  toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:.82rem;font-weight:600;z-index:99999;color:#fff;background:${type === 'error' ? 'var(--red)' : '#059669'};box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fadeIn .2s`;
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
 }
 
 // ── Delete absence ──
