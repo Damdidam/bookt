@@ -26,7 +26,7 @@
 /* Lock button */
 .at-lock-btn{padding:6px 10px!important}
 .at-lock-btn.active{background:var(--amber-bg)!important;color:var(--amber)!important;border-color:#FCD34D!important}
-@media(max-width:767px){.at-lock-btn{display:none}}
+/* lock-btn visibility controlled by row hiding in responsive.css */
 /* Prac pills inline in row 1 */
 .at-prac-pills{display:flex;flex:1;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-shrink:1;min-width:0}
 .at-prac-pills::-webkit-scrollbar{display:none}
@@ -426,6 +426,7 @@
 .at-overflow-menu.open{display:block}
 .at-overflow-item{display:flex;align-items:center;gap:10px;padding:12px 16px;min-height:48px;width:100%;border:none;background:none;font-family:var(--sans);font-size:var(--text-base);color:var(--text);cursor:pointer;text-align:left}
 .at-overflow-item:hover{background:var(--surface)}
+.at-overflow-item.active{color:var(--primary);font-weight:600}
 @media(max-width:1280px){.at-overflow-btn{display:flex}}
 /* Responsive */
-@media(max-width:768px){.so-overlay{display:none}.so-toggle-btn{opacity:.35;pointer-events:none}}
+@media(max-width:768px){.so-overlay{display:none}}
