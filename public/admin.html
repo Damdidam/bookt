@@ -95,6 +95,24 @@ tr:hover td{background:rgba(224,122,95,.02)}
 .top-item .bname{flex:1;font-weight:500}
 .top-item .bcount{font-weight:700;color:var(--primary)}
 
+/* ─── Announcements ─── */
+.ann-section{margin-bottom:24px}
+.ann-section h3{font-family:var(--serif);font-size:1.1rem;font-weight:400;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.ann-form{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end}
+.ann-form .fg{margin-bottom:0;flex:1;min-width:180px}
+.ann-list{display:flex;flex-direction:column;gap:8px}
+.ann-item{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-xs);padding:12px 14px;display:flex;align-items:center;gap:12px}
+.ann-item .ann-badge{padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0}
+.ann-item .ann-badge.maintenance{background:#FEF3C7;color:#92400E}
+.ann-item .ann-badge.warning{background:var(--red-bg);color:var(--red)}
+.ann-item .ann-badge.update{background:#EFF6FF;color:#2563EB}
+.ann-item .ann-badge.info{background:var(--primary-light);color:var(--primary)}
+.ann-item .ann-content{flex:1;min-width:0}
+.ann-item .ann-title{font-weight:600;font-size:.85rem}
+.ann-item .ann-body{font-size:.78rem;color:var(--text-3);margin-top:1px}
+.ann-item .ann-meta{font-size:.68rem;color:var(--text-4);margin-top:3px}
+.ann-item .ann-actions{display:flex;gap:4px;flex-shrink:0}
+
 /* ─── Loading ─── */
 .spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -140,6 +158,26 @@ tr:hover td{background:rgba(224,122,95,.02)}
       <div class="kpi"><div class="label">Actifs</div><div class="value" id="kActive">-</div></div>
       <div class="kpi"><div class="label">Inscrits ce mois</div><div class="value" id="kNew">-</div></div>
       <div class="kpi"><div class="label">Bookings ce mois</div><div class="value" id="kBookings">-</div></div>
+    </div>
+
+    <!-- Announcements -->
+    <div class="ann-section">
+      <h3>📢 Annonces système</h3>
+      <div class="ann-form">
+        <div class="fg"><label class="fl">Titre *</label><input class="fi" id="annTitle" placeholder="Ex: Maintenance prévue"></div>
+        <div class="fg"><label class="fl">Message</label><input class="fi" id="annBody" placeholder="Détails..."></div>
+        <div class="fg" style="min-width:120px;flex:0"><label class="fl">Type</label>
+          <select class="fi" id="annType">
+            <option value="info">Info</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="warning">Alerte</option>
+            <option value="update">Mise à jour</option>
+          </select>
+        </div>
+        <div class="fg" style="min-width:160px;flex:0"><label class="fl">Expire le</label><input class="fi" id="annEnds" type="datetime-local"></div>
+        <button class="btn" style="width:auto;padding:9px 18px;flex-shrink:0" onclick="createAnnouncement()">Publier</button>
+      </div>
+      <div class="ann-list" id="annList"></div>
     </div>
 
     <!-- Toolbar -->
@@ -224,6 +262,7 @@ function doLogin() {
     document.getElementById('app').style.display = 'block';
     renderStats(stats);
     loadBusinesses();
+    loadAnnouncements();
   })
   .catch(err => {
     errEl.textContent = err.message;
@@ -398,6 +437,68 @@ function copyUrl(slug) {
   navigator.clipboard.writeText('https://genda.be/' + slug).then(() => {
     toast('URL copiée !', 'success');
   });
+}
+
+// ─── Announcements ───
+function loadAnnouncements() {
+  apiFetch('/announcements')
+    .then(data => renderAnnouncements(data.announcements || []))
+    .catch(() => {});
+}
+
+function renderAnnouncements(list) {
+  const el = document.getElementById('annList');
+  if (!list.length) { el.innerHTML = '<div style="font-size:.82rem;color:var(--text-4);padding:8px 0">Aucune annonce publiée</div>'; return; }
+  el.innerHTML = list.map(a => {
+    const active = a.is_active && (!a.ends_at || new Date(a.ends_at) > new Date());
+    const endsStr = a.ends_at ? new Date(a.ends_at).toLocaleString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Pas d\'expiration';
+    const statusDot = active ? '<span style="color:var(--green)">●</span>' : '<span style="color:var(--text-4)">●</span>';
+    return '<div class="ann-item">' +
+      '<span class="ann-badge ' + esc(a.type) + '">' + esc(a.type) + '</span>' +
+      '<div class="ann-content">' +
+        '<div class="ann-title">' + statusDot + ' ' + esc(a.title) + '</div>' +
+        (a.body ? '<div class="ann-body">' + esc(a.body) + '</div>' : '') +
+        '<div class="ann-meta">' + endsStr + ' · Créée le ' + new Date(a.created_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }) + '</div>' +
+      '</div>' +
+      '<div class="ann-actions">' +
+        (a.is_active
+          ? '<button class="act-btn" onclick="toggleAnnouncement(\'' + a.id + '\',false)" title="Désactiver">⏸</button>'
+          : '<button class="act-btn" onclick="toggleAnnouncement(\'' + a.id + '\',true)" title="Réactiver">▶</button>'
+        ) +
+        '<button class="act-btn danger" onclick="deleteAnnouncement(\'' + a.id + '\')" title="Supprimer">🗑</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function createAnnouncement() {
+  const title = document.getElementById('annTitle').value.trim();
+  if (!title) { toast('Titre requis'); return; }
+  const body = { title, body: document.getElementById('annBody').value.trim() || null, type: document.getElementById('annType').value };
+  const ends = document.getElementById('annEnds').value;
+  if (ends) body.ends_at = new Date(ends).toISOString();
+  apiFetch('/announcements', { method: 'POST', body: JSON.stringify(body) })
+    .then(() => {
+      toast('Annonce publiée', 'success');
+      document.getElementById('annTitle').value = '';
+      document.getElementById('annBody').value = '';
+      document.getElementById('annEnds').value = '';
+      loadAnnouncements();
+    })
+    .catch(err => toast(err.message));
+}
+
+function toggleAnnouncement(id, active) {
+  apiFetch('/announcements/' + id, { method: 'PATCH', body: JSON.stringify({ is_active: active }) })
+    .then(() => { toast(active ? 'Annonce réactivée' : 'Annonce désactivée', 'success'); loadAnnouncements(); })
+    .catch(err => toast(err.message));
+}
+
+function deleteAnnouncement(id) {
+  if (!confirm('Supprimer cette annonce ?')) return;
+  apiFetch('/announcements/' + id, { method: 'DELETE' })
+    .then(() => { toast('Annonce supprimée', 'success'); loadAnnouncements(); })
+    .catch(err => toast(err.message));
 }
 
 // ─── Helpers ───
