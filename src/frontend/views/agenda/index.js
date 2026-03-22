@@ -280,35 +280,39 @@ async function loadAgenda() {
   const todayLabel = `${_da} ${_n.getDate()} ${_ma}`;
 
   let toolbar = `<div class="agenda-toolbar">`;
-  // Desktop: Row 1 -- nav + title + prac pills + views + tools + search icon + filter toggle
+  // Desktop: Row 1 -- nav + title + actions (search, SO, lock, overflow)
   const searchHtml = `<input type="search" id="calSearch" class="at-search at-search-hidden" placeholder="Rechercher un client..." oninput="fcSearchBookings(this.value)">`;
   const searchIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
-  const filterIconSvg = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
   toolbar += `<div class="at-row-nav">`;
   toolbar += `<button class="at-hamburger hamburger" onclick="toggleDrawer()" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>`;
   toolbar += `<div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDate" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div>`;
   toolbar += `<span class="at-title" id="atTitle"></span>`;
-  if (pillsHtml) toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
-  else toolbar += `<span style="flex:1"></span>`;
+  toolbar += `<div class="at-actions">`;
   toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
-  toolbar += `<button class="at-filter-toggle" id="atFilterToggle" onclick="fcToggleFilterPanel()" title="Filtres">${filterIconSvg}</button>`;
+  toolbar += soBtnHtml;
+  toolbar += lockBtnHtml;
+  toolbar += `<button class="at-overflow-btn hamburger" onclick="toggleOverflowMenu()" aria-label="Plus d'options"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>`;
+  toolbar += `<div class="at-overflow-menu" id="atOverflowMenu"></div>`;
   toolbar += `</div>`;
-  toolbar += `<div class="at-row-views">`;
+  toolbar += `</div>`;
+  // Desktop: Row 2 -- view switcher + practitioner pills + status pills
+  toolbar += `<div class="at-row-filters">`;
   toolbar += `<div class="at-view-pill">`;
   toolbar += `<button class="at-vp-btn${initView === 'resourceTimeGridDay' || initView === 'timeGridDay' ? ' active' : ''}" data-view="resourceTimeGridDay" onclick="atView('resourceTimeGridDay')"><span class="vl">Jour</span><span class="vs">J</span></button>`;
   toolbar += `<button class="at-vp-btn${initView === 'rollingWeek' ? ' active' : ''}" data-view="rollingWeek" onclick="atView('rollingWeek')"><span class="vl">Semaine</span><span class="vs">S</span></button>`;
   toolbar += `<button class="at-vp-btn${initView === 'dayGridMonth' ? ' active' : ''}" data-view="dayGridMonth" onclick="atView('dayGridMonth')"><span class="vl">Mois</span><span class="vs">M</span></button>`;
   toolbar += `</div>`;
-  toolbar += `<div class="at-views">${lockBtnHtml}${fsBtnHtml}${gaBtnHtml}${soBtnHtml}</div>`;
-  toolbar += `<button class="at-overflow-btn hamburger" onclick="toggleOverflowMenu()" aria-label="Plus d'options"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>`;
-  toolbar += `<div class="at-overflow-menu" id="atOverflowMenu"></div>`;
+  if (pillsHtml) {
+    toolbar += `<div class="at-filter-sep"></div>`;
+    toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
+  }
+  toolbar += `<div class="at-filter-sep"></div>`;
+  toolbar += `<div class="at-status-pills">${statusPillsHtml}</div>`;
   toolbar += `</div>`;
   // Desktop: Fill bar
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
-  // Desktop: Collapsible filter panel (status toggles + category chips)
-  toolbar += `<div class="at-filter-panel" id="atFilterPanel"><div class="at-filter-panel-inner">${statusPillsHtml}${catChipsInnerHtml}</div></div>`;
-  // Mobile: Row 1 -- nav + title + list/grid icons (hidden on desktop via CSS)
-  toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDateMob" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views"><button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
+  // Mobile: Row 1 -- nav + title + SO + list/grid icons (hidden on desktop via CSS)
+  toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDateMob" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views">${soBtnHtml}<button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
   // Mobile: Row 2 -- prac pills + status pills + search (scrollable)
   const mobSearchHtml = `<input type="search" id="calSearchMob" class="at-search" placeholder="Rechercher..." oninput="fcSearchBookings(this.value)">`;
   toolbar += `<div class="at-row2">${pillsHtml}${statusPillsHtml}${mobSearchHtml}</div>`;
