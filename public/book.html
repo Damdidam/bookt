@@ -480,6 +480,8 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
       <div class="oauth-manual" id="oauthManual"><a onclick="showManualForm()">Remplir manuellement →</a></div>
     </div>
 
+    <div id="backToOauth" style="display:none;text-align:center;margin-bottom:12px"><a onclick="backToOauth()" style="font-size:.82rem;color:var(--primary);cursor:pointer">← S'identifier avec Google, Apple ou Facebook</a></div>
+
     <!-- Form fields (hidden in soft-mandatory mode until manual click or OAuth done) -->
     <div id="clientFormFields" style="display:none">
     <div class="fg">
@@ -1434,6 +1436,13 @@ function oauthConnect(provider){
 function showManualForm(){
   document.getElementById('oauthArea').style.display='none';
   document.getElementById('clientFormFields').style.display='block';
+  document.getElementById('backToOauth').style.display='';
+}
+function backToOauth(){
+  document.getElementById('oauthArea').style.display='';
+  document.getElementById('clientFormFields').style.display='none';
+  document.getElementById('backToOauth').style.display='none';
+  hideError();
 }
 
 async function handleOauthPickup(pickupKey){
