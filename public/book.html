@@ -2049,6 +2049,12 @@ var _submitting=false;
 async function submitBooking(){
   if(_submitting)return;
   hideError();
+  // Check if form is visible (user authenticated or clicked manual)
+  const formVisible=document.getElementById('clientFormFields').style.display!=='none';
+  if(!formVisible){
+    showError('Veuillez vous identifier avec Google, Apple ou Facebook, ou cliquez sur « Remplir manuellement ».');
+    return;
+  }
   const okName=validateNameField();
   const okPhone=validatePhoneField();
   const okEmail=validateEmailField();
