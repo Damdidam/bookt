@@ -2097,8 +2097,16 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 const _sd2 = new Date(emailBooking.start_at);
                 const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
-              } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
+                console.log(`[SMS] Attempting confirmation SMS to ${client_phone} for booking ${createdBooking.id}, channel=${singleConfChannel}`);
+                const smsResult = await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
+                console.log(`[SMS] Confirmation SMS result:`, JSON.stringify(smsResult));
+                await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
+                  [businessId, createdBooking.id, client_phone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]);
+              } catch (smsErr) {
+                console.error('[SMS] Booking confirm SMS error:', smsErr.message, smsErr.stack);
+                try { await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, error) VALUES ($1,$2,'sms_confirmation',$3,'failed',$4)`,
+                  [businessId, createdBooking.id, client_phone, smsErr.message]); } catch (_) {}
+              }
             }
           } else {
             await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0] });
