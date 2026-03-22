@@ -68,8 +68,9 @@ async function loadSection(section) {
   // Update page title
   document.getElementById('pageTitle').textContent = SECTION_TITLES[section] || 'Dashboard';
 
-  // Remove settings save button from topbar when leaving settings
+  // Remove injected save buttons from topbar when navigating away
   document.getElementById('settingsSaveBtn')?.remove();
+  document.getElementById('siteSaveBtn')?.remove();
 
   // Update active sidebar item
   document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));

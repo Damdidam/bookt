@@ -82,6 +82,15 @@ async function loadSiteSection(){
     businessPlan=b.plan||'free';
     const slug=b.slug||'';
 
+    // Inject save button into topbar
+    const topbar=document.querySelector('.topbar');
+    if(topbar&&!topbar.querySelector('#siteSaveBtn')){
+      const btn=document.createElement('button');
+      btn.id='siteSaveBtn';btn.className='btn-primary';btn.textContent='Enregistrer';
+      btn.onclick=()=>saveAllSite();
+      topbar.appendChild(btn);
+    }
+
     let h=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div style="display:flex;gap:8px"><a href="/${slug}?preview" target="_blank">Voir ma page</a><a href="/${slug}/book" target="_blank" style="background:rgba(255,255,255,.08)">Page booking</a></div></div>`;
 
     // -- TEST MODE --
@@ -93,7 +102,6 @@ async function loadSiteSection(){
         <p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Protégez votre site par mot de passe pendant sa configuration.</p>
         <div id="testModeFields" style="${b.settings?.minisite_test_mode?'':'display:none'}">
           <div class="fg"><label class="fl">Mot de passe</label><input class="fi" id="siteTestPassword" value="${esc(b.settings?.minisite_test_password||'')}" placeholder="Ex: test2026"></div>
-          <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn-primary" onclick="saveTestMode()">Enregistrer</button></div>
         </div>
       </div>
     </div>`;
@@ -130,7 +138,6 @@ async function loadSiteSection(){
           <input type="file" id="aboutFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'about')">
         </div>
       </div>
-      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSiteContent()">Enregistrer</button></div>
     </div>`;
 
     // -- SOCIAL LINKS --
@@ -144,7 +151,6 @@ async function loadSiteSection(){
           <div class="fg"><label class="fl">Site web</label><input class="fi" id="socialWeb" value="${escAttr(sl.website)}" placeholder="https://..."></div>
         </div>
       </div>
-      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSocialLinks()">Enregistrer</button></div>
     </div>`;
 
     // Determine which family is active
@@ -383,7 +389,6 @@ async function loadSiteSection(){
         <div class="fg"><label class="fl">Titre SEO</label><input class="fi" id="seoTitle" value="${(b.seo_title||'').replace(/"/g,'&quot;')}" placeholder="${b.name||'Mon cabinet'} — ${b.tagline||'Prise de rendez-vous en ligne'}"></div>
         <div class="fg"><label class="fl">Description SEO</label><textarea class="fi" id="seoDesc" style="min-height:60px;resize:vertical" placeholder="Description qui apparaîtra dans les résultats Google (max 160 caractères)...">${esc(b.seo_description||'')}</textarea></div>
       </div>
-      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveSEO()">Enregistrer</button></div>
     </div>`;
 
     // -- SECTION TOGGLES --
@@ -432,7 +437,6 @@ async function loadSiteSection(){
           <div style="padding:10px 14px;background:var(--surface);border-radius:8px;font-size:.78rem;color:var(--text-4)">Les avis sont publiés automatiquement. Vous pouvez masquer les avis abusifs depuis la section "Avis clients" du dashboard. 1 seul avis par rendez-vous.</div>
         </div>
       </div>
-      <div style="padding:0 18px 18px;display:flex;justify-content:flex-end"><button class="btn-primary" onclick="saveReviewSettings()">Enregistrer</button></div>
     </div>`;
 
     c.innerHTML=h;
@@ -721,6 +725,38 @@ async function toggleSiteSection(key,enabled){
 }
 
 // Site content saves
+async function saveAllSite(){
+  const btn=document.getElementById('siteSaveBtn');
+  if(!btn)return;
+  btn.disabled=true;btn.textContent='Enregistrement...';
+  try{
+    const body={};
+    // Content
+    const tagEl=document.getElementById('siteTagline');
+    if(tagEl)Object.assign(body,{tagline:tagEl.value.trim()||null,description:document.getElementById('siteDescription').value.trim()||null});
+    // Social links
+    const fbEl=document.getElementById('socialFb');
+    if(fbEl)body.social_links={facebook:fbEl.value.trim()||null,instagram:document.getElementById('socialIg').value.trim()||null,linkedin:document.getElementById('socialLi').value.trim()||null,website:document.getElementById('socialWeb').value.trim()||null};
+    // Test mode
+    const tmEl=document.getElementById('siteTestMode');
+    if(tmEl)Object.assign(body,{settings_minisite_test_mode:tmEl.checked,settings_minisite_test_password:document.getElementById('siteTestPassword')?.value||''});
+    // SEO
+    const seoEl=document.getElementById('seoTitle');
+    if(seoEl)Object.assign(body,{seo_title:seoEl.value.trim()||null,seo_description:document.getElementById('seoDesc').value.trim()||null});
+    // Reviews
+    const revEl=document.getElementById('s_reviews_enabled');
+    if(revEl)Object.assign(body,{settings_reviews_enabled:revEl.checked,settings_review_delay_hours:parseInt(document.getElementById('s_review_delay')?.value)||24});
+
+    const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json()).error);
+    GendaUI.toast('Site enregistré','success');
+    btn.disabled=false;btn.textContent='Enregistrer';
+  }catch(e){
+    GendaUI.toast('Erreur: '+e.message,'error');
+    btn.disabled=false;btn.textContent='Enregistrer';
+  }
+}
+
 async function saveSiteContent(){
   try{
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
@@ -1008,7 +1044,7 @@ bridge({
   openGalleryModal, saveGalleryItem, editGalleryItem, toggleGalleryItem, deleteGalleryItem, clearGalFile,
   galDragStart, galDragOver, galDragLeave, galDrop,
   openNewsModal, saveNewsItem, editNewsItem, toggleNewsItem, deleteNewsItem,
-  toggleSiteSection, saveSiteContent, saveSocialLinks, saveSEO, toggleTestMode, saveTestMode,
+  toggleSiteSection, saveAllSite, saveSiteContent, saveSocialLinks, saveSEO, toggleTestMode, saveTestMode,
   openTestimonialModal, saveTestimonial, editTestimonial, deleteTestimonial,
   openValueModal, saveValue, editValue, deleteValue,
   saveReviewSettings
