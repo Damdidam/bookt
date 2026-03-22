@@ -1,7 +1,7 @@
 /* ===== SIDEBAR ===== */
 .sidebar{position:fixed;top:0;left:0;bottom:0;width:234px;background:var(--sidebar-bg);color:var(--white);display:flex;flex-direction:column;z-index:50;border-right:1px solid rgba(255,255,255,.06);transition:transform .25s cubic-bezier(.4,0,.2,1)}
 .sidebar.hidden{transform:translateX(-100%)}
-.sb-logo{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sb-logo{padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06);height:57px;box-sizing:border-box}
 .sb-logo .l{width:32px;height:32px;display:flex;align-items:center;justify-content:center}
 .sb-logo .w{font-size:.85rem;font-weight:700;letter-spacing:.3px}
 .sb-logo .plan{font-size:.55rem;font-weight:700;background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;margin-left:auto;color:rgba(255,255,255,.4);letter-spacing:.5px}
