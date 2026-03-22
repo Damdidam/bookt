@@ -40,10 +40,9 @@ async function loadSettings(){
       <div class="field-row"><div class="field"><label>Nom du salon *</label><input id="s_name" value="${esc(b.name||'')}"></div><div class="field"><label>URL personnalisée</label><div class="copy-input"><span style="padding:9px 0;font-size:.85rem;color:var(--text-4)">genda.be/</span><input id="s_slug" value="${esc(b.slug||'')}" style="flex:1"></div><div class="hint">Modifie l'URL de votre page publique</div></div></div>
       <div class="field-row"><div class="field"><label>Email professionnel</label><input id="s_email" type="email" value="${esc(b.email||'')}"></div><div class="field"><label>Téléphone</label><input id="s_phone" value="${esc(b.phone||'')}"></div></div>
       <div class="field"><label>Adresse</label><input id="s_address" value="${esc(b.address||'')}" placeholder="Ex: Rue de la Loi 42, 1000 Bruxelles"></div>
-      <div class="field-row"><div class="field"><label>N° BCE / TVA</label><input id="s_bce" value="${esc(b.bce_number||'')}" placeholder="BE 0xxx.xxx.xxx"></div><div class="field"><label>Accréditation</label><input id="s_accred" value="${esc(b.accreditation||'')}" placeholder="Ex: Barreau de Bruxelles"></div></div>
+      <div class="field-row"><div class="field"><label>N° BCE / TVA</label><input id="s_bce" value="${esc(b.bce_number||'')}" placeholder="BE 0xxx.xxx.xxx"></div><div class="field"><label>Année de fondation</label><input id="s_year" type="number" value="${b.founded_year||''}"></div></div>
       <div class="field"><label>Tagline</label><input id="s_tagline" value="${esc(b.tagline||'')}" placeholder="Phrase d'accroche affichée sur votre page"></div>
       <div class="field"><label>Description</label><textarea id="s_desc">${esc(b.description||'')}</textarea></div>
-      <div class="field-row"><div class="field"><label>Année de fondation</label><input id="s_year" type="number" value="${b.founded_year||''}"></div><div class="field"><label>Langues</label><input id="s_langs" value="${esc(b.languages_spoken||'')}" placeholder="FR, NL, EN"></div></div>
       <div class="field"><label>Info parking</label><input id="s_parking" value="${esc(b.parking_info||'')}" placeholder="Ex: Parking gratuit à 50m"></div>
       <div style="height:1px;background:var(--border);margin:10px 0"></div>
       <div style="font-size:.75rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px">Facturation</div>
@@ -571,9 +570,9 @@ async function saveAllSettings(){
     if(el('s_name'))Object.assign(body,{
       name:el('s_name').value,slug:el('s_slug').value,email:el('s_email').value,
       phone:el('s_phone').value,address:el('s_address').value,
-      bce_number:el('s_bce').value,accreditation:el('s_accred').value,
+      bce_number:el('s_bce').value,
       tagline:el('s_tagline').value,description:el('s_desc').value,
-      founded_year:el('s_year').value||null,languages_spoken:el('s_langs').value,
+      founded_year:el('s_year').value||null,
       parking_info:el('s_parking').value,
       settings_iban:el('s_iban').value,settings_bic:el('s_bic').value,
       settings_invoice_footer:el('s_inv_footer').value
@@ -1117,7 +1116,7 @@ async function openStripePortal(){
 }
 
 async function saveBusiness(){
-  const body={name:document.getElementById('s_name').value,slug:document.getElementById('s_slug').value,email:document.getElementById('s_email').value,phone:document.getElementById('s_phone').value,address:document.getElementById('s_address').value,bce_number:document.getElementById('s_bce').value,accreditation:document.getElementById('s_accred').value,tagline:document.getElementById('s_tagline').value,description:document.getElementById('s_desc').value,founded_year:document.getElementById('s_year').value||null,languages_spoken:document.getElementById('s_langs').value,parking_info:document.getElementById('s_parking').value,settings_iban:document.getElementById('s_iban').value,settings_bic:document.getElementById('s_bic').value,settings_invoice_footer:document.getElementById('s_inv_footer').value};
+  const body={name:document.getElementById('s_name').value,slug:document.getElementById('s_slug').value,email:document.getElementById('s_email').value,phone:document.getElementById('s_phone').value,address:document.getElementById('s_address').value,bce_number:document.getElementById('s_bce').value,tagline:document.getElementById('s_tagline').value,description:document.getElementById('s_desc').value,founded_year:document.getElementById('s_year').value||null,parking_info:document.getElementById('s_parking').value,settings_iban:document.getElementById('s_iban').value,settings_bic:document.getElementById('s_bic').value,settings_invoice_footer:document.getElementById('s_inv_footer').value};
   try{const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);GendaUI.toast('Informations enregistrées','success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
