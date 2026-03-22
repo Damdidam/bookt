@@ -5,14 +5,15 @@
 .main.agenda-mode>.topbar{display:none}
 .agenda-toolbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border-light);padding:10px 32px 8px;margin:0 -32px;width:calc(100% + 64px)}
 .at-row-nav{display:flex;align-items:center;gap:8px;margin-bottom:0}
-.at-row-views{display:flex;align-items:center;margin-top:6px;gap:10px}
+.at-row-filters{display:flex;align-items:center;gap:6px;padding:4px 16px 6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.at-row-filters::-webkit-scrollbar{display:none}
 .agenda-toolbar .at-nav{display:flex;align-items:center;gap:5px;flex-shrink:0}
 .agenda-toolbar .at-nav-btn{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-nav-btn:hover{background:var(--surface);border-color:var(--text-4)}
 .agenda-toolbar .at-today{padding:6px 16px;border-radius:8px;font-size:.74rem;font-weight:600;background:var(--primary);color:var(--white);border:none;cursor:pointer;font-family:var(--sans);transition:all .15s}
 .agenda-toolbar .at-today:hover{background:var(--primary-hover)}
 .agenda-toolbar .at-title{font-family:var(--serif);font-size:var(--text-xl);font-weight:400;color:var(--text);white-space:nowrap;flex:1}
-.agenda-toolbar .at-views{display:flex;gap:4px;flex-shrink:0}
+.at-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
 /* View pill — segmented control */
 .at-view-pill{display:flex;border:1.5px solid var(--border-light);border-radius:8px;overflow:hidden;flex-shrink:0}
 .at-vp-btn{padding:6px 16px;font-size:.76rem;font-weight:600;border:none;border-right:1px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;font-family:var(--sans);transition:all .15s}
@@ -40,23 +41,18 @@
 .at-search-wrap.expanded .at-search-icon{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
 .at-search{border:1px solid var(--border-light);border-radius:8px;padding:5px 10px;font-size:.75rem;font-family:inherit;outline:none;background:var(--white)}
 .at-search:focus{border-color:var(--primary)}
-/* Filter toggle button */
-.at-filter-toggle{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
-.at-filter-toggle:hover{background:var(--surface);border-color:var(--text-4)}
-.at-filter-toggle.active{background:var(--primary-light);color:var(--primary);border-color:var(--primary-soft)}
+/* Filter separator */
+.at-filter-sep{width:1px;height:18px;background:var(--border-light);flex-shrink:0}
+/* Status pills wrapper */
+.at-status-pills{display:flex;gap:4px;flex-shrink:0}
 /* View button short/long labels */
 .at-vp-btn .vs{display:none}
 /* Fill rate bar — full-width thin bar */
 .at-row-stats{padding:2px 0 0}
-.at-row-stats .fill-bar{width:100%;height:3px;background:var(--border-light);border-radius:2px;overflow:hidden}
+.at-row-stats .fill-bar{width:100%;height:4px;background:var(--border-light);border-radius:2px;overflow:hidden}
 .at-row-stats .fill-bar-inner{height:100%;border-radius:2px;background:var(--primary);transition:width .3s;width:0%}
 .prac-fill{font-weight:400;font-size:var(--text-xs);opacity:.8}
 @media(max-width:767px){.at-row-stats{display:none}}
-/* Collapsible filter panel */
-.at-filter-panel{max-height:0;overflow:hidden;transition:max-height .25s cubic-bezier(.4,0,.2,1),padding .25s cubic-bezier(.4,0,.2,1);padding:0}
-.at-filter-panel.open{max-height:60px;padding:6px 0 2px}
-.at-filter-panel-inner{display:flex;gap:5px;align-items:center;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;white-space:nowrap}
-.at-filter-panel-inner::-webkit-scrollbar{display:none}
 .cat-chip{padding:4px 12px;border-radius:var(--radius-pill);font-size:.68rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-4);transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;user-select:none}
 .cat-chip:hover{border-color:var(--text-4);background:var(--surface)}
 .cat-chip.active{border-color:var(--primary-soft);background:var(--primary-light);color:var(--primary)}
