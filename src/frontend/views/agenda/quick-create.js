@@ -585,7 +585,7 @@ function qcDepositUserToggle(el) {
 function _qcUpdateDepositVisual(on) {
   const track = document.getElementById('qcDepositTrack');
   const thumb = document.getElementById('qcDepositThumb');
-  if (track) track.style.background = on ? '#D97706' : 'var(--border)';
+  if (track) track.style.background = on ? 'var(--amber)' : 'var(--border)';
   if (thumb) thumb.style.left = on ? '20px' : '2px';
 }
 
@@ -637,13 +637,13 @@ function calSearchClients(q) {
       _qcSearchResults = clients;
       let h = clients.map(c => {
         const vipTag = c.is_vip
-          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FEF9E7;color:#D4A017;margin-left:4px">★ VIP</span>`
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--amber-bg);color:var(--gold);margin-left:4px">${IC.star} VIP</span>`
           : '';
         const nsTag = c.no_show_count > 0
-          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FDE68A;color:#B45309;margin-left:4px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--amber-bg);color:var(--amber-dark);margin-left:4px">${IC.alertTriangle} ${c.no_show_count} no-show${c.no_show_count > 1 ? 's' : ''}</span>`
           : '';
         const blTag = c.is_blocked
-          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:#FECACA;color:#dc2626;margin-left:4px">Bloqué</span>`
+          ? `<span style="font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--red-bg);color:var(--red);margin-left:4px">Bloqué</span>`
           : '';
         return `<div class="ac-item" onclick="calPickClient('${safeId(c.id)}','${escJs(c.full_name)}')"><div class="ac-name">${esc(c.full_name)}${vipTag}${nsTag}${blTag}</div><div class="ac-meta">${esc(c.phone || '')} ${esc(c.email || '')}</div></div>`;
       }).join('');
@@ -694,7 +694,7 @@ function _showDepositWarn(count) {
   const wrap = document.getElementById('qcClient').parentElement;
   const warn = document.createElement('div');
   warn.id = 'qcDepositWarn';
-  warn.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:#FEF3E2;color:#B45309;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:6px';
+  warn.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;background:var(--amber-bg);color:var(--amber-dark);font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:6px';
   warn.innerHTML = `<span>${IC.alertTriangle}</span><span>${count} no-show${count > 1 ? 's' : ''} \u2014 un acompte pourra \u00eatre exig\u00e9</span>`;
   wrap.appendChild(warn);
 }
@@ -1101,7 +1101,7 @@ function _showDepositRequestPanel(booking, clientName, clientEmail, clientPhone)
   const modalBody = document.querySelector('#calCreateModal .m-body');
   const modalBottom = document.querySelector('#calCreateModal .m-bottom');
 
-  qcUpdateGradient('#F59E0B');
+  qcUpdateGradient('var(--amber)');
   const headerTitle = document.querySelector('#calCreateModal .m-client-name');
   if (headerTitle) headerTitle.textContent = 'Demande d\u2019acompte';
 
@@ -1112,20 +1112,20 @@ function _showDepositRequestPanel(booking, clientName, clientEmail, clientPhone)
 
   let channelBtns = '';
   if (hasEmail) {
-    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF3E2;color:#B45309;font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','email')">
+    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg);color:var(--amber-dark);font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','email')">
       <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
       Par email</button>`;
   }
   if (hasPhone) {
-    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid ${hasEmail ? 'var(--border)' : '#F59E0B'};background:${hasEmail ? 'var(--white)' : '#FEF3E2'};color:${hasEmail ? 'var(--text-3)' : '#B45309'};font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','sms')">
+    channelBtns += `<button class="m-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid ${hasEmail ? 'var(--border)' : 'var(--amber)'};background:${hasEmail ? 'var(--white)' : 'var(--amber-bg)'};color:${hasEmail ? 'var(--text-3)' : 'var(--amber-dark)'};font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" onclick="qcSendDepositRequest('${safeId}','sms')">
       <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
       Par SMS</button>`;
   }
 
   modalBody.innerHTML = `
     <div style="padding:24px;text-align:center">
-      <div style="width:56px;height:56px;border-radius:16px;background:#FEF3E2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--amber-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
       <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 4px;font-family:var(--sans)">Envoyer une demande d\u2019acompte ?</h3>
       <p style="font-size:.88rem;color:var(--text-3);margin:0 0 20px">

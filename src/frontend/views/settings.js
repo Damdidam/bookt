@@ -4,6 +4,7 @@
 import { api, sectorLabels, calState, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal } from '../utils/dirty-guard.js';
+import { IC } from '../utils/icons.js';
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -89,7 +90,7 @@ async function loadSettings(){
 
     // 3a-bis. Réservation en ligne
     const pracChoiceOn=!!(b.settings?.practitioner_choice_enabled);
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Réservation en ligne</h3></div><div class="sc-body">
+    h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.clipboard} Réservation en ligne</h3></div><div class="sc-body">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)">
         <div>
           <div style="font-size:.88rem;font-weight:600">Choix du praticien par le client</div>
@@ -166,7 +167,7 @@ async function loadSettings(){
         <div style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <span style="position:relative;display:inline-block;width:36px;height:20px">
             <input type="checkbox" id="s_last_minute" style="opacity:0;width:0;height:0;position:absolute"${lmOn?' checked':''}>
-            <span style="position:absolute;inset:0;background:${lmOn?'#f59e0b':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'#f59e0b':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
+            <span style="position:absolute;inset:0;background:${lmOn?'var(--amber)':'#ccc'};border-radius:20px;transition:background .2s" onclick="const c=document.getElementById('s_last_minute');c.checked=!c.checked;this.style.background=c.checked?'var(--amber)':'#ccc';this.nextElementSibling.style.transform=c.checked?'translateX(16px)':'translateX(0)';document.getElementById('lm_details').style.display=c.checked?'grid':'none'"></span>
             <span style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;transform:${lmOn?'translateX(16px)':'translateX(0)'};pointer-events:none"></span>
           </span>
           <span style="font-weight:600;font-size:.85rem">Promotions dernière minute</span>
@@ -189,7 +190,7 @@ async function loadSettings(){
 
     // 3a-bis. Paiements (Stripe Connect)
     // Fetch connect status async — render placeholder first
-    h+=`<div class="settings-card" id="connectCard"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Paiements</h3></div><div class="sc-body" id="connectBody"><div style="text-align:center;padding:20px;color:var(--text-4);font-size:.82rem">Chargement...</div></div></div>`;
+    h+=`<div class="settings-card" id="connectCard"><div class="sc-h"><h3>${IC.creditCard} Paiements</h3></div><div class="sc-body" id="connectBody"><div style="text-align:center;padding:20px;color:var(--text-4);font-size:.82rem">Chargement...</div></div></div>`;
     // Load connect status after render
     setTimeout(()=>loadConnectStatus(),100);
 
@@ -200,13 +201,13 @@ async function loadSettings(){
     const rs2=b.settings?.reminder_sms_2h===true;
     const re2=b.settings?.reminder_email_2h===true;
     const hasSms=plan==='pro'||plan==='premium';
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels clients</h3></div><div class="sc-body">`;
+    h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.bell} Rappels clients</h3></div><div class="sc-body">`;
     h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Les rappels sont envoyés automatiquement aux clients avant leur rendez-vous. Réduisez les no-shows jusqu'à 50%.</p>`;
 
     h+=`<div style="display:flex;flex-direction:column;gap:10px">`;
 
     // Email 24h — all plans
-    h+=buildReminderToggle('s_rem_email_24h', re24, '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Email — 24h avant', 'Rappel par email la veille du RDV', true);
+    h+=buildReminderToggle('s_rem_email_24h', re24, IC.mail+' Email — 24h avant', 'Rappel par email la veille du RDV', true);
 
     // SMS 24h — Pro/Premium
     h+=buildReminderToggle('s_rem_sms_24h', rs24, '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> SMS — 24h avant', hasSms?'SMS de rappel la veille du RDV':'<span style="color:var(--coral)">Disponible avec le plan Pro</span>', hasSms);
@@ -215,7 +216,7 @@ async function loadSettings(){
     h+=buildReminderToggle('s_rem_sms_2h', rs2, '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> SMS — 2h avant', hasSms?'Rappel de dernière minute le jour même':'<span style="color:var(--coral)">Disponible avec le plan Pro</span>', hasSms);
 
     // Email 2h — optional
-    h+=buildReminderToggle('s_rem_email_2h', re2, '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Email — 2h avant', 'Rappel email le jour même (optionnel)', true);
+    h+=buildReminderToggle('s_rem_email_2h', re2, IC.mail+' Email — 2h avant', 'Rappel email le jour même (optionnel)', true);
 
     h+=`</div>`;
 
@@ -434,13 +435,13 @@ async function loadSettings(){
 
     // 4. Lien public & widget
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
-      <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</button></div></div>
-      <div class="field"><label>Code widget embeddable</label><div class="copy-input"><input id="s_widget" value='${esc(lk.widget_code||'')}' readonly style="font-size:.72rem"><button class="btn-outline btn-sm" onclick="copyField('s_widget')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</button></div><div class="hint">Collez ce code sur votre site existant pour ajouter un bouton de réservation</div></div>
+      <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')">${IC.clipboard} Copier</button></div></div>
+      <div class="field"><label>Code widget embeddable</label><div class="copy-input"><input id="s_widget" value='${esc(lk.widget_code||'')}' readonly style="font-size:.72rem"><button class="btn-outline btn-sm" onclick="copyField('s_widget')">${IC.clipboard} Copier</button></div><div class="hint">Collez ce code sur votre site existant pour ajouter un bouton de réservation</div></div>
       <div class="field"><label>QR Code</label><div class="hint">Scannez pour accéder à votre page publique</div><div style="margin-top:8px;padding:16px;background:var(--surface);border-radius:8px;text-align:center"><canvas id="qrCanvas" width="160" height="160" style="width:160px;height:160px"></canvas><div style="margin-top:8px"><button class="btn-outline btn-sm" onclick="downloadQR()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Télécharger PNG</button></div></div></div>
     </div></div>`;
 
     // 4. Sécurité
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Sécurité</h3></div><div class="sc-body">
+    h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.lock} Sécurité</h3></div><div class="sc-body">
       <p style="font-size:.85rem;color:var(--text-3);margin-bottom:14px">Connecté en tant que <strong>${u.email}</strong> · Rôle : ${sectorLabels[u.role]||u.role}${u.last_login_at?' · Dernière connexion : '+new Date(u.last_login_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
       <div class="field"><label>Mot de passe actuel</label><input id="s_pwd_current" type="password"></div>
       <div class="field-row"><div class="field"><label>Nouveau mot de passe</label><input id="s_pwd_new" type="password" placeholder="Min. 8 caractères"></div><div class="field"><label>Confirmer</label><input id="s_pwd_confirm" type="password"></div></div>
@@ -455,19 +456,19 @@ async function loadSettings(){
       if(sr.ok) subStatus=await sr.json();
     }catch(e){}
 
-    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Plan & Facturation</h3></div><div class="sc-body">`;
+    h+=`<div class="settings-card"><div class="sc-h"><h3>${IC.creditCard} Plan & Facturation</h3></div><div class="sc-body">`;
 
     // Trial banner
     if(subStatus.is_trialing){
       h+=`<div style="padding:14px 18px;background:var(--coral-lighter);border:1px solid var(--coral-border);border-radius:10px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div><span style="font-size:.88rem;font-weight:700;color:var(--coral-dark)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg> Période d'essai en cours</span><br><span style="font-size:.78rem;color:var(--text-3)">${subStatus.trial_days_left} jour${subStatus.trial_days_left>1?'s':''} restants — Votre carte ne sera débitée qu'à la fin de l'essai</span></div>
+        <div><span style="font-size:.88rem;font-weight:700;color:var(--coral-dark)">${IC.gift} Période d'essai en cours</span><br><span style="font-size:.78rem;color:var(--text-3)">${subStatus.trial_days_left} jour${subStatus.trial_days_left>1?'s':''} restants — Votre carte ne sera débitée qu'à la fin de l'essai</span></div>
       </div>`;
     }
 
     // Past due warning
     if(subStatus.subscription_status==='past_due'){
       h+=`<div style="padding:14px 18px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:10px;margin-bottom:16px">
-        <span style="font-size:.88rem;font-weight:700;color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Paiement échoué</span><br>
+        <span style="font-size:.88rem;font-weight:700;color:var(--red)">${IC.alertTriangle} Paiement échoué</span><br>
         <span style="font-size:.78rem;color:var(--text-3)">Votre dernier paiement a échoué. Mettez à jour votre moyen de paiement pour éviter la suspension.</span>
         <button class="btn-primary" style="margin-top:8px;font-size:.82rem" onclick="openStripePortal()">Mettre à jour le paiement \u2192</button>
       </div>`;
@@ -506,7 +507,7 @@ async function loadSettings(){
     h+=`</div></div>`;
 
     // 7. Danger zone
-    h+=`<div class="settings-card danger-zone"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Zone danger</h3></div><div class="sc-body">
+    h+=`<div class="settings-card danger-zone"><div class="sc-h"><h3>${IC.alertTriangle} Zone danger</h3></div><div class="sc-body">
       <p style="font-size:.85rem;color:var(--text-2);margin-bottom:12px">Supprimer définitivement votre compte et toutes les données associées. Cette action est irréversible.</p>
       <button class="btn-outline btn-danger" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
     </div></div>`;
@@ -616,9 +617,9 @@ async function loadConnectStatus(){
         <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg> Connecter Stripe</button>
       </div>`;
     }else if(st==='onboarding'){
-      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--gold-border,var(--border));border-radius:var(--radius-sm);background:var(--gold-bg,#FFFBEB)">
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--gold-border,var(--border));border-radius:var(--radius-sm);background:var(--gold-bg,var(--amber-bg))">
         <div>
-          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold,#F59E0B);margin-right:6px"></span>Configuration en cours</div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold,var(--amber));margin-right:6px"></span>Configuration en cours</div>
           <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Finalisez votre inscription Stripe pour activer les paiements</div>
         </div>
         <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px">Reprendre</button>
@@ -626,7 +627,7 @@ async function loadConnectStatus(){
     }else if(st==='active'){
       html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--green-border,#BBF7D0);border-radius:var(--radius-sm);background:var(--green-bg,#F0FDF4)">
         <div>
-          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22C55E;margin-right:6px"></span>Paiements actifs</div>
+          <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px"></span>Paiements actifs</div>
           <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Votre compte Stripe est connect\u00e9. Les acomptes sont encaiss\u00e9s directement sur votre compte.</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px">
@@ -643,7 +644,7 @@ async function loadConnectStatus(){
         <button class="btn-primary" onclick="connectStripe()" style="flex-shrink:0;margin-left:16px">Compl\u00e9ter</button>
       </div>`;
     }else{
-      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--red-border,var(--border));border-radius:var(--radius-sm);background:var(--red-bg,#FEF2F2)">
+      html=`<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:1px solid var(--red-border,var(--border));border-radius:var(--radius-sm);background:var(--red-bg)">
         <div>
           <div style="font-size:.88rem;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red,#EF4444);margin-right:6px"></span>Compte d\u00e9sactiv\u00e9</div>
           <div style="font-size:.75rem;color:var(--text-4);margin-top:2px">Votre compte Stripe a \u00e9t\u00e9 d\u00e9sactiv\u00e9. Contactez le support Stripe.</div>
@@ -786,7 +787,7 @@ async function saveReminderSettings(){
     };
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(data)});
     if(!r.ok)throw new Error((await r.json()).error);
-    GendaUI.toast('Rappels configurés <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>','success');window._settingsGuard?.markClean();
+    GendaUI.toast('Rappels configurés '+IC.check,'success');window._settingsGuard?.markClean();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 

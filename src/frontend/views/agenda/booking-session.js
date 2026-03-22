@@ -5,6 +5,7 @@
 import { api, calState } from '../../state.js';
 import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
+import { IC } from '../../utils/icons.js';
 
 /**
  * Sanitize rich text HTML — strip dangerous tags and event handlers
@@ -58,7 +59,7 @@ function fcRenderSession(booking) {
   if (booking.session_notes_sent_at) {
     const d = new Date(booking.session_notes_sent_at);
     const fmt = d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-    status.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Envoyé le ${fmt}`;
+    status.innerHTML = `${IC.check} Envoyé le ${fmt}`;
   } else {
     status.textContent = '';
   }
@@ -145,7 +146,7 @@ async function calSendSession() {
     if (status && data.sent_at) {
       const d = new Date(data.sent_at);
       const fmt = d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-      status.innerHTML = `<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Envoyé le ${fmt}`;
+      status.innerHTML = `${IC.check} Envoyé le ${fmt}`;
     }
 
     gToast('Notes envoyées au client', 'success');

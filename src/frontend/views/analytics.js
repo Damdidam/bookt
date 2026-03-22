@@ -23,9 +23,9 @@ function renderAnalytics(d){
   const c=document.getElementById('contentArea');
   const t=d.totals;
   let h=`<div class="an-period">
-    <button class="${analyticsPeriod==='7d'?'active':''}" onclick="loadAnalytics('7d')">7 jours</button>
-    <button class="${analyticsPeriod==='30d'?'active':''}" onclick="loadAnalytics('30d')">30 jours</button>
-    <button class="${analyticsPeriod==='90d'?'active':''}" onclick="loadAnalytics('90d')">90 jours</button>
+    <button class="btn-sm${analyticsPeriod==='7d'?' active':''}" onclick="loadAnalytics('7d')">7 jours</button>
+    <button class="btn-sm${analyticsPeriod==='30d'?' active':''}" onclick="loadAnalytics('30d')">30 jours</button>
+    <button class="btn-sm${analyticsPeriod==='90d'?' active':''}" onclick="loadAnalytics('90d')">90 jours</button>
   </div>`;
 
   // KPIs

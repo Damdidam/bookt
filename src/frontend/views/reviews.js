@@ -4,6 +4,7 @@
 import { api, GendaUI, viewState } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
 
 /** Relative time in French */
 function timeAgo(dateStr) {
@@ -28,8 +29,8 @@ function stars(rating) {
   let s = '';
   for (let i = 1; i <= 5; i++) {
     s += i <= rating
-      ? '<span style="color:#F59E0B">★</span>'
-      : '<span style="color:#D1D5DB">☆</span>';
+      ? `<span style="color:var(--gold)">${IC.star}</span>`
+      : `<span style="color:var(--border)">${IC.star}</span>`;
   }
   return s;
 }
@@ -62,17 +63,17 @@ async function loadReviews() {
 
     // KPIs
     h += `<div class="kpis">`;
-    h += `<div class="kpi"><div class="kpi-val" style="color:#F59E0B;font-size:1.8rem">${stars(Math.round(stats.average))} ${(stats.average || 0).toFixed(1)}</div><div class="kpi-label">Note moyenne</div></div>`;
+    h += `<div class="kpi"><div class="kpi-val" style="color:var(--gold);font-size:1.8rem">${stars(Math.round(stats.average))} ${(stats.average || 0).toFixed(1)}</div><div class="kpi-label">Note moyenne</div></div>`;
     h += `<div class="kpi"><div class="kpi-val">${stats.total || 0}</div><div class="kpi-label">Total avis</div></div>`;
     h += `<div class="kpi"><div class="kpi-val" style="color:var(--green)">${dist[5] || 0}</div><div class="kpi-label">★★★★★</div></div>`;
-    h += `<div class="kpi"><div class="kpi-val" style="color:#D97706">${dist[4] || 0}</div><div class="kpi-label">★★★★☆</div></div>`;
+    h += `<div class="kpi"><div class="kpi-val" style="color:var(--amber-dark)">${dist[4] || 0}</div><div class="kpi-label">★★★★☆</div></div>`;
     h += `<div class="kpi"><div class="kpi-val" style="color:var(--red)">${(dist[3] || 0) + (dist[2] || 0) + (dist[1] || 0)}</div><div class="kpi-label">≤ 3 étoiles</div></div>`;
     h += `</div>`;
 
     // Empty state
     if (!reviews.length) {
       h += `<div style="text-align:center;padding:60px 20px;color:var(--text-3);font-size:.88rem;line-height:1.6">`;
-      h += `<div style="font-size:2.4rem;margin-bottom:12px">💬</div>`;
+      h += `<div style="font-size:2.4rem;margin-bottom:12px">${IC.messageCircle}</div>`;
       h += `Aucun avis pour le moment.<br>Activez les avis dans les <strong>Paramètres</strong> pour commencer à recevoir des retours de vos clients.`;
       h += `</div>`;
       c.innerHTML = h;
@@ -85,7 +86,7 @@ async function loadReviews() {
       const isHidden = r.status === 'hidden';
       const hiddenStyle = isHidden ? 'opacity:.55;' : '';
 
-      h += `<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:12px;${hiddenStyle}" id="review-card-${r.id}">`;
+      h += `<div class="card" style="margin-bottom:12px;${hiddenStyle}" id="review-card-${r.id}">`;
 
       // Header: stars + name + tag
       h += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">`;
@@ -95,7 +96,7 @@ async function loadReviews() {
         h += `<span style="font-size:.68rem;color:var(--text-3);background:var(--surface,#F3F4F6);padding:2px 8px;border-radius:20px">Cliente régulière</span>`;
       }
       if (isHidden) {
-        h += `<span style="font-size:.68rem;color:var(--red);background:#FEE2E2;padding:2px 8px;border-radius:20px">Masqué</span>`;
+        h += `<span style="font-size:.68rem;color:var(--red);background:var(--red-bg);padding:2px 8px;border-radius:20px">Masqué</span>`;
       }
       h += `</div>`;
 

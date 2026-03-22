@@ -244,9 +244,9 @@ function updateCells() {
 
     // Icon
     if (isSelected) {
-      cell.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+      cell.innerHTML = '<span style="width:14px;height:14px;display:inline-flex">' + IC.star + '</span>';
     } else if (isBooked) {
-      cell.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;opacity:.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      cell.innerHTML = '<span style="width:12px;height:12px;display:inline-flex;opacity:.5">' + IC.x + '</span>';
     } else {
       cell.innerHTML = '';
     }
@@ -256,7 +256,7 @@ function updateCells() {
   const badge = document.getElementById('fsBadge');
   if (badge) {
     badge.innerHTML = weekLocked
-      ? `<span style="color:var(--green);font-size:.78rem;font-weight:600">${IC.check || '✓'} Publié</span>`
+      ? `<span style="color:var(--green);font-size:.78rem;font-weight:600">${IC.check} Publié</span>`
       : `<span style="color:var(--text-4);font-size:.78rem">● Brouillon</span>`;
   }
 

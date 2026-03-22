@@ -140,10 +140,10 @@ function fcShowTooltip(event, x, y) {
   // ── 7. Countdown timer for pending / pending_deposit ──
   if (p.status === 'pending' && p.confirmation_expires_at) {
     const diff = new Date(p.confirmation_expires_at) - Date.now();
-    html += `<div class="tt-row" style="color:#B45309;font-size:.75rem;font-weight:600">${ico('hourglass')}Expire dans ${fmtCountdown(diff)}</div>`;
+    html += `<div class="tt-row" style="color:var(--amber-dark);font-size:.75rem;font-weight:600">${ico('hourglass')}Expire dans ${fmtCountdown(diff)}</div>`;
   } else if (p.status === 'pending_deposit' && p.deposit_deadline) {
     const diff = new Date(p.deposit_deadline) - Date.now();
-    html += `<div class="tt-row" style="color:#B45309;font-size:.75rem;font-weight:600">${ico('hourglass')}Acompte : expire dans ${fmtCountdown(diff)}</div>`;
+    html += `<div class="tt-row" style="color:var(--amber-dark);font-size:.75rem;font-weight:600">${ico('hourglass')}Acompte : expire dans ${fmtCountdown(diff)}</div>`;
   }
 
   // ── 8. Status badge ──

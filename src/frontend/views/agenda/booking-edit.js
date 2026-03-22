@@ -5,6 +5,7 @@ import { api, calState } from '../../state.js';
 import { esc } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { toBrusselsISO } from '../../utils/format.js';
+import { IC } from '../../utils/icons.js';
 
 // ── Server slot check state ──
 let _slotTimer = null;
@@ -120,8 +121,8 @@ function calCheckConflict() {
     warn.style.background = isInfo ? '#FFF3E0' : '#FFEBEE';
     warn.style.color = isInfo ? '#E65100' : '#C62828';
     warn.innerHTML = (isInfo
-      ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Chevauchement avec '
-      : '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Conflit avec '
+      ? '${IC.alertTriangle} Chevauchement avec '
+      : '${IC.alertTriangle} Conflit avec '
     ) + conflicts.join(', ');
   }
 
@@ -218,7 +219,7 @@ function _scheduleServerCheck(nd, ns, ne, pracId) {
         warn.style.display = 'block';
         warn.style.background = '#FFEBEE';
         warn.style.color = '#C62828';
-        warn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Cr\u00e9neau indisponible \u2014 conflit avec ' + conflictNames;
+        warn.innerHTML = '${IC.alertTriangle} Cr\u00e9neau indisponible \u2014 conflit avec ' + conflictNames;
       } else {
         _setSlotAvailable();
         if (!warn.innerHTML.trim()) warn.style.display = 'none';

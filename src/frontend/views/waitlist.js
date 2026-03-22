@@ -4,6 +4,8 @@
 import { api, GendaUI, viewState } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
+import { closeModal } from '../utils/dirty-guard.js';
 
 async function loadWaitlist(){
   const c=document.getElementById('contentArea');
@@ -26,15 +28,15 @@ async function loadWaitlist(){
     const wlEnabled=pracs.filter(p=>p.waitlist_mode&&p.waitlist_mode!=='off');
     let h='';
     if(!wlEnabled.length){
-      h+=`<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:.82rem"><span style="font-size:1.2rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div><strong>Aucun praticien n'a la liste d'attente activée.</strong><br><span style="color:var(--text-3)">Allez dans <strong>Équipe → Modifier</strong> un praticien pour activer le mode <em>manuelle</em> ou <em>automatique</em>.</span></div></div>`;
+      h+=`<div style="background:var(--amber-bg);border:1px solid var(--gold);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:.82rem"><span style="font-size:1.2rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div><strong>Aucun praticien n'a la liste d'attente activée.</strong><br><span style="color:var(--text-3)">Allez dans <strong>Équipe → Modifier</strong> un praticien pour activer le mode <em>manuelle</em> ou <em>automatique</em>.</span></div></div>`;
     }
 
     // KPIs
     h+=`<div class="kpis">`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:#6D28D9">${stats.waiting||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:#D97706">${stats.offered||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre envoyée</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.waiting||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.offered||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre envoyée</div></div>`;
     h+=`<div class="kpi" onclick="viewState.wlFilter='booked';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Réservé</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='expired';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--text-4)">${stats.expired||0}</div><div class="kpi-label">⌛ Expiré</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='expired';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--text-4)">${stats.expired||0}</div><div class="kpi-label">${IC.hourglass} Expiré</div></div>`;
     h+=`</div>`;
 
     // Filter bar
@@ -99,7 +101,7 @@ function wlOpenAdd(){
     const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
     const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
     const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="document.getElementById('wlAddModal').remove()">${X_SVG}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="closeModal('wlAddModal')">${X_SVG}</button></div><div class="m-body">`;
     m+=`<div><label class="m-field-label">Nom du client *</label><input class="m-input" id="wla_name" placeholder="Nom complet"></div>`;
     m+=`<div><label class="m-field-label">Email *</label><input class="m-input" id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
     m+=`<div><label class="m-field-label">T\u00e9l\u00e9phone</label><input class="m-input" id="wla_phone" placeholder="+32..."></div>`;
@@ -116,7 +118,7 @@ function wlOpenAdd(){
     m+=`</div></div>`;
     m+=`<div><label class="m-field-label">Cr\u00e9neau pr\u00e9f\u00e9r\u00e9</label><select class="m-input" id="wla_time"><option value="any">Toute la journ\u00e9e</option><option value="morning">Matin (avant 12h)</option><option value="afternoon">Apr\u00e8s-midi (apr\u00e8s 12h)</option></select></div>`;
     m+=`<div><label class="m-field-label">Note</label><input class="m-input" id="wla_note" placeholder="Info suppl\u00e9mentaire..." maxlength="300"></div>`;
-    m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('wlAddModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSaveAdd()">Ajouter</button></div></div></div>`;
+    m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlAddModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSaveAdd()">Ajouter</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
   });
 }
@@ -137,7 +139,7 @@ async function wlSaveAdd(){
       preferred_time:document.getElementById('wla_time').value,
       note:document.getElementById('wla_note').value.trim()||null
     });
-    document.getElementById('wlAddModal')?.remove();
+    closeModal('wlAddModal');
     GendaUI.toast("Ajout\u00e9 \u00e0 la liste d'attente",'success');
     loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -146,12 +148,12 @@ async function wlSaveAdd(){
 // -- Offer a slot --
 function wlOffer(entryId,clientName,pracId,svcId){
   const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="document.getElementById('wlOfferModal').remove()">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')">${X_SVG}</button></div><div class="m-body">`;
   m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou d\u00e9cliner. L'offre expire apr\u00e8s <strong>2 heures</strong>.</p>`;
   m+=`<div><label class="m-field-label">Date</label><input type="date" class="m-input" id="wlo_date" value="${new Date().toLocaleDateString('en-CA')}"></div>`;
   m+=`<div><label class="m-field-label">Heure de d\u00e9but</label><input type="time" class="m-input" id="wlo_start" value="09:00" step="900"></div>`;
   m+=`<div><label class="m-field-label">Heure de fin</label><input type="time" class="m-input" id="wlo_end" value="10:00" step="900"></div>`;
-  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('wlOfferModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSendOffer('${entryId}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer l'offre</button></div></div></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlOfferModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSendOffer('${entryId}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer l'offre</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
 }
 
@@ -162,7 +164,7 @@ async function wlSendOffer(entryId){
   if(!date||!start||!end){GendaUI.toast('Date et heures requises','error');return;}
   try{
     const result=await api.post(`/api/waitlist/${entryId}/offer`,{start_at:date+'T'+start+':00',end_at:date+'T'+end+':00'});
-    document.getElementById('wlOfferModal')?.remove();
+    closeModal('wlOfferModal');
     if(result.offer_url){
       const fullUrl=window.location.origin+result.offer_url;
       navigator.clipboard?.writeText(fullUrl).catch(()=>{});
@@ -188,7 +190,7 @@ async function wlRemove(entryId){
   if(!confirm("Retirer cette personne de la liste d'attente ?"))return;
   try{
     await api.delete(`/api/waitlist/${entryId}`);
-    document.getElementById('wlDetailModal')?.remove();
+    closeModal('wlDetailModal');
     GendaUI.toast("Retir\u00e9 de la liste",'success');
     loadWaitlist();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -205,7 +207,7 @@ function wlDetail(idx){
   const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
   const X_SVG2='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-  let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="document.getElementById('wlDetailModal').remove()">${X_SVG2}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')">${X_SVG2}</button></div><div class="m-body">`;
 
   // Status badge
   m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${WL_ST[e.status]||e.status}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;
@@ -229,7 +231,7 @@ function wlDetail(idx){
   if(e.status==='offered'&&e.offer_booking_start){
     const d=new Date(e.offer_booking_start);
     const expMins=e.offer_expires_at?Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000)):0;
-    m+=`<div style="padding:10px 14px;background:#FFF7ED;border:1px solid #FBBF24;border-radius:8px;font-size:.8rem;color:#92400E;margin-bottom:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})} \u00e0 ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</strong> \u2014 expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
+    m+=`<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--gold);border-radius:8px;font-size:.8rem;color:var(--amber-dark);margin-bottom:16px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre : <strong>${d.toLocaleDateString('fr-BE',{weekday:'short',day:'numeric',month:'short'})} \u00e0 ${d.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'})}</strong> \u2014 expire dans <strong>${expMins>60?Math.floor(expMins/60)+'h'+String(expMins%60).padStart(2,'0'):expMins+' min'}</strong></div>`;
   }
 
   // Staff notes
@@ -242,7 +244,7 @@ function wlDetail(idx){
   // Actions
   m+=`<div class="wl-action-row">`;
   if(e.status==='waiting'){
-    m+=`<button class="wl-btn primary" onclick="document.getElementById('wlDetailModal').remove();wlOffer('${e.id}','${esc(e.client_name).replace(/'/g,"\\'")}','${e.practitioner_id}','${e.service_id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Proposer un cr\u00e9neau</button>`;
+    m+=`<button class="wl-btn primary" onclick="closeModal('wlDetailModal');wlOffer('${e.id}','${esc(e.client_name).replace(/'/g,"\\'")}','${e.practitioner_id}','${e.service_id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Proposer un cr\u00e9neau</button>`;
     m+=`<button class="wl-btn" onclick="wlChangeStatus('${e.id}','booked')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> RDV obtenu</button>`;
     m+=`<button class="wl-btn danger" onclick="wlRemove('${e.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Retirer</button>`;
   }else if(e.status==='offered'){
@@ -278,7 +280,7 @@ async function wlChangeStatus(entryId,status){
     const body={status};
     if(notes!==undefined)body.staff_notes=notes;
     await api.patch(`/api/waitlist/${entryId}`,body);
-    document.getElementById('wlDetailModal')?.remove();
+    closeModal('wlDetailModal');
     const labels={booked:'RDV obtenu',declined:'D\u00e9clin\u00e9',waiting:'Remis en attente'};
     GendaUI.toast(labels[status]||'Statut mis \u00e0 jour','success');
     loadWaitlist();

@@ -73,8 +73,8 @@ async function loadDashboard(){
       if(sum.today?.bookings?.length>0){sum.today.bookings.forEach(b=>{
         const t=new Date(b.start_at).toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});
         let badges='';
-        if(b.todo_count>0)badges+=`<span class="bk-badge todo"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> ${b.todo_count}</span>`;
-        if(b.note_count>0||b.has_internal_note)badges+=`<span class="bk-badge note"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>`;
+        if(b.todo_count>0)badges+=`<span class="bk-badge todo">${IC.clipboard} ${b.todo_count}</span>`;
+        if(b.note_count>0||b.has_internal_note)badges+=`<span class="bk-badge note">${IC.fileText}</span>`;
         h+=`<div class="bk-row" onclick="openBookingDetail('${b.id}')">
           <span style="font-size:.85rem;font-weight:700;color:var(--primary);min-width:50px">${t}</span>
           <div style="flex:1;min-width:0">
@@ -151,7 +151,7 @@ async function loadDashboard(){
       h+=`<div class="stats"><div class="stat-card"><div class="label">RDV</div><div class="val">0</div></div><div class="stat-card"><div class="label">Prochain RDV</div><div class="val" style="font-size:.9rem;color:var(--text-4)">—</div></div><div class="stat-card"><div class="label">Tâches</div><div class="val">0</div></div>${isPrac?'':`<div class="stat-card"><div class="label">Appels</div><div class="val">—</div></div>`}</div><div class="card"><div class="card-h"><h3>RDV du jour</h3></div><div class="empty">Aucun RDV</div></div>`;
     }
     c.innerHTML=h;
-  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}<br><button onclick="loadDashboard()" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);cursor:pointer">Réessayer</button></div>`;}
+  }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}<br><button class="btn-outline btn-sm" onclick="loadDashboard()" style="margin-top:8px">Réessayer</button></div>`;}
 }
 
 // Toggle a todo from dashboard

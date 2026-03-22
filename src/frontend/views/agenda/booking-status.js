@@ -120,7 +120,7 @@ async function fcSendDepositRequest(channel) {
   fcSendDepositRequest._busy = true;
   const statusEl = document.getElementById('mDepositSendStatus');
   try {
-    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = '#FEF3E2'; statusEl.style.color = '#B45309'; statusEl.textContent = 'Envoi en cours…'; }
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.style.background = 'var(--amber-bg)'; statusEl.style.color = 'var(--amber-dark)'; statusEl.textContent = 'Envoi en cours…'; }
     // Auto-save client contact if edited, so deposit goes to the new email/phone
     const newEmail = document.getElementById('uClientEmail')?.value.trim() || '';
     const newPhone = document.getElementById('uClientPhone')?.value.trim() || '';
@@ -143,10 +143,10 @@ async function fcSendDepositRequest(channel) {
     if (!r.ok) { let msg = 'Erreur'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
     const data = await r.json();
     gToast(`Demande d'acompte envoyée par ${data.label || channel}`, 'success');
-    if (statusEl) { statusEl.style.background = '#F0FDF4'; statusEl.style.color = '#15803D'; statusEl.textContent = `\u2713 Demande envoyée par ${data.label || channel}`; }
+    if (statusEl) { statusEl.style.background = 'var(--green-bg)'; statusEl.style.color = 'var(--green)'; statusEl.textContent = `\u2713 Demande envoyée par ${data.label || channel}`; }
   } catch (e) {
     gToast('Erreur: ' + e.message, 'error');
-    if (statusEl) { statusEl.style.background = '#FEF2F2'; statusEl.style.color = '#DC2626'; statusEl.textContent = e.message; }
+    if (statusEl) { statusEl.style.background = 'var(--red-bg)'; statusEl.style.color = 'var(--red)'; statusEl.textContent = e.message; }
   } finally { fcSendDepositRequest._busy = false; }
 }
 

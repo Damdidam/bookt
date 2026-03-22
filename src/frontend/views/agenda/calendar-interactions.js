@@ -12,6 +12,7 @@ import { atView } from './calendar-toolbar.js';
 import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
 import { storeUndoAction } from './booking-undo.js';
 import { fcHideTooltip } from './tooltip-renderer.js';
+import { IC } from '../../utils/icons.js';
 
 // ── Drag tooltip: shows target date + time while dragging ──
 let _dragTT = null;
@@ -230,9 +231,9 @@ function buildEventDrop() {
       // In month view + collision -> offer to switch to day view for precise placement
       if (isCollision && calState.fcCal?.view?.type === 'dayGridMonth') {
         window._atPendingDaySwitch = targetDate;
-        gToast('✘ Créneau occupé — voir le jour pour replacer ?', 'error', { label: 'Voir le jour →', fn: () => { atView('resourceTimeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToastStack').textContent = ''; } });
+        gToast(IC.x + ' Créneau occupé — voir le jour pour replacer ?', 'error', { label: 'Voir le jour →', fn: () => { atView('resourceTimeGridDay'); calState.fcCal.gotoDate(window._atPendingDaySwitch); document.getElementById('gToastStack').textContent = ''; } });
       } else {
-        gToast(isCollision ? '✘ Créneau occupé — impossible de déplacer ici' : e.message, 'error');
+        gToast(isCollision ? IC.x + ' Créneau occupé — impossible de déplacer ici' : e.message, 'error');
       }
     } finally { _busy = false; }
   };
@@ -281,7 +282,7 @@ function buildEventResize() {
     } catch (e) {
       info.revert();
       gToast(e.message.includes('hevauche') || e.message.includes('créneau')
-        ? '✘ Chevauchement — durée non modifiée'
+        ? IC.x + ' Chevauchement — durée non modifiée'
         : e.message, 'error');
     } finally { _busy = false; }
   };

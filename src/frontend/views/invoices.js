@@ -32,8 +32,8 @@ async function loadInvoices(){
 
     // Actions bar
     h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px">
-      <button onclick="openInvoiceModal()" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer">+ Nouvelle facture</button>
-      <button onclick="openInvoiceModal('quote')" style="padding:8px 16px;background:var(--gold);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer">+ Devis</button>
+      <button onclick="openInvoiceModal()" class="btn-primary">+ Nouvelle facture</button>
+      <button onclick="openInvoiceModal('quote')" class="btn-primary" style="background:var(--gold)">+ Devis</button>
       <div style="flex:1"></div>
       <select onchange="invoiceType=this.value;loadInvoices()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem">
         <option value="all" ${invoiceType==='all'?'selected':''}>Tous types</option>
@@ -150,7 +150,7 @@ async function openInvoiceModal(type='invoice'){
       <div>
         <label class="m-field-label">Lignes</label>
         <div id="invLines"></div>
-        <button onclick="addInvoiceLine()" style="margin-top:6px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;cursor:pointer">+ Ajouter une ligne</button>
+        <button onclick="addInvoiceLine()" class="btn-outline btn-sm" style="margin-top:6px">+ Ajouter une ligne</button>
       </div>
 
       <div id="invTotals" style="text-align:right;padding:10px 0;border-top:1px solid var(--border)"></div>

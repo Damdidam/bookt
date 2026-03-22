@@ -48,14 +48,14 @@ function renderGiftCards(c,cards,st){
   ];
   const filterBtns=filters.map(f=>{
     const active=gcFilter===f.v;
-    return `<button onclick="gcFilter='${f.v}';loadGiftCards()" style="padding:6px 14px;border-radius:var(--radius-xs);font-size:.78rem;font-weight:${active?'600':'500'};cursor:pointer;border:1px solid ${active?'var(--primary)':'var(--border)'};background:${active?'var(--primary)':'var(--surface)'};color:${active?'#fff':'var(--text-2)'}">${f.l}</button>`;
+    return `<button onclick="gcFilter='${f.v}';loadGiftCards()" class="btn-sm${active?' active':''}">${f.l}</button>`;
   }).join('');
 
   h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px">
     ${filterBtns}
     <div style="flex:1"></div>
     <input type="text" placeholder="Rechercher par code ou nom..." value="${esc(gcSearch)}" onkeydown="if(event.key==='Enter'){gcSearch=this.value;loadGiftCards()}" onblur="gcSearch=this.value" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;min-width:200px">
-    <button onclick="openCreateGiftCardModal()" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer une carte</button>
+    <button onclick="openCreateGiftCardModal()" class="btn-primary"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer une carte</button>
   </div>`;
 
   // ── TABLE ──
@@ -89,7 +89,7 @@ function renderGiftCards(c,cards,st){
       let actions='';
       if(isActive){
         actions+=`<button onclick="openDebitGiftCard('${gc.id}')" title="Débiter" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
-        actions+=`<button onclick="refundGiftCard('${gc.id}')" title="Rembourser" style="background:none;border:none;cursor:pointer;color:#2563EB;font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
+        actions+=`<button onclick="refundGiftCard('${gc.id}')" title="Rembourser" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
         actions+=`<button onclick="cancelGiftCard('${gc.id}')" title="Annuler" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`;
       }else{
         actions='<span style="color:var(--text-4)">—</span>';
@@ -154,9 +154,10 @@ function openCreateGiftCardModal(){
         <textarea id="gcMessage" rows="3" placeholder="Un petit mot pour le destinataire..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;resize:vertical;box-sizing:border-box"></textarea>
       </div>
     </div>
-    <div class="m-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border)">
-      <button onclick="document.getElementById('gcCreateModal').remove()" style="padding:8px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;cursor:pointer;color:var(--text-2)">Annuler</button>
-      <button onclick="submitCreateGiftCard()" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.82rem;font-weight:600;cursor:pointer">Créer la carte</button>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="document.getElementById('gcCreateModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-primary" onclick="submitCreateGiftCard()">Créer la carte</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -233,9 +234,10 @@ function openDebitGiftCard(id){
         <input type="text" id="gcDebitNote" placeholder="Ex: Prestation coloration" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
       </div>
     </div>
-    <div class="m-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border)">
-      <button onclick="document.getElementById('gcDebitModal').remove()" style="padding:8px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;cursor:pointer;color:var(--text-2)">Annuler</button>
-      <button onclick="submitDebitGiftCard('${gc.id}')" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.82rem;font-weight:600;cursor:pointer">Débiter</button>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="document.getElementById('gcDebitModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-primary" onclick="submitDebitGiftCard('${gc.id}')">Débiter</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -299,9 +301,10 @@ async function refundGiftCard(id){
         <input type="text" id="gcRefundNote" placeholder="Raison du remboursement" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
       </div>
     </div>
-    <div class="m-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border)">
-      <button onclick="document.getElementById('gcRefundModal').remove()" style="padding:8px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;cursor:pointer;color:var(--text-2)">Annuler</button>
-      <button onclick="submitRefundGiftCard('${gc.id}')" style="padding:8px 18px;background:#2563EB;color:#fff;border:none;border-radius:var(--radius-xs);font-size:.82rem;font-weight:600;cursor:pointer">Rembourser</button>
+    <div class="m-bottom">
+      <div style="flex:1"></div>
+      <button class="m-btn m-btn-ghost" onclick="document.getElementById('gcRefundModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-primary" onclick="submitRefundGiftCard('${gc.id}')">Rembourser</button>
     </div>
   </div>`;
   document.body.appendChild(modal);

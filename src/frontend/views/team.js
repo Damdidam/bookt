@@ -9,6 +9,7 @@ import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { enableSwipeClose } from '../utils/swipe-close.js';
 import { initTimeInputs } from '../utils/dom.js';
+import { IC } from '../utils/icons.js';
 
 let pPendingPhoto = null;
 let teamCurrentTab = 'profile';
@@ -1122,30 +1123,30 @@ async function loadPracCalSync(pracId){
         <span style="font-size:1.1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         <div>
           <div style="font-size:.82rem;font-weight:600">Google Calendar</div>
-          ${gConn?`<div style="font-size:.68rem;color:var(--green)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${_esc(gConn.email||'Connecté')}${gConn.last_sync_at?' \u00b7 '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+          ${gConn?`<div style="font-size:.68rem;color:var(--green)">${IC.check} ${_esc(gConn.email||'Connecté')}${gConn.last_sync_at?' \u00b7 '+new Date(gConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
           :`<div style="font-size:.68rem;color:var(--text-4)">Non connecté</div>`}
         </div>
       </div>
       <div style="display:flex;gap:4px">
         ${gConn?`
           <button onclick="syncCalendar('${gConn.id}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-          <button onclick="disconnectCalendar('${gConn.id}','google','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          <button onclick="disconnectCalendar('${gConn.id}','google','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px">${IC.x}</button>
         `:`<button onclick="connectCalendar('google','${pracId}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px;color:var(--primary);border-color:var(--primary)">Connecter</button>`}
       </div>
     </div>`;
     h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--white);border:1px solid var(--border-light);border-radius:8px">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></span>
+        <span style="font-size:1.1rem">${IC.mail}</span>
         <div>
           <div style="font-size:.82rem;font-weight:600">Outlook</div>
-          ${oConn?`<div style="font-size:.68rem;color:var(--green)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${_esc(oConn.email||'Connecté')}${oConn.last_sync_at?' \u00b7 '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
+          ${oConn?`<div style="font-size:.68rem;color:var(--green)">${IC.check} ${_esc(oConn.email||'Connecté')}${oConn.last_sync_at?' \u00b7 '+new Date(oConn.last_sync_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>`
           :`<div style="font-size:.68rem;color:var(--text-4)">Non connecté</div>`}
         </div>
       </div>
       <div style="display:flex;gap:4px">
         ${oConn?`
           <button onclick="syncCalendar('${oConn.id}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-          <button onclick="disconnectCalendar('${oConn.id}','outlook','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          <button onclick="disconnectCalendar('${oConn.id}','outlook','${pracId}')" class="btn-outline btn-sm btn-danger" style="font-size:.72rem;padding:4px 10px">${IC.x}</button>
         `:`<button onclick="connectCalendar('outlook','${pracId}')" class="btn-outline btn-sm" style="font-size:.72rem;padding:4px 10px;color:var(--primary);border-color:var(--primary)">Connecter</button>`}
       </div>
     </div>`;
@@ -1233,7 +1234,7 @@ async function generateIcalFeed(pracId){
       <div style="padding:10px 12px;background:var(--white);border:1px solid var(--border-light);border-radius:6px">
         <div style="font-family:monospace;font-size:.68rem;word-break:break-all;user-select:all;cursor:text;color:var(--text-2);margin-bottom:6px">${d.ical_url}</div>
         <div style="display:flex;gap:6px">
-          <button onclick="navigator.clipboard.writeText('${d.ical_url}');GendaUI.toast('URL copiée !','success')" class="btn-outline btn-sm" style="font-size:.7rem;padding:3px 10px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copier</button>
+          <button onclick="navigator.clipboard.writeText('${d.ical_url}');GendaUI.toast('URL copiée !','success')" class="btn-outline btn-sm" style="font-size:.7rem;padding:3px 10px">${IC.clipboard} Copier</button>
           <a href="${d.webcal_url}" class="btn-outline btn-sm" style="font-size:.7rem;padding:3px 10px;text-decoration:none;color:var(--primary)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1-1-3.5-1.5-5 0s-2 4 0 7c1.5 2.5 3.5 3 5 5 1.5-2 3.5-2.5 5-5 2-3 1.5-5.5 0-7s-4-1-5 0Z"/><path d="M12 3c0-1 .5-2 2-2"/></svg> Ouvrir</a>
         </div>
       </div>`;

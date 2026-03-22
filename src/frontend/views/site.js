@@ -5,6 +5,7 @@ import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 import { guardModal } from '../utils/dirty-guard.js';
+import { IC } from '../utils/icons.js';
 
 // XSS-safe HTML escaping for admin views
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
@@ -107,7 +108,7 @@ async function loadSiteSection(){
             <label class="fl" style="margin-bottom:8px;display:block">Logo</label>
             <div id="logoDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'logo')" onclick="document.getElementById('logoFileInput').click()" style="width:100%;aspect-ratio:1;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
               ${b.logo_url?'<img src="'+esc(b.logo_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Logo</div>'}
-              ${b.logo_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'logo\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+              ${b.logo_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'logo\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">'+IC.x+'</button>':''}
             </div>
             <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp,image/svg+xml" style="display:none" onchange="handleBrandingFile(this.files[0],'logo')">
           </div>
@@ -115,7 +116,7 @@ async function loadSiteSection(){
             <label class="fl" style="margin-bottom:8px;display:block">Bannière / Couverture</label>
             <div id="coverDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'cover')" onclick="document.getElementById('coverFileInput').click()" style="width:100%;aspect-ratio:16/6;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
               ${b.cover_image_url?'<img src="'+esc(b.cover_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Bannière (recommandé 1200×400)</div>'}
-              ${b.cover_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'cover\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+              ${b.cover_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'cover\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">'+IC.x+'</button>':''}
             </div>
             <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'cover')">
           </div>
@@ -124,7 +125,7 @@ async function loadSiteSection(){
           <label class="fl" style="margin-bottom:8px;display:block">Photo "Notre philosophie"</label>
           <div id="aboutDropZone" class="img-drop-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');handleBrandingFile(event.dataTransfer.files[0],'about')" onclick="document.getElementById('aboutFileInput').click()" style="width:100%;aspect-ratio:16/9;max-width:400px;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;background:var(--bg-2);transition:border-color .15s">
             ${b.settings?.about_image_url?'<img src="'+esc(b.settings.about_image_url)+'" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">':'<div style="text-align:center;color:var(--text-4);font-size:.75rem"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><br>Image à côté de la description (recommandé 1200×800)</div>'}
-            ${b.settings?.about_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'about\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">✕</button>':''}
+            ${b.settings?.about_image_url?'<button onclick="event.stopPropagation();deleteBrandingImage(\'about\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center" title="Supprimer">'+IC.x+'</button>':''}
           </div>
           <input type="file" id="aboutFileInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleBrandingFile(this.files[0],'about')">
         </div>
@@ -549,7 +550,7 @@ function handleGalFile(file){
     document.getElementById('galPreviewImg').src=galPendingPhoto;
     document.getElementById('galPreview').style.display='block';
     document.getElementById('galClearFile').style.display='block';
-    document.getElementById('galDropZone').innerHTML='<p style="font-size:.85rem;font-weight:500;color:var(--primary)">✓ Image sélectionnée</p><p style="font-size:.7rem;color:var(--text-4);margin-top:4px">Cliquez pour changer</p>';
+    document.getElementById('galDropZone').innerHTML='<p style="font-size:.85rem;font-weight:500;color:var(--primary)">'+IC.check+' Image sélectionnée</p><p style="font-size:.7rem;color:var(--text-4);margin-top:4px">Cliquez pour changer</p>';
     document.getElementById('galUrl').value='';
   };
   reader.readAsDataURL(file);

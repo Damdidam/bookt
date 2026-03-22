@@ -5,12 +5,13 @@
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { guardModal } from '../utils/dirty-guard.js';
+import { IC } from '../utils/icons.js';
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 
 const DAYS_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const ICON_X = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const ICON_X = IC.x;
 const ICON_SAVE = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
 const ICON_FLAG = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>';
 
@@ -248,7 +249,7 @@ function renderHolidaysCard(year) {
       const dt = new Date(hol.date).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
       h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-light)">
         <div style="display:flex;align-items:center;gap:8px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#C2410C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           <span style="font-size:.85rem;font-weight:600">${dt}</span>
           <span style="font-size:.78rem;color:var(--text-4)">${hol.name}</span>
         </div>
@@ -276,7 +277,7 @@ function renderCoverageCard() {
     const isOpen = (scheduleData[d] || []).length > 0;
     const warn = isOpen && count === 0;
     const color = warn ? 'var(--red)' : count > 0 ? 'var(--green)' : 'var(--text-4)';
-    const bg = warn ? '#FEF2F2' : count > 0 ? '#F0FDF4' : 'var(--surface)';
+    const bg = warn ? 'var(--red-bg)' : count > 0 ? '#F0FDF4' : 'var(--surface)';
     h += `<div style="text-align:center;padding:10px 14px;border-radius:10px;background:${bg};min-width:70px;flex:1">
       <div style="font-size:.7rem;font-weight:600;color:var(--text-4);margin-bottom:4px">${DAYS_SHORT[d]}</div>
       <div style="font-size:1.1rem;font-weight:700;color:${color}">${count}</div>

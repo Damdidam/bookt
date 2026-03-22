@@ -204,11 +204,11 @@ function initCalendar(initView, initSlotDur) {
         var dateStr = view.currentStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         var period = fcGetAbsencePeriod(arg.resource.id, dateStr);
         if (period === 'full') {
-          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:#B45309;margin-top:1px">Absent(e) journée</span>';
+          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:var(--amber-dark);margin-top:1px">Absent(e) journée</span>';
         } else if (period === 'am') {
-          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:#B45309;margin-top:1px">Absent(e) matin</span>';
+          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:var(--amber-dark);margin-top:1px">Absent(e) matin</span>';
         } else if (period === 'pm') {
-          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:#B45309;margin-top:1px">Absent(e) après-midi</span>';
+          absHtml = '<span style="display:block;font-size:.68rem;font-weight:600;color:var(--amber-dark);margin-top:1px">Absent(e) après-midi</span>';
         }
       }
       return { html: '<span style="display:inline-flex;align-items:center;gap:8px;padding:2px 0"><span style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;box-shadow:0 0 0 3px ' + color + '22"></span><span style="font-weight:700;font-size:.84rem;color:#1A2332;letter-spacing:.2px">' + name + absHtml + '</span></span>' };

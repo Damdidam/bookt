@@ -7,6 +7,7 @@ import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
 import { guardModal } from '../utils/dirty-guard.js';
+import { IC } from '../utils/icons.js';
 
 let allPractitioners=[];
 let allSectorCats=[];
@@ -18,11 +19,11 @@ const DAY_LABELS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 const GRIP_SVG='<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>';
 const PENCIL_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
 const TRASH_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
-const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const X_SVG=IC.x;
 const CHEVRON_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 const PLUS_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 const CHECK_CIRCLE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>';
-const PHONE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>';
+const PHONE_SVG=IC.phone;
 
 // Pastel palette for category icon backgrounds
 const CAT_BG_PALETTE=['#FCE4EC','#E3F2FD','#E8F5E9','#FFF3E0','#F3E5F5','#E0F7FA','#FFF8E1','#E8EAF6','#FFEBEE','#E0F2F1','#FBE9E7','#ECEFF1'];
@@ -182,7 +183,7 @@ function renderServiceRow(s,sortIdx){
     const days=[...new Set(w.map(x=>DAY_LABELS[x.day]))].join(', ');
     badges+=`<span class="svc-row-badge sched"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${days}</span>`;
   }
-  if(s.is_active===false) badges+=`<span class="svc-row-badge" style="background:#FFEBEE;color:#C62828">Désactivée</span>`;
+  if(s.is_active===false) badges+=`<span class="svc-row-badge" style="background:var(--red-bg);color:var(--red)">Désactivée</span>`;
 
   let h=`<div class="svc-row${s.is_active===false?' inactive':''}" data-id="${s.id}" data-sort="${sortIdx}" draggable="true" ondragstart="svcDragStart(event,'svc')" ondragover="svcDragOver(event,'svc')" ondragleave="svcDragLeave(event)" ondrop="svcDrop(event,'svc')">`;
   h+=`<div class="svc-color" style="background:${s.color||'var(--primary)'}"></div>`;

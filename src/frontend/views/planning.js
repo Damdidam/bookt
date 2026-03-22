@@ -6,6 +6,7 @@
  */
 import { api, sectorLabels } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
 
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -24,11 +25,11 @@ const ICONS = {
   pauseCircle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>',
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  alertTriangle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  close: IC.x,
+  alertTriangle: IC.alertTriangle,
   checkCircle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
-  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+  mail: IC.mail,
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   sunrise: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="8 6 12 2 16 6"/></svg>',
   sunset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="9" x2="12" y2="2"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="16 6 12 10 8 6"/></svg>',
@@ -41,9 +42,9 @@ const ICONS = {
 const TYPE_ICONS = { conge: ICONS.sun, maladie: ICONS.thermometer, formation: ICONS.graduationCap, autre: ICONS.pauseCircle };
 const TYPE_COLORS = {
   conge: { bg: '#DBEAFE', border: '#93C5FD', text: '#1E3A8A', grad: 'linear-gradient(135deg,#3B82F6,#1D4ED8)' },
-  maladie: { bg: '#FEE2E2', border: '#FECACA', text: '#991B1B', grad: 'linear-gradient(135deg,#EF4444,#B91C1C)' },
-  formation: { bg: '#EDE9FE', border: '#C4B5FD', text: '#5B21B6', grad: 'linear-gradient(135deg,#8B5CF6,#6D28D9)' },
-  autre: { bg: '#F3F4F6', border: '#D1D5DB', text: '#374151', grad: 'linear-gradient(135deg,#6B7280,#374151)' }
+  maladie: { bg: 'var(--red-bg)', border: '#FECACA', text: '#991B1B', grad: 'linear-gradient(135deg,#EF4444,#B91C1C)' },
+  formation: { bg: 'var(--purple-bg)', border: '#C4B5FD', text: '#5B21B6', grad: 'linear-gradient(135deg,#8B5CF6,#6D28D9)' },
+  autre: { bg: '#F3F4F6', border: '#D1D5DB', text: '#374151', grad: 'linear-gradient(135deg,var(--text-3),#374151)' }
 };
 
 let currentYear, currentMonth;
@@ -965,7 +966,7 @@ async function _fetchAlternatives(token, pracId, from, to, period, periodEnd) {
       } else {
         altZone.innerHTML = `<span style="font-size:.7rem;color:var(--text-4)">Assigner à :</span> ` +
           alts.map(a =>
-            `<button class="plan-alt-chip" style="--ac:${esc(a.color || '#6B7280')}" onclick="planReassign('${esc(bk.id)}','${esc(a.practitioner_id)}')">${esc(a.display_name)}</button>`
+            `<button class="plan-alt-chip" style="--ac:${esc(a.color || 'var(--text-3)')}" onclick="planReassign('${esc(bk.id)}','${esc(a.practitioner_id)}')">${esc(a.display_name)}</button>`
           ).join(' ');
       }
     }
@@ -1120,7 +1121,7 @@ function _showToast(msg, type) {
   if (existing) existing.remove();
   const toast = document.createElement('div');
   toast.id = 'planToast';
-  toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:.82rem;font-weight:600;z-index:99999;color:#fff;background:${type === 'error' ? '#DC2626' : '#059669'};box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fadeIn .2s`;
+  toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:.82rem;font-weight:600;z-index:99999;color:#fff;background:${type === 'error' ? 'var(--red)' : '#059669'};box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fadeIn .2s`;
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 4000);

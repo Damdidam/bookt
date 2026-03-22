@@ -3,6 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { IC } from '../utils/icons.js';
 
 let depositFilter='all',depositFrom='',depositTo='';
 let _lastDeps=[];
@@ -44,9 +45,9 @@ async function loadDeposits(){
       </select>
       <input type="date" value="${esc(depositFrom)}" onchange="depositFrom=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date d\u00e9but">
       <input type="date" value="${esc(depositTo)}" onchange="depositTo=this.value;loadDeposits()" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem" title="Date fin">
-      ${(depositFilter!=='all'||depositFrom||depositTo)?`<button onclick="depositFilter='all';depositFrom='';depositTo='';loadDeposits()" style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;cursor:pointer">Effacer filtres</button>`:''}
+      ${(depositFilter!=='all'||depositFrom||depositTo)?`<button onclick="depositFilter='all';depositFrom='';depositTo='';loadDeposits()" class="btn-outline btn-sm">Effacer filtres</button>`:''}
       <div style="flex:1"></div>
-      <button onclick="exportDepositsCSV()" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;cursor:pointer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+      <button onclick="exportDepositsCSV()" class="btn-primary"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>`;
 
     // ── TABLE ──
@@ -65,9 +66,9 @@ async function loadDeposits(){
           <th style="padding:10px;text-align:center;font-weight:600;font-size:.72rem;text-transform:uppercase;color:var(--text-3)">Audit</th>
         </tr></thead><tbody>`;
 
-      const depStatusColors={pending:'var(--gold)',paid:'var(--green)',refunded:'#2563EB',cancelled:'var(--primary)',waived:'#78716C'};
+      const depStatusColors={pending:'var(--gold)',paid:'var(--green)',refunded:'var(--blue)',cancelled:'var(--primary)',waived:'var(--text-3)'};
       const depStatusLabels={pending:'En attente',paid:'Pay\u00e9',refunded:'Rembours\u00e9',cancelled:'Conserv\u00e9',waived:'Dispens\u00e9'};
-      const bkStatusColors={pending:'var(--gold)',confirmed:'var(--green)',cancelled:'var(--red)',completed:'var(--text-3)',no_show:'#B45309',pending_deposit:'var(--gold)',modified_pending:'var(--gold)'};
+      const bkStatusColors={pending:'var(--gold)',confirmed:'var(--green)',cancelled:'var(--red)',completed:'var(--text-3)',no_show:'var(--amber-dark)',pending_deposit:'var(--gold)',modified_pending:'var(--gold)'};
       const bkStatusLabels={pending:'En attente',confirmed:'Confirm\u00e9',cancelled:'Annul\u00e9',completed:'Termin\u00e9',no_show:'No-show',pending_deposit:'Att. acompte',modified_pending:'Modifi\u00e9'};
 
       deps.forEach(d=>{
@@ -82,9 +83,9 @@ async function loadDeposits(){
           <td style="padding:10px 14px"><div style="font-weight:600">${rdvDate}</div><div style="font-size:.7rem;color:var(--text-4)">Cr\u00e9\u00e9 ${createdDate}</div></td>
           <td style="padding:10px"><div style="font-weight:500">${esc(d.client_name)}</div><div style="font-size:.7rem;color:var(--text-4)">${esc(d.client_email||'')}</div></td>
           <td style="padding:10px"><span style="font-size:.78rem">${esc(d.service_name)}</span><div style="font-size:.7rem;color:var(--text-4)">${esc(d.practitioner_name||'')}</div></td>
-          <td style="padding:10px;text-align:right;font-weight:600">${fmtEur(d.deposit_amount_cents)}${(()=>{const gc=parseInt(d.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(d.deposit_amount_cents||0)-gc);return '<div style="font-size:.65rem;font-weight:400;color:var(--text-4);margin-top:2px">🎁 '+fmtEur(gc)+' carte cadeau'+(stripe>0?' · '+fmtEur(stripe)+' Stripe':'')+'</div>';})()}</td>
+          <td style="padding:10px;text-align:right;font-weight:600">${fmtEur(d.deposit_amount_cents)}${(()=>{const gc=parseInt(d.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(d.deposit_amount_cents||0)-gc);return '<div style="font-size:.65rem;font-weight:400;color:var(--text-4);margin-top:2px">'+IC.gift+' '+fmtEur(gc)+' carte cadeau'+(stripe>0?' · '+fmtEur(stripe)+' Stripe':'')+'</div>';})()}</td>
           <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${dc}12;color:${dc};font-weight:600">${depStatusLabels[d.deposit_status]||d.deposit_status||'\u2014'}</span></td>
-          <td style="padding:10px;color:var(--text-3);font-size:.78rem">${paidDate}${d.deposit_payment_intent_id?(d.deposit_payment_intent_id.startsWith('gc_')?'<div style="font-size:.65rem;color:#B45309">🎁 Carte cadeau</div>':'<div style="font-size:.65rem;color:var(--text-4);font-family:monospace">'+esc(d.deposit_payment_intent_id.slice(-8))+'</div>'):''}</td>
+          <td style="padding:10px;color:var(--text-3);font-size:.78rem">${paidDate}${d.deposit_payment_intent_id?(d.deposit_payment_intent_id.startsWith('gc_')?'<div style="font-size:.65rem;color:var(--amber-dark)">'+IC.gift+' Carte cadeau</div>':'<div style="font-size:.65rem;color:var(--text-4);font-family:monospace">'+esc(d.deposit_payment_intent_id.slice(-8))+'</div>'):''}</td>
           <td style="padding:10px;text-align:center"><span style="font-size:.72rem;padding:3px 10px;border-radius:10px;background:${bc}12;color:${bc};font-weight:600">${bkStatusLabels[d.booking_status]||d.booking_status}</span></td>
           <td style="padding:10px;text-align:center">${hasAudit?`<button onclick="showDepositAudit('${d.id}')" title="Voir l'historique" style="background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--primary)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>`:'<span style="color:var(--text-4)">\u2014</span>'}</td>
         </tr>`;
@@ -133,12 +134,12 @@ function showDepositAudit(bookingId){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>Historique acompte</h3>
-      <button class="m-close" onclick="document.getElementById('depAuditModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('depAuditModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
         <div style="font-size:.85rem;font-weight:600">${esc(dep.client_name)} \u2014 ${esc(dep.service_name)}</div>
-        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)}${(()=>{const gc=parseInt(dep.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(dep.deposit_amount_cents||0)-gc);return ' (🎁 '+fmtEur(gc)+' carte cadeau'+(stripe>0?' + '+fmtEur(stripe)+' Stripe':'')+')';})()} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
+        <div style="font-size:.75rem;color:var(--text-3);margin-top:4px">Montant: ${fmtEur(dep.deposit_amount_cents)}${(()=>{const gc=parseInt(dep.gc_paid_cents)||0;if(gc<=0)return '';const stripe=Math.max(0,(dep.deposit_amount_cents||0)-gc);return ' ('+IC.gift+' '+fmtEur(gc)+' carte cadeau'+(stripe>0?' + '+fmtEur(stripe)+' Stripe':'')+')';})()} \u2022 RDV: ${new Date(dep.start_at).toLocaleDateString('fr-BE')} \u2022 Statut: ${depStatusLabels[dep.deposit_status]||dep.deposit_status}</div>
       </div>
       ${auditHtml}
     </div>

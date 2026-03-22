@@ -17,7 +17,7 @@ export function fmtSvcLabel(category, serviceName, variantName, customLabel) {
 }
 
 const DEFAULT_ACCENT = '#0D7377';
-const ST_COLORS = { confirmed:'#15803D', pending:'#EAB308', modified_pending:'#D97706', pending_deposit:'#D97706', completed:'#374151', no_show:'#DC2626', cancelled:'#DC2626' };
+const ST_COLORS = { confirmed:'var(--green)', pending:'#EAB308', modified_pending:'var(--amber)', pending_deposit:'var(--amber)', completed:'#374151', no_show:'var(--red)', cancelled:'var(--red)' };
 
 /* Harmonised Lucide-style SVG icons — stroke-based, currentColor, no fill */
 const gi = svg => svg.replace('<svg ', '<svg class="gi" '); // inject .gi class for inline icon contexts
@@ -53,7 +53,7 @@ function buildEventContent() {
         return { html: `<span class="ev-month-pill ev-task-pill" style="color:${darkAccent}">${t} ${gi(IC.wrench)} <strong>${esc(p.title)}</strong></span>` };
       }
       const noteLine = p.note ? '<span class="ev-service">' + esc(p.note.length > 40 ? p.note.slice(0, 37) + '…' : p.note) + '</span>' : '';
-      const stDot = p.status === 'completed' ? '<span class="ev-badge ev-badge-st" style="background:#6B7280"></span>' : '';
+      const stDot = p.status === 'completed' ? '<span class="ev-badge ev-badge-st" style="background:var(--text-3)"></span>' : '';
       return { html: `<div class="ev-inner ev-task-inner" style="color:${darkAccent}"><span class="ev-client">${gi(IC.wrench)} ${esc(p.title)}</span>${noteLine}<div class="ev-badges">${stDot}</div></div>` };
     }
 

@@ -100,7 +100,7 @@ async function loadCalSync() {
           </div>`;
 
         if (conn.error_message) {
-          h += `<div style="margin-top:8px;padding:8px 10px;background:var(--red)08;border:1px solid #fecaca;border-radius:8px;font-size:.72rem;color:var(--red)">${esc(conn.error_message)}</div>`;
+          h += `<div style="margin-top:8px;padding:8px 10px;background:var(--red)08;border:1px solid var(--red-bg);border-radius:8px;font-size:.72rem;color:var(--red)">${esc(conn.error_message)}</div>`;
         }
 
         // iCal URL display
@@ -120,7 +120,7 @@ async function loadCalSync() {
           <button class="btn-outline" style="font-size:.75rem;padding:6px 12px" onclick="calSyncNow('${conn.id}')">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Sync
           </button>
-          <button class="btn-outline" style="font-size:.75rem;padding:6px 12px;color:var(--red);border-color:#fecaca" onclick="calSyncDisconnect('${conn.id}','${info.label}')">Déconnecter</button>
+          <button class="btn-outline" style="font-size:.75rem;padding:6px 12px;color:var(--red);border-color:var(--red-bg)" onclick="calSyncDisconnect('${conn.id}','${info.label}')">Déconnecter</button>
         </div></div>`;
       }
       h += `</div>`;

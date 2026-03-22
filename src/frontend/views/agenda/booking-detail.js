@@ -69,7 +69,7 @@ async function fcOpenDetail(bookingId) {
     const initials = (b.client_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const heroEl = document.getElementById('mClientHero');
     const freeTag = isFreestyle ? `<span class="m-free-tag" style="background:${accentColor}18;color:${accentColor}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> LIBRE</span>` : '';
-    const vipTag = b.is_vip ? `<span style="font-size:.55rem;font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.5px;background:#FEF9E7;color:#D4A017;border:1px solid #F5E6A3">★ VIP</span>` : '';
+    const vipTag = b.is_vip ? `<span style="font-size:.55rem;font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.5px;background:var(--amber-bg);color:var(--gold);border:1px solid #F5E6A3">${IC.star} VIP</span>` : '';
     heroEl.innerHTML = `
       <div class="m-avatar" style="background:linear-gradient(135deg,${accentColor},${accentColor}CC)">${initials}</div>
       <div class="m-client-info">
@@ -95,19 +95,19 @@ async function fcOpenDetail(bookingId) {
     const stMap = {
       pending: { bg: 'var(--gold-bg)', c: 'var(--gold)', l: 'En attente' },
       confirmed: { bg: 'var(--green-bg)', c: 'var(--green)', l: 'Confirm\u00e9' },
-      modified_pending: { bg: '#FFF7ED', c: '#D97706', l: 'Modifi\u00e9' },
+      modified_pending: { bg: '#FFF7ED', c: 'var(--amber)', l: 'Modifi\u00e9' },
       completed: { bg: 'var(--surface)', c: 'var(--text-4)', l: 'Termin\u00e9' },
       cancelled: { bg: 'var(--red-bg)', c: 'var(--red)', l: 'Annul\u00e9' },
       no_show: { bg: 'var(--red-bg)', c: 'var(--red)', l: 'No-show' },
-      pending_deposit: { bg: '#FEF3E2', c: '#B45309', l: 'Acompte requis' }
+      pending_deposit: { bg: 'var(--amber-bg)', c: 'var(--amber-dark)', l: 'Acompte requis' }
     };
     const st = stMap[b.status] || stMap.confirmed;
     const acts = [];
-    if (b.status === 'pending') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'confirmed\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmer</button>');
-    if (b.status === 'confirmed') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'completed\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Termin\u00e9</button>');
-    if (b.status === 'modified_pending') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'confirmed\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Forcer confirmation</button>');
+    if (b.status === 'pending') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'confirmed\')">' + IC.check + ' Confirmer</button>');
+    if (b.status === 'confirmed') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'completed\')">' + IC.check + ' Termin\u00e9</button>');
+    if (b.status === 'modified_pending') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'confirmed\')">' + IC.check + ' Forcer confirmation</button>');
     if (!['cancelled', 'completed'].includes(b.status)) {
-      acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'no_show\')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No-show</button>');
+      acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'no_show\')">' + IC.x + ' No-show</button>');
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'cancelled\')">Annuler</button>');
     }
     // "Confirmer sans acompte" is in the deposit banner, no need for a status strip button
@@ -174,7 +174,7 @@ async function fcOpenDetail(bookingId) {
       const reqCount = b.deposit_request_count || 0;
       const maxResends = 3;
 
-      let borderCol = '#F59E0B', bgCol = '#FEF3E2', textCol = '#B45309';
+      let borderCol = 'var(--amber)', bgCol = 'var(--amber-bg)', textCol = 'var(--amber-dark)';
       let statusText = 'En attente';
       let extraHtml = '';
 
@@ -188,7 +188,7 @@ async function fcOpenDetail(bookingId) {
           const defDlH = bizSettings.deposit_deadline_hours ?? 48;
           if (!tooCloseForDeposit) {
             extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" id="mReReqDepBtn" style="font-size:.72rem;padding:4px 12px;background:#EFF6FF;color:#1D4ED8;border:1px solid #93C5FD;border-radius:6px;cursor:pointer;font-weight:600" onclick="document.getElementById('mReReqDepPanel').style.display='';this.style.display='none'">Redemander l'acompte</button></div>
-              <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid #F59E0B;background:#FEF9E7">
+              <div id="mReReqDepPanel" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;border:1.5px solid var(--amber);background:var(--amber-bg)">
                 <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
                   <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
                   <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defDlH}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
@@ -196,7 +196,7 @@ async function fcOpenDetail(bookingId) {
                 </div>
               </div>`;
           } else {
-            extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#6B7280;font-style:italic">\u26a0\ufe0f Trop proche du RDV pour redemander (< ${cancelDeadlineH}h)</div>`;
+            extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:var(--text-3);font-style:italic">\u26a0\ufe0f Trop proche du RDV pour redemander (< ${cancelDeadlineH}h)</div>`;
           }
         }
       } else if (depWaived) {
@@ -204,14 +204,14 @@ async function fcOpenDetail(bookingId) {
         statusText = 'Dispens\u00e9';
         extraHtml += `<div style="font-size:.72rem;color:#78716C;margin-top:4px">RDV confirm\u00e9 sans acompte</div>`;
       } else if (depKept) {
-        borderCol = '#EF4444'; bgCol = '#FEF2F2'; textCol = '#DC2626';
+        borderCol = '#EF4444'; bgCol = 'var(--red-bg)'; textCol = 'var(--red)';
         statusText = 'Conserv\u00e9 (annulation tardive)';
       } else if (depPaid) {
-        borderCol = '#86EFAC'; bgCol = '#F0FDF4'; textCol = '#15803D';
+        borderCol = '#86EFAC'; bgCol = 'var(--green-bg)'; textCol = 'var(--green)';
         statusText = 'Payé';
-        if (b.deposit_paid_at) extraHtml += `<div style="font-size:.72rem;color:#15803D;margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>`;
+        if (b.deposit_paid_at) extraHtml += `<div style="font-size:.72rem;color:var(--green);margin-top:4px">Pay\u00e9 le ${new Date(b.deposit_paid_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>`;
         if (isFuture) {
-          extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
+          extraHtml += `<div style="margin-top:8px"><button class="m-st-btn" style="font-size:.72rem;padding:4px 12px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-bg);border-radius:6px;cursor:pointer;font-weight:600" onclick="fcRefundDeposit(${b.deposit_amount_cents})">Rembourser l'acompte</button></div>`;
         }
       } else {
         // -- Pending deposit: show sent status + resend controls --
@@ -221,7 +221,7 @@ async function fcOpenDetail(bookingId) {
           const sentDate = new Date(b.deposit_requested_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
           extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>Demande envoy\u00e9e le ${sentDate}${reqCount > 1 ? ' (' + reqCount + ' envoi' + (reqCount > 1 ? 's' : '') + ')' : ''}</div>`;
         } else if (neverSent) {
-          extraHtml += `<div style="font-size:.72rem;color:#DC2626;margin-top:4px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Demande non envoy\u00e9e</div>`;
+          extraHtml += `<div style="font-size:.72rem;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:4px">${IC.info}Demande non envoy\u00e9e</div>`;
         }
         if (depDl) extraHtml += `<div style="font-size:.72rem;color:#92700C;margin-top:2px">Deadline : ${depDl}</div>`;
         // Auto-reminder info
@@ -231,20 +231,20 @@ async function fcOpenDetail(bookingId) {
           const reminderDate = new Date(new Date(b.deposit_deadline).getTime() - 48 * 3600000);
           if (reminderDate > new Date()) {
             const reminderStr = reminderDate.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-            extraHtml += `<div style="font-size:.72rem;color:#6B7280;margin-top:2px;font-style:italic">Relance auto pr\u00e9vue le ${reminderStr}</div>`;
+            extraHtml += `<div style="font-size:.72rem;color:var(--text-3);margin-top:2px;font-style:italic">Relance auto pr\u00e9vue le ${reminderStr}</div>`;
           }
         }
 
         // Time guard warning
         if (tooCloseForDeposit) {
-          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">\u26a0\ufe0f Trop proche du RDV pour envoyer une demande (moins de ${cancelDeadlineH}h avant)</div>`;
+          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:var(--red);background:var(--red-bg);padding:6px 10px;border-radius:6px;border:1px solid var(--red-bg)">\u26a0\ufe0f Trop proche du RDV pour envoyer une demande (moins de ${cancelDeadlineH}h avant)</div>`;
         } else if (reqCount >= maxResends) {
-          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:#DC2626;background:#FEF2F2;padding:6px 10px;border-radius:6px;border:1px solid #FECACA">Maximum de ${maxResends} envois atteint. Contactez le client directement.</div>`;
+          extraHtml += `<div style="margin-top:6px;font-size:.72rem;color:var(--red);background:var(--red-bg);padding:6px 10px;border-radius:6px;border:1px solid var(--red-bg)">Maximum de ${maxResends} envois atteint. Contactez le client directement.</div>`;
         } else {
           extraHtml += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
           if (neverSent) {
             // Primary send button (first time — never sent)
-            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 14px;background:#F59E0B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer la demande</button>`;
+            extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 14px;background:var(--amber);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcSendDepositRequest('email')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Envoyer la demande</button>`;
           } else {
             // Resend button (secondary — already sent at least once)
             extraHtml += `<button style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;padding:5px 12px;background:#fff;color:#92700C;border:1px solid #D6D3D1;border-radius:6px;cursor:pointer;font-weight:500;font-family:inherit" onclick="fcSendDepositRequest('email')" title="Renvoyer la demande par email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Renvoyer la demande</button>`;
@@ -286,7 +286,7 @@ async function fcOpenDetail(bookingId) {
         wrap.className = 'm-require-deposit-wrap';
         wrap.style.cssText = 'padding:0 24px 8px';
         wrap.innerHTML = `<button class="m-st-btn orange" id="mReqDepBtn" onclick="document.getElementById('mReqDepPanel').style.display='';this.style.display='none'"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Exiger un acompte</button>
-          <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid #F59E0B;background:#FEF9E7">
+          <div id="mReqDepPanel" style="display:none;margin-top:8px;padding:12px 16px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg)">
             <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
               <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">Montant (\u20ac)</label><input type="number" id="mReqDepAmount" min="1" step="0.01" value="${(defaultCents / 100).toFixed(2)}" class="m-input" style="width:90px;padding:5px 8px;font-size:.8rem"></div>
               <div><label style="font-size:.7rem;font-weight:600;color:#92700C;display:block;margin-bottom:2px">D\u00e9lai (h avant RDV)</label><input type="number" id="mReqDepDeadline" min="1" value="${defaultDlHours}" class="m-input" style="width:70px;padding:5px 8px;font-size:.8rem"></div>
@@ -307,8 +307,8 @@ async function fcOpenDetail(bookingId) {
         : '';
       const promoEl = document.createElement('div');
       promoEl.className = 'm-promo-banner';
-      promoEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #f59e0b;background:#FFFBEB';
-      promoEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:#B45309">
+      promoEl.style.cssText = 'padding:10px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid var(--amber);background:var(--amber-bg)';
+      promoEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--amber-dark)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
         Dernière minute : -${b.discount_pct}%${priceHtml}
       </div>`;
