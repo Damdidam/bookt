@@ -412,9 +412,15 @@ async function loadSettings(){
     </div>`;
     h+=`<div id="gcOptions" style="display:${gcOn?'block':'none'}">`;
     h+=`<div class="field"><label>Montants prédéfinis (€)</label><input type="text" id="s_gc_amounts" value="${gcAmounts.map(a=>(a/100)).join(', ')}" placeholder="25, 50, 75, 100" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;width:100%;font-family:var(--sans)"><div class="hint">Séparez les montants par des virgules</div></div>`;
-    h+=`<div class="field"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s_gc_custom" ${gcCustom?'checked':''}> Autoriser un montant libre</label></div>`;
-    h+=`<div class="field"><label>Montant min/max (€)</label><div style="display:flex;gap:10px"><input type="number" id="s_gc_min" value="${gcMin}" min="5" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="align-self:center;color:var(--text-3)">à</span><input type="number" id="s_gc_max" value="${gcMax}" min="10" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"></div></div>`;
-    h+=`<div class="field"><label>Validité</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_gc_expiry" value="${gcExpiry}" min="30" max="730" style="width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;text-align:center"><span style="font-size:.82rem;color:var(--text-3)">jours</span></div></div>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:var(--radius-sm);margin-bottom:14px">
+      <div><div style="font-size:.85rem;font-weight:600">Autoriser un montant libre</div><div style="font-size:.75rem;color:var(--text-4)">Le client peut saisir le montant de son choix</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
+        <input type="checkbox" id="s_gc_custom" ${gcCustom?'checked':''} style="display:none">
+        <span style="position:absolute;inset:0;background:${gcCustom?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${gcCustom?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div style="display:flex;gap:24px;margin-bottom:14px"><div class="field" style="flex:1"><label>Montant min/max (€)</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_gc_min" value="${gcMin}" min="5" style="width:80px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;text-align:center"><span style="color:var(--text-3)">à</span><input type="number" id="s_gc_max" value="${gcMax}" min="10" style="width:80px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;text-align:center"></div></div><div class="field"><label>Validité</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_gc_expiry" value="${gcExpiry}" min="30" max="730" style="width:70px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;text-align:center"><span style="font-size:.82rem;color:var(--text-3)">jours</span></div></div></div>`;
     h+=`</div>`;
     h+=`</div></div>`;
 
