@@ -87,9 +87,18 @@ document.getElementById('todayDate').textContent = new Date().toLocaleDateString
   weekday: 'long', day: 'numeric', month: 'long'
 });
 
-// ── Plan badge ──
+// ── Plan badge (refresh from server to catch DB changes) ──
 if (biz) {
-  document.getElementById('planBadge').textContent = (biz.plan || 'free').toUpperCase();
+  const badge = document.getElementById('planBadge');
+  badge.textContent = (biz.plan || 'free').toUpperCase();
+  // Async refresh
+  api.getDashboard?.()?.then?.(d => {
+    if (d?.business?.plan && d.business.plan !== biz.plan) {
+      biz.plan = d.business.plan;
+      api.setBusiness(biz);
+      badge.textContent = d.business.plan.toUpperCase();
+    }
+  }).catch(() => {});
 }
 
 // ── Query param handlers (onboarding, subscription) ──
