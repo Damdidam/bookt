@@ -41,7 +41,7 @@ Liens : Le moteur · Fonctionnalités · Tarifs · FAQ · Se connecter · **Essa
 
 ### 4. Section moteur (existante, à garder)
 
-Les 4 cartes existantes (pose optimization, multi-praticien, gap analyzer, contexte réel) sont excellentes. **Garder tel quel** — c'est le coeur du positionnement technique.
+Les 4 cartes existantes (pose optimization, multi-praticien, gap analyzer, contexte réel) sont excellentes. **Garder tel quel** — c'est le cœur du positionnement technique.
 
 ### 5. Stats bar (à mettre à jour)
 
