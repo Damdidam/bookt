@@ -32,6 +32,12 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: 'Référence invalide' });
   }
 
+  // Serve custom error page for browser requests
+  const wantsHtml = (req.headers.accept || '').includes('text/html') && !req.path.startsWith('/api/');
+  if (wantsHtml) {
+    return res.status(500).sendFile(require('path').join(__dirname, '../../public/502.html'));
+  }
+
   // M10: Default safe — only expose error in development mode explicitly
   res.status(500).json({
     error: process.env.NODE_ENV === 'development'

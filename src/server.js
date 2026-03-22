@@ -408,6 +408,15 @@ app.get('/waitlist/:token', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/waitlist-offer.html'));
 });
 
+// ===== 404 CATCH-ALL =====
+app.use((req, res) => {
+  const wantsHtml = (req.headers.accept || '').includes('text/html') && !req.path.startsWith('/api/');
+  if (wantsHtml) {
+    return res.status(404).sendFile(path.join(__dirname, '../public/502.html'));
+  }
+  res.status(404).json({ error: 'Route introuvable' });
+});
+
 // ===== ERROR HANDLER =====
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
