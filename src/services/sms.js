@@ -53,14 +53,18 @@ async function sendSMS(opts) {
     }
 
     const twilio = require('twilio')(sid, token);
-    const msg = await twilio.messages.create({
-      body,
-      from: fromNumber,
-      to,
-      statusCallback: process.env.APP_BASE_URL
-        ? `${process.env.APP_BASE_URL}/webhooks/twilio/sms/status`
-        : undefined
-    });
+    const createOpts = { body, to };
+    // Support Messaging Service SID (starts with MG) or direct number
+    if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+      createOpts.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+    } else {
+      createOpts.from = fromNumber;
+    }
+    if (process.env.APP_BASE_URL) {
+      createOpts.statusCallback = `${process.env.APP_BASE_URL}/webhooks/twilio/sms/status`;
+    }
+    console.log(`[SMS] Sending to ${masked} via ${createOpts.messagingServiceSid || createOpts.from}...`);
+    const msg = await twilio.messages.create(createOpts);
 
     console.log(`[SMS] Sent to ${masked}: ${msg.sid}`);
     return { success: true, sid: msg.sid };
