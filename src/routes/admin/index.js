@@ -206,4 +206,62 @@ router.post('/impersonate/:businessId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── GET /api/admin/announcements ────────────────────────────────
+router.get('/announcements', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT * FROM system_announcements ORDER BY created_at DESC LIMIT 50`
+    );
+    res.json({ announcements: result.rows });
+  } catch (err) { next(err); }
+});
+
+// ─── POST /api/admin/announcements ──────────────────────────────
+router.post('/announcements', async (req, res, next) => {
+  try {
+    const { title, body, type = 'info', starts_at, ends_at } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required' });
+    const result = await query(
+      `INSERT INTO system_announcements (title, body, type, starts_at, ends_at, created_by)
+       VALUES ($1, $2, $3, COALESCE($4::timestamptz, NOW()), $5::timestamptz, $6)
+       RETURNING *`,
+      [title, body || null, type, starts_at || null, ends_at || null, req.user.id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { next(err); }
+});
+
+// ─── PATCH /api/admin/announcements/:id ─────────────────────────
+router.patch('/announcements/:id', async (req, res, next) => {
+  try {
+    const { title, body, type, starts_at, ends_at, is_active } = req.body;
+    const sets = [];
+    const params = [];
+    let idx = 1;
+    if (title !== undefined) { sets.push(`title = $${idx++}`); params.push(title); }
+    if (body !== undefined) { sets.push(`body = $${idx++}`); params.push(body); }
+    if (type !== undefined) { sets.push(`type = $${idx++}`); params.push(type); }
+    if (starts_at !== undefined) { sets.push(`starts_at = $${idx++}`); params.push(starts_at); }
+    if (ends_at !== undefined) { sets.push(`ends_at = $${idx++}`); params.push(ends_at); }
+    if (typeof is_active === 'boolean') { sets.push(`is_active = $${idx++}`); params.push(is_active); }
+    if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    sets.push(`updated_at = NOW()`);
+    params.push(req.params.id);
+    const result = await query(
+      `UPDATE system_announcements SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) { next(err); }
+});
+
+// ─── DELETE /api/admin/announcements/:id ────────────────────────
+router.delete('/announcements/:id', async (req, res, next) => {
+  try {
+    await query(`DELETE FROM system_announcements WHERE id = $1`, [req.params.id]);
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

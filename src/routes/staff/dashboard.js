@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { queryWithRLS } = require('../../services/db');
+const { query, queryWithRLS } = require('../../services/db');
 const { requireAuth, resolvePractitionerScope } = require('../../middleware/auth');
 
 router.use(requireAuth);
@@ -399,6 +399,24 @@ router.get('/analytics', async (req, res, next) => {
       })),
       new_clients: parseInt(newClients.rows[0].count)
     });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// GET /api/dashboard/announcements — active system announcements
+// ============================================================
+router.get('/announcements', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT id, title, body, type, starts_at, ends_at
+       FROM system_announcements
+       WHERE is_active = true
+         AND starts_at <= NOW()
+         AND (ends_at IS NULL OR ends_at > NOW())
+       ORDER BY type = 'maintenance' DESC, starts_at DESC
+       LIMIT 5`
+    );
+    res.json({ announcements: result.rows });
   } catch (err) { next(err); }
 });
 

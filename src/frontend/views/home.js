@@ -22,12 +22,34 @@ async function loadDashboard(){
   const isPrac=userRole==='practitioner';
   try{
     const plan=biz?.plan||'free';
-    const fetchList=[api.getDashboard(),api.get('/api/dashboard/summary')];
+    const fetchList=[api.getDashboard(),api.get('/api/dashboard/summary'),api.get('/api/dashboard/announcements')];
     if(plan!=='free')fetchList.push(api.get('/api/calls/usage'));
-    const[dd,sd,ud]=await Promise.allSettled(fetchList);
-    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null,usage=ud?.status==='fulfilled'?ud.value:null;
+    const[dd,sd,ad,ud]=await Promise.allSettled(fetchList);
+    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null,announcements=(ad.status==='fulfilled'?ad.value?.announcements:null)||[],usage=ud?.status==='fulfilled'?ud.value:null;
     const slug=dash.business?.slug||biz?.slug||'';
     let h='';
+
+    // ── System announcements ──
+    if(announcements.length>0){
+      const typeStyles={
+        maintenance:{bg:'var(--amber-bg)',border:'var(--gold)',icon:IC.alertTriangle,color:'var(--amber-dark)'},
+        warning:{bg:'var(--red-bg)',border:'var(--red)',icon:IC.alertTriangle,color:'var(--red)'},
+        update:{bg:'var(--blue-bg)',border:'var(--blue)',icon:IC.info,color:'var(--blue)'},
+        info:{bg:'var(--primary-light)',border:'var(--primary-soft)',icon:IC.info,color:'var(--primary)'}
+      };
+      announcements.forEach(a=>{
+        const s=typeStyles[a.type]||typeStyles.info;
+        const dateStr=a.ends_at?`Jusqu'au ${new Date(a.ends_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'';
+        h+=`<div style="background:${s.bg};border:1px solid ${s.border};border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:12px;display:flex;align-items:flex-start;gap:10px">`;
+        h+=`<span style="color:${s.color};flex-shrink:0;margin-top:1px">${s.icon}</span>`;
+        h+=`<div style="flex:1;min-width:0">`;
+        h+=`<div style="font-size:.85rem;font-weight:700;color:${s.color}">${esc(a.title)}</div>`;
+        if(a.body)h+=`<div style="font-size:.78rem;color:var(--text-2);margin-top:2px">${esc(a.body)}</div>`;
+        if(dateStr)h+=`<div style="font-size:.68rem;color:var(--text-4);margin-top:4px">${dateStr}</div>`;
+        h+=`</div></div>`;
+      });
+    }
+
     if(!isPrac){
       h+=`<div class="qlink"><div class="info"><h4>Votre page publique</h4><p>${slug}</p></div><div><a href="/${slug}?preview" target="_blank">Voir ma page</a></div></div>`;
     }
