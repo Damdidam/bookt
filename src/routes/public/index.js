@@ -1554,6 +1554,24 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   [businessId, multiBookings[0].id, client_email]
                 );
               } catch (_) { /* best-effort audit */ }
+              // SMS with deposit payment link
+              if (client_phone && ['pro', 'premium'].includes(biz.plan)) {
+                try {
+                  const { sendSMS } = require('../../services/sms');
+                  const _sd = new Date(emailBooking.start_at);
+                  const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                  const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                  const depAmt = (multiBookings[0].deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Acompte de ${depAmt}€ requis. Payez ici : ${depositUrl}`, businessId });
+                  try {
+                    await query(
+                      `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
+                       VALUES ($1,$2,'sms_deposit_request',$3,'sent',NOW())`,
+                      [businessId, multiBookings[0].id, client_phone]
+                    );
+                  } catch (_) {}
+                } catch (smsErr) { console.warn('[SMS] Deposit request SMS error:', smsErr.message); }
+              }
             } else if (multiNeedsConfirm) {
               // Send confirmation REQUEST (client must click to confirm)
               const { sendBookingConfirmationRequest } = require('../../services/email');
@@ -2048,6 +2066,24 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 [businessId, createdBooking.id, client_email]
               );
             } catch (_) { /* best-effort audit */ }
+            // SMS with deposit payment link
+            if (client_phone && ['pro', 'premium'].includes(biz.plan)) {
+              try {
+                const { sendSMS } = require('../../services/sms');
+                const _sd2 = new Date(emailBooking.start_at);
+                const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                const depAmt = (createdBooking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Acompte de ${depAmt}€ requis. Payez ici : ${depositUrl}`, businessId });
+                try {
+                  await query(
+                    `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
+                     VALUES ($1,$2,'sms_deposit_request',$3,'sent',NOW())`,
+                    [businessId, createdBooking.id, client_phone]
+                  );
+                } catch (_) {}
+              } catch (smsErr) { console.warn('[SMS] Deposit request SMS error:', smsErr.message); }
+            }
           } else if (singleNeedsConfirm) {
             const { sendBookingConfirmationRequest } = require('../../services/email');
             if (singleConfChannel === 'email' || singleConfChannel === 'both') {
