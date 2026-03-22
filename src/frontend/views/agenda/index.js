@@ -494,6 +494,25 @@ function toggleOverflowMenu() {
       Quick booking</button>`;
   }
 
+  // Category filter chips
+  const catSet = new Set();
+  (calState.fcServices || []).forEach(s => { if (s.is_active !== false) catSet.add(s.category || ''); });
+  const cats = [...catSet].sort((a, b) => (a || 'zzz').localeCompare(b || 'zzz'));
+  if (cats.length > 1) {
+    items += `<div style="border-top:1px solid var(--border-light);padding:8px 12px 4px;font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--text-4);letter-spacing:.4px">Catégories</div>`;
+    items += `<div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px 12px 8px">`;
+    const hidden = calState.fcHiddenCategories || new Set();
+    items += `<div class="cat-chip${hidden.size === 0 ? ' active' : ''}" data-cat="__all__" onclick="fcFilterCategory('__all__',this);toggleOverflowMenu()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Tout</div>`;
+    cats.forEach(cat => {
+      const label = cat || 'Autres';
+      const svc = (calState.fcServices || []).find(s => (s.category || '') === cat && s.is_active !== false);
+      const color = svc?.color || 'var(--primary)';
+      const isActive = !hidden.has(cat);
+      items += `<div class="cat-chip${isActive ? ' active' : ''}" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
+    });
+    items += `</div>`;
+  }
+
   menu.innerHTML = items;
   menu.classList.toggle('open');
   if (menu.classList.contains('open')) {
