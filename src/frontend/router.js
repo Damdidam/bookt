@@ -68,6 +68,9 @@ async function loadSection(section) {
   // Update page title
   document.getElementById('pageTitle').textContent = SECTION_TITLES[section] || 'Dashboard';
 
+  // Remove settings save button from topbar when leaving settings
+  document.getElementById('settingsSaveBtn')?.remove();
+
   // Update active sidebar item
   document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
   const activeItem = document.querySelector(`.ni[data-section="${section}"]`);
