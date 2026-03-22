@@ -199,10 +199,7 @@ function buildHTML() {
 
   // Top bar
   h += `<div class="plan-top">
-    <div class="plan-top-left">
-      <span class="plan-title">${ICONS.calendar} Planning du personnel <span class="plan-pro-badge">PRO</span></span>
-    </div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;margin-left:auto">
       <button class="btn-outline btn-sm" onclick="planExportCSV()" style="display:flex;align-items:center;gap:4px">${ICONS.download} Export</button>
       <button class="btn-outline btn-sm" onclick="planOpenSendModal()" style="display:flex;align-items:center;gap:4px">${ICONS.send} Envoyer</button>
       <button class="btn-primary" onclick="planOpenModal()">${ICONS.plus} Nouvelle absence</button>
