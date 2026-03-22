@@ -502,14 +502,6 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
       <div class="field-err" id="errEmail"></div>
     </div>
 
-    <div id="bceArea" style="display:none">
-      <div class="fg">
-        <label class="fl">N° BCE / entreprise</label>
-        <input class="fi" id="cBce" placeholder="0XXX.XXX.XXX" inputmode="numeric">
-      </div>
-    </div>
-    <span class="bce-toggle" id="bceToggle" onclick="toggleBce()">+ Ajouter un n° BCE</span>
-
     <div class="fg">
       <label class="fl">Remarque <span class="opt">(optionnel)</span></label>
       <textarea class="fi ft" id="cComment" maxlength="500" placeholder="Informations utiles pour le praticien..."></textarea>
@@ -518,7 +510,7 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
 
     </div><!-- /clientFormFields -->
 
-    <label class="checkbox"><input type="checkbox" id="cConsent"> J'accepte les confirmations et rappels par email et SMS.</label>
+
 
     <div id="bkFlexBox" style="display:none;margin:12px 0;padding:12px 14px;border-radius:8px;background:rgba(13,115,119,.06);border:1px solid rgba(13,115,119,.2)">
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:.88rem">
@@ -1959,14 +1951,6 @@ function clearFieldErr(field){
   const input=document.getElementById('c'+field);if(input)input.classList.remove('invalid');
 }
 
-// ──────── BCE TOGGLE ────────
-function toggleBce(){
-  const area=document.getElementById('bceArea');
-  const toggle=document.getElementById('bceToggle');
-  if(area.style.display==='none'){area.style.display='block';toggle.textContent='− Masquer le n° BCE';}
-  else{area.style.display='none';toggle.textContent='+ Ajouter un n° BCE';}
-}
-
 // ──────── SUMMARY ────────
 function buildSummary(){
   const d=new Date(selectedSlot.start_at);
@@ -2077,9 +2061,8 @@ async function submitBooking(){
   const name=document.getElementById('cName').value.trim();
   const phone=getFullPhone(document.getElementById('cPhone').value);
   const email=document.getElementById('cEmail').value.trim().toLowerCase();
-  const bce=document.getElementById('cBce')?.value.trim()||'';
   const comment=document.getElementById('cComment').value.trim();
-  const consent=document.getElementById('cConsent').checked;
+  const consent=true;
 
   const btn=document.getElementById('btnStep4');
   btn.disabled=true;btn.textContent='Réservation en cours...';
@@ -2090,7 +2073,7 @@ async function submitBooking(){
       start_at:selectedSlot.start_at,
       appointment_mode:selectedMode||'cabinet',
       client_name:name,client_phone:phone,client_email:email,
-      client_bce:bce||undefined,client_comment:comment||undefined,
+      client_comment:comment||undefined,
       consent_sms:consent,consent_email:consent,
       flexible:!!document.getElementById('bkFlexible').checked
     };
@@ -2191,10 +2174,7 @@ async function submitBooking(){
 
     // Mentions légales / acompte / prestations
     var mentions=[];
-    if(siteData.business&&siteData.business.deposit_enabled){
-      mentions.push('Selon la politique de l\u2019\u00e9tablissement, un acompte pourrait vous \u00eatre demand\u00e9 par email.');
-    }
-    mentions.push('Le rendez-vous est r\u00e9serv\u00e9 pour les prestations s\u00e9lectionn\u00e9es. Toute demande suppl\u00e9mentaire sera soumise \u00e0 la disponibilit\u00e9 et \u00e0 l\u2019accord du praticien.');
+    mentions.push('Toute demande suppl\u00e9mentaire sera soumise \u00e0 la disponibilit\u00e9 et \u00e0 l\u2019accord du praticien.');
     confirmHtml+='<div style="margin-top:14px;font-size:.72rem;color:var(--text-4);line-height:1.5">'+mentions.join('<br>')+'</div>';
 
     document.getElementById('confirmDetails').innerHTML=confirmHtml;
@@ -2203,7 +2183,7 @@ async function submitBooking(){
     if(data.booking && data.booking.status === 'pending_deposit'){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='Acompte requis';
-      document.querySelector('#step5 .confirm-box p').innerHTML='Un acompte est n\u00e9cessaire pour confirmer votre rendez-vous. Consultez l\u2019email que nous venons de vous envoyer.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
+      document.querySelector('#step5 .confirm-box p').innerHTML='Un acompte est n\u00e9cessaire pour confirmer votre rendez-vous. Consultez l\u2019email et/ou le SMS que nous venons de vous envoyer.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
       document.getElementById('calButtons').style.display='none';
     }else if(data.needs_confirmation){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';
