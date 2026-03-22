@@ -21,8 +21,11 @@ async function loadDashboard(){
   const c=document.getElementById('contentArea');
   const isPrac=userRole==='practitioner';
   try{
-    const[dd,sd]=await Promise.allSettled([api.getDashboard(),api.get('/api/dashboard/summary')]);
-    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null;
+    const plan=biz?.plan||'free';
+    const fetchList=[api.getDashboard(),api.get('/api/dashboard/summary')];
+    if(plan!=='free')fetchList.push(api.get('/api/calls/usage'));
+    const[dd,sd,ud]=await Promise.allSettled(fetchList);
+    const dash=dd.status==='fulfilled'?dd.value:{},sum=sd.status==='fulfilled'?sd.value:null,usage=ud?.status==='fulfilled'?ud.value:null;
     const slug=dash.business?.slug||biz?.slug||'';
     let h='';
     if(!isPrac){
@@ -125,6 +128,24 @@ async function loadDashboard(){
           });
         }
         h+=`</div>`;
+      }
+
+      // ── SMS / Appels usage widget (Pro/Premium only) ──
+      if(usage&&!isPrac){
+        const pct=usage.percent||0;
+        const total=usage.total||0;
+        const quota=usage.billing?.included_units||0;
+        const sms=usage.sms||0;
+        const calls=usage.calls||0;
+        const overage=usage.billing?.overage||0;
+        const overageCents=usage.billing?.overage_total_cents||0;
+        const barColor=pct>=100?'var(--red)':pct>=80?'var(--amber)':'var(--green)';
+        h+=`<div class="card" style="cursor:pointer" onclick="document.querySelector('[data-section=calls]').click()"><div class="card-h"><h3>${IC.phone} Consommation</h3><span class="badge badge-teal">${total}/${quota}</span></div>`;
+        h+=`<div style="padding:14px 20px">`;
+        h+=`<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-3);margin-bottom:6px"><span>${calls} appel${calls>1?'s':''} · ${sms} SMS</span><span style="font-weight:700;color:${barColor}">${pct}%</span></div>`;
+        h+=`<div style="height:6px;background:var(--surface);border-radius:var(--radius-pill);overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};border-radius:var(--radius-pill);transition:width .3s"></div></div>`;
+        if(overage>0)h+=`<div style="font-size:.68rem;color:var(--red);margin-top:6px">${IC.alertTriangle} ${overage} unité${overage>1?'s':''} en dépassement (${(overageCents/100).toFixed(2)}€)</div>`;
+        h+=`</div></div>`;
       }
 
       // ── Tâches à faire ──
