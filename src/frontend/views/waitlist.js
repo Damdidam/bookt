@@ -28,14 +28,14 @@ async function loadWaitlist(){
     const wlEnabled=pracs.filter(p=>p.waitlist_mode&&p.waitlist_mode!=='off');
     let h='';
     if(!wlEnabled.length){
-      h+=`<div style="background:var(--amber-bg);border:1px solid var(--gold);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:.82rem"><span style="font-size:1.2rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div><strong>Aucun praticien n'a la liste d'attente activée.</strong><br><span style="color:var(--text-3)">Allez dans <strong>Équipe → Modifier</strong> un praticien pour activer le mode <em>manuelle</em> ou <em>automatique</em>.</span></div></div>`;
+      h+=`<div style="background:var(--amber-bg);border:1px solid var(--gold);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:.82rem"><span style="font-size:1.2rem">${IC.alertTriangle}</span><div><strong>Aucun praticien n'a la liste d'attente activée.</strong><br><span style="color:var(--text-3)">Allez dans <strong>Équipe → Modifier</strong> un praticien pour activer le mode <em>manuelle</em> ou <em>automatique</em>.</span></div></div>`;
     }
 
     // KPIs
     h+=`<div class="kpis">`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.waiting||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.offered||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Offre envoyée</div></div>`;
-    h+=`<div class="kpi" onclick="viewState.wlFilter='booked';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Réservé</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='waiting';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.waiting||0}</div><div class="kpi-label">${IC.hourglass} En attente</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='offered';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.offered||0}</div><div class="kpi-label">${IC.mail} Offre envoyée</div></div>`;
+    h+=`<div class="kpi" onclick="viewState.wlFilter='booked';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--green)">${stats.booked||0}</div><div class="kpi-label">${IC.check} Réservé</div></div>`;
     h+=`<div class="kpi" onclick="viewState.wlFilter='expired';loadWaitlist()" style="cursor:pointer"><div class="kpi-val" style="color:var(--text-4)">${stats.expired||0}</div><div class="kpi-label">${IC.hourglass} Expiré</div></div>`;
     h+=`</div>`;
 
@@ -75,7 +75,7 @@ async function loadWaitlist(){
         h+=`</div>`;
         if(e.staff_notes){
           const preview=e.staff_notes.length>60?e.staff_notes.slice(0,60)+'\u2026':e.staff_notes;
-          h+=`<div style="font-size:.68rem;color:var(--primary);margin-top:2px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${esc(preview)}</div>`;
+          h+=`<div style="font-size:.68rem;color:var(--primary);margin-top:2px">${IC.fileText} ${esc(preview)}</div>`;
         }
         if(e.status==='offered'&&e.offer_expires_at){
           const mins=Math.max(0,Math.round((new Date(e.offer_expires_at)-new Date())/60000));
@@ -100,8 +100,7 @@ function wlOpenAdd(){
     const pracs=(pData.practitioners||pData||[]).filter(p=>p.is_active!==false);
     const services=(sData.services||sData||[]).filter(s=>s.is_active!==false);
     const DAY_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-    const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="closeModal('wlAddModal')">${X_SVG}</button></div><div class="m-body">`;
+    let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="closeModal('wlAddModal')">${IC.x}</button></div><div class="m-body">`;
     m+=`<div><label class="m-field-label">Nom du client *</label><input class="m-input" id="wla_name" placeholder="Nom complet"></div>`;
     m+=`<div><label class="m-field-label">Email *</label><input class="m-input" id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
     m+=`<div><label class="m-field-label">T\u00e9l\u00e9phone</label><input class="m-input" id="wla_phone" placeholder="+32..."></div>`;
@@ -113,7 +112,7 @@ function wlOpenAdd(){
     m+=`</select></div>`;
     m+=`<div><label class="m-field-label">Jours pr\u00e9f\u00e9r\u00e9s</label><div style="display:flex;gap:4px;flex-wrap:wrap" id="wla_days">`;
     for(let i=0;i<7;i++){
-      m+=`<label style="display:flex;align-items:center;gap:3px;font-size:.78rem;background:var(--surface);padding:4px 8px;border-radius:6px;cursor:pointer"><input type="checkbox" value="${i}" ${i<5?'checked':''}> ${DAY_S[i]}</label>`;
+      m+=`<button type="button" class="btn-sm ${i<5?'active':''}" data-day="${i}" onclick="this.classList.toggle('active')" style="min-width:42px">${DAY_S[i]}</button>`;
     }
     m+=`</div></div>`;
     m+=`<div><label class="m-field-label">Cr\u00e9neau pr\u00e9f\u00e9r\u00e9</label><select class="m-input" id="wla_time"><option value="any">Toute la journ\u00e9e</option><option value="morning">Matin (avant 12h)</option><option value="afternoon">Apr\u00e8s-midi (apr\u00e8s 12h)</option></select></div>`;
@@ -128,7 +127,7 @@ async function wlSaveAdd(){
   const email=document.getElementById('wla_email').value.trim();
   if(!name||!email){GendaUI.toast('Nom et email requis','error');return;}
   const days=[];
-  document.querySelectorAll('#wla_days input:checked').forEach(c=>days.push(parseInt(c.value)));
+  document.querySelectorAll('#wla_days .btn-sm.active').forEach(b=>days.push(parseInt(b.dataset.day)));
   try{
     await api.post('/api/waitlist',{
       practitioner_id:document.getElementById('wla_prac').value,
@@ -147,8 +146,7 @@ async function wlSaveAdd(){
 
 // -- Offer a slot --
 function wlOffer(entryId,clientName,pracId,svcId){
-  const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')">${X_SVG}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlOfferModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Proposer un cr\u00e9neau \u00e0 ${clientName}</h3><button class="m-close" onclick="closeModal('wlOfferModal')">${IC.x}</button></div><div class="m-body">`;
   m+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:14px">Le client recevra un lien pour accepter ou d\u00e9cliner. L'offre expire apr\u00e8s <strong>2 heures</strong>.</p>`;
   m+=`<div><label class="m-field-label">Date</label><input type="date" class="m-input" id="wlo_date" value="${new Date().toLocaleDateString('en-CA')}"></div>`;
   m+=`<div><label class="m-field-label">Heure de d\u00e9but</label><input type="time" class="m-input" id="wlo_start" value="09:00" step="900"></div>`;
@@ -206,8 +204,7 @@ function wlDetail(idx){
   const days=(e.preferred_days||[]).map(d=>DAY_S[d]||d).join(', ');
   const created=new Date(e.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
-  const X_SVG2='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-  let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')">${X_SVG2}</button></div><div class="m-body">`;
+  let m=`<div class="m-overlay open" id="wlDetailModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${esc(e.client_name)}</h3><button class="m-close" onclick="closeModal('wlDetailModal')">${IC.x}</button></div><div class="m-body">`;
 
   // Status badge
   m+=`<div style="margin-bottom:16px"><span class="badge st-${e.status}" style="font-size:.72rem;padding:4px 12px">${WL_ST[e.status]||e.status}</span><span style="font-size:.72rem;color:var(--text-4);margin-left:8px">Inscrit le ${created}</span></div>`;
@@ -236,7 +233,7 @@ function wlDetail(idx){
 
   // Staff notes
   m+=`<div class="wl-notes-area">`;
-  m+=`<label><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes de suivi (visible uniquement par l'\u00e9quipe)</label>`;
+  m+=`<label>${IC.fileText} Notes de suivi (visible uniquement par l'\u00e9quipe)</label>`;
   m+=`<textarea id="wlStaffNotes" placeholder="Ex: Contact\u00e9 le 04/03, propos\u00e9 cr\u00e9neau du 06/03 \u00e0 9h30. Le client rappelle demain.">${esc(e.staff_notes||'')}</textarea>`;
   m+=`<div class="wl-notes-hint">Les notes sont sauvegard\u00e9es automatiquement quand vous quittez ce champ</div>`;
   m+=`</div>`;
