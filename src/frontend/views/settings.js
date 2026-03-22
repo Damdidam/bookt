@@ -457,7 +457,7 @@ async function loadSettings(){
     h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Lien public & Widget</h3></div><div class="sc-body">
       <div class="field"><label>URL de réservation</label><div class="copy-input"><input id="s_url" value="${lk.booking_url||''}" readonly><button class="btn-outline btn-sm" onclick="copyField('s_url')">${IC.clipboard} Copier</button></div></div>
       <div class="field"><label>Code widget embeddable</label><div class="copy-input"><input id="s_widget" value='${esc(lk.widget_code||'')}' readonly style="font-size:.72rem"><button class="btn-outline btn-sm" onclick="copyField('s_widget')">${IC.clipboard} Copier</button></div><div class="hint">Collez ce code sur votre site existant pour ajouter un bouton de réservation</div></div>
-      <div class="field"><label>QR Code</label><div class="hint">Scannez pour accéder à votre page publique</div><div style="margin-top:8px;padding:16px;background:var(--surface);border-radius:8px;text-align:center"><canvas id="qrCanvas" width="160" height="160" style="width:160px;height:160px"></canvas><div style="margin-top:8px"><button class="btn-outline btn-sm" onclick="downloadQR()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Télécharger PNG</button></div></div></div>
+      <div class="field"><label>QR Code</label><div class="hint">Scannez pour accéder à votre page publique</div><div style="margin-top:8px;padding:16px;background:var(--surface);border-radius:8px;text-align:center">${lk.qr_image?`<img id="qrImage" src="${lk.qr_image}" alt="QR Code" style="width:160px;height:160px">`:'<div style="color:var(--text-4);font-size:.82rem">QR code non disponible</div>'}<div style="margin-top:8px">${lk.qr_image?`<button class="btn-outline btn-sm" onclick="downloadQR()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Télécharger PNG</button>`:''}</div></div></div>
     </div></div>`;
 
     // 4. Sécurité
@@ -554,7 +554,6 @@ async function loadSettings(){
     });
 
     // Draw QR code
-    setTimeout(()=>drawQR(lk.qr_data||lk.booking_url||''),50);
   }catch(e){c.innerHTML=`<div class="empty" style="color:var(--red)">Erreur: ${esc(e.message)}</div>`;}
 }
 
@@ -1166,34 +1165,11 @@ function confirmDeleteAccount(){
   GendaUI.toast('Suppression de compte — contactez support@genda.be','info');
 }
 
-// ===== QR Code (simple canvas) =====
-function drawQR(data){
-  const canvas=document.getElementById('qrCanvas');if(!canvas||!data)return;
-  const ctx=canvas.getContext('2d');
-  const s=160;canvas.width=s;canvas.height=s;
-  ctx.fillStyle='#FFF';ctx.fillRect(0,0,s,s);
-  // Border
-  ctx.strokeStyle='#1A1816';ctx.lineWidth=4;ctx.strokeRect(8,8,s-16,s-16);
-  // Corner squares
-  [12,s-36].forEach(x=>{[12,s-36].forEach(y=>{
-    if(x===s-36&&y===s-36)return;
-    ctx.fillStyle='#1A1816';ctx.fillRect(x,y,24,24);
-    ctx.fillStyle='#FFF';ctx.fillRect(x+4,y+4,16,16);
-    ctx.fillStyle='#1A1816';ctx.fillRect(x+8,y+8,8,8);
-  });});
-  // Simple pattern from data hash
-  let hash=0;for(let i=0;i<data.length;i++)hash=((hash<<5)-hash)+data.charCodeAt(i);
-  for(let i=0;i<8;i++)for(let j=0;j<8;j++){
-    if((hash>>(i*8+j))&1){ctx.fillStyle='#1A1816';ctx.fillRect(40+i*10,40+j*10,8,8);}
-  }
-  // Center logo
-  ctx.fillStyle='var(--primary)';ctx.fillRect(s/2-14,s/2-14,28,28);
-  ctx.fillStyle='#FFF';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText('B',s/2,s/2+5);
-}
+// ===== QR Code =====
 
 function downloadQR(){
-  const canvas=document.getElementById('qrCanvas');if(!canvas)return;
-  const link=document.createElement('a');link.download='genda-qr.png';link.href=canvas.toDataURL();link.click();
+  const img=document.getElementById('qrImage');if(!img)return;
+  const link=document.createElement('a');link.download='genda-qr.png';link.href=img.src;link.click();
   GendaUI.toast('QR téléchargé','success');
 }
 

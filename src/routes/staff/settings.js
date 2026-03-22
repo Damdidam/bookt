@@ -338,10 +338,18 @@ router.get('/public-link', async (req, res, next) => {
     const baseUrl = process.env.BOOKING_BASE_URL || 'https://genda.be';
     const slug = result.rows[0].slug;
 
+    const bookingUrl = `${baseUrl}/${slug}`;
+    let qr_image = null;
+    try {
+      const QRCode = require('qrcode');
+      qr_image = await QRCode.toDataURL(bookingUrl, { width: 300, margin: 2, color: { dark: '#1A2332', light: '#FFFFFF' } });
+    } catch (_) {}
+
     res.json({
-      booking_url: `${baseUrl}/${slug}`,
+      booking_url: bookingUrl,
       widget_code: `<script src="${baseUrl}/widget.js"></script>\n<div data-genda="${slug}"></div>`,
-      qr_data: `${baseUrl}/${slug}`
+      qr_data: bookingUrl,
+      qr_image
     });
   } catch (err) {
     next(err);
