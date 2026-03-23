@@ -298,7 +298,27 @@ function buildEventResize() {
       const evEnd = ev.end || ev.start;
       const dur = Math.round((evEnd - ev.start) / 60000);
       storeUndoAction(ev.id, 'resize', { end_at: dateToBrusselsISO(oldEnd || ev.start) });
-      gToast('Durée → ' + dur + ' min', 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
+      const resizeActions = [
+        { label: 'Annuler', fn: () => window.fcUndoLast() },
+        { label: IC.mail + ' Notifier le client', fn: async () => {
+          try {
+            const nr = await fetch(`/api/bookings/${ev.id}/move`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+              body: JSON.stringify({
+                start_at: dateToBrusselsISO(ev.start),
+                end_at: dateToBrusselsISO(ev.end || ev.start),
+                practitioner_id: ev.extendedProps?.practitioner_id,
+                notify: true,
+                notify_channel: 'both'
+              })
+            });
+            if (!nr.ok) { const d = await nr.json(); throw new Error(d.error || 'Erreur'); }
+            gToast('Client notifié', 'success');
+          } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+        }}
+      ];
+      gToast('Durée → ' + dur + ' min', 'success', resizeActions, 12000);
     } catch (e) {
       info.revert();
       gToast(e.message.includes('hevauche') || e.message.includes('créneau')
