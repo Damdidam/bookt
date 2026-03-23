@@ -550,6 +550,19 @@ app.listen(PORT, async () => {
     }
   }, 60 * 60 * 1000); // Every hour
 
+  // ===== PASS EXPIRY CRON — expire active passes past expires_at every hour =====
+  let passExpiryRunning = false;
+  setInterval(async () => {
+    if (passExpiryRunning) return;
+    passExpiryRunning = true;
+    try {
+      const { processExpiredPasses } = require('./services/pass-expiry');
+      const result = await processExpiredPasses();
+      if (result.processed > 0) console.log(`[PASS CRON] ${result.processed} pass(es) expired`);
+    } catch (e) { console.error('[PASS CRON] Error:', e.message); }
+    finally { passExpiryRunning = false; }
+  }, 60 * 60 * 1000);
+
   // ===== SLOT CALIBRATION CRON — nightly recalibration of slot granularity from booking data =====
   const calibrationInterval = 24 * 60 * 60 * 1000; // 24h
   let calibrationRunning = false;

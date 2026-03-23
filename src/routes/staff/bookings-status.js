@@ -6,6 +6,7 @@ const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete } = require('./bookings-helpers');
 const { refundGiftCardForBooking, getGcPaidCents } = require('../../services/gift-card-refund');
+const { refundPassForBooking } = require('../../services/pass-refund');
 
 // ===== STATE MACHINE: valid transitions (module-level for reuse) =====
 const TRANSITIONS = {
@@ -446,6 +447,7 @@ router.patch('/:id/status', async (req, res, next) => {
             // Refund gift card debits if deposit cancelled/refunded
             if (newDepStatus === 'cancelled' || newDepStatus === 'refunded') {
               await refundGiftCardForBooking(id, client);
+              await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND]', e.message));
             }
 
             // Bug H6 + B4 + M7 fix: Update sibling deposits, handle both paid and pending
@@ -466,6 +468,7 @@ router.patch('/:id/status', async (req, res, next) => {
                 [old.rows[0].group_id, bid, id]
               );
               for (const sib of sibIds.rows) { await refundGiftCardForBooking(sib.id, client); }
+              for (const sib of sibIds.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
             }
           }
         }
@@ -926,6 +929,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
 
       // Refund gift card debits
       await refundGiftCardForBooking(id, client);
+      await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND]', e.message));
 
       await client.query(
         `UPDATE bookings SET deposit_status = 'refunded', status = 'cancelled', cancel_reason = 'Acompte remboursé manuellement', updated_at = NOW()
@@ -959,6 +963,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
           [bk.rows[0].group_id, bid, id]
         );
         for (const sib of sibIds.rows) { await refundGiftCardForBooking(sib.id, client); }
+        for (const sib of sibIds.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
       }
 
       // Bug B5 fix: Include old_data in deposit-refund audit log
