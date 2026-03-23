@@ -101,7 +101,6 @@ router.patch('/:id/move', async (req, res, next) => {
     const { start_at, end_at, practitioner_id, notify, notify_channel } = req.body;
     const shouldNotify = notify === true || notify === 'true';
     const effectiveChannel = notify_channel || (shouldNotify ? 'email' : null);
-    console.log('[MOVE] id=%s notify=%s shouldNotify=%s channel=%s body_keys=%s', id, notify, shouldNotify, effectiveChannel, Object.keys(req.body).join(','));
 
     if (!start_at || !end_at) {
       return res.status(400).json({ error: 'start_at et end_at requis' });
@@ -457,10 +456,8 @@ router.patch('/:id/move', async (req, res, next) => {
 
     // Send notification if requested (drag-drop → "Notifier" button)
     let notificationResult = null;
-    console.log('[MOVE-NOTIFY] shouldNotify=%s effectiveChannel=%s moveResult.rows=%d', shouldNotify, effectiveChannel, moveResult?.rows?.length);
     if (shouldNotify) {
       try {
-        console.log('[MOVE-NOTIFY] Fetching full booking context for id=%s bid=%s', id, bid);
         // Fetch full context for the notification email
         const fullBk = await queryWithRLS(bid,
           `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
@@ -478,7 +475,6 @@ router.patch('/:id/move', async (req, res, next) => {
           [id, bid]
         );
         const bk = fullBk.rows[0];
-        console.log('[MOVE-NOTIFY] bk found=%s client_email=%s', !!bk, bk?.client_email);
         if (bk && bk.client_email) {
           // Update status to modified_pending
           const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
@@ -533,7 +529,7 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
       } catch (e) {
-        console.error('[MOVE-NOTIFY] CATCH error:', e.message, e.stack?.split('\n')[1]);
+        console.warn('[MOVE] Notification error:', e.message);
       }
     }
 

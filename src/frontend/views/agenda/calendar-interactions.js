@@ -221,7 +221,27 @@ function buildEventDrop() {
       const msg = result.group_moved
         ? `${p.client_name || 'Client'} — ${result.count} prestations déplacées`
         : (p.client_name || 'RDV') + ' déplacé' + (pracChanged ? ' → ' + pracName : '');
-      gToast(msg, 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
+      const toastActions = [
+        { label: 'Annuler', fn: () => window.fcUndoLast() },
+        { label: 'Notifier le client', fn: async () => {
+          try {
+            const nr = await fetch(`/api/bookings/${bookingId}/move`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+              body: JSON.stringify({
+                start_at: dateToBrusselsISO(ev.start),
+                end_at: dateToBrusselsISO(ev.end || ev.start),
+                practitioner_id: pracId,
+                notify: true,
+                notify_channel: 'both'
+              })
+            });
+            if (!nr.ok) { const d = await nr.json(); throw new Error(d.error || 'Erreur'); }
+            gToast('Client notifié', 'success');
+          } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+        }}
+      ];
+      gToast(msg, 'success', toastActions, 12000);
       calState.fcCal.refetchEvents();
     } catch (e) {
       // Save target date BEFORE revert (revert resets event.start to original)
