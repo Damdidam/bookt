@@ -814,7 +814,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       client_comment, client_language, consent_sms, consent_email, consent_marketing,
       flexible, is_last_minute,
       oauth_provider, oauth_provider_id,
-      gift_card_code
+      gift_card_code,
+      pass_code
     } = req.body;
 
     // Split mode: practitioners[] array provided instead of practitioner_id
@@ -1421,6 +1422,76 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   }
                 }
 
+                // Pass auto-debit (after gift card check)
+                if (!gcAutoPaid) {
+                  try {
+                    const serviceIds = chainedSlots.map(s => s.service_id);
+                    let passRes;
+                    if (pass_code) {
+                      passRes = await client.query(
+                        `SELECT id, code, sessions_remaining, service_id FROM passes
+                         WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
+                           AND (expires_at IS NULL OR expires_at > NOW())
+                         LIMIT 1`,
+                        [businessId, pass_code.toUpperCase().trim()]
+                      );
+                    } else if (client_email) {
+                      passRes = await client.query(
+                        `SELECT id, code, sessions_remaining, service_id FROM passes
+                         WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
+                           AND LOWER(buyer_email) = LOWER($2)
+                           AND service_id = ANY($3)
+                           AND (expires_at IS NULL OR expires_at > NOW())
+                         ORDER BY sessions_remaining ASC LIMIT 1`,
+                        [businessId, client_email, serviceIds]
+                      );
+                    }
+                    if (passRes && passRes.rows.length > 0) {
+                      const pass = passRes.rows[0];
+                      if (pass_code ? serviceIds.includes(pass.service_id) : true) {
+                        const newRemaining = pass.sessions_remaining - 1;
+                        await client.query(
+                          `UPDATE passes SET sessions_remaining = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                          [newRemaining, newRemaining === 0 ? 'used' : 'active', pass.id]
+                        );
+                        await client.query(
+                          `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note)
+                           VALUES (gen_random_uuid(), $1, $2, $3, 1, 'debit', $4)`,
+                          [pass.id, businessId, bookings[0].id, `Séance — pass ${pass.code}`]
+                        );
+                        // Pass covers the deposit
+                        if (depResult.depCents > 0) {
+                          await client.query(
+                            `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                              deposit_status = 'paid', deposit_paid_at = NOW(),
+                              deposit_payment_intent_id = $2
+                             WHERE id = $3 AND business_id = $4`,
+                            [depResult.depCents, `pass_${pass.code}`, bookings[0].id, businessId]
+                          );
+                          bookings[0].deposit_required = true;
+                          bookings[0].deposit_amount_cents = depResult.depCents;
+                          bookings[0].deposit_status = 'paid';
+                          bookings[0].deposit_payment_intent_id = `pass_${pass.code}`;
+                          if (bookings.length > 1) {
+                            const otherIds = bookings.slice(1).map(b => b.id);
+                            await client.query(
+                              `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
+                                deposit_paid_at = NOW(), deposit_amount_cents = $3,
+                                deposit_payment_intent_id = $4
+                               WHERE id = ANY($1) AND business_id = $2`,
+                              [otherIds, businessId, depResult.depCents, `pass_${pass.code}`]
+                            );
+                          }
+                          gcAutoPaid = true;
+                          console.log(`[DEPOSIT] Multi fully auto-paid via pass ${pass.code} (1 session), remaining: ${newRemaining}`);
+                        }
+                      }
+                    }
+                  } catch (passErr) {
+                    console.error('[DEPOSIT] Multi pass auto-debit failed:', passErr.message);
+                  }
+                }
+
                 if (!gcAutoPaid) {
                   const deadline = computeDepositDeadline(startDate, bizSettings);
                   await client.query(
@@ -1958,6 +2029,65 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   }
                 } catch (gcErr) {
                   console.error('[DEPOSIT] Gift card auto-debit failed:', gcErr.message);
+                }
+              }
+
+              // Pass auto-debit (after gift card check)
+              if (!gcAutoPaid) {
+                try {
+                  let passRes;
+                  if (pass_code) {
+                    passRes = await client.query(
+                      `SELECT id, code, sessions_remaining, service_id FROM passes
+                       WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       LIMIT 1`,
+                      [businessId, pass_code.toUpperCase().trim()]
+                    );
+                  } else if (client_email) {
+                    passRes = await client.query(
+                      `SELECT id, code, sessions_remaining, service_id FROM passes
+                       WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
+                         AND LOWER(buyer_email) = LOWER($2)
+                         AND service_id = $3
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       ORDER BY sessions_remaining ASC LIMIT 1`,
+                      [businessId, client_email, effectiveServiceId]
+                    );
+                  }
+                  if (passRes && passRes.rows.length > 0) {
+                    const pass = passRes.rows[0];
+                    if (pass.service_id === effectiveServiceId) {
+                      const newRemaining = pass.sessions_remaining - 1;
+                      await client.query(
+                        `UPDATE passes SET sessions_remaining = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                        [newRemaining, newRemaining === 0 ? 'used' : 'active', pass.id]
+                      );
+                      await client.query(
+                        `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note)
+                         VALUES (gen_random_uuid(), $1, $2, $3, 1, 'debit', $4)`,
+                        [pass.id, businessId, booking.rows[0].id, `Séance — pass ${pass.code}`]
+                      );
+                      // Pass covers the deposit
+                      if (depResult.depCents > 0) {
+                        await client.query(
+                          `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                            deposit_status = 'paid', deposit_paid_at = NOW(),
+                            deposit_payment_intent_id = $2
+                           WHERE id = $3 AND business_id = $4`,
+                          [depResult.depCents, `pass_${pass.code}`, booking.rows[0].id, businessId]
+                        );
+                        booking.rows[0].deposit_required = true;
+                        booking.rows[0].deposit_amount_cents = depResult.depCents;
+                        booking.rows[0].deposit_status = 'paid';
+                        booking.rows[0].deposit_payment_intent_id = `pass_${pass.code}`;
+                        gcAutoPaid = true;
+                        console.log(`[DEPOSIT] Fully auto-paid via pass ${pass.code} (1 session), remaining: ${newRemaining}`);
+                      }
+                    }
+                  }
+                } catch (passErr) {
+                  console.error('[DEPOSIT] Pass auto-debit failed:', passErr.message);
                 }
               }
 
