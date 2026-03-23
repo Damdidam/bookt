@@ -1023,6 +1023,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
       <li><a href="#info">Contact</a></li>
       <li><a href="#news" id="navNews" style="display:none">Actus</a></li>
       <li id="navGiftCardLi" style="display:none"><a href="#" id="navGiftCardBtn">Carte cadeau</a></li>
+      <li id="navPassLi" style="display:none"><a href="#" id="navPassBtn">Abonnements</a></li>
       <li><a href="#" class="btn-outline" id="navBookBtn">R&eacute;server</a></li>
     </ul>
   </div>
@@ -1193,6 +1194,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
     <div class="cta-buttons">
       <a href="#" class="btn-solid" id="ctaBtn">R&eacute;server maintenant &rarr;</a>
       <a href="#" class="btn-outline" id="ctaGiftCardBtn" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg> Offrir une carte cadeau</a>
+      <a href="#" class="btn-outline" id="ctaPassBtn" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg> Nos abonnements</a>
     </div>
   </div>
 </section>
@@ -1597,6 +1599,14 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
       document.getElementById('navGiftCardBtn').href = gcUrl;
       var ctaGcBtn = document.getElementById('ctaGiftCardBtn');
       if (ctaGcBtn) { ctaGcBtn.href = gcUrl; ctaGcBtn.style.display = ''; }
+    }
+    // Pass / Abonnements link
+    if (b.passes_enabled) {
+      var passUrl = '/' + b.slug + '/pass';
+      document.getElementById('navPassLi').style.display = '';
+      document.getElementById('navPassBtn').href = passUrl;
+      var ctaPassBtn = document.getElementById('ctaPassBtn');
+      if (ctaPassBtn) { ctaPassBtn.href = passUrl; ctaPassBtn.style.display = ''; }
     }
     // Guide link (footer only)
     var guideUrl = '/' + b.slug + '/guide';
