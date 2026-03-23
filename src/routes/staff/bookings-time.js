@@ -99,7 +99,7 @@ router.patch('/:id/move', async (req, res, next) => {
     const { id } = req.params;
     // STS-V12-007: UUID validation
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
-    const { start_at, end_at, practitioner_id, notify, notify_channel } = req.body;
+    const { start_at, end_at, practitioner_id, notify, notify_channel, old_start_at, old_end_at } = req.body;
     const shouldNotify = notify === true || notify === 'true';
     const effectiveChannel = notify_channel || (shouldNotify ? 'email' : null);
 
@@ -347,7 +347,9 @@ router.patch('/:id/move', async (req, res, next) => {
             const groupServices = siblingsRes.rows;
 
             // Only change status to modified_pending if time actually changed
-            const groupTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
+            const refStart = old_start_at || draggedBooking.start_at;
+            const refEnd = old_end_at || draggedBooking.end_at;
+            const groupTimeMoved = new Date(refStart).getTime() !== new Date(bk.start_at).getTime() || new Date(refEnd).getTime() !== new Date(bk.end_at).getTime();
             if (groupTimeMoved) {
               const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
               await queryWithRLS(bid,
@@ -377,8 +379,8 @@ router.patch('/:id/move', async (req, res, next) => {
                   service_name: bk.service_name,
                   service_category: bk.service_category,
                   practitioner_name: bk.practitioner_name,
-                  old_start_at: draggedBooking.start_at,
-                  old_end_at: draggedBooking.end_at,
+                  old_start_at: old_start_at || draggedBooking.start_at,
+                  old_end_at: old_end_at || draggedBooking.end_at,
                   new_start_at: gt.group_start,
                   new_end_at: gt.group_end
                 },
@@ -399,7 +401,7 @@ router.patch('/:id/move', async (req, res, next) => {
                 const manageLink = `${baseUrl}/booking/${bk.public_token}`;
                 const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
+                const timeMoved = new Date(refStart).getTime() !== new Date(bk.start_at).getTime() || new Date(refEnd).getTime() !== new Date(bk.end_at).getTime();
                 const smsBody = timeMoved
                   ? `${bk.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
                   : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
@@ -519,7 +521,9 @@ router.patch('/:id/move', async (req, res, next) => {
         const bk = fullBk.rows[0];
         if (bk && bk.client_email) {
           // Only change status to modified_pending if time actually changed
-          const singleTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
+          const sRefStart = old_start_at || draggedBooking.start_at;
+          const sRefEnd = old_end_at || draggedBooking.end_at;
+          const singleTimeMoved = new Date(sRefStart).getTime() !== new Date(bk.start_at).getTime() || new Date(sRefEnd).getTime() !== new Date(bk.end_at).getTime();
           if (singleTimeMoved) {
             const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
             await queryWithRLS(bid,
@@ -548,8 +552,8 @@ router.patch('/:id/move', async (req, res, next) => {
                   service_name: bk.service_name,
                   service_category: bk.service_category,
                   practitioner_name: bk.practitioner_name,
-                  old_start_at: draggedBooking.start_at,
-                  old_end_at: draggedBooking.end_at,
+                  old_start_at: old_start_at || draggedBooking.start_at,
+                  old_end_at: old_end_at || draggedBooking.end_at,
                   new_start_at: bk.start_at,
                   new_end_at: bk.end_at
                 },
@@ -573,7 +577,7 @@ router.patch('/:id/move', async (req, res, next) => {
               const manageLink = `${baseUrl}/booking/${bk.public_token}`;
               const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
               const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-              const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
+              const timeMoved = new Date(sRefStart).getTime() !== new Date(bk.start_at).getTime() || new Date(sRefEnd).getTime() !== new Date(bk.end_at).getTime();
               const smsBody = timeMoved
                 ? `${bk.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
                 : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;

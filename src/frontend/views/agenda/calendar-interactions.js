@@ -233,7 +233,9 @@ function buildEventDrop() {
                 end_at: dateToBrusselsISO(ev.end || ev.start),
                 practitioner_id: pracId,
                 notify: true,
-                notify_channel: 'both'
+                notify_channel: 'both',
+                old_start_at: dateToBrusselsISO(oldStart),
+                old_end_at: dateToBrusselsISO(oldEnd || oldStart)
               })
             });
             if (!nr.ok) { const d = await nr.json(); throw new Error(d.error || 'Erreur'); }
@@ -310,7 +312,9 @@ function buildEventResize() {
                 end_at: dateToBrusselsISO(ev.end || ev.start),
                 practitioner_id: ev.extendedProps?.practitioner_id,
                 notify: true,
-                notify_channel: 'both'
+                notify_channel: 'both',
+                old_start_at: dateToBrusselsISO(ev.start),
+                old_end_at: dateToBrusselsISO(oldEnd || ev.start)
               })
             });
             if (!nr.ok) { const d = await nr.json(); throw new Error(d.error || 'Erreur'); }
