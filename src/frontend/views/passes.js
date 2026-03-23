@@ -315,4 +315,4 @@ Object.defineProperty(window,'passSearch',{get(){return passSearch;},set(v){pass
 
 bridge({loadPasses,openCreatePass,submitCreatePass,openDebitPass,debitPass,refundPass,submitRefundPass,cancelPass,setPassFilter,passSearchInput});
 
-export {loadPasses,renderPasses};
+export {renderPasses};
