@@ -223,7 +223,7 @@ function buildEventDrop() {
         : (p.client_name || 'RDV') + ' déplacé' + (pracChanged ? ' → ' + pracName : '');
       const toastActions = [
         { label: 'Annuler', fn: () => window.fcUndoLast() },
-        { label: 'Notifier le client', fn: async () => {
+        { label: IC.mail + ' Notifier le client', fn: async () => {
           try {
             const nr = await fetch(`/api/bookings/${bookingId}/move`, {
               method: 'PATCH',

@@ -29,13 +29,13 @@ export function gToast(msg, type, action, duration) {
   t.className = 'g-toast' + (type ? ' ' + type : '');
 
   const span = document.createElement('span');
-  span.textContent = msg;
+  span.innerHTML = msg;
   t.appendChild(span);
 
   const actions = action ? (Array.isArray(action) ? action : [action]) : [];
   for (const act of actions) {
     const btn = document.createElement('button');
-    btn.textContent = act.label;
+    btn.innerHTML = act.label;
     btn.addEventListener('click', () => {
       if (typeof act.fn === 'function') act.fn();
       if (act.dismiss !== false) _dismissToast(t);
