@@ -393,8 +393,10 @@ router.patch('/:id/move', async (req, res, next) => {
 
     // Send notification if requested (drag-drop → "Notifier" button)
     let notificationResult = null;
+    console.log('[MOVE-NOTIFY] shouldNotify=%s effectiveChannel=%s moveResult.rows=%d', shouldNotify, effectiveChannel, moveResult?.rows?.length);
     if (shouldNotify) {
       try {
+        console.log('[MOVE-NOTIFY] Fetching full booking context for id=%s bid=%s', id, bid);
         // Fetch full context for the notification email
         const fullBk = await queryWithRLS(bid,
           `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
@@ -412,6 +414,7 @@ router.patch('/:id/move', async (req, res, next) => {
           [id, bid]
         );
         const bk = fullBk.rows[0];
+        console.log('[MOVE-NOTIFY] bk found=%s client_email=%s', !!bk, bk?.client_email);
         if (bk && bk.client_email) {
           // Update status to modified_pending
           const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
@@ -466,7 +469,7 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
       } catch (e) {
-        console.warn('[MOVE] Notification error:', e.message);
+        console.error('[MOVE-NOTIFY] CATCH error:', e.message, e.stack?.split('\n')[1]);
       }
     }
 
