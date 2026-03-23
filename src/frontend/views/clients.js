@@ -39,7 +39,9 @@ async function loadClients(){
         const tagColor=tagColors[cl.tag]||'#888';
         const nsDisplay=cl.no_show_count>0?`<span style="color:var(--amber-dark);font-weight:600">${cl.no_show_count}</span>`:'0';
         const epDisplay=cl.expired_pending_count>0?`<span style="color:var(--purple);font-weight:600">${cl.expired_pending_count}</span>`:'0';
-        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${cl.is_vip?'<span style="color:var(--gold);margin-right:4px" title="VIP">${IC.star}</span>':''}${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</td><td>${esc(cl.phone||'—')}</td><td style="font-size:.78rem">${esc(cl.email||'—')}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td>${epDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${esc(cl.tag)}</span></td></tr>`;
+        const vipStar=cl.is_vip?`<span style="color:var(--gold);margin-right:4px" title="VIP">${IC.star}</span>`:'';
+        const blockedIcon=cl.is_blocked?` ${IC.ban}`:'';
+        h+=`<tr${cl.is_blocked?' style="opacity:.6"':''}><td class="client-name" onclick="openClientDetail('${cl.id}')">${vipStar}${esc(cl.full_name)}${blockedIcon}</td><td>${esc(cl.phone||'—')}</td><td style="font-size:.78rem">${esc(cl.email||'—')}</td><td>${cl.total_bookings}</td><td>${nsDisplay}</td><td>${epDisplay}</td><td style="font-size:.78rem">${last}</td><td><span style="font-size:.72rem;font-weight:600;color:${tagColor};background:${tagColor}15;padding:2px 8px;border-radius:10px">${esc(cl.tag)}</span></td></tr>`;
       });
       h+=`</tbody></table></div>`;
     }
@@ -91,8 +93,9 @@ async function openClientDetail(id){
     if(!r.ok){ const err=await r.json().catch(()=>({})); throw new Error(err.error||'Erreur chargement client'); }
     const d=await r.json();
     const cl=d.client, bks=d.bookings||[];
-    const X_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${cl.is_vip?'<span style="color:var(--gold);margin-right:6px">${IC.star}</span>':''}${esc(cl.full_name)}${cl.is_blocked?' <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>':''}</h3><button class="m-close" onclick="closeModal('clientModal')">${X_SVG}</button></div><div class="m-body">`;
+    const vipIcon=cl.is_vip?`<span style="color:var(--gold);margin-right:6px">${IC.star}</span>`:'';
+    const blockedMark=cl.is_blocked?` ${IC.ban}`:'';
+    let m=`<div class="m-overlay open" id="clientModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>${vipIcon}${esc(cl.full_name)}${blockedMark}</h3><button class="m-close" onclick="closeModal('clientModal')">${IC.x}</button></div><div class="m-body">`;
     if(cl.is_blocked){
       m+=`<div style="background:var(--red-bg);border:1px solid var(--red-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:.82rem"><strong style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> ${categoryLabels.client} bloqué·e</strong><br><span style="color:var(--text-3)">${cl.blocked_reason||'Bloqué manuellement'}</span><br><button class="btn-sm" style="margin-top:6px;background:var(--green);color:#fff;border:none" onclick="unblockClient('${cl.id}')">Débloquer</button> <button class="btn-sm" style="margin-top:6px;background:var(--text-3);color:#fff;border:none" onclick="resetNoShow('${cl.id}')">Reset no-shows</button></div>`;
     }else if(cl.no_show_count>0){

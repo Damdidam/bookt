@@ -118,11 +118,11 @@ function calCheckConflict() {
   } else {
     const isInfo = calState.fcAllowOverlap;
     warn.style.display = 'block';
-    warn.style.background = isInfo ? '#FFF3E0' : '#FFEBEE';
-    warn.style.color = isInfo ? '#E65100' : '#C62828';
+    warn.style.background = isInfo ? 'var(--orange-bg)' : 'var(--red-bg)';
+    warn.style.color = isInfo ? 'var(--orange)' : 'var(--red)';
     warn.innerHTML = (isInfo
-      ? '${IC.alertTriangle} Chevauchement avec '
-      : '${IC.alertTriangle} Conflit avec '
+      ? IC.alertTriangle + ' Chevauchement avec '
+      : IC.alertTriangle + ' Conflit avec '
     ) + conflicts.join(', ');
   }
 
@@ -217,9 +217,9 @@ function _scheduleServerCheck(nd, ns, ne, pracId) {
           return `<strong>${c.service_name || 'RDV'}</strong> (${s} \u2013 ${e})`;
         }).join(', ');
         warn.style.display = 'block';
-        warn.style.background = '#FFEBEE';
-        warn.style.color = '#C62828';
-        warn.innerHTML = '${IC.alertTriangle} Cr\u00e9neau indisponible \u2014 conflit avec ' + conflictNames;
+        warn.style.background = 'var(--red-bg)';
+        warn.style.color = 'var(--red)';
+        warn.innerHTML = IC.alertTriangle + ' Cr\u00e9neau indisponible \u2014 conflit avec ' + conflictNames;
       } else {
         _setSlotAvailable();
         if (!warn.innerHTML.trim()) warn.style.display = 'none';
