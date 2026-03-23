@@ -507,6 +507,86 @@ async function handleStripeWebhook(req, res) {
           break;
         }
 
+        // ===== PASS PAYMENT =====
+        if (metadata.type === 'pass') {
+          try {
+            const { business_id, pass_template_id, buyer_name, buyer_email } = metadata;
+
+            // Fetch template
+            const tplRes = await query(
+              `SELECT * FROM pass_templates WHERE id = $1 AND business_id = $2`,
+              [pass_template_id, business_id]
+            );
+            if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); return; }
+            const tpl = tplRes.rows[0];
+
+            // Generate unique code (PS-XXXX-XXXX)
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code;
+            for (let attempt = 0; attempt < 5; attempt++) {
+              code = 'PS-';
+              for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
+              code += '-';
+              for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
+              const dup = await query(`SELECT id FROM passes WHERE code = $1`, [code]);
+              if (dup.rows.length === 0) break;
+            }
+
+            // Calculate expiry
+            const expiresAt = new Date(Date.now() + (tpl.validity_days || 365) * 86400000);
+
+            // Create pass
+            const passRes = await query(
+              `INSERT INTO passes (business_id, pass_template_id, service_id, code, name, sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email, stripe_payment_intent_id, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11)
+               RETURNING *`,
+              [business_id, pass_template_id, tpl.service_id, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, session.payment_intent, expiresAt.toISOString()]
+            );
+            const pass = passRes.rows[0];
+
+            // Create purchase transaction
+            await query(
+              `INSERT INTO pass_transactions (pass_id, business_id, sessions, type, note)
+               VALUES ($1, $2, $3, 'purchase', $4)`,
+              [pass.id, business_id, tpl.sessions_count, `Achat Stripe — ${code}`]
+            );
+
+            // Auto-create client if email provided
+            if (buyer_email) {
+              await query(
+                `INSERT INTO clients (business_id, full_name, email, source)
+                 VALUES ($1, $2, $3, 'pass')
+                 ON CONFLICT (business_id, email) DO NOTHING`,
+                [business_id, buyer_name || 'Client', buyer_email]
+              ).catch(() => {});
+            }
+
+            // Send email
+            try {
+              const bizRes = await query(`SELECT name, slug, email, theme FROM businesses WHERE id = $1`, [business_id]);
+              const biz = bizRes.rows[0];
+              if (biz && buyer_email) {
+                const { sendPassPurchaseEmail } = require('../../services/email');
+                await sendPassPurchaseEmail({
+                  pass: { code, name: tpl.name, sessions_total: tpl.sessions_count, buyer_name, buyer_email, expires_at: expiresAt },
+                  business: { name: biz.name, slug: biz.slug, email: biz.email, theme: biz.theme }
+                });
+              }
+            } catch (emailErr) { console.warn('[STRIPE] Pass email error:', emailErr.message); }
+
+            // Broadcast SSE
+            try {
+              const { broadcast } = require('../../services/sse');
+              broadcast(business_id, 'pass_purchased', { code, name: tpl.name });
+            } catch (e) {}
+
+            console.log(`[STRIPE] Pass created: ${code} (${tpl.name}, ${tpl.sessions_count} sessions) for ${buyer_email}`);
+          } catch (err) {
+            console.error('[STRIPE] Pass fulfillment error:', err.message);
+          }
+          break;
+        }
+
         // ===== SUBSCRIPTION PAYMENT =====
         const businessId = session.metadata?.business_id;
         if (!businessId) break;
