@@ -5231,6 +5231,7 @@ router.get('/:slug/guide', async (req, res, next) => {
 
         // Gift cards
         giftcard_enabled: !!s.giftcard_enabled,
+        passes_enabled: !!s.passes_enabled,
 
         // Multi-service
         multi_service_enabled: !!s.multi_service_enabled,
@@ -5597,6 +5598,157 @@ router.post('/gift-card/validate', async (req, res, next) => {
       amount_cents: gc.amount_cents,
       expires_at: gc.expires_at
     });
+  } catch (err) { next(err); }
+});
+
+// GET /api/public/:slug/pass-config — list available pass templates for purchase
+router.get('/:slug/pass-config', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, name, slug, settings, theme, logo_url FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+    const biz = rows[0];
+    const s = biz.settings || {};
+    if (!s.passes_enabled) return res.status(404).json({ error: 'Abonnements non disponibles' });
+
+    const tplRes = await query(
+      `SELECT pt.id, pt.name, pt.sessions_count, pt.price_cents, pt.validity_days,
+              s.name AS service_name, s.category AS service_category,
+              COALESCE(s.price_cents, 0) AS service_price_cents
+       FROM pass_templates pt
+       JOIN services s ON s.id = pt.service_id
+       WHERE pt.business_id = $1 AND pt.is_active = true
+       ORDER BY s.name, pt.price_cents`,
+      [biz.id]
+    );
+
+    res.json({
+      business: { name: biz.name, slug: biz.slug, theme: biz.theme, logo_url: biz.logo_url },
+      templates: tplRes.rows,
+      validity_days: s.pass_validity_days || 365
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/:slug/pass/checkout — Stripe Checkout for pass purchase
+router.post('/:slug/pass/checkout', async (req, res, next) => {
+  try {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) return res.status(500).json({ error: 'Paiement non configuré' });
+    const stripe = require('stripe')(key);
+
+    const { rows } = await query(
+      `SELECT id, name, slug, settings, theme FROM businesses WHERE slug = $1 AND is_active = true LIMIT 1`,
+      [req.params.slug]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Salon introuvable' });
+    const biz = rows[0];
+    const s = biz.settings || {};
+    if (!s.passes_enabled) return res.status(400).json({ error: 'Abonnements non disponibles' });
+
+    const { pass_template_id, buyer_name, buyer_email } = req.body;
+    if (!pass_template_id) return res.status(400).json({ error: 'Template requis' });
+    if (!buyer_email) return res.status(400).json({ error: 'Email requis' });
+
+    const tplRes = await query(
+      `SELECT pt.*, s.name AS service_name FROM pass_templates pt
+       JOIN services s ON s.id = pt.service_id
+       WHERE pt.id = $1 AND pt.business_id = $2 AND pt.is_active = true`,
+      [pass_template_id, biz.id]
+    );
+    if (tplRes.rows.length === 0) return res.status(404).json({ error: 'Formule introuvable' });
+    const tpl = tplRes.rows[0];
+
+    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'bancontact'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          unit_amount: tpl.price_cents,
+          product_data: { name: `Pass ${tpl.name}`, description: `${tpl.sessions_count} séances — ${tpl.service_name}` }
+        },
+        quantity: 1
+      }],
+      metadata: {
+        type: 'pass',
+        business_id: biz.id,
+        pass_template_id: tpl.id,
+        buyer_name: buyer_name || '',
+        buyer_email
+      },
+      customer_email: buyer_email,
+      success_url: `${baseUrl}/${biz.slug}/pass?success=1`,
+      cancel_url: `${baseUrl}/${biz.slug}/pass`,
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60
+    });
+
+    res.json({ url: session.url, session_id: session.id });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/pass/validate — validate pass code
+router.post('/pass/validate', async (req, res, next) => {
+  try {
+    const { code, business_id } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code requis' });
+
+    const passRes = await query(
+      `SELECT p.id, p.code, p.name, p.sessions_total, p.sessions_remaining, p.service_id, p.expires_at, p.status,
+              s.name AS service_name
+       FROM passes p
+       JOIN services s ON s.id = p.service_id
+       WHERE p.code = $1 ${business_id ? 'AND p.business_id = $2' : ''}
+       LIMIT 1`,
+      business_id ? [code.toUpperCase().trim(), business_id] : [code.toUpperCase().trim()]
+    );
+    if (passRes.rows.length === 0) return res.json({ valid: false, error: 'Code invalide' });
+    const pass = passRes.rows[0];
+    if (pass.status !== 'active') return res.json({ valid: false, error: 'Pass inactif ou expiré' });
+    if (pass.expires_at && new Date(pass.expires_at) < new Date()) return res.json({ valid: false, error: 'Pass expiré' });
+    if (pass.sessions_remaining <= 0) return res.json({ valid: false, error: 'Plus de séances disponibles' });
+
+    res.json({
+      valid: true,
+      sessions_remaining: pass.sessions_remaining,
+      sessions_total: pass.sessions_total,
+      service_id: pass.service_id,
+      service_name: pass.service_name,
+      expires_at: pass.expires_at
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/public/deposit/:token/check-passes — auto-detect passes by client email
+router.post('/deposit/:token/check-passes', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const bkRes = await query(
+      `SELECT b.business_id, b.service_id, c.email FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       WHERE b.public_token = $1 AND b.status IN ('pending_deposit', 'confirmed', 'pending')`,
+      [token]
+    );
+    if (bkRes.rows.length === 0 || !bkRes.rows[0].email) return res.json({ passes: [] });
+    const { business_id, service_id, email } = bkRes.rows[0];
+
+    const passRes = await query(
+      `SELECT p.code, p.sessions_remaining, p.sessions_total, p.expires_at, p.name,
+              s.name AS service_name
+       FROM passes p
+       JOIN services s ON s.id = p.service_id
+       WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0
+         AND p.service_id = $2
+         AND LOWER(p.buyer_email) = LOWER($3)
+         AND (p.expires_at IS NULL OR p.expires_at > NOW())
+       ORDER BY p.sessions_remaining DESC`,
+      [business_id, service_id, email]
+    );
+
+    res.json({ passes: passRes.rows });
   } catch (err) { next(err); }
 });
 
