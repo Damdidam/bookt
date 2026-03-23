@@ -5,6 +5,7 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
+const { sendSMS } = require('../../services/sms');
 const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
 
 // STS-V12-007: UUID validation regex (reused across all endpoints)
@@ -388,9 +389,15 @@ router.patch('/:id/move', async (req, res, next) => {
               groupNotifResult.email = emailResult.success ? 'sent' : 'error';
               if (emailResult.error) groupNotifResult.email_detail = emailResult.error;
             }
-            if (effectiveChannel === 'sms' || effectiveChannel === 'both') {
-              console.log(`[MOVE] SMS to ${bk.client_phone}: group moved → https://genda.be/booking/${bk.public_token}`);
-              groupNotifResult.sms = 'queued';
+            if ((effectiveChannel === 'sms' || effectiveChannel === 'both') && bk.client_phone) {
+              try {
+                const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+                const manageLink = `${baseUrl}/booking/${bk.public_token}`;
+                const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+                const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+                const smsResult = await sendSMS({ to: bk.client_phone, body: `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`, businessId: bid });
+                groupNotifResult.sms = smsResult.success ? 'sent' : 'error';
+              } catch (e) { console.warn('[MOVE] Group SMS error:', e.message); groupNotifResult.sms = 'error'; }
             }
           }
         } catch (e) {
@@ -549,10 +556,15 @@ router.patch('/:id/move', async (req, res, next) => {
               notificationResult.email = 'error';
             }
           }
-          if (effectiveChannel === 'sms' || effectiveChannel === 'both') {
-            const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
-            console.log(`[MOVE] SMS to ${bk.client_phone}: booking moved → ${baseUrl}/booking/${bk.public_token}`);
-            notificationResult.sms = 'queued';
+          if ((effectiveChannel === 'sms' || effectiveChannel === 'both') && bk.client_phone) {
+            try {
+              const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+              const manageLink = `${baseUrl}/booking/${bk.public_token}`;
+              const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+              const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+              const smsResult = await sendSMS({ to: bk.client_phone, body: `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`, businessId: bid });
+              notificationResult.sms = smsResult.success ? 'sent' : 'error';
+            } catch (e) { console.warn('[MOVE] SMS error:', e.message); notificationResult.sms = 'error'; }
           }
         }
       } catch (e) {
@@ -1141,16 +1153,17 @@ router.patch('/:id/modify', async (req, res, next) => {
         notificationResult = { email: 'error', detail: e.message };
       }
     }
-    if (shouldNotify && (effectiveChannel === 'sms' || effectiveChannel === 'both')) {
+    if (shouldNotify && (effectiveChannel === 'sms' || effectiveChannel === 'both') && oldBooking.client_phone) {
       try {
-        // Twilio SMS — will be wired when Twilio is configured
-        const baseUrl = process.env.PUBLIC_URL || `https://genda.be`;
-        const link = `${baseUrl}/booking/${oldBooking.public_token}`;
-        console.error(`[NOTIFY] SMS to ${oldBooking.client_phone}: booking modified → ${link}`);
-        notificationResult = { ...notificationResult, sms: 'queued' };
+        const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+        const manageLink = `${baseUrl}/booking/${oldBooking.public_token}`;
+        const newDateStr = new Date(start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+        const newTimeStr = new Date(start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+        const smsResult = await sendSMS({ to: oldBooking.client_phone, body: `${oldBooking.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`, businessId: bid });
+        notificationResult = { ...notificationResult, sms: smsResult.success ? 'sent' : 'error' };
       } catch (e) {
-        console.warn('SMS notification error:', e.message);
-        notificationResult = { ...notificationResult, sms: 'error', detail: e.message };
+        console.warn('[MODIFY] SMS error:', e.message);
+        notificationResult = { ...notificationResult, sms: 'error' };
       }
     }
 
