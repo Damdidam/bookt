@@ -385,6 +385,11 @@ app.get('/:slug/gift-card', async (req, res) => {
   }
 });
 
+// /:slug/pass → pass/subscription purchase page
+app.get('/:slug/pass', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/pass.html'));
+});
+
 // /:slug/guide → client-facing flow documentation
 app.get('/:slug/guide', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/guide.html'));

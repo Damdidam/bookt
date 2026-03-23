@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abonnements — Genda</title>
+<style>
+/* ── Kill mobile browser helpers ── */
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html{-webkit-text-size-adjust:none;-ms-text-size-adjust:none}
+body,div,span,label,p,h1,h2,h3,h4,a,button,td,th,li{-webkit-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;user-select:text}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#FEFDFB;--white:#FFF;--surface:#F5F0EB;--surface-2:#EDE5DC;
+  --border:#E8E0D8;--border-light:#F0EAE3;
+  --text:#2C2C2C;--text-2:#444;--text-3:#888;--text-4:#AAA;
+  --primary:#B8977E;--primary-hover:#A07A62;--primary-light:rgba(184,151,126,.08);--primary-soft:rgba(184,151,126,.15);
+  --green:#1B7A42;--green-bg:#EEFAF1;--red:#DC2626;--red-bg:#FEF2F2;
+  --serif:'Cormorant Garamond',Georgia,serif;--sans:'DM Sans',-apple-system,sans-serif;
+  --shadow:0 2px 8px rgba(0,0,0,.04);--radius:12px;--radius-sm:8px;--radius-xs:6px
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;padding:0;margin:0;opacity:0;transition:opacity .3s ease}
+body.ready{opacity:1}
+.page-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center}
+
+/* ── Hero header ── */
+.gc-hero{width:100%;position:relative;overflow:hidden;padding:44px 24px 64px;text-align:center}
+.gc-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 20%,var(--primary-soft) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,var(--primary-light) 0%,transparent 50%);pointer-events:none}
+.gc-hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top,var(--bg),transparent);pointer-events:none}
+
+/* Decorative sparkles */
+.gc-sparkles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.gc-sparkle{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--primary);opacity:.15}
+.gc-sparkle:nth-child(1){top:15%;left:12%;width:6px;height:6px;opacity:.12}
+.gc-sparkle:nth-child(2){top:25%;right:18%;width:3px;height:3px;opacity:.18}
+.gc-sparkle:nth-child(3){top:60%;left:8%;opacity:.1}
+.gc-sparkle:nth-child(4){top:40%;right:10%;width:5px;height:5px;opacity:.14}
+.gc-sparkle:nth-child(5){bottom:30%;left:25%;width:3px;height:3px;opacity:.1}
+.gc-sparkle:nth-child(6){top:20%;left:45%;width:5px;height:5px;opacity:.08}
+
+.gc-hero-content{position:relative;z-index:1}
+.gc-hero .logo-link{display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;color:var(--text);margin-bottom:16px}
+.gc-hero .logo-mark{width:38px;height:38px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:.9rem;overflow:hidden;flex-shrink:0}
+.gc-hero .logo-mark img{width:100%;height:100%;object-fit:cover}
+.gc-hero .logo-name{font-family:var(--serif);font-size:1.15rem;font-weight:400;white-space:nowrap}
+.gc-hero .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:50px;background:rgba(255,255,255,.65);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:.72rem;font-weight:600;color:var(--primary);margin-bottom:16px;letter-spacing:.5px}
+.gc-hero h1{font-family:var(--serif);font-size:2.4rem;font-weight:400;line-height:1.15;margin-bottom:10px;color:var(--text)}
+.gc-hero h1 em{font-style:italic;color:var(--primary)}
+.gc-hero .subtitle{font-size:.92rem;color:var(--text-3);max-width:400px;margin:0 auto;line-height:1.5}
+
+/* ── Card ── */
+.container{width:100%;max-width:620px;padding:0 20px;margin:-32px auto 40px;position:relative;z-index:2}
+.card{background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card-body{padding:28px}
+@media(max-width:480px){.card-body{padding:20px 18px}}
+
+/* ── Section labels ── */
+.section-label{font-size:.72rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border-light)}
+
+/* ── Pass template cards ── */
+.pass-section{margin-bottom:24px}
+.pass-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:8px}
+.pass-card{background:var(--white);border:2px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:all .2s;text-align:center}
+.pass-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow)}
+.pass-card.selected{border-color:var(--primary);background:var(--primary-light)}
+.pass-card .pass-name{font-family:var(--serif);font-size:1.1rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.pass-card .pass-sessions{font-size:.88rem;color:var(--text-3);margin-bottom:8px}
+.pass-card .pass-price{font-size:1.4rem;font-weight:700;color:var(--primary)}
+.pass-card .pass-service{font-size:.78rem;color:var(--text-4);margin-top:6px}
+.pass-card .pass-savings{font-size:.72rem;color:var(--green);margin-top:4px;font-weight:600}
+
+/* ── Form fields ── */
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.78rem;font-weight:500;color:var(--text-3);margin-bottom:6px}
+.form-group input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--sans);font-size:.88rem;color:var(--text);background:var(--white);outline:none;transition:all .2s}
+.form-group input:focus{border-color:var(--primary)}
+.form-group input::placeholder{color:var(--text-4)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+
+/* ── Divider ── */
+.form-divider{height:1px;background:var(--border-light);margin:24px 0}
+
+/* ── Submit button ── */
+.submit-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px 24px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-family:var(--sans);font-size:.95rem;font-weight:600;cursor:pointer;transition:all .2s;margin-top:24px;min-height:52px}
+.submit-btn:hover{background:var(--primary-hover);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.submit-btn:active{transform:translateY(0)}
+.submit-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
+.submit-btn .spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Loading / error ── */
+.loading{text-align:center;padding:80px 24px}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+.error{text-align:center;padding:60px 24px}
+.error .e-icon{font-size:3rem;margin-bottom:12px}
+
+/* ── Success state ── */
+.success-wrap{padding:56px 28px;text-align:center}
+.success-icon{width:64px;height:64px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;animation:popIn .4s cubic-bezier(.34,1.56,.64,1)}
+@keyframes popIn{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
+.success-wrap h2{font-family:var(--serif);font-size:1.6rem;font-weight:400;margin-bottom:8px}
+.success-wrap p{font-size:.9rem;color:var(--text-3);line-height:1.6}
+.confetti{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;overflow:hidden}
+.confetti span{position:absolute;top:-20px;width:10px;height:10px;border-radius:2px;animation:confettiFall linear forwards}
+@keyframes confettiFall{0%{opacity:1;transform:translateY(0) rotate(0deg)}100%{opacity:0;transform:translateY(100vh) rotate(720deg)}}
+
+/* ── Footer ── */
+.footer-link{text-align:center;margin-top:20px;padding-bottom:32px}
+.footer-link a{font-size:.82rem;color:var(--primary);text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:50px;background:var(--primary-light);transition:all .15s}
+.footer-link a:hover{background:var(--primary-soft)}
+
+/* ── Error message inline ── */
+.field-error{border-color:var(--red) !important}
+.error-msg{font-size:.75rem;color:var(--red);margin-top:4px}
+
+/* ── Secure notice ── */
+.secure-notice{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:.75rem;color:var(--text-4)}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- Hero header -->
+  <div class="gc-hero" id="gcHero">
+    <div class="gc-sparkles"><span class="gc-sparkle"></span><span class="gc-sparkle"></span><span class="gc-sparkle"></span><span class="gc-sparkle"></span><span class="gc-sparkle"></span><span class="gc-sparkle"></span></div>
+    <div class="gc-hero-content">
+      <a class="logo-link" id="logoLink" href="/">
+        <span class="logo-mark" id="logoMark">G</span>
+        <span class="logo-name" id="logoName"></span>
+      </a>
+      <div class="badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+        ABONNEMENTS
+      </div>
+      <h1>Votre formule<br><em>sur mesure</em></h1>
+      <p class="subtitle" id="heroSubtitle"></p>
+    </div>
+  </div>
+
+  <!-- Main card -->
+  <div class="container">
+    <div class="card" id="cardContent">
+      <div class="loading"><div class="spinner"></div><p style="margin-top:12px;color:var(--text-4);font-size:.85rem">Chargement...</p></div>
+    </div>
+    <div class="footer-link" id="footerLink" style="display:none"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Theme presets (same as booking page) ──
+var THEMES={
+  funky:{
+    fonts:'Sora:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400',
+    vars:{'--bg':'#FFFAF7','--white':'#FFF','--surface':'#FFF3ED','--surface-2':'#FFE8DA',
+      '--border':'#F0D5C4','--border-light':'#F5E6DB',
+      '--text':'#1E1210','--text-2':'#3D2E28','--text-3':'#8A7068','--text-4':'#B8A49A',
+      '--primary':'#E8694A','--primary-hover':'#D45A3C',
+      '--serif':"'Playfair Display',Georgia,serif",'--sans':"'Sora',-apple-system,sans-serif",
+      '--shadow':'0 2px 16px rgba(232,105,74,.08)','--radius':'20px','--radius-sm':'14px','--radius-xs':'8px'}
+  },
+  epure_nude:{
+    fonts:'Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600',
+    vars:{'--bg':'#FEFDFB','--white':'#FFF','--surface':'#F5F0EB','--surface-2':'#EDE5DC',
+      '--border':'#E8E0D8','--border-light':'#F0EAE3',
+      '--text':'#2C2C2C','--text-2':'#444','--text-3':'#888','--text-4':'#AAA',
+      '--primary':'#B8977E',
+      '--serif':"'Cormorant Garamond',Georgia,serif",'--sans':"'DM Sans',-apple-system,sans-serif",
+      '--shadow':'0 2px 8px rgba(0,0,0,.04)','--radius':'12px','--radius-sm':'8px','--radius-xs':'6px'}
+  },
+  epure_sauge:{
+    fonts:'Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600',
+    vars:{'--bg':'#FAFCF9','--white':'#FFF','--surface':'#F0F4ED','--surface-2':'#E4EBE0',
+      '--border':'#D8E0D4','--border-light':'#E8EEE4',
+      '--text':'#2C2C2C','--text-2':'#444','--text-3':'#888','--text-4':'#AAA',
+      '--primary':'#7D8B75',
+      '--serif':"'Cormorant Garamond',Georgia,serif",'--sans':"'DM Sans',-apple-system,sans-serif",
+      '--shadow':'0 2px 8px rgba(0,0,0,.04)','--radius':'12px','--radius-sm':'8px','--radius-xs':'6px'}
+  },
+  epure_blush:{
+    fonts:'Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600',
+    vars:{'--bg':'#FFFBFB','--white':'#FFF','--surface':'#FBF0F0','--surface-2':'#F5E3E3',
+      '--border':'#F0D8D8','--border-light':'#F5E6E6',
+      '--text':'#2C2C2C','--text-2':'#444','--text-3':'#888','--text-4':'#AAA',
+      '--primary':'#C4898A',
+      '--serif':"'Cormorant Garamond',Georgia,serif",'--sans':"'DM Sans',-apple-system,sans-serif",
+      '--shadow':'0 2px 8px rgba(0,0,0,.04)','--radius':'12px','--radius-sm':'8px','--radius-xs':'6px'}
+  },
+  epure_charbon:{
+    fonts:'Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=DM+Sans:wght@400;500;600',
+    vars:{'--bg':'#FEFEFE','--white':'#FFF','--surface':'#F5F5F5','--surface-2':'#EBEBEB',
+      '--border':'#E0E0E0','--border-light':'#EBEBEB',
+      '--text':'#1A1A1A','--text-2':'#444','--text-3':'#888','--text-4':'#AAA',
+      '--primary':'#555555',
+      '--serif':"'Cormorant Garamond',Georgia,serif",'--sans':"'DM Sans',-apple-system,sans-serif",
+      '--shadow':'0 2px 8px rgba(0,0,0,.04)','--radius':'12px','--radius-sm':'8px','--radius-xs':'6px'}
+  },
+  bold_nuit:{
+    fonts:'Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700',
+    dark:true,
+    vars:{'--bg':'#111827','--white':'#1F2937','--surface':'#1F2937','--surface-2':'#374151',
+      '--border':'#374151','--border-light':'#2D3748',
+      '--text':'#F9FAFB','--text-2':'#E5E7EB','--text-3':'#9CA3AF','--text-4':'#6B7280',
+      '--primary':'#D4AF37','--green':'#34D399','--green-bg':'rgba(52,211,153,.12)',
+      '--red':'#F87171','--red-bg':'rgba(248,113,113,.12)',
+      '--serif':"'Instrument Serif',Georgia,serif",'--sans':"'Space Grotesk',-apple-system,sans-serif",
+      '--shadow':'0 2px 12px rgba(0,0,0,.3)','--radius':'14px','--radius-sm':'10px','--radius-xs':'6px'}
+  },
+  bold_cognac:{
+    fonts:'Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700',
+    dark:true,
+    vars:{'--bg':'#1A120D','--white':'#2A1E17','--surface':'#2A1E17','--surface-2':'#3D2E22',
+      '--border':'#4A3828','--border-light':'#3D2E22',
+      '--text':'#F5EDE6','--text-2':'#E0D4CA','--text-3':'#A89888','--text-4':'#7A6A5A',
+      '--primary':'#C68B59','--green':'#34D399','--green-bg':'rgba(52,211,153,.12)',
+      '--red':'#F87171','--red-bg':'rgba(248,113,113,.12)',
+      '--serif':"'Instrument Serif',Georgia,serif",'--sans':"'Space Grotesk',-apple-system,sans-serif",
+      '--shadow':'0 2px 12px rgba(0,0,0,.3)','--radius':'14px','--radius-sm':'10px','--radius-xs':'6px'}
+  },
+  bold_olive:{
+    fonts:'Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700',
+    dark:true,
+    vars:{'--bg':'#1A1E16','--white':'#252B20','--surface':'#252B20','--surface-2':'#343D2C',
+      '--border':'#404A34','--border-light':'#343D2C',
+      '--text':'#EEF2E8','--text-2':'#D4DCC8','--text-3':'#9CA88C','--text-4':'#6E7A60',
+      '--primary':'#8BA868','--green':'#34D399','--green-bg':'rgba(52,211,153,.12)',
+      '--red':'#F87171','--red-bg':'rgba(248,113,113,.12)',
+      '--serif':"'Instrument Serif',Georgia,serif",'--sans':"'Space Grotesk',-apple-system,sans-serif",
+      '--shadow':'0 2px 12px rgba(0,0,0,.3)','--radius':'14px','--radius-sm':'10px','--radius-xs':'6px'}
+  }
+};
+
+function applyTheme(preset){
+  var t=THEMES[preset];if(!t)t=THEMES.epure_nude;
+  if(t.fonts){
+    var link=document.createElement('link');link.rel='stylesheet';
+    link.href='https://fonts.googleapis.com/css2?family='+t.fonts+'&display=swap';
+    document.head.appendChild(link);
+  }
+  var root=document.documentElement;
+  if(t.vars)Object.keys(t.vars).forEach(function(k){root.style.setProperty(k,t.vars[k]);});
+  var p=t.vars['--primary']||'#B8977E';
+  var rr=parseInt(p.slice(1,3),16),gg=parseInt(p.slice(3,5),16),bb=parseInt(p.slice(5,7),16);
+  if(!t.vars['--primary-hover']){
+    root.style.setProperty('--primary-hover','#'+[rr,gg,bb].map(function(c){return Math.max(0,Math.round(c*.82)).toString(16).padStart(2,'0');}).join(''));
+  }
+  root.style.setProperty('--primary-light','rgba('+rr+','+gg+','+bb+',.08)');
+  root.style.setProperty('--primary-soft','rgba('+rr+','+gg+','+bb+',.15)');
+}
+
+// Extract slug
+var pathParts = window.location.pathname.split('/').filter(Boolean);
+var slug = pathParts.length >= 2 ? pathParts[pathParts.length - 2] : (pathParts.length === 1 ? pathParts[0] : null);
+var selectedTemplate = null;
+var config = null;
+
+// Check for success redirect
+if (new URLSearchParams(window.location.search).get('success') === '1') {
+  applyTheme('epure_nude');
+  document.body.classList.add('ready');
+  showSuccess();
+} else if (!slug) {
+  applyTheme('epure_nude');
+  document.body.classList.add('ready');
+  showError('Lien invalide');
+} else {
+  loadConfig();
+}
+
+async function loadConfig() {
+  try {
+    var res = await fetch('/api/public/' + slug + '/pass-config');
+    if (!res.ok) { applyTheme('epure_nude'); document.body.classList.add('ready'); showError('Abonnements non disponibles'); return; }
+    config = await res.json();
+    render();
+  } catch (err) { applyTheme('epure_nude'); document.body.classList.add('ready'); showError('Erreur de chargement'); }
+}
+
+function render() {
+  var preset = (config.theme && config.theme.preset) ? config.theme.preset : 'epure_nude';
+  applyTheme(preset);
+  if (config.theme && config.theme.primary_color) {
+    var pc = config.theme.primary_color;
+    document.documentElement.style.setProperty('--primary', pc);
+    var rr=parseInt(pc.slice(1,3),16),gg=parseInt(pc.slice(3,5),16),bb=parseInt(pc.slice(5,7),16);
+    document.documentElement.style.setProperty('--primary-hover','#'+[rr,gg,bb].map(function(c){return Math.max(0,Math.round(c*.82)).toString(16).padStart(2,'0');}).join(''));
+    document.documentElement.style.setProperty('--primary-light','rgba('+rr+','+gg+','+bb+',.08)');
+    document.documentElement.style.setProperty('--primary-soft','rgba('+rr+','+gg+','+bb+',.15)');
+  }
+
+  // Logo
+  var logoMark = document.getElementById('logoMark');
+  var logoName = document.getElementById('logoName');
+  if (config.logo_url) {
+    logoMark.innerHTML = '<img src="' + esc(config.logo_url) + '" alt="">';
+  } else {
+    var initials = (config.business_name||'G').split(' ').map(function(w){return w[0];}).filter(Boolean).join('').toUpperCase().slice(0,2);
+    logoMark.textContent = initials;
+  }
+  logoName.textContent = config.business_name || 'Genda';
+  document.getElementById('logoLink').href = '/' + slug;
+  document.getElementById('heroSubtitle').textContent = 'Choisissez la formule qui vous convient.';
+  document.title = 'Abonnements \u2014 ' + (config.business_name || 'Genda');
+
+  var templates = config.templates || [];
+
+  if (templates.length === 0) {
+    document.getElementById('cardContent').innerHTML =
+      '<div class="error"><div class="e-icon">\u{1F4CB}</div><p style="font-size:.92rem;font-weight:600">Aucune formule disponible</p><p style="font-size:.82rem;color:var(--text-3);margin-top:6px">Revenez bient\u00f4t.</p></div>';
+    document.body.classList.add('ready');
+    return;
+  }
+
+  var cardsHtml = templates.map(function(t, idx) {
+    var priceFmt = (t.price_cents / 100).toLocaleString('fr-BE', {style:'currency', currency:'EUR'});
+    var sessionsLabel = t.sessions_count === 1 ? '1 s\u00e9ance' : (t.sessions_count + ' s\u00e9ances');
+    var savingsHtml = '';
+    if (t.savings_label) {
+      savingsHtml = '<div class="pass-savings">' + esc(t.savings_label) + '</div>';
+    }
+    return '<div class="pass-card" id="passCard' + idx + '" onclick="selectTemplate(' + idx + ')">'
+      + '<div class="pass-name">' + esc(t.name) + '</div>'
+      + '<div class="pass-sessions">' + sessionsLabel + '</div>'
+      + '<div class="pass-price">' + priceFmt + '</div>'
+      + (t.service_name ? '<div class="pass-service">' + esc(t.service_name) + '</div>' : '')
+      + savingsHtml
+      + '</div>';
+  }).join('');
+
+  var html = '<div class="card-body">'
+    + '<div class="pass-section">'
+    + '<div class="section-label">Choisir une formule</div>'
+    + '<div class="pass-grid">' + cardsHtml + '</div>'
+    + '</div>'
+
+    + '<div class="form-divider"></div>'
+    + '<div class="section-label">Vos coordonn\u00e9es</div>'
+    + '<div class="form-row">'
+    + '<div class="form-group"><label for="buyerName">Votre nom</label><input type="text" id="buyerName" placeholder="Votre nom" required></div>'
+    + '<div class="form-group"><label for="buyerEmail">Votre email</label><input type="email" id="buyerEmail" placeholder="votre@email.com" required></div>'
+    + '</div>'
+
+    + '<button class="submit-btn" id="submitBtn" onclick="checkout()">'
+    + PASS_ICON + ' Continuer vers le paiement \u2192</button>'
+    + '<div class="secure-notice">'
+    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+    + 'Paiement s\u00e9curis\u00e9 par Stripe</div>'
+    + '</div>';
+
+  document.getElementById('cardContent').innerHTML = html;
+  document.body.classList.add('ready');
+  showFooterLink();
+}
+
+function selectTemplate(idx) {
+  selectedTemplate = config.templates[idx];
+  document.querySelectorAll('.pass-card').forEach(function(c) { c.classList.remove('selected'); });
+  var card = document.getElementById('passCard' + idx);
+  if (card) card.classList.add('selected');
+}
+
+var PASS_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>';
+
+async function checkout() {
+  if (!selectedTemplate) {
+    alert('Veuillez choisir une formule');
+    return;
+  }
+  var nameEl = document.getElementById('buyerName');
+  var emailEl = document.getElementById('buyerEmail');
+  var name = nameEl ? nameEl.value.trim() : '';
+  var email = emailEl ? emailEl.value.trim() : '';
+
+  // Clear previous errors
+  document.querySelectorAll('.field-error').forEach(function(el){el.classList.remove('field-error');});
+  document.querySelectorAll('.error-msg').forEach(function(el){el.remove();});
+
+  var valid = true;
+  var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email) {
+    emailEl.classList.add('field-error');
+    emailEl.insertAdjacentHTML('afterend', '<div class="error-msg">Email requis</div>');
+    valid = false;
+  } else if (!emailRegex.test(email)) {
+    emailEl.classList.add('field-error');
+    emailEl.insertAdjacentHTML('afterend', '<div class="error-msg">Email invalide</div>');
+    valid = false;
+  }
+  if (!valid) return;
+
+  var btn = document.getElementById('submitBtn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Redirection vers le paiement\u2026';
+
+  try {
+    var res = await fetch('/api/public/' + slug + '/pass/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pass_template_id: selectedTemplate.id, buyer_name: name, buyer_email: email })
+    });
+    var data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Une erreur est survenue');
+      btn.disabled = false;
+      btn.innerHTML = PASS_ICON + ' Continuer vers le paiement \u2192';
+      return;
+    }
+    if (data.url) window.location.href = data.url;
+  } catch (err) {
+    alert('Erreur de connexion');
+    btn.disabled = false;
+    btn.innerHTML = PASS_ICON + ' Continuer vers le paiement \u2192';
+  }
+}
+
+function showSuccess() {
+  document.getElementById('heroSubtitle').textContent = '';
+  document.querySelector('.gc-hero h1').innerHTML = 'Votre abonnement est<br><em>confirm\u00e9</em>&nbsp;!';
+
+  document.getElementById('cardContent').innerHTML =
+    '<div class="success-wrap">'
+    + '<div class="success-icon">'
+    + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    + '</div>'
+    + '<h2>Abonnement activ\u00e9&nbsp;!</h2>'
+    + '<p>Vous recevrez un email de confirmation avec les d\u00e9tails de votre abonnement.<br>Merci pour votre achat\u00a0!</p>'
+    + '</div>';
+
+  launchConfetti();
+
+  if (slug) {
+    var fl = document.getElementById('footerLink');
+    fl.innerHTML = '<a href="/' + slug + '/book"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> R\u00e9server un rendez-vous</a>';
+    fl.style.display = '';
+  }
+}
+
+function launchConfetti() {
+  var container = document.createElement('div');
+  container.className = 'confetti';
+  document.body.appendChild(container);
+  var colors = ['#FF6B6B','#4ECDC4','#FFE66D','#A8E6CF','#FF8B94','#DDA0DD','#98D8C8','#F7DC6F'];
+  for (var i = 0; i < 60; i++) {
+    var span = document.createElement('span');
+    span.style.left = Math.random() * 100 + '%';
+    span.style.background = colors[Math.floor(Math.random() * colors.length)];
+    span.style.width = (6 + Math.random() * 8) + 'px';
+    span.style.height = (6 + Math.random() * 8) + 'px';
+    span.style.animationDuration = (2 + Math.random() * 2) + 's';
+    span.style.animationDelay = (Math.random() * 1.5) + 's';
+    span.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    container.appendChild(span);
+  }
+  setTimeout(function() { container.remove(); }, 5000);
+}
+
+function showFooterLink() {
+  if (!config || !slug) return;
+  var fl = document.getElementById('footerLink');
+  fl.innerHTML = '<a href="/' + slug + '/book"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> R\u00e9server chez ' + esc(config.business_name) + '</a>';
+  fl.style.display = '';
+}
+
+function showError(msg) {
+  document.getElementById('cardContent').innerHTML = '<div class="error"><div class="e-icon">\u26a0\ufe0f</div><p style="font-size:.92rem;font-weight:600">' + msg + '</p><p style="font-size:.82rem;color:var(--text-3);margin-top:6px">V\u00e9rifiez le lien ou contactez le salon.</p></div>';
+}
+
+function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>
