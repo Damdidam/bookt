@@ -309,6 +309,8 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     if (safePracName && !hasSplitPracMod) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
   }
 
+  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
+
   const bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a \u00e9t\u00e9 modifi\u00e9 :</p>
@@ -330,7 +332,6 @@ async function sendModificationEmail({ booking, business, groupServices }) {
       <a href="${escHtml(manageUrl || '')}" style="font-size:13px;color:#C62828;text-decoration:none;font-weight:600">Annuler le rendez-vous</a>
     </div>`;
 
-  const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
   const html = buildEmailHTML({
     title: isMulti ? 'Modification de vos prestations' : 'Modification de votre rendez-vous',
     preheader: `Nouveau cr\u00e9neau : ${newDate} \u00e0 ${newTime}`,

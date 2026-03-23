@@ -1,6 +1,7 @@
 const { query, queryWithRLS, pool } = require('./db');
 const crypto = require('crypto');
 const { broadcast } = require('./sse');
+const { sendEmail, buildEmailHTML, escHtml, safeColor } = require('./email');
 
 /**
  * WAITLIST PROCESSOR
@@ -142,12 +143,41 @@ async function processWaitlistForCancellation(bookingId, businessId) {
       return { processed: false, reason: 'entry_no_longer_waiting' };
     }
 
-    // TODO: Send email via Brevo when connected
-    // Email should contain:
-    //   - "Un créneau s'est libéré chez {practitioner_name}"
-    //   - Service, date/heure
-    //   - Link: /waitlist/{token}
-    //   - "Vous avez 2h pour réserver"
+    // Send waitlist offer email
+    const offerUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda.be'}/waitlist/${token}`;
+    const slotDateFmt = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+    const slotTimeFmt = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+
+    // Fetch business info for branding
+    const bizRow = await queryWithRLS(businessId,
+      `SELECT name, theme FROM businesses WHERE id = $1`, [businessId]
+    );
+    const biz = bizRow.rows[0] || { name: 'Genda' };
+
+    const offerHtml = buildEmailHTML({
+      title: 'Un créneau s\'est libéré !',
+      preheader: `${bk.service_name} chez ${bk.practitioner_name} — ${slotDateFmt} à ${slotTimeFmt}`,
+      bodyHTML: `<p>Bonjour ${escHtml(entry.client_name)},</p>
+        <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
+        <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
+          <p style="margin:0 0 6px"><strong>${escHtml(bk.service_name)}</strong></p>
+          <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(bk.practitioner_name)}</p>
+          <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} à ${escHtml(slotTimeFmt)}</p>
+        </div>
+        <p style="font-weight:600;color:#D97706">⏱ Vous avez 2 heures pour réserver ce créneau avant qu'il ne soit proposé à quelqu'un d'autre.</p>`,
+      ctaText: 'Réserver maintenant',
+      ctaUrl: offerUrl,
+      businessName: biz.name,
+      primaryColor: biz.theme?.primary_color
+    });
+
+    sendEmail({
+      to: entry.client_email,
+      toName: entry.client_name,
+      subject: `Créneau disponible — ${bk.service_name} le ${slotDateFmt}`,
+      html: offerHtml,
+      fromName: biz.name
+    }).catch(e => console.warn('[WAITLIST] Offer email error:', e.message));
 
     broadcast(bk.business_id, 'waitlist_match', {
       mode: 'auto',
@@ -184,7 +214,8 @@ async function processExpiredOffers() {
     // SVC-V11-14: Add FOR UPDATE SKIP LOCKED to prevent concurrent cron processing
     // SVC-V12-003: Use dedicated client + explicit transaction so locks are held
     const expired = await client.query(
-      `SELECT w.*, p.waitlist_mode, s.duration_min
+      `SELECT w.*, p.waitlist_mode, p.display_name AS practitioner_name,
+              s.duration_min, s.name AS service_name
        FROM waitlist_entries w
        JOIN practitioners p ON p.id = w.practitioner_id AND p.business_id = w.business_id
        JOIN services s ON s.id = w.service_id AND s.business_id = w.business_id
@@ -269,7 +300,40 @@ async function processExpiredOffers() {
           );
           if (cascadeResult.rows.length === 0) continue;
 
-          // TODO: Send email to next person
+          // Send cascade offer email to next person
+          const cascadeUrl = `${process.env.BASE_URL || process.env.APP_BASE_URL || 'https://genda.be'}/waitlist/${token}`;
+          const cascadeDateFmt = new Date(entry.offer_booking_start).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+          const cascadeTimeFmt = new Date(entry.offer_booking_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+
+          const cascadeBiz = await client.query(
+            `SELECT name, theme FROM businesses WHERE id = $1`, [entry.business_id]
+          );
+          const cbiz = cascadeBiz.rows[0] || { name: 'Genda' };
+
+          const cascadeHtml = buildEmailHTML({
+            title: 'Un créneau s\'est libéré !',
+            preheader: `${entry.service_name} chez ${entry.practitioner_name} — ${cascadeDateFmt} à ${cascadeTimeFmt}`,
+            bodyHTML: `<p>Bonjour ${escHtml(next.rows[0].client_name)},</p>
+              <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
+              <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
+                <p style="margin:0 0 6px"><strong>${escHtml(entry.service_name)}</strong></p>
+                <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(entry.practitioner_name)}</p>
+                <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(cascadeDateFmt)} à ${escHtml(cascadeTimeFmt)}</p>
+              </div>
+              <p style="font-weight:600;color:#D97706">⏱ Vous avez 2 heures pour réserver ce créneau avant qu'il ne soit proposé à quelqu'un d'autre.</p>`,
+            ctaText: 'Réserver maintenant',
+            ctaUrl: cascadeUrl,
+            businessName: cbiz.name,
+            primaryColor: cbiz.theme?.primary_color
+          });
+
+          sendEmail({
+            to: next.rows[0].client_email,
+            toName: next.rows[0].client_name,
+            subject: `Créneau disponible — ${entry.service_name} le ${cascadeDateFmt}`,
+            html: cascadeHtml,
+            fromName: cbiz.name
+          }).catch(e => console.warn('[WAITLIST] Cascade email error:', e.message));
 
           broadcast(entry.business_id, 'waitlist_match', {
             mode: 'auto_cascade',

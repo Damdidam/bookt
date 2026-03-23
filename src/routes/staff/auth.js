@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { query, pool } = require('../../services/db');
 const { authLimiter } = require('../../middleware/rate-limiter');
 const { requireAuth } = require('../../middleware/auth');
+const { sendEmail, buildEmailHTML, escHtml } = require('../../services/email');
 
 // ============================================================
 // POST /api/auth/login
@@ -92,14 +93,29 @@ router.post('/login', authLimiter, async (req, res, next) => {
     const magicToken = mlResult.rows[0].token;
     const magicUrl = `${process.env.MAGIC_LINK_BASE_URL}?token=${magicToken}`;
 
-    // 3. Queue email (in production, send via Brevo)
-    // For now, log it
+    // 3. Send magic link email via Brevo
     if (process.env.NODE_ENV !== 'production') {
       console.log(`\n  Magic link for ${email}: ${magicUrl}\n`);
     }
 
-    // TODO: Send email via Brevo
-    // await sendMagicLinkEmail(email, magicUrl, user.business_name);
+    const html = buildEmailHTML({
+      title: 'Votre lien de connexion',
+      preheader: 'Cliquez pour vous connecter à votre espace Genda',
+      bodyHTML: `<p>Bonjour,</p>
+        <p>Vous avez demandé un lien de connexion pour accéder à votre espace <strong>${escHtml(user.business_name || 'Genda')}</strong>.</p>
+        <p>Ce lien est valable 15 minutes et ne peut être utilisé qu'une seule fois.</p>
+        <p style="font-size:13px;color:#9C958E;margin-top:20px">Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email.</p>`,
+      ctaText: 'Se connecter',
+      ctaUrl: magicUrl,
+      businessName: user.business_name || 'Genda'
+    });
+
+    sendEmail({
+      to: email,
+      subject: `Connexion à ${user.business_name || 'Genda'}`,
+      html,
+      fromName: user.business_name || 'Genda'
+    }).catch(e => console.warn('[AUTH] Magic link email error:', e.message));
 
     res.json({ message: 'Si ce compte existe, un lien de connexion a été envoyé.' });
   } catch (err) {
