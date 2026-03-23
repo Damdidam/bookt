@@ -347,7 +347,7 @@ router.patch('/:id/move', async (req, res, next) => {
             const groupServices = siblingsRes.rows;
 
             // Only change status to modified_pending if time actually changed
-            const groupTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+            const groupTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
             if (groupTimeMoved) {
               const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
               await queryWithRLS(bid,
@@ -399,9 +399,9 @@ router.patch('/:id/move', async (req, res, next) => {
                 const manageLink = `${baseUrl}/booking/${bk.public_token}`;
                 const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+                const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
                 const smsBody = timeMoved
-                  ? `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+                  ? `${bk.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
                   : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
                 const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
                 groupNotifResult.sms = smsResult.success ? 'sent' : 'error';
@@ -519,7 +519,7 @@ router.patch('/:id/move', async (req, res, next) => {
         const bk = fullBk.rows[0];
         if (bk && bk.client_email) {
           // Only change status to modified_pending if time actually changed
-          const singleTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+          const singleTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
           if (singleTimeMoved) {
             const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
             await queryWithRLS(bid,
@@ -573,9 +573,9 @@ router.patch('/:id/move', async (req, res, next) => {
               const manageLink = `${baseUrl}/booking/${bk.public_token}`;
               const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
               const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-              const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+              const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime() || new Date(draggedBooking.end_at).getTime() !== new Date(bk.end_at).getTime();
               const smsBody = timeMoved
-                ? `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+                ? `${bk.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
                 : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
               const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
               notificationResult.sms = smsResult.success ? 'sent' : 'error';
@@ -1085,7 +1085,7 @@ router.patch('/:id/modify', async (req, res, next) => {
 
         // BK-V13-002: Compute newStatus inside transaction using re-checked status to avoid stale data
         const recheckStatus = statusRecheck.rows[0].status;
-        const modifyTimeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime();
+        const modifyTimeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime() || new Date(oldBooking.end_at).getTime() !== new Date(end_at).getTime();
         const newStatus = (shouldNotify && modifyTimeMoved)
           ? (recheckStatus === 'pending_deposit' ? 'pending_deposit' : 'modified_pending')
           : recheckStatus;
@@ -1175,9 +1175,9 @@ router.patch('/:id/modify', async (req, res, next) => {
         const manageLink = `${baseUrl}/booking/${oldBooking.public_token}`;
         const newDateStr = new Date(start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
         const newTimeStr = new Date(start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-        const timeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime();
+        const timeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime() || new Date(oldBooking.end_at).getTime() !== new Date(end_at).getTime();
         const smsBody = timeMoved
-          ? `${oldBooking.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+          ? `${oldBooking.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
           : `${oldBooking.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
         const smsResult = await sendSMS({ to: oldBooking.client_phone, body: smsBody, businessId: bid });
         notificationResult = { ...notificationResult, sms: smsResult.success ? 'sent' : 'error' };
