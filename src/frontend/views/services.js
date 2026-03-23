@@ -556,11 +556,10 @@ async function openServiceModal(editId,prefill){
   if(!sectorCats.length){
     try{const r=await fetch('/api/business/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});if(r.ok){const data=await r.json();sectorCats=data.categories||[];}}catch(e){}
   }
-  if (!window._businessSettings) {
-    try {
-      const sRes = await fetch('/api/settings', { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
-      if (sRes.ok) { const sd = await sRes.json(); window._businessSettings = sd.settings || {}; }
-    } catch(e) {}
+  try {
+    const sRes = await fetch('/api/settings', { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+    if (sRes.ok) { const sd = await sRes.json(); window._businessSettings = sd.settings || {}; }
+  } catch(e) {
   }
   if(editId){
     const sr=await fetch(`/api/services`,{headers:{'Authorization':'Bearer '+api.getToken()}});
