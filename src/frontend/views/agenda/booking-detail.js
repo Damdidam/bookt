@@ -489,9 +489,11 @@ async function fcOpenDetail(bookingId) {
       calCheckConflict(); // Re-check conflicts against the new practitioner
     };
 
-    // -- Client contact fields --
+    // -- Client contact fields (visible inputs + hidden for inline edit) --
     document.getElementById('uClientPhone').value = b.client_phone || '';
     document.getElementById('uClientEmail').value = b.client_email || '';
+    document.getElementById('uClientPhoneHidden').value = b.client_phone || '';
+    document.getElementById('uClientEmailHidden').value = b.client_email || '';
 
     // -- Comment --
     document.getElementById('uComment').value = b.comment_client || '';
@@ -1207,7 +1209,7 @@ function fcPickColor(color) {
 
 // ── Inline edit (phone/email in header) ──
 function fcInlineEdit(span, field) {
-  const inputId = field === 'phone' ? 'uClientPhone' : 'uClientEmail';
+  const inputId = field === 'phone' ? 'uClientPhoneHidden' : 'uClientEmailHidden';
   const hidden = document.getElementById(inputId);
   const currentVal = hidden?.value || '';
   const input = document.createElement('input');
