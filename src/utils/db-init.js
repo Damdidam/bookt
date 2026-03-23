@@ -30,6 +30,13 @@ async function init() {
       console.log('V2 migration applied (7 new tables + extensions)');
     }
 
+    // V60: Passes / Packs de séances
+    const v60Path = path.join(__dirname, '../../schema-v60-passes.sql');
+    if (fs.existsSync(v60Path)) {
+      await pool.query(fs.readFileSync(v60Path, 'utf8'));
+      console.log('V60 migration applied (pass_templates, passes, pass_transactions)');
+    }
+
     console.log('\n   22 tables total, RLS + indexes + triggers + seed data');
   } catch (err) {
     console.error('Database init failed:', err.message);
