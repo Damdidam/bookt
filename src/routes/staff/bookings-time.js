@@ -101,6 +101,7 @@ router.patch('/:id/move', async (req, res, next) => {
     const { start_at, end_at, practitioner_id, notify, notify_channel } = req.body;
     const shouldNotify = notify === true || notify === 'true';
     const effectiveChannel = notify_channel || (shouldNotify ? 'email' : null);
+    console.log('[MOVE] id=%s notify=%s shouldNotify=%s channel=%s body_keys=%s', id, notify, shouldNotify, effectiveChannel, Object.keys(req.body).join(','));
 
     if (!start_at || !end_at) {
       return res.status(400).json({ error: 'start_at et end_at requis' });
