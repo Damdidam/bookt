@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Genda</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0D7377">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Genda">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/dashboard-CXS7AFBL.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/dashboard-B5c5SqqO.css">
+</head>
+<body>
+<div class="drawer-overlay"></div>
+<aside class="sidebar">
+  <div class="sb-logo"><div class="l"><svg viewBox="0 0 24 24" width="28" height="28"><rect x="2" y="2" width="20" height="20" rx="6" fill="#F0EBE7"/><path d="M12 6.5c-3.04 0-5.5 2.46-5.5 5.5s2.46 5.5 5.5 5.5c1.52 0 2.9-.62 3.89-1.61" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M15.5 12H12v3.5" stroke="#2C2622" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div><span class="w">Genda</span><span class="plan" id="planBadge">FREE</span></div>
+  <nav class="sb-nav">
+    <a class="ni active" href="#" data-section="home"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span><span>Dashboard</span></a>
+    <div class="sb-section" data-group="planning">
+      <div class="sb-label" onclick="toggleSbSection(this)"><span>Planning</span><svg class="sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="sb-items">
+        <a class="ni" href="#" data-section="bookings"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span>Agenda</span></a>
+        <a class="ni" href="#" data-section="clients"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span id="sbClientsLabel">Clients</span></a>
+        <a class="ni" href="#" data-section="services"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span><span id="sbServicesLabel">Prestations</span></a>
+        <a class="ni" href="#" data-section="waitlist"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></span><span>Liste d'attente</span></a>
+
+      </div>
+    </div>
+    <div class="sb-section" data-group="cabinet">
+      <div class="sb-label" id="sbBizName" onclick="toggleSbSection(this)"><span>Salon</span><svg class="sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="sb-items">
+        <a class="ni" href="#" data-section="team"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Équipe</span></a>
+        <a class="ni" href="#" data-section="planning"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span><span>Planning</span></a>
+        <a class="ni" href="#" data-section="hours"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span>Horaires</span></a>
+        <a class="ni" href="#" data-section="site"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span>Mon site</span></a>
+        <a class="ni" href="#" data-section="calls"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span><span>Appels</span></a>
+      </div>
+    </div>
+    <div class="sb-section" data-group="admin">
+      <div class="sb-label" onclick="toggleSbSection(this)"><span>Admin</span><svg class="sb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+      <div class="sb-items">
+        <a class="ni" href="#" data-section="invoices"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg></span><span>Facturation</span></a>
+        <a class="ni" href="#" data-section="deposits"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span>Acomptes</span></a>
+        <a class="ni" href="#" data-section="reviews"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span><span>Avis clients</span></a>
+        <a class="ni" href="#" data-section="analytics"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span><span>Statistiques</span></a>
+        <a class="ni" href="#" data-section="settings"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>Paramètres</span></a>
+        <a class="ni" href="#" data-section="profile"><span class="ic"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>Mon profil</span></a>
+      </div>
+    </div>
+  </nav>
+  <div class="sb-foot">
+    <div class="nm" id="userName">—</div>
+    <div class="rl" id="userRole">—</div>
+    <div class="logout" onclick="doLogout()">Déconnexion</div>
+  </div>
+</aside>
+<div class="main">
+  <div class="topbar"><button class="hamburger" onclick="toggleDrawer()" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><h1 id="pageTitle">Dashboard</h1><div><span style="font-size:.78rem;color:var(--text-4)" id="todayDate"></span></div></div>
+  <div class="content" id="contentArea"><div class="loading"><div class="spinner"></div><p style="margin-top:10px">Chargement...</p></div></div>
+</div>
+<!-- CALENDAR DETAIL MODAL -->
+<div class="m-overlay" id="calDetailModal" role="dialog" aria-modal="true" aria-labelledby="calDetailTitle">
+  <div class="m-dialog m-flex">
+    <div class="m-drag-handle"></div>
+    <div class="m-header">
+      <div class="m-header-bg" id="mHeaderBg"></div>
+      <button class="m-close" onclick="closeCalModal('calDetailModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="m-header-content">
+        <div class="m-client-hero" id="mClientHero"></div>
+      </div>
+    </div>
+    <div class="m-status-strip" id="mStatusStrip"></div>
+    <div class="m-tabs">
+      <div class="m-tab active" data-tab="rdv" onclick="switchCalTab(this,'rdv')">RDV</div>
+      <div class="m-tab" data-tab="historique" onclick="switchCalTab(this,'historique')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
+    </div>
+    <!-- Hidden inputs for inline-editable contact fields -->
+    <input type="hidden" id="uClientPhone">
+    <input type="hidden" id="uClientEmail">
+    <input type="hidden" id="calLocked">
+    <input type="hidden" id="uBookingColor">
+    <div class="m-body">
+      <div class="m-panel active" id="calPanelRdv">
+        <!-- Service card (rendered by JS — includes inline color dot + invoice link) -->
+        <div class="m-svc-card" id="mSvcCard" style="display:none"></div>
+        <div class="m-free-card" id="mFreeCard" style="display:none">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span class="m-free-badge"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> LIBRE</span>
+              <input class="m-free-title" id="uFreeLabel" placeholder="Intitulé du RDV...">
+            </div>
+            <div id="mConvertToSvcWrap"></div>
+          </div>
+        </div>
+        <div id="mConvertSvc" class="m-convert-panel" style="display:none">
+          <label class="m-field-label" for="mConvertSvcSel">Assigner une prestation</label>
+          <div class="m-svc-picker">
+            <div class="m-svc-picker-field"><label for="mConvertCatSel">Catégorie</label><select id="mConvertCatSel" onchange="fcConvertCatChanged()"><option value="">— Toutes —</option></select></div>
+            <div class="m-svc-picker-field"><label for="mConvertSvcSel">Prestation</label><select id="mConvertSvcSel" onchange="fcConvertSvcChanged()"><option value="">— Choisir —</option></select></div>
+            <div class="m-svc-picker-field" id="mConvertVarWrap"><label for="mConvertVarSel">Variante</label><select id="mConvertVarSel" onchange="fcConvertVarChanged()"></select></div>
+          </div>
+          <div id="mConvertConflict" class="m-convert-conflict" style="display:none"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <span id="mConvertInfo" class="m-svc-picker-info" style="flex:1"></span>
+            <button type="button" class="ug-btn ug-btn-confirm" id="mConvertAddBtn" onclick="fcConvertDirectAdd()" disabled style="padding:4px 12px;font-size:.72rem">+ Ajouter</button>
+          </div>
+          <div class="ug-actions" style="margin-top:8px">
+            <button type="button" class="ug-btn ug-btn-cancel" onclick="fcCancelConvert()">Annuler</button>
+          </div>
+        </div>
+        <div id="mGroupSiblings" style="display:none"></div>
+        <!-- Horaire + Praticien (merged) -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
+          <div class="m-row m-row-3">
+            <div><label class="m-field-label" for="calEditDate">Date</label><input type="date" class="m-input" id="calEditDate" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+            <div><label class="m-field-label" for="calEditStart">Début</label><input type="text" class="m-input m-time" id="calEditStart" onchange="calOnStartChange()"></div>
+            <div><label class="m-field-label" for="calEditEnd">Fin</label><input type="text" class="m-input m-time" id="calEditEnd" onchange="fcUpdateEditDiff();calCheckConflict()"></div>
+          </div>
+          <div class="m-chips" id="calDurChips">
+            <span class="m-chip" onclick="calSetDuration(15,this)">15</span>
+            <span class="m-chip" onclick="calSetDuration(30,this)">30</span>
+            <span class="m-chip" onclick="calSetDuration(45,this)">45</span>
+            <span class="m-chip" onclick="calSetDuration(60,this)">1h</span>
+            <span class="m-chip" onclick="calSetDuration(90,this)">1h30</span>
+            <span class="m-chip" onclick="calSetDuration(120,this)">2h</span>
+          </div>
+          <div id="calConflictWarn" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;animation:fadeIn .2s"></div>
+          <div id="calScheduleWarn" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:#FFF3E0;color:#E65100"></div>
+          <div id="calPoseInfo" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:#F0FDF4;color:#15803D"></div>
+          <!-- Praticien inline -->
+          <label class="m-field-label" for="uPracSelect">Praticien</label>
+          <div class="m-prac-wrap" style="margin-top:8px">
+            <span class="m-prac-dot" id="mPracDot"></span>
+            <select class="m-input" id="uPracSelect"></select>
+          </div>
+        </div>
+        <!-- Buffers (freestyle only) -->
+        <div class="m-sec" id="mBufferSec" style="display:none">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Buffers</span><span class="m-sec-line"></span></div>
+          <div class="m-row m-row-2">
+            <div><label class="m-field-label" for="uBufBefore">Avant (min)</label><input class="m-input" type="number" id="uBufBefore" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="uBufAfter">Après (min)</label><input class="m-input" type="number" id="uBufAfter" value="0" min="0" step="5"></div>
+          </div>
+        </div>
+        <!-- Note — accordion -->
+        <div class="m-accordion" id="accNote">
+          <div class="m-accordion-head" onclick="fcToggleAccordion('accNote')">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span class="m-accordion-title">Note</span>
+            <span class="m-badge" id="accNoteBadge" style="display:none">1</span>
+            <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="m-accordion-body">
+            <div class="m-accordion-inner">
+              <textarea class="m-input" id="uComment" rows="2" maxlength="500" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="m-sec" id="mClientContactSec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Coordonnées</span><span class="m-sec-line"></span></div>
+          <div class="m-row m-row-2">
+            <div><label class="m-field-label" for="uClientPhone">Téléphone</label><input type="tel" class="m-input" id="uClientPhone" placeholder="0470 12 34 56"></div>
+            <div><label class="m-field-label" for="uClientEmail">Email</label><input type="email" class="m-input" id="uClientEmail" placeholder="email@exemple.com"></div>
+          </div>
+        </div>
+        <!-- Tâches — accordion -->
+        <div class="m-accordion" id="accTodos">
+          <div class="m-accordion-head" onclick="fcToggleAccordion('accTodos')">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span class="m-accordion-title">Tâches</span>
+            <span class="m-badge" id="accTodosBadge" style="display:none"></span>
+            <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="m-accordion-body">
+            <div class="m-accordion-inner">
+              <div id="calTodoList"></div>
+              <div class="add-todo">
+                <input id="calNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')calAddTodo()">
+                <button class="cal-btn primary" onclick="calAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Rappels — accordion -->
+        <div class="m-accordion" id="accReminders">
+          <div class="m-accordion-head" onclick="fcToggleAccordion('accReminders')">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="m-accordion-title">Rappels</span>
+            <span class="m-badge" id="accRemindersBadge" style="display:none"></span>
+            <svg class="m-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="m-accordion-body">
+            <div class="m-accordion-inner">
+              <div id="calReminderList"></div>
+              <div class="add-reminder">
+                <select id="calReminderOffset">
+                  <option value="15">15 min avant</option>
+                  <option value="30" selected>30 min avant</option>
+                  <option value="60">1 heure avant</option>
+                  <option value="120">2 heures avant</option>
+                  <option value="1440">La veille</option>
+                </select>
+                <select id="calReminderChannel">
+                  <option value="browser">Notif</option>
+                  <option value="email">Email</option>
+                  <option value="both">Les deux</option>
+                </select>
+                <button class="cal-btn primary" onclick="calAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="calEditDiff" style="display:none;margin:8px 0"></div>
+        <div class="notify-panel" id="calNotifyPanel">
+          <h4><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Notifier ?</h4>
+          <div class="notify-options">
+            <div class="notify-opt" onclick="calSelectNotify('email',this)"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</div>
+            <div class="notify-opt" onclick="calSelectNotify('sms',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>SMS</div>
+            <div class="notify-opt" onclick="calSelectNotify('both',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Les deux</div>
+            <div class="notify-opt" onclick="calSelectNotify('none',this)"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Non</div>
+          </div>
+          <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
+        </div>
+      </div>
+      <div class="m-panel" id="calPanelHistorique">
+        <div id="mHistoryTimeline"><div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Chargement...</div></div>
+      </div>
+    </div>
+    <!-- Bottom bar with lock toggle -->
+    <div class="m-bottom" id="mBottom">
+      <button class="m-lock-toggle" id="mBtnLock" onclick="fcToggleLockFromBottom()" title="Verrouiller"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+      <button class="m-btn m-btn-primary" id="mBtnSave" onclick="calSaveAll()">Enregistrer</button>
+      <button class="m-btn m-btn-ghost" id="mBtnNotify" onclick="document.getElementById('calNotifyPanel').style.display='block';document.getElementById('calNotifyPanel').scrollIntoView({behavior:'smooth',block:'nearest'})">Notifier</button>
+      <button class="m-btn m-btn-danger" id="mBtnCancel" onclick="fcSetStatus('cancelled')">Annuler le RDV</button>
+      <button class="m-btn m-btn-danger" id="mBtnPurge" onclick="fcPurgeBooking()" style="display:none"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK CREATE MODAL — same structure as Detail -->
+<div class="m-overlay" id="calCreateModal" role="dialog" aria-modal="true" aria-labelledby="qcModalTitle">
+  <div class="m-dialog m-flex">
+    <div class="m-drag-handle"></div>
+    <div class="m-header">
+      <div class="m-header-bg" id="qcHeaderBg" style="background:linear-gradient(135deg,var(--primary) 0%,var(--primary)AA 60%,var(--primary)55 100%)"></div>
+      <button class="m-close" onclick="closeCalModal('calCreateModal')" aria-label="Fermer"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="m-header-content">
+        <div class="m-client-hero" style="align-items:center">
+          <div class="m-avatar" id="qcAvatar" style="background:linear-gradient(135deg,var(--primary),var(--primary)CC)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+          <div class="m-modal-title" id="qcModalTitle">Nouveau rendez-vous</div>
+        </div>
+      </div>
+    </div>
+    <div class="qc-mode-toggle" id="qcModeToggle">
+      <button class="qc-mode-btn active" data-mode="rdv" onclick="qcSwitchMode('rdv',this)">RDV</button>
+      <button class="qc-mode-btn" data-mode="task" onclick="qcSwitchMode('task',this)">Tâche</button>
+    </div>
+    <div class="m-body">
+      <!-- TAB: RDV -->
+      <div class="m-panel active" id="qcPanelRdv">
+        <!-- Client -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-client">Client</span></span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcClient">Client</label>
+          <div style="position:relative">
+            <input class="m-input" id="qcClient" placeholder="Rechercher un client..." autocomplete="off" oninput="calSearchClients(this.value)">
+            <div id="qcAcResults" class="ac-results" style="display:none"></div>
+            <input type="hidden" id="qcClientId">
+          </div>
+          <div id="qcClientDetails" style="display:none;margin-top:8px">
+            <div class="m-row m-row-2">
+              <div><label class="m-field-label" for="qcClientEmail">Email</label><input class="m-input" type="email" id="qcClientEmail" placeholder="email@exemple.com"></div>
+              <div><label class="m-field-label" for="qcClientPhone">Téléphone</label><input class="m-input" type="tel" id="qcClientPhone" placeholder="+32 ..."></div>
+            </div>
+          </div>
+        </div>
+        <!-- Prestation -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> <span class="lbl-service">Prestation</span></span><span class="m-sec-line"></span></div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px">
+            <input type="checkbox" id="qcFreestyle" onchange="qcToggleFreestyle()" style="accent-color:var(--primary);width:15px;height:15px"> Mode libre <span style="font-weight:400;color:var(--text-4)">(sans prestation)</span>
+          </label>
+          <div id="qcNormalMode">
+            <div id="qcServiceList"></div>
+            <div id="qcAssignSvc" class="m-convert-panel" style="display:none">
+              <div class="m-field-label">Assigner une prestation</div>
+              <div class="m-svc-picker">
+                <div class="m-svc-picker-field"><label>Catégorie</label><select id="qcAssignCatSel" onchange="qcAssignCatChanged()"><option value="">— Toutes —</option></select></div>
+                <div class="m-svc-picker-field"><label>Prestation</label><select id="qcAssignSvcSel" onchange="qcAssignSvcChanged()"><option value="">— Choisir —</option></select></div>
+                <div class="m-svc-picker-field" id="qcAssignVarWrap" style="display:none"><label>Variante</label><select id="qcAssignVarSel" onchange="qcAssignVarChanged()"></select></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                <span id="qcAssignInfo" class="m-svc-picker-info" style="flex:1"></span>
+                <button type="button" class="ug-btn ug-btn-confirm" id="qcAssignAddBtn" onclick="qcAssignConfirm()" disabled style="padding:4px 12px;font-size:.72rem">+ Ajouter</button>
+              </div>
+              <div class="ug-actions" style="margin-top:8px">
+                <button type="button" class="ug-btn ug-btn-cancel" onclick="qcAssignCancel()">Annuler</button>
+              </div>
+            </div>
+            <button class="cal-btn" style="margin-top:6px;font-size:.75rem;padding:5px 12px" onclick="qcShowAssignPanel()" id="qcAddSvcBtn">+ Ajouter une prestation</button>
+            <div id="qcTotalDuration" style="font-size:.72rem;color:var(--text-4);margin-top:6px"></div>
+          </div>
+          <div id="qcFreestyleMode" style="display:none">
+            <div style="margin-bottom:8px"><label class="m-field-label" for="qcFreeLabel">Intitulé du RDV</label><input class="m-input" id="qcFreeLabel" placeholder="ex: Urgence dossier Martin..."></div>
+            <div><label class="m-field-label">Couleur</label><div id="qcFreeColorWrap"></div></div>
+          </div>
+        </div>
+        <!-- Horaire -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
+          <div class="m-row m-row-3">
+            <div><label class="m-field-label" for="qcDate">Date</label><input type="date" class="m-input" id="qcDate"></div>
+            <div><label class="m-field-label" for="qcTime">Début</label><input type="text" class="m-input m-time" id="qcTime" value="09:00"></div>
+            <div id="qcEndTimeWrap" style="display:none"><label class="m-field-label" for="qcFreeEnd">Fin</label><input type="text" class="m-input m-time" id="qcFreeEnd" value="10:00"></div>
+          </div>
+          <div class="m-row m-row-2" id="qcBufferRow" style="display:none;margin-top:8px">
+            <div><label class="m-field-label" for="qcFreeBufBefore">Buffer avant (min)</label><input class="m-input" type="number" id="qcFreeBufBefore" value="0" min="0" step="5"></div>
+            <div><label class="m-field-label" for="qcFreeBufAfter">Buffer après (min)</label><input class="m-input" type="number" id="qcFreeBufAfter" value="0" min="0" step="5"></div>
+          </div>
+          <div id="qcFreeDuration" style="font-size:.72rem;color:var(--text-4);margin-top:4px;display:none"></div>
+        </div>
+        <!-- Praticien -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span class="lbl-practitioner">Praticien</span></span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcPrac">Praticien</label>
+          <div class="m-prac-wrap">
+            <span class="m-prac-dot" id="qcPracDot"></span>
+            <select class="m-input" id="qcPrac"></select>
+          </div>
+        </div>
+        <!-- Mode -->
+        <div class="m-sec" id="qcModeRow">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/></svg> Mode</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcMode">Mode</label>
+          <select class="m-input" id="qcMode"><option value="cabinet">Au salon</option></select>
+        </div>
+        <!-- Note -->
+        <div class="m-sec">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Note</span><span class="m-sec-line"></span></div>
+          <label class="m-field-label" for="qcComment">Note</label>
+          <textarea class="m-input" id="qcComment" rows="2" maxlength="500" placeholder="Ajouter une note..." style="resize:vertical"></textarea>
+        </div>
+        <!-- Tâches -->
+        <div class="m-sec" id="qcSuiviSection">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Tâches</span><span class="m-sec-line"></span></div>
+          <div id="qcTodoList"></div>
+          <div class="add-todo">
+            <input id="qcNewTodo" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')qcAddTodo()">
+            <button class="cal-btn primary" onclick="qcAddTodo()" style="padding:6px 14px;font-size:.78rem">+</button>
+          </div>
+        </div>
+        <!-- Rappels -->
+        <div class="m-sec" id="qcRappelsSection">
+          <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Rappels</span><span class="m-sec-line"></span></div>
+          <div id="qcReminderList"></div>
+          <div class="add-reminder">
+            <select id="qcReminderOffset">
+              <option value="15">15 min avant</option>
+              <option value="30" selected>30 min avant</option>
+              <option value="60">1 heure avant</option>
+              <option value="120">2 heures avant</option>
+              <option value="1440">La veille</option>
+            </select>
+            <select id="qcReminderChannel">
+              <option value="browser">Notif</option>
+              <option value="email">Email</option>
+              <option value="both">Les deux</option>
+            </select>
+            <button class="cal-btn primary" onclick="qcAddReminder()" style="padding:6px 14px;font-size:.78rem">Ajouter</button>
+          </div>
+        </div>
+        <div class="m-sec">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2)">
+            <input type="checkbox" id="qcSkipConfirm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
+            Confirmer directement (sans attente)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text-2);margin-top:6px">
+            <input type="checkbox" id="qcLocked">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Verrouiller ce rendez-vous
+          </label>
+        </div>
+      </div>
+      <!-- PANEL: Tâche — now redirects to Task Detail modal (empty placeholder) -->
+      <div id="qcPanelTask" style="display:none"></div>
+    </div>
+    <div id="qcDepositToggle" style="display:none;padding:10px 14px;margin:0 20px 8px;background:#FEF9E7;border:1.5px solid #F5D08B;border-radius:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <div>
+            <div style="font-size:.82rem;font-weight:600;color:#92400E">Demander un acompte</div>
+            <div id="qcDepositHint" style="font-size:.72rem;color:#B45309"></div>
+          </div>
+        </div>
+        <div id="qcDepositAmountRow" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #F5D08B">
+          <label style="font-size:.72rem;font-weight:600;color:#92400E;display:block;margin-bottom:3px">Montant de l'acompte (€)</label>
+          <input type="number" id="qcDepositAmount" min="1" step="0.01" placeholder="25.00"
+            style="width:110px;padding:5px 8px;border:1px solid #F59E0B;border-radius:6px;font-size:.82rem;font-family:inherit">
+        </div>
+        <label style="position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" id="qcDepositCheck" style="display:none" onchange="qcDepositUserToggle(this)">
+          <span id="qcDepositTrack" style="position:absolute;inset:0;background:var(--border);border-radius:11px;transition:all .2s"></span>
+          <span id="qcDepositThumb" style="position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+        </label>
+      </div>
+      <div id="qcDepositChannels" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #F5D08B;display:flex;gap:8px">
+        <label id="qcDepChannelEmail" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;border:1px solid #F59E0B;background:#FEF3E2;cursor:pointer;font-size:.75rem;font-weight:600;color:#92400E">
+          <input type="checkbox" id="qcDepEmail" checked style="accent-color:#D97706;width:14px;height:14px"> Email
+        </label>
+        <label id="qcDepChannelSms" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;border:1px solid #F5D08B;background:transparent;cursor:pointer;font-size:.75rem;font-weight:600;color:#92400E">
+          <input type="checkbox" id="qcDepSms" style="accent-color:#D97706;width:14px;height:14px"> SMS
+        </label>
+      </div>
+    </div>
+    <div class="m-bottom">
+      <button class="m-btn m-btn-primary" id="qcBtnCreate" onclick="calCreateBooking()">Créer le RDV</button>
+      <button class="m-btn m-btn-ghost" onclick="closeCalModal('calCreateModal')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- TASK DETAIL / CREATE MODAL -->
+<div class="m-overlay" id="calTaskModal" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle">
+  <div class="m-dialog" style="max-width:440px">
+    <div class="m-drag-handle"></div>
+    <div class="m-header">
+      <div class="m-header-bg" id="tdHeaderBg" style="background:linear-gradient(135deg,#6B7280 0%,#6B7280AA 60%,#6B728055 100%)"></div>
+      <button class="m-close" onclick="closeCalModal('calTaskModal')" aria-label="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="m-header-content">
+        <div class="m-client-hero" style="align-items:center">
+          <div class="m-avatar" id="tdAvatar" style="background:linear-gradient(135deg,#6B7280,#6B7280CC)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </div>
+          <div class="m-modal-title" id="tdModalTitle">Tâche interne</div>
+        </div>
+      </div>
+    </div>
+    <div class="m-body" style="padding:14px 20px 8px;gap:12px;display:flex;flex-direction:column">
+      <!-- Title -->
+      <div class="m-field">
+        <label class="m-field-label" for="tdTitle">Titre</label>
+        <input type="text" id="tdTitle" class="m-input" placeholder="Ex: Nettoyage, Réunion…" maxlength="150">
+      </div>
+      <!-- Date + times -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="m-field">
+          <label class="m-field-label" for="tdDate">Date</label>
+          <input type="date" id="tdDate" class="m-input">
+        </div>
+        <div class="m-field">
+          <label class="m-field-label" for="tdStart">Début</label>
+          <input type="text" id="tdStart" class="m-input m-time">
+        </div>
+        <div class="m-field">
+          <label class="m-field-label" for="tdEnd">Fin</label>
+          <input type="text" id="tdEnd" class="m-input m-time">
+        </div>
+      </div>
+      <!-- Practitioner(s) -->
+      <div class="m-field" id="tdPracField">
+        <label class="m-field-label" for="tdPrac">Praticien</label>
+        <select id="tdPrac" class="m-input"></select>
+      </div>
+      <!-- Color swatch -->
+      <div class="m-field">
+        <label class="m-field-label">Couleur</label>
+        <div id="tdColorWrap"></div>
+      </div>
+      <!-- Note -->
+      <div class="m-field">
+        <label class="m-field-label" for="tdNote">Note</label>
+        <textarea id="tdNote" class="m-input" rows="2" placeholder="Détails optionnels…"></textarea>
+      </div>
+      <!-- Status row (edit only) -->
+      <div id="tdStatusRow" style="display:none"></div>
+    </div>
+    <div class="m-bottom" style="padding:12px 20px 16px;display:flex;gap:8px;justify-content:space-between">
+      <button class="m-btn m-btn-danger" id="tdDeleteBtn" onclick="fcDeleteTask()" style="display:none">Supprimer</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="m-btn m-btn-ghost" onclick="closeCalModal('calTaskModal')">Annuler</button>
+        <button class="m-btn m-btn-primary" id="tdSaveBtn" onclick="fcSaveTask()">Créer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="gToastStack" class="g-toast-stack" aria-live="polite" role="status"></div>
+
+<!-- Admin impersonation handler -->
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var at = p.get('admin_token');
+  if (at) {
+    // Store the admin token as the regular token so the dashboard uses it
+    localStorage.setItem('genda_token', at);
+    // Clean URL
+    history.replaceState(null, '', '/dashboard.html');
+    // Decode JWT to get business name for banner
+    try {
+      var payload = JSON.parse(atob(at.split('.')[1]));
+      if (payload.impersonated) {
+        window.__genda_impersonated = true;
+      }
+    } catch(e) {}
+  }
+  // Check existing token for impersonation flag
+  var tk = localStorage.getItem('genda_token');
+  if (tk) {
+    try {
+      var pay = JSON.parse(atob(tk.split('.')[1]));
+      if (pay.impersonated) window.__genda_impersonated = true;
+    } catch(e) {}
+  }
+})();
+</script>
+
+<!-- Vite entry point -->
+</body>
+</html>
