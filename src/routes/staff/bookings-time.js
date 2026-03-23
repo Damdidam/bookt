@@ -98,7 +98,9 @@ router.patch('/:id/move', async (req, res, next) => {
     const { id } = req.params;
     // STS-V12-007: UUID validation
     if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
-    const { start_at, end_at, practitioner_id } = req.body;
+    const { start_at, end_at, practitioner_id, notify, notify_channel } = req.body;
+    const shouldNotify = notify === true || notify === 'true';
+    const effectiveChannel = notify_channel || (shouldNotify ? 'email' : null);
 
     if (!start_at || !end_at) {
       return res.status(400).json({ error: 'start_at et end_at requis' });
@@ -388,9 +390,88 @@ router.patch('/:id/move', async (req, res, next) => {
       throw err;
     }
 
+    // Send notification if requested (drag-drop → "Notifier" button)
+    let notificationResult = null;
+    if (shouldNotify) {
+      try {
+        // Fetch full context for the notification email
+        const fullBk = await queryWithRLS(bid,
+          `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+                  CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                  s.category AS service_category,
+                  p.display_name AS practitioner_name,
+                  biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email
+           FROM bookings b
+           LEFT JOIN clients c ON c.id = b.client_id
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           JOIN practitioners p ON p.id = b.practitioner_id
+           JOIN businesses biz ON biz.id = b.business_id
+           WHERE b.id = $1 AND b.business_id = $2`,
+          [id, bid]
+        );
+        const bk = fullBk.rows[0];
+        if (bk && bk.client_email) {
+          // Update status to modified_pending
+          const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
+          await queryWithRLS(bid,
+            `UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+            [newStatus, id, bid]
+          );
+          // For groups, also update siblings
+          if (draggedBooking.group_id) {
+            await queryWithRLS(bid,
+              `UPDATE bookings SET status = $1, updated_at = NOW()
+               WHERE group_id = $2 AND business_id = $3 AND id != $4
+                 AND status NOT IN ('cancelled', 'completed', 'no_show')`,
+              [newStatus, draggedBooking.group_id, bid, id]
+            );
+          }
+
+          notificationResult = {};
+          if (effectiveChannel === 'email' || effectiveChannel === 'both') {
+            try {
+              const emailResult = await sendModificationEmail({
+                booking: {
+                  client_name: bk.client_name,
+                  client_email: bk.client_email,
+                  public_token: bk.public_token,
+                  service_name: bk.service_name,
+                  service_category: bk.service_category,
+                  practitioner_name: bk.practitioner_name,
+                  old_start_at: draggedBooking.start_at,
+                  old_end_at: draggedBooking.end_at,
+                  new_start_at: bk.start_at,
+                  new_end_at: bk.end_at
+                },
+                business: {
+                  name: bk.business_name,
+                  email: bk.business_email,
+                  theme: bk.theme || {},
+                  address: bk.address
+                }
+              });
+              notificationResult.email = emailResult.success ? 'sent' : 'error';
+              if (emailResult.error) notificationResult.email_detail = emailResult.error;
+            } catch (e) {
+              console.warn('[MOVE] Email notification error:', e.message);
+              notificationResult.email = 'error';
+            }
+          }
+          if (effectiveChannel === 'sms' || effectiveChannel === 'both') {
+            const baseUrl = process.env.PUBLIC_URL || 'https://genda.be';
+            console.log(`[MOVE] SMS to ${bk.client_phone}: booking moved → ${baseUrl}/booking/${bk.public_token}`);
+            notificationResult.sms = 'queued';
+          }
+        }
+      } catch (e) {
+        console.warn('[MOVE] Notification error:', e.message);
+      }
+    }
+
     broadcast(bid, 'booking_update', { action: 'moved' });
     calSyncPush(bid, id).catch(() => {});
-    res.json({ updated: true, booking: moveResult.rows[0] });
+    res.json({ updated: true, booking: moveResult.rows[0], notification: notificationResult });
   } catch (err) {
     console.error('[MOVE] Crash for booking', req.params.id, ':', err.message, err.stack?.split('\n')[1]);
     next(err);

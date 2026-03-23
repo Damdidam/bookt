@@ -221,7 +221,7 @@ async function calDoSaveTime(notify, channel) {
       r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/move`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ start_at, end_at, practitioner_id: groupPracId })
+        body: JSON.stringify({ start_at, end_at, practitioner_id: groupPracId, notify: !!notify, notify_channel: channel })
       });
     } else {
       r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/modify`, {
