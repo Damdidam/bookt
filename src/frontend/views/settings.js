@@ -423,6 +423,24 @@ async function loadSettings(){
     h+=`</div>`;
     h+=`</div></div>`;
 
+    // 3a-ter. Passes / Abonnements
+    const passOn=!!b.settings?.passes_enabled;
+    const passExpiry=b.settings?.pass_validity_days||365;
+    h+=`<div class="settings-card"><div class="sc-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg> Abonnements</h3></div><div class="sc-body">`;
+    h+=`<p style="font-size:.82rem;color:var(--text-3);margin-bottom:16px">Proposez des packs de séances à vos clients. Les formules se configurent dans la fiche de chaque prestation.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:16px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Activer les abonnements</div><div style="font-size:.75rem;color:var(--text-4)">Une page "Abonnements" apparaîtra sur votre minisite</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
+        <input type="checkbox" id="s_passes_enabled" ${passOn?'checked':''} onchange="document.getElementById('passOptions').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${passOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${passOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="passOptions" style="display:${passOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Validité par défaut</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="s_pass_expiry" value="${passExpiry}" min="30" max="730" style="width:70px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;text-align:center"><span style="font-size:.82rem;color:var(--text-3)">jours</span></div></div>`;
+    h+=`</div>`;
+    h+=`</div></div>`;
+
     // 3b. Confirmation de réservation en ligne
     const confOn=!!b.settings?.booking_confirmation_required;
     const confTimeout=b.settings?.booking_confirmation_timeout_min||30;
@@ -647,6 +665,13 @@ async function saveAllSettings(){
         settings_giftcard_min_amount_cents:Math.round((parseFloat(el('s_gc_min')?.value)||10)*100),
         settings_giftcard_max_amount_cents:Math.round((parseFloat(el('s_gc_max')?.value)||500)*100),
         settings_giftcard_expiry_days:parseInt(el('s_gc_expiry')?.value)||365
+      });
+    }
+    // Pass settings
+    if(el('s_passes_enabled')){
+      Object.assign(body,{
+        settings_passes_enabled:el('s_passes_enabled').checked,
+        settings_pass_validity_days:parseInt(el('s_pass_expiry')?.value)||365
       });
     }
 
