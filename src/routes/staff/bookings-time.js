@@ -346,13 +346,17 @@ router.patch('/:id/move', async (req, res, next) => {
             );
             const groupServices = siblingsRes.rows;
 
-            const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
-            await queryWithRLS(bid,
-              `UPDATE bookings SET status = $1, updated_at = NOW()
-               WHERE group_id = $2 AND business_id = $3
-                 AND status NOT IN ('cancelled', 'completed', 'no_show')`,
-              [newStatus, draggedBooking.group_id, bid]
-            );
+            // Only change status to modified_pending if time actually changed
+            const groupTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+            if (groupTimeMoved) {
+              const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
+              await queryWithRLS(bid,
+                `UPDATE bookings SET status = $1, updated_at = NOW()
+                 WHERE group_id = $2 AND business_id = $3
+                   AND status NOT IN ('cancelled', 'completed', 'no_show')`,
+                [newStatus, draggedBooking.group_id, bid]
+              );
+            }
 
             // Use the full group time range (first start → last end)
             const groupTimeRes = await queryWithRLS(bid,
@@ -514,20 +518,23 @@ router.patch('/:id/move', async (req, res, next) => {
         );
         const bk = fullBk.rows[0];
         if (bk && bk.client_email) {
-          // Update status to modified_pending
-          const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
-          await queryWithRLS(bid,
-            `UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
-            [newStatus, id, bid]
-          );
-          // For groups, also update siblings
-          if (draggedBooking.group_id) {
+          // Only change status to modified_pending if time actually changed
+          const singleTimeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+          if (singleTimeMoved) {
+            const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
             await queryWithRLS(bid,
-              `UPDATE bookings SET status = $1, updated_at = NOW()
-               WHERE group_id = $2 AND business_id = $3 AND id != $4
-                 AND status NOT IN ('cancelled', 'completed', 'no_show')`,
-              [newStatus, draggedBooking.group_id, bid, id]
+              `UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`,
+              [newStatus, id, bid]
             );
+            // For groups, also update siblings
+            if (draggedBooking.group_id) {
+              await queryWithRLS(bid,
+                `UPDATE bookings SET status = $1, updated_at = NOW()
+                 WHERE group_id = $2 AND business_id = $3 AND id != $4
+                   AND status NOT IN ('cancelled', 'completed', 'no_show')`,
+                [newStatus, draggedBooking.group_id, bid, id]
+              );
+            }
           }
 
           notificationResult = {};
@@ -1078,7 +1085,8 @@ router.patch('/:id/modify', async (req, res, next) => {
 
         // BK-V13-002: Compute newStatus inside transaction using re-checked status to avoid stale data
         const recheckStatus = statusRecheck.rows[0].status;
-        const newStatus = shouldNotify
+        const modifyTimeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime();
+        const newStatus = (shouldNotify && modifyTimeMoved)
           ? (recheckStatus === 'pending_deposit' ? 'pending_deposit' : 'modified_pending')
           : recheckStatus;
 
