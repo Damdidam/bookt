@@ -11,6 +11,8 @@ Un pass = un pack de X séances pour un service précis, vendu à prix fixe par 
 - **Décompte** : à la réservation (comme un acompte). Annulation → re-crédit. No-show → perdu.
 - **Achat** : page dédiée sur le minisite (pattern cartes cadeaux)
 - **Utilisation** : auto-détection par email client + saisie manuelle du code en fallback
+- **Gestion templates** : dans la fiche service (toggle + liste de formules), pas dans une section séparée
+- **Plusieurs formules par service** : ex: pack 5, pack 10, pack 20 avec remises croissantes
 
 ## Data Model
 
@@ -130,13 +132,14 @@ Dans `checkout.session.completed` avec `metadata.type = 'pass'` :
 
 ### 1. Commerçant crée un template
 
-Dashboard → sidebar "Passes" → onglet "Modèles" → "Nouveau pass"
-- Sélectionne un service (dropdown)
-- Nom du pack (auto-suggestion: "Pack {X} {service}")
-- Nombre de séances
-- Prix total
-- Validité (jours)
-→ POST `/api/passes/templates`
+Dashboard → Prestations → ouvre un service → section "Abonnements" (toggle)
+- Active le toggle → section dépliée
+- Liste les formules existantes (si aucune, vide)
+- Bouton "+ Ajouter une formule"
+- Par formule : nom (auto-suggestion: "Pack {X} {service}"), nombre de séances, prix total, validité
+- Plusieurs formules possibles par service (ex: Pack 5, Pack 10, Pack 20)
+- Toggle actif/inactif par formule
+→ CRUD via `/api/passes/templates` (lié au service_id)
 
 ### 2. Client achète un pass
 
@@ -183,11 +186,22 @@ Même UI que les cartes cadeaux.
 
 ### Staff Dashboard — `src/frontend/views/passes.js`
 
-Deux onglets :
-1. **Passes** — Liste des passes achetés (KPI: vendus, actifs, séances restantes total). Table avec code, client, service, séances X/Y, statut, actions.
-2. **Modèles** — Liste des templates. Cards avec service, séances, prix, toggle actif/inactif.
+Page dédiée "Passes" dans le sidebar (après "Cartes cadeau", icône ticket) :
+- **KPI** : passes vendus, actifs, séances restantes total
+- **Table** : code, client, service, séances X/Y, statut, expiration, actions (debit/refund/cancel)
+- **Filtres** : statut + recherche (code, nom, email)
 
-Sidebar : nouvel item "Passes" avec icône ticket/coupon, placé après "Cartes cadeau".
+Les templates ne sont PAS ici — ils sont dans la fiche service (page Prestations → service → section Abonnements).
+
+### Fiche service — Section Abonnements
+
+Dans `src/frontend/views/services.js`, dans le modal/détail d'un service :
+- **Toggle** "Proposer des abonnements" (off par défaut)
+- Quand activé, affiche la liste des formules :
+  - Chaque formule = card inline : nom, séances, prix, validité, toggle actif
+  - Bouton "+ Ajouter une formule"
+  - Inline edit ou mini-modal pour chaque formule
+- Le toggle global `passes_enabled` dans les settings business doit aussi être activé (sinon la section affiche un message "Activez les abonnements dans Paramètres")
 
 ### Page publique — `public/pass.html`
 
@@ -224,10 +238,12 @@ Quand une séance est utilisée, email récap : "Séance 3/10 utilisée. 7 resta
 ### Fichiers à modifier
 - `src/server.js` — register routes + cron
 - `src/routes/staff/settings.js` — ajouter settings passes
+- `src/routes/staff/services.js` — CRUD templates dans la fiche service
 - `src/routes/staff/stripe.js` — webhook handler pour type `pass`
 - `src/routes/public/index.js` — endpoints publics (config, checkout, validate, check-passes)
 - `src/routes/public/index.js` — intégration dans le booking flow (debit pass au lieu d'acompte)
 - `src/frontend/router.js` — ajouter route passes
+- `src/frontend/views/services.js` — section abonnements dans la fiche service
 - `public/dashboard.html` — sidebar item
 - `src/services/email.js` — template email pass
 - `src/services/booking-cancellation.js` ou flow cancel — appeler pass-refund
