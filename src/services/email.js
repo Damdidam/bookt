@@ -1354,4 +1354,45 @@ async function sendGiftCardReceiptEmail({ giftCard, business }) {
   });
 }
 
-module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, sendRescheduleConfirmationEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
+/**
+ * Send pass purchase confirmation to buyer — code + details
+ */
+async function sendPassPurchaseEmail({ pass, business }) {
+  const color = safeColor(business.theme?.primary_color);
+  const bodyHTML = `
+    <p>Bonjour <strong>${escHtml(pass.buyer_name)}</strong>,</p>
+    <p>Votre pass a bien été activé :</p>
+    <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0;text-align:center">
+      <div style="font-size:13px;color:#9C958E;margin-bottom:6px">Votre code</div>
+      <div style="font-family:monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:#1A1816">${escHtml(pass.code)}</div>
+    </div>
+    <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
+      <p style="margin:0 0 6px"><strong>${escHtml(pass.name)}</strong></p>
+      <p style="margin:0;font-size:14px;color:#3D3832">${pass.sessions_total} séance${pass.sessions_total > 1 ? 's' : ''}</p>
+      ${pass.expires_at ? `<p style="margin:4px 0 0;font-size:13px;color:#9C958E">Valable jusqu'au ${new Date(pass.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })}</p>` : ''}
+    </div>
+    <p>Utilisez ce code lors de votre prochaine réservation pour cette prestation.</p>`;
+
+  const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+  const html = buildEmailHTML({
+    title: 'Votre pass est activé',
+    preheader: `${pass.sessions_total} séances — ${pass.name}`,
+    bodyHTML,
+    ctaText: 'Réserver maintenant',
+    ctaUrl: `${baseUrl}/${business.slug}/book`,
+    businessName: business.name,
+    primaryColor: color,
+    footerText: `${business.name} · Via Genda.be`
+  });
+
+  return sendEmail({
+    to: pass.buyer_email,
+    toName: pass.buyer_name,
+    subject: `Votre pass ${pass.name} — ${business.name}`,
+    html,
+    fromName: business.name,
+    replyTo: business.email
+  });
+}
+
+module.exports = { sendEmail, buildEmailHTML, sendModificationEmail, sendBookingConfirmation, sendBookingConfirmationRequest, sendPasswordResetEmail, sendSessionNotesEmail, sendDepositRequestEmail, sendDepositReminderEmail, sendDepositPaidEmail, sendDepositRefundEmail, sendCancellationEmail, sendReviewRequestEmail, sendRescheduleConfirmationEmail, sendGiftCardEmail, sendGiftCardReceiptEmail, sendPassPurchaseEmail, getCategoryLabels, CATEGORY_LABELS, escHtml, safeColor };
