@@ -282,12 +282,29 @@ function render(d) {
 }
 
 // ── Reschedule UI ──
+function _isWorkingDay(dateStr) {
+  const wd = _data.reschedule?.working_days;
+  if (!wd || wd.length === 0) return true; // no data = show all
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const jsDay = d.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
+  const appDay = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon, ... 6=Sun
+  return wd.includes(appDay);
+}
+
+function _nextWorkingDay(fromDate, delta) {
+  const d = new Date(fromDate + 'T12:00:00');
+  for (let i = 0; i < 14; i++) {
+    d.setDate(d.getDate() + delta);
+    const ds = d.toLocaleDateString('en-CA');
+    if (_isWorkingDay(ds)) return ds;
+  }
+  return d.toLocaleDateString('en-CA'); // fallback
+}
+
 function showRescheduleUI() {
   _selectedSlot = null;
-  // Default to tomorrow
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  _currentDate = tomorrow.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  _currentDate = _nextWorkingDay(today, 1);
   renderSlotPicker();
 }
 
@@ -319,9 +336,7 @@ function renderSlotPicker() {
 }
 
 function navDate(delta) {
-  const d = new Date(_currentDate + 'T12:00:00');
-  d.setDate(d.getDate() + delta);
-  _currentDate = d.toLocaleDateString('en-CA');
+  _currentDate = _nextWorkingDay(_currentDate, delta);
   _selectedSlot = null;
   renderSlotPicker();
 }

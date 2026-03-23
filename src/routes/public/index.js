@@ -2333,6 +2333,15 @@ router.get('/manage/:token', async (req, res, next) => {
       }
     }
 
+    // Fetch practitioner working days for date navigation
+    const workDaysRes = await query(
+      `SELECT DISTINCT weekday FROM availabilities
+       WHERE practitioner_id = $1 AND business_id = $2 AND is_active = true
+       ORDER BY weekday`,
+      [bk.practitioner_id, bk.business_id]
+    );
+    const workingDays = workDaysRes.rows.map(r => r.weekday); // 0=Mon, 1=Tue, ... 6=Sun
+
     // Split bookings: reschedule IS allowed — we'll use multi-practitioner slot engine
 
     const serviceInfo = groupServices
@@ -2380,7 +2389,8 @@ router.get('/manage/:token', async (req, res, next) => {
         appointment_mode: bk.appointment_mode,
         is_split: isSplitBooking,
         split_service_ids: bk._splitServiceIds || null,
-        split_variant_ids: bk._splitVariantIds || null
+        split_variant_ids: bk._splitVariantIds || null,
+        working_days: workingDays
       }
     });
   } catch (err) { next(err); }
