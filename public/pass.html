@@ -70,6 +70,7 @@ body.ready{opacity:1}
 .pass-card .pass-sessions{font-size:.88rem;color:var(--text-3);margin-bottom:8px}
 .pass-card .pass-price{font-size:1.4rem;font-weight:700;color:var(--primary)}
 .pass-card .pass-service{font-size:.78rem;color:var(--text-4);margin-top:6px}
+.pass-card .pass-desc{font-size:.76rem;color:var(--text-3);margin-top:8px;line-height:1.4;text-align:left;white-space:pre-line}
 .pass-card .pass-savings{font-size:.72rem;color:var(--green);margin-top:4px;font-weight:600}
 
 /* ── Form fields ── */
@@ -327,6 +328,7 @@ function render() {
       + '<div class="pass-sessions">' + sessionsLabel + '</div>'
       + '<div class="pass-price">' + priceFmt + '</div>'
       + (t.service_name ? '<div class="pass-service">' + esc(t.service_name) + '</div>' : '')
+      + (t.description ? '<div class="pass-desc">' + esc(t.description) + '</div>' : '')
       + savingsHtml
       + '</div>';
   }).join('');

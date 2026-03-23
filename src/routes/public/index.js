@@ -5745,7 +5745,7 @@ router.get('/:slug/pass-config', async (req, res, next) => {
     if (!s.passes_enabled) return res.status(404).json({ error: 'Abonnements non disponibles' });
 
     const tplRes = await query(
-      `SELECT pt.id, pt.name, pt.sessions_count, pt.price_cents, pt.validity_days,
+      `SELECT pt.id, pt.name, pt.description, pt.sessions_count, pt.price_cents, pt.validity_days,
               s.name AS service_name, s.category AS service_category,
               COALESCE(s.price_cents, 0) AS service_price_cents
        FROM pass_templates pt

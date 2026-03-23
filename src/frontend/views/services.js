@@ -874,6 +874,7 @@ async function saveService(id){
       const passTemplates = [...passRows].map(row => ({
         id: row.dataset.id || undefined,
         name: row.querySelector('.svc-pass-name')?.value.trim(),
+        description: row.querySelector('.svc-pass-desc')?.value.trim() || '',
         sessions_count: parseInt(row.querySelector('.svc-pass-sessions')?.value) || 0,
         price_cents: Math.round(parseFloat(row.querySelector('.svc-pass-price')?.value || 0) * 100),
         validity_days: parseInt(row.querySelector('.svc-pass-validity')?.value) || 365
@@ -943,12 +944,15 @@ function svcUpdatePricingVis(){
 // ===== PASS TEMPLATE HELPERS =====
 
 function svcPassTemplateRow(t) {
-  return `<div class="svc-pass-row" data-id="${t?.id || ''}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-    <input placeholder="Nom (ex: Pack 10)" value="${esc(t?.name || '')}" class="svc-pass-name" style="flex:2;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem">
-    <input type="number" placeholder="Séances" value="${t?.sessions_count || ''}" min="1" class="svc-pass-sessions" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
-    <input type="number" placeholder="Prix €" value="${t?.price_cents ? (t.price_cents/100).toFixed(2) : ''}" step="0.01" min="0.01" class="svc-pass-price" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
-    <input type="number" placeholder="Jours" value="${t?.validity_days || 365}" min="30" class="svc-pass-validity" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
-    <button type="button" onclick="this.closest('.svc-pass-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);padding:4px">${X_SVG}</button>
+  return `<div class="svc-pass-row" data-id="${t?.id || ''}" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px;background:var(--white)">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <input placeholder="Nom (ex: Pack 10)" value="${esc(t?.name || '')}" class="svc-pass-name" style="flex:2;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem">
+      <input type="number" placeholder="Séances" value="${t?.sessions_count || ''}" min="1" class="svc-pass-sessions" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
+      <input type="number" placeholder="Prix €" value="${t?.price_cents ? (t.price_cents/100).toFixed(2) : ''}" step="0.01" min="0.01" class="svc-pass-price" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
+      <input type="number" placeholder="Jours" value="${t?.validity_days || 365}" min="30" class="svc-pass-validity" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
+      <button type="button" onclick="this.closest('.svc-pass-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);padding:4px">${X_SVG}</button>
+    </div>
+    <textarea placeholder="Description (ex: 10 poses de vernis classique, hors dépose et nail art)" class="svc-pass-desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.78rem;resize:vertical;color:var(--text-3)">${esc(t?.description || '')}</textarea>
   </div>`;
 }
 

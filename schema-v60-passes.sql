@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS pass_templates (
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   service_id UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
   name VARCHAR(200) NOT NULL,
+  description TEXT,
   sessions_count INTEGER NOT NULL CHECK (sessions_count > 0),
   price_cents INTEGER NOT NULL CHECK (price_cents > 0),
   validity_days INTEGER DEFAULT 365,
