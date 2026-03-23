@@ -98,6 +98,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       // Gift cards
       settings_giftcard_enabled, settings_giftcard_amounts, settings_giftcard_custom_amount,
       settings_giftcard_min_amount_cents, settings_giftcard_max_amount_cents, settings_giftcard_expiry_days,
+      // Passes
+      settings_passes_enabled, settings_pass_validity_days,
       // Sector
       sector
     } = req.body;
@@ -133,7 +135,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_reschedule_max_count !== undefined || settings_reschedule_window_days !== undefined
         || settings_giftcard_enabled !== undefined || settings_giftcard_amounts !== undefined
         || settings_giftcard_custom_amount !== undefined || settings_giftcard_min_amount_cents !== undefined
-        || settings_giftcard_max_amount_cents !== undefined || settings_giftcard_expiry_days !== undefined) {
+        || settings_giftcard_max_amount_cents !== undefined || settings_giftcard_expiry_days !== undefined
+        || settings_passes_enabled !== undefined || settings_pass_validity_days !== undefined) {
       // Fetch current settings first
       const current = await queryWithRLS(bid, `SELECT settings FROM businesses WHERE id = $1`, [bid]);
       const cur = current.rows[0]?.settings || {};
@@ -225,6 +228,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_giftcard_min_amount_cents !== undefined) { const _v = parseInt(settings_giftcard_min_amount_cents); cur.giftcard_min_amount_cents = (_v >= 500 && _v <= 100000) ? _v : 1000; }
       if (settings_giftcard_max_amount_cents !== undefined) { const _v = parseInt(settings_giftcard_max_amount_cents); cur.giftcard_max_amount_cents = (_v >= 1000 && _v <= 100000) ? _v : 50000; }
       if (settings_giftcard_expiry_days !== undefined) { const _v = parseInt(settings_giftcard_expiry_days); cur.giftcard_expiry_days = (_v >= 30 && _v <= 730) ? _v : 365; }
+      // Passes
+      if (settings_passes_enabled !== undefined) cur.passes_enabled = !!settings_passes_enabled;
+      if (settings_pass_validity_days !== undefined) { const _v = parseInt(settings_pass_validity_days); cur.pass_validity_days = (_v >= 30 && _v <= 730) ? _v : 365; }
       mergedSettings = cur;
     }
 
