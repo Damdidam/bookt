@@ -425,7 +425,8 @@ router.get('/:slug', async (req, res, next) => {
         deposit_enabled: !!biz.settings?.deposit_enabled,
         payment_methods: biz.settings?.payment_methods || [],
         about_image_url: biz.settings?.about_image_url || null,
-        giftcard_enabled: !!biz.settings?.giftcard_enabled
+        giftcard_enabled: !!biz.settings?.giftcard_enabled,
+        passes_enabled: !!biz.settings?.passes_enabled
       },
       practitioners: pracResult.rows.map(p => ({
         id: p.id,
