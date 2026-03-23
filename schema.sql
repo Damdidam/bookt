@@ -246,7 +246,7 @@ CREATE TABLE bookings (
   reschedule_of_booking_id UUID REFERENCES bookings(id), -- If rescheduled from another
   reschedule_count        INTEGER DEFAULT 0,             -- Client self-reschedule count
   public_token            VARCHAR(40) UNIQUE NOT NULL    -- For cancel/reschedule links
-    DEFAULT encode(gen_random_bytes(20), 'hex'),
+    DEFAULT encode(gen_random_bytes(5), 'hex'),
   created_at              TIMESTAMPTZ DEFAULT NOW(),
   updated_at              TIMESTAMPTZ DEFAULT NOW(),
 
