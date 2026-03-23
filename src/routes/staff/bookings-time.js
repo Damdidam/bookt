@@ -311,6 +311,7 @@ router.patch('/:id/move', async (req, res, next) => {
       let groupNotifResult = null;
       if (shouldNotify) {
         try {
+          // Fetch first member + client + business context
           const fullBk = await queryWithRLS(bid,
             `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                     CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
@@ -328,6 +329,22 @@ router.patch('/:id/move', async (req, res, next) => {
           );
           const bk = fullBk.rows[0];
           if (bk && bk.client_email) {
+            // Fetch all group siblings for the email (multi-service listing)
+            const siblingsRes = await queryWithRLS(bid,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      p.display_name AS practitioner_name
+               FROM bookings b
+               LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.group_id = $1 AND b.business_id = $2
+                 AND b.status NOT IN ('cancelled')
+               ORDER BY b.group_order`,
+              [draggedBooking.group_id, bid]
+            );
+            const groupServices = siblingsRes.rows;
+
             const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
             await queryWithRLS(bid,
               `UPDATE bookings SET status = $1, updated_at = NOW()
@@ -335,6 +352,15 @@ router.patch('/:id/move', async (req, res, next) => {
                  AND status NOT IN ('cancelled', 'completed', 'no_show')`,
               [newStatus, draggedBooking.group_id, bid]
             );
+
+            // Use the full group time range (first start → last end)
+            const groupTimeRes = await queryWithRLS(bid,
+              `SELECT MIN(start_at) AS group_start, MAX(end_at) AS group_end
+               FROM bookings WHERE group_id = $1 AND business_id = $2
+                 AND status NOT IN ('cancelled')`,
+              [draggedBooking.group_id, bid]
+            );
+            const gt = groupTimeRes.rows[0];
 
             groupNotifResult = {};
             if (effectiveChannel === 'email' || effectiveChannel === 'both') {
@@ -348,15 +374,16 @@ router.patch('/:id/move', async (req, res, next) => {
                   practitioner_name: bk.practitioner_name,
                   old_start_at: draggedBooking.start_at,
                   old_end_at: draggedBooking.end_at,
-                  new_start_at: bk.start_at,
-                  new_end_at: bk.end_at
+                  new_start_at: gt.group_start,
+                  new_end_at: gt.group_end
                 },
                 business: {
                   name: bk.business_name,
                   email: bk.business_email,
                   theme: bk.theme || {},
                   address: bk.address
-                }
+                },
+                groupServices: groupServices.length > 1 ? groupServices : undefined
               });
               groupNotifResult.email = emailResult.success ? 'sent' : 'error';
               if (emailResult.error) groupNotifResult.email_detail = emailResult.error;
