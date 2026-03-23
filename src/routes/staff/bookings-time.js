@@ -308,9 +308,73 @@ router.patch('/:id/move', async (req, res, next) => {
         throw err;
       }
 
+      // Send notification for group moves if requested
+      let groupNotifResult = null;
+      if (shouldNotify) {
+        try {
+          const fullBk = await queryWithRLS(bid,
+            `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+                    CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+                    s.category AS service_category,
+                    p.display_name AS practitioner_name,
+                    biz.name AS business_name, biz.theme, biz.address, biz.email AS business_email
+             FROM bookings b
+             LEFT JOIN clients c ON c.id = b.client_id
+             LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             JOIN practitioners p ON p.id = b.practitioner_id
+             JOIN businesses biz ON biz.id = b.business_id
+             WHERE b.id = $1 AND b.business_id = $2`,
+            [id, bid]
+          );
+          const bk = fullBk.rows[0];
+          if (bk && bk.client_email) {
+            const newStatus = bk.status === 'pending_deposit' ? 'pending_deposit' : 'modified_pending';
+            await queryWithRLS(bid,
+              `UPDATE bookings SET status = $1, updated_at = NOW()
+               WHERE group_id = $2 AND business_id = $3
+                 AND status NOT IN ('cancelled', 'completed', 'no_show')`,
+              [newStatus, draggedBooking.group_id, bid]
+            );
+
+            groupNotifResult = {};
+            if (effectiveChannel === 'email' || effectiveChannel === 'both') {
+              const emailResult = await sendModificationEmail({
+                booking: {
+                  client_name: bk.client_name,
+                  client_email: bk.client_email,
+                  public_token: bk.public_token,
+                  service_name: bk.service_name,
+                  service_category: bk.service_category,
+                  practitioner_name: bk.practitioner_name,
+                  old_start_at: draggedBooking.start_at,
+                  old_end_at: draggedBooking.end_at,
+                  new_start_at: bk.start_at,
+                  new_end_at: bk.end_at
+                },
+                business: {
+                  name: bk.business_name,
+                  email: bk.business_email,
+                  theme: bk.theme || {},
+                  address: bk.address
+                }
+              });
+              groupNotifResult.email = emailResult.success ? 'sent' : 'error';
+              if (emailResult.error) groupNotifResult.email_detail = emailResult.error;
+            }
+            if (effectiveChannel === 'sms' || effectiveChannel === 'both') {
+              console.log(`[MOVE] SMS to ${bk.client_phone}: group moved → https://genda.be/booking/${bk.public_token}`);
+              groupNotifResult.sms = 'queued';
+            }
+          }
+        } catch (e) {
+          console.warn('[MOVE] Group notification error:', e.message);
+        }
+      }
+
       broadcast(bid, 'booking_update', { action: 'moved' });
       updates.forEach(u => calSyncPush(bid, u.id).catch(() => {}));
-      return res.json({ updated: true, group_moved: true, count: updates.length });
+      return res.json({ updated: true, group_moved: true, count: updates.length, notification: groupNotifResult });
     }
 
     // ── SINGLE MOVE (no group) ──
