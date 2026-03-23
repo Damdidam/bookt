@@ -556,10 +556,23 @@ async function openServiceModal(editId,prefill){
   if(!sectorCats.length){
     try{const r=await fetch('/api/business/sector-categories',{headers:{'Authorization':'Bearer '+api.getToken()}});if(r.ok){const data=await r.json();sectorCats=data.categories||[];}}catch(e){}
   }
+  if (!window._businessSettings) {
+    try {
+      const sRes = await fetch('/api/settings', { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+      if (sRes.ok) { const sd = await sRes.json(); window._businessSettings = sd.settings || {}; }
+    } catch(e) {}
+  }
   if(editId){
     const sr=await fetch(`/api/services`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     const d=await sr.json();
-    renderServiceModal(d.services.find(s=>s.id===editId),sectorCats,null);
+    const svc=d.services.find(s=>s.id===editId);
+    if(svc){
+      try {
+        const tplRes = await fetch(`/api/passes/templates?service_id=${editId}`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
+        if (tplRes.ok) { const tplData = await tplRes.json(); svc._pass_templates = tplData.templates || []; }
+      } catch (e) {}
+    }
+    renderServiceModal(svc,sectorCats,null);
   }else{renderServiceModal(null,sectorCats,prefill||null);}
 }
 
@@ -670,6 +683,23 @@ function renderServiceModal(svc,sectorCats,prefill){
     m+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Si aucun sélectionné → disponible pour tous à égalité</div></div>`;
     m+=`</div>`;
   }
+
+  // ── SECTION: Abonnements ──
+  m+=sec('Abonnements');
+  const _passesEnabled = !!window._businessSettings?.passes_enabled;
+  if (!_passesEnabled) {
+    m+=`<div style="padding:12px;background:var(--surface);border-radius:8px;font-size:.82rem;color:var(--text-3)">Activez les abonnements dans Paramètres pour proposer des packs de séances.</div>`;
+  } else {
+    const _passTpls = svc?._pass_templates || [];
+    m+=`<label class="svc-switch"><input type="checkbox" id="svc_pass_toggle" ${_passTpls.length > 0 ? 'checked' : ''} onchange="svcTogglePassSection()"><span class="svc-switch-track"></span> Proposer des abonnements</label>`;
+    m+=`<div id="svc_pass_section" style="${_passTpls.length > 0 ? '' : 'display:none'}">`;
+    m+=`<div id="svc_pass_list">`;
+    _passTpls.forEach(t => { m += svcPassTemplateRow(t); });
+    m+=`</div>`;
+    m+=`<button type="button" class="svc-var-add" onclick="svcAddPassTemplate()">${PLUS_SVG} Ajouter une formule</button>`;
+    m+=`</div>`;
+  }
+  m+=`</div>`;
 
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
@@ -836,6 +866,27 @@ async function saveService(id){
     const url=id?`/api/services/${id}`:'/api/services';const method=id?'PATCH':'POST';
     const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(body)});
     if(!r.ok)throw new Error((await r.json()).error);
+    const savedData=await r.json();
+    const serviceId=id||(savedData.service?.id||savedData.id);
+    // Save pass templates (if section visible)
+    const _passToggle = document.getElementById('svc_pass_toggle');
+    if (_passToggle && serviceId) {
+      const passRows = document.querySelectorAll('.svc-pass-row');
+      const passTemplates = [...passRows].map(row => ({
+        id: row.dataset.id || undefined,
+        name: row.querySelector('.svc-pass-name')?.value.trim(),
+        sessions_count: parseInt(row.querySelector('.svc-pass-sessions')?.value) || 0,
+        price_cents: Math.round(parseFloat(row.querySelector('.svc-pass-price')?.value || 0) * 100),
+        validity_days: parseInt(row.querySelector('.svc-pass-validity')?.value) || 365
+      })).filter(t => t.name && t.sessions_count > 0 && t.price_cents > 0);
+      try {
+        await fetch('/api/passes/templates/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ service_id: serviceId, templates: _passToggle.checked ? passTemplates : [] })
+        });
+      } catch (e) { console.warn('Pass template sync error:', e.message); }
+    }
     document.getElementById('svcModalOverlay')?._dirtyGuard?.markClean(); closeModal('svcModalOverlay');
     GendaUI.toast(id?categoryLabels.service+' modifiée':categoryLabels.service+' créée','success');loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
@@ -888,6 +939,30 @@ function svcUpdatePricingVis(){
   const n=document.querySelectorAll('#svc_variants_list .svc-var-row').length;
   const p=document.getElementById('svc_pricing_main');
   if(p)p.style.display=n>0?'none':'';
+}
+
+// ===== PASS TEMPLATE HELPERS =====
+
+function svcPassTemplateRow(t) {
+  return `<div class="svc-pass-row" data-id="${t?.id || ''}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <input placeholder="Nom (ex: Pack 10)" value="${esc(t?.name || '')}" class="svc-pass-name" style="flex:2;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem">
+    <input type="number" placeholder="Séances" value="${t?.sessions_count || ''}" min="1" class="svc-pass-sessions" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
+    <input type="number" placeholder="Prix €" value="${t?.price_cents ? (t.price_cents/100).toFixed(2) : ''}" step="0.01" min="0.01" class="svc-pass-price" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
+    <input type="number" placeholder="Jours" value="${t?.validity_days || 365}" min="30" class="svc-pass-validity" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
+    <button type="button" onclick="this.closest('.svc-pass-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);padding:4px">${X_SVG}</button>
+  </div>`;
+}
+
+function svcAddPassTemplate() {
+  const list = document.getElementById('svc_pass_list');
+  if (!list) return;
+  list.insertAdjacentHTML('beforeend', svcPassTemplateRow(null));
+}
+
+function svcTogglePassSection() {
+  const sec = document.getElementById('svc_pass_section');
+  if (!sec) return;
+  sec.style.display = document.getElementById('svc_pass_toggle')?.checked ? '' : 'none';
 }
 
 // ===== QUICK START WIZARD =====
@@ -1014,6 +1089,6 @@ async function qsSubmitAll(){
 
 // ===== BRIDGE =====
 
-bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility });
+bridge({ loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart, qsToggleCat, qsGoStep2, qsBack, qsDur, qsToggleTpl, qsAddCustomRow, qsSubmitAll, qsUpdateCount, svcAddVariant, svcRemoveVariant, svcVarRowHTML, svcUpdatePricingVis, svcToggleSection, svcDeleteCategory, svcAddFromTemplate, svcPickTemplate, svcToggleSched, svcTogglePose, svcPoseSync, svcSchedDayToggle, svcSchedAddWin, svcDayPillClick, openCategoryModal, saveCategory, svcDragStart, svcDragOver, svcDragLeave, svcDrop, svcTogglePrac, svcToggleFlexibility, svcAddPassTemplate, svcTogglePassSection });
 
 export { loadServices, openServiceModal, saveService, deactivateService, reactivateService, deleteService, toggleService, toggleCategory, openQuickStart };
