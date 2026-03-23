@@ -44,6 +44,7 @@ const featuredSlotsRoutes = require('./routes/staff/featured-slots');
 const planningRoutes = require('./routes/staff/planning');
 const taskRoutes = require('./routes/staff/tasks');
 const giftCardRoutes = require('./routes/staff/gift-cards');
+const passRoutes = require('./routes/staff/passes');
 const businessHoursRoutes = require('./routes/staff/business-hours');
 const reviewRoutes = require('./routes/staff/reviews');
 const adminRoutes = require('./routes/admin');
@@ -199,6 +200,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/business-hours', requireAuth, businessHoursRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/gift-cards', giftCardRoutes);
+app.use('/api/passes', passRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
