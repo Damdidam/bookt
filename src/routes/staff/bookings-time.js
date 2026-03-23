@@ -395,7 +395,11 @@ router.patch('/:id/move', async (req, res, next) => {
                 const manageLink = `${baseUrl}/booking/${bk.public_token}`;
                 const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                const smsResult = await sendSMS({ to: bk.client_phone, body: `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`, businessId: bid });
+                const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+                const smsBody = timeMoved
+                  ? `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+                  : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
+                const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
                 groupNotifResult.sms = smsResult.success ? 'sent' : 'error';
               } catch (e) { console.warn('[MOVE] Group SMS error:', e.message); groupNotifResult.sms = 'error'; }
             }
@@ -562,7 +566,11 @@ router.patch('/:id/move', async (req, res, next) => {
               const manageLink = `${baseUrl}/booking/${bk.public_token}`;
               const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
               const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-              const smsResult = await sendSMS({ to: bk.client_phone, body: `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`, businessId: bid });
+              const timeMoved = new Date(draggedBooking.start_at).getTime() !== new Date(bk.start_at).getTime();
+              const smsBody = timeMoved
+                ? `${bk.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+                : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
+              const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
               notificationResult.sms = smsResult.success ? 'sent' : 'error';
             } catch (e) { console.warn('[MOVE] SMS error:', e.message); notificationResult.sms = 'error'; }
           }
@@ -1159,7 +1167,11 @@ router.patch('/:id/modify', async (req, res, next) => {
         const manageLink = `${baseUrl}/booking/${oldBooking.public_token}`;
         const newDateStr = new Date(start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
         const newTimeStr = new Date(start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-        const smsResult = await sendSMS({ to: oldBooking.client_phone, body: `${oldBooking.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`, businessId: bid });
+        const timeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime();
+        const smsBody = timeMoved
+          ? `${oldBooking.business_name}: Votre RDV a été déplacé au ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+          : `${oldBooking.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
+        const smsResult = await sendSMS({ to: oldBooking.client_phone, body: smsBody, businessId: bid });
         notificationResult = { ...notificationResult, sms: smsResult.success ? 'sent' : 'error' };
       } catch (e) {
         console.warn('[MODIFY] SMS error:', e.message);

@@ -233,9 +233,11 @@ async function calDoSaveTime(notify, channel) {
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     const result = await r.json();
     const groupCount = result.count || calState.fcDetailData?.group_siblings?.length || '?';
-    const label = isGrouped
-      ? `Groupe d\u00e9plac\u00e9 (${groupCount} prestations)`
-      : (notify ? { email: 'Email envoy\u00e9', sms: 'SMS envoy\u00e9', both: 'Email + SMS envoy\u00e9s' }[channel] : 'Horaire mis \u00e0 jour');
+    const timeActuallyChanged = start_at !== oldStartAt || end_at !== oldEndAt;
+    const notifyLabels = { email: 'Email envoy\u00e9', sms: 'SMS envoy\u00e9', both: 'Email + SMS envoy\u00e9s' };
+    const label = notify
+      ? (notifyLabels[channel] || 'Client notifi\u00e9')
+      : (isGrouped ? `Groupe d\u00e9plac\u00e9 (${groupCount} prestations)` : (timeActuallyChanged ? 'Horaire mis \u00e0 jour' : 'Aucun changement'));
     // Store undo for non-grouped time changes
     if (!isGrouped) {
       storeUndoAction(calState.fcCurrentEventId, 'modify', { start_at: oldStartAt, end_at: oldEndAt });
