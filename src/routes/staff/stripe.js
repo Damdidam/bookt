@@ -568,7 +568,7 @@ async function handleStripeWebhook(req, res) {
               if (biz && buyer_email) {
                 const { sendPassPurchaseEmail } = require('../../services/email');
                 await sendPassPurchaseEmail({
-                  pass: { code, name: tpl.name, sessions_total: tpl.sessions_count, buyer_name, buyer_email, expires_at: expiresAt },
+                  pass: { code, name: tpl.name, sessions_total: tpl.sessions_count, price_cents: tpl.price_cents, service_name: tpl.service_name, buyer_name, buyer_email, expires_at: expiresAt },
                   business: { name: biz.name, slug: biz.slug, email: biz.email, theme: biz.theme }
                 });
               }

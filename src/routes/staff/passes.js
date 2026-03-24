@@ -333,8 +333,14 @@ router.post('/', async (req, res, next) => {
     if (buyer_email) {
       try {
         const bizResult = await queryWithRLS(bid, 'SELECT name, slug, theme, email FROM businesses WHERE id = $1', [bid]);
+        // Fetch service name for the email
+        let serviceName = '';
+        if (result.service_id) {
+          const svcR = await queryWithRLS(bid, 'SELECT name FROM services WHERE id = $1', [result.service_id]);
+          if (svcR.rows.length) serviceName = svcR.rows[0].name;
+        }
         const { sendPassPurchaseEmail } = require('../../services/email');
-        await sendPassPurchaseEmail({ pass: result, business: bizResult.rows[0] });
+        await sendPassPurchaseEmail({ pass: { ...result, service_name: serviceName }, business: bizResult.rows[0] });
       } catch (emailErr) {
         console.error('[PASS] Email failed:', emailErr.message);
       }

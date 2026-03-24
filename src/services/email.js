@@ -1359,19 +1359,37 @@ async function sendGiftCardReceiptEmail({ giftCard, business }) {
  */
 async function sendPassPurchaseEmail({ pass, business }) {
   const color = safeColor(business.theme?.primary_color);
+  const priceFmt = pass.price_cents ? (pass.price_cents / 100).toFixed(2).replace('.', ',') + ' €' : '';
+  const unitPrice = (pass.price_cents && pass.sessions_total > 1) ? (pass.price_cents / pass.sessions_total / 100).toFixed(2).replace('.', ',') + ' €' : '';
+  const expiresStr = pass.expires_at ? new Date(pass.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
   const bodyHTML = `
-    <p>Bonjour <strong>${escHtml(pass.buyer_name)}</strong>,</p>
-    <p>Votre pass a bien été activé :</p>
-    <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0;text-align:center">
-      <div style="font-size:13px;color:#9C958E;margin-bottom:6px">Votre code</div>
-      <div style="font-family:monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:#1A1816">${escHtml(pass.code)}</div>
+    <p>Bonjour <strong>${escHtml(pass.buyer_name || 'Client')}</strong>,</p>
+    <p>Merci pour votre achat chez <strong>${escHtml(business.name)}</strong> ! Votre abonnement a bien été activé.</p>
+
+    <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:20px 0;text-align:center">
+      <div style="font-size:12px;color:#9C958E;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Votre code d'abonnement</div>
+      <div style="font-family:monospace;font-size:24px;font-weight:700;letter-spacing:3px;color:#1A1816">${escHtml(pass.code)}</div>
     </div>
-    <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0">
-      <p style="margin:0 0 6px"><strong>${escHtml(pass.name)}</strong></p>
-      <p style="margin:0;font-size:14px;color:#3D3832">${pass.sessions_total} séance${pass.sessions_total > 1 ? 's' : ''}</p>
-      ${pass.expires_at ? `<p style="margin:4px 0 0;font-size:13px;color:#9C958E">Valable jusqu'au ${new Date(pass.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })}</p>` : ''}
+
+    <div style="background:#F5F4F1;border-radius:8px;padding:18px 20px;margin:20px 0">
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#3D3832">
+        <tr><td style="padding:4px 0;font-weight:600;color:#1A1816">Formule</td><td style="padding:4px 0;text-align:right">${escHtml(pass.name)}</td></tr>
+        ${pass.service_name ? `<tr><td style="padding:4px 0;font-weight:600;color:#1A1816">Prestation</td><td style="padding:4px 0;text-align:right">${escHtml(pass.service_name)}</td></tr>` : ''}
+        <tr><td style="padding:4px 0;font-weight:600;color:#1A1816">Nombre de séances</td><td style="padding:4px 0;text-align:right">${pass.sessions_total} séance${pass.sessions_total > 1 ? 's' : ''}</td></tr>
+        ${priceFmt ? `<tr><td style="padding:4px 0;font-weight:600;color:#1A1816">Prix total</td><td style="padding:4px 0;text-align:right;font-weight:700">${priceFmt}</td></tr>` : ''}
+        ${unitPrice ? `<tr><td style="padding:4px 0;color:#9C958E">Prix par séance</td><td style="padding:4px 0;text-align:right;color:#9C958E">${unitPrice}</td></tr>` : ''}
+        ${expiresStr ? `<tr><td style="padding:4px 0;font-weight:600;color:#1A1816">Valable jusqu'au</td><td style="padding:4px 0;text-align:right">${expiresStr}</td></tr>` : ''}
+        <tr><td style="padding:4px 0;color:#9C958E">Séances restantes</td><td style="padding:4px 0;text-align:right;color:${color};font-weight:700">${pass.sessions_total} / ${pass.sessions_total}</td></tr>
+      </table>
     </div>
-    <p>Utilisez ce code lors de votre prochaine réservation pour cette prestation.</p>`;
+
+    <div style="background:#EEFAF1;border:1px solid #BBF7D0;border-radius:8px;padding:14px 16px;margin:20px 0;font-size:13px;color:#1B7A42">
+      <strong>Comment utiliser votre abonnement ?</strong><br>
+      Lors de votre prochaine réservation, indiquez votre code <strong>${escHtml(pass.code)}</strong> ou votre adresse email. Une séance sera automatiquement débitée de votre pass.
+    </div>
+
+    <p style="font-size:13px;color:#9C958E">Conservez cet email comme preuve d'achat. Pour toute question, contactez directement ${escHtml(business.name)}.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
