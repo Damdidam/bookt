@@ -281,7 +281,9 @@ var _oauthPickup = urlParams.get('oauth_pickup');
 var _oauthError = urlParams.get('oauth_error');
 
 // Check for success redirect
-if (urlParams.get('success') === '1') {
+if (urlParams.get('success') === '1' && slug) {
+  loadConfigThenSuccess();
+} else if (urlParams.get('success') === '1') {
   applyTheme('epure_nude');
   document.body.classList.add('ready');
   showSuccess();
@@ -293,6 +295,20 @@ if (urlParams.get('success') === '1') {
   loadConfig();
 }
 
+async function loadConfigThenSuccess() {
+  try {
+    var res = await fetch('/api/public/' + slug + '/pass-config');
+    if (res.ok) {
+      config = await res.json();
+      applyBusinessBranding();
+    } else {
+      applyTheme('epure_nude');
+    }
+  } catch (e) { applyTheme('epure_nude'); }
+  document.body.classList.add('ready');
+  showSuccess();
+}
+
 async function loadConfig() {
   try {
     var res = await fetch('/api/public/' + slug + '/pass-config');
@@ -302,7 +318,8 @@ async function loadConfig() {
   } catch (err) { applyTheme('epure_nude'); document.body.classList.add('ready'); showError('Erreur de chargement'); }
 }
 
-function render() {
+function applyBusinessBranding() {
+  if (!config) return;
   var preset = (config.theme && config.theme.preset) ? config.theme.preset : 'epure_nude';
   applyTheme(preset);
   if (config.theme && config.theme.primary_color) {
@@ -313,8 +330,6 @@ function render() {
     document.documentElement.style.setProperty('--primary-light','rgba('+rr+','+gg+','+bb+',.08)');
     document.documentElement.style.setProperty('--primary-soft','rgba('+rr+','+gg+','+bb+',.15)');
   }
-
-  // Logo
   var logoMark = document.getElementById('logoMark');
   var logoName = document.getElementById('logoName');
   if (config.logo_url) {
@@ -325,8 +340,12 @@ function render() {
   }
   logoName.textContent = config.business_name || 'Genda';
   document.getElementById('logoLink').href = '/' + slug;
-  document.getElementById('heroSubtitle').textContent = 'Choisissez la formule qui vous convient.';
   document.title = 'Abonnements \u2014 ' + (config.business_name || 'Genda');
+}
+
+function render() {
+  applyBusinessBranding();
+  document.getElementById('heroSubtitle').textContent = 'Choisissez la formule qui vous convient.';
 
   var templates = config.templates || [];
 
