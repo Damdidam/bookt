@@ -1350,10 +1350,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (pass_code || client_email) {
               try {
                 const serviceIds = chainedSlots.map(s => s.service_id);
+                const variantIds = chainedSlots.map(s => s.variant_id || null);
                 let passRes;
                 if (pass_code) {
                   passRes = await client.query(
-                    `SELECT id, code, sessions_remaining, service_id FROM passes
+                    `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
                      WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
                        AND (expires_at IS NULL OR expires_at > NOW())
                      LIMIT 1`,
@@ -1361,18 +1362,21 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   );
                 } else if (client_email) {
                   passRes = await client.query(
-                    `SELECT id, code, sessions_remaining, service_id FROM passes
+                    `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
                      WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
                        AND LOWER(buyer_email) = LOWER($2)
                        AND service_id = ANY($3)
+                       AND (service_variant_id IS NULL OR service_variant_id = ANY($4))
                        AND (expires_at IS NULL OR expires_at > NOW())
-                     ORDER BY sessions_remaining ASC LIMIT 1`,
-                    [businessId, client_email, serviceIds]
+                     ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+                    [businessId, client_email, serviceIds, variantIds.filter(Boolean)]
                   );
                 }
                 if (passRes && passRes.rows.length > 0) {
                   const pass = passRes.rows[0];
-                  if (pass_code ? serviceIds.includes(pass.service_id) : true) {
+                  const svcMatch = pass_code ? serviceIds.includes(pass.service_id) : true;
+                  const varMatch = !pass.service_variant_id || variantIds.includes(pass.service_variant_id);
+                  if (svcMatch && varMatch) {
                     const newRemaining = pass.sessions_remaining - 1;
                     await client.query(
                       `UPDATE passes SET sessions_remaining = $1, status = $2, updated_at = NOW() WHERE id = $3`,
@@ -1976,10 +1980,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           let passUsed = false;
           if (pass_code || client_email) {
             try {
+              const effectiveVariantId = booking.rows[0].service_variant_id || null;
               let passRes;
               if (pass_code) {
                 passRes = await client.query(
-                  `SELECT id, code, sessions_remaining, service_id FROM passes
+                  `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
                    WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
                      AND (expires_at IS NULL OR expires_at > NOW())
                    LIMIT 1`,
@@ -1987,18 +1992,21 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 );
               } else if (client_email) {
                 passRes = await client.query(
-                  `SELECT id, code, sessions_remaining, service_id FROM passes
+                  `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
                    WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
                      AND LOWER(buyer_email) = LOWER($2)
                      AND service_id = $3
+                     AND (service_variant_id IS NULL OR service_variant_id = $4)
                      AND (expires_at IS NULL OR expires_at > NOW())
-                   ORDER BY sessions_remaining ASC LIMIT 1`,
-                  [businessId, client_email, effectiveServiceId]
+                   ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+                  [businessId, client_email, effectiveServiceId, effectiveVariantId]
                 );
               }
               if (passRes && passRes.rows.length > 0) {
                 const pass = passRes.rows[0];
-                if (pass.service_id === effectiveServiceId) {
+                const serviceMatch = pass.service_id === effectiveServiceId;
+                const variantMatch = !pass.service_variant_id || pass.service_variant_id === effectiveVariantId;
+                if (serviceMatch && variantMatch) {
                   const newRemaining = pass.sessions_remaining - 1;
                   await client.query(
                     `UPDATE passes SET sessions_remaining = $1, status = $2, updated_at = NOW() WHERE id = $3`,
@@ -5756,12 +5764,15 @@ router.get('/:slug/pass-config', async (req, res, next) => {
 
     const tplRes = await query(
       `SELECT pt.id, pt.name, pt.description, pt.sessions_count, pt.price_cents, pt.validity_days,
+              pt.service_variant_id,
               s.name AS service_name, s.category AS service_category,
-              COALESCE(s.price_cents, 0) AS service_price_cents
+              COALESCE(s.price_cents, 0) AS service_price_cents,
+              sv.name AS variant_name
        FROM pass_templates pt
        JOIN services s ON s.id = pt.service_id
+       LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
        WHERE pt.business_id = $1 AND pt.is_active = true
-       ORDER BY s.name, pt.price_cents`,
+       ORDER BY s.name, sv.name, pt.price_cents`,
       [biz.id]
     );
 

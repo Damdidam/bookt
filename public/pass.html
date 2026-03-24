@@ -327,7 +327,7 @@ function render() {
       + '<div class="pass-name">' + esc(t.name) + '</div>'
       + '<div class="pass-sessions">' + sessionsLabel + '</div>'
       + '<div class="pass-price">' + priceFmt + '</div>'
-      + (t.service_name ? '<div class="pass-service">' + esc(t.service_name) + '</div>' : '')
+      + (t.service_name ? '<div class="pass-service">' + esc(t.service_name) + (t.variant_name ? ' — ' + esc(t.variant_name) : '') + '</div>' : '')
       + (t.description ? '<div class="pass-desc">' + esc(t.description) + '</div>' : '')
       + savingsHtml
       + '</div>';

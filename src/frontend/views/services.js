@@ -875,6 +875,7 @@ async function saveService(id){
         id: row.dataset.id || undefined,
         name: row.querySelector('.svc-pass-name')?.value.trim(),
         description: row.querySelector('.svc-pass-desc')?.value.trim() || '',
+        service_variant_id: row.querySelector('.svc-pass-variant')?.value || null,
         sessions_count: parseInt(row.querySelector('.svc-pass-sessions')?.value) || 0,
         price_cents: Math.round(parseFloat(row.querySelector('.svc-pass-price')?.value || 0) * 100),
         validity_days: parseInt(row.querySelector('.svc-pass-validity')?.value) || 365
@@ -944,13 +945,27 @@ function svcUpdatePricingVis(){
 // ===== PASS TEMPLATE HELPERS =====
 
 function svcPassTemplateRow(t) {
-  return `<div class="svc-pass-row" data-id="${t?.id || ''}" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px;background:var(--white)">
+  // Build variant dropdown from existing variants in the modal DOM
+  const varRows = document.querySelectorAll('#svc_variants_list .svc-var-row');
+  let varOpts = '<option value="">Toutes les variantes</option>';
+  varRows.forEach(r => {
+    const vid = r.dataset.id || '';
+    const vname = r.querySelector('.svc-var-name')?.value || '';
+    if (vid && vname) {
+      const sel = t?.service_variant_id === vid ? ' selected' : '';
+      varOpts += `<option value="${vid}"${sel}>${esc(vname)}</option>`;
+    }
+  });
+  return `<div class="svc-pass-row" data-id="${t?.id || ''}" data-variant-id="${t?.service_variant_id || ''}" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px;background:var(--white)">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
       <input placeholder="Nom (ex: Pack 10)" value="${esc(t?.name || '')}" class="svc-pass-name" style="flex:2;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem">
       <input type="number" placeholder="Séances" value="${t?.sessions_count || ''}" min="1" class="svc-pass-sessions" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
       <input type="number" placeholder="Prix €" value="${t?.price_cents ? (t.price_cents/100).toFixed(2) : ''}" step="0.01" min="0.01" class="svc-pass-price" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
       <input type="number" placeholder="Jours" value="${t?.validity_days || 365}" min="30" class="svc-pass-validity" style="width:70px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.82rem;text-align:center">
       <button type="button" onclick="this.closest('.svc-pass-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--red);padding:4px">${X_SVG}</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <select class="svc-pass-variant" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.78rem;color:var(--text-2)">${varOpts}</select>
     </div>
     <textarea placeholder="Description (ex: 10 poses de vernis classique, hors dépose et nail art)" class="svc-pass-desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-xs);font-family:var(--sans);font-size:.78rem;resize:vertical;color:var(--text-3)">${esc(t?.description || '')}</textarea>
   </div>`;

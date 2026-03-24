@@ -537,10 +537,10 @@ async function handleStripeWebhook(req, res) {
 
             // Create pass
             const passRes = await query(
-              `INSERT INTO passes (business_id, pass_template_id, service_id, code, name, sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email, stripe_payment_intent_id, expires_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11)
+              `INSERT INTO passes (business_id, pass_template_id, service_id, service_variant_id, code, name, sessions_total, sessions_remaining, price_cents, buyer_name, buyer_email, stripe_payment_intent_id, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12)
                RETURNING *`,
-              [business_id, pass_template_id, tpl.service_id, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, session.payment_intent, expiresAt.toISOString()]
+              [business_id, pass_template_id, tpl.service_id, tpl.service_variant_id || null, code, tpl.name, tpl.sessions_count, tpl.price_cents, buyer_name, buyer_email, session.payment_intent, expiresAt.toISOString()]
             );
             const pass = passRes.rows[0];
 

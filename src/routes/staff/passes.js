@@ -51,7 +51,7 @@ router.get('/templates', async (req, res, next) => {
 router.post('/templates', async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { service_id, name, description, sessions_count, price_cents, validity_days } = req.body;
+    const { service_id, service_variant_id, name, description, sessions_count, price_cents, validity_days } = req.body;
 
     if (!name || !sessions_count || !price_cents) {
       return res.status(400).json({ error: 'Champs requis: name, sessions_count, price_cents' });
@@ -64,9 +64,9 @@ router.post('/templates', async (req, res, next) => {
     }
 
     const result = await queryWithRLS(bid,
-      `INSERT INTO pass_templates (business_id, service_id, name, description, sessions_count, price_cents, validity_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [bid, service_id || null, name, description || null, sessions_count, price_cents, validity_days || null]
+      `INSERT INTO pass_templates (business_id, service_id, service_variant_id, name, description, sessions_count, price_cents, validity_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [bid, service_id || null, service_variant_id || null, name, description || null, sessions_count, price_cents, validity_days || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -80,7 +80,7 @@ router.patch('/templates/:id', async (req, res, next) => {
   try {
     const bid = req.businessId;
     const { id } = req.params;
-    const { name, description, sessions_count, price_cents, validity_days, is_active } = req.body;
+    const { name, description, service_variant_id, sessions_count, price_cents, validity_days, is_active } = req.body;
 
     const fields = [];
     const values = [];
@@ -88,6 +88,7 @@ router.patch('/templates/:id', async (req, res, next) => {
 
     if (name !== undefined) { fields.push(`name = $${idx}`); values.push(name); idx++; }
     if (description !== undefined) { fields.push(`description = $${idx}`); values.push(description || null); idx++; }
+    if (service_variant_id !== undefined) { fields.push(`service_variant_id = $${idx}`); values.push(service_variant_id || null); idx++; }
     if (sessions_count !== undefined) { fields.push(`sessions_count = $${idx}`); values.push(sessions_count); idx++; }
     if (price_cents !== undefined) { fields.push(`price_cents = $${idx}`); values.push(price_cents); idx++; }
     if (validity_days !== undefined) { fields.push(`validity_days = $${idx}`); values.push(validity_days); idx++; }
@@ -146,25 +147,23 @@ router.post('/templates/sync', async (req, res, next) => {
     const upsertedIds = [];
 
     for (const tpl of templates) {
-      const { id, name, description, sessions_count, price_cents, validity_days } = tpl;
+      const { id, name, description, service_variant_id, sessions_count, price_cents, validity_days } = tpl;
 
       if (id) {
-        // Upsert existing (update by id)
         const r = await queryWithRLS(bid,
           `UPDATE pass_templates
-           SET name = $1, description = $2, sessions_count = $3, price_cents = $4, validity_days = $5,
+           SET name = $1, description = $2, service_variant_id = $3, sessions_count = $4, price_cents = $5, validity_days = $6,
                is_active = true, updated_at = NOW()
-           WHERE id = $6 AND business_id = $7 AND service_id = $8
+           WHERE id = $7 AND business_id = $8 AND service_id = $9
            RETURNING id`,
-          [name, description || null, sessions_count, price_cents, validity_days || null, id, bid, service_id]
+          [name, description || null, service_variant_id || null, sessions_count, price_cents, validity_days || null, id, bid, service_id]
         );
         if (r.rows.length > 0) upsertedIds.push(r.rows[0].id);
       } else {
-        // Create new
         const r = await queryWithRLS(bid,
-          `INSERT INTO pass_templates (business_id, service_id, name, description, sessions_count, price_cents, validity_days)
-           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-          [bid, service_id, name, description || null, sessions_count, price_cents, validity_days || null]
+          `INSERT INTO pass_templates (business_id, service_id, service_variant_id, name, description, sessions_count, price_cents, validity_days)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          [bid, service_id, service_variant_id || null, name, description || null, sessions_count, price_cents, validity_days || null]
         );
         upsertedIds.push(r.rows[0].id);
       }
