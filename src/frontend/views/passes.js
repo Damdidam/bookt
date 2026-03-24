@@ -90,10 +90,10 @@ function renderPasses(c,passes,st){
       if(isActive){
         actions+=`<button onclick="openDebitPass('${p.id}')" title="Débiter 1 séance" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
         actions+=`<button onclick="refundPass('${p.id}')" title="Rembourser 1 séance" style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`;
-        actions+=`<button onclick="cancelPass('${p.id}')" title="Annuler" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`;
-      }else{
-        actions='<span style="color:var(--text-4)">—</span>';
+        actions+=`<button onclick="cancelPass('${p.id}')" title="Annuler" style="background:none;border:none;cursor:pointer;color:var(--gold);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`;
       }
+      // Delete button always visible
+      actions+=`<button onclick="deletePass('${p.id}','${esc(p.code)}')" title="Supprimer" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.78rem;padding:4px 6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
 
       h+=`<tr style="border-bottom:1px solid var(--border-light)">
         <td style="padding:10px 14px"><span style="font-family:monospace;font-weight:600;font-size:.8rem;letter-spacing:.5px">${esc(p.code)}</span></td>
@@ -331,6 +331,16 @@ async function cancelPass(id){
   }catch(e){GendaUI.toast(e.message||'Erreur lors de l\'annulation','error');}
 }
 
+// ── Delete (hard) ──
+async function deletePass(id,code){
+  if(!confirm(`Supprimer définitivement le pass ${code} ? Cette action est irréversible.`))return;
+  try{
+    await api.delete(`/api/passes/${id}`);
+    GendaUI.toast('Pass supprimé','success');
+    loadPasses();
+  }catch(e){GendaUI.toast(e.message||'Erreur lors de la suppression','error');}
+}
+
 function setPassFilter(v){passFilter=v;}
 function passSearchInput(v){passSearch=v;}
 
@@ -338,6 +348,6 @@ function passSearchInput(v){passSearch=v;}
 Object.defineProperty(window,'passFilter',{get(){return passFilter;},set(v){passFilter=v;},configurable:true});
 Object.defineProperty(window,'passSearch',{get(){return passSearch;},set(v){passSearch=v;},configurable:true});
 
-bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,cancelPass,setPassFilter,passSearchInput});
+bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,cancelPass,deletePass,setPassFilter,passSearchInput});
 
 export {renderPasses};

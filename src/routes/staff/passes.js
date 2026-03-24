@@ -459,4 +459,27 @@ router.post('/:id/refund', async (req, res, next) => {
   }
 });
 
+// ============================================================
+// DELETE /api/passes/:id — hard delete pass + transactions
+// ============================================================
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+
+    const result = await transactionWithRLS(bid, async (client) => {
+      // Delete transactions first (FK constraint)
+      await client.query('DELETE FROM pass_transactions WHERE pass_id = $1 AND business_id = $2', [id, bid]);
+      const del = await client.query('DELETE FROM passes WHERE id = $1 AND business_id = $2 RETURNING id, code', [id, bid]);
+      if (del.rows.length === 0) throw Object.assign(new Error('Pass introuvable'), { status: 404 });
+      return del.rows[0];
+    });
+
+    res.json({ deleted: true, code: result.code });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
 module.exports = router;
