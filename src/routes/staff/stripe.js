@@ -508,9 +508,9 @@ async function handleStripeWebhook(req, res) {
         }
 
         // ===== PASS PAYMENT =====
-        if (metadata.type === 'pass') {
+        if (session.metadata?.type === 'pass') {
           try {
-            const { business_id, pass_template_id, buyer_name, buyer_email } = metadata;
+            const { business_id, pass_template_id, buyer_name, buyer_email } = session.metadata;
 
             // Fetch template
             const tplRes = await query(
