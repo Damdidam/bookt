@@ -5803,7 +5803,7 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
     const s = biz.settings || {};
     if (!s.passes_enabled) return res.status(400).json({ error: 'Abonnements non disponibles' });
 
-    const { pass_template_id, buyer_name, buyer_email } = req.body;
+    const { pass_template_id, buyer_name, buyer_email, buyer_phone, oauth_provider, oauth_provider_id } = req.body;
     if (!pass_template_id) return res.status(400).json({ error: 'Template requis' });
     if (!buyer_email) return res.status(400).json({ error: 'Email requis' });
 
@@ -5833,7 +5833,10 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
         business_id: biz.id,
         pass_template_id: tpl.id,
         buyer_name: buyer_name || '',
-        buyer_email
+        buyer_email,
+        buyer_phone: buyer_phone || '',
+        oauth_provider: oauth_provider || '',
+        oauth_provider_id: oauth_provider_id || ''
       },
       customer_email: buyer_email,
       success_url: `${baseUrl}/${biz.slug}/pass?success=1`,
