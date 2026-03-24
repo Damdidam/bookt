@@ -112,9 +112,18 @@ function renderPasses(c,passes,st){
 }
 
 // ── Create Pass Modal ──
-function openCreatePass(){
+async function openCreatePass(){
   const existing=document.getElementById('passCreateModal');
   if(existing)existing.remove();
+
+  // Fetch services list
+  let services=[];
+  try{
+    const data=await api.get('/api/services');
+    services=(data.services||data||[]).filter(s=>s.is_active);
+  }catch(e){console.error('[passes] fetch services failed',e);}
+
+  const serviceOpts=services.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}${s.price_cents!=null?' — '+fmtEur(s.price_cents):''}</option>`).join('');
 
   const modal=document.createElement('div');
   modal.className='m-overlay open';modal.id='passCreateModal';
@@ -126,14 +135,15 @@ function openCreatePass(){
     <div class="m-body">
       <div style="margin-bottom:14px">
         <label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Prestation</label>
-        <select id="passServiceName" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box;background:var(--surface);color:var(--text-1)">
-          <option value="">Saisie manuelle</option>
+        <select id="passServiceSelect" onchange="passServiceChanged()" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box;background:var(--surface);color:var(--text-1)">
+          <option value="">— Saisie manuelle —</option>
+          ${serviceOpts}
         </select>
       </div>
 
-      <div style="margin-bottom:14px">
-        <label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Nom de la prestation <span style="color:var(--text-4);font-weight:400">(si saisie manuelle)</span></label>
-        <input type="text" id="passServiceNameManual" placeholder="Ex: Massage 1h" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
+      <div id="passManualNameRow" style="margin-bottom:14px">
+        <label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Nom du pass <span style="color:var(--text-4);font-weight:400">(saisie manuelle)</span></label>
+        <input type="text" id="passNameManual" placeholder="Ex: Pack 10 Massages" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">
       </div>
 
       <div style="margin-bottom:14px;display:flex;gap:12px">
@@ -171,25 +181,40 @@ function openCreatePass(){
   document.body.appendChild(modal);
 }
 
+function passServiceChanged(){
+  const sel=document.getElementById('passServiceSelect');
+  const manualRow=document.getElementById('passManualNameRow');
+  if(sel.value){
+    manualRow.style.display='none';
+  }else{
+    manualRow.style.display='';
+  }
+}
+
 async function submitCreatePass(){
-  const serviceNameSelect=document.getElementById('passServiceName').value.trim();
-  const serviceNameManual=document.getElementById('passServiceNameManual').value.trim();
-  const serviceName=serviceNameSelect||serviceNameManual;
+  const serviceId=document.getElementById('passServiceSelect').value.trim();
+  const nameManual=document.getElementById('passNameManual').value.trim();
   const sessionsTotal=parseInt(document.getElementById('passSessionsTotal').value);
   const amountEur=parseFloat(document.getElementById('passAmountEur').value);
   const buyerName=document.getElementById('passBuyerName').value.trim();
   const buyerEmail=document.getElementById('passBuyerEmail').value.trim();
   const expiresAt=document.getElementById('passExpiresAt').value;
 
-  if(!serviceName){GendaUI.toast('Veuillez saisir le nom de la prestation','error');return;}
+  // Build pass name: use selected service name or manual input
+  const sel=document.getElementById('passServiceSelect');
+  const passName=serviceId?sel.options[sel.selectedIndex].text.split(' — ')[0]:nameManual;
+
+  if(!passName){GendaUI.toast('Veuillez choisir une prestation ou saisir un nom','error');return;}
   if(!sessionsTotal||sessionsTotal<1){GendaUI.toast('Veuillez saisir un nombre de séances valide','error');return;}
+  if(!amountEur||amountEur<=0){GendaUI.toast('Veuillez saisir un prix valide','error');return;}
   if(!buyerName){GendaUI.toast('Veuillez saisir le nom du client','error');return;}
 
   try{
     await api.post('/api/passes',{
-      service_name:serviceName,
+      service_id:serviceId||undefined,
+      name:passName,
       sessions_total:sessionsTotal,
-      amount_cents:amountEur?Math.round(amountEur*100):undefined,
+      price_cents:Math.round(amountEur*100),
       buyer_name:buyerName,
       buyer_email:buyerEmail||undefined,
       expires_at:expiresAt||undefined
@@ -313,6 +338,6 @@ function passSearchInput(v){passSearch=v;}
 Object.defineProperty(window,'passFilter',{get(){return passFilter;},set(v){passFilter=v;},configurable:true});
 Object.defineProperty(window,'passSearch',{get(){return passSearch;},set(v){passSearch=v;},configurable:true});
 
-bridge({loadPasses,openCreatePass,submitCreatePass,openDebitPass,debitPass,refundPass,submitRefundPass,cancelPass,setPassFilter,passSearchInput});
+bridge({loadPasses,openCreatePass,submitCreatePass,passServiceChanged,openDebitPass,debitPass,refundPass,submitRefundPass,cancelPass,setPassFilter,passSearchInput});
 
 export {renderPasses};

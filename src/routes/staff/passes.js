@@ -260,7 +260,7 @@ router.post('/', async (req, res, next) => {
     const {
       pass_template_id,
       service_id, name, sessions_total, price_cents, validity_days,
-      buyer_name, buyer_email
+      buyer_name, buyer_email, expires_at: body_expires_at
     } = req.body;
 
     let resolvedServiceId, resolvedName, resolvedSessionsTotal, resolvedPriceCents, resolvedValidityDays;
@@ -302,9 +302,11 @@ router.post('/', async (req, res, next) => {
       if (exists.rows.length === 0) break;
     }
 
-    const expires_at = resolvedValidityDays
-      ? new Date(Date.now() + resolvedValidityDays * 86400000)
-      : null;
+    const expires_at = body_expires_at
+      ? new Date(body_expires_at)
+      : resolvedValidityDays
+        ? new Date(Date.now() + resolvedValidityDays * 86400000)
+        : null;
 
     const result = await transactionWithRLS(bid, async (client) => {
       const pass = await client.query(
