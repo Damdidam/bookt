@@ -28,7 +28,7 @@ router.get('/templates', async (req, res, next) => {
       SELECT pt.*, s.name AS service_name
       FROM pass_templates pt
       LEFT JOIN services s ON s.id = pt.service_id
-      WHERE pt.business_id = $1`;
+      WHERE pt.business_id = $1 AND pt.is_active = true`;
     const params = [bid];
     let idx = 2;
 
