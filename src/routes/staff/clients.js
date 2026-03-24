@@ -206,7 +206,23 @@ router.get('/:id', async (req, res, next) => {
       giftCards = gcRes.rows;
     }
 
-    res.json({ client: client.rows[0], bookings: bookings.rows, gift_cards: giftCards });
+    // Pass balances for this client
+    let passes = [];
+    if (email) {
+      const passRes = await queryWithRLS(bid,
+        `SELECT p.id, p.code, p.name, p.sessions_total, p.sessions_remaining, p.status, p.expires_at, p.created_at,
+                s.name AS service_name
+         FROM passes p
+         LEFT JOIN services s ON s.id = p.service_id
+         WHERE p.business_id = $1 AND LOWER(p.buyer_email) = LOWER($2)
+           AND p.status IN ('active', 'used')
+         ORDER BY p.created_at DESC`,
+        [bid, email]
+      );
+      passes = passRes.rows;
+    }
+
+    res.json({ client: client.rows[0], bookings: bookings.rows, gift_cards: giftCards, passes });
   } catch (err) {
     next(err);
   }

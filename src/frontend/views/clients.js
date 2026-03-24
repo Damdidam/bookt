@@ -165,6 +165,31 @@ async function openClientDetail(id){
       m += `</div></div>`;
     }
 
+    // ── Passes / Abonnements section ──
+    const passes = d.passes || [];
+    if (passes.length > 0) {
+      const totalSessions = passes.reduce((s, p) => s + (p.status === 'active' ? p.sessions_remaining : 0), 0);
+      m += `<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title">${IC.listChecks} Abonnements${totalSessions > 0 ? ' · <span style="color:var(--green);font-weight:700">' + totalSessions + ' séance' + (totalSessions > 1 ? 's' : '') + '</span>' : ''}</span><span class="m-sec-line"></span></div>`;
+      m += `<div style="border-radius:8px;border:1px solid var(--border-light);overflow:hidden">`;
+      passes.forEach((p, i) => {
+        const bg = i % 2 === 0 ? 'var(--white)' : 'var(--surface)';
+        const exp = p.expires_at ? new Date(p.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        const active = p.status === 'active' && p.sessions_remaining > 0;
+        m += `<div style="padding:8px 12px;background:${bg};font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <span style="font-weight:600;font-family:monospace;letter-spacing:.5px">${esc(p.code)}</span>
+            <span style="font-size:.72rem;color:var(--text-4);margin-left:6px">${esc(p.service_name || p.name)}</span>
+            <span style="font-size:.72rem;color:var(--text-4);margin-left:6px">exp. ${exp}</span>
+          </div>
+          <div style="text-align:right">
+            <span style="font-weight:700;color:${active?'var(--green)':'var(--text-4)'}">${p.sessions_remaining}/${p.sessions_total}</span>
+            <span style="font-size:.72rem;color:var(--text-4);margin-left:4px">séance${p.sessions_total > 1 ? 's' : ''}</span>
+          </div>
+        </div>`;
+      });
+      m += `</div></div>`;
+    }
+
     // ── Historique section (inside m-body, scrollable) ──
     const stColors={completed:'var(--text-4)',cancelled:'var(--red)',no_show:'var(--amber-dark)',confirmed:'var(--primary)',pending:'var(--text-4)',pending_deposit:'var(--amber-dark)'};
     const stLabels={completed:'Terminé',cancelled:'Annulé',no_show:'No-show',confirmed:'Confirmé',pending:'En attente',pending_deposit:'Acompte requis'};
