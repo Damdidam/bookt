@@ -552,8 +552,24 @@ async function handlePassOauthPickup(pickupKey) {
     // Auto-fill fields
     var nameEl = document.getElementById('buyerName');
     var emailEl = document.getElementById('buyerEmail');
+    var phoneEl = document.getElementById('buyerPhone');
     if (nameEl && data.name) nameEl.value = data.name;
     if (emailEl && data.email) emailEl.value = data.email;
+
+    // Auto-fill phone from known client (OAuth doesn't provide phone)
+    if (data.email && phoneEl && !phoneEl.value.trim()) {
+      try {
+        var phRes = await fetch('/api/public/' + encodeURIComponent(slug) + '/client-phone?email=' + encodeURIComponent(data.email));
+        if (phRes.ok) {
+          var phData = await phRes.json();
+          if (phData && phData.phone) {
+            var p = phData.phone;
+            if (p.startsWith('+32')) p = '0' + p.substring(3);
+            phoneEl.value = p;
+          }
+        }
+      } catch (e) {}
+    }
 
     // Show badge, hide OAuth buttons
     var oauthArea = document.getElementById('oauthArea');
