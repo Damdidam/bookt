@@ -267,7 +267,7 @@ function openCategoryModal(catLabel){
   m+=`<div class="field"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible par les clients)</span></label><textarea id="cat_modal_desc" rows="3" placeholder="Décrivez cette catégorie pour vos clients...">${esc(desc)}</textarea></div>`;
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('catModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveCategory('${jsAttr(catId)}','${jsAttr(label)}')">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
-  guardModal(document.getElementById('catModalOverlay'));
+  guardModal(document.getElementById('catModalOverlay'), { noBackdropClose: true });
   document.getElementById('cat_color_wrap').innerHTML=cswHTML('cat_color',color,true);
   document.getElementById('cat_modal_name').focus();
 }
@@ -723,7 +723,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   svcTogglePose(); // sync variant pose row visibility with toggle state
-  guardModal(document.getElementById('svcModalOverlay'));
+  guardModal(document.getElementById('svcModalOverlay'), { noBackdropClose: true });
 }
 
 // ===== PRACTITIONER PRIORITY =====

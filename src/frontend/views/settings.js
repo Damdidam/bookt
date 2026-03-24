@@ -553,7 +553,7 @@ async function loadSettings(){
 
     // Dirty guard — warns before navigating away with unsaved changes
     window._settingsGuard?.destroy();
-    window._settingsGuard = guardModal(c);
+    window._settingsGuard = guardModal(c, { noBackdropClose: true });
 
     // Global toggle visual sync — updates track color + knob on any checkbox change
     c.addEventListener('change', e=>{

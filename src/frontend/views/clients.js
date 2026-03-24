@@ -236,7 +236,7 @@ async function openClientDetail(id){
     // ── Close m-body → m-bottom with action buttons ──
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('clientModal')">Fermer</button><button class="m-btn m-btn-primary" onclick="saveClient('${id}')">Enregistrer</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
-    guardModal(document.getElementById('clientModal'));
+    guardModal(document.getElementById('clientModal'), { noBackdropClose: true });
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 

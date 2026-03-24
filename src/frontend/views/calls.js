@@ -470,7 +470,7 @@ function addBlacklistEntry(){
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('blModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveBlacklistEntry()">Bloquer</button></div>
   </div>`;
   document.body.appendChild(ov);
-  guardModal(document.getElementById('blModal'));
+  guardModal(document.getElementById('blModal'), { noBackdropClose: true });
   document.getElementById('bl_phone').focus();
 }
 
@@ -513,7 +513,7 @@ function editWhitelistEntry(id,phone,label,active){
   m+=`<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem"><input type="checkbox" id="wl_active" ${active?'checked':''}> Actif</label>`;
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlEditModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveWhitelistEntry('${id}')">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
-  guardModal(document.getElementById('wlEditModal'));
+  guardModal(document.getElementById('wlEditModal'), { noBackdropClose: true });
 }
 
 async function saveWhitelistEntry(id){

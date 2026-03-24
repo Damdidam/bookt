@@ -521,7 +521,7 @@ function openGalleryModal(item){
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('galModal')">Annuler</button><button class="m-btn m-btn-primary" id="galSaveBtn" onclick="saveGalleryItem('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
   document.body.appendChild(ov);
-  guardModal(document.getElementById('galModal'));
+  guardModal(document.getElementById('galModal'), { noBackdropClose: true });
 
   // File input + drop zone
   const dropZone=document.getElementById('galDropZone');
@@ -655,7 +655,7 @@ function openNewsModal(item){
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newsModal')">Annuler</button><button class="m-btn m-btn-primary" id="newsSaveBtn" onclick="saveNewsItem('${item?.id||''}')">${isEdit?'Enregistrer':'Publier'}</button></div>
   </div>`;
   document.body.appendChild(ov);
-  guardModal(document.getElementById('newsModal'));
+  guardModal(document.getElementById('newsModal'), { noBackdropClose: true });
   document.getElementById('newsTitle').focus();
 }
 
@@ -865,7 +865,7 @@ function openTestimonialModal(item){
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('testModal')">Annuler</button><button class="m-btn m-btn-primary" id="testSaveBtn" onclick="saveTestimonial('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
   document.body.appendChild(ov);
-  guardModal(document.getElementById('testModal'));
+  guardModal(document.getElementById('testModal'), { noBackdropClose: true });
   document.getElementById('testAuthor').focus();
 }
 
@@ -929,7 +929,7 @@ function openValueModal(item){
     <div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('valModal')">Annuler</button><button class="m-btn m-btn-primary" id="valSaveBtn" onclick="saveValue('${item?.id||''}')">${isEdit?'Enregistrer':'Ajouter'}</button></div>
   </div>`;
   document.body.appendChild(ov);
-  guardModal(document.getElementById('valModal'));
+  guardModal(document.getElementById('valModal'), { noBackdropClose: true });
   document.getElementById('valTitle').focus();
 }
 

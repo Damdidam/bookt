@@ -168,7 +168,7 @@ async function openInvoiceModal(type='invoice'){
     </div>
   </div>`;
   document.body.appendChild(modal);
-  guardModal(document.getElementById('invModal'));
+  guardModal(document.getElementById('invModal'), { noBackdropClose: true });
   addInvoiceLine();
   updateInvTotals();
 }

@@ -309,7 +309,7 @@ function addBizSlot(day) {
     <div class="m-row m-row-2"><div><label class="m-field-label">Début</label><input type="time" class="m-input" id="biz_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><label class="m-field-label">Fin</label><input type="time" class="m-input" id="biz_slot_end" value="${de}"></div></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('bizSlotModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="confirmAddBizSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('bizSlotModal'));
+  guardModal(document.getElementById('bizSlotModal'), { noBackdropClose: true });
 }
 
 function confirmAddBizSlot(day) {
@@ -374,7 +374,7 @@ function openClosureModal() {
     <div><label class="m-field-label">Motif</label><input class="m-input" id="cl_reason" placeholder="Ex: Congé annuel, travaux, inventaire..."></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('closureModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveClosure()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('closureModal'));
+  guardModal(document.getElementById('closureModal'), { noBackdropClose: true });
 }
 
 async function saveClosure() {
@@ -419,7 +419,7 @@ function openHolidayModal() {
     <div><label class="m-field-label">Nom</label><input class="m-input" id="hol_name" placeholder="Ex: Noël, Fête nationale..."></div>
   </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('holidayModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveHoliday()">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
-  guardModal(document.getElementById('holidayModal'));
+  guardModal(document.getElementById('holidayModal'), { noBackdropClose: true });
 }
 
 async function saveHoliday() {
