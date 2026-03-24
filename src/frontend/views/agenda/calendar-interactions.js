@@ -222,7 +222,7 @@ function buildEventDrop() {
         ? `${p.client_name || 'Client'} — ${result.count} prestations déplacées`
         : (p.client_name || 'RDV') + ' déplacé' + (pracChanged ? ' → ' + pracName : '');
       const toastActions = [
-        { label: 'Annuler', fn: () => window.fcUndoLast() },
+        { label: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Annuler', fn: () => window.fcUndoLast() },
         { label: IC.mail + ' Notifier le client', fn: async () => {
           try {
             const nr = await fetch(`/api/bookings/${bookingId}/move`, {
@@ -301,7 +301,7 @@ function buildEventResize() {
       const dur = Math.round((evEnd - ev.start) / 60000);
       storeUndoAction(ev.id, 'resize', { end_at: dateToBrusselsISO(oldEnd || ev.start) });
       const resizeActions = [
-        { label: 'Annuler', fn: () => window.fcUndoLast() },
+        { label: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Annuler', fn: () => window.fcUndoLast() },
         { label: IC.mail + ' Notifier le client', fn: async () => {
           try {
             const nr = await fetch(`/api/bookings/${ev.id}/move`, {

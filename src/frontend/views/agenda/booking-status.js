@@ -31,7 +31,7 @@ async function fcSetStatus(newStatus) {
     } else if (oldStatus && !['completed', 'cancelled', 'no_show'].includes(oldStatus)) {
       // Store undo (only for reversible status changes)
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
-      gToast('Statut mis à jour', 'success', { label: 'Annuler', fn: () => window.fcUndoLast() }, 8000);
+      gToast('Statut mis à jour', 'success', { label: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Annuler', fn: () => window.fcUndoLast() }, 8000);
     } else {
       gToast('Statut mis à jour', 'success');
     }
