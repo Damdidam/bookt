@@ -23,6 +23,7 @@ const X_SVG=IC.x;
 const CHEVRON_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 const PLUS_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 const CHECK_CIRCLE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>';
+const TICKET_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12" style="vertical-align:-1px"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>';
 const PHONE_SVG=IC.phone;
 
 // Pastel palette for category icon backgrounds
@@ -194,6 +195,9 @@ function renderServiceRow(s,sortIdx){
   if(badges) h+=`<div class="svc-row-meta">${badges}</div>`;
   // Inline variants
   if(vars.length>0) h+=renderVariantList(vars,s.color||'var(--primary)',s.id);
+  // Inline pass templates
+  const pts = s.pass_templates || [];
+  if(pts.length>0) h+=renderPassTemplateList(pts);
   h+=`</div>`; // end info
   h+=`<div class="svc-row-actions">`;
   h+=`<label class="svc-toggle" title="${s.is_active!==false?'Désactiver':'Activer'}" onclick="event.stopPropagation()"><input type="checkbox"${s.is_active!==false?' checked':''} onchange="toggleService('${s.id}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
@@ -201,6 +205,22 @@ function renderServiceRow(s,sortIdx){
   h+=`<button class="svc-icon-btn danger" onclick="if(confirm('Supprimer cette prestation ?'))deleteService('${s.id}')" title="Supprimer">${TRASH_SVG}</button>`;
   h+=`</div>`;
   h+=`</div>`; // end row
+  return h;
+}
+
+function renderPassTemplateList(pts){
+  let h=`<div class="svc-pass-list-inline" style="margin-top:6px;padding:6px 0;border-top:1px dashed var(--border-light)">`;
+  h+=`<div style="font-size:.68rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${TICKET_SVG} Abonnements</div>`;
+  pts.forEach(pt=>{
+    const price=(pt.price_cents/100).toFixed(0)+' €';
+    const varLabel=pt.variant_name?' — '+esc(pt.variant_name):'';
+    h+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:.78rem">`;
+    h+=`<span style="color:var(--green);font-weight:600">${pt.sessions_count}x</span>`;
+    h+=`<span style="color:var(--text-2)">${esc(pt.name)}${varLabel}</span>`;
+    h+=`<span style="color:var(--text-4);margin-left:auto">${price}</span>`;
+    h+=`</div>`;
+  });
+  h+=`</div>`;
   return h;
 }
 

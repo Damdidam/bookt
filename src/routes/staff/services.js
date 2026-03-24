@@ -29,6 +29,22 @@ router.get('/', async (req, res, next) => {
     }
     for (const s of result.rows) s.variants = varByService[s.id] || [];
 
+    // Attach pass templates to each service
+    const ptResult = await queryWithRLS(req.businessId,
+      `SELECT pt.*, sv.name AS variant_name
+       FROM pass_templates pt
+       LEFT JOIN service_variants sv ON sv.id = pt.service_variant_id
+       WHERE pt.business_id = $1 AND pt.is_active = true
+       ORDER BY pt.sort_order, pt.name`,
+      [req.businessId]
+    );
+    const ptByService = {};
+    for (const pt of ptResult.rows) {
+      if (!ptByService[pt.service_id]) ptByService[pt.service_id] = [];
+      ptByService[pt.service_id].push(pt);
+    }
+    for (const s of result.rows) s.pass_templates = ptByService[s.id] || [];
+
     res.json({ services: result.rows });
   } catch (err) {
     next(err);
