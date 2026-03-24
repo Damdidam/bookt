@@ -5756,7 +5756,10 @@ router.get('/:slug/pass-config', async (req, res, next) => {
     );
 
     res.json({
-      business: { name: biz.name, slug: biz.slug, theme: biz.theme, logo_url: biz.logo_url },
+      business_name: biz.name,
+      slug: biz.slug,
+      theme: biz.theme,
+      logo_url: biz.logo_url || null,
       templates: tplRes.rows,
       validity_days: s.pass_validity_days || 365
     });
