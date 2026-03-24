@@ -120,8 +120,11 @@ async function openCreatePass(){
   let services=[];
   try{
     const data=await api.get('/api/services');
-    services=(data.services||data||[]).filter(s=>s.is_active);
-  }catch(e){console.error('[passes] fetch services failed',e);}
+    services=(data.services||data||[]).filter(s=>s.is_active!==false);
+  }catch(e){
+    console.error('[passes] fetch services failed',e);
+    GendaUI.toast('Impossible de charger les prestations: '+e.message,'error');
+  }
 
   const serviceOpts=services.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}${s.price_cents!=null?' — '+fmtEur(s.price_cents):''}</option>`).join('');
 
