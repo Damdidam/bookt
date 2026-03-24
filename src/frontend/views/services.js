@@ -969,7 +969,7 @@ function svcPassTemplateRow(t) {
   const varRows = document.querySelectorAll('#svc_variants_list .svc-var-row');
   let varOpts = '<option value="">Toutes les variantes</option>';
   varRows.forEach(r => {
-    const vid = r.dataset.id || '';
+    const vid = r.querySelector('.svc-var-id')?.value || '';
     const vname = r.querySelector('.svc-var-name')?.value || '';
     if (vid && vname) {
       const sel = t?.service_variant_id === vid ? ' selected' : '';
