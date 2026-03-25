@@ -93,7 +93,7 @@ router.get('/unbilled', async (req, res, next) => {
 router.post('/', requireOwner, async (req, res, next) => {
   try {
     const bid = req.businessId;
-    const { booking_id, client_id, type, items, notes, vat_rate,
+    const { booking_id, booking_ids, client_id, type, items, notes, vat_rate,
             due_days, language, client_address, client_bce } = req.body;
 
     const invoiceType = type || 'invoice';
@@ -203,13 +203,13 @@ router.post('/', requireOwner, async (req, res, next) => {
 
       const invoiceId = invResult.rows[0].id;
 
-      for (const item of invoiceItems) {
+      for (const [i, item] of invoiceItems.entries()) {
         await txClient.query(
-          `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [invoiceId, item.description, item.quantity || 1,
+          `INSERT INTO invoice_items (invoice_id, booking_id, description, quantity, unit_price_cents, vat_rate, total_cents, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [invoiceId, item.booking_id || null, item.description, item.quantity || 1,
            item.unit_price_cents || 0, (item.vat_rate !== undefined && item.vat_rate !== null) ? parseFloat(item.vat_rate) : vatR,
-           item.total_cents || 0, item.sort_order || 0]
+           item.total_cents || 0, i]
         );
       }
 
