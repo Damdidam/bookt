@@ -147,8 +147,8 @@ router.patch('/:id/ungroup', async (req, res, next) => {
           }
         }
 
-        // Build UPDATE for the detached booking
-        const sets = ['group_id = NULL', 'group_order = NULL', 'updated_at = NOW()'];
+        // Build UPDATE — keep group_id to create a split (multi-practitioner) group
+        const sets = ['updated_at = NOW()'];
         const params = [];
         let idx = 1;
 
@@ -183,34 +183,24 @@ router.patch('/:id/ungroup', async (req, res, next) => {
         const updateSql = `UPDATE bookings SET ${sets.join(', ')} WHERE id = $${idx} AND business_id = $${idx + 1} RETURNING *`;
         const updated = await client.query(updateSql, params);
 
-        // Count remaining members in the group
-        const remainRes = await client.query(
+        // Re-sequence group_order for all members (including this one)
+        const allMembersRes = await client.query(
           `SELECT id, group_order FROM bookings
-           WHERE group_id = $1 AND business_id = $2 AND id != $3
-           ORDER BY group_order`,
-          [locked.group_id, bid, id]
+           WHERE group_id = $1 AND business_id = $2
+           ORDER BY group_order, start_at`,
+          [locked.group_id, bid]
         );
-        const remaining = remainRes.rows;
-
-        if (remaining.length === 1) {
-          // Only 1 member left → also ungroup it (no group of 1)
-          await client.query(
-            `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()
-             WHERE id = $1 AND business_id = $2`,
-            [remaining[0].id, bid]
-          );
-        } else if (remaining.length > 1) {
-          // Re-sequence group_order (0, 1, 2...)
-          for (let i = 0; i < remaining.length; i++) {
-            if (remaining[i].group_order !== i) {
-              await client.query(
-                `UPDATE bookings SET group_order = $1, updated_at = NOW()
-                 WHERE id = $2 AND business_id = $3`,
-                [i, remaining[i].id, bid]
-              );
-            }
+        const allMembers = allMembersRes.rows;
+        for (let i = 0; i < allMembers.length; i++) {
+          if (allMembers[i].group_order !== i) {
+            await client.query(
+              `UPDATE bookings SET group_order = $1, updated_at = NOW()
+               WHERE id = $2 AND business_id = $3`,
+              [i, allMembers[i].id, bid]
+            );
           }
         }
+        const remaining = allMembers.filter(m => m.id !== id);
 
         // Audit log
         const oldData = {
@@ -224,7 +214,9 @@ router.patch('/:id/ungroup', async (req, res, next) => {
           practitioner_id: newPracId,
           service_id: newServiceId,
           end_at: newEndAt,
-          remaining_group_size: remaining.length
+          group_id: locked.group_id,
+          split_group: true,
+          total_group_size: allMembers.length
         };
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
@@ -232,7 +224,7 @@ router.patch('/:id/ungroup', async (req, res, next) => {
           [bid, req.user.id, id, JSON.stringify(oldData), JSON.stringify(newData)]
         );
 
-        return { booking: updated.rows[0], remaining_group_size: remaining.length };
+        return { booking: updated.rows[0], remaining_group_size: remaining.length, total_group_size: allMembers.length };
       });
     } catch (err) {
       if (err.type === 'conflict') return res.status(409).json({ error: err.message });
