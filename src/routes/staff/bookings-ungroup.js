@@ -506,6 +506,18 @@ router.post('/:id/group-add', async (req, res, next) => {
           }
         }
 
+        // Duplicate check: same service + variant already in group
+        const dupCheck = await client.query(
+          `SELECT id FROM bookings
+           WHERE group_id = $1 AND business_id = $2 AND service_id = $3
+             AND COALESCE(service_variant_id, '00000000-0000-0000-0000-000000000000') = COALESCE($4::uuid, '00000000-0000-0000-0000-000000000000')
+             AND status NOT IN ('cancelled', 'no_show')`,
+          [booking.group_id, bid, service_id, variant_id || null]
+        );
+        if (dupCheck.rows.length > 0) {
+          throw Object.assign(new Error('Cette prestation existe déjà dans le groupe'), { type: 'duplicate' });
+        }
+
         // Insert the new group member
         const ins = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
@@ -530,7 +542,7 @@ router.post('/:id/group-add', async (req, res, next) => {
         return ins.rows[0];
       });
     } catch (err) {
-      if (err.type === 'conflict') return res.status(409).json({ error: err.message });
+      if (err.type === 'conflict' || err.type === 'duplicate') return res.status(409).json({ error: err.message });
       throw err;
     }
 
