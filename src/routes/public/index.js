@@ -1345,8 +1345,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
 
-            // Pass auto-debit — runs even without deposit (pass = proof of attendance)
+            // Pass auto-debit — only for the booking whose service matches the pass
             let passUsed = false;
+            let passMatchedBookingId = null;
             if (pass_code || client_email) {
               try {
                 const serviceIds = chainedSlots.map(s => s.service_id);
@@ -1374,21 +1375,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 }
                 if (passRes && passRes.rows.length > 0) {
                   const pass = passRes.rows[0];
-                  const svcMatch = pass_code ? serviceIds.includes(pass.service_id) : true;
-                  const varMatch = !pass.service_variant_id || variantIds.includes(pass.service_variant_id);
-                  if (svcMatch && varMatch) {
+                  // Find the specific booking that matches this pass's service
+                  const matchIdx = bookings.findIndex((bk, i) =>
+                    String(chainedSlots[i].service_id) === String(pass.service_id) &&
+                    (!pass.service_variant_id || String(chainedSlots[i].variant_id) === String(pass.service_variant_id))
+                  );
+                  if (matchIdx >= 0) {
                     const newRemaining = pass.sessions_remaining - 1;
                     await client.query(
                       `UPDATE passes SET sessions_remaining = $1, status = $2, updated_at = NOW() WHERE id = $3`,
                       [newRemaining, newRemaining === 0 ? 'used' : 'active', pass.id]
                     );
+                    passMatchedBookingId = bookings[matchIdx].id;
                     await client.query(
                       `INSERT INTO pass_transactions (id, pass_id, business_id, booking_id, sessions, type, note)
                        VALUES (gen_random_uuid(), $1, $2, $3, 1, 'debit', $4)`,
-                      [pass.id, businessId, bookings[0].id, `Séance — pass ${pass.code}`]
+                      [pass.id, businessId, passMatchedBookingId, `Séance — pass ${pass.code}`]
                     );
                     passUsed = pass.code;
-                    console.log(`[PASS] Multi auto-debit pass ${pass.code} (1 session), remaining: ${newRemaining}`);
+                    console.log(`[PASS] Multi auto-debit pass ${pass.code} for booking ${passMatchedBookingId} (1 session), remaining: ${newRemaining}`);
                   }
                 }
               } catch (passErr) {
@@ -1401,31 +1406,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               // Skip deposit only if RDV is less than 2h away (not enough time to pay)
               if (hoursUntilRdv >= 2) {
                 let gcAutoPaid = false;
-                // If pass was used, it covers the deposit
-                if (passUsed) {
+                // If pass was used, mark only the matched booking as pass-paid
+                // Other bookings still need normal deposit flow
+                if (passUsed && passMatchedBookingId) {
                   await client.query(
                     `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
                       deposit_status = 'paid', deposit_paid_at = NOW(),
                       deposit_payment_intent_id = $2
                      WHERE id = $3 AND business_id = $4`,
-                    [depResult.depCents, `pass_${passUsed}`, bookings[0].id, businessId]
+                    [depResult.depCents, `pass_${passUsed}`, passMatchedBookingId, businessId]
                   );
-                  bookings[0].deposit_required = true;
-                  bookings[0].deposit_amount_cents = depResult.depCents;
-                  bookings[0].deposit_status = 'paid';
-                  bookings[0].deposit_payment_intent_id = `pass_${passUsed}`;
-                  if (bookings.length > 1) {
-                    const otherIds = bookings.slice(1).map(b => b.id);
-                    await client.query(
-                      `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
-                        deposit_paid_at = NOW(), deposit_amount_cents = $3,
-                        deposit_payment_intent_id = $4
-                       WHERE id = ANY($1) AND business_id = $2`,
-                      [otherIds, businessId, depResult.depCents, `pass_${passUsed}`]
-                    );
+                  // Only mark fully covered if there's just 1 booking, or all bookings are pass-matched
+                  if (bookings.length === 1 || bookings.every(bk => bk.id === passMatchedBookingId)) {
+                    bookings[0].deposit_required = true;
+                    bookings[0].deposit_amount_cents = depResult.depCents;
+                    bookings[0].deposit_status = 'paid';
+                    bookings[0].deposit_payment_intent_id = `pass_${passUsed}`;
+                    gcAutoPaid = true;
                   }
-                  gcAutoPaid = true;
-                  console.log(`[DEPOSIT] Multi fully covered by pass ${passUsed}`);
+                  console.log(`[DEPOSIT] Pass ${passUsed} covers deposit for booking ${passMatchedBookingId} only`);
                 }
 
                 // Check for gift card auto-debit (if pass didn't cover it)
