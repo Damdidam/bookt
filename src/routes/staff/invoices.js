@@ -53,6 +53,41 @@ router.get('/', async (req, res, next) => {
 });
 
 // ============================================================
+// GET /api/invoices/unbilled — completed bookings without invoice (last 7 days)
+// ============================================================
+router.get('/unbilled', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { client_id } = req.query;
+    if (!client_id) return res.status(400).json({ error: 'client_id requis' });
+
+    const result = await queryWithRLS(bid,
+      `SELECT b.id, b.start_at, b.group_id, b.deposit_payment_intent_id, b.deposit_amount_cents,
+              s.name AS service_name, s.price_cents AS service_price_cents,
+              sv.name AS variant_name, sv.price_cents AS variant_price_cents,
+              p.display_name AS practitioner_name
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       LEFT JOIN practitioners p ON p.id = b.practitioner_id
+       WHERE b.business_id = $1
+         AND b.client_id = $2
+         AND b.status = 'completed'
+         AND b.start_at >= NOW() - INTERVAL '7 days'
+         AND NOT EXISTS (
+           SELECT 1 FROM invoice_items ii
+           JOIN invoices inv ON inv.id = ii.invoice_id
+           WHERE ii.booking_id = b.id AND inv.status != 'cancelled'
+         )
+       ORDER BY b.start_at DESC`,
+      [bid, client_id]
+    );
+
+    res.json({ bookings: result.rows });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 // POST /api/invoices — create invoice (from booking or manual)
 // ============================================================
 router.post('/', requireOwner, async (req, res, next) => {
