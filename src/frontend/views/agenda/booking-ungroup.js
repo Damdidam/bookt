@@ -15,10 +15,14 @@ import { closeCalModal } from './booking-detail.js';
 function ugGetPracServices(pracId) {
   return calState.fcServices.filter(s => {
     if (s.is_active === false) return false;
-    if (pracId && s.practitioner_ids && s.practitioner_ids.length > 0) {
+    if (!pracId) return true;
+    // Only show services this practitioner is assigned to
+    if (s.practitioner_ids && s.practitioner_ids.length > 0) {
       return s.practitioner_ids.some(pid => String(pid) === String(pracId));
     }
-    return true;
+    // Service with no practitioner assignment = available to nobody specifically
+    // In ungroup context, be strict: don't show unassigned services
+    return false;
   });
 }
 
