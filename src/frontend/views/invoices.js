@@ -6,6 +6,7 @@ import { bridge } from '../utils/window-bridge.js';
 import { guardModal } from '../utils/dirty-guard.js';
 
 let invoiceFilter='all',invoiceType='all';
+let _unbilledBookings=[];
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtEur(cents){return((cents||0)/100).toFixed(2).replace('.',',')+' \u20ac';}
@@ -103,7 +104,7 @@ async function loadInvoices(){
 }
 
 // Invoice creation modal
-async function openInvoiceModal(type='invoice'){
+async function openInvoiceModal(type='invoice',prefill={}){
   let clients=[];
   try{const r=await api.get('/api/clients');clients=r.clients||r||[];}catch(e){console.warn('Impossible de charger les clients pour la facture:',e.message);}
 
@@ -121,10 +122,15 @@ async function openInvoiceModal(type='invoice'){
     <div class="m-body" style="display:grid;gap:12px">
       <div>
         <label class="m-field-label">Client</label>
-        <select class="m-input" id="invClient">
+        <select class="m-input" id="invClient" onchange="invClientChanged()">
           <option value="">\u2014 Sélectionner un client \u2014</option>
           ${clients.map(c=>`<option value="${c.id}">${esc(c.full_name)}${c.email?' ('+esc(c.email)+')':''}</option>`).join('')}
         </select>
+      </div>
+
+      <div id="invUnbilledSection" style="display:none">
+        <label class="m-field-label">RDV non facturés (7 derniers jours)</label>
+        <div id="invUnbilledList" style="border:1px solid var(--border-light);border-radius:var(--radius-xs);overflow:hidden;max-height:200px;overflow-y:auto"></div>
       </div>
 
       <div class="m-row m-row-2">
@@ -171,6 +177,24 @@ async function openInvoiceModal(type='invoice'){
   guardModal(document.getElementById('invModal'), { noBackdropClose: true });
   addInvoiceLine();
   updateInvTotals();
+  // Pre-select client if provided
+  if(prefill.preselect_client_id){
+    const sel=document.getElementById('invClient');
+    if(sel){sel.value=prefill.preselect_client_id;}
+    await invClientChanged();
+    if(prefill.precheck_booking_id||prefill.precheck_group_id){
+      setTimeout(()=>{
+        _unbilledBookings.forEach((b,i)=>{
+          const shouldCheck=(prefill.precheck_booking_id&&b.id===prefill.precheck_booking_id)
+            ||(prefill.precheck_group_id&&b.group_id===prefill.precheck_group_id);
+          if(shouldCheck){
+            const cb=document.querySelector(`[data-unbilled-idx="${i}"]`);
+            if(cb&&!cb.checked){cb.checked=true;invToggleUnbilled(i,true);}
+          }
+        });
+      },100);
+    }
+  }
 }
 
 function addInvoiceLine(){
@@ -215,7 +239,8 @@ async function saveInvoice(type){
     const desc=row.querySelector('.inv-desc')?.value?.trim();
     const qty=parseFloat(row.querySelector('.inv-qty')?.value||1);
     const price=parseFloat(row.querySelector('.inv-price')?.value||0);
-    if(desc&&price>0)items.push({description:desc,quantity:qty,unit_price_cents:Math.round(price*100)});
+    const bookingId=row.getAttribute('data-booking-id')||undefined;
+    if(desc&&price!==0)items.push({description:desc,quantity:qty,unit_price_cents:Math.round(price*100),booking_id:bookingId});
   });
   if(items.length===0){GendaUI.toast('Ajoutez au moins une ligne','error');return;}
 
@@ -274,10 +299,67 @@ async function createInvoiceFromBooking(bookingId){
   }catch(e){GendaUI.toast(e.message||'Erreur','error');}
 }
 
+async function invClientChanged(){
+  const clientId=document.getElementById('invClient')?.value;
+  const section=document.getElementById('invUnbilledSection');
+  const list=document.getElementById('invUnbilledList');
+  if(!clientId||!section||!list){if(section)section.style.display='none';return;}
+  try{
+    const data=await api.get(`/api/invoices/unbilled?client_id=${clientId}`);
+    _unbilledBookings=data.bookings||[];
+  }catch(e){_unbilledBookings=[];}
+  if(_unbilledBookings.length===0){section.style.display='none';return;}
+  section.style.display='';
+  list.innerHTML=_unbilledBookings.map((b,i)=>{
+    const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
+    const price=b.variant_price_cents??b.service_price_cents??0;
+    const label=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'?')+') \u2014 '+dt;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:.82rem;cursor:pointer;border-bottom:1px solid var(--border-light);background:${i%2===0?'var(--white)':'var(--surface)'}">
+      <input type="checkbox" data-unbilled-idx="${i}" onchange="invToggleUnbilled(${i},this.checked)">
+      <span style="flex:1">${esc(label)}</span>
+      <span style="font-weight:600;color:var(--text-2)">${fmtEur(price)}</span>
+    </label>`;
+  }).join('');
+}
+
+function invToggleUnbilled(idx,checked){
+  const b=_unbilledBookings[idx];
+  if(!b)return;
+  const container=document.getElementById('invLines');
+  if(!container)return;
+  if(checked){
+    const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
+    const desc=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'')+') \u2014 '+dt;
+    const price=b.variant_price_cents??b.service_price_cents??0;
+    _addInvoiceLineFromBooking(b.id,desc,1,price/100);
+    if(b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('pass_')&&b.deposit_amount_cents){
+      const passCode=b.deposit_payment_intent_id.replace('pass_','');
+      _addInvoiceLineFromBooking(b.id,'Pass '+passCode+' (d\u00e9duction)',1,-(b.deposit_amount_cents/100));
+    }
+  }else{
+    container.querySelectorAll(`[data-booking-id="${b.id}"]`).forEach(r=>r.remove());
+  }
+  updateInvTotals();
+}
+
+function _addInvoiceLineFromBooking(bookingId,desc,qty,priceEur){
+  const container=document.getElementById('invLines');
+  if(!container)return;
+  const row=document.createElement('div');
+  row.style.cssText='display:grid;grid-template-columns:1fr 60px 100px 30px;gap:8px;align-items:center;margin-bottom:6px';
+  row.setAttribute('data-booking-id',bookingId);
+  row.innerHTML=`
+    <input class="inv-desc" value="${esc(desc)}" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem">
+    <input class="inv-qty" type="number" value="${qty}" min="1" onchange="updateInvTotals()" style="padding:8px 6px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;text-align:center">
+    <input class="inv-price" type="number" step="0.01" value="${priceEur.toFixed(2)}" onchange="updateInvTotals()" style="padding:8px 6px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.82rem;text-align:right">
+    <button onclick="this.parentElement.remove();updateInvTotals()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+  container.appendChild(row);
+}
+
 // Expose invoiceFilter and invoiceType for inline onchange handlers
 Object.defineProperty(window, 'invoiceFilter', { get(){return invoiceFilter;}, set(v){invoiceFilter=v;} });
 Object.defineProperty(window, 'invoiceType', { get(){return invoiceType;}, set(v){invoiceType=v;} });
 
-bridge({ loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking });
+bridge({ loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking, invClientChanged, invToggleUnbilled });
 
 export { loadInvoices, openInvoiceModal, addInvoiceLine, updateInvTotals, saveInvoice, changeInvoiceStatus, deleteInvoice, downloadInvoicePDF, createInvoiceFromBooking };
