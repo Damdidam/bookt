@@ -334,7 +334,12 @@ function invToggleUnbilled(idx,checked){
     _addInvoiceLineFromBooking(b.id,desc,1,price/100);
     if(b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('pass_')&&b.deposit_amount_cents){
       const passCode=b.deposit_payment_intent_id.replace('pass_','');
-      _addInvoiceLineFromBooking(b.id,'Pass '+passCode+' (d\u00e9duction)',1,-(b.deposit_amount_cents/100));
+      const passDesc='Pass '+passCode+' (d\u00e9duction)';
+      // Only add pass deduction once per pass code (avoid duplicates in grouped bookings)
+      const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===passDesc);
+      if(!existing){
+        _addInvoiceLineFromBooking(b.id,passDesc,1,-(b.deposit_amount_cents/100));
+      }
     }
   }else{
     container.querySelectorAll(`[data-booking-id="${b.id}"]`).forEach(r=>r.remove());
