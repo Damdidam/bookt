@@ -1410,7 +1410,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 // Other bookings still need normal deposit flow
                 if (passUsed && passMatchedBookingId) {
                   await client.query(
-                    `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
+                    `UPDATE bookings SET status = 'confirmed', deposit_required = true, deposit_amount_cents = $1,
                       deposit_status = 'paid', deposit_paid_at = NOW(),
                       deposit_payment_intent_id = $2
                      WHERE id = $3 AND business_id = $4`,
