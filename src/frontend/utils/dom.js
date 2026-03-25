@@ -28,27 +28,35 @@ export function gToast(msg, type, action, duration) {
   const t = document.createElement('div');
   t.className = 'g-toast' + (type ? ' ' + type : '');
 
+  // Top row: message + dismiss X
+  const topRow = document.createElement('div');
+  topRow.className = 'g-toast-top';
   const span = document.createElement('span');
   span.innerHTML = msg;
-  t.appendChild(span);
-
-  const actions = action ? (Array.isArray(action) ? action : [action]) : [];
-  for (const act of actions) {
-    const btn = document.createElement('button');
-    btn.innerHTML = act.label;
-    btn.addEventListener('click', () => {
-      if (typeof act.fn === 'function') act.fn();
-      if (act.dismiss !== false) _dismissToast(t);
-    });
-    t.appendChild(btn);
-  }
-
-  // Dismiss button (X)
+  topRow.appendChild(span);
   const xBtn = document.createElement('button');
   xBtn.className = 'dismiss';
   xBtn.innerHTML = '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
   xBtn.addEventListener('click', () => _dismissToast(t));
-  t.appendChild(xBtn);
+  topRow.appendChild(xBtn);
+  t.appendChild(topRow);
+
+  // Action buttons row (below message)
+  const actions = action ? (Array.isArray(action) ? action : [action]) : [];
+  if (actions.length > 0) {
+    const actRow = document.createElement('div');
+    actRow.className = 'g-toast-actions';
+    for (const act of actions) {
+      const btn = document.createElement('button');
+      btn.innerHTML = act.label;
+      btn.addEventListener('click', () => {
+        if (typeof act.fn === 'function') act.fn();
+        if (act.dismiss !== false) _dismissToast(t);
+      });
+      actRow.appendChild(btn);
+    }
+    t.appendChild(actRow);
+  }
 
   // Determine auto-dismiss duration
   if (!duration) {
