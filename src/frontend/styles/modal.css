@@ -12,7 +12,7 @@
 body.has-modal{overflow:hidden}
 
 /* ── Dialog ── */
-.m-dialog{background:var(--white);border-radius:var(--radius);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(.22,1,.36,1)}
+.m-dialog{background:var(--white);border-radius:var(--radius);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;overflow-x:hidden;box-shadow:var(--shadow-lg);animation:modalIn .3s cubic-bezier(.22,1,.36,1)}
 @keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 
 /* Size variants */
@@ -25,7 +25,7 @@ body.has-modal{overflow:hidden}
 .m-dialog.m-flex{overflow:hidden;display:flex;flex-direction:column;max-height:90vh}
 
 /* ── Body ── */
-.m-body{padding:20px 24px;overflow-y:auto;flex:1;min-height:0}
+.m-body{padding:20px 24px;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0}
 
 /* ── Panels (tab content) ── */
 .m-panel{display:none}
