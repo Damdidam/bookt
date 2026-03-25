@@ -77,6 +77,7 @@ function fcToggleStatus(status, el) {
   if (status === 'cancelled') { calState.fcShowCancelled = !calState.fcShowCancelled; }
   else if (status === 'no_show') { calState.fcShowNoShow = !calState.fcShowNoShow; }
   else if (status === 'pending') { calState.fcShowPending = !calState.fcShowPending; }
+  else if (status === 'completed') { calState.fcShowCompleted = !calState.fcShowCompleted; }
   // Sync all copies (desktop + mobile)
   const isActive = el.classList.contains('active');
   document.querySelectorAll('.prac-pill.st-toggle').forEach(p => {
@@ -234,6 +235,7 @@ async function loadAgenda() {
   statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowPending ? 'active' : ''}" onclick="fcToggleStatus('pending',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--amber)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>En attente</div>`;
   statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCancelled ? 'active' : ''}" onclick="fcToggleStatus('cancelled',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--red)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Annul\u00e9s</div>`;
   statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowNoShow ? 'active' : ''}" onclick="fcToggleStatus('no_show',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--gold)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>No-show</div>`;
+  statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCompleted ? 'active' : ''}" onclick="fcToggleStatus('completed',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--text-3)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Termin\u00e9s</div>`;
   if (isPrac) {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
   } else {

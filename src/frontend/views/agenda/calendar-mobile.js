@@ -38,6 +38,7 @@ async function fcLoadMobileList() {
   calState.fcAllBookings = calState.fcAllBookings.filter(b => {
     if (b.status === 'cancelled' && !calState.fcShowCancelled) return false;
     if (b.status === 'no_show' && !calState.fcShowNoShow) return false;
+    if (b.status === 'completed' && !calState.fcShowCompleted) return false;
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
       if (b.group_id) {
         if (!groupVisible[b.group_id]) return false;

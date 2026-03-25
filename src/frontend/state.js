@@ -73,6 +73,7 @@ export const calState = {
   fcShowCancelled: false,
   fcShowNoShow: false,
   fcShowPending: true,
+  fcShowCompleted: true,
   fcEditOriginal: {},
   fcSelectedNotifyChannel: null,
   fcDetailData: { notes: [], todos: [], reminders: [] },
