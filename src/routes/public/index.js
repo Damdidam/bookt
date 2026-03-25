@@ -1427,12 +1427,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   console.log(`[DEPOSIT] Pass ${passUsed} covers deposit for booking ${passMatchedBookingId} only`);
                 }
 
-                // Check for gift card auto-debit (if pass didn't cover it)
-                if (!gcAutoPaid && (gift_card_code || client_email)) {
+                // Determine which bookings still need deposit (exclude pass-covered)
+                const unpaidBookings = bookings.filter(bk => bk.id !== passMatchedBookingId);
+                const firstUnpaid = unpaidBookings[0] || bookings[0];
+
+                // Check for gift card auto-debit (only for unpaid bookings)
+                if (!gcAutoPaid && unpaidBookings.length > 0 && (gift_card_code || client_email)) {
                   try {
                     let gcRes;
                     if (gift_card_code) {
-                      // Client provided a gift card code manually
                       gcRes = await client.query(
                         `SELECT id, code, balance_cents FROM gift_cards
                          WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
@@ -1441,7 +1444,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                         [businessId, gift_card_code.toUpperCase().trim()]
                       );
                     } else {
-                      // Auto-match by client email
                       gcRes = await client.query(
                         `SELECT id, code, balance_cents FROM gift_cards
                          WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
@@ -1462,38 +1464,30 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                       await client.query(
                         `INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note)
                          VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`,
-                        [gc.id, businessId, bookings[0].id, gcDebit, `Acompte auto — carte ${gc.code}`]
+                        [gc.id, businessId, firstUnpaid.id, gcDebit, `Acompte auto — carte ${gc.code}`]
                       );
 
                       if (gcDebit >= depResult.depCents) {
-                        // Fully covered by GC
+                        // Fully covered by GC — mark only unpaid bookings
+                        const unpaidIds = unpaidBookings.map(b => b.id);
                         await client.query(
                           `UPDATE bookings SET deposit_required = true, deposit_amount_cents = $1,
                             deposit_status = 'paid', deposit_paid_at = NOW(),
                             deposit_payment_intent_id = $2
-                           WHERE id = $3 AND business_id = $4`,
-                          [depResult.depCents, `gc_${gc.code}`, bookings[0].id, businessId]
+                           WHERE id = ANY($3) AND business_id = $4`,
+                          [depResult.depCents, `gc_${gc.code}`, unpaidIds, businessId]
                         );
-                        bookings[0].deposit_required = true;
-                        bookings[0].deposit_amount_cents = depResult.depCents;
-                        bookings[0].deposit_status = 'paid';
-                        bookings[0].deposit_payment_intent_id = `gc_${gc.code}`;
-                        if (bookings.length > 1) {
-                          const otherIds = bookings.slice(1).map(b => b.id);
-                          await client.query(
-                            `UPDATE bookings SET deposit_required = true, deposit_status = 'paid',
-                              deposit_paid_at = NOW(), deposit_amount_cents = $3,
-                              deposit_payment_intent_id = $4
-                             WHERE id = ANY($1) AND business_id = $2`,
-                            [otherIds, businessId, depResult.depCents, `gc_${gc.code}`]
-                          );
+                        for (const bk of unpaidBookings) {
+                          bk.deposit_required = true;
+                          bk.deposit_amount_cents = depResult.depCents;
+                          bk.deposit_status = 'paid';
+                          bk.deposit_payment_intent_id = `gc_${gc.code}`;
                         }
                         gcAutoPaid = true;
-                        console.log(`[DEPOSIT] Multi fully auto-paid via gift card ${gc.code} (${gcDebit}c), balance: ${newBal}c`);
+                        console.log(`[DEPOSIT] Multi GC ${gc.code} covers ${unpaidIds.length} unpaid bookings (${gcDebit}c), balance: ${newBal}c`);
                       } else {
-                        // Partial — GC deducted, remaining goes to pending_deposit for Stripe
                         gcPartialCents = gcDebit;
-                        console.log(`[DEPOSIT] Multi partial auto-debit via gift card ${gc.code}: ${gcDebit}c of ${depResult.depCents}c, remaining ${depResult.depCents - gcDebit}c via Stripe, GC balance: ${newBal}c`);
+                        console.log(`[DEPOSIT] Multi partial GC ${gc.code}: ${gcDebit}c of ${depResult.depCents}c, remaining via Stripe, balance: ${newBal}c`);
                       }
                     }
                   } catch (gcErr) {
@@ -1501,40 +1495,36 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   }
                 }
 
-                if (!gcAutoPaid) {
+                if (!gcAutoPaid && unpaidBookings.length > 0) {
                   const deadline = computeDepositDeadline(startDate, bizSettings);
-                  // Set pending_deposit on bookings NOT already covered by pass
-                  const pendingBookings = bookings.filter(bk => bk.id !== passMatchedBookingId);
-                  if (pendingBookings.length > 0) {
-                    const firstPending = pendingBookings[0];
+                  // Set pending_deposit on unpaid bookings only
+                  await client.query(
+                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                      deposit_requested_at = NOW(), deposit_request_count = 1,
+                      confirmation_expires_at = NULL
+                     WHERE id = $3 AND business_id = $4`,
+                    [depResult.depCents, deadline.toISOString(), firstUnpaid.id, businessId]
+                  );
+                  firstUnpaid.status = 'pending_deposit';
+                  firstUnpaid.deposit_required = true;
+                  firstUnpaid.deposit_amount_cents = depResult.depCents;
+                  firstUnpaid.deposit_deadline = deadline.toISOString();
+                  const remainingUnpaidIds = unpaidBookings.slice(1).map(b => b.id);
+                  if (remainingUnpaidIds.length > 0) {
                     await client.query(
-                      `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                        deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-                        deposit_requested_at = NOW(), deposit_request_count = 1,
-                        confirmation_expires_at = NULL
-                       WHERE id = $3 AND business_id = $4`,
-                      [depResult.depCents, deadline.toISOString(), firstPending.id, businessId]
+                      `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
+                        deposit_amount_cents = $3, deposit_deadline = $4
+                       WHERE id = ANY($1) AND business_id = $2`,
+                      [remainingUnpaidIds, businessId, depResult.depCents, deadline.toISOString()]
                     );
-                    firstPending.status = 'pending_deposit';
-                    firstPending.deposit_required = true;
-                    firstPending.deposit_amount_cents = depResult.depCents;
-                    firstPending.deposit_deadline = deadline.toISOString();
-                    const remainingIds = pendingBookings.slice(1).map(b => b.id);
-                    if (remainingIds.length > 0) {
-                      await client.query(
-                        `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
-                          deposit_amount_cents = $3, deposit_deadline = $4
-                         WHERE id = ANY($1) AND business_id = $2`,
-                        [remainingIds, businessId, depResult.depCents, deadline.toISOString()]
-                      );
-                    }
-                    for (const bk of pendingBookings) bk.status = 'pending_deposit';
                   }
-                  // Also update bookings[0] reference for email/response
-                  bookings[0].status = pendingBookings.includes(bookings[0]) ? 'pending_deposit' : bookings[0].status;
+                  for (const bk of unpaidBookings) bk.status = 'pending_deposit';
+                  // Update bookings[0] reference for email/response
                   bookings[0].deposit_required = true;
                   bookings[0].deposit_amount_cents = depResult.depCents;
                   bookings[0].deposit_deadline = deadline.toISOString();
+                  if (unpaidBookings.includes(bookings[0])) bookings[0].status = 'pending_deposit';
                   console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
                 }
               }
