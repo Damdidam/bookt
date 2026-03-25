@@ -32,6 +32,13 @@ async function fcSetStatus(newStatus) {
       // Store undo (only for reversible status changes)
       storeUndoAction(calState.fcCurrentEventId, 'status', { status: oldStatus });
       gToast('Statut mis à jour', 'success', { label: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Annuler', fn: () => window.fcUndoLast() }, 8000);
+    } else if (newStatus === 'completed') {
+      const _bkId=calState.fcCurrentEventId;
+      const _clId=calState.fcCurrentBooking?.client_id;
+      const _grId=calState.fcCurrentBooking?.group_id;
+      gToast('RDV terminé', 'success', [
+        { label: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Facturer', fn: () => openInvoiceForBooking(_bkId,_clId,_grId) }
+      ], 12000);
     } else {
       gToast('Statut mis à jour', 'success');
     }
@@ -178,7 +185,15 @@ async function fcRequireDeposit() {
   finally { fcRequireDeposit._busy = false; }
 }
 
+async function openInvoiceForBooking(bookingId,clientId,groupId){
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  document.querySelector('[data-section="invoices"]')?.classList.add('active');
+  document.getElementById('pageTitle').textContent='Facturation';
+  const mod=await import('../invoices.js');
+  mod.openInvoiceModal('invoice',{preselect_client_id:clientId,precheck_booking_id:bookingId,precheck_group_id:groupId});
+}
+
 // Expose to global scope for onclick handlers
-bridge({ fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit });
+bridge({ fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit, openInvoiceForBooking });
 
 export { fcSetStatus, fcPurgeBooking, fcWaiveDeposit, fcRefundDeposit, fcSendDepositRequest, fcRequireDeposit };
