@@ -211,7 +211,12 @@ router.get('/:id', async (req, res, next) => {
     if (email) {
       const passRes = await queryWithRLS(bid,
         `SELECT p.id, p.code, p.name, p.sessions_total, p.sessions_remaining, p.status, p.expires_at, p.created_at,
-                s.name AS service_name
+                s.name AS service_name,
+                (SELECT json_agg(json_build_object(
+                  'id', t.id, 'sessions', t.sessions, 'type', t.type,
+                  'note', t.note, 'booking_id', t.booking_id, 'created_at', t.created_at
+                ) ORDER BY t.created_at DESC)
+                FROM pass_transactions t WHERE t.pass_id = p.id) AS transactions
          FROM passes p
          LEFT JOIN services s ON s.id = p.service_id
          WHERE p.business_id = $1 AND LOWER(p.buyer_email) = LOWER($2)
