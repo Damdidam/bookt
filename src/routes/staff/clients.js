@@ -196,11 +196,16 @@ router.get('/:id', async (req, res, next) => {
     let giftCards = [];
     if (email) {
       const gcRes = await queryWithRLS(bid,
-        `SELECT id, code, amount_cents, balance_cents, status, expires_at, created_at
-         FROM gift_cards
-         WHERE business_id = $1 AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
-           AND status IN ('active', 'used')
-         ORDER BY created_at DESC`,
+        `SELECT gc.id, gc.code, gc.amount_cents, gc.balance_cents, gc.status, gc.expires_at, gc.created_at,
+                (SELECT json_agg(json_build_object(
+                  'id', t.id, 'amount_cents', t.amount_cents, 'type', t.type,
+                  'note', t.note, 'booking_id', t.booking_id, 'created_at', t.created_at
+                ) ORDER BY t.created_at DESC)
+                FROM gift_card_transactions t WHERE t.gift_card_id = gc.id) AS transactions
+         FROM gift_cards gc
+         WHERE gc.business_id = $1 AND (LOWER(gc.recipient_email) = LOWER($2) OR LOWER(gc.buyer_email) = LOWER($2))
+           AND gc.status IN ('active', 'used')
+         ORDER BY gc.created_at DESC`,
         [bid, email]
       );
       giftCards = gcRes.rows;

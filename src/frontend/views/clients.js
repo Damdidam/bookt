@@ -151,7 +151,8 @@ async function openClientDetail(id){
         const orig = (g.amount_cents / 100).toFixed(2);
         const exp = g.expires_at ? new Date(g.expires_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',year:'numeric'}) : '—';
         const active = g.status === 'active' && g.balance_cents > 0;
-        m += `<div style="padding:8px 12px;background:${bg};font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
+        m += `<div style="background:${bg}">`;
+        m += `<div style="padding:8px 12px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center">
           <div>
             <span style="font-weight:600;font-family:monospace;letter-spacing:.5px">${g.code}</span>
             <span style="font-size:.72rem;color:var(--text-4);margin-left:6px">exp. ${exp}</span>
@@ -161,6 +162,26 @@ async function openClientDetail(id){
             ${g.balance_cents < g.amount_cents ? '<span style="font-size:.7rem;color:var(--text-4);margin-left:4px;text-decoration:line-through">' + orig + ' €</span>' : ''}
           </div>
         </div>`;
+        const gcTxs = g.transactions || [];
+        if (gcTxs.length > 0) {
+          const txColors = {purchase:'var(--green)',debit:'var(--red)',refund:'var(--primary)'};
+          const txLabels = {purchase:'Achat',debit:'Débit',refund:'Remboursement'};
+          const txSigns = {purchase:'+',debit:'-',refund:'+'};
+          m += `<div style="padding:0 12px 8px;font-size:.72rem">`;
+          gcTxs.forEach(t => {
+            const dt = new Date(t.created_at).toLocaleDateString('fr-BE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+            const col = txColors[t.type] || 'var(--text-4)';
+            const sign = txSigns[t.type] || '';
+            const label = txLabels[t.type] || t.type;
+            const amt = (Math.abs(t.amount_cents) / 100).toFixed(2);
+            m += `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;color:var(--text-3)">
+              <span><span style="color:${col};font-weight:600">${sign}${amt} €</span> ${esc(label)}${t.note ? ' — ' + esc(t.note) : ''}</span>
+              <span style="color:var(--text-4)">${dt}</span>
+            </div>`;
+          });
+          m += `</div>`;
+        }
+        m += `</div>`;
       });
       m += `</div></div>`;
     }
