@@ -142,11 +142,12 @@ export function buildSingleEvents(singles, poseChildIds, poseChildMap) {
       props._poseStartPct = Math.min(((buf + ps) / totalMin) * 100, 100);
       props._poseEndPct = Math.min(((buf + ps + pt) / totalMin) * 100, 100);
     }
+    const bgAlpha = b.status === 'confirmed' ? 0.45 : 0.22;
     const ev = {
       id: b.id, resourceId: String(b.practitioner_id),
       title: b.client_name || 'Sans nom',
       start: b.start_at, end: b.end_at,
-      backgroundColor: fcHexAlpha(accent, 0.22),
+      backgroundColor: fcHexAlpha(accent, bgAlpha),
       borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
       editable: !frozen && !isEventLocked(b) && !calState.fcLocked,
       startEditable: !frozen && !isEventLocked(b) && !calState.fcLocked,
@@ -202,7 +203,7 @@ export function buildGroupEvents(grouped) {
           resourceId: pracId,
           title: first.client_name || 'Sans nom',
           start: pracStart, end: pracEnd,
-          backgroundColor: fcHexAlpha(accent, 0.22), borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
+          backgroundColor: fcHexAlpha(accent, pracMembers.some(m => m.status === 'confirmed') ? 0.45 : 0.22), borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
           editable: !anyFrozen && !anyLocked && !calState.fcLocked,
           startEditable: !anyFrozen && !anyLocked && !calState.fcLocked,
           durationEditable: false,
@@ -248,7 +249,7 @@ export function buildGroupEvents(grouped) {
       id: 'group_' + gid, resourceId: String(first.practitioner_id),
       title: first.client_name || 'Sans nom',
       start: minStart, end: maxEnd,
-      backgroundColor: fcHexAlpha(accent, 0.22), borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
+      backgroundColor: fcHexAlpha(accent, members.some(m => m.status === 'confirmed') ? 0.45 : 0.22), borderColor: accent, textColor: fcDarkenHex(accent, 0.55),
       editable: !anyFrozen && !anyLocked && !calState.fcLocked, startEditable: !anyFrozen && !anyLocked && !calState.fcLocked, durationEditable: false,
       extendedProps: {
         _isGroup: true, _groupId: gid, _accent: accent,
