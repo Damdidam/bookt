@@ -170,7 +170,7 @@
 
 /* Event status — accent border preserved, status shown via dot */
 .ev-pending{opacity:.5}
-.ev-confirmed{}
+.ev-confirmed{opacity:1!important}
 .ev-modified_pending{opacity:.6;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.1) 4px,rgba(217,119,6,.1) 8px)!important}
 .ev-completed{opacity:.5;filter:grayscale(.3);z-index:0!important;pointer-events:auto}
 .ev-no_show{opacity:.45;filter:grayscale(.2);z-index:0!important;pointer-events:auto}
