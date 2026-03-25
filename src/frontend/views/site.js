@@ -110,7 +110,18 @@ async function loadSiteSection(){
     h+=`<div class="card"><div class="card-h"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Contenu du site</h3></div>
       <div style="padding:18px">
         <div class="fg"><label class="fl">Slogan / Tagline</label><input class="fi" id="siteTagline" value="${(b.tagline||'').replace(/"/g,'&quot;')}" placeholder="Ex: Votre santé, notre priorité depuis 2018"></div>
-        <div class="fg"><label class="fl">Description</label><textarea class="fi" id="siteDescription" style="min-height:80px;resize:vertical" placeholder="Décrivez votre cabinet en quelques phrases...">${esc(b.description||'')}</textarea></div>
+        <div class="fg"><label class="fl">Description</label>
+          <div style="border:1.5px solid var(--border);border-radius:var(--radius-xs);overflow:hidden">
+            <div style="display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--border-light);background:var(--surface)">
+              <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-weight:700;font-size:.82rem" onclick="document.execCommand('bold')" title="Gras"><b>G</b></button>
+              <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-style:italic;font-size:.82rem" onclick="document.execCommand('italic')" title="Italique"><i>I</i></button>
+              <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;text-decoration:underline;font-size:.82rem" onclick="document.execCommand('underline')" title="Souligné">S</button>
+              <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.82rem" onclick="document.execCommand('insertUnorderedList')" title="Liste">• Liste</button>
+              <button type="button" style="padding:2px 8px;background:none;border:1px solid var(--border-light);border-radius:4px;cursor:pointer;font-size:.82rem" onclick="document.execCommand('insertOrderedList')" title="Liste numérotée">1. Liste</button>
+            </div>
+            <div id="siteDescription" contenteditable="true" style="min-height:80px;max-height:300px;overflow-y:auto;padding:10px 13px;font-family:var(--sans);font-size:var(--text-base);line-height:1.6;outline:none;color:var(--text)" data-placeholder="Décrivez votre cabinet en quelques phrases...">${b.description||''}</div>
+          </div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-top:8px">
           <div>
             <label class="fl" style="margin-bottom:8px;display:block">Logo</label>
@@ -733,7 +744,7 @@ async function saveAllSite(){
     const body={};
     // Content
     const tagEl=document.getElementById('siteTagline');
-    if(tagEl)Object.assign(body,{tagline:tagEl.value.trim()||null,description:document.getElementById('siteDescription').value.trim()||null});
+    if(tagEl)Object.assign(body,{tagline:tagEl.value.trim()||null,description:document.getElementById('siteDescription').innerHTML.trim()||null});
     // Social links
     const fbEl=document.getElementById('socialFb');
     if(fbEl)body.social_links={facebook:fbEl.value.trim()||null,instagram:document.getElementById('socialIg').value.trim()||null,linkedin:document.getElementById('socialLi').value.trim()||null,website:document.getElementById('socialWeb').value.trim()||null};
@@ -762,7 +773,7 @@ async function saveSiteContent(){
     const r=await fetch('/api/business',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},
       body:JSON.stringify({
         tagline:document.getElementById('siteTagline').value.trim()||null,
-        description:document.getElementById('siteDescription').value.trim()||null
+        description:document.getElementById('siteDescription').innerHTML.trim()||null
       })});
     if(!r.ok){const d=await r.json();throw new Error(d.error);}
     GendaUI.toast('Contenu mis à jour','success');

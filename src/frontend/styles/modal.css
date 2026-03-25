@@ -319,6 +319,7 @@ textarea.m-input{resize:vertical;min-height:38px}
 .se-color::-webkit-color-swatch{border:none;border-radius:2px}
 .se-body{min-height:180px;padding:12px;font-family:var(--sans);font-size:var(--text-md);line-height:1.6;outline:none;color:var(--text);overflow-y:auto;max-height:400px}
 .se-body:empty:before{content:attr(data-placeholder);color:var(--text-4);pointer-events:none}
+[contenteditable]:empty:before{content:attr(data-placeholder);color:var(--text-4);pointer-events:none}
 .session-actions{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:0}
 .session-status{font-size:var(--text-sm);color:var(--text-4);display:flex;align-items:center;gap:4px}
 .session-status svg{width:12px;height:12px}
