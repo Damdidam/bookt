@@ -1503,30 +1503,38 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
                 if (!gcAutoPaid) {
                   const deadline = computeDepositDeadline(startDate, bizSettings);
-                  await client.query(
-                    `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
-                      deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
-                      deposit_requested_at = NOW(), deposit_request_count = 1,
-                      confirmation_expires_at = NULL
-                     WHERE id = $3 AND business_id = $4`,
-                    [depResult.depCents, deadline.toISOString(), bookings[0].id, businessId]
-                  );
-                  bookings[0].status = 'pending_deposit';
+                  // Set pending_deposit on bookings NOT already covered by pass
+                  const pendingBookings = bookings.filter(bk => bk.id !== passMatchedBookingId);
+                  if (pendingBookings.length > 0) {
+                    const firstPending = pendingBookings[0];
+                    await client.query(
+                      `UPDATE bookings SET status = 'pending_deposit', deposit_required = true,
+                        deposit_amount_cents = $1, deposit_status = 'pending', deposit_deadline = $2,
+                        deposit_requested_at = NOW(), deposit_request_count = 1,
+                        confirmation_expires_at = NULL
+                       WHERE id = $3 AND business_id = $4`,
+                      [depResult.depCents, deadline.toISOString(), firstPending.id, businessId]
+                    );
+                    firstPending.status = 'pending_deposit';
+                    firstPending.deposit_required = true;
+                    firstPending.deposit_amount_cents = depResult.depCents;
+                    firstPending.deposit_deadline = deadline.toISOString();
+                    const remainingIds = pendingBookings.slice(1).map(b => b.id);
+                    if (remainingIds.length > 0) {
+                      await client.query(
+                        `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
+                          deposit_amount_cents = $3, deposit_deadline = $4
+                         WHERE id = ANY($1) AND business_id = $2`,
+                        [remainingIds, businessId, depResult.depCents, deadline.toISOString()]
+                      );
+                    }
+                    for (const bk of pendingBookings) bk.status = 'pending_deposit';
+                  }
+                  // Also update bookings[0] reference for email/response
+                  bookings[0].status = pendingBookings.includes(bookings[0]) ? 'pending_deposit' : bookings[0].status;
                   bookings[0].deposit_required = true;
                   bookings[0].deposit_amount_cents = depResult.depCents;
                   bookings[0].deposit_deadline = deadline.toISOString();
-                  if (bookings.length > 1) {
-                    const otherIds = bookings.slice(1).map(b => b.id);
-                    await client.query(
-                      `UPDATE bookings SET status = 'pending_deposit', deposit_required = true, deposit_status = 'pending',
-                        deposit_amount_cents = $3, deposit_deadline = $4
-                       WHERE id = ANY($1) AND business_id = $2`,
-                      [otherIds, businessId, depResult.depCents, deadline.toISOString()]
-                    );
-                    for (let i = 1; i < bookings.length; i++) {
-                      bookings[i].status = 'pending_deposit';
-                    }
-                  }
                   console.log(`[DEPOSIT] Multi-service deposit triggered (${depResult.reason}): ${depResult.depCents} cents, deadline: ${deadline.toISOString()}`);
                 }
               }
