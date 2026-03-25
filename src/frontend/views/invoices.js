@@ -314,10 +314,12 @@ async function invClientChanged(){
     const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
     const price=b.variant_price_cents??b.service_price_cents??0;
     const label=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'?')+') \u2014 '+dt;
+    const passBadge=b.pass_covered?' <span style="font-size:.68rem;color:var(--green);font-weight:600;padding:1px 6px;border-radius:4px;background:var(--green-bg)">Pass</span>':'';
+    const priceLabel=b.pass_covered?'<span style="color:var(--green)">inclus</span>':fmtEur(price);
     return `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:.82rem;cursor:pointer;border-bottom:1px solid var(--border-light);background:${i%2===0?'var(--white)':'var(--surface)'}">
       <input type="checkbox" data-unbilled-idx="${i}" onchange="invToggleUnbilled(${i},this.checked)">
-      <span style="flex:1">${esc(label)}</span>
-      <span style="font-weight:600;color:var(--text-2)">${fmtEur(price)}</span>
+      <span style="flex:1">${esc(label)}${passBadge}</span>
+      <span style="font-weight:600;color:var(--text-2)">${priceLabel}</span>
     </label>`;
   }).join('');
 }
@@ -330,17 +332,19 @@ function invToggleUnbilled(idx,checked){
   if(checked){
     const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
     const desc=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'')+') \u2014 '+dt;
-    const price=b.variant_price_cents??b.service_price_cents??0;
-    _addInvoiceLineFromBooking(b.id,desc,1,price/100);
+    const fullPrice=b.variant_price_cents??b.service_price_cents??0;
 
-    // Pass credit: show informational line (1 crédit consommé, not a monetary deduction)
-    if(b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('pass_')&&b.pass_info){
+    if(b.pass_covered&&b.pass_info){
+      // Pass-covered: service at 0€ + informational credit line
+      _addInvoiceLineFromBooking(b.id,desc+' (inclus abonnement)',1,0);
       const pi=b.pass_info;
       const passDesc='1 cr\u00e9dit consomm\u00e9 \u2014 Pass '+pi.name+' ('+pi.sessions_remaining+'/'+pi.sessions_total+' restants)';
       const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===passDesc);
       if(!existing){
         _addInvoiceLineFromBooking(b.id,passDesc,1,0);
       }
+    }else{
+      _addInvoiceLineFromBooking(b.id,desc,1,fullPrice/100);
     }
 
     // Stripe deposit: show actual amount paid as deduction (once per payment intent)

@@ -84,24 +84,49 @@ router.get('/unbilled', async (req, res, next) => {
       [bid, client_id]
     );
 
-    // Enrich with pass info for bookings covered by a pass
+    // Enrich with pass info — check both deposit_payment_intent_id AND pass_transactions
     const bookings = result.rows;
+    const bookingIds = bookings.map(b => b.id);
+
+    // Find all pass debits for these bookings
+    let passDebits = {};
+    if (bookingIds.length > 0) {
+      const ptRes = await queryWithRLS(bid,
+        `SELECT pt.booking_id, p.code, p.name, p.sessions_total, p.sessions_remaining, p.service_id
+         FROM pass_transactions pt
+         JOIN passes p ON p.id = pt.pass_id
+         WHERE pt.booking_id = ANY($1) AND pt.type = 'debit'`,
+        [bookingIds]
+      );
+      for (const r of ptRes.rows) {
+        passDebits[r.booking_id] = { code: r.code, name: r.name, sessions_total: r.sessions_total, sessions_remaining: r.sessions_remaining, service_id: r.service_id };
+      }
+    }
+
+    // Also check deposit_payment_intent_id for pass_ prefix (backward compat)
     const passCodes = [...new Set(bookings
       .filter(b => b.deposit_payment_intent_id?.startsWith('pass_'))
       .map(b => b.deposit_payment_intent_id.replace('pass_', '')))];
-    let passMap = {};
     if (passCodes.length > 0) {
       const passRes = await queryWithRLS(bid,
         `SELECT code, name, sessions_total, sessions_remaining, service_id
          FROM passes WHERE business_id = $1 AND code = ANY($2)`,
         [bid, passCodes]
       );
-      for (const p of passRes.rows) passMap[p.code] = p;
+      for (const p of passRes.rows) {
+        // Fill in any bookings that have this pass in deposit but weren't in pass_transactions
+        for (const b of bookings) {
+          if (b.deposit_payment_intent_id === `pass_${p.code}` && !passDebits[b.id]) {
+            passDebits[b.id] = p;
+          }
+        }
+      }
     }
+
     for (const b of bookings) {
-      if (b.deposit_payment_intent_id?.startsWith('pass_')) {
-        const code = b.deposit_payment_intent_id.replace('pass_', '');
-        b.pass_info = passMap[code] || null;
+      if (passDebits[b.id]) {
+        b.pass_info = passDebits[b.id];
+        b.pass_covered = true;
       }
     }
 
