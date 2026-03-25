@@ -29,6 +29,8 @@ self.addEventListener('fetch', function(e) {
   if (e.request.method !== 'GET') return;
   // Skip API calls
   if (e.request.url.includes('/api/')) return;
+  // Skip cross-origin requests (Google Fonts, Stripe, etc.)
+  if (!e.request.url.startsWith(self.location.origin)) return;
 
   e.respondWith(
     fetch(e.request).then(function(response) {
