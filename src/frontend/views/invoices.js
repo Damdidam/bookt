@@ -343,21 +343,22 @@ function invToggleUnbilled(idx,checked){
       }
     }
 
-    // Stripe deposit: show actual amount paid as deduction
+    // Stripe deposit: show actual amount paid as deduction (once per payment intent)
     if(b.deposit_status==='paid'&&b.deposit_amount_cents&&b.deposit_payment_intent_id&&(b.deposit_payment_intent_id.startsWith('pi_')||b.deposit_payment_intent_id.startsWith('cs_'))){
       const depDesc='Acompte pay\u00e9 (Stripe)';
       const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===depDesc);
       if(!existing){
-        // Sum all Stripe deposits in this group
-        let totalDep=0;
-        _unbilledBookings.forEach((ob,oi)=>{
-          const cb=document.querySelector(`[data-unbilled-idx="${oi}"]`);
-          if(cb&&cb.checked&&ob.deposit_payment_intent_id===b.deposit_payment_intent_id&&ob.deposit_amount_cents){
-            totalDep+=ob.deposit_amount_cents;
-          }
-        });
-        if(totalDep===0)totalDep=b.deposit_amount_cents;
-        _addInvoiceLineFromBooking(b.id,depDesc,1,-(totalDep/100));
+        _addInvoiceLineFromBooking(b.id,depDesc,1,-(b.deposit_amount_cents/100));
+      }
+    }
+
+    // Gift card deposit: show actual amount paid as deduction (once per GC code)
+    if(b.deposit_status==='paid'&&b.deposit_amount_cents&&b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('gc_')){
+      const gcCode=b.deposit_payment_intent_id.replace('gc_','');
+      const gcDesc='Acompte pay\u00e9 (Carte cadeau '+gcCode+')';
+      const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===gcDesc);
+      if(!existing){
+        _addInvoiceLineFromBooking(b.id,gcDesc,1,-(b.deposit_amount_cents/100));
       }
     }
   }else{
