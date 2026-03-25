@@ -221,6 +221,12 @@ function initCalendar(initView, initSlotDur) {
     selectable: false,
     slotEventOverlap: false,
     eventOrder: function (a, b) {
+      // Completed/cancelled/no-show render behind active events
+      var doneStatuses = ['completed', 'cancelled', 'no_show'];
+      var aIsDone = doneStatuses.includes(a.extendedProps?.status);
+      var bIsDone = doneStatuses.includes(b.extendedProps?.status);
+      if (aIsDone && !bIsDone) return -1;
+      if (bIsDone && !aIsDone) return 1;
       // Events with pose (processing_time) render first (behind others)
       var ptA = parseInt(a.extendedProps && a.extendedProps.processing_time) || 0;
       var ptB = parseInt(b.extendedProps && b.extendedProps.processing_time) || 0;

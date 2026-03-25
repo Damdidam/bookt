@@ -172,9 +172,9 @@
 .ev-pending{opacity:.5}
 .ev-confirmed{}
 .ev-modified_pending{opacity:.6;background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(217,119,6,.1) 4px,rgba(217,119,6,.1) 8px)!important}
-.ev-completed{opacity:.5;filter:grayscale(.3)}
-.ev-no_show{opacity:.45;filter:grayscale(.2)}
-.ev-cancelled{opacity:.25;text-decoration:line-through}
+.ev-completed{opacity:.5;filter:grayscale(.3);z-index:0!important;pointer-events:auto}
+.ev-no_show{opacity:.45;filter:grayscale(.2);z-index:0!important;pointer-events:auto}
+.ev-cancelled{opacity:.25;text-decoration:line-through;z-index:0!important;pointer-events:auto}
 /* ── Internal Tasks ── */
 .fc .fc-event.ev-task{border-left-style:dashed!important;border-left-width:3px!important;opacity:.85}
 .ev-task-inner .ev-client{font-weight:600;font-size:var(--text-sm);display:flex;align-items:center;gap:4px}
