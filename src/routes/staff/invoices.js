@@ -63,6 +63,7 @@ router.get('/unbilled', async (req, res, next) => {
 
     const result = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.group_id, b.deposit_payment_intent_id, b.deposit_amount_cents,
+              b.deposit_status,
               s.name AS service_name, s.price_cents AS service_price_cents,
               sv.name AS variant_name, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name
@@ -83,7 +84,28 @@ router.get('/unbilled', async (req, res, next) => {
       [bid, client_id]
     );
 
-    res.json({ bookings: result.rows });
+    // Enrich with pass info for bookings covered by a pass
+    const bookings = result.rows;
+    const passCodes = [...new Set(bookings
+      .filter(b => b.deposit_payment_intent_id?.startsWith('pass_'))
+      .map(b => b.deposit_payment_intent_id.replace('pass_', '')))];
+    let passMap = {};
+    if (passCodes.length > 0) {
+      const passRes = await queryWithRLS(bid,
+        `SELECT code, name, sessions_total, sessions_remaining, service_id
+         FROM passes WHERE business_id = $1 AND code = ANY($2)`,
+        [bid, passCodes]
+      );
+      for (const p of passRes.rows) passMap[p.code] = p;
+    }
+    for (const b of bookings) {
+      if (b.deposit_payment_intent_id?.startsWith('pass_')) {
+        const code = b.deposit_payment_intent_id.replace('pass_', '');
+        b.pass_info = passMap[code] || null;
+      }
+    }
+
+    res.json({ bookings });
   } catch (err) { next(err); }
 });
 

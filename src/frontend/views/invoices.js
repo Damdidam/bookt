@@ -332,13 +332,32 @@ function invToggleUnbilled(idx,checked){
     const desc=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'')+') \u2014 '+dt;
     const price=b.variant_price_cents??b.service_price_cents??0;
     _addInvoiceLineFromBooking(b.id,desc,1,price/100);
-    if(b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('pass_')&&b.deposit_amount_cents){
-      const passCode=b.deposit_payment_intent_id.replace('pass_','');
-      const passDesc='Pass '+passCode+' (d\u00e9duction)';
-      // Only add pass deduction once per pass code (avoid duplicates in grouped bookings)
+
+    // Pass credit: show informational line (1 crédit consommé, not a monetary deduction)
+    if(b.deposit_payment_intent_id&&b.deposit_payment_intent_id.startsWith('pass_')&&b.pass_info){
+      const pi=b.pass_info;
+      const passDesc='1 cr\u00e9dit consomm\u00e9 \u2014 Pass '+pi.name+' ('+pi.sessions_remaining+'/'+pi.sessions_total+' restants)';
       const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===passDesc);
       if(!existing){
-        _addInvoiceLineFromBooking(b.id,passDesc,1,-(b.deposit_amount_cents/100));
+        _addInvoiceLineFromBooking(b.id,passDesc,1,0);
+      }
+    }
+
+    // Stripe deposit: show actual amount paid as deduction
+    if(b.deposit_status==='paid'&&b.deposit_amount_cents&&b.deposit_payment_intent_id&&(b.deposit_payment_intent_id.startsWith('pi_')||b.deposit_payment_intent_id.startsWith('cs_'))){
+      const depDesc='Acompte pay\u00e9 (Stripe)';
+      const existing=[...container.querySelectorAll('.inv-desc')].some(el=>el.value===depDesc);
+      if(!existing){
+        // Sum all Stripe deposits in this group
+        let totalDep=0;
+        _unbilledBookings.forEach((ob,oi)=>{
+          const cb=document.querySelector(`[data-unbilled-idx="${oi}"]`);
+          if(cb&&cb.checked&&ob.deposit_payment_intent_id===b.deposit_payment_intent_id&&ob.deposit_amount_cents){
+            totalDep+=ob.deposit_amount_cents;
+          }
+        });
+        if(totalDep===0)totalDep=b.deposit_amount_cents;
+        _addInvoiceLineFromBooking(b.id,depDesc,1,-(totalDep/100));
       }
     }
   }else{
