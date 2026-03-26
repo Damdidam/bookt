@@ -278,6 +278,16 @@ router.patch('/:id/status', async (req, res, next) => {
         }
       }
 
+      // ===== COMPLETED: reset cancel_count (consecutive cancellations reset) =====
+      if (status === 'completed' && old.rows[0].client_id) {
+        try {
+          await client.query(
+            `UPDATE clients SET cancel_count = 0, updated_at = NOW() WHERE id = $1 AND business_id = $2 AND cancel_count > 0`,
+            [old.rows[0].client_id, bid]
+          );
+        } catch (e) { /* non-critical */ }
+      }
+
       // ===== NO-SHOW STRIKE SYSTEM (guard: only increment if not already no_show) =====
       if (status === 'no_show' && old.rows[0].status !== 'no_show') {
         const bkInfo = await client.query(
@@ -423,7 +433,18 @@ router.patch('/:id/status', async (req, res, next) => {
             if (key) {
               const stripe = require('stripe')(key);
               try {
-                await stripe.refunds.create({ payment_intent: dep.deposit_payment_intent_id });
+                const refundPolicy = dep.settings?.refund_policy || 'full';
+                if (refundPolicy === 'net' && dep.deposit_amount_cents) {
+                  // Partial refund: deduct Stripe fees (~1.5% + 25c)
+                  const stripeFees = Math.round(dep.deposit_amount_cents * 0.015) + 25;
+                  const netRefund = Math.max(dep.deposit_amount_cents - stripeFees, 0);
+                  if (netRefund > 0) {
+                    await stripe.refunds.create({ payment_intent: dep.deposit_payment_intent_id, amount: netRefund });
+                    console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c) for PI ${dep.deposit_payment_intent_id}`);
+                  }
+                } else {
+                  await stripe.refunds.create({ payment_intent: dep.deposit_payment_intent_id });
+                }
               } catch (stripeErr) {
                 if (stripeErr.code !== 'charge_already_refunded') {
                   console.error('[DEPOSIT CANCEL REFUND] Stripe refund failed:', stripeErr.message);

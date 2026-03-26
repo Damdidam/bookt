@@ -344,6 +344,40 @@ async function loadSettings(){
 
     h+=`<div class="field"><label>Texte de politique d'annulation (optionnel)</label><textarea id="s_cancel_policy" placeholder="Ex: Toute annulation moins de 48h avant le RDV entraîne la perte de l'acompte..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:50px">${esc(canPolicy)}</textarea><div class="hint">Affiché dans les emails et sur la page de réservation</div></div>`;
 
+    // ── Refund policy sub-section ──
+    const refundPolicy=b.settings?.refund_policy||'full';
+    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
+    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Politique de remboursement Stripe</div>`;
+    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Choisissez comment les acomptes sont remboursés en cas d'annulation dans le délai autorisé.</p>`;
+    h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
+    h+=`<label style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;border:1.5px solid ${refundPolicy==='full'?'var(--primary)':'var(--border)'};background:${refundPolicy==='full'?'var(--primary-light)':'var(--surface)'};cursor:pointer;transition:all .15s" onclick="document.getElementById('s_refund_full').checked=true;document.querySelectorAll('.refund-opt').forEach(e=>e.style.borderColor='var(--border)');this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';document.querySelectorAll('.refund-opt').forEach(e=>{if(e!==this){e.style.background='var(--surface)'}});" class="refund-opt">
+      <input type="radio" name="refund_policy" id="s_refund_full" value="full" ${refundPolicy==='full'?'checked':''} style="accent-color:var(--primary)">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Remboursement int\u00e9gral</div><div style="font-size:.75rem;color:var(--text-4)">Le client est rembours\u00e9 \u00e0 100%. Les frais Stripe (~1,5% + 0,25\u20ac) sont \u00e0 votre charge.</div></div>
+    </label>`;
+    h+=`<label style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;border:1.5px solid ${refundPolicy==='net'?'var(--primary)':'var(--border)'};background:${refundPolicy==='net'?'var(--primary-light)':'var(--surface)'};cursor:pointer;transition:all .15s" onclick="document.getElementById('s_refund_net').checked=true;document.querySelectorAll('.refund-opt').forEach(e=>e.style.borderColor='var(--border)');this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)';document.querySelectorAll('.refund-opt').forEach(e=>{if(e!==this){e.style.background='var(--surface)'}});" class="refund-opt">
+      <input type="radio" name="refund_policy" id="s_refund_net" value="net" ${refundPolicy==='net'?'checked':''} style="accent-color:var(--primary)">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Remboursement partiel (frais Stripe d\u00e9duits)</div><div style="font-size:.75rem;color:var(--text-4)">Le client est rembours\u00e9 moins les frais Stripe. Vous ne perdez rien sur les annulations.</div></div>
+    </label>`;
+    h+=`</div>`;
+
+    // ── Cancellation abuse limit ──
+    const cancelLimitOn=!!(b.settings?.cancel_abuse_enabled);
+    const cancelLimitMax=b.settings?.cancel_abuse_max||5;
+    h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
+    h+=`<div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Protection anti-abus</div>`;
+    h+=`<p style="font-size:.78rem;color:var(--text-4);margin-bottom:12px">Bloquez automatiquement les clients qui annulent de mani\u00e8re r\u00e9p\u00e9titive.</p>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-radius:10px;margin-bottom:12px">
+      <div><div style="font-size:.85rem;font-weight:600;color:var(--text)">Limiter les annulations r\u00e9p\u00e9t\u00e9es</div><div style="font-size:.75rem;color:var(--text-4)">Bloque le client apr\u00e8s trop d'annulations cons\u00e9cutives</div></div>
+      <label style="position:relative;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="s_cancel_abuse_on" ${cancelLimitOn?'checked':''} onchange="document.getElementById('cancelAbuseOpts').style.display=this.checked?'block':'none'" style="display:none">
+        <span style="position:absolute;inset:0;background:${cancelLimitOn?'var(--primary)':'var(--border)'};border-radius:12px;transition:all .2s"></span>
+        <span style="position:absolute;left:${cancelLimitOn?'22px':'2px'};top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span>
+      </label>
+    </div>`;
+    h+=`<div id="cancelAbuseOpts" style="display:${cancelLimitOn?'block':'none'}">`;
+    h+=`<div class="field"><label>Seuil d'annulations</label><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.82rem;color:var(--text-3)">Bloquer apr\u00e8s</span><input type="number" id="s_cancel_abuse_max" value="${cancelLimitMax}" min="2" max="20" style="width:60px;text-align:center;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:.85rem"><span style="font-size:.82rem;color:var(--text-3)">annulations cons\u00e9cutives</span></div><div class="hint">Le client sera bloqu\u00e9 et ne pourra plus r\u00e9server en ligne. D\u00e9blocage manuel depuis la fiche client.</div></div>`;
+    h+=`</div>`;
+
     h+=`</div>`; // close depositOptions
 
     h+=`</div></div>`;
@@ -644,7 +678,10 @@ async function saveAllSettings(){
       settings_deposit_threshold_mode:el('s_dep_thresh_mode')?.value||'any',
       settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||48,
       settings_cancel_grace_minutes:(parseInt(el('s_cancel_grace')?.value)||4)*60,
-      settings_cancel_policy_text:el('s_cancel_policy')?.value||''
+      settings_cancel_policy_text:el('s_cancel_policy')?.value||'',
+      settings_refund_policy:document.querySelector('input[name="refund_policy"]:checked')?.value||'full',
+      settings_cancel_abuse_enabled:el('s_cancel_abuse_on')?.checked||false,
+      settings_cancel_abuse_max:parseInt(el('s_cancel_abuse_max')?.value)||5
     });
 
     // Move settings

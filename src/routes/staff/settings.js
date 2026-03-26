@@ -65,6 +65,8 @@ router.patch('/', requireOwner, async (req, res, next) => {
       settings_deposit_price_threshold_cents, settings_deposit_duration_threshold_min, settings_deposit_threshold_mode,
       // V23b cancellation policy
       settings_cancel_deadline_hours, settings_cancel_grace_minutes, settings_cancel_policy_text,
+      // Refund & abuse protection
+      settings_refund_policy, settings_cancel_abuse_enabled, settings_cancel_abuse_max,
       // Multi-service booking
       settings_multi_service_enabled,
       // Calendar settings (business-level)
@@ -117,6 +119,7 @@ router.patch('/', requireOwner, async (req, res, next) => {
         || settings_deposit_message !== undefined || settings_deposit_deduct !== undefined
         || settings_cancel_deadline_hours !== undefined || settings_cancel_grace_minutes !== undefined
         || settings_cancel_policy_text !== undefined
+        || settings_refund_policy !== undefined || settings_cancel_abuse_enabled !== undefined || settings_cancel_abuse_max !== undefined
         || settings_multi_service_enabled !== undefined
         || settings_slot_increment_min !== undefined || settings_waitlist_mode !== undefined || settings_calendar_color_mode !== undefined || settings_slot_auto_optimize !== undefined
         || settings_practitioner_choice_enabled !== undefined
@@ -166,6 +169,9 @@ router.patch('/', requireOwner, async (req, res, next) => {
       if (settings_cancel_deadline_hours !== undefined) { const _v = parseInt(settings_cancel_deadline_hours); cur.cancel_deadline_hours = isNaN(_v) ? 48 : _v; }
       if (settings_cancel_grace_minutes !== undefined) { const _v = parseInt(settings_cancel_grace_minutes); cur.cancel_grace_minutes = isNaN(_v) ? 240 : _v; }
       if (settings_cancel_policy_text !== undefined) cur.cancel_policy_text = settings_cancel_policy_text;
+      if (settings_refund_policy !== undefined) cur.refund_policy = ['full', 'net'].includes(settings_refund_policy) ? settings_refund_policy : 'full';
+      if (settings_cancel_abuse_enabled !== undefined) cur.cancel_abuse_enabled = !!settings_cancel_abuse_enabled;
+      if (settings_cancel_abuse_max !== undefined) { const _v = parseInt(settings_cancel_abuse_max); cur.cancel_abuse_max = isNaN(_v) ? 5 : Math.max(2, _v); }
       // Multi-service booking
       if (settings_multi_service_enabled !== undefined) cur.multi_service_enabled = !!settings_multi_service_enabled;
       // Calendar settings

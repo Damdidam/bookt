@@ -3536,6 +3536,28 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       );
     } catch (e) { /* non-critical */ }
 
+    // Increment client cancel_count + auto-block if abuse threshold reached
+    if (bk.client_id) {
+      try {
+        const updC = await query(
+          `UPDATE clients SET cancel_count = COALESCE(cancel_count, 0) + 1, updated_at = NOW()
+           WHERE id = $1 AND business_id = $2 RETURNING cancel_count`,
+          [bk.client_id, bk.business_id]
+        );
+        const cancelCount = updC.rows[0]?.cancel_count || 0;
+        const bizS = await query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
+        const sett = bizS.rows[0]?.settings || {};
+        if (sett.cancel_abuse_enabled && cancelCount >= (sett.cancel_abuse_max || 5)) {
+          await query(
+            `UPDATE clients SET is_blocked = true, blocked_at = NOW(), blocked_reason = $3, updated_at = NOW()
+             WHERE id = $1 AND business_id = $2 AND is_blocked = false`,
+            [bk.client_id, bk.business_id, `Bloqu\u00e9 automatiquement : ${cancelCount} annulation(s) cons\u00e9cutive(s)`]
+          );
+          console.log(`[CANCEL ABUSE] Client ${bk.client_id} blocked after ${cancelCount} cancellations`);
+        }
+      } catch (e) { console.error('[CANCEL COUNT] Error:', e.message); }
+    }
+
     // Queue cancellation notification
     // NOTE: notification types may need a DB migration to add to the CHECK constraint
     try {
