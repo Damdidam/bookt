@@ -7,6 +7,9 @@ const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 
+// In-memory cache for nextSlot (5 min TTL per business)
+const _nextSlotCache = {};
+
 // Mount OAuth sub-router for client booking authentication
 router.use('/auth', require('./oauth'));
 
@@ -328,8 +331,13 @@ router.get('/:slug', async (req, res, next) => {
     const news = newsResult.rows;
     const realisations = reaResult.rows;
 
-    // ===== NEXT AVAILABLE SLOT (earliest across bookable-online services) =====
+    // ===== NEXT AVAILABLE SLOT (cached 5 min per business) =====
     let nextSlot = null;
+    const _nsCacheKey = `nextSlot_${bid}`;
+    const _nsCached = _nextSlotCache[_nsCacheKey];
+    if (_nsCached && Date.now() - _nsCached.ts < 5 * 60000) {
+      nextSlot = _nsCached.val;
+    } else {
     const bookableServices = svcResult.rows.filter(s => s.bookable_online !== false);
     if (bookableServices.length > 0) {
       try {
@@ -363,6 +371,8 @@ router.get('/:slug', async (req, res, next) => {
         console.warn('[MINISITE] next-slot global error:', e.message);
       }
     }
+    _nextSlotCache[_nsCacheKey] = { val: nextSlot, ts: Date.now() };
+    } // end cache miss
 
     const hours = {};
     for (const row of hoursResult.rows) {
