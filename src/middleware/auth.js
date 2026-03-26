@@ -8,6 +8,30 @@ const { query } = require('../services/db');
  */
 async function requireAuth(req, res, next) {
   try {
+    // ===== TEMPORARY DEV BYPASS — REMOVE AFTER USE =====
+    if (process.env.DEV_AUTH_BYPASS === 'true' && !req.headers.authorization && !req.query.token) {
+      const devUser = await query(
+        `SELECT u.id, u.email, u.role, u.business_id, u.is_superadmin,
+                b.slug, b.plan, b.sector,
+                p.id AS practitioner_id
+         FROM users u
+         JOIN businesses b ON b.id = u.business_id
+         LEFT JOIN practitioners p ON p.user_id = u.id AND p.business_id = u.business_id AND p.is_active = true
+         WHERE u.role = 'owner' AND u.is_active = true AND b.is_active = true
+         LIMIT 1`
+      );
+      if (devUser.rows.length > 0) {
+        const u = devUser.rows[0];
+        req.user = { id: u.id, email: u.email, role: u.role, businessId: u.business_id, isSuperadmin: u.is_superadmin, practitionerId: u.practitioner_id };
+        req.businessId = u.business_id;
+        req.businessSlug = u.slug;
+        req.businessPlan = u.plan;
+        req.businessSector = u.sector;
+        return next();
+      }
+    }
+    // ===== END TEMPORARY DEV BYPASS =====
+
     const authHeader = req.headers.authorization;
     // M6: Only accept ?token= for PDF/export routes + SSE stream (EventSource cannot send headers)
     const allowQueryToken = /\/(pdf|export|download|print)(\/|$)/i.test(req.path) || /\/events\/stream$/.test(req.path);
