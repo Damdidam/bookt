@@ -335,11 +335,11 @@ router.get('/:slug', async (req, res, next) => {
       try {
         const now = new Date();
         const brusselsToday = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-        const weekOut = new Date(now.getTime() + 14 * 86400000); // 2 weeks out
+        const weekOut = new Date(now.getTime() + 7 * 86400000); // 1 week out
         const dateTo = weekOut.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const nowMs = now.getTime();
-        // Check up to 10 bookable services to find the earliest slot
-        const svcsToCheck = bookableServices.slice(0, 10);
+        // Check up to 3 bookable services to find the earliest slot (perf: avoid scanning all services)
+        const svcsToCheck = bookableServices.slice(0, 3);
         const slotPromises = svcsToCheck.map(s =>
           getAvailableSlots({ businessId: bid, serviceId: s.id, dateFrom: brusselsToday, dateTo })
             .then(slots => {
