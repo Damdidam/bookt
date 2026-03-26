@@ -1312,21 +1312,46 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         const anyFlexEnabled = multiServices.some(s => s.flexibility_enabled);
         const multiLocked = anyFlexEnabled ? (flexible !== true) : false;
 
+        // Resolve last-minute discount per service (multi-service)
+        let multiDiscountPct = null;
+        if (is_last_minute && bizSettings.last_minute_enabled) {
+          const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
+          const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+          if (isWithinLastMinuteWindow(startDateBrussels, todayBrussels, lmDeadline)) {
+            multiDiscountPct = bizSettings.last_minute_discount_pct || 10;
+          }
+        }
+
         // Insert each booking with group_id and group_order
         const bookings = [];
         for (const slot of chainedSlots) {
           const slotPracId = slot.practitioner_id || practitioner_id;
+          // Per-service discount eligibility check
+          let slotDiscount = null;
+          if (multiDiscountPct) {
+            const _pe = await client.query(`SELECT promo_eligible, price_cents FROM services WHERE id = $1`, [slot.service_id]);
+            if (_pe.rows[0]?.promo_eligible !== false) {
+              const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+              let effPrice = _pe.rows[0]?.price_cents || 0;
+              if (slot.service_variant_id) {
+                const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [slot.service_variant_id]);
+                if (_vp.rows[0]?.price_cents != null) effPrice = _vp.rows[0].price_cents;
+              }
+              if (effPrice > 0 && effPrice >= lmMinPrice) slotDiscount = multiDiscountPct;
+            }
+          }
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
-              group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked)
-             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-             RETURNING id, public_token, start_at, end_at, status, group_id, group_order`,
+              group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked, discount_pct)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+             RETURNING id, public_token, start_at, end_at, status, group_id, group_order, discount_pct`,
             [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
              needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
-             slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked]
+             slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked,
+             slotDiscount]
           );
           bookings.push(bk.rows[0]);
         }
