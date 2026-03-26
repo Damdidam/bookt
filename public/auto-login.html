@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Auto-login</title></head>
+<body>
+<script>
+var token = new URLSearchParams(window.location.search).get('t');
+if (token) {
+  localStorage.setItem('genda_token', token);
+  localStorage.setItem('genda_user', JSON.stringify({"id":"07a2e1fa-011c-4d34-8f6d-3cae07563367","email":"hakim.abbes@gmail.com","role":"owner"}));
+  localStorage.setItem('genda_business', JSON.stringify({"id":"880f47d6-ef73-4253-a922-ef0af8e88e5d","name":"VA Institut","slug":"va-institut","plan":"pro","sector":"esthetique"}));
+  window.location.href = '/dashboard';
+} else {
+  document.body.textContent = 'Token manquant';
+}
+</script>
+</body>
+</html>
