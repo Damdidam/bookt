@@ -7,8 +7,9 @@ const { broadcast } = require('../../services/sse');
 const { getCategoryLabels, sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 
-// In-memory cache for nextSlot (5 min TTL per business)
+// In-memory caches (TTL per business)
 const _nextSlotCache = {};
+const _minisiteCache = {};
 
 // Mount OAuth sub-router for client booking authentication
 router.use('/auth', require('./oauth'));
@@ -227,6 +228,13 @@ router.get('/:slug', async (req, res, next) => {
       }
     }
 
+    // Check minisite response cache (2 min TTL)
+    const _msCacheKey = `minisite_${bid}`;
+    const _msCached = _minisiteCache[_msCacheKey];
+    if (_msCached && Date.now() - _msCached.ts < 2 * 60000) {
+      return res.json(_msCached.data);
+    }
+
     const sections = biz.page_sections || {};
 
     // ===== PARALLEL QUERIES — all independent, run concurrently =====
@@ -396,8 +404,8 @@ router.get('/:slug', async (req, res, next) => {
       [biz.sector || 'autre', biz.id]
     );
 
-    // ===== RESPONSE =====
-    res.json({
+    // ===== RESPONSE (cached 2 min) =====
+    const _msResponse = {
       business: {
         slug: biz.slug,
         name: biz.name,
@@ -481,7 +489,9 @@ router.get('/:slug', async (req, res, next) => {
       sector_categories: sectorCatsResult.rows,
       next_available: nextSlot,
       practitioner_count: pracResult.rows.length
-    });
+    };
+    _minisiteCache[_msCacheKey] = { data: _msResponse, ts: Date.now() };
+    res.json(_msResponse);
   } catch (err) {
     next(err);
   }
