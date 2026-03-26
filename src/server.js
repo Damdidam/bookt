@@ -124,6 +124,23 @@ app.use(express.static(path.join(__dirname, '../public'), { maxAge: '1h' }));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, '../public/login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, '../public/signup.html')));
+// ===== TEMPORARY DEV AUTO-LOGIN — REMOVE AFTER USE =====
+app.get('/api/dev-login', async (req, res) => {
+  if (process.env.DEV_AUTH_BYPASS !== 'true') return res.status(404).json({ error: 'Not found' });
+  try {
+    const jwt = require('jsonwebtoken');
+    const { query: dbQ } = require('./services/db');
+    const u = await dbQ(`SELECT u.id, u.email, u.role, u.business_id, b.name AS biz_name, b.slug, b.plan, b.sector
+      FROM users u JOIN businesses b ON b.id = u.business_id
+      WHERE u.role = 'owner' AND u.is_active = true AND b.is_active = true LIMIT 1`);
+    if (u.rows.length === 0) return res.status(500).json({ error: 'No owner found' });
+    const user = u.rows[0];
+    const token = jwt.sign({ userId: user.id, businessId: user.business_id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, user: { id: user.id, email: user.email, role: user.role }, business: { id: user.business_id, name: user.biz_name, slug: user.slug, plan: user.plan, sector: user.sector } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// ===== END TEMPORARY =====
+
 app.get('/dashboard', (req, res) => {
   const built = path.join(__dirname, '../dist/public/dashboard.html');
   if (fs.existsSync(built)) return res.sendFile(built);
