@@ -525,6 +525,23 @@
 })();
 </script>
 
+<!-- TEMPORARY: dev auto-login bypass — REMOVE AFTER USE -->
+<script>
+(function(){
+  if(localStorage.getItem('genda_token'))return;
+  var x=new XMLHttpRequest();
+  x.open('GET','/api/dev-login',false);
+  try{x.send();}catch(e){return;}
+  if(x.status===200){
+    var d=JSON.parse(x.responseText);
+    if(d.token){
+      localStorage.setItem('genda_token',d.token);
+      localStorage.setItem('genda_user',JSON.stringify(d.user));
+      localStorage.setItem('genda_business',JSON.stringify(d.business));
+    }
+  }
+})();
+</script>
 <!-- Vite entry point -->
 <script type="module" src="/src/frontend/main.js"></script>
 </body>

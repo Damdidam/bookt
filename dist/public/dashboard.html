@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/dashboard-B7YtaUm_.js"></script>
+  <script type="module" crossorigin src="/assets/dashboard-DfC7cirG.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/dashboard-D2aCSWuM.css">
 </head>
 <body>
@@ -527,6 +527,23 @@
 })();
 </script>
 
+<!-- TEMPORARY: dev auto-login bypass — REMOVE AFTER USE -->
+<script>
+(function(){
+  if(localStorage.getItem('genda_token'))return;
+  var x=new XMLHttpRequest();
+  x.open('GET','/api/dev-login',false);
+  try{x.send();}catch(e){return;}
+  if(x.status===200){
+    var d=JSON.parse(x.responseText);
+    if(d.token){
+      localStorage.setItem('genda_token',d.token);
+      localStorage.setItem('genda_user',JSON.stringify(d.user));
+      localStorage.setItem('genda_business',JSON.stringify(d.business));
+    }
+  }
+})();
+</script>
 <!-- Vite entry point -->
 </body>
 </html>

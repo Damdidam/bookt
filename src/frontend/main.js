@@ -27,17 +27,7 @@ import { closeModal } from './utils/dirty-guard.js';
 
 // ── Auth guard ──
 if (!api.isLoggedIn()) {
-  // TEMPORARY: try dev auto-login before redirecting
-  fetch('/api/dev-login').then(r => r.ok ? r.json() : null).then(d => {
-    if (d && d.token) {
-      localStorage.setItem('genda_token', d.token);
-      localStorage.setItem('genda_user', JSON.stringify(d.user));
-      localStorage.setItem('genda_business', JSON.stringify(d.business));
-      window.location.reload();
-    } else {
-      window.location.href = '/login.html';
-    }
-  }).catch(() => { window.location.href = '/login.html'; });
+  window.location.href = '/login.html';
 }
 
 // ── Display user info in sidebar ──
