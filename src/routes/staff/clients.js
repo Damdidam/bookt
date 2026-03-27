@@ -166,7 +166,7 @@ router.get('/:id', async (req, res, next) => {
     // V12-022: Add practitioner scope to bookings query
     let bkSql = `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.deposit_required, b.deposit_status, b.deposit_amount_cents,
-              b.custom_label, b.internal_note, b.session_notes, b.session_notes_sent_at,
+              b.custom_label, b.internal_note, b.client_comment, b.session_notes, b.session_notes_sent_at,
               b.created_at, b.channel,
               s.name AS service_name, p.display_name AS practitioner_name,
               (SELECT COALESCE(pr.display_name, u.email)
