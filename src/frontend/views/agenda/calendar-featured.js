@@ -317,26 +317,33 @@ async function fsSaveSlots() {
 
   const weeks = Object.keys(slotsByWeek);
 
-  // If no slots left, clear all future featured slots for this practitioner
+  // If no slots left, clear ALL weeks that had saved slots
   if (weeks.length === 0) {
     try {
-      // Get current visible week to clear
+      // Collect all weeks from saved slots
+      const savedWeeks = new Set();
+      Object.keys(fsSavedSlots).forEach(key => {
+        const date = key.split('_')[0];
+        savedWeeks.add(getMonday(date));
+      });
+
+      // Also include current visible week in case
       const visibleDate = calState.fcCal?.getDate();
-      const weekStart = visibleDate ? getMonday(localDate(visibleDate)) : getMonday(localDate(new Date()));
+      if (visibleDate) savedWeeks.add(getMonday(localDate(visibleDate)));
 
-      // Delete slots for current week
-      const delRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + api.getToken() }
-      });
-      if (!delRes.ok) throw new Error((await delRes.json()).error);
+      // Delete + unlock each week
+      await Promise.all([...savedWeeks].map(async weekStart => {
+        await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + api.getToken() }
+        });
+        await fetch(`/api/featured-slots/lock?practitioner_id=${pracId}&week_start=${weekStart}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + api.getToken() }
+        });
+      }));
 
-      // Unlock the week
-      await fetch(`/api/featured-slots/lock?practitioner_id=${pracId}&week_start=${weekStart}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + api.getToken() }
-      });
-
+      fsSavedSlots = {};
       fsDeactivate();
       gToast('Créneaux vedette supprimés', 'success');
       return;
@@ -347,24 +354,41 @@ async function fsSaveSlots() {
   }
 
   try {
-    // Save slots + lock each week in parallel (lock = visible on public booking page)
-    const results = await Promise.all(weeks.map(async weekStart => {
-      // Save slots
-      const saveRes = await fetch('/api/featured-slots', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots: slotsByWeek[weekStart] })
-      });
-      if (!saveRes.ok) throw new Error((await saveRes.json()).error);
+    // Find weeks that had saved slots but no longer have any — need to delete those
+    const savedWeeks = new Set();
+    Object.keys(fsSavedSlots).forEach(key => savedWeeks.add(getMonday(key.split('_')[0])));
+    const removedWeeks = [...savedWeeks].filter(w => !slotsByWeek[w]);
 
-      // Auto-lock the week so featured slots are exposed on the minisite
-      const lockRes = await fetch('/api/featured-slots/lock', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
-        body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart })
-      });
-      if (!lockRes.ok) throw new Error((await lockRes.json()).error);
-    }));
+    // Delete removed weeks + save current weeks in parallel
+    await Promise.all([
+      // Delete weeks that no longer have slots
+      ...removedWeeks.map(async weekStart => {
+        await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + api.getToken() }
+        });
+        await fetch(`/api/featured-slots/lock?practitioner_id=${pracId}&week_start=${weekStart}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + api.getToken() }
+        });
+      }),
+      // Save/update weeks that have slots
+      ...weeks.map(async weekStart => {
+        const saveRes = await fetch('/api/featured-slots', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart, slots: slotsByWeek[weekStart] })
+        });
+        if (!saveRes.ok) throw new Error((await saveRes.json()).error);
+
+        const lockRes = await fetch('/api/featured-slots/lock', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+          body: JSON.stringify({ practitioner_id: pracId, week_start: weekStart })
+        });
+        if (!lockRes.ok) throw new Error((await lockRes.json()).error);
+      })
+    ]);
 
     const totalCount = Object.keys(fsPendingSlots).length;
     const weekLabel = weeks.length > 1 ? ` sur ${weeks.length} semaines` : '';
