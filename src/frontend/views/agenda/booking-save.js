@@ -257,6 +257,24 @@ async function calDoSaveTime(notify, channel) {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ calSaveAll, calSelectNotify, calCloseNotify, calSendNotification });
+function calNotifyOrRemind() {
+  // Check if time was changed in the edit fields
+  const nd = document.getElementById('calEditDate')?.value;
+  const ns = document.getElementById('calEditStart')?.value;
+  const ne = document.getElementById('calEditEnd')?.value;
+  const orig = calState.fcEditOriginal || {};
+  const timeChanged = nd !== orig.date || ns !== orig.start || ne !== orig.end;
+
+  if (timeChanged) {
+    // Time changed → show notify panel (existing flow)
+    document.getElementById('calNotifyPanel').style.display = 'block';
+    document.getElementById('calNotifyPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    // No time change → send a simple reminder
+    window.fcSendManualReminder(calState.fcCurrentEventId);
+  }
+}
+
+bridge({ calSaveAll, calSelectNotify, calCloseNotify, calSendNotification, calNotifyOrRemind });
 
 export { calSaveAll, calDoSaveTime, calSelectNotify, calCloseNotify, calSendNotification, fcCheckBusinessHours };
