@@ -4,6 +4,30 @@
  */
 import { GendaAPI, GendaUI } from './api-client.js';
 
+// ── Admin impersonation: capture token from URL before anything else ──
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  const at = p.get('admin_token');
+  if (at) {
+    localStorage.setItem('genda_token', at);
+    localStorage.removeItem('genda_user');
+    localStorage.removeItem('genda_business');
+    // Fetch fresh user/business data, then reload clean
+    fetch('/api/staff/dashboard', { headers: { 'Authorization': 'Bearer ' + at } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.user) localStorage.setItem('genda_user', JSON.stringify(d.user));
+        if (d.business) localStorage.setItem('genda_business', JSON.stringify(d.business));
+      })
+      .catch(() => {})
+      .finally(() => {
+        window.location.replace('/dashboard');
+      });
+    // Stop further script execution while we redirect
+    throw new Error('__impersonation_redirect__');
+  }
+})();
+
 // ── Auth & API ──
 export const api = new GendaAPI();
 export const user = api.getUser();
