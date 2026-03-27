@@ -13,7 +13,7 @@ import { buildEventContent, buildEventClassNames } from './calendar-render.js';
 import { buildEventDidMount, buildEventWillUnmount } from './calendar-hooks.js';
 import { buildDateClick, buildEventDrop, buildEventResize, buildEventOverlap, buildEventAllow, buildEventDragStart, buildEventDragStop, initDaySwipe } from './calendar-interactions.js';
 import { fcHideTooltip } from './tooltip-renderer.js';
-import { fsIsActive, fsHandleDateClick } from './calendar-featured.js';
+import { fsIsActive, fsHandleDateClick, fsLoadSavedSlots } from './calendar-featured.js';
 import { atUpdateTitle } from './calendar-toolbar.js';
 import { fcLoadMobileList } from './calendar-mobile.js';
 
@@ -307,6 +307,9 @@ function initCalendar(initView, initSlotDur) {
   _mqTabletPort.addEventListener('change', _updateWeekDuration);
 
   calState.fcCal.render();
+
+  // Load saved featured slots for display outside vedette mode
+  fsLoadSavedSlots();
 
   // Swipe left/right to navigate days in day view (touch devices only)
   const calEl = document.getElementById('fcCalendar');

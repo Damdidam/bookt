@@ -13,6 +13,7 @@ import { fcRefresh } from './calendar-init.js';
 let fsActive = false;            // is vedette mode on?
 let fsPendingSlots = {};         // { 'YYYY-MM-DD_HH:MM': true } — current selection (all weeks)
 let fsDirty = false;             // has user changed anything since last save?
+let fsSavedSlots = {};           // { 'YYYY-MM-DD_HH:MM': true } — saved slots cache (for display outside mode)
 
 /** Check if vedette mode is active */
 function fsIsActive() { return fsActive; }
@@ -140,7 +141,34 @@ function fsDeactivate() {
   if (btn) { btn.classList.remove('active'); }
 
   document.getElementById('fsActionBar')?.remove();
-  fcRefresh();
+  // Reload saved slots so they show as subtle indicators
+  fsLoadSavedSlots().then(() => fcRefresh());
+}
+
+/**
+ * Load saved featured slots for display outside vedette mode.
+ * Called on calendar init and after saving/deactivating.
+ */
+async function fsLoadSavedSlots() {
+  const pracId = fsGetPracId();
+  if (!pracId || !calState.fcBusinessSettings?.featured_slots_enabled) {
+    fsSavedSlots = {};
+    return;
+  }
+  try {
+    const res = await fetch(`/api/featured-slots?practitioner_id=${pracId}`, {
+      headers: { 'Authorization': 'Bearer ' + api.getToken() }
+    });
+    const data = await res.json();
+    fsSavedSlots = {};
+    (data.featured_slots || []).forEach(s => {
+      const dateKey = (s.date || '').slice(0, 10);
+      const st = (s.start_time || '').slice(0, 5);
+      fsSavedSlots[dateKey + '_' + st] = true;
+    });
+  } catch (e) {
+    fsSavedSlots = {};
+  }
 }
 
 /**
@@ -216,9 +244,11 @@ function fsHandleDateClick(dateStr) {
  * Each slot = a 15-min background event. Works across all weeks.
  */
 function fsBuildBackgroundEvents() {
-  if (!fsActive) return [];
+  // Show saved slots even outside vedette mode (subtle indicator)
+  const source = fsActive ? fsPendingSlots : fsSavedSlots;
+  if (Object.keys(source).length === 0) return [];
   const events = [];
-  Object.keys(fsPendingSlots).forEach(key => {
+  Object.keys(source).forEach(key => {
     const [date, time] = key.split('_');
     const startHour = parseInt(time.split(':')[0]);
     const startMin = parseInt(time.split(':')[1]);
@@ -232,7 +262,7 @@ function fsBuildBackgroundEvents() {
       start: start,
       end: end,
       display: 'background',
-      classNames: ['fs-bg-event'],
+      classNames: ['fs-bg-event', ...(fsActive ? [] : ['fs-bg-saved'])],
       extendedProps: { _isFeaturedSlot: true }
     });
   });
@@ -286,9 +316,34 @@ async function fsSaveSlots() {
   });
 
   const weeks = Object.keys(slotsByWeek);
+
+  // If no slots left, clear all future featured slots for this practitioner
   if (weeks.length === 0) {
-    gToast('Aucun créneau à enregistrer', 'info');
-    return;
+    try {
+      // Get current visible week to clear
+      const visibleDate = calState.fcCal?.getDate();
+      const weekStart = visibleDate ? getMonday(localDate(visibleDate)) : getMonday(localDate(new Date()));
+
+      // Delete slots for current week
+      const delRes = await fetch(`/api/featured-slots?practitioner_id=${pracId}&week_start=${weekStart}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      });
+      if (!delRes.ok) throw new Error((await delRes.json()).error);
+
+      // Unlock the week
+      await fetch(`/api/featured-slots/lock?practitioner_id=${pracId}&week_start=${weekStart}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + api.getToken() }
+      });
+
+      fsDeactivate();
+      gToast('Créneaux vedette supprimés', 'success');
+      return;
+    } catch (e) {
+      gToast('Erreur: ' + e.message, 'error');
+      return;
+    }
   }
 
   try {
@@ -339,5 +394,5 @@ bridge({ fsToggleMode, fsSaveSlots, fsCancelMode, fsClearAll });
 export {
   fsIsActive, fsToggleMode, fsGetPendingSlots, fsGetPractitioner,
   fsHandleDateClick, fsBuildBackgroundEvents, fsOnDatesSet,
-  fsSaveSlots, fsCancelMode, fsClearAll, fsDeactivate
+  fsSaveSlots, fsCancelMode, fsClearAll, fsDeactivate, fsLoadSavedSlots
 };
