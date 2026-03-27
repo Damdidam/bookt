@@ -338,7 +338,7 @@ function renderBooking(data) {
   document.getElementById('valService').textContent = booking.service.name;
   document.getElementById('valPrice').textContent = booking.service.price_cents
     ? `${(booking.service.price_cents / 100).toFixed(0)} €`
-    : 'Gratuit';
+    : (booking.service.price_label || '');
 
   // Practitioner
   document.getElementById('valPractitioner').textContent = booking.practitioner.name;

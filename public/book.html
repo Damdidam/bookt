@@ -573,7 +573,7 @@ function svcDisplayPrice(s){
     if(prices.length>0)return 'Dès '+(Math.min.apply(null,prices)/100).toFixed(0)+' \u20ac';
     return s.price_label||'';
   }
-  return s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'Gratuit');
+  return s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'');
 }
 function svcDurationLabel(s){
   if(s.variants&&s.variants.length>0){
@@ -1265,7 +1265,7 @@ function updateCartBar(){
   const hours=Math.floor(totalMin/60);
   const mins=totalMin%60;
   const durStr=hours>0?hours+'h'+(mins>0?String(mins).padStart(2,'0'):''):totalMin+' min';
-  const priceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
+  const priceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'';
   document.getElementById('cartCount').textContent=n+' prestation'+(n>1?'s':'');
   document.getElementById('cartMeta').textContent=durStr+' \u00b7 '+priceStr;
   // Render chips
@@ -1606,19 +1606,19 @@ function goToStep(n){
           var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
           var cd=cv?cv.duration_min:svc.duration_min;
           var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
-          var cpStr=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+          var cpStr=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
           rh+='<div class="sum-row"><span class="label">\u2022 '+cn+'</span><span class="val">'+cd+' min \u00b7 '+cpStr+'</span></div>';
         });
         var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
         var tPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-        var tPriceStr=tPrice>0?(tPrice/100).toFixed(0)+' \u20ac':'Gratuit';
+        var tPriceStr=tPrice>0?(tPrice/100).toFixed(0)+' \u20ac':'';
         rh+='<div class="sum-divider"></div><div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+tMin+' min \u00b7 '+tPriceStr+'</strong></span></div>';
       }else if(selectedService){
         var cv2=selectedVariants[selectedService.id];
         var sn=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
         var sd=cv2?cv2.duration_min:selectedService.duration_min;
         var spc=cv2&&cv2.price_cents!=null?cv2.price_cents:selectedService.price_cents;
-        var spStr=spc?(spc/100).toFixed(0)+' \u20ac':(selectedService.price_label||'Gratuit');
+        var spStr=spc?(spc/100).toFixed(0)+' \u20ac':(selectedService.price_label||'');
         rh+='<div class="sum-row"><span class="label">'+sn+'</span><span class="val">'+sd+' min \u00b7 '+spStr+'</span></div>';
       }
       // Add note for services with restricted availability
@@ -1971,7 +1971,7 @@ function buildSummary(){
       var name=v?svc.name+' \u2014 '+v.name:svc.name;
       var dur=v?v.duration_min:svc.duration_min;
       var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
-      var p=pc?(pc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+      var p=pc?(pc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
       // In split mode, show practitioner name per service
       var pracLabel='';
       if(splitMode&&selectedSlot&&selectedSlot.practitioners){
@@ -1985,7 +1985,7 @@ function buildSummary(){
     });
     var totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
     var totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-    var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'Gratuit';
+    var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'';
     html+='<div class="sum-divider"></div>'
       +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
   }else if(selectedService){
@@ -2013,7 +2013,7 @@ function buildSummary(){
   if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
     var sv2=selectedVariants[selectedService.id];
     var sumPc=sv2&&sv2.price_cents!=null?sv2.price_cents:selectedService.price_cents;
-    const price=sumPc?(sumPc/100).toFixed(0)+' \u20ac':'Gratuit';
+    const price=sumPc?(sumPc/100).toFixed(0)+' \u20ac':'';
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&sumPc>0){
       var discPrice=Math.round(sumPc*(100-selectedSlot.discount_pct)/100);
       html+='<div class="sum-divider"></div>'
@@ -2133,7 +2133,7 @@ async function submitBooking(){
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
-        var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'Gratuit');
+        var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
         confirmHtml+='<div class="row"><span class="l" style="padding-left:8px">\u2022 '+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
     }else if(selectedService){
