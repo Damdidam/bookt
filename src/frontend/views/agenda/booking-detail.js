@@ -1238,10 +1238,29 @@ function fcInlineEdit(span, field) {
   });
 }
 
+async function fcSendManualReminder(bookingId) {
+  const btn = document.getElementById('btnManualReminder');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+  try {
+    const r = await fetch(`/api/bookings/${bookingId}/send-reminder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.getToken() },
+      body: JSON.stringify({ channel: 'both' })
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    const d = await r.json();
+    const parts = [];
+    if (d.sms === 'sent') parts.push('SMS');
+    if (d.email === 'sent') parts.push('Email');
+    gToast(parts.length ? `Rappel envoyé (${parts.join(' + ')})` : 'Rappel envoyé', 'success');
+  } catch (e) { gToast('Erreur: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; } }
+}
+
 // Expose to global scope for onclick handlers
 bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
          fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
-         fcConvertDirectAdd,
+         fcConvertDirectAdd, fcSendManualReminder,
          fcGetServiceCategories, fcGetFilteredServices, svcDurPriceLabel,
          fcScrollToHoraire, fcToggleLockFromStrip, fcToggleAccordion,
          fcToggleLockFromBottom, fcShowColorPopover, fcPickColor, fcInlineEdit });
