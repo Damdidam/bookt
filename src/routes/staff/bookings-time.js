@@ -1300,4 +1300,83 @@ router.patch('/:id/reorder-group', async (req, res, next) => {
   }
 });
 
+// ============================================================
+// POST /api/bookings/:id/send-reminder — Manual reminder (SMS/email/both)
+// UI: Booking detail modal → "Envoyer un rappel" button
+// ============================================================
+router.post('/:id/send-reminder', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'ID invalide' });
+    const { channel } = req.body; // 'sms' | 'email' | 'both'
+    if (!channel || !['sms', 'email', 'both'].includes(channel)) {
+      return res.status(400).json({ error: 'channel requis: sms, email ou both' });
+    }
+
+    const bk = await queryWithRLS(bid,
+      `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
+              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              p.display_name AS practitioner_name,
+              biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
+       FROM bookings b
+       LEFT JOIN clients c ON c.id = b.client_id
+       LEFT JOIN services s ON s.id = b.service_id
+       LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+       JOIN practitioners p ON p.id = b.practitioner_id
+       JOIN businesses biz ON biz.id = b.business_id
+       WHERE b.id = $1 AND b.business_id = $2`,
+      [id, bid]
+    );
+    if (bk.rows.length === 0) return res.status(404).json({ error: 'RDV introuvable' });
+    const b = bk.rows[0];
+
+    if (['cancelled', 'no_show'].includes(b.status)) {
+      return res.status(400).json({ error: 'Impossible de notifier un RDV annulé' });
+    }
+
+    const dateStr = new Date(b.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+    const timeStr = new Date(b.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+    const baseUrl = process.env.BASE_URL || 'https://genda.be';
+    const manageUrl = `${baseUrl}/booking/${b.public_token}`;
+    const result = {};
+
+    if ((channel === 'sms' || channel === 'both') && b.client_phone) {
+      const smsBody = `Rappel ${b.business_name}: RDV le ${dateStr} à ${timeStr} avec ${b.practitioner_name}. Détails : ${manageUrl}`;
+      const smsRes = await sendSMS({ to: b.client_phone, body: smsBody, businessId: bid });
+      result.sms = smsRes.success ? 'sent' : 'error';
+      if (smsRes.error) result.sms_error = smsRes.error;
+    }
+
+    if ((channel === 'email' || channel === 'both') && b.client_email) {
+      try {
+        const { buildEmailHTML, sendEmail } = require('../../services/email');
+        const html = buildEmailHTML({
+          businessName: b.business_name, theme: b.theme || {},
+          heading: 'Rappel de votre rendez-vous',
+          body: `<p>Bonjour ${b.client_name},</p><p>Ceci est un rappel pour votre rendez-vous :</p><p><strong>${b.service_name}</strong><br>${dateStr} à ${timeStr}<br>avec ${b.practitioner_name}</p>`,
+          ctaText: 'Voir mon rendez-vous', ctaUrl: manageUrl,
+          cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl
+        });
+        await sendEmail({ to: b.client_email, subject: `Rappel : votre RDV du ${dateStr} à ${timeStr} — ${b.business_name}`, html });
+        result.email = 'sent';
+      } catch (e) {
+        console.warn('[REMINDER] Email error:', e.message);
+        result.email = 'error';
+      }
+    }
+
+    // Log notification
+    await queryWithRLS(bid,
+      `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, recipient_email, status, sent_at)
+       VALUES ($1, $2, 'manual_reminder', $3, $4, 'sent', NOW())`,
+      [bid, id, b.client_phone || null, b.client_email || null]
+    );
+
+    res.json({ sent: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
