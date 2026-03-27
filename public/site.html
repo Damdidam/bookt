@@ -369,6 +369,11 @@ img { max-width: 100%; display: block; }
   width: 100%; aspect-ratio: 3/4; background: var(--subtle);
   transition: background var(--transition);
 }
+/* Solo practitioner: compact horizontal card */
+.team-grid.solo { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+.team-grid.solo .team-card { display: grid; grid-template-columns: 160px 1fr; }
+.team-grid.solo .team-photo { aspect-ratio: 1/1; height: 100%; }
+.team-grid.solo .team-body { text-align: left; display: flex; flex-direction: column; justify-content: center; }
 .team-body { padding: 20px 20px 24px; text-align: center; }
 .team-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .team-role { font-size: 13px; color: var(--text-light); margin-bottom: 10px; transition: color var(--transition); }
@@ -905,6 +910,10 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
   .stat-item:nth-child(3)::before { display: none; }
 
   .team-grid { grid-template-columns: 1fr; max-width: 340px; margin: 0 auto; gap: 32px; }
+  .team-grid.solo { max-width: 340px; }
+  .team-grid.solo .team-card { grid-template-columns: 1fr; }
+  .team-grid.solo .team-photo { aspect-ratio: 1/1; max-height: 200px; }
+  .team-grid.solo .team-body { text-align: center; }
   .gallery-grid { grid-template-columns: repeat(2,1fr); }
   .realisations-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
   .realisation-images img { height: 150px; }
@@ -1778,7 +1787,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
       });
       var tg = document.getElementById('teamGrid');
       tg.innerHTML = tH;
-      if (d.practitioners.length === 1) tg.style.gridTemplateColumns = '1fr';
+      if (d.practitioners.length === 1) tg.classList.add('solo');
       else if (d.practitioners.length === 2 || d.practitioners.length === 4) tg.style.gridTemplateColumns = 'repeat(2,1fr)';
     }
 
