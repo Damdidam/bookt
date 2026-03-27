@@ -606,7 +606,17 @@ function renderServiceModal(svc,sectorCats,prefill){
 
   // ── SECTION 1: Informations ──
   m+=sec('Informations');
-  m+=`<input type="hidden" id="svc_cat" value="${esc(currentCat)}">`;
+  // Category dropdown (build options from sectorCats + existing categories)
+  const catOptions=[];
+  const seenCats=new Set();
+  (sectorCats||[]).forEach(c=>{if(c.label&&!seenCats.has(c.label)){seenCats.add(c.label);catOptions.push(c.label);}});
+  allServices.forEach(s=>{if(s.category&&!seenCats.has(s.category)){seenCats.add(s.category);catOptions.push(s.category);}});
+  if(currentCat&&!seenCats.has(currentCat)){catOptions.unshift(currentCat);}
+  catOptions.sort((a,b)=>a.localeCompare(b,'fr'));
+  m+=`<div class="field"><label>Catégorie</label><select id="svc_cat">`;
+  m+=`<option value="">— Aucune —</option>`;
+  catOptions.forEach(c=>{m+=`<option value="${esc(c)}"${c===currentCat?' selected':''}>${esc(c)}</option>`;});
+  m+=`</select></div>`;
   m+=`<div class="field"><label>Nom *</label><input id="svc_name" value="${esc(svc?.name||pf.name||'')}" placeholder="Ex: Consultation initiale"></div>`;
   m+=`<div class="field" style="margin-bottom:0"><label>Description <span style="font-weight:400;color:var(--text-4)">(visible clients)</span></label><textarea id="svc_desc" rows="2" placeholder="Décrivez cette prestation...">${esc(svc?.description||'')}</textarea></div>`;
   m+=`</div>`;
