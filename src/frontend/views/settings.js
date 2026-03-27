@@ -19,6 +19,7 @@ async function loadSettings(){
     ]);
     const bd=await br.json(),ud=await ur.json(),ld=await lr.json();
     const b=bd.business, u=ud.user, lk=ld;
+    api.setBusiness(b);
     window._initialSector=b.sector;
     let h='';
     // Inject save button into the topbar (next to page title)
