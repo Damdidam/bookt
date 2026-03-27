@@ -291,6 +291,8 @@ async function loadAgenda() {
   toolbar += `<span class="at-title" id="atTitle"></span>`;
   toolbar += `<div class="at-actions">`;
   toolbar += `<div class="at-search-wrap" id="atSearchWrap"><button class="at-search-icon" onclick="fcToggleSearch()" title="Rechercher">${searchIconSvg}</button>${searchHtml}</div>`;
+  toolbar += fsBtnHtml;
+  toolbar += gaBtnHtml;
   toolbar += soBtnHtml;
   toolbar += lockBtnHtml;
   toolbar += `<button class="at-overflow-btn hamburger" onclick="toggleOverflowMenu()" aria-label="Plus d'options"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>`;
