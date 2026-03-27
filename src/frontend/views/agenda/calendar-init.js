@@ -309,7 +309,7 @@ function initCalendar(initView, initSlotDur) {
   calState.fcCal.render();
 
   // Load saved featured slots for display outside vedette mode
-  fsLoadSavedSlots();
+  fsLoadSavedSlots().then(() => { if (calState.fcCal) calState.fcCal.refetchEvents(); });
 
   // Swipe left/right to navigate days in day view (touch devices only)
   const calEl = document.getElementById('fcCalendar');
