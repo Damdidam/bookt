@@ -279,26 +279,31 @@ async function saveCategory(catId,oldLabel){
   if(!name){GendaUI.toast('Nom requis','error');return;}
   try{
     if(catId){
-      // Update existing
+      // Update existing business_category
       const r=await fetch(`/api/business/categories/${catId}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
       if(!r.ok)throw new Error((await r.json()).error);
-      // If name or color changed, update all services in this category
-      const svcsToUpdate=allServices.filter(s=>s.category===(oldLabel||name));
-      const updates={};
-      if(oldLabel&&oldLabel!==name)updates.category=name;
-      if(color&&color!==(catMeta[oldLabel||name]?.color||null))updates.color=color;
-      if(Object.keys(updates).length>0){
-        for(const s of svcsToUpdate){
-          await fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(updates)});
-        }
-      }
+    }else if(oldLabel){
+      // Editing a catalog/service-only category with no business_categories row yet — create one
+      const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
+      if(!r.ok)throw new Error((await r.json()).error);
     }else{
-      // Create new
+      // Create new category from scratch
       const r=await fetch('/api/business/categories',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({label:name,description:desc,color})});
       if(!r.ok)throw new Error((await r.json()).error);
     }
+    // If name or color changed, update all services in this category
+    const srcLabel=oldLabel||name;
+    const svcsToUpdate=allServices.filter(s=>s.category===srcLabel);
+    const updates={};
+    if(oldLabel&&oldLabel!==name)updates.category=name;
+    if(color&&color!==(catMeta[srcLabel]?.color||null))updates.color=color;
+    if(Object.keys(updates).length>0){
+      for(const s of svcsToUpdate){
+        await fetch(`/api/services/${s.id}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(updates)});
+      }
+    }
     document.getElementById('catModalOverlay')?._dirtyGuard?.markClean(); closeModal('catModalOverlay');
-    GendaUI.toast(catId?'Catégorie modifiée':'Catégorie créée','success');
+    GendaUI.toast(oldLabel?'Catégorie modifiée':'Catégorie créée','success');
     loadServices();
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
