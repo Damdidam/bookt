@@ -130,6 +130,8 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
 
+app.get('/auto-login', (req, res) => res.sendFile(path.join(__dirname, '../public/auto-login.html')));
+
 // Public mini-site: /:slug (must be AFTER all other routes)
 // This is handled by the catch-all at the bottom
 
