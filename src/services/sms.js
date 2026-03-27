@@ -47,18 +47,16 @@ async function sendSMS(opts) {
       fromNumber = process.env.TWILIO_FROM_NUMBER;
     }
 
-    if (!fromNumber) {
-      console.warn('[SMS] No Twilio number found for business', businessId);
-      return { success: false, error: 'No Twilio number configured' };
-    }
-
     const twilio = require('twilio')(sid, token);
     const createOpts = { body, to };
     // Support Messaging Service SID (starts with MG) or direct number
     if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
       createOpts.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-    } else {
+    } else if (fromNumber) {
       createOpts.from = fromNumber;
+    } else {
+      console.warn('[SMS] No Twilio number found for business', businessId);
+      return { success: false, error: 'No Twilio number configured' };
     }
     if (process.env.APP_BASE_URL) {
       createOpts.statusCallback = `${process.env.APP_BASE_URL}/webhooks/twilio/sms/status`;

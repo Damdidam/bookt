@@ -1351,10 +1351,11 @@ router.post('/:id/send-reminder', async (req, res, next) => {
     if ((channel === 'email' || channel === 'both') && b.client_email) {
       try {
         const { buildEmailHTML, sendEmail } = require('../../services/email');
+        const primaryColor = (b.theme && b.theme.primary) || '#2A7B7F';
         const html = buildEmailHTML({
-          businessName: b.business_name, theme: b.theme || {},
-          heading: 'Rappel de votre rendez-vous',
-          body: `<p>Bonjour ${b.client_name},</p><p>Ceci est un rappel pour votre rendez-vous :</p><p><strong>${b.service_name}</strong><br>${dateStr} à ${timeStr}<br>avec ${b.practitioner_name}</p>`,
+          businessName: b.business_name, primaryColor,
+          title: 'Rappel de votre rendez-vous',
+          bodyHTML: `<p>Bonjour ${b.client_name},</p><p>Ceci est un rappel pour votre rendez-vous :</p><p><strong>${b.service_name}</strong><br>${dateStr} à ${timeStr}<br>avec ${b.practitioner_name}</p>`,
           ctaText: 'Voir mon rendez-vous', ctaUrl: manageUrl,
           cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl
         });
