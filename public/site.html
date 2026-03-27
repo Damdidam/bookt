@@ -1448,7 +1448,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
     var totalCents = items.reduce(function(s, v) { return s + v.price_cents; }, 0);
     var hours = Math.floor(totalMin / 60), mins = totalMin % 60;
     var dur = hours > 0 ? hours + 'h' + (mins > 0 ? String(mins).padStart(2,'0') : '') : totalMin + ' min';
-    var price = totalCents > 0 ? (totalCents / 100).toFixed(0) + ' \u20ac' : 'Gratuit';
+    var price = totalCents > 0 ? (totalCents / 100).toFixed(0) + ' \u20ac' : '';
 
     document.getElementById('cartSummary').innerHTML = '<strong>' + n + ' prestation' + (n > 1 ? 's' : '') + '</strong> \u00b7 ' + dur + ' \u00b7 ' + price;
     // Build services param: "svcId:varId,svcId2" format

@@ -170,7 +170,7 @@ function renderServiceRow(s,sortIdx){
   let priceStr;
   if(varPrices.length>0){const mn=Math.min(...varPrices)/100,mx=Math.max(...varPrices)/100;priceStr=mn===mx?mn+' €':mn+' – '+mx+' €';}
   else if(s.price_cents)priceStr=(s.price_cents/100).toFixed(0)+' €';
-  else priceStr=s.price_label||'Gratuit';
+  else priceStr=s.price_label||'';
   let durStr;
   if(varDurs.length>0){const mn=Math.min(...varDurs),mx=Math.max(...varDurs);durStr=mn===mx?mn+' min':mn+' – '+mx+' min';}
   else durStr=s.duration_min+' min';
@@ -633,7 +633,7 @@ function renderServiceModal(svc,sectorCats,prefill){
   const durVal=svc?.duration_min||pf.duration_min||30;
   const priceVal=svc?.price_cents?(svc.price_cents/100):(pf.price_cents?(pf.price_cents/100):'');
   m+=`<div id="svc_pricing_main"${hasVars?' style="display:none"':''}>`;
-  m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5" oninput="svcPoseSync()"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Gratuit si vide"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
+  m+=`<div class="svc-form-row" style="margin-bottom:12px"><div class="field"><label>Durée (min) *</label><input type="number" id="svc_dur" value="${durVal}" min="5" step="5" oninput="svcPoseSync()"></div><div class="field"><label>Prix (€)</label><input type="number" id="svc_price" value="${priceVal}" step="0.01" placeholder="Laisser vide si sur devis"></div><div class="field"><label>Label prix</label><input id="svc_plabel" value="${esc(svc?.price_label||'')}" placeholder="Sur devis..."></div></div>`;
   m+=`</div>`;
   m+=`<div style="margin-top:${hasVars?'0':'14'}px"><label style="display:block;font-size:.78rem;font-weight:600;color:var(--text-3);margin-bottom:8px">Variantes <span style="font-weight:400;color:var(--text-4)">(optionnel)</span></label>`;
   m+=`<div id="svc_variants_list">`;
