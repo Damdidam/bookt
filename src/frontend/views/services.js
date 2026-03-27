@@ -651,16 +651,6 @@ function renderServiceModal(svc,sectorCats,prefill){
   m+=sec('Planification');
   m+=`<div class="svc-form-row" id="svc_buffers_row" style="margin-bottom:14px"><div class="field"><label>Buffer avant (min)</label><input type="number" id="svc_bbefore" value="${svc?.buffer_before_min||0}" min="0"></div><div class="field"><label>Buffer après (min)</label><input type="number" id="svc_bafter" value="${svc?.buffer_after_min||0}" min="0"></div></div>`;
   m+=`<div class="svc-form-row" style="margin-bottom:14px"><div class="field"><label>Préavis minimum (heures)</label><input type="number" id="svc_min_notice" value="${svc?.min_booking_notice_hours||0}" min="0" placeholder="0"><small style="color:var(--text-secondary);font-size:11px">Délai minimum avant qu'un client puisse réserver en ligne</small></div></div>`;
-  const modes=svc?.mode_options||['cabinet'];
-  const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
-  const showModes=!physicalOnlySectors.includes(userSector);
-  if(showModes){
-    m+=`<div class="field"><label>Mode</label><div style="display:flex;gap:10px;margin-top:4px">
-      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_cab" ${modes.includes('cabinet')?'checked':''}> Au salon</label>
-      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_vis" ${modes.includes('visio')?'checked':''}> Visio</label>
-      <label class="svc-mode-opt"><input type="checkbox" id="svc_m_tel" ${modes.includes('phone')?'checked':''}> Tél.</label>
-    </div></div>`;
-  }
   const sched=svc?.available_schedule||null;
   const isRestricted=sched?.type==='restricted';
   m+=`<div class="field"><label class="svc-switch"><input type="checkbox" id="svc_sched_toggle" ${isRestricted?'checked':''} onchange="svcToggleSched()"><span class="svc-switch-track"></span> Restreindre les horaires</label>`;
@@ -874,10 +864,7 @@ function svcDayPillClick(btn){
 // ===== SAVE SERVICE =====
 
 async function saveService(id){
-  const physicalOnlySectors=['coiffeur','esthetique','kine','dentiste','veterinaire'];
-  let modes;
-  if(physicalOnlySectors.includes(userSector)){modes=['cabinet'];}
-  else{modes=[];if(document.getElementById('svc_m_cab')?.checked)modes.push('cabinet');if(document.getElementById('svc_m_vis')?.checked)modes.push('visio');if(document.getElementById('svc_m_tel')?.checked)modes.push('phone');}
+  const modes=['cabinet'];
   const priceVal=document.getElementById('svc_price').value;
   const selectedCat=document.getElementById('svc_cat').value||null;
   const catColorVal=selectedCat&&catMeta[selectedCat]?.color?catMeta[selectedCat].color:null;
