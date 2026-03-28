@@ -144,6 +144,52 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// POST /api/clients/import — bulk import from CSV data
+router.post('/import', async (req, res, next) => {
+  try {
+    const bid = req.businessId;
+    const { clients } = req.body;
+    if (!Array.isArray(clients) || clients.length === 0) {
+      return res.status(400).json({ error: 'clients[] requis' });
+    }
+    if (clients.length > 500) {
+      return res.status(400).json({ error: 'Maximum 500 clients par import' });
+    }
+
+    // Get existing phones and emails for duplicate detection
+    const existing = await queryWithRLS(bid,
+      `SELECT LOWER(TRIM(phone)) AS phone, LOWER(TRIM(email)) AS email FROM clients WHERE business_id = $1`,
+      [bid]
+    );
+    const existingPhones = new Set(existing.rows.map(r => r.phone).filter(Boolean));
+    const existingEmails = new Set(existing.rows.map(r => r.email).filter(Boolean));
+
+    let imported = 0, skipped = 0;
+    for (const c of clients) {
+      const name = (c.full_name || '').trim();
+      if (!name) { skipped++; continue; }
+      const phone = (c.phone || '').trim() || null;
+      const email = (c.email || '').trim() || null;
+
+      // Skip duplicates by phone or email
+      if (phone && existingPhones.has(phone.toLowerCase())) { skipped++; continue; }
+      if (email && existingEmails.has(email.toLowerCase())) { skipped++; continue; }
+
+      await queryWithRLS(bid,
+        `INSERT INTO clients (business_id, full_name, phone, email) VALUES ($1, $2, $3, $4)`,
+        [bid, name, phone, email]
+      );
+      if (phone) existingPhones.add(phone.toLowerCase());
+      if (email) existingEmails.add(email.toLowerCase());
+      imported++;
+    }
+
+    res.json({ imported, skipped, total: clients.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/clients/:id — client detail with booking history
 router.get('/:id', async (req, res, next) => {
   try {

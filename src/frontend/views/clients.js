@@ -27,7 +27,7 @@ async function loadClients(){
     const stats=d.stats||{};
     const clLabel=categoryLabels.clients.toLowerCase();
     let h=`<div class="kpis"><div class="kpi" onclick="clientFilter='';loadClients()" style="cursor:pointer"><div class="kpi-val">${stats.total||0}</div><div class="kpi-label">Total ${clLabel}</div></div><div class="kpi" onclick="clientFilter='blocked';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--red)">${stats.blocked||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</div></div><div class="kpi" onclick="clientFilter='flagged';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--amber-dark)">${stats.flagged||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</div></div><div class="kpi" onclick="clientFilter='fantome';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--purple)">${stats.fantome||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Fantômes</div></div><div class="kpi" onclick="clientFilter='vip';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--gold)">${stats.vip||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> VIP</div></div><div class="kpi" onclick="clientFilter='birthday_week';loadClients()" style="cursor:pointer"><div class="kpi-val" style="color:var(--pink)">${stats.birthday_week||0}</div><div class="kpi-label">${IC.gift} Anniversaires</div></div><div class="kpi"><div class="kpi-val" style="color:var(--primary)">${stats.clean||0}</div><div class="kpi-label"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> OK</div></div></div>`;
-    h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="position:relative;flex:1;min-width:200px"><input type="text" placeholder="Rechercher par nom, email ou téléphone..." value="${clientSearch}" id="clientSearchInput" oninput="clientLiveSearch(this.value)" onkeydown="if(event.key==='Enter'){document.getElementById('clientAcDrop').style.display='none';clientSearch=this.value;clientFilter='';loadClients()}" onfocus="if(this.value.length>=3)clientLiveSearch(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('clientAcDrop');if(d)d.style.display='none'},200)" style="width:100%" autocomplete="off"><div id="clientAcDrop" class="ac-results" style="display:none"></div></div><button class="btn-primary" onclick="document.getElementById('clientAcDrop').style.display='none';clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button><button class="btn-primary" onclick="openNewClientModal()" title="Ajouter un client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>${clientSearch||clientFilter?`<button class="btn-outline" onclick="clientSearch='';clientFilter='';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reset</button>`:''}</div>`;
+    h+=`<div class="search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="position:relative;flex:1;min-width:200px"><input type="text" placeholder="Rechercher par nom, email ou téléphone..." value="${clientSearch}" id="clientSearchInput" oninput="clientLiveSearch(this.value)" onkeydown="if(event.key==='Enter'){document.getElementById('clientAcDrop').style.display='none';clientSearch=this.value;clientFilter='';loadClients()}" onfocus="if(this.value.length>=3)clientLiveSearch(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('clientAcDrop');if(d)d.style.display='none'},200)" style="width:100%" autocomplete="off"><div id="clientAcDrop" class="ac-results" style="display:none"></div></div><button class="btn-primary" onclick="document.getElementById('clientAcDrop').style.display='none';clientSearch=document.getElementById('clientSearchInput').value;clientFilter='';loadClients()">Rechercher</button><button class="btn-primary" onclick="openNewClientModal()" title="Ajouter un client"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button class="btn-outline" onclick="openCsvImportModal()" title="Importer CSV"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>${clientSearch||clientFilter?`<button class="btn-outline" onclick="clientSearch='';clientFilter='';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reset</button>`:''}</div>`;
     h+=`<div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn-sm ${!clientFilter?'active':''}" onclick="clientFilter='';loadClients()">Tous</button><button class="btn-sm ${clientFilter==='blocked'?'active':''}" onclick="clientFilter='blocked';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Bloqués</button><button class="btn-sm ${clientFilter==='flagged'?'active':''}" onclick="clientFilter='flagged';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No-shows</button><button class="btn-sm ${clientFilter==='fantome'?'active':''}" onclick="clientFilter='fantome';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Fantômes</button><button class="btn-sm ${clientFilter==='vip'?'active':''}" onclick="clientFilter='vip';loadClients()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> VIP</button><button class="btn-sm ${clientFilter==='birthday_week'?'active':''}" onclick="clientFilter='birthday_week';loadClients()">${IC.gift} Anniversaires</button></div>`;
     h+=`<div class="card"><div class="card-h"><h3>${clientFilter==='blocked'?categoryLabels.clients+' bloqué·e·s':clientFilter==='flagged'?categoryLabels.clients+' avec no-shows':clientFilter==='fantome'?categoryLabels.clients+' fantômes':clientFilter==='vip'?categoryLabels.clients+' VIP':clientFilter==='birthday_week'?'Anniversaires cette semaine':'Tous les '+clLabel}</h3><span class="badge badge-teal">${d.total||clients.length}</span></div>`;
     if(clients.length===0){h+=`<div class="empty">Aucun client${clientSearch?' trouvé':clientFilter?' dans cette catégorie':' encore'}</div>`;}
@@ -366,10 +366,96 @@ async function createClient(){
   }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
 }
 
+let _csvParsed = [];
+
+function openCsvImportModal(){
+  _csvParsed = [];
+  let m=`<div class="m-overlay open" id="csvImportModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer des ${categoryLabels.clients.toLowerCase()}</h3><button class="m-close" onclick="closeModal('csvImportModal')">${IC.x}</button></div><div class="m-body">`;
+  m+=`<div style="font-size:.82rem;color:var(--text-3);margin-bottom:12px">Format attendu : <strong>Nom, Téléphone, Email</strong> (séparateur : virgule ou point-virgule). La première ligne peut être un en-tête.</div>`;
+  m+=`<div style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color .2s" id="csvDropZone" onclick="document.getElementById('csvFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';csvHandleFile(event.dataTransfer.files[0])">`;
+  m+=`<svg viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  m+=`<div style="font-size:.85rem;font-weight:500;color:var(--text)">Glissez un fichier CSV ici</div>`;
+  m+=`<div style="font-size:.75rem;color:var(--text-4);margin-top:4px">ou cliquez pour parcourir</div>`;
+  m+=`<input type="file" id="csvFileInput" accept=".csv,.txt" style="display:none" onchange="csvHandleFile(this.files[0])">`;
+  m+=`</div>`;
+  m+=`<div id="csvPreview" style="display:none;margin-top:16px"></div>`;
+  m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('csvImportModal')">Annuler</button><button class="m-btn m-btn-primary" id="csvImportBtn" onclick="csvDoImport()" style="display:none">Importer</button></div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',m);
+  guardModal(document.getElementById('csvImportModal'), { noBackdropClose: true });
+}
+
+function csvHandleFile(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const text=e.target.result;
+    csvParseAndPreview(text);
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+function csvParseAndPreview(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length===0){GendaUI.toast('Fichier vide','error');return;}
+
+  // Detect separator
+  const sep=lines[0].includes(';')?';':',';
+
+  // Parse rows
+  const rows=lines.map(l=>{
+    const parts=l.split(sep).map(s=>s.trim().replace(/^["']|["']$/g,''));
+    return {full_name:parts[0]||'',phone:parts[1]||'',email:parts[2]||''};
+  });
+
+  // Detect header row
+  const first=rows[0];
+  const isHeader=/^(nom|name|full.?name|client)/i.test(first.full_name);
+  const data=isHeader?rows.slice(1):rows;
+
+  // Filter out empty rows
+  _csvParsed=data.filter(r=>r.full_name);
+
+  // Preview
+  const prev=document.getElementById('csvPreview');
+  if(_csvParsed.length===0){
+    prev.innerHTML='<div style="font-size:.82rem;color:var(--red)">Aucun client trouvé dans le fichier.</div>';
+    prev.style.display='';
+    document.getElementById('csvImportBtn').style.display='none';
+    return;
+  }
+
+  let h=`<div style="font-size:.82rem;font-weight:600;margin-bottom:8px">${_csvParsed.length} client${_csvParsed.length>1?'s':''} détecté${_csvParsed.length>1?'s':''}</div>`;
+  h+=`<div style="max-height:250px;overflow-y:auto;border:1px solid var(--border-light);border-radius:8px"><table class="table" style="font-size:.78rem"><thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th></tr></thead><tbody>`;
+  _csvParsed.slice(0,50).forEach(r=>{
+    h+=`<tr><td>${esc(r.full_name)}</td><td>${esc(r.phone)}</td><td>${esc(r.email)}</td></tr>`;
+  });
+  if(_csvParsed.length>50) h+=`<tr><td colspan="3" style="text-align:center;color:var(--text-4)">... et ${_csvParsed.length-50} de plus</td></tr>`;
+  h+=`</tbody></table></div>`;
+  h+=`<div style="font-size:.72rem;color:var(--text-4);margin-top:6px">Les doublons (même téléphone ou email) seront ignorés automatiquement.</div>`;
+  prev.innerHTML=h;
+  prev.style.display='';
+  document.getElementById('csvImportBtn').style.display='';
+}
+
+async function csvDoImport(){
+  if(_csvParsed.length===0)return;
+  const btn=document.getElementById('csvImportBtn');
+  if(btn){btn.disabled=true;btn.textContent='Import en cours...';}
+  try{
+    const r=await fetch('/api/clients/import',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify({clients:_csvParsed})});
+    if(!r.ok)throw new Error((await r.json()).error);
+    const d=await r.json();
+    closeModal('csvImportModal');
+    GendaUI.toast(`${d.imported} client${d.imported>1?'s':''} importé${d.imported>1?'s':''}${d.skipped?' ('+d.skipped+' doublon'+(d.skipped>1?'s':'')+' ignoré'+(d.skipped>1?'s':'')+')':''}`,'success');
+    loadClients();
+  }catch(e){GendaUI.toast('Erreur: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='Importer';}}
+}
+
 // Expose to global scope for onclick handlers in dynamic HTML
-bridge({ loadClients, openClientDetail, openNewClientModal, createClient, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
+bridge({ loadClients, openClientDetail, openNewClientModal, createClient, openCsvImportModal, csvHandleFile, csvDoImport, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch, get clientSearch(){ return clientSearch; }, set clientSearch(v){ clientSearch=v; }, get clientFilter(){ return clientFilter; }, set clientFilter(v){ clientFilter=v; } });
 // Also expose the mutable variables directly on window for inline onclick handlers
 Object.defineProperty(window, 'clientSearch', { get(){ return clientSearch; }, set(v){ clientSearch=v; }, configurable: true });
 Object.defineProperty(window, 'clientFilter', { get(){ return clientFilter; }, set(v){ clientFilter=v; }, configurable: true });
 
-export { loadClients, openClientDetail, openNewClientModal, createClient, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch };
+export { loadClients, openClientDetail, openNewClientModal, createClient, openCsvImportModal, saveClient, blockClient, unblockClient, resetNoShow, resetExpired, clientLiveSearch };
