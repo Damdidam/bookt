@@ -826,7 +826,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
       (async () => {
         try {
-          const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
+          const bizRow = await query(`SELECT name, email, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
           // Fetch practitioner names — split mode may have multiple practitioners
           let pracDisplayName = '';
           const splitPracNames = {}; // practitioner_id → display_name
@@ -880,7 +880,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 );
               } catch (_) { /* best-effort audit */ }
               // SMS with deposit payment link
-              if (client_phone && ['pro', 'premium'].includes(biz.plan)) {
+              if (client_phone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
                 try {
                   const { sendSMS } = require('../../services/sms');
                   const _sd = new Date(emailBooking.start_at);
@@ -1420,7 +1420,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
     (async () => {
       try {
-        const bizRow = await query(`SELECT name, email, address, theme, settings FROM businesses WHERE id = $1`, [businessId]);
+        const bizRow = await query(`SELECT name, email, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
         const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
         if (bizRow.rows[0]) {
           // Fetch service name (+ variant name) for email
@@ -1460,7 +1460,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               );
             } catch (_) { /* best-effort audit */ }
             // SMS with deposit payment link
-            if (client_phone && ['pro', 'premium'].includes(biz.plan)) {
+            if (client_phone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
               try {
                 const { sendSMS } = require('../../services/sms');
                 const _sd2 = new Date(emailBooking.start_at);
