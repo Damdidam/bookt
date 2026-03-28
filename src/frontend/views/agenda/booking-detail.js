@@ -1216,7 +1216,7 @@ function fcInlineEdit(span, field) {
   input.className = 'm-inline-input';
   input.type = field === 'email' ? 'email' : 'tel';
   input.value = currentVal;
-  input.placeholder = field === 'phone' ? '+32 ...' : 'email@exemple.com';
+  input.placeholder = field === 'phone' ? '+32 / +33 ...' : 'email@exemple.com';
   const origHTML = span.innerHTML;
   span.innerHTML = '';
   span.appendChild(input);

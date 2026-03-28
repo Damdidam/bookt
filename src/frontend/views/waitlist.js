@@ -103,7 +103,7 @@ function wlOpenAdd(){
     let m=`<div class="m-overlay open" id="wlAddModal"><div class="m-dialog m-md"><div class="m-header-simple"><h3>Ajouter \u00e0 la liste d'attente</h3><button class="m-close" onclick="closeModal('wlAddModal')">${IC.x}</button></div><div class="m-body">`;
     m+=`<div><label class="m-field-label">Nom du client *</label><input class="m-input" id="wla_name" placeholder="Nom complet"></div>`;
     m+=`<div><label class="m-field-label">Email *</label><input class="m-input" id="wla_email" type="email" placeholder="email@exemple.be"></div>`;
-    m+=`<div><label class="m-field-label">T\u00e9l\u00e9phone</label><input class="m-input" id="wla_phone" placeholder="+32..."></div>`;
+    m+=`<div><label class="m-field-label">T\u00e9l\u00e9phone</label><input class="m-input" id="wla_phone" placeholder="+32 / +33..."></div>`;
     m+=`<div><label class="m-field-label">Praticien *</label><select class="m-input" id="wla_prac">`;
     pracs.forEach(p=>{m+=`<option value="${p.id}">${p.display_name}</option>`;});
     m+=`</select></div>`;

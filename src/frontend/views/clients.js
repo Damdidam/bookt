@@ -343,7 +343,7 @@ async function resetExpired(id){
 function openNewClientModal(){
   let m=`<div class="m-overlay open" id="newClientModal"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Nouveau ${categoryLabels.client.toLowerCase()}</h3><button class="m-close" onclick="closeModal('newClientModal')">${IC.x}</button></div><div class="m-body">`;
   m+=`<div class="m-row"><div><label class="m-field-label">Nom *</label><input class="m-input" id="nc_name" placeholder="Nom complet"></div></div>`;
-  m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Téléphone</label><input class="m-input" id="nc_phone" placeholder="+32..."></div><div><label class="m-field-label">Email</label><input class="m-input" id="nc_email" type="email" placeholder="email@exemple.com"></div></div>`;
+  m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Téléphone</label><input class="m-input" id="nc_phone" placeholder="+32 / +33..."></div><div><label class="m-field-label">Email</label><input class="m-input" id="nc_email" type="email" placeholder="email@exemple.com"></div></div>`;
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('newClientModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="createClient()">Créer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
   guardModal(document.getElementById('newClientModal'), { noBackdropClose: true });

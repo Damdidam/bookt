@@ -32,7 +32,13 @@ export function formatPhoneDisplay(phone) {
   if (!phone) return '';
   const p = String(phone).replace(/\s/g, '');
   if (p.startsWith('+32') && p.length === 12) {
-    return p.slice(0, 3) + ' ' + p.slice(3, 6) + ' ' + p.slice(6, 8) + ' ' + p.slice(8, 10) + ' ' + p.slice(10);
+    return '+32 ' + p.slice(3, 6) + ' ' + p.slice(6, 8) + ' ' + p.slice(8, 10) + ' ' + p.slice(10);
+  }
+  if (p.startsWith('+33') && p.length === 12) {
+    return '+33 ' + p.slice(3, 4) + ' ' + p.slice(4, 6) + ' ' + p.slice(6, 8) + ' ' + p.slice(8, 10) + ' ' + p.slice(10);
+  }
+  if (p.startsWith('+352') && p.length >= 10 && p.length <= 13) {
+    return '+352 ' + p.slice(4);
   }
   return phone;
 }

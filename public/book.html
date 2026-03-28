@@ -181,7 +181,8 @@ body.themed{opacity:1}
 .checkbox{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:.78rem;color:var(--text-3);cursor:pointer;min-height:44px;align-items:center}
 .checkbox input{width:20px;height:20px;accent-color:var(--primary);flex-shrink:0}
 .phone-wrap{display:flex;gap:0;align-items:stretch}
-.phone-prefix{padding:12px 10px;background:var(--surface);border:1.5px solid var(--border);border-right:none;border-radius:var(--radius-xs) 0 0 var(--radius-xs);font-size:.85rem;font-weight:700;color:var(--text-2);display:flex;align-items:center;white-space:nowrap}
+.phone-prefix{padding:8px 6px;background:var(--surface);border:1.5px solid var(--border);border-right:none;border-radius:var(--radius-xs) 0 0 var(--radius-xs);font-size:.85rem;font-weight:700;color:var(--text-2);display:flex;align-items:center;white-space:nowrap;cursor:pointer;appearance:none;-webkit-appearance:none}
+select.phone-prefix{padding:8px 6px;outline:none;font-family:inherit}
 .phone-wrap .fi{border-radius:0 var(--radius-xs) var(--radius-xs) 0}
 .bce-toggle{font-size:.78rem;color:var(--primary);cursor:pointer;font-weight:600;margin-bottom:12px;display:inline-flex;align-items:center;gap:4px}
 
@@ -492,10 +493,14 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
     <div class="fg">
       <label class="fl">Téléphone mobile *</label>
       <div class="phone-wrap">
-        <span class="phone-prefix"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg> +32</span>
-        <input class="fi" id="cPhone" placeholder="4XX XX XX XX" autocomplete="tel" inputmode="tel" maxlength="12">
+        <select id="cPhonePrefix" class="phone-prefix" onchange="onPhonePrefixChange()">
+          <option value="+32" selected>🇧🇪 +32</option>
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+352">🇱🇺 +352</option>
+        </select>
+        <input class="fi" id="cPhone" placeholder="4XX XX XX XX" autocomplete="tel" inputmode="tel" maxlength="15">
       </div>
-      <div class="field-hint">Format : 04XX XX XX XX (mobile belge)</div>
+      <div class="field-hint">Format mobile selon le pays sélectionné</div>
       <div class="field-err" id="errPhone"></div>
     </div>
     <div class="fg">
@@ -1034,7 +1039,11 @@ function initPage(){
       .then(r=>r.ok?r.json():null).then(d=>{
         if(!d||!d.phone)return;
         let p=d.phone;
-        if(p.startsWith('+32'))p=p.substring(3);
+        const prefixSel=document.getElementById('cPhonePrefix');
+        if(p.startsWith('+33')){if(prefixSel)prefixSel.value='+33';p=p.substring(3);}
+        else if(p.startsWith('+352')){if(prefixSel)prefixSel.value='+352';p=p.substring(4);}
+        else if(p.startsWith('+32')){if(prefixSel)prefixSel.value='+32';p=p.substring(3);}
+        if(prefixSel)onPhonePrefixChange();
         ph.value=p;
         formatPhoneInput.call(ph);
         ph.classList.add('valid');
@@ -1467,7 +1476,11 @@ async function handleOauthPickup(pickupKey){
           if(phData&&phData.phone){
             var ph=document.getElementById('cPhone');
             var p=phData.phone;
-            if(p.startsWith('+32'))p=p.substring(3);
+            var prefixSel=document.getElementById('cPhonePrefix');
+            if(p.startsWith('+33')){if(prefixSel)prefixSel.value='+33';p=p.substring(3);}
+            else if(p.startsWith('+352')){if(prefixSel)prefixSel.value='+352';p=p.substring(4);}
+            else if(p.startsWith('+32')){if(prefixSel)prefixSel.value='+32';p=p.substring(3);}
+            if(prefixSel)onPhonePrefixChange();
             ph.value=p;
             formatPhoneInput.call(ph);
             ph.classList.add('valid');
@@ -1880,35 +1893,72 @@ function sanitizePhone(raw){
   return raw.replace(/[^\d]/g,'');
 }
 function formatPhoneInput(e){
-  const input=e.target;
+  const input=e&&e.target?e.target:e;
   let v=sanitizePhone(input.value);
-  // Remove leading 0 if user typed 04xx (we have +32 prefix)
-  if(v.startsWith('0'))v=v.slice(1);
-  // Limit to 9 digits (Belgian mobile without leading 0)
-  v=v.slice(0,9);
-  // Format: 4XX XX XX XX
-  let formatted='';
-  for(let i=0;i<v.length;i++){
-    if(i===3||i===5||i===7)formatted+=' ';
-    formatted+=v[i];
+  const prefix=document.getElementById('cPhonePrefix')?.value||'+32';
+  if(prefix==='+32'){
+    if(v.startsWith('0'))v=v.slice(1);
+    v=v.slice(0,9);
+    let f='';for(let i=0;i<v.length;i++){if(i===3||i===5||i===7)f+=' ';f+=v[i];}
+    input.value=f;
+  }else if(prefix==='+33'){
+    if(v.startsWith('0'))v=v.slice(1);
+    v=v.slice(0,9);
+    let f='';for(let i=0;i<v.length;i++){if(i===1||i===3||i===5||i===7)f+=' ';f+=v[i];}
+    input.value=f;
+  }else if(prefix==='+352'){
+    v=v.slice(0,9);
+    let f='';for(let i=0;i<v.length;i++){if(i===3||i===6)f+=' ';f+=v[i];}
+    input.value=f;
+  }else{
+    v=v.slice(0,12);
+    input.value=v;
   }
-  input.value=formatted;
   clearFieldErr('Phone');
 }
 function validatePhone(raw){
   const digits=sanitizePhone(raw);
-  // Must be 9 digits, starting with 4 (Belgian mobile without leading 0)
-  if(!/^4[5-9]\d{7}$/.test(digits))return false;
+  const prefix=document.getElementById('cPhonePrefix')?.value||'+32';
+  if(prefix==='+32'){
+    if(!/^4[5-9]\d{7}$/.test(digits))return false;
+  }else if(prefix==='+33'){
+    if(!/^[67]\d{8}$/.test(digits))return false;
+  }else if(prefix==='+352'){
+    if(!/^\d{6,9}$/.test(digits))return false;
+  }else{
+    if(digits.length<6||digits.length>12)return false;
+  }
   return true;
 }
 function getFullPhone(raw){
   const digits=sanitizePhone(raw);
-  return '+32'+digits;
+  const prefix=document.getElementById('cPhonePrefix')?.value||'+32';
+  return prefix+digits;
+}
+function onPhonePrefixChange(){
+  const prefix=document.getElementById('cPhonePrefix').value;
+  const ph=document.getElementById('cPhone');
+  if(prefix==='+32')ph.placeholder='4XX XX XX XX';
+  else if(prefix==='+33')ph.placeholder='6 XX XX XX XX';
+  else if(prefix==='+352')ph.placeholder='XXX XXX XXX';
+  else ph.placeholder='...';
+  ph.value='';
+  ph.focus();
+}
+function onWlPhonePrefixChange(){
+  const prefix=document.getElementById('wlPhonePrefix').value;
+  const ph=document.getElementById('wlPhone');
+  if(prefix==='+32')ph.placeholder='4XX XX XX XX';
+  else if(prefix==='+33')ph.placeholder='6 XX XX XX XX';
+  else if(prefix==='+352')ph.placeholder='XXX XXX XXX';
+  else ph.placeholder='...';
+  ph.value='';
+  ph.focus();
 }
 function validatePhoneField(){
   const v=document.getElementById('cPhone').value;
   if(!v.trim()){showFieldErr('Phone','Numéro de téléphone requis.');return false;}
-  if(!validatePhone(v)){showFieldErr('Phone','Format invalide. Mobile belge : 04XX XX XX XX');return false;}
+  if(!validatePhone(v)){showFieldErr('Phone','Format invalide. Vérifiez le numéro.');return false;}
   clearFieldErr('Phone');document.getElementById('cPhone').classList.add('valid');return true;
 }
 
@@ -2235,7 +2285,7 @@ function wlShowForm(){
   area.innerHTML='<div class="wl-form" id="wlForm"><h3>Liste d\'attente</h3><p class="wl-form-sub">Pour <strong>'+escH(selectedService?.name||'cette prestation')+'</strong> avec <strong>'+escH(selectedPractitioner?.display_name||'')+'</strong></p>'
     +'<div class="fg"><label class="fl">Prénom et nom *</label><input class="fi" id="wlName" placeholder="Marie Dupont"></div>'
     +'<div class="fg"><label class="fl">Email *</label><input class="fi" type="email" id="wlEmail" placeholder="marie@example.com"></div>'
-    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><span class="phone-prefix"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="8.67" y1="4" x2="8.67" y2="20"/><line x1="15.33" y1="4" x2="15.33" y2="20"/></svg> +32</span><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="12"></div></div>'
+    +'<div class="fg"><label class="fl">Téléphone</label><div class="phone-wrap"><select id="wlPhonePrefix" class="phone-prefix" onchange="onWlPhonePrefixChange()"><option value="+32" selected>🇧🇪 +32</option><option value="+33">🇫🇷 +33</option><option value="+352">🇱🇺 +352</option></select><input class="fi" id="wlPhone" placeholder="4XX XX XX XX" inputmode="tel" maxlength="15"></div></div>'
     +'<div class="fg"><label class="fl">Jours qui vous conviennent</label><div class="wl-days">'+WL_DAYS.map((d,i)=>'<button type="button" class="wl-day '+(i<5?'on':'')+'" data-day="'+i+'">'+d+'</button>').join('')+'</div></div>'
     +'<div class="fg"><label class="fl">Préférence horaire</label><select class="fi" id="wlTime" style="padding:8px 12px"><option value="any">Toute la journée</option><option value="morning">Matin</option><option value="afternoon">Après-midi</option></select></div>'
     +'<button class="wl-submit" id="wlSubmitBtn" onclick="wlSubmit()">S\'inscrire →</button>'
@@ -2254,7 +2304,7 @@ async function wlSubmit(){
   try{
     const res=await fetch('/api/public/'+slug+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({practitioner_id:selectedPractitioner.id,service_id:selectedService.id,
-        client_name:name,client_email:email,client_phone:phoneRaw?getFullPhone(phoneRaw):null,
+        client_name:name,client_email:email,client_phone:phoneRaw?(document.getElementById('wlPhonePrefix')?.value||'+32')+sanitizePhone(phoneRaw):null,
         preferred_days:days,preferred_time:document.getElementById('wlTime').value,note:null})});
     const data=await res.json();if(!res.ok)throw new Error(data.error||'Erreur');
     document.getElementById('wlForm').outerHTML='<div class="wl-success"><div style="font-size:2rem;margin-bottom:8px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h3>Inscrit·e !</h3><p>Nous vous préviendrons à <strong>'+email+'</strong> dès qu\'un créneau se libère.</p><div class="position">#'+data.position+' dans la file</div></div>';
