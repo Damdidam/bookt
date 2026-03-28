@@ -27,13 +27,13 @@
   --text: #2C2C2C;
   --subtle: #F5F0EB;
   --border: #E8E0D8;
-  --text-light: #888;
+  --text-light: #6B6B6B;
   --font-primary: 'DM Sans', sans-serif;
   --font-serif: 'Cormorant Garamond', serif;
   --max-width: 960px;
   --section-gap: 100px 0;
   --radius: 6px;
-  --transition: 0.35s ease;
+  --transition: 0.25s ease;
 }
 
 html { scroll-behavior: smooth; }
@@ -79,7 +79,7 @@ img { max-width: 100%; display: block; }
 }
 
 .btn-outline {
-  display: inline-block; padding: 10px 24px;
+  display: inline-block; padding: 12px 24px; min-height: 44px;
   border: 1px solid var(--accent); color: var(--accent);
   font-size: 13px; font-weight: 500; font-family: var(--font-primary);
   border-radius: var(--radius); cursor: pointer; background: transparent;
@@ -97,6 +97,8 @@ img { max-width: 100%; display: block; }
   letter-spacing: 0.3px;
 }
 .btn-solid:hover { opacity: 0.85; }
+.btn-outline:focus-visible, .btn-solid:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ════════════════════════════════════════
    NAVBAR — sticky + blur (from bold)
@@ -573,7 +575,7 @@ img { max-width: 100%; display: block; }
 
 .social-links { display: flex; gap: 10px; margin-top: 20px; }
 .social-link {
-  width: 36px; height: 36px; border: 1px solid var(--border);
+  width: 44px; height: 44px; border: 1px solid var(--border);
   border-radius: 50%; display: flex; align-items: center; justify-content: center;
   transition: border-color 0.3s, background 0.3s;
 }
@@ -999,6 +1001,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 </style>
 </head>
 <body>
@@ -1011,7 +1014,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
 
 <!-- Error -->
 <div id="errorState" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;font-family:var(--font-primary)">
-  <div style="font-size:3rem">&#128269;</div>
+  <div><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-light)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>
   <h2 style="font-size:1.6rem">Page introuvable</h2>
   <p style="color:var(--text-light)">Ce salon n'existe pas ou n'est pas encore publi&eacute;.</p>
   <a href="/" style="color:var(--accent);font-weight:600">&larr; Retour</a>

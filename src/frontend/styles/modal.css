@@ -107,7 +107,7 @@ body.has-modal{overflow:hidden}
 .m-client-meta a{color:var(--text-4);text-decoration:none}.m-client-meta a:hover{color:var(--primary)}
 .m-free-tag{font-size:var(--text-xs);font-family:var(--sans);font-weight:800;padding:2px 7px;border-radius:var(--radius-xs);letter-spacing:.5px}
 .m-quick-actions{display:flex;gap:4px;margin-left:auto;flex-shrink:0;align-self:center}
-.m-qbtn{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:var(--text-base);color:var(--text-3);transition:all .15s;text-decoration:none}
+.m-qbtn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:var(--text-base);color:var(--text-3);transition:all .15s;text-decoration:none}
 .m-qbtn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
 
 /* ── Status strip ── */

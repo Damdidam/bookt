@@ -16,6 +16,7 @@
 .ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:.8rem;color:rgba(255,255,255,.45);cursor:pointer;transition:var(--transition);text-decoration:none;margin-bottom:1px;position:relative}
 .ni:hover{background:var(--sidebar-hover);color:rgba(255,255,255,.85)}
 .ni.active{background:var(--sidebar-active);color:var(--white);font-weight:600;box-shadow:0 2px 8px rgba(13,115,119,.2)}
+.ni:focus-visible{outline:2px solid rgba(255,255,255,.6);outline-offset:-2px;border-radius:8px}
 .ni .ic{width:18px;text-align:center;font-size:var(--text-md);flex-shrink:0}
 .sb-foot{padding:16px 18px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.15)}
 .sb-foot .nm{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
