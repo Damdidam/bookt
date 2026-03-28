@@ -480,50 +480,67 @@ function updateFillRateDOM(totalAvail, totalBooked, pracStats) {
  * Pipeline: fetch → separate → detect pose → build events → filter → inject featured.
  */
 function buildEventsCallback() {
+  let _debounceTimer = null;
+  let _lastQstr = null;
+  let _pendingCb = null;
+
   return function (info, successCb, failCb) {
     const params = new URLSearchParams({ from: info.startStr, to: info.endStr });
     if (calState.fcCurrentFilter !== 'all') params.set('practitioner_id', calState.fcCurrentFilter);
+    const qstr = params.toString();
 
-    // Side-fetch all practitioners' hours (only when filtered to a single prac)
-    if (calState.fcCurrentFilter !== 'all') {
-      const allParams = new URLSearchParams({ from: info.startStr, to: info.endStr });
-      fetch('/api/bookings?' + allParams.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
-        .then(r => r.ok ? r.json() : null).then(d => {
-          if (!d) return;
-          calState.fcPracHours = computePracHours(d.bookings || []);
-          updatePracHours();
-        }).catch(() => {});
+    // Dedup: if same params already pending, just update callbacks
+    if (_debounceTimer && qstr === _lastQstr) {
+      _pendingCb = { success: successCb, fail: failCb };
+      return;
     }
 
-    const headers = { 'Authorization': 'Bearer ' + api.getToken() };
-    const qstr = params.toString();
-    Promise.all([
-      fetch('/api/bookings?' + qstr, { headers }).then(r => r.ok ? r.json() : { bookings: [] }),
-      fetch('/api/tasks?' + qstr, { headers }).then(r => r.ok ? r.json() : { tasks: [] })
-    ]).then(([bData, tData]) => {
-        const bookings = bData.bookings || [];
-        const tasks = tData.tasks || [];
+    // Cancel previous pending debounce
+    if (_debounceTimer) clearTimeout(_debounceTimer);
+    _lastQstr = qstr;
+    _pendingCb = { success: successCb, fail: failCb };
 
-        // Compute hours per practitioner (when "all" filter — no side-fetch needed)
-        if (calState.fcCurrentFilter === 'all') {
-          calState.fcPracHours = computePracHours(bookings);
-          updatePracHours();
-        }
+    _debounceTimer = setTimeout(() => {
+      _debounceTimer = null;
+      const cb = _pendingCb;
 
-        // Pipeline
-        const { grouped, singles } = separateGroupedAndSingles(bookings);
-        const { poseChildMap, poseChildIds, taskPoseChildIds, taskPoseParentMap } = detectPoseChildren(singles, tasks);
-        const singleEvents = buildSingleEvents(singles, poseChildIds, poseChildMap);
-        const groupEvents = buildGroupEvents(grouped);
-        const taskEvents = buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap);
-        const allEvents = singleEvents.concat(groupEvents).concat(taskEvents);
-        const filtered = applyVisibilityFilters(allEvents);
+      // Side-fetch all practitioners' hours (only when filtered to a single prac)
+      if (calState.fcCurrentFilter !== 'all') {
+        const allParams = new URLSearchParams({ from: info.startStr, to: info.endStr });
+        fetch('/api/bookings?' + allParams.toString(), { headers: { 'Authorization': 'Bearer ' + api.getToken() } })
+          .then(r => r.ok ? r.json() : null).then(d => {
+            if (!d) return;
+            calState.fcPracHours = computePracHours(d.bookings || []);
+            updatePracHours();
+          }).catch(() => {});
+      }
 
-        // Inject featured slots background events if mode is active
-        const fsEvents = fsBuildBackgroundEvents();
-        const gaEvents = gaBuildBackgroundEvents();
-        successCb(filtered.concat(fsEvents).concat(gaEvents));
-      }).catch(e => failCb(e));
+      const headers = { 'Authorization': 'Bearer ' + api.getToken() };
+      Promise.all([
+        fetch('/api/bookings?' + qstr, { headers }).then(r => r.ok ? r.json() : { bookings: [] }),
+        fetch('/api/tasks?' + qstr, { headers }).then(r => r.ok ? r.json() : { tasks: [] })
+      ]).then(([bData, tData]) => {
+          const bookings = bData.bookings || [];
+          const tasks = tData.tasks || [];
+
+          if (calState.fcCurrentFilter === 'all') {
+            calState.fcPracHours = computePracHours(bookings);
+            updatePracHours();
+          }
+
+          const { grouped, singles } = separateGroupedAndSingles(bookings);
+          const { poseChildMap, poseChildIds, taskPoseChildIds, taskPoseParentMap } = detectPoseChildren(singles, tasks);
+          const singleEvents = buildSingleEvents(singles, poseChildIds, poseChildMap);
+          const groupEvents = buildGroupEvents(grouped);
+          const taskEvents = buildTaskEvents(tasks, taskPoseChildIds, taskPoseParentMap);
+          const allEvents = singleEvents.concat(groupEvents).concat(taskEvents);
+          const filtered = applyVisibilityFilters(allEvents);
+
+          const fsEvents = fsBuildBackgroundEvents();
+          const gaEvents = gaBuildBackgroundEvents();
+          cb.success(filtered.concat(fsEvents).concat(gaEvents));
+        }).catch(e => cb.fail(e));
+    }, 150);
   };
 }
 
