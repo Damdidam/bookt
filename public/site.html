@@ -674,7 +674,8 @@ body.tpl-bold .navbar-links a:hover { color: var(--text); }
 /* Hero: left-aligned, no blobs, circle decorations */
 body.tpl-bold .hero { text-align: left; padding: 160px 0 100px; }
 body.tpl-bold .hero-blobs { display: none; }
-body.tpl-bold .hero-cover::after { background: linear-gradient(to bottom, transparent 40%, var(--bg)); }
+body.tpl-bold .hero-cover.active { opacity: .35; }
+body.tpl-bold .hero-cover::after { background: linear-gradient(to bottom, var(--bg) 0%, transparent 30%, transparent 60%, var(--bg) 100%); }
 body.tpl-bold .hero-label { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 4px; }
 body.tpl-bold .hero-name-wrap { padding: 0; margin-bottom: 24px; }
 body.tpl-bold .hero-name-wrap::before, body.tpl-bold .hero-name-wrap::after { display: none; }
