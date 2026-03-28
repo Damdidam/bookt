@@ -5,6 +5,7 @@
 const router = require('express').Router();
 const { query, pool } = require('../../services/db');
 const { depositLimiter } = require('../../middleware/rate-limiter');
+const { BASE_URL } = require('./helpers');
 
 // ============================================================
 // GIFT CARDS
@@ -50,7 +51,7 @@ router.post('/:slug/gift-card/checkout', async (req, res, next) => {
     if (!amount_cents || amount_cents < (s.giftcard_min_amount_cents || 1000)) return res.status(400).json({ error: 'Montant trop faible' });
     if (amount_cents > (s.giftcard_max_amount_cents || 50000)) return res.status(400).json({ error: 'Montant trop élevé' });
     if (!buyer_email) return res.status(400).json({ error: 'Email acheteur requis' });
-    const baseUrl = process.env.APP_BASE_URL || 'https://genda.be';
+    const baseUrl = BASE_URL;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment', payment_method_types: ['card', 'bancontact'],
       line_items: [{ price_data: { currency: 'eur', unit_amount: amount_cents, product_data: { name: `Carte cadeau — ${biz.name}`, description: `Valeur : ${(amount_cents / 100).toFixed(2)}€` } }, quantity: 1 }],
@@ -241,7 +242,7 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
     );
     if (tplRes.rows.length === 0) return res.status(404).json({ error: 'Formule introuvable' });
     const tpl = tplRes.rows[0];
-    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const baseUrl = BASE_URL;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment', payment_method_types: ['card', 'bancontact'],
       line_items: [{ price_data: { currency: 'eur', unit_amount: tpl.price_cents, product_data: { name: `Pass ${tpl.name}`, description: `${tpl.sessions_count} séances — ${tpl.service_name}` } }, quantity: 1 }],

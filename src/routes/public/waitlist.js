@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, pool } = require('../../services/db');
 const { bookingLimiter } = require('../../middleware/rate-limiter');
-const { UUID_RE, shouldRequireDeposit, computeDepositDeadline } = require('./helpers');
+const { UUID_RE, shouldRequireDeposit, computeDepositDeadline, BASE_URL } = require('./helpers');
 const { broadcast } = require('../../services/sse');
 const { checkBookingConflicts } = require('../staff/bookings-helpers');
 
@@ -416,7 +416,7 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         token: booking.public_token,
         start_at: booking.start_at,
         end_at: booking.end_at,
-        manage_url: `${process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${booking.public_token}`
+        manage_url: `${BASE_URL}/booking/${booking.public_token}`
       }
     });
   } catch (err) { next(err); }

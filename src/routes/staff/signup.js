@@ -227,7 +227,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
         { expiresIn: '24h' }
       );
 
-      console.log(`\n  New signup: ${business_name} (${email}) → genda.be/${slug}\n`);
+      console.log(`[SIGNUP] ${business_name} (${email}) → genda.be/${slug}`);
 
       res.status(201).json({
         token,

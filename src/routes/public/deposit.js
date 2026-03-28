@@ -5,6 +5,7 @@
 const router = require('express').Router();
 const { query } = require('../../services/db');
 const { depositLimiter } = require('../../middleware/rate-limiter');
+const { BASE_URL } = require('./helpers');
 
 // ============================================================
 // POST /api/public/deposit/:token/checkout
@@ -72,7 +73,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
     }
 
     // 5. Create Checkout Session
-    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const baseUrl = BASE_URL;
     const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
       timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
     });
@@ -126,7 +127,7 @@ router.post('/deposit/:token/checkout', depositLimiter, async (req, res, next) =
 router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
-    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const baseUrl = BASE_URL;
     const depositPageUrl = `${baseUrl}/deposit/${token}`;
 
     const result = await query(
@@ -219,7 +220,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
     res.redirect(session.url);
   } catch (err) {
     console.error('[DEPOSIT PAY REDIRECT] Error:', err);
-    const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+    const baseUrl = BASE_URL;
     res.redirect(`${baseUrl}/deposit/${req.params.token}?error=checkout`);
   }
 });

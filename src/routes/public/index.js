@@ -6,7 +6,7 @@ const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
-const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow } = require('./helpers');
+const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL } = require('./helpers');
 
 // Mount OAuth sub-router for client booking authentication
 router.use('/auth', require('./oauth'));
@@ -859,7 +859,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             if (multiBookings[0].status === 'pending_deposit') {
               // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
-              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const baseUrl = BASE_URL;
               const depositUrl = `${baseUrl}/deposit/${multiBookings[0].public_token}`;
               await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, multiBookings[0].id]);
               const { sendDepositRequestEmail } = require('../../services/email');
@@ -906,7 +906,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               if (multiConfChannel === 'sms' || multiConfChannel === 'both') {
                 try {
                   const { sendSMS } = require('../../services/sms');
-                  const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+                  const baseUrl = BASE_URL;
                   const link = `${baseUrl}/api/public/booking/${multiBookings[0].public_token}/confirm-booking`;
                   const _sd = new Date(emailBooking.start_at);
                   const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
@@ -925,7 +925,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         booking: {
           id: multiBookings[0].id, token: multiBookings[0].public_token,
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
-          cancel_url: `${process.env.BOOKING_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${multiBookings[0].public_token}`
+          cancel_url: `${BASE_URL}/booking/${multiBookings[0].public_token}`
         },
         bookings: multiBookings.map(b => ({
           id: b.id, token: b.public_token,
@@ -1445,7 +1445,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           };
           if (createdBooking.status === 'pending_deposit') {
             // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
-            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const baseUrl = BASE_URL;
             const depositUrl = `${baseUrl}/deposit/${createdBooking.public_token}`;
             await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, createdBooking.id]);
             const { sendDepositRequestEmail } = require('../../services/email');
@@ -1485,7 +1485,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (singleConfChannel === 'sms' || singleConfChannel === 'both') {
               try {
                 const { sendSMS } = require('../../services/sms');
-                const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || 'https://genda.be';
+                const baseUrl = BASE_URL;
                 const link = `${baseUrl}/api/public/booking/${createdBooking.public_token}/confirm-booking`;
                 const _sd2 = new Date(emailBooking.start_at);
                 const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
@@ -1513,7 +1513,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         id: createdBooking.id, token: createdBooking.public_token,
         start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
         discount_pct: createdBooking.discount_pct || null,
-        cancel_url: `${process.env.BOOKING_BASE_URL || process.env.BASE_URL || 'https://genda.be'}/booking/${createdBooking.public_token}`
+        cancel_url: `${BASE_URL}/booking/${createdBooking.public_token}`
       },
       needs_confirmation: singleNeedsConfirm && createdBooking.status !== 'pending_deposit'
     });

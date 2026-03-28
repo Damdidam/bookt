@@ -139,8 +139,10 @@ const SECTOR_PRACTITIONER = {
 const _nextSlotCache = {};
 const _minisiteCache = {};
 
+const BASE_URL = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+
 module.exports = {
   UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
-  _nextSlotCache, _minisiteCache
+  _nextSlotCache, _minisiteCache, BASE_URL
 };
