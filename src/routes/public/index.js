@@ -598,7 +598,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             if (pass_code || client_email) {
               try {
                 const serviceIds = chainedSlots.map(s => s.service_id);
-                const variantIds = chainedSlots.map(s => s.variant_id || null);
+                const variantIds = chainedSlots.map(s => s.service_variant_id || null);
                 let passRes;
                 if (pass_code) {
                   passRes = await client.query(
@@ -625,7 +625,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   // Find the specific booking that matches this pass's service
                   const matchIdx = bookings.findIndex((bk, i) =>
                     String(chainedSlots[i].service_id) === String(pass.service_id) &&
-                    (!pass.service_variant_id || String(chainedSlots[i].variant_id) === String(pass.service_variant_id))
+                    (!pass.service_variant_id || String(chainedSlots[i].service_variant_id) === String(pass.service_variant_id))
                   );
                   if (matchIdx >= 0) {
                     const newRemaining = pass.sessions_remaining - 1;
