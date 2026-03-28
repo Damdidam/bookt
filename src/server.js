@@ -134,6 +134,9 @@ app.get('/dashboard', (req, res) => {
 });
 
 app.get('/auto-login', (req, res) => res.sendFile(path.join(__dirname, '../public/auto-login.html')));
+app.get('/cgv', (req, res) => res.sendFile(path.join(__dirname, '../public/legal.html')));
+app.get('/confidentialite', (req, res) => res.sendFile(path.join(__dirname, '../public/legal.html')));
+app.get('/legal', (req, res) => res.sendFile(path.join(__dirname, '../public/legal.html')));
 
 // Public mini-site: /:slug (must be AFTER all other routes)
 // This is handled by the catch-all at the bottom

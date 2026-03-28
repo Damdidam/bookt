@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentions légales — Genda</title>
+<link rel="icon" href="/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent: #0D7377;
+  --bg: #FEFDFB;
+  --text: #2C2C2C;
+  --text-2: #555;
+  --text-light: #6B6B6B;
+  --subtle: #F5F0EB;
+  --border: #E8E0D8;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+.header { background: var(--accent); padding: 24px 0; text-align: center; }
+.header a { color: #fff; text-decoration: none; font-size: 1.4rem; font-weight: 700; letter-spacing: .5px; }
+.container { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+h2 { font-size: 1.15rem; font-weight: 600; margin-top: 36px; margin-bottom: 12px; color: var(--text); padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: .95rem; font-weight: 600; margin-top: 20px; margin-bottom: 8px; color: var(--text-2); }
+p, li { font-size: .88rem; color: var(--text-2); margin-bottom: 10px; }
+ul { padding-left: 20px; margin-bottom: 14px; }
+li { margin-bottom: 4px; }
+a { color: var(--accent); }
+.date { font-size: .78rem; color: var(--text-light); margin-bottom: 32px; }
+.separator { height: 1px; background: var(--border); margin: 48px 0; }
+.nav-sections { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.nav-sections a { font-size: .82rem; font-weight: 500; color: var(--accent); text-decoration: none; padding: 6px 14px; border: 1px solid var(--accent); border-radius: 20px; transition: all .2s; }
+.nav-sections a:hover { background: var(--accent); color: #fff; }
+.footer { text-align: center; padding: 24px; font-size: .75rem; color: var(--text-light); border-top: 1px solid var(--border); }
+@media (max-width: 480px) { .container { padding: 32px 16px 60px; } h1 { font-size: 1.3rem; } }
+@media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="header"><a href="https://genda.be">Genda</a></div>
+
+<div class="container">
+
+<div class="nav-sections">
+  <a href="#cgv">Conditions Générales</a>
+  <a href="#confidentialite">Politique de Confidentialité</a>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     CGV
+     ═══════════════════════════════════════════ -->
+<h1 id="cgv">Conditions Générales d'Utilisation</h1>
+<p class="date">Dernière mise à jour : 28 mars 2026</p>
+
+<h2>1. Objet</h2>
+<p>Les présentes conditions générales régissent l'utilisation de la plateforme <strong>Genda</strong> (accessible via genda.be), un service en ligne de gestion de rendez-vous et de réservation mis à disposition des professionnels et de leurs clients.</p>
+
+<h2>2. Définitions</h2>
+<ul>
+  <li><strong>Genda</strong> : la plateforme technique de réservation en ligne.</li>
+  <li><strong>Professionnel</strong> : le prestataire de services qui utilise Genda pour gérer ses rendez-vous.</li>
+  <li><strong>Client</strong> : toute personne qui effectue une réservation via la plateforme.</li>
+</ul>
+
+<h2>3. Inscription et réservation</h2>
+<p>Le Client peut effectuer une réservation en ligne via le minisite du Professionnel hébergé sur Genda. La réservation implique l'acceptation des présentes conditions ainsi que des conditions spécifiques du Professionnel (tarifs, politique d'annulation, etc.).</p>
+
+<h2>4. Confirmation et annulation</h2>
+<p>Selon les paramètres du Professionnel, une réservation peut nécessiter :</p>
+<ul>
+  <li>Une confirmation par email et/ou SMS.</li>
+  <li>Le versement d'un acompte via Stripe.</li>
+</ul>
+<p>Les conditions d'annulation (délai, remboursement) sont définies par chaque Professionnel et affichées lors de la réservation. En cas de non-présentation répétée (no-show), le Professionnel se réserve le droit de bloquer l'accès à la réservation en ligne.</p>
+
+<h2>5. Acomptes et paiements</h2>
+<p>Lorsqu'un acompte est requis, il est encaissé via <strong>Stripe</strong> (stripe.com). Genda agit en tant qu'intermédiaire technique et ne stocke aucune donnée de carte bancaire. Les fonds sont versés directement sur le compte Stripe du Professionnel.</p>
+<p>En cas d'annulation dans les délais prévus par le Professionnel, l'acompte est remboursé selon sa politique de remboursement.</p>
+
+<h2>6. Responsabilité</h2>
+<p>Genda fournit un outil technique de mise en relation. La prestation de service est exclusivement assurée par le Professionnel, qui est seul responsable de :</p>
+<ul>
+  <li>La qualité et la réalisation de ses services.</li>
+  <li>Le respect de ses obligations légales et fiscales.</li>
+  <li>Sa politique tarifaire et d'annulation.</li>
+</ul>
+<p>Genda ne peut être tenu responsable d'une prestation non conforme ou d'un litige entre le Client et le Professionnel.</p>
+
+<h2>7. Disponibilité</h2>
+<p>Genda s'efforce d'assurer une disponibilité continue de la plateforme. Toutefois, des interruptions temporaires (maintenance, mise à jour) peuvent survenir sans engagement de dédommagement.</p>
+
+<h2>8. Propriété intellectuelle</h2>
+<p>L'ensemble des éléments de la plateforme Genda (design, code, logo, textes) sont la propriété exclusive de Genda et protégés par le droit d'auteur. Toute reproduction est interdite sans autorisation écrite.</p>
+
+<h2>9. Droit applicable</h2>
+<p>Les présentes conditions sont régies par le droit belge. En cas de litige, les tribunaux de Bruxelles sont compétents.</p>
+
+<h2>10. Contact</h2>
+<p>Pour toute question relative aux présentes conditions : <a href="mailto:contact@genda.be">contact@genda.be</a></p>
+
+<!-- ═══════════════════════════════════════════ -->
+<div class="separator"></div>
+<!-- ═══════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════
+     CONFIDENTIALITÉ
+     ═══════════════════════════════════════════ -->
+<h1 id="confidentialite">Politique de Confidentialité</h1>
+<p class="date">Dernière mise à jour : 28 mars 2026</p>
+
+<h2>1. Responsable du traitement</h2>
+<p>La plateforme <strong>Genda</strong> agit en tant que sous-traitant technique (processeur) au sens du RGPD. Le Professionnel qui utilise Genda est le responsable du traitement des données de ses clients.</p>
+<p>Pour les données liées au fonctionnement de la plateforme elle-même, Genda est responsable du traitement.</p>
+
+<h2>2. Données collectées</h2>
+<h3>Lors d'une réservation</h3>
+<ul>
+  <li>Nom et prénom</li>
+  <li>Adresse email</li>
+  <li>Numéro de téléphone</li>
+  <li>Commentaire libre (optionnel)</li>
+</ul>
+<h3>Données techniques</h3>
+<ul>
+  <li>Adresse IP (pour la sécurité et la prévention des abus)</li>
+  <li>Données de navigation (cookies fonctionnels uniquement)</li>
+</ul>
+<h3>Données de paiement</h3>
+<ul>
+  <li>Les données de carte bancaire sont traitées exclusivement par <strong>Stripe</strong> et ne transitent jamais par les serveurs de Genda.</li>
+</ul>
+
+<h2>3. Finalités du traitement</h2>
+<ul>
+  <li>Gestion des réservations et communication avec le Client (confirmations, rappels, modifications).</li>
+  <li>Envoi de notifications par email et/ou SMS selon les préférences du Client.</li>
+  <li>Traitement des acomptes et paiements.</li>
+  <li>Prévention des abus (no-shows récurrents, tentatives frauduleuses).</li>
+  <li>Amélioration de la plateforme (statistiques anonymisées).</li>
+</ul>
+
+<h2>4. Base légale</h2>
+<ul>
+  <li><strong>Exécution du contrat</strong> : traitement nécessaire à la réservation (art. 6.1.b RGPD).</li>
+  <li><strong>Consentement</strong> : envoi de SMS ou communications marketing (art. 6.1.a RGPD).</li>
+  <li><strong>Intérêt légitime</strong> : prévention de la fraude et sécurité de la plateforme (art. 6.1.f RGPD).</li>
+</ul>
+
+<h2>5. Durée de conservation</h2>
+<ul>
+  <li><strong>Données de réservation</strong> : conservées pendant la durée de la relation commerciale avec le Professionnel, puis 3 ans maximum.</li>
+  <li><strong>Données de facturation</strong> : 10 ans (obligation légale belge).</li>
+  <li><strong>Données techniques</strong> (logs, IP) : 12 mois maximum.</li>
+</ul>
+
+<h2>6. Partage des données</h2>
+<p>Genda ne vend ni ne partage les données personnelles à des tiers à des fins commerciales. Les données peuvent être transmises à :</p>
+<ul>
+  <li><strong>Stripe</strong> : pour le traitement des paiements.</li>
+  <li><strong>Brevo</strong> : pour l'envoi d'emails transactionnels.</li>
+  <li><strong>Twilio</strong> : pour l'envoi de SMS (rappels, confirmations).</li>
+  <li><strong>Render</strong> : hébergement de l'infrastructure (serveurs situés aux États-Unis, avec garanties de protection adéquates).</li>
+</ul>
+
+<h2>7. Transferts internationaux</h2>
+<p>Certains sous-traitants (Stripe, Twilio, Render) peuvent traiter des données en dehors de l'Espace Économique Européen. Ces transferts sont encadrés par des clauses contractuelles types (SCC) approuvées par la Commission européenne.</p>
+
+<h2>8. Vos droits</h2>
+<p>Conformément au RGPD, vous disposez des droits suivants :</p>
+<ul>
+  <li><strong>Accès</strong> : obtenir une copie de vos données.</li>
+  <li><strong>Rectification</strong> : corriger des données inexactes.</li>
+  <li><strong>Effacement</strong> : demander la suppression de vos données.</li>
+  <li><strong>Opposition</strong> : vous opposer au traitement de vos données.</li>
+  <li><strong>Portabilité</strong> : recevoir vos données dans un format structuré.</li>
+  <li><strong>Retrait du consentement</strong> : retirer votre consentement à tout moment (SMS, marketing).</li>
+</ul>
+<p>Pour exercer ces droits : <a href="mailto:privacy@genda.be">privacy@genda.be</a></p>
+
+<h2>9. Cookies</h2>
+<p>Genda utilise uniquement des <strong>cookies fonctionnels</strong> nécessaires au bon fonctionnement de la plateforme (session, authentification). Aucun cookie de traçage publicitaire n'est utilisé.</p>
+
+<h2>10. Sécurité</h2>
+<p>Genda met en place des mesures techniques et organisationnelles pour protéger les données personnelles :</p>
+<ul>
+  <li>Chiffrement des communications (HTTPS/TLS).</li>
+  <li>Hashage des mots de passe (bcrypt).</li>
+  <li>Isolation des données par commerce (Row Level Security).</li>
+  <li>Surveillance et alertes de sécurité.</li>
+</ul>
+
+<h2>11. Modification</h2>
+<p>Genda se réserve le droit de modifier cette politique. En cas de modification substantielle, les utilisateurs seront informés via la plateforme.</p>
+
+<h2>12. Contact</h2>
+<p>Pour toute question relative à la protection de vos données : <a href="mailto:privacy@genda.be">privacy@genda.be</a></p>
+
+</div>
+
+<div class="footer">
+  &copy; 2026 Genda &middot; <a href="https://genda.be">genda.be</a>
+</div>
+
+<script>
+if(location.pathname==='/confidentialite'){document.getElementById('confidentialite').scrollIntoView();}
+</script>
+</body>
+</html>
