@@ -45,6 +45,7 @@
 .at-filter-sep{width:1px;height:18px;background:var(--border-light);flex-shrink:0}
 /* Status pills wrapper */
 .at-status-pills{display:flex;gap:4px;flex-shrink:0}
+.at-cat-chips{display:flex;gap:4px;align-items:center;flex-shrink:0;margin-left:4px}
 /* View button short/long labels */
 .at-vp-btn .vs{display:none}
 /* Fill rate bar — full-width thin bar */

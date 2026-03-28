@@ -313,6 +313,9 @@ async function loadAgenda() {
   }
   toolbar += `<div class="at-filter-sep"></div>`;
   toolbar += `<div class="at-status-pills">${statusPillsHtml}</div>`;
+  if (catChipsInnerHtml) {
+    toolbar += `<div class="at-cat-chips">${catChipsInnerHtml}</div>`;
+  }
   toolbar += `</div>`;
   // Desktop: Fill bar
   toolbar += `<div class="at-row-stats" id="atRowStats"><div class="fill-bar"><div class="fill-bar-inner" id="fillBarInner"></div></div></div>`;
