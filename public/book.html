@@ -1613,10 +1613,8 @@ function computeStepOrder(){
     }
   }
   stepOrder=showPrac?[1,2,3,4,5]:[1,3,4,5];
-  // Insert promos step after step 1 if eligible promos exist
-  if(getEligiblePromos().length>0){
-    stepOrder.splice(1,0,'promos');
-  }
+  // Promos step is inserted dynamically when leaving step 1 (not at load time)
+  // because we need the cart to be populated first
   renderProgress();
 }
 function computeProgressDots(){renderProgress();}
@@ -1930,6 +1928,19 @@ function goToStep(n){
   window.scrollTo(0,0);
 }
 function goNext(){
+  // Dynamically insert/remove promos step when leaving step 1
+  var currentStep=stepOrder[currentStepIdx];
+  if(currentStep===1){
+    var promoIdx=stepOrder.indexOf('promos');
+    var eligible=getEligiblePromos();
+    if(eligible.length>0&&promoIdx<0){
+      stepOrder.splice(currentStepIdx+1,0,'promos');
+      renderProgress();
+    }else if(eligible.length===0&&promoIdx>=0){
+      stepOrder.splice(promoIdx,1);
+      renderProgress();
+    }
+  }
   const nextIdx=currentStepIdx+1;
   if(nextIdx<stepOrder.length)goToStep(stepOrder[nextIdx]);
 }
