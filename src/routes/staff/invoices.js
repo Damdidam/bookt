@@ -195,23 +195,11 @@ router.post('/', requireOwner, async (req, res, next) => {
         }];
 
         // Add promo discount line if applicable
-        // Promo is stored on group_order=0; if this booking is a sibling, look up the primary
-        let promoLabel = bk.promotion_label;
-        let promoDiscPct = bk.promotion_discount_pct;
-        let promoDiscCents = bk.promotion_discount_cents;
-        if ((!promoDiscCents || promoDiscCents <= 0) && bk.group_id) {
-          const primaryPromo = await queryWithRLS(bid,
-            `SELECT promotion_label, promotion_discount_pct, promotion_discount_cents
-             FROM bookings WHERE group_id = $1 AND business_id = $2 AND promotion_discount_cents > 0
-             LIMIT 1`,
-            [bk.group_id, bid]
-          );
-          if (primaryPromo.rows.length > 0) {
-            promoLabel = primaryPromo.rows[0].promotion_label;
-            promoDiscPct = primaryPromo.rows[0].promotion_discount_pct;
-            promoDiscCents = primaryPromo.rows[0].promotion_discount_cents;
-          }
-        }
+        // Only use the promo from THIS booking — do NOT look up siblings.
+        // The full group discount should only appear on the invoice for the primary booking (group_order=0).
+        const promoLabel = bk.promotion_label;
+        const promoDiscPct = bk.promotion_discount_pct;
+        const promoDiscCents = bk.promotion_discount_cents;
         if (promoDiscCents > 0 && promoLabel) {
           invoiceItems.push({
             description: `Réduction : ${promoLabel}${promoDiscPct ? ' (-' + promoDiscPct + '%)' : ''}`,

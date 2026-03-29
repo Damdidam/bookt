@@ -397,6 +397,8 @@ async function fcOpenDetail(bookingId) {
       const promoSibs = isGroup ? (siblings || []) : [b];
       const promoSource = isGroup ? promoSibs.find(s => s.promotion_discount_cents > 0) || b : b;
       if (promoSource.promotion_discount_cents > 0 && promoSource.promotion_label) {
+        // Promo takes priority — hide last-minute discount banner if present
+        document.querySelectorAll('.m-promo-banner').forEach(el => el.remove());
         const origPrice = isGroup
           ? promoSibs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0)
           : (b.variant_price_cents ?? b.price_cents ?? 0);
