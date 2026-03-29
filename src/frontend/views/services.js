@@ -168,7 +168,7 @@ function renderServiceRow(s,sortIdx){
   const varPrices=vars.map(v=>v.price_cents).filter(p=>p>0);
   const varDurs=vars.map(v=>v.duration_min).filter(d=>d>0);
   let priceStr;
-  if(varPrices.length>0){const mn=Math.min(...varPrices)/100,mx=Math.max(...varPrices)/100;priceStr=mn===mx?mn+' €':mn+' – '+mx+' €';}
+  if(varPrices.length>0){const mn=(Math.min(...varPrices)/100).toFixed(0),mx=(Math.max(...varPrices)/100).toFixed(0);priceStr=mn===mx?mn+' €':mn+' – '+mx+' €';}
   else if(s.price_cents)priceStr=(s.price_cents/100).toFixed(0)+' €';
   else priceStr=s.price_label||'';
   let durStr;

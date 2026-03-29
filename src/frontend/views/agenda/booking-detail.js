@@ -160,7 +160,7 @@ async function fcOpenDetail(bookingId) {
 
     // -- Deposit banner --
     if (b.deposit_required) {
-      const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2);
+      const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2).replace(".",",");
       const depDl = b.deposit_deadline ? new Date(b.deposit_deadline).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       const depPaid = b.deposit_status === 'paid';
       const depRefunded = b.deposit_status === 'refunded';
@@ -303,7 +303,7 @@ async function fcOpenDetail(bookingId) {
       const origPrice = b.variant_price_cents ?? b.price_cents ?? 0;
       const discPrice = origPrice > 0 ? Math.round(origPrice * (100 - b.discount_pct) / 100) : 0;
       const priceHtml = origPrice > 0
-        ? ' <s style="opacity:.5">' + (origPrice / 100).toFixed(2) + '€</s> → <strong>' + (discPrice / 100).toFixed(2) + '€</strong>'
+        ? ' <s style="opacity:.5">' + (origPrice / 100).toFixed(2).replace(".",",") + ' €</s> → <strong>' + (discPrice / 100).toFixed(2).replace(".",",") + ' €</strong>'
         : '';
       const promoEl = document.createElement('div');
       promoEl.className = 'm-promo-banner';
@@ -359,7 +359,7 @@ async function fcOpenDetail(bookingId) {
           <div class="m-svc-name">${svcNames}</div>
           <div class="m-svc-meta">${siblings.length} prestations \u00b7 ${totalDur} min</div>
         </div>
-        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2) + '\u20ac</div>' : ''}
+        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>' : ''}
         <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>`;
     } else {
       freeCard.style.display = 'none';
@@ -373,9 +373,9 @@ async function fcOpenDetail(bookingId) {
       if (displayPrice) {
         if (b.discount_pct) {
           const disc = Math.round(displayPrice * (100 - b.discount_pct) / 100);
-          priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (displayPrice / 100).toFixed(2) + '\u20ac</s> ' + (disc / 100).toFixed(2) + '\u20ac</div>';
+          priceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (displayPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</s> ' + (disc / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         } else {
-          priceHtml = '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2) + '\u20ac</div>';
+          priceHtml = '<div class="m-svc-price">' + (displayPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
         }
       }
       const canAddSvc = !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner' && b.service_id;
@@ -415,9 +415,9 @@ async function fcOpenDetail(bookingId) {
               <div style="font-size:.78rem;font-weight:600;color:var(--green)">${esc(promoSource.promotion_label)}</div>
               <div style="font-size:.72rem;color:var(--text-3)">
                 ${promoSource.promotion_discount_pct ? '-' + promoSource.promotion_discount_pct + '%' : ''} &mdash;
-                <s style="opacity:.5">${(origPrice / 100).toFixed(2)}\u20ac</s>
-                <span style="font-weight:600;color:var(--green)">${(reducedPrice / 100).toFixed(2)}\u20ac</span>
-                <span style="opacity:.6">(-${(discCents / 100).toFixed(2)}\u20ac)</span>
+                <s style="opacity:.5">${(origPrice / 100).toFixed(2).replace(".",",")} \u20ac</s>
+                <span style="font-weight:600;color:var(--green)">${(reducedPrice / 100).toFixed(2).replace(".",",")} \u20ac</span>
+                <span style="opacity:.6">(-${(discCents / 100).toFixed(2).replace(".",",")} \u20ac)</span>
               </div>
             </div>
           </div>`;
@@ -694,7 +694,7 @@ function historyDetail(entry) {
       return fields.length > 0 ? fields.join(', ') : '';
     }
     case 'deposit_refund':
-      return nd.amount_cents ? (nd.amount_cents / 100).toFixed(2) + '\u20ac' : '';
+      return nd.amount_cents ? (nd.amount_cents / 100).toFixed(2).replace(".",",") + ' \u20ac' : '';
     case 'confirmation_expired':
       return 'Annul\u00e9 \u2014 non confirm\u00e9 par le client';
     case 'client_cancel':
