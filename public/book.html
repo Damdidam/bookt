@@ -2533,6 +2533,7 @@ async function submitBooking(){
     }
     if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
     if(oauthProvider&&oauthProviderId){bookingBody.oauth_provider=oauthProvider;bookingBody.oauth_provider_id=oauthProviderId;}
+    if(appliedPromos.length>0){var ap=appliedPromos.find(function(p){return p.type!=='info_only';});if(ap)bookingBody.promotion_id=ap.id;}
 
     const res=await fetch('/api/public/'+slug+'/bookings',{
       method:'POST',headers:{'Content-Type':'application/json'},
