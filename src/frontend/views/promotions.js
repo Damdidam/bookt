@@ -294,17 +294,25 @@ async function savePromo(id) {
 
   const body = { title, description, condition_type: conditionType, reward_type: rewardType, display_style: displayStyle };
 
-  // Condition value
-  if (conditionType === 'min_amount' || conditionType === 'specific_service') {
-    body.condition_value = document.getElementById('promoConditionValue')?.value || '';
+  // Condition fields
+  if (conditionType === 'min_amount') {
+    var minVal = parseFloat(document.getElementById('promoConditionValue')?.value || 0);
+    body.condition_min_cents = Math.round(minVal * 100);
+  } else if (conditionType === 'specific_service') {
+    body.condition_service_id = document.getElementById('promoConditionValue')?.value || null;
   } else if (conditionType === 'date_range') {
-    body.condition_date_start = document.getElementById('promoConditionDateStart')?.value || '';
-    body.condition_date_end = document.getElementById('promoConditionDateEnd')?.value || '';
+    body.condition_start_date = document.getElementById('promoConditionDateStart')?.value || null;
+    body.condition_end_date = document.getElementById('promoConditionDateEnd')?.value || null;
   }
 
-  // Reward value
-  if (rewardType === 'free_service' || rewardType === 'discount_pct' || rewardType === 'discount_fixed') {
-    body.reward_value = document.getElementById('promoRewardValue')?.value || '';
+  // Reward fields
+  if (rewardType === 'free_service') {
+    body.reward_service_id = document.getElementById('promoRewardValue')?.value || null;
+  } else if (rewardType === 'discount_pct') {
+    body.reward_value = parseInt(document.getElementById('promoRewardValue')?.value || 0);
+  } else if (rewardType === 'discount_fixed') {
+    var fixedVal = parseFloat(document.getElementById('promoRewardValue')?.value || 0);
+    body.reward_value = Math.round(fixedVal * 100);
   }
 
   try {
