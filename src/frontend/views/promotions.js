@@ -190,8 +190,8 @@ async function openPromoModal(id) {
       <div style="margin-bottom:14px">
         <label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Style d'affichage</label>
         <div style="display:flex;gap:10px">
-          <label style="flex:1;cursor:pointer;padding:10px;border:2px solid ${ds === 'card' ? 'var(--primary)' : 'var(--border)'};border-radius:var(--radius-xs);text-align:center;font-size:.82rem;background:${ds === 'card' ? 'var(--primary-light)' : 'var(--surface)'}">
-            <input type="radio" name="promoDisplay" value="card" ${ds === 'card' ? 'checked' : ''} style="display:none" onchange="promoDisplayChanged()"> Carte
+          <label style="flex:1;cursor:pointer;padding:10px;border:2px solid ${ds === 'cards' ? 'var(--primary)' : 'var(--border)'};border-radius:var(--radius-xs);text-align:center;font-size:.82rem;background:${ds === 'cards' ? 'var(--primary-light)' : 'var(--surface)'}">
+            <input type="radio" name="promoDisplay" value="cards" ${ds === 'cards' ? 'checked' : ''} style="display:none" onchange="promoDisplayChanged()"> Carte
           </label>
           <label style="flex:1;cursor:pointer;padding:10px;border:2px solid ${ds === 'banner' ? 'var(--primary)' : 'var(--border)'};border-radius:var(--radius-xs);text-align:center;font-size:.82rem;background:${ds === 'banner' ? 'var(--primary-light)' : 'var(--surface)'}">
             <input type="radio" name="promoDisplay" value="banner" ${ds === 'banner' ? 'checked' : ''} style="display:none" onchange="promoDisplayChanged()"> Banni\u00E8re
