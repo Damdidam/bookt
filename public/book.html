@@ -1086,6 +1086,24 @@ function initPage(){
   const phoneInput=document.getElementById('cPhone');
   phoneInput.addEventListener('input',formatPhoneInput);
   phoneInput.addEventListener('blur',validatePhoneField);
+  phoneInput.addEventListener('blur',function(){
+    // Re-check first_visit after phone is filled (fallback if email didn't match)
+    var em2=document.getElementById('cEmail').value.trim();
+    if(em2&&validateEmailStrict(em2)){
+      var ph2=getFullPhone(this.value);
+      if(ph2){
+        fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(em2)+'&phone='+encodeURIComponent(ph2))
+          .then(r=>r.ok?r.json():null).then(d2=>{
+            if(!d2)return;
+            if(d2.booking_count>0){
+              // Not first visit — remove any first_visit promo
+              appliedPromos=appliedPromos.filter(function(ap){return!ap.is_first_visit;});
+              buildSummary();
+            }
+          }).catch(()=>{});
+      }
+    }
+  });
   document.getElementById('cEmail').addEventListener('blur',function(){
     validateEmailField();
     // Auto-fill phone (+ name) from known client
@@ -1772,7 +1790,9 @@ async function handleOauthPickup(pickupKey){
     // Auto-fill phone from known client (OAuth doesn't provide phone)
     if(data.email){
       try{
-        var phRes=await fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(data.email));
+        var oauthPh=document.getElementById('cPhone');
+        var oauthPhFull=oauthPh&&oauthPh.value.trim()?getFullPhone(oauthPh.value):'';
+        var phRes=await fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(data.email)+(oauthPhFull?'&phone='+encodeURIComponent(oauthPhFull):''));
         if(phRes.ok){
           var phData=await phRes.json();
           if(phData&&phData.phone){

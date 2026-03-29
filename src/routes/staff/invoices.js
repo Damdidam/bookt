@@ -64,6 +64,7 @@ router.get('/unbilled', async (req, res, next) => {
     const result = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.group_id, b.deposit_payment_intent_id, b.deposit_amount_cents,
               b.deposit_status,
+              b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
               s.name AS service_name, s.price_cents AS service_price_cents,
               sv.name AS variant_name, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name

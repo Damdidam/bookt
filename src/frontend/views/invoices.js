@@ -345,6 +345,11 @@ function invToggleUnbilled(idx,checked){
       }
     }else{
       _addInvoiceLineFromBooking(b.id,desc,1,fullPrice/100);
+      // Promo discount line
+      if(b.promotion_discount_cents>0&&b.promotion_label){
+        const promoDesc='Réduction : '+b.promotion_label+(b.promotion_discount_pct?' (-'+b.promotion_discount_pct+'%)':'');
+        _addInvoiceLineFromBooking(b.id,promoDesc,1,-(b.promotion_discount_cents/100));
+      }
     }
 
     // Stripe deposit: show actual amount paid as deduction (once per payment intent)
