@@ -507,6 +507,24 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
       detailLines += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
+    const totalMinCR = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPriceCR = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscountCR = booking.promotion_discount_cents || 0;
+    const finalPriceCR = totalPriceCR - promoDiscountCR;
+    const durStrCR = totalMinCR >= 60 ? Math.floor(totalMinCR / 60) + 'h' + (totalMinCR % 60 > 0 ? String(totalMinCR % 60).padStart(2, '0') : '') : totalMinCR + ' min';
+    let priceHtmlCR = '';
+    if (totalPriceCR > 0) {
+      if (promoDiscountCR > 0 && booking.promotion_label) {
+        priceHtmlCR = ` \u00b7 <s style="opacity:.6">${(totalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac`;
+        detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrCR}${priceHtmlCR}</div>`;
+        detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscountCR / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        priceHtmlCR = ` \u00b7 ${(totalPriceCR / 100).toFixed(2).replace('.', ',')} \u20ac`;
+        detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrCR}${priceHtmlCR}</div>`;
+      }
+    } else {
+      detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrCR}</div>`;
+    }
   } else {
     detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${_ic('sparkle-amb')} ${serviceName}</div>`;
   }
