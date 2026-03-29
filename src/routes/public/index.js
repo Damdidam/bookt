@@ -1193,17 +1193,36 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
+      // ── Promo validation (single-service) ──
+      let promoResult = { valid: false };
+      if (promotion_id && UUID_RE.test(promotion_id)) {
+        let promoSvcPrice = 0;
+        const _promoSvcRes = await client.query(`SELECT price_cents FROM services WHERE id = $1`, [effectiveServiceId]);
+        promoSvcPrice = _promoSvcRes.rows[0]?.price_cents || 0;
+        if (resolvedVariantId) {
+          const _promoVarRes = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+          if (_promoVarRes.rows[0]?.price_cents != null) promoSvcPrice = _promoVarRes.rows[0].price_cents;
+        }
+        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], promoSvcPrice, clientId);
+      }
+
       // Create booking
       const booking = await client.query(
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
-          processing_time, processing_start, locked, discount_pct)
-         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-         RETURNING id, public_token, start_at, end_at, status, discount_pct`,
+          processing_time, processing_start, locked, discount_pct,
+          promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents)
+         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+         RETURNING id, public_token, start_at, end_at, status, discount_pct,
+                   promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
          appointment_mode||'cabinet', startDate.toISOString(), endDate.toISOString(), bookingStatus, client_comment||null,
          needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
-         resolvedProcessingTime, resolvedProcessingStart, bookingStatus === 'confirmed' ? true : singleLocked, resolvedDiscountPct]
+         resolvedProcessingTime, resolvedProcessingStart, bookingStatus === 'confirmed' ? true : singleLocked, resolvedDiscountPct,
+         promoResult.valid ? promotion_id : null,
+         promoResult.valid ? promoResult.label : null,
+         promoResult.valid ? promoResult.discount_pct : null,
+         promoResult.valid ? promoResult.discount_cents : 0]
       );
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
@@ -1242,6 +1261,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
 
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
+
+          // Recalculate deposit amount on reduced price if promo applied
+          const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
+          if (depResult.required && promoDiscountCents > 0 && bizSettings.deposit_type !== 'fixed') {
+            const reducedSvcPrice = svcPrice - promoDiscountCents;
+            depResult.depCents = Math.round(reducedSvcPrice * (bizSettings.deposit_percent || 50) / 100);
+            if (depResult.depCents <= 0) depResult.required = false;
+          }
 
           // Pass auto-debit — runs even without deposit (pass = proof of attendance)
           let passUsed = false;
