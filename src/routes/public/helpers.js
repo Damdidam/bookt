@@ -151,9 +151,9 @@ const BASE_URL = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://ge
  * @param {string} promotionId - promotion UUID from frontend
  * @param {Array} serviceIds - array of service UUIDs in the cart
  * @param {number} totalPriceCents - total cart price in cents (before discount)
- * @param {string|null} clientId - client UUID (null = new client)
+ * @param {boolean} isNewClient - true if client was just created (first visit)
  */
-async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, clientId) {
+async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, isNewClient) {
   if (!promotionId) return { valid: false };
 
   // Fetch promo
@@ -173,15 +173,7 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
       if (totalPriceCents < promo.condition_min_cents) return { valid: false };
       break;
     case 'first_visit':
-      if (clientId) {
-        // Client already exists in clients table for this business = not first visit
-        const existsRes = await txClient.query(
-          `SELECT 1 FROM clients WHERE id = $1 AND business_id = $2`,
-          [clientId, businessId]
-        );
-        if (existsRes.rows.length > 0) return { valid: false };
-      }
-      // clientId is null = new client = first visit OK
+      if (!isNewClient) return { valid: false };
       break;
     case 'date_range': {
       const now = new Date();
@@ -222,8 +214,8 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
       discount_cents = Math.min(promo.reward_value, totalPriceCents);
     }
   } else if (promo.reward_type === 'free_service') {
-    // The free service is added to the cart by the frontend
-    // The discount = price of the free service
+    // The free service must be in the cart (added by frontend)
+    if (!promo.reward_service_id || !serviceIds.includes(promo.reward_service_id)) return { valid: false };
     if (promo.reward_service_id) {
       const freeRes = await txClient.query(
         `SELECT price_cents FROM services WHERE id = $1`, [promo.reward_service_id]

@@ -512,11 +512,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
 
         // ── Promo validation (multi-service) ──
+        const isNewClient = !existingClient;
         let promoResult = { valid: false };
         if (promotion_id && UUID_RE.test(promotion_id)) {
           const cartServiceIds = multiServices.map(s => s.id);
           const cartTotal = multiServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
-          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, cartTotal, clientId);
+          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, cartTotal, isNewClient);
         }
 
         // Determine locked status based on flexibility
@@ -610,7 +611,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             // Recalculate deposit amount on reduced price if promo applied
             const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
             if (depResult.required && promoDiscountCents > 0 && bizSettings.deposit_type !== 'fixed') {
-              const reducedPrice = totalPrice - promoDiscountCents;
+              const reducedPrice = Math.max(0, totalPrice - promoDiscountCents);
               depResult.depCents = Math.round(reducedPrice * (bizSettings.deposit_percent || 50) / 100);
               if (depResult.depCents <= 0) depResult.required = false;
             }
@@ -1194,6 +1195,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
 
       // ── Promo validation (single-service) ──
+      const isNewClient = !existingClient;
       let promoResult = { valid: false };
       if (promotion_id && UUID_RE.test(promotion_id)) {
         let promoSvcPrice = 0;
@@ -1203,7 +1205,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const _promoVarRes = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
           if (_promoVarRes.rows[0]?.price_cents != null) promoSvcPrice = _promoVarRes.rows[0].price_cents;
         }
-        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], promoSvcPrice, clientId);
+        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], promoSvcPrice, isNewClient);
       }
 
       // Create booking
@@ -1265,7 +1267,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           // Recalculate deposit amount on reduced price if promo applied
           const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
           if (depResult.required && promoDiscountCents > 0 && bizSettings.deposit_type !== 'fixed') {
-            const reducedSvcPrice = svcPrice - promoDiscountCents;
+            const reducedSvcPrice = Math.max(0, svcPrice - promoDiscountCents);
             depResult.depCents = Math.round(reducedSvcPrice * (bizSettings.deposit_percent || 50) / 100);
             if (depResult.depCents <= 0) depResult.required = false;
           }
