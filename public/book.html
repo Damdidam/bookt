@@ -1940,6 +1940,10 @@ function goToStep(n){
         var spStr=spc?(spc/100).toFixed(0)+' \u20ac':(selectedService.price_label||'');
         rh+='<div class="sum-row"><span class="label">'+sn+'</span><span class="val">'+sd+' min \u00b7 '+spStr+'</span></div>';
       }
+      // Promo hint (only if business has active promos)
+      if(siteData&&siteData.promotions&&siteData.promotions.length>0){
+        rh+='<div style="margin-top:8px;font-size:.73rem;color:var(--text-4);font-style:italic">Des r\u00e9ductions peuvent s\u2019appliquer au r\u00e9capitulatif final.</div>';
+      }
       // Add note for services with restricted availability
       var restrictedSvcs=(multiServiceMode?selectedServices:[selectedService]).filter(function(s){return s&&s.available_schedule&&s.available_schedule.type==='restricted';});
       if(restrictedSvcs.length>0){
