@@ -257,6 +257,24 @@ router.get('/:slug', async (req, res, next) => {
       [biz.sector || 'autre', biz.id]
     );
 
+    // Active promotions
+    const promoRes = await query(
+      `SELECT p.id, p.title, p.description, p.image_url,
+              p.condition_type, p.condition_min_cents, p.condition_service_id,
+              p.condition_start_date, p.condition_end_date,
+              p.reward_type, p.reward_service_id, p.reward_value, p.display_style,
+              rs.name AS reward_service_name,
+              rs.duration_min AS reward_service_duration_min,
+              COALESCE(rs.price_cents, 0) AS reward_service_price_cents
+       FROM promotions p
+       LEFT JOIN services rs ON rs.id = p.reward_service_id
+       WHERE p.business_id = $1 AND p.is_active = true
+         AND (p.condition_end_date IS NULL OR p.condition_end_date >= CURRENT_DATE)
+         AND (p.condition_start_date IS NULL OR p.condition_start_date <= CURRENT_DATE)
+       ORDER BY p.sort_order, p.created_at`,
+      [bid]
+    );
+
     // ===== RESPONSE (cached 2 min) =====
     const _msResponse = {
       business: {
@@ -340,6 +358,7 @@ router.get('/:slug', async (req, res, next) => {
       news,
       hours,
       sector_categories: sectorCatsResult.rows,
+      promotions: promoRes.rows,
       next_available: nextSlot,
       practitioner_count: pracResult.rows.length
     };
