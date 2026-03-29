@@ -28,13 +28,17 @@ const REWARD_LABELS = {
 function conditionSummary(p) {
   const fn = CONDITION_LABELS[p.condition_type];
   if (!fn) return p.condition_type || '—';
-  if (p.condition_type === 'date_range') return fn(p.condition_date_start, p.condition_date_end);
-  return fn(p.condition_value);
+  if (p.condition_type === 'min_amount') return fn((p.condition_min_cents / 100).toFixed(0) + '\u202F\u20AC');
+  if (p.condition_type === 'specific_service') return fn(p.condition_service_name || '?');
+  if (p.condition_type === 'date_range') return fn(p.condition_start_date, p.condition_end_date);
+  return fn();
 }
 
 function rewardSummary(p) {
   const fn = REWARD_LABELS[p.reward_type];
   if (!fn) return p.reward_type || '—';
+  if (p.reward_type === 'free_service') return fn(p.reward_service_name || '?');
+  if (p.reward_type === 'discount_fixed') return fn((p.reward_value / 100).toFixed(0));
   return fn(p.reward_value);
 }
 

@@ -77,9 +77,11 @@ router.get('/', requireAuth, async (req, res, next) => {
   try {
     const result = await queryWithRLS(req.businessId,
       `SELECT p.*,
-              s.name AS reward_service_name
+              s.name AS reward_service_name,
+              cs.name AS condition_service_name
        FROM promotions p
        LEFT JOIN services s ON s.id = p.reward_service_id AND s.business_id = p.business_id
+       LEFT JOIN services cs ON cs.id = p.condition_service_id AND cs.business_id = p.business_id
        WHERE p.business_id = $1
        ORDER BY p.sort_order ASC, p.created_at DESC`,
       [req.businessId]
