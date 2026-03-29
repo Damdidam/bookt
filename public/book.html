@@ -2292,6 +2292,16 @@ function clearFieldErr(field){
 
 // ──────── SUMMARY ────────
 function buildSummary(){
+  // Auto-apply specific_service discount promos (shown as badges in step 1, not in step 1.5)
+  var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
+  var cartIds=cart.map(function(s){return s.id;});
+  (siteData&&siteData.promotions||[]).forEach(function(p){
+    if(p.condition_type==='specific_service'&&p.reward_type!=='free_service'&&cartIds.indexOf(p.condition_service_id)>=0){
+      if(!appliedPromos.some(function(ap){return ap.id===p.id;})){
+        appliedPromos.push({id:p.id,type:p.reward_type,value:p.reward_value,title:p.title});
+      }
+    }
+  });
   const d=new Date(selectedSlot.start_at);
   const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
   var html='';
