@@ -265,9 +265,11 @@ router.get('/:slug', async (req, res, next) => {
               p.reward_type, p.reward_service_id, p.reward_value, p.display_style,
               rs.name AS reward_service_name,
               rs.duration_min AS reward_service_duration_min,
-              COALESCE(rs.price_cents, 0) AS reward_service_price_cents
+              COALESCE(rs.price_cents, 0) AS reward_service_price_cents,
+              cs.name AS condition_service_name
        FROM promotions p
        LEFT JOIN services rs ON rs.id = p.reward_service_id
+       LEFT JOIN services cs ON cs.id = p.condition_service_id
        WHERE p.business_id = $1 AND p.is_active = true
          AND (p.condition_end_date IS NULL OR p.condition_end_date >= CURRENT_DATE)
          AND (p.condition_start_date IS NULL OR p.condition_start_date <= CURRENT_DATE)
