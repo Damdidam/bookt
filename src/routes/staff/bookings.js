@@ -206,6 +206,7 @@ router.get('/:id/detail', async (req, res, next) => {
       const grp = await queryWithRLS(bid,
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status, b.locked,
                 b.practitioner_id, b.service_id, b.service_variant_id,
+                b.promotion_id, b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
                 s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
                 sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents
          FROM bookings b

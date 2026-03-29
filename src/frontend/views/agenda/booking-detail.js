@@ -394,9 +394,9 @@ async function fcOpenDetail(bookingId) {
     // -- Promo banner --
     const promoBanner = document.getElementById('mPromoBanner');
     if (promoBanner) {
-      if (b.promotion_discount_cents > 0 && b.promotion_label) {
-        const promoSibs = isGroup ? (siblings || []) : [b];
-        const promoSource = isGroup ? promoSibs.find(s => s.promotion_discount_cents > 0) || b : b;
+      const promoSibs = isGroup ? (siblings || []) : [b];
+      const promoSource = isGroup ? promoSibs.find(s => s.promotion_discount_cents > 0) || b : b;
+      if (promoSource.promotion_discount_cents > 0 && promoSource.promotion_label) {
         const origPrice = isGroup
           ? promoSibs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0)
           : (b.variant_price_cents ?? b.price_cents ?? 0);
