@@ -141,8 +141,113 @@ const _minisiteCache = {};
 
 const BASE_URL = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
 
+/**
+ * Validate a promotion and calculate the discount.
+ * Returns { valid: false } if promo is invalid/inapplicable.
+ * Returns { valid: true, label, discount_pct, discount_cents, reward_type, reward_service_id } if OK.
+ *
+ * @param {object} txClient - DB transaction client
+ * @param {string} businessId - business UUID
+ * @param {string} promotionId - promotion UUID from frontend
+ * @param {Array} serviceIds - array of service UUIDs in the cart
+ * @param {number} totalPriceCents - total cart price in cents (before discount)
+ * @param {string|null} clientId - client UUID (null = new client)
+ */
+async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, clientId) {
+  if (!promotionId) return { valid: false };
+
+  // Fetch promo
+  const promoRes = await txClient.query(
+    `SELECT * FROM promotions WHERE id = $1 AND business_id = $2 AND is_active = true`,
+    [promotionId, businessId]
+  );
+  if (promoRes.rows.length === 0) return { valid: false };
+  const promo = promoRes.rows[0];
+
+  // Validate condition
+  switch (promo.condition_type) {
+    case 'specific_service':
+      if (!serviceIds.includes(promo.condition_service_id)) return { valid: false };
+      break;
+    case 'min_amount':
+      if (totalPriceCents < promo.condition_min_cents) return { valid: false };
+      break;
+    case 'first_visit':
+      if (clientId) {
+        // Client already exists in clients table for this business = not first visit
+        const existsRes = await txClient.query(
+          `SELECT 1 FROM clients WHERE id = $1 AND business_id = $2`,
+          [clientId, businessId]
+        );
+        if (existsRes.rows.length > 0) return { valid: false };
+      }
+      // clientId is null = new client = first visit OK
+      break;
+    case 'date_range': {
+      const now = new Date();
+      if (promo.condition_start_date && now < new Date(promo.condition_start_date)) return { valid: false };
+      if (promo.condition_end_date && now > new Date(promo.condition_end_date + 'T23:59:59')) return { valid: false };
+      break;
+    }
+    case 'none':
+      break;
+    default:
+      return { valid: false };
+  }
+
+  // Calculate discount
+  let discount_cents = 0;
+  let discount_pct = null;
+
+  if (promo.reward_type === 'discount_pct') {
+    discount_pct = promo.reward_value;
+    if (promo.condition_type === 'specific_service') {
+      // Discount on the specific service only
+      const svcRes = await txClient.query(
+        `SELECT price_cents FROM services WHERE id = $1`, [promo.condition_service_id]
+      );
+      const svcPrice = svcRes.rows[0]?.price_cents || 0;
+      discount_cents = Math.round(svcPrice * promo.reward_value / 100);
+    } else {
+      discount_cents = Math.round(totalPriceCents * promo.reward_value / 100);
+    }
+  } else if (promo.reward_type === 'discount_fixed') {
+    if (promo.condition_type === 'specific_service') {
+      const svcRes = await txClient.query(
+        `SELECT price_cents FROM services WHERE id = $1`, [promo.condition_service_id]
+      );
+      const svcPrice = svcRes.rows[0]?.price_cents || 0;
+      discount_cents = Math.min(promo.reward_value, svcPrice);
+    } else {
+      discount_cents = Math.min(promo.reward_value, totalPriceCents);
+    }
+  } else if (promo.reward_type === 'free_service') {
+    // The free service is added to the cart by the frontend
+    // The discount = price of the free service
+    if (promo.reward_service_id) {
+      const freeRes = await txClient.query(
+        `SELECT price_cents FROM services WHERE id = $1`, [promo.reward_service_id]
+      );
+      discount_cents = freeRes.rows[0]?.price_cents || 0;
+    }
+  } else if (promo.reward_type === 'info_only') {
+    return { valid: true, label: promo.title, discount_pct: null, discount_cents: 0, reward_type: 'info_only', reward_service_id: null };
+  }
+
+  if (discount_cents <= 0 && promo.reward_type !== 'info_only') return { valid: false };
+
+  return {
+    valid: true,
+    label: promo.title,
+    discount_pct,
+    discount_cents,
+    reward_type: promo.reward_type,
+    reward_service_id: promo.reward_service_id || null
+  };
+}
+
 module.exports = {
   UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit,
   computeDepositDeadline, isWithinLastMinuteWindow, SECTOR_PRACTITIONER,
-  _nextSlotCache, _minisiteCache, BASE_URL
+  _nextSlotCache, _minisiteCache, BASE_URL, validateAndCalcPromo
 };
