@@ -403,8 +403,28 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         );
         const bizRow = await query(`SELECT name, email, address, phone, theme, settings FROM businesses WHERE id = $1`, [e.business_id]);
         if (fullBk.rows[0]?.client_email && bizRow.rows[0]) {
+          const bkRow = fullBk.rows[0];
+          let groupServices = null;
+          if (bkRow.group_id) {
+            const grp = await query(
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                      COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                      COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                      p.display_name AS practitioner_name, b.end_at
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               LEFT JOIN practitioners p ON p.id = b.practitioner_id
+               WHERE b.group_id = $1 AND b.business_id = $2
+               ORDER BY b.group_order, b.start_at`,
+              [bkRow.group_id, bkRow.business_id]
+            );
+            if (grp.rows.length > 1) {
+              groupServices = grp.rows;
+              bkRow.end_at = grp.rows[grp.rows.length - 1].end_at;
+            }
+          }
           const { sendBookingConfirmation } = require('../../services/email');
-          await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0] });
+          await sendBookingConfirmation({ booking: bkRow, business: bizRow.rows[0], groupServices });
         }
       } catch (emailErr) { console.warn('[EMAIL] Waitlist confirmation email error:', emailErr.message); }
     })();

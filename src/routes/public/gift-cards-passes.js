@@ -143,7 +143,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
           const gcPaidForEmail = await getGcPaidCents(bk.id);
           const { sendDepositPaidEmail } = require('../../services/email');
           await sendDepositPaidEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, deposit_amount_cents: row.deposit_amount_cents, gc_paid_cents: gcPaidForEmail, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, public_token: row.public_token, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct },
             business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
             groupServices
           });

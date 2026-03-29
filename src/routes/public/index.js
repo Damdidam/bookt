@@ -579,13 +579,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
         // Deposit check (multi-service) — triggers: price/duration thresholds OR no-show recidivist
         let gcPartialCents = 0;
+        let bizSettings = {};
         if (bookings.length > 0) {
           try {
             await client.query('SAVEPOINT deposit_sp');
 
             // Get business settings
             const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
-            const bizSettings = bizSettingsRow.rows[0]?.settings || {};
+            bizSettings = bizSettingsRow.rows[0]?.settings || {};
 
             // Get total price from DB (accurate, includes variants)
             const svcPriceResult = await client.query(
@@ -1240,13 +1241,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──
       let gcPartialCents = 0;
+      let bizSettings = {};
       if (booking.rows[0]) {
         try {
           await client.query('SAVEPOINT deposit_single_sp');
 
           // Get business settings
           const bizSettingsRow = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [businessId]);
-          const bizSettings = bizSettingsRow.rows[0]?.settings || {};
+          bizSettings = bizSettingsRow.rows[0]?.settings || {};
 
           // Get service price + duration (use variant if applicable)
           let svcPrice = 0, svcDuration = 0;

@@ -1147,6 +1147,23 @@ router.patch('/:id/modify', async (req, res, next) => {
     let notificationResult = null;
     if (shouldNotify && (effectiveChannel === 'email' || effectiveChannel === 'both')) {
       try {
+        let groupServices = null;
+        if (oldBooking.group_id) {
+          const siblingsRes = await queryWithRLS(bid,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                    COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    p.display_name AS practitioner_name
+             FROM bookings b
+             LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             JOIN practitioners p ON p.id = b.practitioner_id
+             WHERE b.group_id = $1 AND b.business_id = $2
+               AND b.status NOT IN ('cancelled')
+             ORDER BY b.group_order`,
+            [oldBooking.group_id, bid]
+          );
+          if (siblingsRes.rows.length > 1) groupServices = siblingsRes.rows;
+        }
         const emailResult = await sendModificationEmail({
           booking: {
             client_name: oldBooking.client_name,
@@ -1165,7 +1182,8 @@ router.patch('/:id/modify', async (req, res, next) => {
             email: oldBooking.business_email,
             theme: oldBooking.theme || {},
             address: oldBooking.address
-          }
+          },
+          groupServices
         });
         notificationResult = { email: emailResult.success ? 'sent' : 'error', detail: emailResult.error || emailResult.messageId };
       } catch (e) {
