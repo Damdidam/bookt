@@ -188,6 +188,7 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
   }
 
   // Calculate discount
+  if (!promo.reward_value && promo.reward_type !== 'info_only' && promo.reward_type !== 'free_service') return { valid: false };
   let discount_cents = 0;
   let discount_pct = null;
 

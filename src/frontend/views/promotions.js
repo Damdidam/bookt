@@ -28,7 +28,7 @@ const REWARD_LABELS = {
 function conditionSummary(p) {
   const fn = CONDITION_LABELS[p.condition_type];
   if (!fn) return p.condition_type || '—';
-  if (p.condition_type === 'min_amount') return fn((p.condition_min_cents / 100).toFixed(0) + '\u202F\u20AC');
+  if (p.condition_type === 'min_amount') return fn((p.condition_min_cents / 100).toFixed(0));
   if (p.condition_type === 'specific_service') return fn(p.condition_service_name || '?');
   if (p.condition_type === 'date_range') return fn(p.condition_start_date, p.condition_end_date);
   return fn();

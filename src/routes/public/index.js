@@ -610,9 +610,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             // Recalculate deposit amount on reduced price if promo applied
             const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
-            if (depResult.required && promoDiscountCents > 0 && bizSettings.deposit_type !== 'fixed') {
+            if (depResult.required && promoDiscountCents > 0) {
               const reducedPrice = Math.max(0, totalPrice - promoDiscountCents);
-              depResult.depCents = Math.round(reducedPrice * (bizSettings.deposit_percent || 50) / 100);
+              if (bizSettings.deposit_type === 'fixed') {
+                // Cap fixed deposit at reduced price
+                if (depResult.depCents > reducedPrice) depResult.depCents = reducedPrice;
+              } else {
+                depResult.depCents = Math.round(reducedPrice * (bizSettings.deposit_percent || 50) / 100);
+              }
               if (depResult.depCents <= 0) depResult.required = false;
             }
 
@@ -1266,9 +1271,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
           // Recalculate deposit amount on reduced price if promo applied
           const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
-          if (depResult.required && promoDiscountCents > 0 && bizSettings.deposit_type !== 'fixed') {
+          if (depResult.required && promoDiscountCents > 0) {
             const reducedSvcPrice = Math.max(0, svcPrice - promoDiscountCents);
-            depResult.depCents = Math.round(reducedSvcPrice * (bizSettings.deposit_percent || 50) / 100);
+            if (bizSettings.deposit_type === 'fixed') {
+              // Cap fixed deposit at reduced price
+              if (depResult.depCents > reducedSvcPrice) depResult.depCents = reducedSvcPrice;
+            } else {
+              depResult.depCents = Math.round(reducedSvcPrice * (bizSettings.deposit_percent || 50) / 100);
+            }
             if (depResult.depCents <= 0) depResult.required = false;
           }
 
