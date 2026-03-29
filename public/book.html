@@ -1465,7 +1465,7 @@ function getEligiblePromos(){
       var today=new Date().toISOString().slice(0,10);
       return(!p.condition_start_date||today>=p.condition_start_date)&&(!p.condition_end_date||today<=p.condition_end_date);
     }
-    if(p.condition_type==='first_visit')return true;
+    if(p.condition_type==='first_visit')return false; // handled server-side after authentication
     return false;
   }).slice(0,3);
 }
