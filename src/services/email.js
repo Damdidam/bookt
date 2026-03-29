@@ -870,8 +870,22 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscount = booking.promotion_discount_cents || 0;
+    const finalPrice = totalPrice - promoDiscount;
     const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
-    serviceDetailHTML += `<div style="font-size:14px;color:#1A1816;margin-top:6px;font-weight:700">Total : ${durStr}${totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : ''}</div>`;
+    let priceHtml = '';
+    if (totalPrice > 0) {
+      if (promoDiscount > 0 && booking.promotion_label) {
+        priceHtml = ` \u00b7 <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
+        serviceDetailHTML += `<div style="font-size:14px;color:#1A1816;margin-top:6px;font-weight:700">Total : ${durStr}${priceHtml}</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#1A1816;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        priceHtml = ` \u00b7 ${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
+        serviceDetailHTML += `<div style="font-size:14px;color:#1A1816;margin-top:6px;font-weight:700">Total : ${durStr}${priceHtml}</div>`;
+      }
+    } else {
+      serviceDetailHTML += `<div style="font-size:14px;color:#1A1816;margin-top:6px;font-weight:700">Total : ${durStr}</div>`;
+    }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
@@ -1211,7 +1225,7 @@ async function sendReviewRequestEmail({ booking, business }) {
 async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, oldEndAt, groupServices }) {
   if (!booking.client_email) return;
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-  const color = safeColor(business.settings?.theme?.primary_color || business.settings?.primaryColor);
+  const color = safeColor(business.theme?.primary_color);
   const serviceName = booking.service_name || 'Prestation';
   const pracName = booking.practitioner_name || '';
   const hasSplitPrac = groupServices && groupServices.some(s => s.practitioner_name);
@@ -1235,7 +1249,21 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
-    detailLines += `<tr><td style="padding:6px 0 2px;font-weight:700;border-top:1px solid #E0DDD8">Total : ${totalMin} min${totalPrice ? ' \u00b7 ' + (totalPrice / 100).toFixed(0) + '\u20ac' : ''}</td></tr>`;
+    const promoDiscount = booking.promotion_discount_cents || 0;
+    const finalPrice = totalPrice - promoDiscount;
+    const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
+    let totalCellContent = `Total : ${durStr}`;
+    if (totalPrice > 0) {
+      if (promoDiscount > 0 && booking.promotion_label) {
+        totalCellContent += ` \u00b7 <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
+      } else {
+        totalCellContent += ` \u00b7 ${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac`;
+      }
+    }
+    detailLines += `<tr><td style="padding:6px 0 2px;font-weight:700;border-top:1px solid #E0DDD8">${totalCellContent}</td></tr>`;
+    if (promoDiscount > 0 && booking.promotion_label) {
+      detailLines += `<tr><td style="padding:2px 0;font-size:12px;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</td></tr>`;
+    }
     if (pracName && !hasSplitPrac) {
       detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien : ${escHtml(pracName)}</td></tr>`;
     }
