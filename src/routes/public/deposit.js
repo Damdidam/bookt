@@ -337,6 +337,7 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email,
                   biz.phone AS business_phone,

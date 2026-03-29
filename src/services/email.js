@@ -321,6 +321,20 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     }
     const hasSplitPracMod = groupServices.some(s => s.practitioner_name);
     if (safePracName && !hasSplitPracMod) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
+  } else {
+    // Single-service: show price + promo
+    const singlePriceMod = booking.service_price_cents || 0;
+    if (singlePriceMod > 0) {
+      const singleDurMod = booking.duration_min || '';
+      const promoDiscSingleMod = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleMod > 0 && booking.promotion_label) {
+        const finalSingleMod = singlePriceMod - promoDiscSingleMod;
+        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">${singleDurMod ? singleDurMod + ' min \u00b7 ' : ''}<s style="opacity:.6">${(singlePriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingleMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${singleDurMod ? singleDurMod + ' min \u00b7 ' : ''}${(singlePriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    }
   }
 
   const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
@@ -423,6 +437,19 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
     }
   } else {
     detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">${_ic('sparkle-grn')} ${serviceName}</div>`;
+    // Single-service: show price + promo
+    const singlePrice = booking.service_price_cents || 0;
+    if (singlePrice > 0) {
+      const singleDur = booking.duration_min || '';
+      const promoDiscSingle = booking.promotion_discount_cents || 0;
+      if (promoDiscSingle > 0 && booking.promotion_label) {
+        const finalSingle = singlePrice - promoDiscSingle;
+        detailLines += `<div style="font-size:14px;color:#15613A;margin-top:6px;font-weight:700">${singleDur ? singleDur + ' min · ' : ''}<s style="opacity:.6">${(singlePrice / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingle / 100).toFixed(2).replace('.', ',')} €</div>`;
+        detailLines += `<div style="font-size:12px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingle / 100).toFixed(2).replace('.', ',')} €</div>`;
+      } else {
+        detailLines += `<div style="font-size:14px;color:#15613A;margin-top:4px">${singleDur ? singleDur + ' min · ' : ''}${(singlePrice / 100).toFixed(2).replace('.', ',')} €</div>`;
+      }
+    }
   }
   if (practitionerName && !hasSplitPrac) detailLines += `<div style="font-size:14px;color:#15613A">${_ic('user-grn')} ${practitionerName}</div>`;
 
@@ -541,6 +568,19 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     }
   } else {
     detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${_ic('sparkle-amb')} ${serviceName}</div>`;
+    // Single-service: show price + promo
+    const singlePriceCR = booking.service_price_cents || 0;
+    if (singlePriceCR > 0) {
+      const singleDurCR = booking.duration_min || '';
+      const promoDiscSingleCR = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleCR > 0 && booking.promotion_label) {
+        const finalSingleCR = singlePriceCR - promoDiscSingleCR;
+        detailLines += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">${singleDurCR ? singleDurCR + ' min · ' : ''}<s style="opacity:.6">${(singlePriceCR / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleCR / 100).toFixed(2).replace('.', ',')} €</div>`;
+        detailLines += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleCR / 100).toFixed(2).replace('.', ',')} €</div>`;
+      } else {
+        detailLines += `<div style="font-size:14px;color:#92700C;margin-top:4px">${singleDurCR ? singleDurCR + ' min · ' : ''}${(singlePriceCR / 100).toFixed(2).replace('.', ',')} €</div>`;
+      }
+    }
   }
   if (practitionerName && !hasSplitPracCR) detailLines += `<div style="font-size:14px;color:#92700C">${_ic('user-amb')} ${practitionerName}</div>`;
 
@@ -723,6 +763,19 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
     }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
+    // Single-service: show price + promo
+    const singlePriceDR = booking.service_price_cents || 0;
+    if (singlePriceDR > 0) {
+      const singleDurDR = booking.duration_min || '';
+      const promoDiscSingleDR = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleDR > 0 && booking.promotion_label) {
+        const finalSingleDR = singlePriceDR - promoDiscSingleDR;
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">${singleDurDR ? singleDurDR + ' min · ' : ''}<s style="opacity:.6">${(singlePriceDR / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleDR / 100).toFixed(2).replace('.', ',')} €</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleDR / 100).toFixed(2).replace('.', ',')} €</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:4px">${singleDurDR ? singleDurDR + ' min · ' : ''}${(singlePriceDR / 100).toFixed(2).replace('.', ',')} €</div>`;
+      }
+    }
   }
 
   const hasSplitPracDR = isMulti && groupServices.some(s => s.practitioner_name);
@@ -826,6 +879,19 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     });
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
+    // Single-service: show price + promo
+    const singlePriceDRem = booking.service_price_cents || 0;
+    if (singlePriceDRem > 0) {
+      const singleDurDRem = booking.duration_min || '';
+      const promoDiscSingleDRem = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleDRem > 0 && booking.promotion_label) {
+        const finalSingleDRem = singlePriceDRem - promoDiscSingleDRem;
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">${singleDurDRem ? singleDurDRem + ' min \u00b7 ' : ''}<s style="opacity:.6">${(singlePriceDRem / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingleDRem / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleDRem / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:4px">${singleDurDRem ? singleDurDRem + ' min \u00b7 ' : ''}${(singlePriceDRem / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    }
   }
 
   const hasSplitPracDRem = isMulti && groupServices.some(s => s.practitioner_name);
@@ -933,6 +999,19 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
     }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
+    // Single-service: show price + promo
+    const singlePriceDP = booking.service_price_cents || 0;
+    if (singlePriceDP > 0) {
+      const singleDurDP = booking.duration_min || '';
+      const promoDiscSingleDP = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleDP > 0 && booking.promotion_label) {
+        const finalSingleDP = singlePriceDP - promoDiscSingleDP;
+        serviceDetailHTML += `<div style="font-size:14px;color:#1A1816;margin-top:6px;font-weight:700">${singleDurDP ? singleDurDP + ' min · ' : ''}<s style="opacity:.6">${(singlePriceDP / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleDP / 100).toFixed(2).replace('.', ',')} €</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#1A1816;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleDP / 100).toFixed(2).replace('.', ',')} €</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:4px">${singleDurDP ? singleDurDP + ' min · ' : ''}${(singlePriceDP / 100).toFixed(2).replace('.', ',')} €</div>`;
+      }
+    }
   }
 
   const hasSplitPracDP = isMulti && groupServices.some(s => s.practitioner_name);
@@ -1043,6 +1122,19 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
     }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
+    // Single-service: show price + promo
+    const singlePriceRF = booking.service_price_cents || 0;
+    if (singlePriceRF > 0) {
+      const singleDurRF = booking.duration_min || '';
+      const promoDiscSingleRF = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleRF > 0 && booking.promotion_label) {
+        const finalSingleRF = singlePriceRF - promoDiscSingleRF;
+        serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:6px;font-weight:700">${singleDurRF ? singleDurRF + ' min · ' : ''}<s style="opacity:.6">${(singlePriceRF / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleRF / 100).toFixed(2).replace('.', ',')} €</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#3D3832;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleRF / 100).toFixed(2).replace('.', ',')} €</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:4px">${singleDurRF ? singleDurRF + ' min · ' : ''}${(singlePriceRF / 100).toFixed(2).replace('.', ',')} €</div>`;
+      }
+    }
   }
 
   // Determine refund method: gift card, stripe, or mixed
@@ -1160,6 +1252,19 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
+    // Single-service: show price + promo
+    const singlePriceCL = booking.service_price_cents || 0;
+    if (singlePriceCL > 0) {
+      const singleDurCL = booking.duration_min || '';
+      const promoDiscSingleCL = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleCL > 0 && booking.promotion_label) {
+        const finalSingleCL = singlePriceCL - promoDiscSingleCL;
+        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">${singleDurCL ? singleDurCL + ' min · ' : ''}<s style="opacity:.6">${(singlePriceCL / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleCL / 100).toFixed(2).replace('.', ',')} €</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleCL / 100).toFixed(2).replace('.', ',')} €</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:4px">${singleDurCL ? singleDurCL + ' min · ' : ''}${(singlePriceCL / 100).toFixed(2).replace('.', ',')} €</div>`;
+      }
+    }
   }
 
   // Deposit info for cancellation email
@@ -1341,8 +1446,21 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
       detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien : ${escHtml(pracName)}</td></tr>`;
     }
   } else {
-    detailLines = `<tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>
-        <tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>`;
+    detailLines = `<tr><td style="padding:4px 0;color:#7A7470;width:100px">Prestation</td><td style="padding:4px 0;font-weight:600">${escHtml(serviceName)}</td></tr>`;
+    // Single-service: show price + promo
+    const singlePriceRS = booking.service_price_cents || 0;
+    if (singlePriceRS > 0) {
+      const singleDurRS = booking.duration_min || '';
+      const promoDiscSingleRS = booking.promotion_discount_cents || 0;
+      if (promoDiscSingleRS > 0 && booking.promotion_label) {
+        const finalSingleRS = singlePriceRS - promoDiscSingleRS;
+        detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Prix</td><td style="padding:4px 0;font-weight:700">${singleDurRS ? singleDurRS + ' min · ' : ''}<s style="opacity:.6">${(singlePriceRS / 100).toFixed(2).replace('.', ',')} €</s> ${(finalSingleRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
+        detailLines += `<tr><td></td><td style="padding:2px 0;font-size:12px;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscSingleRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
+      } else {
+        detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Prix</td><td style="padding:4px 0;font-weight:600">${singleDurRS ? singleDurRS + ' min · ' : ''}${(singlePriceRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
+      }
+    }
+    detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>`;
   }
 
   const bodyHTML = `

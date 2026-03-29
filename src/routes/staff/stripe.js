@@ -306,6 +306,7 @@ async function handleStripeWebhook(req, res) {
                         c.full_name AS client_name, c.email AS client_email,
                         CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                         s.category AS service_category,
+                        COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                         COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         p.display_name AS practitioner_name,
                         biz.name AS business_name, biz.email AS business_email,

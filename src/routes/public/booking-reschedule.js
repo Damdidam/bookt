@@ -326,6 +326,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         const bkData = await query(
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category, COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS business_name, biz.slug AS business_slug, biz.settings, biz.theme,

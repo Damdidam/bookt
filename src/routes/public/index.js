@@ -1478,10 +1478,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         console.error('Notification insert failed:', notifErr.message);
       }
 
-      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
+      return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents, svcPrice, svcDuration };
     });
 
-    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial } = result;
+    const { booking: createdBooking, needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout, confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial, svcPrice: resultSvcPrice, svcDuration: resultSvcDuration } = result;
 
     broadcast(businessId, 'booking_update', { action: 'created', source: 'public' });
     // H1: calSyncPush for created booking
@@ -1511,7 +1511,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             service_category: svcCategory,
             practitioner_name: pracRow.rows[0]?.display_name || '',
             comment: client_comment,
-            gc_partial_cents: resultGcPartial || 0
+            gc_partial_cents: resultGcPartial || 0,
+            service_price_cents: resultSvcPrice || 0,
+            duration_min: resultSvcDuration || 0
           };
           if (createdBooking.status === 'pending_deposit') {
             // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
