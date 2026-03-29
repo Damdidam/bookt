@@ -391,6 +391,40 @@ async function fcOpenDetail(bookingId) {
         ${canAddSvc ? '<button class="g-add-btn" onclick="fcStartConvert(&#39;group-add&#39;)" title="Ajouter une prestation" style="margin-left:6px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' : ''}`;
     }
 
+    // -- Promo banner --
+    const promoBanner = document.getElementById('mPromoBanner');
+    if (promoBanner) {
+      if (b.promotion_discount_cents > 0 && b.promotion_label) {
+        const promoSibs = isGroup ? (siblings || []) : [b];
+        const promoSource = isGroup ? promoSibs.find(s => s.promotion_discount_cents > 0) || b : b;
+        const origPrice = isGroup
+          ? promoSibs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0)
+          : (b.variant_price_cents ?? b.price_cents ?? 0);
+        const discCents = promoSource.promotion_discount_cents;
+        const reducedPrice = origPrice - discCents;
+        promoBanner.style.display = '';
+        promoBanner.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;border:1.5px solid var(--green);background:var(--green-bg);margin-top:8px">
+            <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0">
+              <path d="m21.44 11.05-9.19 9.19a2 2 0 0 1-2.83 0l-6.36-6.36a2 2 0 0 1 0-2.83l9.19-9.19a2 2 0 0 1 1.42-.59H19a2 2 0 0 1 2 2v5.31a2 2 0 0 1-.59 1.42z"/>
+              <line x1="7" y1="17" x2="7.01" y2="17"/>
+            </svg>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.78rem;font-weight:600;color:var(--green)">${esc(promoSource.promotion_label)}</div>
+              <div style="font-size:.72rem;color:var(--text-3)">
+                ${promoSource.promotion_discount_pct ? '-' + promoSource.promotion_discount_pct + '%' : ''} &mdash;
+                <s style="opacity:.5">${(origPrice / 100).toFixed(2)}\u20ac</s>
+                <span style="font-weight:600;color:var(--green)">${(reducedPrice / 100).toFixed(2)}\u20ac</span>
+                <span style="opacity:.6">(-${(discCents / 100).toFixed(2)}\u20ac)</span>
+              </div>
+            </div>
+          </div>`;
+      } else {
+        promoBanner.style.display = 'none';
+        promoBanner.innerHTML = '';
+      }
+    }
+
     // -- Save button color (custom or freestyle = accent color) --
     const saveBtn = document.getElementById('mBtnSave');
     if (b.color || isFreestyle) {
