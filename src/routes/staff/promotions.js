@@ -93,8 +93,8 @@ router.post('/', requireAuth, requireRole('owner', 'manager'), async (req, res, 
   try {
     const {
       title, description, condition_type, condition_service_id, condition_min_cents,
-      condition_start, condition_end, reward_type, reward_service_id, reward_value,
-      is_active, badge_label, badge_color
+      condition_start_date, condition_end_date, reward_type, reward_service_id, reward_value,
+      is_active, display_style
     } = req.body;
 
     // Validate
@@ -139,19 +139,19 @@ router.post('/', requireAuth, requireRole('owner', 'manager'), async (req, res, 
     const result = await queryWithRLS(req.businessId,
       `INSERT INTO promotions (
         business_id, title, description, condition_type, condition_service_id,
-        condition_min_cents, condition_start, condition_end,
+        condition_min_cents, condition_start_date, condition_end_date,
         reward_type, reward_service_id, reward_value,
-        is_active, badge_label, badge_color, sort_order
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        is_active, display_style, sort_order
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *`,
       [
         req.businessId, title.trim(), description || null,
         condition_type || 'none', condition_service_id || null,
         condition_min_cents ? parseInt(condition_min_cents) : null,
-        condition_start || null, condition_end || null,
+        condition_start_date || null, condition_end_date || null,
         reward_type || 'info_only', reward_service_id || null,
         reward_value ? parseFloat(reward_value) : null,
-        is_active !== false, badge_label || null, badge_color || null,
+        is_active !== false, display_style || 'cards',
         maxSort.rows[0].next
       ]
     );
@@ -248,9 +248,9 @@ router.patch('/:id', requireAuth, requireRole('owner', 'manager'), async (req, r
 
     const fields = [
       'title', 'description', 'condition_type', 'condition_service_id',
-      'condition_min_cents', 'condition_start', 'condition_end',
+      'condition_min_cents', 'condition_start_date', 'condition_end_date',
       'reward_type', 'reward_service_id', 'reward_value',
-      'is_active', 'badge_label', 'badge_color'
+      'is_active', 'display_style'
     ];
 
     for (const field of fields) {
