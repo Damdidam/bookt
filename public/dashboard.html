@@ -78,6 +78,7 @@
     <div class="m-status-strip" id="mStatusStrip"></div>
     <div class="m-tabs">
       <div class="m-tab active" data-tab="rdv" onclick="switchCalTab(this,'rdv')">RDV</div>
+      <div class="m-tab" data-tab="billing" onclick="switchCalTab(this,'billing')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Facturation</div>
       <div class="m-tab" data-tab="historique" onclick="switchCalTab(this,'historique')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Log</div>
     </div>
     <!-- Hidden inputs for inline-editable contact fields -->
@@ -116,8 +117,6 @@
           </div>
         </div>
         <div id="mGroupSiblings" style="display:none"></div>
-        <!-- Facturation (rendered by JS) -->
-        <div id="mBillingSection" style="display:none"></div>
         <!-- Horaire + Praticien (merged) -->
         <div class="m-sec">
           <div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Horaire</span><span class="m-sec-line"></span></div>
@@ -231,6 +230,9 @@
           </div>
           <div class="notify-actions"><button class="cal-btn" onclick="calCloseNotify()">Terminé</button><button class="cal-btn cal-green" id="calSendNotifyBtn" onclick="calSendNotification()" style="display:none">Envoyer</button></div>
         </div>
+      </div>
+      <div class="m-panel" id="calPanelBilling">
+        <div id="mBillingSection"></div>
       </div>
       <div class="m-panel" id="calPanelHistorique">
         <div id="mHistoryTimeline"><div class="cal-empty"><div class="cal-empty-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>Chargement...</div></div>

@@ -534,9 +534,8 @@ async function fcOpenDetail(bookingId) {
       }
       bh += '</div>';
       billingEl.innerHTML = bh;
-      billingEl.style.display = (billTotal > 0) ? '' : 'none';
     } else if (billingEl) {
-      billingEl.style.display = 'none';
+      billingEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-4);font-size:.82rem">Aucune prestation factur\u00e9e</div>';
     }
 
     // -- Horaire (use full group range if grouped) --
@@ -664,7 +663,7 @@ function switchCalTab(el, tab) {
   document.querySelectorAll('#calDetailModal .m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#calDetailModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { rdv: 'calPanelRdv', historique: 'calPanelHistorique' };
+  const panelMap = { rdv: 'calPanelRdv', billing: 'calPanelBilling', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');
   // Lazy-load history when tab is first opened
   if (tab === 'historique') loadBookingHistory();
