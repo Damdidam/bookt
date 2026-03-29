@@ -782,7 +782,10 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
               }
             }
             const { sendBookingConfirmation } = require('../../services/email');
-            await sendBookingConfirmation({ booking: fullBk.rows[0], business: bizRow.rows[0], groupServices });
+            const emailBk = fullBk.rows[0];
+            // Fix end_at for multi-service groups
+            if (groupServices && groupServices.length > 1) emailBk.end_at = groupServices[groupServices.length - 1].end_at;
+            await sendBookingConfirmation({ booking: emailBk, business: bizRow.rows[0], groupServices });
           }
         } catch (e) { console.warn('[EMAIL] Post-confirmation email error:', e.message); }
       })();
@@ -1257,7 +1260,7 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
             booking: {
               public_token: row.public_token, start_at: row.start_at, end_at: groupEndAt || row.end_at,
               client_name: row.client_name, client_email: row.client_email,
-              service_name: row.service_name, practitioner_name: row.practitioner_name,
+              service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name,
               comment: row.comment_client,
               promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct
             },

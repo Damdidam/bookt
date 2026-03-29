@@ -332,6 +332,7 @@ router.post('/deposit/:token/verify', async (req, res, next) => {
       try {
         const bkData = await query(
           `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                  b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
