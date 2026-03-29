@@ -476,6 +476,69 @@ async function fcOpenDetail(bookingId) {
       groupEl.style.display = 'block';
     } else { groupEl.style.display = 'none'; }
 
+    // -- Billing section --
+    const billingEl = document.getElementById('mBillingSection');
+    if (billingEl && !isFreestyle) {
+      const billSvcs = isGroup ? siblings : [b];
+      const billTotal = billSvcs.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      const billPromoSource = isGroup ? billSvcs.find(sib => sib.promotion_discount_cents > 0) : b;
+      const billPromoDisc = billPromoSource?.promotion_discount_cents || 0;
+      const billPromoLabel = billPromoSource?.promotion_label || '';
+      const billPromoPct = billPromoSource?.promotion_discount_pct || null;
+      const billNet = billTotal - billPromoDisc;
+      const billDepPaid = (b.deposit_status === 'paid' || b.deposit_status === 'waived') ? (b.deposit_amount_cents || 0) : 0;
+      const billDepPending = b.deposit_status === 'pending' ? (b.deposit_amount_cents || 0) : 0;
+      const billDue = billNet - billDepPaid;
+      const fmtP = c => (c / 100).toFixed(2).replace('.', ',') + ' \u20ac';
+
+      let bh = '<div class="m-sec"><div class="m-sec-head"><span class="m-sec-title"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Facturation</span><span class="m-sec-line"></span></div>';
+      bh += '<div style="font-size:.78rem;line-height:1.8">';
+      // Service lines
+      billSvcs.forEach(sib => {
+        const svcName = esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name));
+        const svcPrice = sib.variant_price_cents ?? sib.price_cents ?? 0;
+        if (svcPrice > 0) {
+          bh += '<div style="display:flex;justify-content:space-between"><span style="color:var(--text-3)">' + svcName + '</span><span>' + fmtP(svcPrice) + '</span></div>';
+        }
+      });
+      // Subtotal if multiple services
+      if (billSvcs.length > 1 && billTotal > 0) {
+        bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px"><span style="font-weight:600">Sous-total</span><span style="font-weight:600">' + fmtP(billTotal) + '</span></div>';
+      }
+      // Promo
+      if (billPromoDisc > 0 && billPromoLabel) {
+        bh += '<div style="display:flex;justify-content:space-between;color:var(--green)"><span>' + esc(billPromoLabel) + (billPromoPct ? ' (-' + billPromoPct + '%)' : '') + '</span><span>-' + fmtP(billPromoDisc) + '</span></div>';
+      }
+      // Total
+      if (billTotal > 0) {
+        bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px;font-weight:700"><span>Total</span><span>' + fmtP(billNet) + '</span></div>';
+      }
+      // Deposit
+      if (billDepPaid > 0) {
+        bh += '<div style="display:flex;justify-content:space-between;color:var(--green)"><span>Acompte pay\u00e9</span><span>-' + fmtP(billDepPaid) + '</span></div>';
+      }
+      if (billDepPending > 0) {
+        bh += '<div style="display:flex;justify-content:space-between;color:var(--amber)"><span>Acompte en attente</span><span>' + fmtP(billDepPending) + '</span></div>';
+      }
+      // Balance due
+      if (billTotal > 0 && billDepPaid > 0) {
+        const isDue = billDue > 0;
+        const isSolde = billDue <= 0;
+        bh += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:4px;margin-top:2px;font-weight:700;color:' + (isSolde ? 'var(--green)' : 'var(--text)') + '"><span>' + (isSolde ? 'Sold\u00e9' : 'Reste d\u00fb') + '</span><span>' + (isSolde ? '0,00 \u20ac' : fmtP(billDue)) + '</span></div>';
+      }
+      bh += '</div>';
+      // Create invoice button
+      if (billTotal > 0 && !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner') {
+        const invBookingId = isGroup ? (billSvcs.find(sib => sib.group_order === 0) || billSvcs[0]).id : b.id;
+        bh += '<button class="m-st-btn" style="margin-top:8px;font-size:.72rem;padding:5px 14px;width:100%;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="closeCalModal(\'calDetailModal\');window.router&&window.router.navigate(\'/invoices?create=' + invBookingId + '\')">' + IC.file + ' Cr\u00e9er la facture</button>';
+      }
+      bh += '</div>';
+      billingEl.innerHTML = bh;
+      billingEl.style.display = (billTotal > 0) ? '' : 'none';
+    } else if (billingEl) {
+      billingEl.style.display = 'none';
+    }
+
     // -- Horaire (use full group range if grouped) --
     const groupEndDate = isGroup ? new Date(siblings[siblings.length - 1].end_at) : e;
     const ds = s.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
