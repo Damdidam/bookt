@@ -316,14 +316,15 @@ router.get('/:slug/client-phone', clientPhoneLimiter, async (req, res, next) => 
     if (biz.rows.length === 0) return res.json({});
 
     const cl = await query(
-      `SELECT phone, full_name
-       FROM clients WHERE business_id = $1 AND LOWER(email) = $2 AND phone IS NOT NULL
-       ORDER BY updated_at DESC LIMIT 1`,
+      `SELECT c.id, c.phone, c.full_name,
+              (SELECT COUNT(*)::int FROM bookings b WHERE b.client_id = c.id AND b.status NOT IN ('cancelled')) AS booking_count
+       FROM clients c WHERE c.business_id = $1 AND LOWER(c.email) = $2
+       ORDER BY c.updated_at DESC LIMIT 1`,
       [biz.rows[0].id, email]
     );
-    if (cl.rows.length === 0 || !cl.rows[0].phone) return res.json({});
+    if (cl.rows.length === 0) return res.json({ booking_count: 0 });
 
-    res.json({ phone: cl.rows[0].phone, name: cl.rows[0].full_name });
+    res.json({ phone: cl.rows[0].phone || null, name: cl.rows[0].full_name, booking_count: cl.rows[0].booking_count });
   } catch (err) { next(err); }
 });
 
