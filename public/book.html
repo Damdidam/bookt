@@ -2683,6 +2683,29 @@ async function submitBooking(){
       confirmHtml+='<div class="row"><span class="l" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="v" style="color:#f59e0b;font-weight:600">-'+data.booking.discount_pct+'%</span></div>';
     }
 
+    // Promo appliquée
+    if(appliedPromos.length>0){
+      var confirmAp=appliedPromos[0];
+      if(confirmAp.type!=='info_only'&&confirmAp._disc>0){
+        var confirmCartSvcs=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
+        var confirmCartTotal=confirmCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+        var confirmPromoLabel=confirmAp.title||'Promotion';
+        if(confirmAp.type==='discount_pct'){
+          var confirmDiscAmt=confirmAp._disc;
+          var confirmNewTotal=confirmCartTotal-confirmDiscAmt;
+          confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmPromoLabel)+'</span><span class="v" style="color:#059669;font-weight:600">-'+confirmAp.value+'% (-'+(confirmDiscAmt/100).toFixed(0)+' \u20ac)</span></div>';
+          confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal/100).toFixed(0)+' \u20ac</span></div>';
+        }else if(confirmAp.type==='discount_fixed'){
+          var confirmFixedDisc=Math.min(confirmAp.value,confirmCartTotal);
+          var confirmNewTotal2=confirmCartTotal-confirmFixedDisc;
+          confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmPromoLabel)+'</span><span class="v" style="color:#059669;font-weight:600">-'+(confirmFixedDisc/100).toFixed(0)+' \u20ac</span></div>';
+          confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal2/100).toFixed(0)+' \u20ac</span></div>';
+        }else if(confirmAp.type==='free_service'){
+          confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmPromoLabel)+'</span><span class="v" style="color:#059669;font-weight:600">Offert</span></div>';
+        }
+      }
+    }
+
     // Email
     confirmHtml+='<div class="row"><span class="l">Email</span><span class="v">'+escH(email)+'</span></div>';
 
