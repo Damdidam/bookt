@@ -192,6 +192,16 @@ router.post('/', requireOwner, async (req, res, next) => {
           unit_price_cents: bk.variant_price_cents ?? bk.price_cents ?? 0,
           vat_rate: vat_rate || 21
         }];
+
+        // Add promo discount line if applicable
+        if (bk.promotion_discount_cents > 0 && bk.promotion_label) {
+          invoiceItems.push({
+            description: `Réduction : ${bk.promotion_label}${bk.promotion_discount_pct ? ' (-' + bk.promotion_discount_pct + '%)' : ''}`,
+            quantity: 1,
+            unit_price_cents: -bk.promotion_discount_cents,
+            vat_rate: vat_rate || 21
+          });
+        }
       }
     }
 
