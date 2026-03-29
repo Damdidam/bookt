@@ -381,6 +381,7 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
 
 /* Promo badges */
 .promo-badge{font-size:.68rem;background:var(--accent-light,#fef3c7);color:var(--accent-dark,#92400e);padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:600;display:inline-block}
+.promo-nudge{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:10px 18px;border-radius:100px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px;z-index:50;box-shadow:0 4px 16px rgba(5,150,105,.3);animation:fadeIn .25s ease;max-width:calc(100vw - 32px);text-align:center}
 
 /* Promo step */
 .promo-card{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:18px;margin-bottom:12px;transition:all .15s}
@@ -1350,7 +1351,36 @@ function updateCartBar(){
       +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartService(\''+svc.id+'\')" title="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
       +'</span>';
   }).join('');
+
+  // Nudge toast: "Plus que X€ pour bénéficier de -Y% !"
+  checkPromoNudge(totalPrice);
 }
+
+var _promoNudgeEl=null;
+function checkPromoNudge(cartCents){
+  var promos=siteData&&siteData.promotions||[];
+  var nudgePromo=null;
+  promos.forEach(function(p){
+    if(p.condition_type==='min_amount'&&p.condition_min_cents&&(p.reward_type==='discount_pct'||p.reward_type==='discount_fixed')){
+      var threshold=p.condition_min_cents;
+      var pct80=Math.round(threshold*0.8);
+      if(cartCents>=pct80&&cartCents<threshold){
+        nudgePromo=p;
+      }
+    }
+  });
+  // Remove existing nudge
+  if(_promoNudgeEl){_promoNudgeEl.remove();_promoNudgeEl=null;}
+  if(!nudgePromo)return;
+  var remaining=((nudgePromo.condition_min_cents-cartCents)/100).toFixed(0);
+  var rewardLabel=nudgePromo.reward_type==='discount_pct'?'-'+nudgePromo.reward_value+'%':'-'+(nudgePromo.reward_value/100).toFixed(0)+'\u20ac';
+  var el=document.createElement('div');
+  el.className='promo-nudge';
+  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>'
+    +'<span>Plus que <strong>'+remaining+'\u202F\u20ac</strong> pour b\u00e9n\u00e9ficier de <strong>'+rewardLabel+'</strong> !</span>';
+  var bar=document.getElementById('cartSticky');
+  if(bar)bar.insertAdjacentElement('beforebegin',el);
+  _promoNudgeEl=el;
 
 function removeCartService(svcId){
   var idx=selectedServices.findIndex(function(s){return s.id===svcId;});
