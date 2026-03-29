@@ -1207,7 +1207,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
           booking: {
             start_at: b.start_at, end_at: b.end_at,
             client_name: b.client_name, client_email: b.client_email,
-            service_name: b.service_name, practitioner_name: b.practitioner_name,
+            service_name: b.service_name, service_category: b.service_category, practitioner_name: b.practitioner_name,
             comment: b.comment_client, custom_label: b.custom_label,
             public_token: b.public_token,
             promotion_label: b.promotion_label, promotion_discount_cents: b.promotion_discount_cents, promotion_discount_pct: b.promotion_discount_pct
