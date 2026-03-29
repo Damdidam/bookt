@@ -70,7 +70,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             ELSE deposit_status
           END,
           updated_at = NOW()
-         WHERE id = $2 AND status IN ('pending', 'confirmed', 'pending_deposit')
+         WHERE id = $2 AND status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')
          RETURNING *`,
         [reason || 'Annulé par le client', bk.id, cancelWindowHours * 60, graceMin]
       );
