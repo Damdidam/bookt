@@ -6,7 +6,7 @@ const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
 const { sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
-const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL } = require('./helpers');
+const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo } = require('./helpers');
 
 // Mount OAuth sub-router for client booking authentication
 router.use('/auth', require('./oauth'));
@@ -38,7 +38,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       flexible, is_last_minute,
       oauth_provider, oauth_provider_id,
       gift_card_code,
-      pass_code
+      pass_code,
+      promotion_id
     } = req.body;
 
     // Split mode: practitioners[] array provided instead of practitioner_id
@@ -510,6 +511,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           clientId = nc.rows[0].id;
         }
 
+        // ── Promo validation (multi-service) ──
+        let promoResult = { valid: false };
+        if (promotion_id && UUID_RE.test(promotion_id)) {
+          const cartServiceIds = multiServices.map(s => s.id);
+          const cartTotal = multiServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, cartTotal, clientId);
+        }
+
         // Determine locked status based on flexibility
         const anyFlexEnabled = multiServices.some(s => s.flexibility_enabled);
         const multiLocked = anyFlexEnabled ? (flexible !== true) : false;
@@ -545,15 +554,21 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
-              group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked, discount_pct)
-             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-             RETURNING id, public_token, start_at, end_at, status, group_id, group_order, discount_pct`,
+              group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked, discount_pct,
+              promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+             RETURNING id, public_token, start_at, end_at, status, group_id, group_order, discount_pct,
+                       promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
             [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
              appointment_mode||'cabinet', slot.start_at, slot.end_at, bookingStatus,
              client_comment||null, groupId, slot.group_order,
              needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
              slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked,
-             slotDiscount]
+             slotDiscount,
+             slot.group_order === 0 && promoResult.valid ? promotion_id : null,
+             slot.group_order === 0 && promoResult.valid ? promoResult.label : null,
+             slot.group_order === 0 && promoResult.valid ? promoResult.discount_pct : null,
+             slot.group_order === 0 && promoResult.valid ? promoResult.discount_cents : 0]
           );
           bookings.push(bk.rows[0]);
         }
@@ -591,6 +606,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             }
 
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
+
+            // Recalculate deposit amount on reduced price if promo applied
+            const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
+            if (depResult.required && promoDiscountCents > 0 && bizSettings.deposit_type !== 'fixed') {
+              const reducedPrice = totalPrice - promoDiscountCents;
+              depResult.depCents = Math.round(reducedPrice * (bizSettings.deposit_percent || 50) / 100);
+              if (depResult.depCents <= 0) depResult.required = false;
+            }
 
             // Pass auto-debit — only for the booking whose service matches the pass
             let passUsed = false;
