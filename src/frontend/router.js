@@ -136,6 +136,10 @@ async function loadSection(section) {
         mod = await import('./views/passes.js');
         mod.loadPasses();
         break;
+      case 'promotions':
+        mod = await import('./views/promotions.js');
+        mod.loadPromotions();
+        break;
       case 'reviews':
         mod = await import('./views/reviews.js');
         mod.loadReviews();
