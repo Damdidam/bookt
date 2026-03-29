@@ -304,24 +304,40 @@ router.get('/:slug/featured-slots', slotsLimiter, async (req, res, next) => {
 
 // ============================================================
 // GET /api/public/:slug/client-phone
-// Lookup known client phone by email (for form auto-fill)
+// Lookup known client by email or phone (for form auto-fill + first_visit check)
 // ============================================================
 router.get('/:slug/client-phone', clientPhoneLimiter, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const email = (req.query.email || '').trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({});
+    const phone = (req.query.phone || '').trim();
+    if (!email && !phone) return res.json({});
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({});
 
     const biz = await query(`SELECT id FROM businesses WHERE slug = $1`, [slug]);
     if (biz.rows.length === 0) return res.json({});
+    const bid = biz.rows[0].id;
 
-    const cl = await query(
-      `SELECT c.id, c.phone, c.full_name,
-              (SELECT COUNT(*)::int FROM bookings b WHERE b.client_id = c.id AND b.status NOT IN ('cancelled')) AS booking_count
-       FROM clients c WHERE c.business_id = $1 AND LOWER(c.email) = $2
-       ORDER BY c.updated_at DESC LIMIT 1`,
-      [biz.rows[0].id, email]
-    );
+    // Try email first, then phone fallback
+    let cl = { rows: [] };
+    if (email) {
+      cl = await query(
+        `SELECT c.id, c.phone, c.full_name,
+                (SELECT COUNT(*)::int FROM bookings b WHERE b.client_id = c.id AND b.status NOT IN ('cancelled')) AS booking_count
+         FROM clients c WHERE c.business_id = $1 AND LOWER(c.email) = $2
+         ORDER BY c.updated_at DESC LIMIT 1`,
+        [bid, email]
+      );
+    }
+    if (cl.rows.length === 0 && phone) {
+      cl = await query(
+        `SELECT c.id, c.phone, c.full_name,
+                (SELECT COUNT(*)::int FROM bookings b WHERE b.client_id = c.id AND b.status NOT IN ('cancelled')) AS booking_count
+         FROM clients c WHERE c.business_id = $1 AND c.phone = $2
+         ORDER BY c.updated_at DESC LIMIT 1`,
+        [bid, phone]
+      );
+    }
     if (cl.rows.length === 0) return res.json({ booking_count: 0 });
 
     res.json({ phone: cl.rows[0].phone || null, name: cl.rows[0].full_name, booking_count: cl.rows[0].booking_count });

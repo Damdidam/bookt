@@ -464,11 +464,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
           clientId = existingClient.id;
           if (matchType === 'oauth' || matchType === 'exact') {
+            // Only fill empty fields — merchant edits in dashboard take priority
             await client.query(
               `UPDATE clients SET
-                full_name = COALESCE(NULLIF($1, ''), full_name),
-                email = COALESCE(NULLIF($2, ''), email),
-                phone = COALESCE(NULLIF($3, ''), phone),
+                full_name = COALESCE(full_name, NULLIF($1, '')),
+                email = COALESCE(email, NULLIF($2, '')),
+                phone = COALESCE(phone, NULLIF($3, '')),
                 bce_number = COALESCE($4, bce_number),
                 consent_sms = COALESCE($5, consent_sms),
                 consent_email = COALESCE($6, consent_email),
@@ -485,12 +486,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                oauth_provider || null, oauth_provider_id || null]
             );
           } else if (matchType === 'phone' || matchType === 'email') {
-            // Soft merge: update name, phone, email + link OAuth
+            // Soft merge: only fill empty fields — merchant edits take priority
             await client.query(
               `UPDATE clients SET
-                full_name = COALESCE(NULLIF($2, ''), full_name),
-                phone = COALESCE(NULLIF($4, ''), phone),
-                email = COALESCE(NULLIF($5, ''), email),
+                full_name = COALESCE(full_name, NULLIF($2, '')),
+                phone = COALESCE(phone, NULLIF($4, '')),
+                email = COALESCE(email, NULLIF($5, '')),
                 oauth_provider = COALESCE($6, oauth_provider),
                 oauth_provider_id = COALESCE($7, oauth_provider_id),
                 updated_at = NOW()
@@ -1125,11 +1126,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
         clientId = existingClient.id;
         if (matchType === 'oauth' || matchType === 'exact') {
+          // Only fill empty fields — merchant edits in dashboard take priority
           await client.query(
             `UPDATE clients SET
-              full_name = COALESCE(NULLIF($1, ''), full_name),
-              email = COALESCE(NULLIF($2, ''), email),
-              phone = COALESCE(NULLIF($3, ''), phone),
+              full_name = COALESCE(full_name, NULLIF($1, '')),
+              email = COALESCE(email, NULLIF($2, '')),
+              phone = COALESCE(phone, NULLIF($3, '')),
               bce_number = COALESCE($4, bce_number),
               consent_sms = COALESCE($5, consent_sms),
               consent_email = COALESCE($6, consent_email),
@@ -1146,11 +1148,12 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              oauth_provider || null, oauth_provider_id || null]
           );
         } else if (matchType === 'phone' || matchType === 'email') {
+          // Soft merge: only fill empty fields — merchant edits take priority
           await client.query(
             `UPDATE clients SET
-              full_name = COALESCE(NULLIF($2, ''), full_name),
-              phone = COALESCE(NULLIF($4, ''), phone),
-              email = COALESCE(NULLIF($5, ''), email),
+              full_name = COALESCE(full_name, NULLIF($2, '')),
+              phone = COALESCE(phone, NULLIF($4, '')),
+              email = COALESCE(email, NULLIF($5, '')),
               oauth_provider = COALESCE($6, oauth_provider),
               oauth_provider_id = COALESCE($7, oauth_provider_id),
               updated_at = NOW()

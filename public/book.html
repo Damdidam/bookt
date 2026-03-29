@@ -1092,19 +1092,23 @@ function initPage(){
     const em=this.value.trim();
     if(!em||!validateEmailStrict(em))return;
     const ph=document.getElementById('cPhone');
-    if(ph.value.trim())return; // don't overwrite
-    fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(em))
+    var phoneAlreadyFilled=!!ph.value.trim();
+    var phFull=phoneAlreadyFilled?getFullPhone(ph.value):'';
+    fetch('/api/public/'+encodeURIComponent(slug)+'/client-phone?email='+encodeURIComponent(em)+(phFull?'&phone='+encodeURIComponent(phFull):''))
       .then(r=>r.ok?r.json():null).then(d=>{
-        if(!d||!d.phone)return;
-        let p=d.phone;
-        const prefixSel=document.getElementById('cPhonePrefix');
-        if(p.startsWith('+33')){if(prefixSel)prefixSel.value='+33';p=p.substring(3);}
-        else if(p.startsWith('+352')){if(prefixSel)prefixSel.value='+352';p=p.substring(4);}
-        else if(p.startsWith('+32')){if(prefixSel)prefixSel.value='+32';p=p.substring(3);}
-        if(prefixSel)onPhonePrefixChange();
-        ph.value=p;
-        formatPhoneInput.call(ph);
-        ph.classList.add('valid');
+        if(!d)return;
+        // Fill phone only if not already filled
+        if(!phoneAlreadyFilled&&d.phone){
+          let p=d.phone;
+          const prefixSel=document.getElementById('cPhonePrefix');
+          if(p.startsWith('+33')){if(prefixSel)prefixSel.value='+33';p=p.substring(3);}
+          else if(p.startsWith('+352')){if(prefixSel)prefixSel.value='+352';p=p.substring(4);}
+          else if(p.startsWith('+32')){if(prefixSel)prefixSel.value='+32';p=p.substring(3);}
+          if(prefixSel)onPhonePrefixChange();
+          ph.value=p;
+          formatPhoneInput.call(ph);
+          ph.classList.add('valid');
+        }
         // Also fill name if empty
         const nm=document.getElementById('cName');
         if(!nm.value.trim()&&d.name){nm.value=d.name;nm.classList.add('valid');}
