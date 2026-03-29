@@ -1513,20 +1513,17 @@ function renderPromoBannerTop(){
   var el=document.getElementById('promoBanner');
   if(!el)return;
   var promos=siteData&&siteData.promotions||[];
-  var general=promos.filter(function(p){
-    return p.condition_type!=='specific_service';
-  });
-  if(general.length===0){el.style.display='none';return;}
+  if(promos.length===0){el.style.display='none';return;}
   var html='';
-  general.forEach(function(p){
+  promos.forEach(function(p){
     var label='';
     if(p.condition_type==='first_visit'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% pour les nouveaux clients';
     else if(p.condition_type==='first_visit') label=p.title;
     else if(p.condition_type==='min_amount'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% d\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u202F\u20ac de panier';
     else if(p.condition_type==='min_amount'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(0)+'\u202F\u20ac d\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u202F\u20ac de panier';
-    else if(p.condition_type==='min_amount') label=p.title;
-    else if(p.condition_type==='date_range') label=p.title;
-    else if(p.condition_type==='none') label=p.title;
+    else if(p.condition_type==='specific_service'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% sur '+escH(p.condition_service_name||p.title);
+    else if(p.condition_type==='specific_service'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(0)+'\u202F\u20ac sur '+escH(p.condition_service_name||p.title);
+    else if(p.condition_type==='specific_service'&&p.reward_type==='free_service') label=escH(p.reward_service_name||'Service offert')+' offert avec '+escH(p.condition_service_name||p.title);
     else label=p.title;
     html+='<div class="ptb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="ptb-title">'+escH(label)+'</span></div>';
   });
