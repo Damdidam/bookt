@@ -47,6 +47,7 @@ const giftCardRoutes = require('./routes/staff/gift-cards');
 const passRoutes = require('./routes/staff/passes');
 const businessHoursRoutes = require('./routes/staff/business-hours');
 const reviewRoutes = require('./routes/staff/reviews');
+const promotionRoutes = require('./routes/staff/promotions');
 const adminRoutes = require('./routes/admin');
 const twilioWebhooks = require('./routes/webhooks/twilio');
 const stripeRoutes = require('./routes/staff/stripe');
@@ -209,6 +210,7 @@ app.use('/api/business-hours', requireAuth, businessHoursRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/gift-cards', giftCardRoutes);
 app.use('/api/passes', passRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 // Webhooks (Twilio)
 app.use('/webhooks/twilio', twilioWebhooks);
