@@ -1381,6 +1381,7 @@ function checkPromoNudge(cartCents){
   var bar=document.getElementById('cartSticky');
   if(bar)bar.insertAdjacentElement('beforebegin',el);
   _promoNudgeEl=el;
+}
 
 function removeCartService(svcId){
   var idx=selectedServices.findIndex(function(s){return s.id===svcId;});
