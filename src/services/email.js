@@ -302,9 +302,23 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     });
     serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600;margin-top:4px">Prestations :</div>`;
     groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
-      serviceDetailNew += `<div style="font-size:12px;color:#15613A;padding:1px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
+      serviceDetailNew += `<div style="font-size:12px;color:#15613A;padding:1px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
+    const totalMinMod = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPriceMod = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscMod = booking.promotion_discount_cents || 0;
+    const finalPriceMod = totalPriceMod - promoDiscMod;
+    const durStrMod = totalMinMod >= 60 ? Math.floor(totalMinMod / 60) + 'h' + (totalMinMod % 60 > 0 ? String(totalMinMod % 60).padStart(2, '0') : '') : totalMinMod + ' min';
+    if (totalPriceMod > 0) {
+      if (promoDiscMod > 0 && booking.promotion_label) {
+        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStrMod} \u00b7 <s style="opacity:.6">${(totalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailNew += `<div style="font-size:11px;color:#15613A;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:6px;font-weight:700">Total : ${durStrMod} \u00b7 ${(totalPriceMod / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    }
     const hasSplitPracMod = groupServices.some(s => s.practitioner_name);
     if (safePracName && !hasSplitPracMod) serviceDetailNew += `<div style="font-size:13px;color:#15613A;margin-top:4px">${safePracName}</div>`;
   }
@@ -694,6 +708,19 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
       serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
+    const totalMinDR = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPriceDR = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscDR = booking.promotion_discount_cents || 0;
+    const finalPriceDR = totalPriceDR - promoDiscDR;
+    const durStrDR = totalMinDR >= 60 ? Math.floor(totalMinDR / 60) + 'h' + (totalMinDR % 60 > 0 ? String(totalMinDR % 60).padStart(2, '0') : '') : totalMinDR + ' min';
+    if (totalPriceDR > 0) {
+      if (promoDiscDR > 0 && booking.promotion_label) {
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrDR} \u00b7 <s style="opacity:.6">${(totalPriceDR / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceDR / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscDR / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrDR} \u00b7 ${(totalPriceDR / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
   }
@@ -997,9 +1024,23 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
   let serviceDetailHTML = '';
   if (isMulti) {
     groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
-      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
+      serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
+    const totalMinRF = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPriceRF = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscRF = booking.promotion_discount_cents || 0;
+    const finalPriceRF = totalPriceRF - promoDiscRF;
+    const durStrRF = totalMinRF >= 60 ? Math.floor(totalMinRF / 60) + 'h' + (totalMinRF % 60 > 0 ? String(totalMinRF % 60).padStart(2, '0') : '') : totalMinRF + ' min';
+    if (totalPriceRF > 0) {
+      if (promoDiscRF > 0 && booking.promotion_label) {
+        serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:6px;font-weight:700">Total : ${durStrRF} \u00b7 <s style="opacity:.6">${(totalPriceRF / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceRF / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#3D3832;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscRF / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#3D3832;margin-top:6px;font-weight:700">Total : ${durStrRF} \u00b7 ${(totalPriceRF / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
@@ -1100,9 +1141,23 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   let serviceDetailHTML = '';
   if (isMulti) {
     groupServices.forEach(s => {
+      const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
-      serviceDetailHTML += `<div style="font-size:13px;color:#6B6560;padding:2px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
+      serviceDetailHTML += `<div style="font-size:13px;color:#6B6560;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
+    const totalMinCL = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPriceCL = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscCL = booking.promotion_discount_cents || 0;
+    const finalPriceCL = totalPriceCL - promoDiscCL;
+    const durStrCL = totalMinCL >= 60 ? Math.floor(totalMinCL / 60) + 'h' + (totalMinCL % 60 > 0 ? String(totalMinCL % 60).padStart(2, '0') : '') : totalMinCL + ' min';
+    if (totalPriceCL > 0) {
+      if (promoDiscCL > 0 && booking.promotion_label) {
+        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">Total : ${durStrCL} \u00b7 <s style="opacity:.6">${(totalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#6B6560;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#6B6560;margin-top:6px;font-weight:700">Total : ${durStrCL} \u00b7 ${(totalPriceCL / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#3D3832">${safeServiceName}</div>`;
   }
