@@ -262,6 +262,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #sitePromoBanner .sp-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; color: var(--text); transition: color var(--transition); }
 #sitePromoBanner .sp-item svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
 #sitePromoBanner .sp-title { font-weight: 600; }
+#sitePromoBanner .sp-note { font-size: 11px; font-style: italic; opacity: .6; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
 .svc-promo-badge { font-size: 11px; background: var(--subtle); color: var(--accent); padding: 2px 8px; border-radius: 100px; font-weight: 600; margin-left: 6px; border: 1px solid var(--border); transition: all var(--transition); }
 
 /* ════════════════════════════════════════
@@ -1772,6 +1773,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
           else label = p.title;
           bH += '<div class="sp-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="sp-title">' + esc(label) + '</span></div>';
         });
+        bH += '<div class="sp-note">Offres non cumulables \u2014 la plus avantageuse sera appliqu\u00e9e automatiquement.</div>';
         var bannerEl = document.getElementById('sitePromoBanner');
         bannerEl.innerHTML = bH;
         bannerEl.style.display = '';
