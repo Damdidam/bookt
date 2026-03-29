@@ -518,7 +518,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         if (promotion_id && UUID_RE.test(promotion_id)) {
           const cartServiceIds = multiServices.map(s => s.id);
           const cartTotal = multiServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
-          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, cartTotal, isNewClient);
+          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, cartTotal, isNewClient, clientId);
         }
 
         // Determine locked status based on flexibility
@@ -1213,7 +1213,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           const _promoVarRes = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
           if (_promoVarRes.rows[0]?.price_cents != null) promoSvcPrice = _promoVarRes.rows[0].price_cents;
         }
-        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], promoSvcPrice, isNewClient);
+        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], promoSvcPrice, isNewClient, clientId);
       }
 
       // Create booking

@@ -151,9 +151,10 @@ const BASE_URL = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://ge
  * @param {string} promotionId - promotion UUID from frontend
  * @param {Array} serviceIds - array of service UUIDs in the cart
  * @param {number} totalPriceCents - total cart price in cents (before discount)
- * @param {boolean} isNewClient - true if client was just created (first visit)
+ * @param {boolean} isNewClient - true if client record was just created
+ * @param {string|null} clientId - existing client UUID (null if new client), used for first_visit check
  */
-async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, isNewClient) {
+async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, isNewClient, clientId, servicePrices) {
   if (!promotionId) return { valid: false };
 
   // Fetch promo
@@ -172,9 +173,16 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
     case 'min_amount':
       if (totalPriceCents < promo.condition_min_cents) return { valid: false };
       break;
-    case 'first_visit':
-      if (!isNewClient) return { valid: false };
+    case 'first_visit': {
+      if (isNewClient) break; // brand new client = definitely first visit
+      // Existing client: check booking_count (aligns with frontend check: booking_count === 0)
+      const bcRes = await txClient.query(
+        `SELECT COUNT(*)::int AS cnt FROM bookings WHERE client_id = $1 AND status NOT IN ('cancelled')`,
+        [clientId]
+      );
+      if (bcRes.rows[0]?.cnt > 0) return { valid: false };
       break;
+    }
     case 'date_range': {
       const now = new Date();
       if (promo.condition_start_date && now < new Date(promo.condition_start_date)) return { valid: false };
@@ -195,21 +203,28 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
   if (promo.reward_type === 'discount_pct') {
     discount_pct = promo.reward_value;
     if (promo.condition_type === 'specific_service') {
-      // Discount on the specific service only
-      const svcRes = await txClient.query(
-        `SELECT price_cents FROM services WHERE id = $1`, [promo.condition_service_id]
-      );
-      const svcPrice = svcRes.rows[0]?.price_cents || 0;
+      // Use variant-resolved price if available, fall back to DB query
+      let svcPrice = servicePrices?.[promo.condition_service_id];
+      if (svcPrice == null) {
+        const svcRes = await txClient.query(
+          `SELECT price_cents FROM services WHERE id = $1`, [promo.condition_service_id]
+        );
+        svcPrice = svcRes.rows[0]?.price_cents || 0;
+      }
       discount_cents = Math.round(svcPrice * promo.reward_value / 100);
     } else {
       discount_cents = Math.round(totalPriceCents * promo.reward_value / 100);
     }
   } else if (promo.reward_type === 'discount_fixed') {
     if (promo.condition_type === 'specific_service') {
-      const svcRes = await txClient.query(
-        `SELECT price_cents FROM services WHERE id = $1`, [promo.condition_service_id]
-      );
-      const svcPrice = svcRes.rows[0]?.price_cents || 0;
+      // Use variant-resolved price if available, fall back to DB query
+      let svcPrice = servicePrices?.[promo.condition_service_id];
+      if (svcPrice == null) {
+        const svcRes = await txClient.query(
+          `SELECT price_cents FROM services WHERE id = $1`, [promo.condition_service_id]
+        );
+        svcPrice = svcRes.rows[0]?.price_cents || 0;
+      }
       discount_cents = Math.min(promo.reward_value, svcPrice);
     } else {
       discount_cents = Math.min(promo.reward_value, totalPriceCents);
