@@ -558,6 +558,7 @@ router.patch('/:id/status', async (req, res, next) => {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.client_id, b.group_id,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
+                  b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -591,7 +592,7 @@ router.patch('/:id/status', async (req, res, next) => {
           const gcPaidForEmail = await getGcPaidCents(id);
           const { sendCancellationEmail } = require('../../services/email');
           sendCancellationEmail({
-            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail },
+            booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name, deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_paid_at: d.deposit_paid_at, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidForEmail, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct },
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
@@ -758,6 +759,7 @@ router.patch('/:id/status', async (req, res, next) => {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.group_id, b.public_token, b.comment_client, b.custom_label,
+                  b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -803,7 +805,8 @@ router.patch('/:id/status', async (req, res, next) => {
               client_name: d.client_name, client_email: d.client_email,
               service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name,
               comment: d.comment_client, custom_label: d.custom_label,
-              public_token: d.public_token
+              public_token: d.public_token,
+              promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct
             },
             business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },
             groupServices
@@ -1092,6 +1095,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
         `SELECT b.id, b.status, b.deposit_status, b.deposit_amount_cents,
                 b.start_at, b.end_at, b.group_id, b.practitioner_id, b.public_token,
                 b.comment_client, b.custom_label, b.service_variant_id,
+                b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                 c.full_name AS client_name, c.email AS client_email,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -1202,7 +1206,8 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
             client_name: b.client_name, client_email: b.client_email,
             service_name: b.service_name, practitioner_name: b.practitioner_name,
             comment: b.comment_client, custom_label: b.custom_label,
-            public_token: b.public_token
+            public_token: b.public_token,
+            promotion_label: b.promotion_label, promotion_discount_cents: b.promotion_discount_cents, promotion_discount_pct: b.promotion_discount_pct
           },
           business: { name: b.business_name, email: b.business_email, address: b.business_address, phone: b.business_phone, theme: b.theme, settings: b.settings },
           groupServices
