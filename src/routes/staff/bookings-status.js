@@ -709,12 +709,14 @@ router.patch('/:id/status', async (req, res, next) => {
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
+                  p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email, biz.address AS business_address,
                   biz.theme, biz.settings
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN practitioners p ON p.id = b.practitioner_id
            JOIN businesses biz ON biz.id = b.business_id
            WHERE b.id = $1 AND b.business_id = $2`,
           [id, bid]

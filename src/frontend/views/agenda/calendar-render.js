@@ -134,6 +134,7 @@ function buildEventClassNames() {
       if (hasCancel) cls.push('ev-cancelled');
       else if (hasNoShow) cls.push('ev-no_show');
       else if (hasCompleted) cls.push('ev-completed');
+      else if (members.some(m => m.status === 'modified_pending')) cls.push('ev-modified_pending');
       else if (members.some(m => m.status === 'pending_deposit')) cls.push('ev-pending_deposit');
       else if (members.some(m => m.status === 'pending')) cls.push('ev-pending');
       else if (members.some(m => m.status === 'confirmed')) cls.push('ev-confirmed');

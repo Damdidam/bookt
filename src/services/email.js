@@ -1296,7 +1296,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     primaryColor: color,
     cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
     cancelUrl: manageUrl,
-    footerText: `${business.name} · Via Genda.be`
+    footerText: `${business.name}${business.address ? ' · ' + business.address : ''} · Via Genda.be`
   });
 
   return sendEmail({

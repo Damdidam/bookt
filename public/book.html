@@ -1152,6 +1152,7 @@ function initPage(){
             var curDisc=0;
             if(appliedPromos.length>0){var cur=appliedPromos[0];curDisc=cur._disc||0;}
             if(fvDisc>curDisc){
+              if(multiServiceMode){selectedServices=selectedServices.filter(function(s){return!s.is_promo;});updateCartBar();}
               appliedPromos=[{id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true,_disc:fvDisc}];
             }
             buildSummary();
@@ -1776,7 +1777,7 @@ function oauthConnect(provider){
   // Save booking selections to sessionStorage before redirect
   var oauthState={};
   if(selectedService)oauthState.serviceId=selectedService.id;
-  if(selectedServices.length>0)oauthState.serviceIds=selectedServices.map(function(s){return s.id;});
+  if(selectedServices.length>0)oauthState.serviceIds=selectedServices.map(function(s){return{id:s.id,is_promo:s.is_promo||false,promo_id:s.promo_id||null,price_cents:s.price_cents};});
   if(selectedPractitioner)oauthState.practitionerId=selectedPractitioner.id;
   if(selectedSlot)oauthState.slot=selectedSlot;
   if(selectedMode)oauthState.mode=selectedMode;
@@ -1848,6 +1849,7 @@ async function handleOauthPickup(pickupKey){
               var curDisc2=0;
               if(appliedPromos.length>0){var cur2=appliedPromos[0];curDisc2=cur2._disc||0;}
               if(fvDisc2>curDisc2){
+                if(multiServiceMode){selectedServices=selectedServices.filter(function(s){return!s.is_promo;});updateCartBar();}
                 appliedPromos=[{id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true,_disc:fvDisc2}];
               }
               buildSummary();
@@ -1900,7 +1902,10 @@ function restoreOauthState(){
       selectedService=siteData.services.find(function(s){return s.id===st.serviceId;})||null;
     }
     if(st.serviceIds&&siteData){
-      selectedServices=st.serviceIds.map(function(id){return siteData.services.find(function(s){return s.id===id;});}).filter(Boolean);
+      selectedServices=st.serviceIds.map(function(item){
+        if(item.is_promo) return{id:item.id,is_promo:true,promo_id:item.promo_id,price_cents:item.price_cents||0,name:'',duration_min:0};
+        return siteData.services.find(function(s){return s.id===(item.id||item);});
+      }).filter(Boolean);
     }
     if(st.practitionerId&&siteData){
       selectedPractitioner=(siteData.practitioners||[]).find(function(p){return p.id===st.practitionerId;})||null;
@@ -2093,6 +2098,7 @@ function goNext(){
   if(currentStep===1){
     // Remove promo-added free services from cart before re-evaluating
     if(multiServiceMode){selectedServices=selectedServices.filter(function(s){return!s.is_promo;});updateCartBar();}
+    if(multiServiceMode&&selectedServices.length<=1){multiServiceMode=false;if(selectedServices.length===1)selectedService=selectedServices[0];}
     appliedPromos=[];
     var eligible=getEligiblePromos().filter(function(p){return p.reward_type!=='info_only';});
     if(eligible.length>0){
