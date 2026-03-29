@@ -211,22 +211,26 @@ async function openPromoModal(id) {
 }
 
 function buildConditionFields(type, promo, serviceOpts) {
-  const cv = promo?.condition_value || '';
   switch (type) {
     case 'min_amount':
+      var minVal = promo?.condition_min_cents ? (promo.condition_min_cents / 100).toFixed(0) : '';
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Montant minimum (\u20AC)</label>
-        <input type="number" id="promoConditionValue" min="0" step="0.01" value="${esc(cv)}" placeholder="50" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
+        <input type="number" id="promoConditionValue" min="0" step="1" value="${esc(minVal)}" placeholder="50" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
     case 'specific_service':
+      var selSvcId = promo?.condition_service_id || '';
+      var svcOptsSelected = serviceOpts.replace('value="' + selSvcId + '"', 'value="' + selSvcId + '" selected');
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Service concern\u00E9</label>
         <select id="promoConditionValue" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box;background:var(--surface);color:var(--text-1)">
-          <option value="">-- Choisir --</option>${serviceOpts}
+          <option value="">-- Choisir --</option>${svcOptsSelected}
         </select>`;
     case 'date_range':
+      var ds = promo?.condition_start_date ? promo.condition_start_date.substring(0, 10) : '';
+      var de = promo?.condition_end_date ? promo.condition_end_date.substring(0, 10) : '';
       return `<div style="display:flex;gap:12px">
         <div style="flex:1"><label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Date de d\u00E9but</label>
-          <input type="date" id="promoConditionDateStart" value="${esc(promo?.condition_date_start || '')}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box"></div>
+          <input type="date" id="promoConditionDateStart" value="${esc(ds)}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box"></div>
         <div style="flex:1"><label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Date de fin</label>
-          <input type="date" id="promoConditionDateEnd" value="${esc(promo?.condition_date_end || '')}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box"></div>
+          <input type="date" id="promoConditionDateEnd" value="${esc(de)}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box"></div>
       </div>`;
     default:
       return '';
@@ -234,19 +238,22 @@ function buildConditionFields(type, promo, serviceOpts) {
 }
 
 function buildRewardFields(type, promo, serviceOpts) {
-  const rv = promo?.reward_value || '';
   switch (type) {
     case 'free_service':
+      var selRwdId = promo?.reward_service_id || '';
+      var rwdOptsSelected = serviceOpts.replace('value="' + selRwdId + '"', 'value="' + selRwdId + '" selected');
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Service offert</label>
         <select id="promoRewardValue" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box;background:var(--surface);color:var(--text-1)">
-          <option value="">-- Choisir --</option>${serviceOpts}
+          <option value="">-- Choisir --</option>${rwdOptsSelected}
         </select>`;
     case 'discount_pct':
+      var pctVal = promo?.reward_value || '';
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Pourcentage de r\u00E9duction</label>
-        <input type="number" id="promoRewardValue" min="1" max="100" value="${esc(rv)}" placeholder="20" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
+        <input type="number" id="promoRewardValue" min="1" max="100" value="${esc(pctVal)}" placeholder="20" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
     case 'discount_fixed':
+      var fixVal = promo?.reward_value ? (promo.reward_value / 100).toFixed(0) : '';
       return `<label style="font-size:.78rem;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px">Montant de r\u00E9duction (\u20AC)</label>
-        <input type="number" id="promoRewardValue" min="0" step="0.01" value="${esc(rv)}" placeholder="10" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
+        <input type="number" id="promoRewardValue" min="0" step="1" value="${esc(fixVal)}" placeholder="10" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.85rem;box-sizing:border-box">`;
     default:
       return '';
   }
