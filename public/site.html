@@ -258,6 +258,11 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--subtle); border-radius: 0 var(--radius) var(--radius) 0;
   margin-bottom: 32px; transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
+#sitePromoBanner { margin-bottom: 24px; padding: 14px 18px; background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius); transition: background var(--transition), border-color var(--transition); }
+#sitePromoBanner .sp-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; color: var(--text); transition: color var(--transition); }
+#sitePromoBanner .sp-item svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
+#sitePromoBanner .sp-title { font-weight: 600; }
+.svc-promo-badge { font-size: 11px; background: var(--subtle); color: var(--accent); padding: 2px 8px; border-radius: 100px; font-weight: 600; margin-left: 6px; border: 1px solid var(--border); transition: all var(--transition); }
 
 /* ════════════════════════════════════════
    STATS — divider pattern (from bold)
@@ -1097,6 +1102,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
       <p class="section-subtitle">R&eacute;servez</p>
     </div>
     <div class="services-note" id="servicesNote" style="display:none"></div>
+    <div id="sitePromoBanner" style="display:none"></div>
     <div id="servicesList"></div>
   </div>
 </section>
@@ -1749,6 +1755,34 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
         sH += '</div>';
       });
       document.getElementById('servicesList').innerHTML = sH;
+
+      // Promo banner + badges
+      var promos = d.promotions || [];
+      if (promos.length > 0) {
+        // General promos → banner above services
+        var generalPromos = promos.filter(function(p) { return p.condition_type !== 'specific_service'; });
+        if (generalPromos.length > 0) {
+          var bH = '';
+          generalPromos.forEach(function(p) {
+            var label = '';
+            if (p.condition_type === 'first_visit' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% pour les nouveaux clients';
+            else if (p.condition_type === 'min_amount' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% d\u00e8s ' + (p.condition_min_cents / 100).toFixed(0) + '\u202f\u20ac de panier';
+            else if (p.condition_type === 'min_amount' && p.reward_type === 'discount_fixed') label = '-' + (p.reward_value / 100).toFixed(0) + '\u202f\u20ac d\u00e8s ' + (p.condition_min_cents / 100).toFixed(0) + '\u202f\u20ac de panier';
+            else label = p.title;
+            bH += '<div class="sp-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="sp-title">' + esc(label) + '</span></div>';
+          });
+          var bannerEl = document.getElementById('sitePromoBanner');
+          bannerEl.innerHTML = bH;
+          bannerEl.style.display = '';
+        }
+        // Specific service promos → badge on the service
+        promos.filter(function(p) { return p.condition_type === 'specific_service' && p.condition_service_id; }).forEach(function(p) {
+          var svcEl = document.querySelector('.service-item[data-svc-id="' + p.condition_service_id + '"] .service-name');
+          if (svcEl && !svcEl.querySelector('.svc-promo-badge')) {
+            svcEl.insertAdjacentHTML('beforeend', ' <span class="svc-promo-badge">' + esc(p.title) + '</span>');
+          }
+        });
+      }
 
       window.filterSvcCat = function(cat) {
         var pills = document.querySelectorAll('.svc-nav-pill');
