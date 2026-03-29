@@ -1109,9 +1109,10 @@ function initPage(){
         if(!nm.value.trim()&&d.name){nm.value=d.name;nm.classList.add('valid');}
         // Check first_visit promo eligibility
         if(d.booking_count===0){
-          var fvPromo=(siteData&&siteData.promotions||[]).find(function(p){return p.condition_type==='first_visit';});
-          if(fvPromo&&!appliedPromos.some(function(ap){return ap.id===fvPromo.id;})){
-            appliedPromos.push({id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true});
+          var fvPromo=(siteData&&siteData.promotions||[]).find(function(p){return p.condition_type==='first_visit'&&p.reward_type!=='info_only';});
+          if(fvPromo){
+            // Replace current promo with first_visit if better discount
+            appliedPromos=[{id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true}];
             buildSummary();
           }
         }else{
@@ -1780,9 +1781,9 @@ async function handleOauthPickup(pickupKey){
           }
           // Check first_visit promo (OAuth flow)
           if(phData&&phData.booking_count===0){
-            var fvPromo=(siteData&&siteData.promotions||[]).find(function(p){return p.condition_type==='first_visit';});
-            if(fvPromo&&!appliedPromos.some(function(ap){return ap.id===fvPromo.id;})){
-              appliedPromos.push({id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true});
+            var fvPromo=(siteData&&siteData.promotions||[]).find(function(p){return p.condition_type==='first_visit'&&p.reward_type!=='info_only';});
+            if(fvPromo){
+              appliedPromos=[{id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true}];
               buildSummary();
             }
           }else if(phData){
@@ -2010,15 +2011,35 @@ function goToStep(n){
   window.scrollTo(0,0);
 }
 function goNext(){
-  // Auto-apply eligible promos when leaving step 1 (no dedicated promo step)
+  // Auto-apply best eligible promo when leaving step 1 (1 promo max)
   var currentStep=stepOrder[currentStepIdx];
   if(currentStep===1){
-    var eligible=getEligiblePromos();
-    eligible.forEach(function(p){
-      if(p.reward_type==='info_only')return;
-      if(appliedPromos.some(function(ap){return ap.id===p.id;}))return;
-      acceptPromo(p);
-    });
+    appliedPromos=[];
+    var eligible=getEligiblePromos().filter(function(p){return p.reward_type!=='info_only';});
+    if(eligible.length>0){
+      // Pick the promo with the highest discount value
+      var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
+      var cartTotal=cart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+      var best=null,bestDiscount=0;
+      eligible.forEach(function(p){
+        var disc=0;
+        if(p.reward_type==='discount_pct'){
+          if(p.condition_type==='specific_service'){
+            var svc=cart.find(function(s){return s.id===p.condition_service_id;});
+            var svcPrice=svc?(selectedVariants[svc.id]&&selectedVariants[svc.id].price_cents!=null?selectedVariants[svc.id].price_cents:(svc.price_cents||0)):0;
+            disc=Math.round(svcPrice*p.reward_value/100);
+          }else{
+            disc=Math.round(cartTotal*p.reward_value/100);
+          }
+        }else if(p.reward_type==='discount_fixed'){
+          disc=p.reward_value||0;
+        }else if(p.reward_type==='free_service'){
+          disc=p.reward_service_price_cents||0;
+        }
+        if(disc>bestDiscount){bestDiscount=disc;best=p;}
+      });
+      if(best)acceptPromo(best);
+    }
   }
   const nextIdx=currentStepIdx+1;
   if(nextIdx<stepOrder.length)goToStep(stepOrder[nextIdx]);
@@ -2332,16 +2353,6 @@ function clearFieldErr(field){
 
 // ──────── SUMMARY ────────
 function buildSummary(){
-  // Auto-apply specific_service discount promos (shown as badges in step 1, not in step 1.5)
-  var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
-  var cartIds=cart.map(function(s){return s.id;});
-  (siteData&&siteData.promotions||[]).forEach(function(p){
-    if(p.condition_type==='specific_service'&&p.reward_type!=='free_service'&&cartIds.indexOf(p.condition_service_id)>=0){
-      if(!appliedPromos.some(function(ap){return ap.id===p.id;})){
-        appliedPromos.push({id:p.id,type:p.reward_type,value:p.reward_value,title:p.title});
-      }
-    }
-  });
   const d=new Date(selectedSlot.start_at);
   const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
   var html='';
@@ -2404,28 +2415,32 @@ function buildSummary(){
         +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
     }
   }
-  // Applied promo discounts
+  // Applied promo discount (1 max)
   if(appliedPromos.length>0){
-    appliedPromos.forEach(function(ap){
-      var promoLabel=ap.title||'Promotion';
-      if(ap.type==='discount_pct'&&ap.value){
-        // Calculate discounted total
-        var origPrice=0;
-        if(multiServiceMode&&selectedServices.length>1){
-          origPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-        }else if(selectedService){
-          var sv3=selectedVariants[selectedService.id];
-          origPrice=sv3&&sv3.price_cents!=null?sv3.price_cents:(selectedService.price_cents||0);
-        }
-        var discAmount=Math.round(origPrice*ap.value/100);
-        var newPrice=origPrice-discAmount;
-        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+ap.value+'% (<s>'+(origPrice/100).toFixed(0)+' \u20ac</s> '+(newPrice/100).toFixed(0)+' \u20ac)</span></div>';
-      }else if(ap.type==='discount_fixed'&&ap.value){
-        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+(ap.value/100).toFixed(0)+' \u20ac</span></div>';
-      }else if(ap.type==='free_service'){
-        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">Inclus</span></div>';
+    var ap=appliedPromos[0];
+    var promoLabel=ap.title||'Promotion';
+    var cartSvcs=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
+    var cartTotalCents=cartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+    if(ap.type==='discount_pct'&&ap.value){
+      // specific_service: discount on that service only; otherwise on total
+      var basePrice=cartTotalCents;
+      var promoData=(siteData&&siteData.promotions||[]).find(function(p){return p.id===ap.id;});
+      if(promoData&&promoData.condition_type==='specific_service'){
+        var targetSvc=cartSvcs.find(function(s){return s.id===promoData.condition_service_id;});
+        if(targetSvc){var tv=selectedVariants[targetSvc.id];basePrice=tv&&tv.price_cents!=null?tv.price_cents:(targetSvc.price_cents||0);}
       }
-    });
+      var discAmount=Math.round(basePrice*ap.value/100);
+      var newTotal=cartTotalCents-discAmount;
+      html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+ap.value+'% (-'+(discAmount/100).toFixed(0)+' \u20ac)</span></div>';
+      html+='<div class="sum-row"><span class="label" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="val" style="color:#059669;font-weight:700">'+(newTotal/100).toFixed(0)+' \u20ac</span></div>';
+    }else if(ap.type==='discount_fixed'&&ap.value){
+      var fixedDisc=Math.min(ap.value,cartTotalCents);
+      var newTotal2=cartTotalCents-fixedDisc;
+      html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+(fixedDisc/100).toFixed(0)+' \u20ac</span></div>';
+      html+='<div class="sum-row"><span class="label" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="val" style="color:#059669;font-weight:700">'+(newTotal2/100).toFixed(0)+' \u20ac</span></div>';
+    }else if(ap.type==='free_service'){
+      html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">Offert</span></div>';
+    }
   }
   // Payment methods accepted on-site
   var pm=siteData&&siteData.business&&siteData.business.payment_methods;
