@@ -381,6 +381,11 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
 
 /* Promo badges */
 .promo-badge{font-size:.68rem;background:var(--accent-light,#fef3c7);color:var(--accent-dark,#92400e);padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:600;display:inline-block}
+.promo-top-banner{display:none;margin-bottom:16px;padding:12px 16px;background:var(--accent-light,#fef3c7);border:1px solid var(--accent-border,#fde68a);border-radius:var(--radius-sm,10px);font-size:.82rem;color:var(--accent-dark,#92400e)}
+.promo-top-banner:empty{display:none}
+.promo-top-banner .ptb-item{display:flex;align-items:center;gap:8px;padding:3px 0}
+.promo-top-banner .ptb-item svg{width:14px;height:14px;flex-shrink:0}
+.promo-top-banner .ptb-title{font-weight:700}
 .promo-nudge{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:10px 18px;border-radius:100px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px;z-index:50;box-shadow:0 4px 16px rgba(5,150,105,.3);animation:fadeIn .25s ease;max-width:calc(100vw - 32px);text-align:center}
 
 /* Promo step */
@@ -445,6 +450,7 @@ body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:va
   <div class="step" data-step="1" id="step1">
     <h2 class="step-title">Choisir une prestation</h2>
     <p class="step-sub">Quel type de rendez-vous souhaitez-vous ?</p>
+    <div id="promoBanner" class="promo-top-banner"></div>
     <div id="catTabs" class="cat-tabs" style="display:none"></div>
     <div id="svcList"></div>
     <div class="cart-sticky" id="cartSticky">
@@ -1153,6 +1159,7 @@ function initPage(){
   if(!_oauthPickup){
     computeStepOrder();
     goToStep(1);
+    renderPromoBannerTop();
   }
 }
 
@@ -1486,17 +1493,37 @@ function getPromoBadges(serviceId){
   var promos=siteData&&siteData.promotions||[];
   var badges='';
   promos.forEach(function(p){
+    // Only show badge on the specific service it applies to
     if(p.condition_type==='specific_service'&&p.condition_service_id===serviceId){
-      badges+=' <span class="promo-badge">'+escH(p.title)+'</span>';
-    }else if(p.condition_type==='min_amount'){
-      badges+=' <span class="promo-badge">D\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u20ac de panier</span>';
-    }else if(p.condition_type==='first_visit'&&p.reward_type==='discount_pct'){
-      badges+=' <span class="promo-badge">-'+p.reward_value+'% nouveau client</span>';
-    }else if(p.condition_type==='first_visit'){
       badges+=' <span class="promo-badge">'+escH(p.title)+'</span>';
     }
   });
   return badges;
+}
+
+function renderPromoBannerTop(){
+  var el=document.getElementById('promoBanner');
+  if(!el)return;
+  var promos=siteData&&siteData.promotions||[];
+  var general=promos.filter(function(p){
+    return p.condition_type!=='specific_service';
+  });
+  if(general.length===0){el.style.display='none';return;}
+  var html='';
+  general.forEach(function(p){
+    var label='';
+    if(p.condition_type==='first_visit'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% pour les nouveaux clients';
+    else if(p.condition_type==='first_visit') label=p.title;
+    else if(p.condition_type==='min_amount'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% d\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u202F\u20ac de panier';
+    else if(p.condition_type==='min_amount'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(0)+'\u202F\u20ac d\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u202F\u20ac de panier';
+    else if(p.condition_type==='min_amount') label=p.title;
+    else if(p.condition_type==='date_range') label=p.title;
+    else if(p.condition_type==='none') label=p.title;
+    else label=p.title;
+    html+='<div class="ptb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="ptb-title">'+escH(label)+'</span></div>';
+  });
+  el.innerHTML=html;
+  el.style.display='block';
 }
 
 function getEligiblePromos(){
