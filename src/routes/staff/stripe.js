@@ -302,6 +302,7 @@ async function handleStripeWebhook(req, res) {
             try {
               const bkData = await query(
                 `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
+                        b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                         c.full_name AS client_name, c.email AS client_email,
                         CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                         s.category AS service_category,
@@ -315,7 +316,7 @@ async function handleStripeWebhook(req, res) {
                  LEFT JOIN clients c ON c.id = b.client_id
                  LEFT JOIN services s ON s.id = b.service_id
                  LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
-                 JOIN practitioners p ON p.id = b.practitioner_id
+                 LEFT JOIN practitioners p ON p.id = b.practitioner_id
                  JOIN businesses biz ON biz.id = b.business_id
                  WHERE b.id = $1`,
                 [bookingId]
