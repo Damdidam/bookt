@@ -378,6 +378,45 @@ body.theme-dark .bce-toggle{color:var(--primary)}
 body.theme-dark .wl-form{background:var(--surface);border-color:var(--border)}
 body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--border);color:var(--text-3)}
 @media(max-width:640px){body.theme-dark .sk-cats{border-bottom-color:var(--border)}}
+
+/* Promo badges */
+.promo-badge{font-size:.68rem;background:var(--accent-light,#fef3c7);color:var(--accent-dark,#92400e);padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:600;display:inline-block}
+
+/* Promo step */
+.promo-card{background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:18px;margin-bottom:12px;transition:all .15s}
+.promo-card:hover{border-color:var(--border)}
+.promo-card-img{width:100%;height:140px;object-fit:cover;border-radius:var(--radius-xs);margin-bottom:12px}
+.promo-card-icon{width:48px;height:48px;border-radius:var(--radius-xs);background:var(--surface);display:flex;align-items:center;justify-content:center;margin-bottom:12px;color:var(--text-3)}
+.promo-card h3{font-size:.92rem;font-weight:700;margin-bottom:4px}
+.promo-card p{font-size:.78rem;color:var(--text-3);line-height:1.5;margin-bottom:8px}
+.promo-card .promo-cond{font-size:.72rem;color:var(--text-4);margin-bottom:12px;font-style:italic}
+.promo-card .promo-accept{padding:10px 20px;border-radius:100px;border:none;background:var(--primary);color:#fff;font-family:var(--sans);font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s}
+.promo-card .promo-accept:hover{background:var(--primary-hover)}
+.promo-card .promo-accept:disabled{opacity:.5;cursor:not-allowed}
+
+/* Promo banner/carousel */
+.promo-banner{position:relative;overflow:hidden;border-radius:var(--radius-sm);margin-bottom:12px}
+.promo-banner-track{display:flex;transition:transform .3s ease}
+.promo-banner-slide{flex:0 0 100%;min-width:0;background:var(--white);border:1.5px solid var(--border-light);border-radius:var(--radius-sm);padding:24px;text-align:center}
+.promo-banner-slide img{max-height:160px;object-fit:cover;border-radius:var(--radius-xs);margin-bottom:14px}
+.promo-banner-slide h3{font-size:1.1rem;font-weight:700;margin-bottom:6px}
+.promo-banner-slide p{font-size:.82rem;color:var(--text-3);line-height:1.5;margin-bottom:10px}
+.promo-banner-slide .promo-cond{font-size:.72rem;color:var(--text-4);margin-bottom:14px;font-style:italic}
+.promo-banner-slide .promo-accept{padding:12px 24px;border-radius:100px;border:none;background:var(--primary);color:#fff;font-family:var(--sans);font-size:.82rem;font-weight:700;cursor:pointer;transition:all .15s}
+.promo-banner-slide .promo-accept:hover{background:var(--primary-hover)}
+.promo-banner-slide .promo-accept:disabled{opacity:.5;cursor:not-allowed}
+.promo-banner-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;font-size:1rem;color:var(--text-3);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.promo-banner-arrow:hover{background:var(--white);color:var(--text)}
+.promo-banner-arrow.prev{left:8px}
+.promo-banner-arrow.next{right:8px}
+.promo-banner-dots{display:flex;justify-content:center;gap:6px;margin-top:12px}
+.promo-banner-dot{width:8px;height:8px;border-radius:50%;background:var(--surface-2);cursor:pointer;transition:background .2s}
+.promo-banner-dot.active{background:var(--primary)}
+
+body.theme-dark .promo-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .promo-card-icon{background:var(--surface-2)}
+body.theme-dark .promo-banner-slide{background:var(--surface);border-color:var(--border)}
+body.theme-dark .promo-banner-arrow{background:rgba(30,30,30,.9);border-color:var(--border);color:var(--text-3)}
 </style>
 </head>
 <body>
@@ -423,6 +462,17 @@ body.theme-dark .wl-form .wl-day{background:var(--surface);border-color:var(--bo
       </div>
     </div>
     <button class="btn-next" id="btnStep1" disabled>Continuer →</button>
+  </div>
+
+  <!-- STEP PROMOS: Promotional upsells -->
+  <div class="step" id="stepPromos" data-step="promos" style="display:none">
+    <h2 class="step-title">Offres spéciales</h2>
+    <p class="step-subtitle" style="font-size:.85rem;color:var(--text-3);margin-bottom:20px">Profitez de nos promotions en cours</p>
+    <div id="promoContainer"></div>
+    <div class="step-nav" style="margin-top:24px">
+      <button class="btn-outline" onclick="goPrev()">← Retour</button>
+      <button class="btn-next" id="btnStepPromos" onclick="goNext()">Continuer →</button>
+    </div>
   </div>
 
   <!-- STEP 2: PRACTITIONER -->
@@ -905,7 +955,7 @@ function initPage(){
     let h='<div class="sk-svc-row'+(noBook?' no-book':'')+'" data-id="'+s.id+'">';
     h+='<div class="sk-svc-head">';
     h+='<div class="sk-svc-info">';
-    h+='<div class="sk-svc-name">'+escH(s.name)+'</div>';
+    h+='<div class="sk-svc-name">'+escH(s.name)+getPromoBadges(s.id)+'</div>';
     if(hasVars){
       const prices=s.variants.filter(v=>v.price_cents!=null).map(v=>v.price_cents);
       const durs=s.variants.map(v=>v.duration_min);
@@ -1386,6 +1436,161 @@ function buildPractitioners(){
   return true;
 }
 
+// ──────── PROMOS ────────
+var appliedPromos=[];
+
+function getPromoBadges(serviceId){
+  var promos=siteData&&siteData.promotions||[];
+  var badges='';
+  promos.forEach(function(p){
+    if(p.condition_type==='specific_service'&&p.condition_service_id===serviceId){
+      badges+=' <span class="promo-badge">'+escH(p.title)+'</span>';
+    }else if(p.condition_type==='min_amount'){
+      badges+=' <span class="promo-badge">D\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u20ac de panier</span>';
+    }
+  });
+  return badges;
+}
+
+function getEligiblePromos(){
+  var promos=siteData&&siteData.promotions||[];
+  var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
+  var cartTotal=cart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.price_cents:(svc.price_cents||0));},0);
+  var cartIds=cart.map(function(s){return s.id;});
+  return promos.filter(function(p){
+    if(p.condition_type==='none')return true;
+    if(p.condition_type==='min_amount')return cartTotal>=p.condition_min_cents;
+    if(p.condition_type==='specific_service')return cartIds.indexOf(p.condition_service_id)>=0;
+    if(p.condition_type==='date_range'){
+      var today=new Date().toISOString().slice(0,10);
+      return(!p.condition_start_date||today>=p.condition_start_date)&&(!p.condition_end_date||today<=p.condition_end_date);
+    }
+    if(p.condition_type==='first_visit')return true;
+    return false;
+  }).slice(0,3);
+}
+
+function renderPromoStep(){
+  var eligible=getEligiblePromos();
+  if(eligible.length===0){goNext();return;}
+  var c=document.getElementById('promoContainer');
+  var style=(eligible[0]||{}).display_style||'cards';
+  if(style==='banner')renderPromoBanner(c,eligible);
+  else renderPromoCards(c,eligible);
+}
+
+function renderPromoCards(container,promos){
+  var html='';
+  promos.forEach(function(p){
+    var isApplied=appliedPromos.some(function(ap){return ap.id===p.id;});
+    html+='<div class="promo-card">';
+    if(p.image_url){
+      html+='<img class="promo-card-img" src="'+escH(p.image_url)+'" alt="'+escH(p.title)+'">';
+    }else{
+      html+='<div class="promo-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>';
+    }
+    html+='<h3>'+escH(p.title)+'</h3>';
+    if(p.description)html+='<p>'+escH(p.description)+'</p>';
+    html+='<div class="promo-cond">'+getPromoConditionText(p)+'</div>';
+    if(p.reward_type==='info_only'){
+      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Not\u00e9 \u2713':'Not\u00e9')+'</button>';
+    }else{
+      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Ajout\u00e9 \u2713':'Ajouter')+'</button>';
+    }
+    html+='</div>';
+  });
+  container.innerHTML=html;
+}
+
+function renderPromoBanner(container,promos){
+  var html='<div class="promo-banner">';
+  html+='<div class="promo-banner-track" id="promoBannerTrack">';
+  promos.forEach(function(p){
+    var isApplied=appliedPromos.some(function(ap){return ap.id===p.id;});
+    html+='<div class="promo-banner-slide">';
+    if(p.image_url)html+='<img src="'+escH(p.image_url)+'" alt="'+escH(p.title)+'">';
+    html+='<h3>'+escH(p.title)+'</h3>';
+    if(p.description)html+='<p>'+escH(p.description)+'</p>';
+    html+='<div class="promo-cond">'+getPromoConditionText(p)+'</div>';
+    if(p.reward_type==='info_only'){
+      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Not\u00e9 \u2713':'Not\u00e9')+'</button>';
+    }else{
+      html+='<button class="promo-accept" id="promoBtn_'+p.id+'"'+(isApplied?' disabled style="opacity:.5"':'')+' onclick="acceptPromo(siteData.promotions.find(function(x){return x.id===\''+p.id+'\';}))">'+(isApplied?'Ajout\u00e9 \u2713':'Ajouter')+'</button>';
+    }
+    html+='</div>';
+  });
+  html+='</div>';
+  if(promos.length>1){
+    html+='<div class="promo-banner-arrow prev" onclick="slidePromoBanner(-1)">\u2039</div>';
+    html+='<div class="promo-banner-arrow next" onclick="slidePromoBanner(1)">\u203a</div>';
+    html+='<div class="promo-banner-dots" id="promoBannerDots">';
+    promos.forEach(function(_,i){
+      html+='<div class="promo-banner-dot'+(i===0?' active':'')+'" onclick="goToPromoSlide('+i+')"></div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  container.innerHTML=html;
+  // Touch/swipe support
+  var track=document.getElementById('promoBannerTrack');
+  if(track){
+    var startX=0,startTranslate=0;
+    track.addEventListener('touchstart',function(e){startX=e.touches[0].clientX;startTranslate=promoBannerIdx;},{passive:true});
+    track.addEventListener('touchend',function(e){
+      var diff=e.changedTouches[0].clientX-startX;
+      if(Math.abs(diff)>50){
+        if(diff<0)slidePromoBanner(1);
+        else slidePromoBanner(-1);
+      }
+    },{passive:true});
+  }
+}
+
+var promoBannerIdx=0;
+function slidePromoBanner(dir){
+  var track=document.getElementById('promoBannerTrack');
+  if(!track)return;
+  var count=track.children.length;
+  promoBannerIdx=Math.max(0,Math.min(count-1,promoBannerIdx+dir));
+  track.style.transform='translateX(-'+promoBannerIdx*100+'%)';
+  var dots=document.querySelectorAll('.promo-banner-dot');
+  dots.forEach(function(d,i){d.classList.toggle('active',i===promoBannerIdx);});
+}
+function goToPromoSlide(idx){
+  promoBannerIdx=idx;
+  var track=document.getElementById('promoBannerTrack');
+  if(track)track.style.transform='translateX(-'+idx*100+'%)';
+  var dots=document.querySelectorAll('.promo-banner-dot');
+  dots.forEach(function(d,i){d.classList.toggle('active',i===idx);});
+}
+
+function getPromoConditionText(p){
+  if(p.condition_type==='none')return 'Offre sans condition';
+  if(p.condition_type==='min_amount')return 'Panier minimum : '+(p.condition_min_cents/100).toFixed(0)+' \u20ac';
+  if(p.condition_type==='specific_service')return 'Avec la prestation s\u00e9lectionn\u00e9e';
+  if(p.condition_type==='date_range'){
+    var parts=[];
+    if(p.condition_start_date)parts.push('du '+p.condition_start_date);
+    if(p.condition_end_date)parts.push('au '+p.condition_end_date);
+    return 'Valable '+parts.join(' ');
+  }
+  if(p.condition_type==='first_visit')return 'Offre premi\u00e8re visite';
+  return '';
+}
+
+function acceptPromo(p){
+  if(!p)return;
+  if(appliedPromos.some(function(ap){return ap.id===p.id;}))return;
+  if(p.reward_type==='free_service'&&p.reward_service_id){
+    var svc={id:p.reward_service_id,name:p.reward_service_name,duration_min:p.reward_service_duration_min,price_cents:0,is_promo:true,promo_id:p.id};
+    if(multiServiceMode){selectedServices.push(svc);updateCartBar();}
+    else{multiServiceMode=true;selectedServices=[selectedService,svc];updateCartBar();}
+  }
+  appliedPromos.push({id:p.id,type:p.reward_type,value:p.reward_value});
+  var btn=document.getElementById('promoBtn_'+p.id);
+  if(btn){btn.textContent=(p.reward_type==='info_only'?'Not\u00e9':'Ajout\u00e9')+' \u2713';btn.disabled=true;btn.style.opacity='.5';}
+}
+
 // ──────── STEP ORDER ────────
 function computeStepOrder(){
   // vedette mode removed — featured slots filtered inline in renderSlots()
@@ -1408,6 +1613,10 @@ function computeStepOrder(){
     }
   }
   stepOrder=showPrac?[1,2,3,4,5]:[1,3,4,5];
+  // Insert promos step after step 1 if eligible promos exist
+  if(getEligiblePromos().length>0){
+    stepOrder.splice(1,0,'promos');
+  }
   renderProgress();
 }
 function computeProgressDots(){renderProgress();}
@@ -1601,6 +1810,27 @@ function initOauth(){
 // ──────── NAVIGATION ────────
 function goToStep(n){
   hideError();
+  // Handle promos step
+  if(n==='promos'){
+    var eligible=getEligiblePromos();
+    if(eligible.length===0){
+      // Skip promos step silently
+      var promoIdx=stepOrder.indexOf('promos');
+      if(promoIdx>=0&&promoIdx+1<stepOrder.length){
+        goToStep(stepOrder[promoIdx+1]);
+      }
+      return;
+    }
+    // Show promos step and render content
+    document.querySelectorAll('.step').forEach(function(s){s.classList.remove('active');});
+    var promoEl=document.querySelector('.step[data-step="promos"]');
+    if(promoEl)promoEl.classList.add('active');
+    currentStepIdx=stepOrder.indexOf('promos');
+    updateProgress();
+    window.scrollTo(0,0);
+    renderPromoStep();
+    return;
+  }
   // Toggle wide page for step 1 two-column layout
   const pg=document.querySelector('.page');
   if(pg){n===1&&document.getElementById('skCats')?pg.classList.add('wide'):pg.classList.remove('wide');}
@@ -2073,6 +2303,18 @@ function buildSummary(){
       html+='<div class="sum-divider"></div>'
         +'<div class="sum-row"><span class="label">Prix</span><span class="val" style="color:var(--primary)">'+price+'</span></div>';
     }
+  }
+  // Applied promo discounts
+  if(appliedPromos.length>0){
+    appliedPromos.forEach(function(ap){
+      if(ap.type==='discount_pct'&&ap.value){
+        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">R\u00e9duction '+ap.value+'%</span><span class="val" style="color:#059669;font-weight:600">-'+ap.value+'%</span></div>';
+      }else if(ap.type==='discount_fixed'&&ap.value){
+        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">R\u00e9duction</span><span class="val" style="color:#059669;font-weight:600">-'+(ap.value/100).toFixed(0)+' \u20ac</span></div>';
+      }else if(ap.type==='free_service'){
+        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">Prestation offerte</span><span class="val" style="color:#059669;font-weight:600">Inclus</span></div>';
+      }
+    });
   }
   // Payment methods accepted on-site
   var pm=siteData&&siteData.business&&siteData.business.payment_methods;
