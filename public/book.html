@@ -1459,6 +1459,10 @@ function getPromoBadges(serviceId){
       badges+=' <span class="promo-badge">'+escH(p.title)+'</span>';
     }else if(p.condition_type==='min_amount'){
       badges+=' <span class="promo-badge">D\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u20ac de panier</span>';
+    }else if(p.condition_type==='first_visit'&&p.reward_type==='discount_pct'){
+      badges+=' <span class="promo-badge">-'+p.reward_value+'% nouveau client</span>';
+    }else if(p.condition_type==='first_visit'){
+      badges+=' <span class="promo-badge">'+escH(p.title)+'</span>';
     }
   });
   return badges;
