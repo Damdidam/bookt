@@ -586,6 +586,8 @@ async function openServiceModal(editId,prefill){
     if (sRes.ok) { const sd = await sRes.json(); window._businessSettings = sd.business?.settings || {}; }
   } catch(e) {
   }
+  // Fetch promotions for promo shortcut
+  let existingPromo=null;
   if(editId){
     const sr=await fetch(`/api/services`,{headers:{'Authorization':'Bearer '+api.getToken()}});
     const d=await sr.json();
@@ -595,12 +597,16 @@ async function openServiceModal(editId,prefill){
         const tplRes = await fetch(`/api/passes/templates?service_id=${editId}`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
         if (tplRes.ok) { const tplData = await tplRes.json(); svc._pass_templates = tplData.templates || []; }
       } catch (e) {}
+      try {
+        const promoRes=await fetch('/api/promotions',{headers:{'Authorization':'Bearer '+api.getToken()}});
+        if(promoRes.ok){const promoData=await promoRes.json();const promos=promoData.promotions||promoData||[];existingPromo=promos.find(p=>p.condition_type==='specific_service'&&String(p.condition_service_id)===String(editId))||null;}
+      } catch(e){}
     }
-    renderServiceModal(svc,sectorCats,null);
-  }else{renderServiceModal(null,sectorCats,prefill||null);}
+    renderServiceModal(svc,sectorCats,null,existingPromo);
+  }else{renderServiceModal(null,sectorCats,prefill||null,null);}
 }
 
-function renderServiceModal(svc,sectorCats,prefill){
+function renderServiceModal(svc,sectorCats,prefill,existingPromo){
   const isEdit=!!svc;
   const pf=prefill||{};
   const svcLabel=categoryLabels.service.toLowerCase();
@@ -724,6 +730,21 @@ function renderServiceModal(svc,sectorCats,prefill){
     m+=`</div>`;
   }
   m+=`</div>`;
+
+  // ── SECTION: Promotion liée ──
+  if(isEdit){
+    const serviceOptions=allServices.filter(s=>s.id!==svc.id&&s.is_active!==false).map(s=>`<option value="${s.id}"${existingPromo&&String(existingPromo.reward_service_id)===String(s.id)?' selected':''}>${esc(s.name)}</option>`).join('');
+    m+=sec(`${IC.gift} Promotion liée`);
+    m+=`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px">`;
+    m+=`<input type="checkbox" id="svc_promo_enabled" ${existingPromo?'checked':''} onchange="document.getElementById('svcPromoFields').style.display=this.checked?'':'none'" style="accent-color:var(--primary);width:16px;height:16px">`;
+    m+=`<span style="font-size:.85rem;font-weight:500">Offrir un service si cette prestation est réservée</span></label>`;
+    m+=`<div id="svcPromoFields" style="display:${existingPromo?'':'none'}">`;
+    m+=`<div class="m-row m-row-2"><div><label class="m-field-label">Service cadeau</label><select class="m-input" id="svc_promo_reward">${serviceOptions}</select></div>`;
+    m+=`<div><label class="m-field-label">Titre promo</label><input class="m-input" id="svc_promo_title" value="${esc(existingPromo?.title||'')}" placeholder="Ex: Massage crânien offert"></div></div>`;
+    m+=`<div><label class="m-field-label">Description</label><textarea class="m-input" id="svc_promo_desc" rows="2" placeholder="Description affichée au client">${esc(existingPromo?.description||'')}</textarea></div>`;
+    m+=`</div></div>`;
+    m+=`<input type="hidden" id="svc_promo_existing_id" value="${existingPromo?.id||''}">`;
+  }
 
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('svcModalOverlay')">Annuler</button><button class="m-btn m-btn-primary" onclick="saveService(${isEdit?"'"+svc.id+"'":'null'})">${isEdit?'Enregistrer':'Créer'}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
@@ -909,6 +930,24 @@ async function saveService(id){
           body: JSON.stringify({ service_id: serviceId, templates: _passToggle.checked ? passTemplates : [] })
         });
       } catch (e) { console.warn('Pass template sync error:', e.message); }
+    }
+    // Save linked promotion (secondary — errors don't block)
+    const _promoCheck=document.getElementById('svc_promo_enabled');
+    if(_promoCheck&&serviceId){
+      const promoEnabled=_promoCheck.checked;
+      const existingPromoId=document.getElementById('svc_promo_existing_id')?.value||null;
+      try{
+        if(promoEnabled){
+          const promoBody={title:document.getElementById('svc_promo_title')?.value.trim()||'Promotion',description:document.getElementById('svc_promo_desc')?.value.trim()||'',condition_type:'specific_service',condition_service_id:serviceId,reward_type:'free_service',reward_service_id:document.getElementById('svc_promo_reward')?.value||null,display_style:'cards'};
+          if(existingPromoId){
+            await fetch(`/api/promotions/${existingPromoId}`,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(promoBody)});
+          }else{
+            await fetch('/api/promotions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(promoBody)});
+          }
+        }else if(!promoEnabled&&existingPromoId){
+          await fetch(`/api/promotions/${existingPromoId}`,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
+        }
+      }catch(e){console.warn('Promo sync error:',e.message);GendaUI.toast('Promo: erreur de sauvegarde','error');}
     }
     document.getElementById('svcModalOverlay')?._dirtyGuard?.markClean(); closeModal('svcModalOverlay');
     GendaUI.toast(id?categoryLabels.service+' modifiée':categoryLabels.service+' créée','success');loadServices();
