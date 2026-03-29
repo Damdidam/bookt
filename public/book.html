@@ -1474,6 +1474,13 @@ function getEligiblePromos(){
   var cartTotal=cart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.price_cents:(svc.price_cents||0));},0);
   var cartIds=cart.map(function(s){return s.id;});
   return promos.filter(function(p){
+    // Step 1.5 is for UPSELL only — exclude promos that just discount what's already in cart
+    // Those are shown as badges in step 1 instead
+    if(p.condition_type==='specific_service'&&cartIds.indexOf(p.condition_service_id)>=0){
+      // Only show if reward is a FREE additional service (upsell), not a discount on the same service
+      if(p.reward_type!=='free_service')return false;
+    }
+    if(p.condition_type==='first_visit')return false; // handled server-side after authentication
     if(p.condition_type==='none')return true;
     if(p.condition_type==='min_amount')return cartTotal>=p.condition_min_cents;
     if(p.condition_type==='specific_service')return cartIds.indexOf(p.condition_service_id)>=0;
@@ -1481,7 +1488,6 @@ function getEligiblePromos(){
       var today=new Date().toISOString().slice(0,10);
       return(!p.condition_start_date||today>=p.condition_start_date)&&(!p.condition_end_date||today<=p.condition_end_date);
     }
-    if(p.condition_type==='first_visit')return false; // handled server-side after authentication
     return false;
   }).slice(0,3);
 }
