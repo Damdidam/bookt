@@ -1710,6 +1710,17 @@ async function handleOauthPickup(pickupKey){
             formatPhoneInput.call(ph);
             ph.classList.add('valid');
           }
+          // Check first_visit promo (OAuth flow)
+          if(phData&&phData.booking_count===0){
+            var fvPromo=(siteData&&siteData.promotions||[]).find(function(p){return p.condition_type==='first_visit';});
+            if(fvPromo&&!appliedPromos.some(function(ap){return ap.id===fvPromo.id;})){
+              appliedPromos.push({id:fvPromo.id,type:fvPromo.reward_type,value:fvPromo.reward_value,title:fvPromo.title,is_first_visit:true});
+              buildSummary();
+            }
+          }else if(phData){
+            appliedPromos=appliedPromos.filter(function(ap){return!ap.is_first_visit;});
+            buildSummary();
+          }
         }
       }catch(e){}
     }
