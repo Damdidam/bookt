@@ -1905,27 +1905,8 @@ function initOauth(){
 // ──────── NAVIGATION ────────
 function goToStep(n){
   hideError();
-  // Handle promos step
-  if(n==='promos'){
-    var eligible=getEligiblePromos();
-    if(eligible.length===0){
-      // Skip promos step silently
-      var promoIdx=stepOrder.indexOf('promos');
-      if(promoIdx>=0&&promoIdx+1<stepOrder.length){
-        goToStep(stepOrder[promoIdx+1]);
-      }
-      return;
-    }
-    // Show promos step and render content
-    document.querySelectorAll('.step').forEach(function(s){s.classList.remove('active');});
-    var promoEl=document.querySelector('.step[data-step="promos"]');
-    if(promoEl)promoEl.classList.add('active');
-    currentStepIdx=stepOrder.indexOf('promos');
-    updateProgress();
-    window.scrollTo(0,0);
-    renderPromoStep();
-    return;
-  }
+  // Promos step removed — skip if somehow navigated to
+  if(n==='promos'){goNext();return;}
   // Toggle wide page for step 1 two-column layout
   const pg=document.querySelector('.page');
   if(pg){n===1&&document.getElementById('skCats')?pg.classList.add('wide'):pg.classList.remove('wide');}
@@ -2025,18 +2006,15 @@ function goToStep(n){
   window.scrollTo(0,0);
 }
 function goNext(){
-  // Dynamically insert/remove promos step when leaving step 1
+  // Auto-apply eligible promos when leaving step 1 (no dedicated promo step)
   var currentStep=stepOrder[currentStepIdx];
   if(currentStep===1){
-    var promoIdx=stepOrder.indexOf('promos');
     var eligible=getEligiblePromos();
-    if(eligible.length>0&&promoIdx<0){
-      stepOrder.splice(currentStepIdx+1,0,'promos');
-      renderProgress();
-    }else if(eligible.length===0&&promoIdx>=0){
-      stepOrder.splice(promoIdx,1);
-      renderProgress();
-    }
+    eligible.forEach(function(p){
+      if(p.reward_type==='info_only')return;
+      if(appliedPromos.some(function(ap){return ap.id===p.id;}))return;
+      acceptPromo(p);
+    });
   }
   const nextIdx=currentStepIdx+1;
   if(nextIdx<stepOrder.length)goToStep(stepOrder[nextIdx]);
