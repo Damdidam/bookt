@@ -1407,7 +1407,11 @@ function updateCartBar(){
   }).join('');
 
   // Nudge toast: "Plus que X€ pour bénéficier de -Y% !"
-  checkPromoNudge(totalPrice);
+  var eligibleTotal = selectedServices.filter(function(s){return s.promo_eligible !== false;}).reduce(function(sum, svc){
+    var v = selectedVariants[svc.id];
+    return sum + (v && v.price_cents != null ? v.price_cents : svc.price_cents || 0);
+  }, 0);
+  checkPromoNudge(eligibleTotal);
 }
 
 var _promoNudgeEl=null;
@@ -2487,7 +2491,7 @@ function buildSummary(){
       var name=v?svc.name+' \u2014 '+v.name:svc.name;
       var dur=v?v.duration_min:svc.duration_min;
       var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
-      var p=pc>0?(pc/100).toFixed(0)+' \u20ac':(pc===0?'Gratuit':(svc.price_label||''));
+      var p=svc.is_promo?'Offert':(pc>0?(pc/100).toFixed(0)+' \u20ac':(pc===0?'Gratuit':(svc.price_label||'')));
       // In split mode, show practitioner name per service
       var pracLabel='';
       if(splitMode&&selectedSlot&&selectedSlot.practitioners){
@@ -2566,6 +2570,10 @@ function buildSummary(){
       // Recalculate promo discount on the LM-reduced base if it's a percentage
       if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&ap.type==='discount_pct'){
         sumDiscAmount=Math.round(sumBaseForPromo*ap.value/100);
+      }
+      // Cap discount_fixed so it doesn't exceed the post-LM price
+      if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&ap.type==='discount_fixed'){
+        sumDiscAmount=Math.min(sumDiscAmount,sumBaseForPromo);
       }
       var sumNewTotal=Math.max(0,sumBaseForPromo-sumDiscAmount);
       if(ap.type==='discount_pct'){

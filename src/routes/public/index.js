@@ -495,17 +495,6 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           clientId = nc.rows[0].id;
         }
 
-        // ── Promo validation (multi-service) ──
-        const isNewClient = !existingClient;
-        let promoResult = { valid: false };
-        if (promotion_id && UUID_RE.test(promotion_id)) {
-          const cartServiceIds = multiServices.map(s => s.id);
-          const cartTotal = multiServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
-          const servicePrices = {};
-          multiServices.forEach(s => { servicePrices[s.id] = s.price_cents || 0; });
-          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, cartTotal, isNewClient, clientId, servicePrices);
-        }
-
         // Determine locked status based on flexibility
         const anyFlexEnabled = multiServices.some(s => s.flexibility_enabled);
         const multiLocked = anyFlexEnabled ? (flexible !== true) : false;
@@ -520,24 +509,46 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
         }
 
-        // Insert each booking with group_id and group_order
-        const bookings = [];
+        // Pre-compute per-slot LM discount eligibility + prices after LM (needed for promo + deposit)
+        const slotDiscounts = []; // one per chainedSlot
+        let totalPriceAfterLm = 0;
+        const servicePricesAfterLm = {};
         for (const slot of chainedSlots) {
-          const slotPracId = slot.practitioner_id || practitioner_id;
-          // Per-service discount eligibility check
           let slotDiscount = null;
+          // Resolve effective price for this slot (variant or service)
+          const svcMatch = multiServices.find(s => s.id === slot.service_id);
+          let effPrice = svcMatch?.price_cents || 0;
+          if (slot.service_variant_id) {
+            const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [slot.service_variant_id]);
+            if (_vp.rows[0]?.price_cents != null) effPrice = _vp.rows[0].price_cents;
+          }
           if (multiDiscountPct) {
-            const _pe = await client.query(`SELECT promo_eligible, price_cents FROM services WHERE id = $1`, [slot.service_id]);
+            const _pe = await client.query(`SELECT promo_eligible FROM services WHERE id = $1`, [slot.service_id]);
             if (_pe.rows[0]?.promo_eligible !== false) {
               const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
-              let effPrice = _pe.rows[0]?.price_cents || 0;
-              if (slot.service_variant_id) {
-                const _vp = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [slot.service_variant_id]);
-                if (_vp.rows[0]?.price_cents != null) effPrice = _vp.rows[0].price_cents;
-              }
               if (effPrice > 0 && effPrice >= lmMinPrice) slotDiscount = multiDiscountPct;
             }
           }
+          slotDiscounts.push(slotDiscount);
+          const priceAfterLm = slotDiscount ? Math.round(effPrice * (100 - slotDiscount) / 100) : effPrice;
+          totalPriceAfterLm += priceAfterLm;
+          servicePricesAfterLm[slot.service_id] = priceAfterLm;
+        }
+
+        // ── Promo validation (multi-service) — uses LM-adjusted prices ──
+        const isNewClient = !existingClient;
+        let promoResult = { valid: false };
+        if (promotion_id && UUID_RE.test(promotion_id)) {
+          const cartServiceIds = multiServices.map(s => s.id);
+          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, totalPriceAfterLm, isNewClient, clientId, servicePricesAfterLm);
+        }
+
+        // Insert each booking with group_id and group_order
+        const bookings = [];
+        for (let _slotIdx = 0; _slotIdx < chainedSlots.length; _slotIdx++) {
+          const slot = chainedSlots[_slotIdx];
+          const slotPracId = slot.practitioner_id || practitioner_id;
+          const slotDiscount = slotDiscounts[_slotIdx];
           const bk = await client.query(
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
@@ -595,10 +606,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
 
-            // Recalculate deposit amount on reduced price if promo applied
+            // Recalculate deposit amount on reduced price (LM + promo)
             const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
-            if (depResult.required && promoDiscountCents > 0) {
-              const reducedPrice = Math.max(0, totalPrice - promoDiscountCents);
+            if (depResult.required && (totalPriceAfterLm < totalPrice || promoDiscountCents > 0)) {
+              const reducedPrice = Math.max(0, totalPriceAfterLm - promoDiscountCents);
               if (bizSettings.deposit_type === 'fixed') {
                 // Cap fixed deposit at reduced price
                 if (depResult.depCents > reducedPrice) depResult.depCents = reducedPrice;
@@ -1228,19 +1239,25 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // ── Promo validation (single-service) ──
+      // ── Promo validation (single-service) — uses LM-adjusted price ──
       const isNewClient = !existingClient;
       let promoResult = { valid: false };
-      if (promotion_id && UUID_RE.test(promotion_id)) {
-        let promoSvcPrice = 0;
+      // Compute price after LM for promo + deposit calculations
+      let singleSvcOriginalPrice = 0;
+      {
         const _promoSvcRes = await client.query(`SELECT price_cents FROM services WHERE id = $1`, [effectiveServiceId]);
-        promoSvcPrice = _promoSvcRes.rows[0]?.price_cents || 0;
+        singleSvcOriginalPrice = _promoSvcRes.rows[0]?.price_cents || 0;
         if (resolvedVariantId) {
           const _promoVarRes = await client.query(`SELECT price_cents FROM service_variants WHERE id = $1`, [resolvedVariantId]);
-          if (_promoVarRes.rows[0]?.price_cents != null) promoSvcPrice = _promoVarRes.rows[0].price_cents;
+          if (_promoVarRes.rows[0]?.price_cents != null) singleSvcOriginalPrice = _promoVarRes.rows[0].price_cents;
         }
-        const servicePrices = { [effectiveServiceId]: promoSvcPrice };
-        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], promoSvcPrice, isNewClient, clientId, servicePrices);
+      }
+      const singlePriceAfterLm = resolvedDiscountPct
+        ? Math.round(singleSvcOriginalPrice * (100 - resolvedDiscountPct) / 100)
+        : singleSvcOriginalPrice;
+      if (promotion_id && UUID_RE.test(promotion_id)) {
+        const servicePrices = { [effectiveServiceId]: singlePriceAfterLm };
+        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], singlePriceAfterLm, isNewClient, clientId, servicePrices);
       }
 
       // Create booking
@@ -1300,10 +1317,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
 
-          // Recalculate deposit amount on reduced price if promo applied
+          // Recalculate deposit amount on reduced price (LM + promo)
           const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
-          if (depResult.required && promoDiscountCents > 0) {
-            const reducedSvcPrice = Math.max(0, svcPrice - promoDiscountCents);
+          if (depResult.required && (singlePriceAfterLm < svcPrice || promoDiscountCents > 0)) {
+            const reducedSvcPrice = Math.max(0, singlePriceAfterLm - promoDiscountCents);
             if (bizSettings.deposit_type === 'fixed') {
               // Cap fixed deposit at reduced price
               if (depResult.depCents > reducedSvcPrice) depResult.depCents = reducedSvcPrice;
