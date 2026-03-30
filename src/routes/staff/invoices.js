@@ -169,6 +169,7 @@ router.post('/', requireOwner, async (req, res, next) => {
     // If from booking, auto-build items
     let invoiceItems = items || [];
     if (booking_id && invoiceItems.length === 0) {
+      // Fetch the booking + check if it's part of a group
       const bkResult = await queryWithRLS(bid,
         `SELECT b.*, s.name AS service_name, s.category AS service_category, s.price_cents, s.duration_min,
                 sv.name AS variant_name, sv.price_cents AS variant_price_cents,
@@ -186,25 +187,42 @@ router.post('/', requireOwner, async (req, res, next) => {
           client = { id: bk.c_id, full_name: bk.full_name, email: bk.email,
                      phone: bk.phone, bce_number: bk.bce_number };
         }
-        const svcLabel = bk.service_category ? `${bk.service_category} - ${bk.service_name}${bk.variant_name ? ' \u2014 ' + bk.variant_name : ''}` : (bk.variant_name ? `${bk.service_name} \u2014 ${bk.variant_name}` : bk.service_name);
-        invoiceItems = [{
-          description: `${svcLabel} — ${new Date(bk.start_at).toLocaleDateString('fr-BE')}`,
-          quantity: 1,
-          unit_price_cents: bk.variant_price_cents ?? bk.price_cents ?? 0,
-          vat_rate: vat_rate || 21
-        }];
 
-        // Add promo discount line if applicable
-        // Only use the promo from THIS booking — do NOT look up siblings.
-        // The full group discount should only appear on the invoice for the primary booking (group_order=0).
-        const promoLabel = bk.promotion_label;
-        const promoDiscPct = bk.promotion_discount_pct;
-        const promoDiscCents = bk.promotion_discount_cents;
-        if (promoDiscCents > 0 && promoLabel) {
-          invoiceItems.push({
-            description: `Réduction : ${promoLabel}${promoDiscPct ? ' (-' + promoDiscPct + '%)' : ''}`,
+        // If grouped booking, fetch ALL siblings to include all services
+        let allBookings = [bk];
+        if (bk.group_id) {
+          const grpResult = await queryWithRLS(bid,
+            `SELECT b.*, s.name AS service_name, s.category AS service_category, s.price_cents, s.duration_min,
+                    sv.name AS variant_name, sv.price_cents AS variant_price_cents
+             FROM bookings b
+             JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             WHERE b.group_id = $1 AND b.business_id = $2
+             ORDER BY b.group_order, b.start_at`,
+            [bk.group_id, bid]
+          );
+          if (grpResult.rows.length > 1) allBookings = grpResult.rows;
+        }
+
+        // Build line items for each service in the group
+        invoiceItems = allBookings.map(sib => {
+          const svcLabel = sib.service_category ? `${sib.service_category} - ${sib.service_name}${sib.variant_name ? ' \u2014 ' + sib.variant_name : ''}` : (sib.variant_name ? `${sib.service_name} \u2014 ${sib.variant_name}` : sib.service_name);
+          return {
+            booking_id: sib.id,
+            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE')}`,
             quantity: 1,
-            unit_price_cents: -promoDiscCents,
+            unit_price_cents: sib.variant_price_cents ?? sib.price_cents ?? 0,
+            vat_rate: vat_rate || 21
+          };
+        });
+
+        // Add promo discount line — find the sibling with the promo (group_order=0)
+        const promoSib = allBookings.find(sib => sib.promotion_discount_cents > 0 && sib.promotion_label);
+        if (promoSib) {
+          invoiceItems.push({
+            description: `Réduction : ${promoSib.promotion_label}${promoSib.promotion_discount_pct ? ' (-' + promoSib.promotion_discount_pct + '%)' : ''}`,
+            quantity: 1,
+            unit_price_cents: -promoSib.promotion_discount_cents,
             vat_rate: vat_rate || 21
           });
         }
