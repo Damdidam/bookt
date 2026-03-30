@@ -234,6 +234,7 @@ router.post('/', requireOwner, async (req, res, next) => {
     }
 
     // Calculate totals (before transaction — pure computation)
+    // Prices from services are TTC (VAT included). Extract VAT from TTC.
     const parsedVat = parseFloat(vat_rate);
     const vatR = isNaN(parsedVat) ? 21 : parsedVat;
     let subtotal = 0;
@@ -241,8 +242,9 @@ router.post('/', requireOwner, async (req, res, next) => {
       item.total_cents = Math.round((item.quantity || 1) * (item.unit_price_cents || 0));
       subtotal += item.total_cents;
     });
-    const vatAmount = Math.round(subtotal * vatR / 100);
-    const total = subtotal + vatAmount;
+    // TVA extraite du TTC : TVA = TTC * taux / (100 + taux)
+    const vatAmount = Math.round(subtotal * vatR / (100 + vatR));
+    const total = subtotal;
 
     // Due date
     const issueDate = new Date();
