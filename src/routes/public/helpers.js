@@ -250,7 +250,9 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
     discount_pct,
     discount_cents,
     reward_type: promo.reward_type,
-    reward_service_id: promo.reward_service_id || null
+    reward_service_id: promo.reward_service_id || null,
+    condition_type: promo.condition_type,
+    condition_service_id: promo.condition_service_id || null
   };
 }
 
