@@ -1804,6 +1804,7 @@ function oauthConnect(provider){
   oauthState.noPrefSelected=noPrefSelected;
   oauthState.multiServiceMode=multiServiceMode;
   if(splitMode)oauthState.splitMode=true;
+  if(appliedPromos.length>0)oauthState.appliedPromos=appliedPromos;
   sessionStorage.setItem('genda_oauth_state',JSON.stringify(oauthState));
   window.location.href='/api/public/auth/'+provider+'?slug='+encodeURIComponent(slug);
 }
@@ -1931,6 +1932,22 @@ function restoreOauthState(){
           if(v)selectedVariants[svcId]=v;
         }
       });
+    }
+    // Restore applied promos
+    if(st.appliedPromos&&st.appliedPromos.length>0){
+      appliedPromos=st.appliedPromos;
+    }
+    // If no promo was restored, re-run auto-apply from eligible promos
+    if(appliedPromos.length===0&&siteData){
+      var oaCart=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
+      if(oaCart.length>0){
+        var oaEligible=getEligiblePromos().filter(function(p){return p.reward_type!=='info_only';});
+        if(oaEligible.length>0){
+          var oaBest=null,oaBestD=0;
+          oaEligible.forEach(function(p){var d=calcPromoDiscAmount(p,oaCart);if(d>oaBestD){oaBestD=d;oaBest=p;oaBest._disc=d;}});
+          if(oaBest)acceptPromo(oaBest);
+        }
+      }
     }
     return true;
   }catch(e){return false;}
