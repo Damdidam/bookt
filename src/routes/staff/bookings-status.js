@@ -726,6 +726,8 @@ router.patch('/:id/status', async (req, res, next) => {
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                  COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email, biz.address AS business_address,
                   biz.theme, biz.settings, biz.slug AS business_slug
@@ -783,6 +785,8 @@ router.patch('/:id/status', async (req, res, next) => {
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                  COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   biz.name AS business_name, biz.email AS business_email,
                   biz.phone AS business_phone,
@@ -823,7 +827,7 @@ router.patch('/:id/status', async (req, res, next) => {
             booking: {
               start_at: d.start_at, end_at: d.end_at,
               client_name: d.client_name, client_email: d.client_email,
-              service_name: d.service_name, service_category: d.service_category, practitioner_name: d.practitioner_name,
+              service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name,
               comment: d.comment_client, custom_label: d.custom_label,
               public_token: d.public_token,
               promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct
@@ -1123,7 +1127,9 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
                 b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                 c.full_name AS client_name, c.email AS client_email,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
-                  s.category AS service_category,
+                s.category AS service_category,
+                COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                 p.display_name AS practitioner_name,
                 biz.name AS business_name, biz.email AS business_email,
                 biz.address AS business_address, biz.phone AS business_phone,
@@ -1229,7 +1235,7 @@ router.patch('/:id/waive-deposit', async (req, res, next) => {
           booking: {
             start_at: b.start_at, end_at: b.end_at,
             client_name: b.client_name, client_email: b.client_email,
-            service_name: b.service_name, service_category: b.service_category, practitioner_name: b.practitioner_name,
+            service_name: b.service_name, service_category: b.service_category, service_price_cents: b.service_price_cents, duration_min: b.duration_min, practitioner_name: b.practitioner_name,
             comment: b.comment_client, custom_label: b.custom_label,
             public_token: b.public_token,
             promotion_label: b.promotion_label, promotion_discount_cents: b.promotion_discount_cents, promotion_discount_pct: b.promotion_discount_pct
@@ -1280,7 +1286,9 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
                 b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
-                  s.category AS service_category,
+             s.category AS service_category,
+             COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+             COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
              p.display_name AS practitioner_name,
              biz.name AS business_name, biz.email AS business_email,
              biz.address AS business_address, biz.theme, biz.plan, biz.settings
@@ -1489,7 +1497,9 @@ router.post('/:id/require-deposit', async (req, res, next) => {
                 b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                 c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
-                  s.category AS service_category,
+                s.category AS service_category,
+                COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                 p.display_name AS practitioner_name,
                 biz.name AS business_name, biz.email AS business_email,
                 biz.address AS business_address, biz.theme, biz.settings

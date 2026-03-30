@@ -126,6 +126,8 @@ async function processExpiredDeposits() {
         const fullBk = await query(
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                  COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
@@ -163,7 +165,7 @@ async function processExpiredDeposits() {
         const gcPaidExpiry = await getGcPaidCents(bkId);
         const { sendCancellationEmail } = require('./email');
         await sendCancellationEmail({
-          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExpiry, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct },
+          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, duration_min: row.duration_min, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidExpiry, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct },
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
@@ -181,6 +183,8 @@ async function processExpiredDeposits() {
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                  COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
@@ -200,7 +204,7 @@ async function processExpiredDeposits() {
             const gcPaidSib = await getGcPaidCents(sib.id);
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct },
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: sib.service_price_cents, duration_min: sib.duration_min, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSib, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, promotion_discount_pct: sib.promotion_discount_pct },
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
             });
           } catch (e) { console.warn('[DEPOSIT CRON] Sibling email error:', e.message); }

@@ -880,6 +880,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               ...multiBookings[0],
               end_at: lastBooking.end_at,
               client_name, client_email,
+              service_price_cents: multiServices[0]?.price_cents || 0,
+              duration_min: multiServices[0]?.duration_min || 0,
               service_category: multiServices[0]?.category || null,
               practitioner_name: pracDisplayName,
               comment: client_comment,
