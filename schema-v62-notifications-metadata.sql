@@ -9,7 +9,8 @@ ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
   CHECK (type IN (
     'email_confirmation','sms_confirmation',
-    'email_reminder_24h','sms_reminder_24h','sms_reminder_2h',
+    'email_reminder_24h','sms_reminder_24h',
+    'email_reminder_2h','sms_reminder_2h',
     'email_cancellation','sms_cancellation',
     'email_cancellation_pro',
     'email_reschedule_pro',
