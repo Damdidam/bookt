@@ -535,12 +535,61 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           servicePricesAfterLm[slot.service_id] = priceAfterLm;
         }
 
-        // ── Promo validation (multi-service) — uses LM-adjusted prices ──
+        // ── Pre-detect pass match (read-only) to exclude covered service from promo total ──
+        let passPreMatchSlotIdx = -1;
+        if (pass_code || client_email) {
+          try {
+            const serviceIds = chainedSlots.map(s => s.service_id);
+            const variantIds = chainedSlots.map(s => s.service_variant_id || null);
+            let passCheckRes;
+            if (pass_code) {
+              passCheckRes = await client.query(
+                `SELECT id, service_id, service_variant_id FROM passes
+                 WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
+                   AND (expires_at IS NULL OR expires_at > NOW())
+                 LIMIT 1`,
+                [businessId, pass_code.toUpperCase().trim()]
+              );
+            } else if (client_email) {
+              passCheckRes = await client.query(
+                `SELECT id, service_id, service_variant_id FROM passes
+                 WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
+                   AND LOWER(buyer_email) = LOWER($2)
+                   AND service_id = ANY($3)
+                   AND (service_variant_id IS NULL OR service_variant_id = ANY($4))
+                   AND (expires_at IS NULL OR expires_at > NOW())
+                 ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+                [businessId, client_email, serviceIds, variantIds.filter(Boolean)]
+              );
+            }
+            if (passCheckRes && passCheckRes.rows.length > 0) {
+              const pc = passCheckRes.rows[0];
+              passPreMatchSlotIdx = chainedSlots.findIndex((sl, i) =>
+                String(sl.service_id) === String(pc.service_id) &&
+                (!pc.service_variant_id || String(sl.service_variant_id) === String(pc.service_variant_id))
+              );
+            }
+          } catch (_passPreErr) {
+            console.error('[PASS] Pre-detect failed:', _passPreErr.message);
+          }
+        }
+
+        // Build promo-specific totals: exclude the service covered by pass
+        let totalPriceForPromo = totalPriceAfterLm;
+        let servicePricesForPromo = servicePricesAfterLm;
+        if (passPreMatchSlotIdx >= 0) {
+          const coveredSlot = chainedSlots[passPreMatchSlotIdx];
+          const coveredPrice = servicePricesAfterLm[coveredSlot.service_id] || 0;
+          totalPriceForPromo = totalPriceAfterLm - coveredPrice;
+          servicePricesForPromo = { ...servicePricesAfterLm, [coveredSlot.service_id]: 0 };
+        }
+
+        // ── Promo validation (multi-service) — uses LM-adjusted prices, pass-excluded ──
         const isNewClient = !existingClient;
         let promoResult = { valid: false };
         if (promotion_id && UUID_RE.test(promotion_id)) {
           const cartServiceIds = multiServices.map(s => s.id);
-          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, totalPriceAfterLm, isNewClient, clientId, servicePricesAfterLm);
+          promoResult = await validateAndCalcPromo(client, businessId, promotion_id, cartServiceIds, totalPriceForPromo, isNewClient, clientId, servicePricesForPromo);
         }
 
         // Insert each booking with group_id and group_order
@@ -1239,7 +1288,45 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
       }
 
-      // ── Promo validation (single-service) — uses LM-adjusted price ──
+      // ── Pre-detect pass match (single, read-only) to exclude covered service from promo ──
+      let singlePassPreMatch = false;
+      if (pass_code || client_email) {
+        try {
+          const effectiveVariantId = resolvedVariantId || null;
+          let passCheckRes;
+          if (pass_code) {
+            passCheckRes = await client.query(
+              `SELECT id, service_id, service_variant_id FROM passes
+               WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
+                 AND (expires_at IS NULL OR expires_at > NOW())
+               LIMIT 1`,
+              [businessId, pass_code.toUpperCase().trim()]
+            );
+          } else if (client_email) {
+            passCheckRes = await client.query(
+              `SELECT id, service_id, service_variant_id FROM passes
+               WHERE business_id = $1 AND status = 'active' AND sessions_remaining > 0
+                 AND LOWER(buyer_email) = LOWER($2)
+                 AND service_id = $3
+                 AND (service_variant_id IS NULL OR service_variant_id = $4)
+                 AND (expires_at IS NULL OR expires_at > NOW())
+               ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+              [businessId, client_email, effectiveServiceId, effectiveVariantId]
+            );
+          }
+          if (passCheckRes && passCheckRes.rows.length > 0) {
+            const pc = passCheckRes.rows[0];
+            if (String(pc.service_id) === String(effectiveServiceId) &&
+                (!pc.service_variant_id || String(pc.service_variant_id) === String(effectiveVariantId))) {
+              singlePassPreMatch = true;
+            }
+          }
+        } catch (_passPreErr) {
+          console.error('[PASS] Single pre-detect failed:', _passPreErr.message);
+        }
+      }
+
+      // ── Promo validation (single-service) — uses LM-adjusted price, pass-excluded ──
       const isNewClient = !existingClient;
       let promoResult = { valid: false };
       // Compute price after LM for promo + deposit calculations
@@ -1255,9 +1342,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       const singlePriceAfterLm = resolvedDiscountPct
         ? Math.round(singleSvcOriginalPrice * (100 - resolvedDiscountPct) / 100)
         : singleSvcOriginalPrice;
+      // If pass covers this service, promo total = 0
+      const singlePriceForPromo = singlePassPreMatch ? 0 : singlePriceAfterLm;
       if (promotion_id && UUID_RE.test(promotion_id)) {
-        const servicePrices = { [effectiveServiceId]: singlePriceAfterLm };
-        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], singlePriceAfterLm, isNewClient, clientId, servicePrices);
+        const servicePrices = { [effectiveServiceId]: singlePriceForPromo };
+        promoResult = await validateAndCalcPromo(client, businessId, promotion_id, [effectiveServiceId], singlePriceForPromo, isNewClient, clientId, servicePrices);
       }
 
       // Create booking

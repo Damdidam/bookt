@@ -404,7 +404,7 @@ router.patch('/:id/status', async (req, res, next) => {
       let depositRefunded = false;
       if (status === 'cancelled') {
         const depInfo = await client.query(
-          `SELECT b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
+          `SELECT b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id, b.start_at, b.created_at, biz.settings
            FROM bookings b JOIN businesses biz ON biz.id = b.business_id
            WHERE b.id = $1 AND b.business_id = $2`,
           [id, bid]
@@ -442,12 +442,20 @@ router.patch('/:id/status', async (req, res, next) => {
                 if (piId && piId.startsWith('pi_')) {
                   const refundPolicy = dep.settings?.refund_policy || 'full';
                   if (refundPolicy === 'net' && dep.deposit_amount_cents) {
-                    // Partial refund: deduct Stripe fees (~1.5% + 25c)
-                    const stripeFees = Math.round(dep.deposit_amount_cents * 0.015) + 25;
-                    const netRefund = Math.max(dep.deposit_amount_cents - stripeFees, 0);
+                    // Determine actual Stripe charge: deposit minus any gift card portion
+                    const gcPaidRes = await client.query(
+                      `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid_cents
+                       FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+                      [id]
+                    );
+                    const gcPaidCents = parseInt(gcPaidRes.rows[0]?.gc_paid_cents) || 0;
+                    const actualStripeCharge = Math.max(dep.deposit_amount_cents - gcPaidCents, 0);
+                    // Partial refund: deduct Stripe fees (~1.5% + 25c) on actual Stripe charge
+                    const stripeFees = actualStripeCharge > 0 ? Math.round(actualStripeCharge * 0.015) + 25 : 0;
+                    const netRefund = Math.max(actualStripeCharge - stripeFees, 0);
                     if (netRefund > 0) {
                       await stripe.refunds.create({ payment_intent: piId, amount: netRefund });
-                      console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c) for PI ${piId}`);
+                      console.log(`[DEPOSIT REFUND] Net refund: ${netRefund}c (fees: ${stripeFees}c, gc: ${gcPaidCents}c) for PI ${piId}`);
                     }
                   } else {
                     await stripe.refunds.create({ payment_intent: piId });
