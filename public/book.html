@@ -651,7 +651,7 @@ function svcDurationLabel(s){
 }
 function showVariantModal(service,callback){
   var ex=document.getElementById('variantModal');if(ex)ex.remove();
-  var h='<div class="var-overlay" id="variantModal" onclick="if(event.target===this)this.remove()">';
+  var h='<div class="var-overlay" id="variantModal">';
   h+='<div class="var-modal"><div class="var-modal-h"><h3>'+escH(service.name)+'</h3><button class="var-modal-close" onclick="document.getElementById(\'variantModal\').remove()">&times;</button></div>';
   if(service.description)h+='<p class="var-modal-desc">'+escH(service.description)+'</p>';
   h+='<div class="var-list">';
@@ -2058,7 +2058,7 @@ function goToStep(n){
           var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
           var cd=cv?cv.duration_min:svc.duration_min;
           var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
-          var cpStr=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
+          var cpStr=cpc>0?(cpc/100).toFixed(0)+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||''));
           rh+='<div class="sum-row"><span class="label">\u2022 '+cn+'</span><span class="val">'+cd+' min \u00b7 '+cpStr+'</span></div>';
         });
         var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
@@ -2070,7 +2070,7 @@ function goToStep(n){
         var sn=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
         var sd=cv2?cv2.duration_min:selectedService.duration_min;
         var spc=cv2&&cv2.price_cents!=null?cv2.price_cents:selectedService.price_cents;
-        var spStr=spc?(spc/100).toFixed(0)+' \u20ac':(selectedService.price_label||'');
+        var spStr=spc>0?(spc/100).toFixed(0)+' \u20ac':(spc===0?'Gratuit':(selectedService.price_label||''));
         rh+='<div class="sum-row"><span class="label">'+sn+'</span><span class="val">'+sd+' min \u00b7 '+spStr+'</span></div>';
       }
       // Promo hint (only if business has active promos)
@@ -2529,7 +2529,7 @@ function buildSummary(){
   if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
     var sv2=selectedVariants[selectedService.id];
     var sumPc=sv2&&sv2.price_cents!=null?sv2.price_cents:selectedService.price_cents;
-    const price=sumPc?(sumPc/100).toFixed(0)+' \u20ac':'';
+    const price=sumPc>0?(sumPc/100).toFixed(0)+' \u20ac':(sumPc===0?'Gratuit':'');
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&sumPc>0){
       var discPrice=Math.round(sumPc*(100-selectedSlot.discount_pct)/100);
       html+='<div class="sum-divider"></div>'
@@ -2678,12 +2678,11 @@ async function submitBooking(){
       confirmHtml+='<div class="row" style="font-weight:600;padding-bottom:2px"><span class="l">Prestations</span><span class="v"></span></div>';
       var confirmTotalMin=0,confirmTotalCents=0;
       selectedServices.forEach(function(svc){
-        if(svc.is_promo)return;
         var cv=selectedVariants[svc.id];
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
-        var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
-        var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
+        var cpc=svc.is_promo?0:(cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents);
+        var cp=svc.is_promo?'Offert':(cpc>0?(cpc/100).toFixed(0)+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||'')));
         confirmTotalMin+=cd;confirmTotalCents+=(cpc||0);
         confirmHtml+='<div class="row"><span class="l" style="padding-left:8px">\u2022 '+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
@@ -2783,7 +2782,9 @@ async function submitBooking(){
     if(data.booking && data.booking.status === 'pending_deposit'){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='Acompte requis';
-      document.querySelector('#step5 .confirm-box p').innerHTML='Un acompte est n\u00e9cessaire pour confirmer votre rendez-vous. Consultez l\u2019email et/ou le SMS que nous venons de vous envoyer.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
+      var depMsg='Un acompte est n\u00e9cessaire pour confirmer votre rendez-vous.';
+      if(data.booking&&data.booking.deposit_amount_cents){depMsg='Un acompte de '+(data.booking.deposit_amount_cents/100).toFixed(0)+' \u20ac est n\u00e9cessaire pour confirmer votre rendez-vous.';}
+      document.querySelector('#step5 .confirm-box p').innerHTML=depMsg+' Consultez l\u2019email et/ou le SMS que nous venons de vous envoyer.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
       document.getElementById('calButtons').style.display='none';
     }else if(data.needs_confirmation){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';

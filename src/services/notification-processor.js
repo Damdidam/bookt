@@ -226,6 +226,7 @@ async function sendCancellationProEmail(bk, groupServices) {
     <div style="background:#F5F4F1;border-radius:8px;padding:12px 16px;margin:12px 0">
       <div style="font-size:13px;color:#6B6560"><strong>Client :</strong> ${clientName}</div>
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
+      ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
     ${depositHTML}
     <p style="font-size:14px;color:#3D3832">Ce cr\u00e9neau est \u00e0 nouveau disponible pour d'autres clients.</p>`;
@@ -287,6 +288,7 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
     <div style="background:#F5F4F1;border-radius:8px;padding:12px 16px;margin:12px 0">
       <div style="font-size:13px;color:#6B6560"><strong>Client :</strong> ${clientName}</div>
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
+      ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
@@ -331,6 +333,8 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:12px 16px;margin:12px 0">
       <div style="font-size:13px;color:#6B6560"><strong>Client :</strong> ${clientName}</div>
+      ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
+      ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
@@ -369,12 +373,15 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
     <p><strong>${clientName}</strong> a <span style="color:#DC2626;font-weight:600">refus\u00e9</span> la modification propos\u00e9e.</p>
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
       <div style="font-size:14px;color:#DC2626;font-weight:600;margin-bottom:4px">Modification refus\u00e9e</div>
+      <div style="font-size:15px;font-weight:600;color:#1A1816;margin-bottom:6px">${dateStr}</div>
+      <div style="font-size:14px;color:#3D3832;margin-bottom:8px">${timeStr}</div>
       <div style="font-size:13px;color:#3D3832;margin-bottom:8px">Le rendez-vous a \u00e9t\u00e9 annul\u00e9.</div>
       ${serviceHTML}
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:12px 16px;margin:12px 0">
       <div style="font-size:13px;color:#6B6560"><strong>Client :</strong> ${clientName}</div>
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
+      ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
     <p style="font-size:14px;color:#3D3832">Vous pouvez contacter le client pour trouver un autre cr\u00e9neau.</p>`;
 

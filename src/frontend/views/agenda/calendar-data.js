@@ -222,7 +222,9 @@ export function buildGroupEvents(grouped) {
             internal_note: first.internal_note,
             notes_count: members.reduce((sum, m) => sum + (m.notes_count || 0), 0),
             first_note: (members.find(m => m.first_note) || {}).first_note || '',
-            status: first.status
+            status: first.status,
+            confirmation_expires_at: first.confirmation_expires_at,
+            deposit_deadline: first.deposit_deadline
           }
         };
       });
@@ -266,7 +268,9 @@ export function buildGroupEvents(grouped) {
         internal_note: first.internal_note,
         notes_count: members.reduce((sum, m) => sum + (m.notes_count || 0), 0),
         first_note: (members.find(m => m.first_note) || {}).first_note || '',
-        status: first.status
+        status: first.status,
+        confirmation_expires_at: first.confirmation_expires_at,
+        deposit_deadline: first.deposit_deadline
       }
     }];
   });
@@ -322,7 +326,7 @@ export function applyVisibilityFilters(events) {
     } else {
       if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;
       if (p.status === 'no_show' && !calState.fcShowNoShow) return false;
-      if ((p.status === 'pending' || p.status === 'pending_deposit') && !calState.fcShowPending) return false;
+      if ((p.status === 'pending' || p.status === 'pending_deposit' || p.status === 'modified_pending') && !calState.fcShowPending) return false;
       if (p.status === 'completed' && !calState.fcShowCompleted) return false;
     }
     // Category filter — for groups: show if ANY member matches a visible category

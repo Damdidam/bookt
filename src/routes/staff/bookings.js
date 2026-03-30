@@ -31,6 +31,7 @@ router.get('/', async (req, res, next) => {
              b.deposit_paid_at, b.deposit_requested_at, b.deposit_request_count, b.deposit_reminder_sent,
              b.locked, b.created_at,
              b.discount_pct,
+             b.promotion_id, b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
              b.confirmation_expires_at, b.deposit_deadline,
              b.processing_time, b.processing_start,
              s.name AS service_name, s.category AS service_category, s.duration_min, s.buffer_before_min, s.price_cents, s.color AS service_color,

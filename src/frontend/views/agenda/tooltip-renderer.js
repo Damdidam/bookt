@@ -141,6 +141,12 @@ function fcShowTooltip(event, x, y) {
   } else if (p.internal_note || p.notes_count > 0) {
     infos.push(ico('note') + 'Note interne');
   }
+  // Comment client (booking-level note left by the client during booking)
+  const commentClient = typeof p.comment_client === 'string' && p.comment_client;
+  if (commentClient) {
+    const trimCc = commentClient.length > 80 ? commentClient.slice(0, 77) + '…' : commentClient;
+    infos.push(`<span class="tt-ico"><svg class="gi" viewBox="0 0 24 24" ${S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><em>Note du client : ` + esc(trimCc) + '</em>');
+  }
   // Client profile note (separate from booking notes)
   const clientNote = typeof p.client_notes === 'string' && p.client_notes;
   if (clientNote) {

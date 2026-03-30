@@ -971,6 +971,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
           cancel_url: `${BASE_URL}/booking/${multiBookings[0].public_token}`,
           discount_pct: multiBookings[0].discount_pct,
+          deposit_amount_cents: multiBookings[0].deposit_amount_cents || null,
           total_original_cents: totalOriginalCents,
           total_after_discount_cents: totalAfterAllDiscounts
         },
@@ -1607,6 +1608,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         id: createdBooking.id, token: createdBooking.public_token,
         start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
         discount_pct: createdBooking.discount_pct || null,
+        deposit_amount_cents: createdBooking.deposit_amount_cents || null,
         cancel_url: `${BASE_URL}/booking/${createdBooking.public_token}`,
         promotion_label: createdBooking.promotion_label || null,
         promotion_discount_pct: createdBooking.promotion_discount_pct || null,

@@ -35,10 +35,14 @@ async function fcLoadMobileList() {
       if (!calState.fcHiddenCategories.has(cat)) groupVisible[b.group_id] = true;
     });
   }
+  const now = new Date();
   calState.fcAllBookings = calState.fcAllBookings.filter(b => {
     if (b.status === 'cancelled' && !calState.fcShowCancelled) return false;
     if (b.status === 'no_show' && !calState.fcShowNoShow) return false;
     if (b.status === 'completed' && !calState.fcShowCompleted) return false;
+    if ((b.status === 'pending' || b.status === 'pending_deposit' || b.status === 'modified_pending') && !calState.fcShowPending) return false;
+    // Hide expired pending bookings (start_at already passed)
+    if (b.status === 'pending' && b.start_at && new Date(b.start_at) <= now) return false;
     if (calState.fcHiddenCategories && calState.fcHiddenCategories.size > 0) {
       if (b.group_id) {
         if (!groupVisible[b.group_id]) return false;
@@ -73,8 +77,11 @@ async function fcLoadMobileList() {
       const stLabel = esc(ST_LABELS[b.status] || b.status);
       const stClass = 'st-' + safeId(b.status);
       const badges = [
+        (b.client_is_vip ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6z"/><path d="M5 16h14v4H5z"/></svg>' : ''),
         (b.internal_note ? IC.fileText : ''),
         (b.status === 'modified_pending' ? IC.alertTriangle : ''),
+        (b.deposit_required && b.deposit_status !== 'paid' ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>' : ''),
+        (b.promotion_discount_cents > 0 ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>' : ''),
         (b.group_id ? '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>' : '')
       ].filter(Boolean);
       h += `<div class="mob-bk ${stClass}" onclick="fcOpenDetail('${safeId(b.id)}')">

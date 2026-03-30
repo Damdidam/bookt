@@ -391,11 +391,10 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
  * sum of all services with buffer_before from first and buffer_after from last only.
  */
 async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, dateFrom, dateTo, appointmentMode, variantIds }) {
-  // Deduplicate serviceIds while preserving order
+  // Allow duplicate serviceIds (e.g. same service booked twice)
   if (!Array.isArray(serviceIds)) {
     throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
   }
-  serviceIds = [...new Set(serviceIds)];
   if (serviceIds.length < 2) {
     throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
   }
@@ -432,22 +431,24 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
   }
 
-  // 2. Fetch all services in one query, preserving order from serviceIds array
+  // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
+  const uniqueServiceIds = [...new Set(serviceIds)];
   const svcResult = await queryWithRLS(businessId,
     `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
-     FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
-     ORDER BY array_position($1, id)`,
-    [serviceIds, businessId]
+     FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true`,
+    [uniqueServiceIds, businessId]
   );
 
-  // Validate all services found
-  if (svcResult.rows.length !== serviceIds.length) {
+  // Validate all unique services found
+  if (svcResult.rows.length !== uniqueServiceIds.length) {
     const foundIds = new Set(svcResult.rows.map(r => r.id));
-    const missing = serviceIds.filter(id => !foundIds.has(id));
+    const missing = uniqueServiceIds.filter(id => !foundIds.has(id));
     throw Object.assign(new Error(`Prestation(s) introuvable(s): ${missing.join(', ')}`), { type: 'not_found' });
   }
 
-  const services = svcResult.rows;
+  // Build a lookup and expand to match serviceIds order (duplicates get independent copies)
+  const svcLookup = Object.fromEntries(svcResult.rows.map(r => [r.id, r]));
+  const services = serviceIds.map(id => ({ ...svcLookup[id] }));
 
   // Override durations from variants if provided
   if (Array.isArray(variantIds) && variantIds.length > 0) {

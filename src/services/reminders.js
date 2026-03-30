@@ -251,6 +251,7 @@ async function process2hReminders(stats) {
       p.display_name AS practitioner_name,
       CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+      COALESCE(sv.price_cents, s.price_cents) AS price_cents,
       bk.appointment_mode,
       b.id AS business_id, b.name AS business_name,
       b.address AS business_address,
@@ -281,6 +282,10 @@ async function process2hReminders(stats) {
       const timeShort = new Date(bk.start_at).toLocaleTimeString('fr-BE', {
         timeZone: 'Europe/Brussels',
         hour: '2-digit', minute: '2-digit'
+      });
+      const dateStr2h = new Date(bk.start_at).toLocaleDateString('fr-BE', {
+        timeZone: 'Europe/Brussels',
+        weekday: 'long', day: 'numeric', month: 'long'
       });
 
       // Fetch group services if multi-service booking
@@ -347,14 +352,16 @@ async function process2hReminders(stats) {
           const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
           serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
         } else {
-          serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)`;
+          const singlePrice2h = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2h})`;
         }
 
         const addressHTML = bk.appointment_mode === 'cabinet' && bk.business_address
           ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd ${escHtml(bk.business_address)}</p>` : '';
+        const singlePrice2hBody = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
         const bodyHTML = isMulti
-          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, à <strong>${timeShort}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}<p>À bientôt !</p>`
-          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)</p>${addressHTML}<p>À bientôt !</p>`;
+          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}<p>\u00c0 bient\u00f4t !</p>`
+          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2hBody})</p>${addressHTML}<p>\u00c0 bient\u00f4t !</p>`;
 
         const result = await sendEmail({
           to: bk.client_email,

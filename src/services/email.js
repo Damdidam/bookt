@@ -361,6 +361,15 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     </div>`;
   }
 
+  // Address info
+  if (business.address) {
+    const mapsUrlMod = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
+    bodyHTML += `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee">
+      <div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.address)} — <a href="${mapsUrlMod}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:500">Google Maps \u2192</a></div>
+    </div>`;
+  }
+
   bodyHTML += `
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">
@@ -493,6 +502,19 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
       <div style="font-size:12px;color:#15803D;margin-top:4px">Le montant restant sera \u00e0 r\u00e9gler sur place.</div>
     </div>`;
     }
+
+    // Reste à payer — compute total price minus deposit
+    const totalCentsConf = isMulti
+      ? groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0) - (booking.promotion_discount_cents || 0)
+      : (booking.service_price_cents || 0) - (booking.promotion_discount_cents || 0);
+    const resteCents = totalCentsConf - (booking.deposit_amount_cents || 0);
+    if (resteCents > 0) {
+      const resteStr = (resteCents / 100).toFixed(2).replace('.', ',');
+      bodyHTML += `
+    <div style="background:#F5F4F1;border-radius:8px;padding:10px 16px;margin:0 0 16px;border-left:3px solid #6B6560">
+      <div style="font-size:14px;color:#3D3832;font-weight:600">Reste \u00e0 payer sur place : ${resteStr}\u00a0\u20ac</div>
+    </div>`;
+    }
   }
 
   if (booking.comment) {
@@ -618,6 +640,15 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
       ${detailLines}
     </div>
     <p style="font-size:13px;color:#92700C;margin-top:8px">${_ic('hourglass-amb', 16, 16)} Vous avez <strong>${delayLabel}</strong> pour confirmer. Sans confirmation, le cr\u00e9neau sera automatiquement lib\u00e9r\u00e9.</p>`;
+
+  // Footer: address, contact, payment methods, calendar links
+  const calEndAtCR = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName,
+    practitionerName: booking.practitioner_name || '',
+    startAt: booking.start_at, endAt: calEndAtCR,
+    publicToken: booking.public_token || null
+  });
 
   const manageUrl = `${baseUrl}/booking/${booking.public_token}`;
 
@@ -1082,7 +1113,22 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
       ${serviceDetailHTML}
       ${safePracName && !hasSplitPracDP ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
-    <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>
+    <p style="font-size:14px;color:#3D3832">Le montant de l'acompte sera <strong>d\u00e9duit du prix total</strong> de votre prestation lors de votre passage.</p>`;
+
+  // Reste à payer — compute total price minus deposit
+  const totalCentsDP = isMulti
+    ? groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0) - (booking.promotion_discount_cents || 0)
+    : (booking.service_price_cents || 0) - (booking.promotion_discount_cents || 0);
+  const resteCentsDP = totalCentsDP - (booking.deposit_amount_cents || 0);
+  if (resteCentsDP > 0) {
+    const resteStrDP = (resteCentsDP / 100).toFixed(2).replace('.', ',');
+    bodyHTML += `
+    <div style="background:#F5F4F1;border-radius:8px;padding:10px 16px;margin:12px 0;border-left:3px solid #6B6560">
+      <div style="font-size:14px;color:#3D3832;font-weight:600">Reste \u00e0 payer sur place : ${resteStrDP}\u00a0\u20ac</div>
+    </div>`;
+  }
+
+  bodyHTML += `
     <p style="font-size:13px;color:#6B6560">En cas d'annulation jusqu'\u00e0 ${business.settings?.cancel_deadline_hours ?? 48}h avant votre rendez-vous, l'acompte vous sera restitu\u00e9${gcPaidCents > 0 && stripePaidCents > 0 ? ' (carte cadeau recr\u00e9dit\u00e9e + remboursement bancaire)' : gcPaidCents > 0 ? ' sur votre carte cadeau' : ''}.</p>`;
 
   // Footer: address, contact, payment methods, calendar links
@@ -1371,6 +1417,19 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     ${depositHTML}
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
 
+  // Address + contact info so client can reach the salon
+  if (business.address || business.phone || business.email) {
+    let contactHTML = '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee">';
+    if (business.address) {
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
+      contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.address)} — <a href="${mapsUrl}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:500">Google Maps \u2192</a></div>`;
+    }
+    if (business.phone) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.phone)}</div>`;
+    if (business.email) contactHTML += `<div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.email)}</div>`;
+    contactHTML += '</div>';
+    bodyHTML += contactHTML;
+  }
+
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const bookingUrl = business.slug ? `${baseUrl}/${business.slug}/book` : null;
 
@@ -1533,6 +1592,15 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u2705 Votre acompte de ${depAmtRS}\u00a0\u20ac reste valable pour ce nouveau cr\u00e9neau.</div>
     </div>`;
   }
+
+  // Footer: address, contact, payment methods, calendar links
+  const calEndAtRS = booking.end_at || booking.start_at;
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName,
+    practitionerName: pracName,
+    startAt: booking.start_at, endAt: calEndAtRS,
+    publicToken: booking.public_token || null
+  });
 
   const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
   const html = buildEmailHTML({
