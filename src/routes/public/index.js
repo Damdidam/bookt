@@ -569,10 +569,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
              slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked,
              slotDiscount,
-             promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0) ? promotion_id : null,
-             promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0) ? promoResult.label : null,
-             promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0) ? promoResult.discount_pct : null,
-             promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0) ? promoResult.discount_cents : 0]
+             slot.group_order === 0 && promoResult.valid ? promotion_id : null,
+             slot.group_order === 0 && promoResult.valid ? promoResult.label : null,
+             slot.group_order === 0 && promoResult.valid ? promoResult.discount_pct : null,
+             slot.group_order === 0 && promoResult.valid ? promoResult.discount_cents : 0]
           );
           bookings.push(bk.rows[0]);
         }

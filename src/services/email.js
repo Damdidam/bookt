@@ -878,6 +878,21 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
       serviceDetailHTML += `<div style="font-size:13px;color:#92700C;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
+    const totalMinDRem = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+    const totalPriceDRem = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const promoDiscDRem = booking.promotion_discount_cents || 0;
+    const finalPriceDRem = totalPriceDRem - promoDiscDRem;
+    const durStrDRem = totalMinDRem >= 60 ? Math.floor(totalMinDRem / 60) + 'h' + (totalMinDRem % 60 > 0 ? String(totalMinDRem % 60).padStart(2, '0') : '') : totalMinDRem + ' min';
+    if (totalPriceDRem > 0) {
+      if (promoDiscDRem > 0 && booking.promotion_label) {
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrDRem} \u00b7 <s style="opacity:.6">${(totalPriceDRem / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPriceDRem / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        serviceDetailHTML += `<div style="font-size:12px;color:#92700C;opacity:.8">${escHtml(booking.promotion_label)} : -${(promoDiscDRem / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      } else {
+        serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrDRem} \u00b7 ${(totalPriceDRem / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+      }
+    } else {
+      serviceDetailHTML += `<div style="font-size:14px;color:#92700C;margin-top:6px;font-weight:700">Total : ${durStrDRem}</div>`;
+    }
   } else {
     serviceDetailHTML = `<div style="font-size:14px;color:#92700C">${safeServiceName}</div>`;
     // Single-service: show price + promo
