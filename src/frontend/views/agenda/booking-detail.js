@@ -530,7 +530,7 @@ async function fcOpenDetail(bookingId) {
       // Create invoice button
       if (billTotal > 0 && !['cancelled', 'no_show'].includes(b.status) && userRole !== 'practitioner') {
         const invBookingId = isGroup ? (billSvcs.find(sib => sib.group_order === 0) || billSvcs[0]).id : b.id;
-        bh += '<button class="m-st-btn" style="margin-top:8px;font-size:.72rem;padding:5px 14px;width:100%;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="closeCalModal(\'calDetailModal\');createInvoiceFromBooking(\'' + invBookingId + '\')">' + IC.fileText + ' Cr\u00e9er la facture</button>';
+        bh += '<button class="m-st-btn" style="margin-top:8px;font-size:.72rem;padding:5px 14px;width:100%;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit" onclick="fcBillingCreateInvoice(\'' + invBookingId + '\')">' + IC.fileText + ' Cr\u00e9er la facture</button>';
       }
       bh += '</div>';
       billingEl.innerHTML = bh;
@@ -1355,8 +1355,24 @@ async function fcSendManualReminder(bookingId) {
   finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; } }
 }
 
+async function fcBillingCreateInvoice(bookingId) {
+  closeCalModal('calDetailModal');
+  try {
+    const mod = await import('../invoices.js');
+    mod.createInvoiceFromBooking(bookingId);
+  } catch (e) {
+    // Fallback: if module already loaded via bridge
+    if (typeof window.createInvoiceFromBooking === 'function') {
+      window.createInvoiceFromBooking(bookingId);
+    } else {
+      const { gToast } = await import('../../utils/dom.js');
+      gToast('Erreur lors de la cr\u00e9ation de la facture', 'error');
+    }
+  }
+}
+
 // Expose to global scope for onclick handlers
-bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor,
+bridge({ fcOpenDetail, closeCalModal, switchCalTab, fcResetBookingColor, fcBillingCreateInvoice,
          fcStartConvert, fcConvertCatChanged, fcConvertSvcChanged, fcConvertVarChanged, fcCancelConvert,
          fcConvertDirectAdd, fcSendManualReminder,
          fcGetServiceCategories, fcGetFilteredServices, svcDurPriceLabel,
