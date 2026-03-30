@@ -273,7 +273,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
            FROM practitioner_services WHERE service_id = ANY($1) AND practitioner_id = $2`,
           [service_ids, practitioner_id]
         );
-        if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== service_ids.length) {
+        if (!psMultiCheck.rows[0] || psMultiCheck.rows[0].cnt !== uniqueServiceIds.length) {
           // Auto-split: practitioner doesn't cover all services, assign each service to a valid practitioner
           console.log('[BOOKING] Auto-split: practitioner', practitioner_id, 'does not cover all services, falling back to split mode');
           const autoSplitResult = await query(
@@ -284,7 +284,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              ORDER BY ps.service_id, (ps.practitioner_id = $3) DESC, p.display_order ASC`,
             [service_ids, businessId, practitioner_id]
           );
-          if (autoSplitResult.rows.length !== service_ids.length) {
+          if (autoSplitResult.rows.length !== uniqueServiceIds.length) {
             return res.status(400).json({ error: 'Impossible de trouver un praticien pour chaque prestation' });
           }
           // Switch to split mode
