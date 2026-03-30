@@ -1488,7 +1488,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
         detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Prix</td><td style="padding:4px 0;font-weight:600">${singleDurRS ? singleDurRS + ' min · ' : ''}${(singlePriceRS / 100).toFixed(2).replace('.', ',')} €</td></tr>`;
       }
     }
-    detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>`;
+    if (pracName) detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>`;
   }
 
   const bodyHTML = `
