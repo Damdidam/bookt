@@ -394,6 +394,8 @@ router.post('/waitlist/:token/accept', bookingLimiter, async (req, res, next) =>
         const fullBk = await query(
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
+                  COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                  COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name, c.full_name AS client_name, c.email AS client_email
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
