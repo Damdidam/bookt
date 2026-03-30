@@ -319,11 +319,11 @@ export function applyVisibilityFilters(events) {
       if (members.every(m => m.status === 'pending') && ev.start && new Date(ev.start) <= now) return false;
       const allCancelled = members.every(m => m.status === 'cancelled');
       const allNoShow = members.every(m => m.status === 'no_show');
-      const allPending = members.every(m => m.status === 'pending' || m.status === 'pending_deposit');
+      const allPending = members.every(m => m.status === 'pending' || m.status === 'pending_deposit' || m.status === 'modified_pending');
       const allCompleted = members.every(m => m.status === 'completed');
       if ((allCancelled || p.status === 'cancelled') && !calState.fcShowCancelled) return false;
       if ((allNoShow || p.status === 'no_show') && !calState.fcShowNoShow) return false;
-      if ((allPending || p.status === 'pending' || p.status === 'pending_deposit') && !calState.fcShowPending) return false;
+      if ((allPending || p.status === 'pending' || p.status === 'pending_deposit' || p.status === 'modified_pending') && !calState.fcShowPending) return false;
       if ((allCompleted || p.status === 'completed') && !calState.fcShowCompleted) return false;
     } else {
       if (p.status === 'cancelled' && !calState.fcShowCancelled) return false;

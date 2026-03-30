@@ -552,10 +552,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              needsConfirmation ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null,
              slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : multiLocked,
              slotDiscount,
-             slot.group_order === 0 && promoResult.valid ? promotion_id : null,
-             slot.group_order === 0 && promoResult.valid ? promoResult.label : null,
-             slot.group_order === 0 && promoResult.valid ? promoResult.discount_pct : null,
-             slot.group_order === 0 && promoResult.valid ? promoResult.discount_cents : 0]
+             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promotion_id : null,
+             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.label : null,
+             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_pct : null,
+             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_cents : 0]
           );
           bookings.push(bk.rows[0]);
         }
@@ -963,7 +963,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
       // Apply promo discount on top of LM-discounted total
       const promoDiscCents = promoBooking.promotion_discount_cents || 0;
-      const totalAfterAllDiscounts = totalAfterLmCents - promoDiscCents;
+      const totalAfterAllDiscounts = Math.max(0, totalAfterLmCents - promoDiscCents);
 
       return res.status(201).json({
         booking: {
@@ -1603,6 +1603,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       } catch (e) { console.warn('[EMAIL] Single booking email error:', e.message); }
     })();
 
+    // Compute single-service totals (like multi-service) for consistent client display
+    const singleOriginalCents = resultSvcPrice || 0;
+    const singleAfterLmCents = createdBooking.discount_pct
+      ? Math.round(singleOriginalCents * (100 - createdBooking.discount_pct) / 100)
+      : singleOriginalCents;
+    const singlePromoDiscCents = createdBooking.promotion_discount_cents || 0;
+    const singleAfterAllDiscounts = Math.max(0, singleAfterLmCents - singlePromoDiscCents);
+
     res.status(201).json({
       booking: {
         id: createdBooking.id, token: createdBooking.public_token,
@@ -1612,7 +1620,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         cancel_url: `${BASE_URL}/booking/${createdBooking.public_token}`,
         promotion_label: createdBooking.promotion_label || null,
         promotion_discount_pct: createdBooking.promotion_discount_pct || null,
-        promotion_discount_cents: createdBooking.promotion_discount_cents || 0
+        promotion_discount_cents: createdBooking.promotion_discount_cents || 0,
+        total_original_cents: singleOriginalCents,
+        total_after_discount_cents: singleAfterAllDiscounts
       },
       promotion: createdBooking.promotion_id ? {
         label: createdBooking.promotion_label,
