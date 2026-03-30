@@ -290,7 +290,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6">${safeServiceName}</div>`;
   let serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600">${safeServiceName} \u00b7 ${safePracName}</div>`;
@@ -737,7 +737,7 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
 
@@ -842,7 +842,11 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
   const timeStr = fmtTimeBrussels(booking.start_at);
   const realEnd = getRealEndAt(booking, groupServices);
   const endTimeStr = realEnd ? fmtTimeBrussels(realEnd) : null;
-  const amtStr = ((booking.deposit_amount_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const totalDepCents = booking.deposit_amount_cents || 0;
+  const gcPartialCents = booking.gc_partial_cents || 0;
+  const remainingCents = totalDepCents - gcPartialCents;
+  const amtStr = (totalDepCents / 100).toFixed(2).replace('.', ',');
+  const remainStr = gcPartialCents > 0 ? (remainingCents / 100).toFixed(2).replace('.', ',') : amtStr;
   const deadlineStr = booking.deposit_deadline
     ? new Date(booking.deposit_deadline).toLocaleDateString('fr-BE', {
         timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
@@ -858,7 +862,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   const cancelDeadlineH = business.settings?.cancel_deadline_hours ?? 48;
 
@@ -927,7 +931,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
-      <div style="font-size:24px;font-weight:800;color:#1A1816">${amtStr} \u20ac</div>
+      <div style="font-size:24px;font-weight:800;color:#1A1816">${remainStr} \u20ac</div>
       ${deadlineStr ? `<div style="font-size:12px;color:#DC2626;margin-top:6px;font-weight:600">\u00c0 r\u00e9gler avant le ${deadlineStr}</div>` : ''}
     </div>
     <div style="background:#F0F9FF;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #60A5FA">
@@ -946,7 +950,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     title: 'Rappel : acompte en attente',
     preheader: `Rappel — Acompte de ${amtStr}\u20ac \u00e0 r\u00e9gler sous ${timeLeftStr} pour votre RDV du ${dateStr}`,
     bodyHTML,
-    ctaText: `Payer ${amtStr} \u20ac maintenant`,
+    ctaText: `Payer ${remainStr} \u20ac maintenant`,
     ctaUrl: directPayUrl,
     cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
     cancelUrl: manageUrl,
@@ -985,7 +989,7 @@ async function sendDepositPaidEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let serviceDetailHTML = '';
   if (isMulti) {
@@ -1109,15 +1113,17 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
 
   const color = safeColor(business.theme?.primary_color);
   const safeClientName = escHtml(booking.client_name);
+  const safePracName = escHtml(booking.practitioner_name || '');
   const safeBizName = escHtml(business.name);
 
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let serviceDetailHTML = '';
   if (isMulti) {
+    serviceDetailHTML += `<div style="font-size:13px;color:#3D3832;margin-top:8px;font-weight:600">Prestations :</div>`;
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
@@ -1152,6 +1158,8 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
       }
     }
   }
+
+  const hasSplitPracRF = isMulti && groupServices.some(s => s.practitioner_name);
 
   // Determine refund method: gift card, stripe, or mixed
   const gcRefundCents = booking.gc_paid_cents || 0;
@@ -1198,6 +1206,7 @@ async function sendDepositRefundEmail({ booking, business, groupServices }) {
       <div style="font-size:14px;color:#3D3832">${_ic('calendar-dk')} ${dateStr}</div>
       <div style="font-size:14px;color:#3D3832">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
+      ${safePracName && !hasSplitPracRF ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
 
@@ -1244,10 +1253,11 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
   const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
   const safeServiceName = isMulti
     ? groupServices.map(s => escHtml(s.name)).join(' + ')
-    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name));
+    : escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label));
 
   let serviceDetailHTML = '';
   if (isMulti) {
+    serviceDetailHTML += `<div style="font-size:13px;color:#6B6560;margin-top:8px;font-weight:600">Prestations :</div>`;
     groupServices.forEach(s => {
       const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
@@ -1420,7 +1430,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   if (!booking.client_email) return;
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const color = safeColor(business.theme?.primary_color);
-  const serviceName = booking.service_name || 'Prestation';
+  const serviceName = fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label);
   const pracName = booking.practitioner_name || '';
   const hasSplitPrac = groupServices && groupServices.some(s => s.practitioner_name);
 

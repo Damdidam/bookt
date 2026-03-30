@@ -1040,6 +1040,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
     try {
       const emailData = await queryWithRLS(bid,
         `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.deposit_payment_intent_id, b.client_id, b.group_id,
+                b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                 c.full_name AS client_name, c.email AS client_email,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                 s.category AS service_category,
@@ -1073,7 +1074,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         const gcPaidManual = await getGcPaidCents(id);
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
-          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min },
+          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct },
           business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));
@@ -1274,6 +1275,7 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
              b.deposit_amount_cents, b.deposit_deadline, b.public_token,
              b.deposit_requested_at, b.deposit_request_count,
              b.start_at, b.end_at, b.practitioner_id, b.group_id,
+                b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
              c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
              CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -1482,6 +1484,7 @@ router.post('/:id/require-deposit', async (req, res, next) => {
       const bk = await client.query(
         `SELECT b.id, b.status, b.deposit_required, b.deposit_status, b.start_at, b.end_at,
                 b.group_id, b.practitioner_id, b.public_token, b.service_id, b.service_variant_id,
+                b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                 c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
