@@ -353,13 +353,24 @@ async function fcOpenDetail(bookingId) {
       const groupEnd = new Date(siblings[siblings.length - 1].end_at);
       const totalDur = Math.round((groupEnd - groupStart) / 60000);
       const totalPrice = siblings.reduce((sum, sib) => sum + (sib.variant_price_cents ?? sib.price_cents ?? 0), 0);
+      const promoSib = siblings.find(sib => sib.promotion_discount_cents > 0);
+      const totalPromoDisc = promoSib ? (promoSib.promotion_discount_cents || 0) : 0;
       const svcNames = siblings.map(sib => esc(fmtSvcLabel(sib.service_category, sib.service_name, sib.variant_name))).join(' + ');
+      let grpPriceHtml = '';
+      if (totalPrice) {
+        if (totalPromoDisc > 0) {
+          const discounted = totalPrice - totalPromoDisc;
+          grpPriceHtml = '<div class="m-svc-price"><s style="font-size:.7rem;opacity:.5">' + (totalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</s> <span style="color:var(--green)">' + (discounted / 100).toFixed(2).replace(".",",") + ' \u20ac</span></div>';
+        } else {
+          grpPriceHtml = '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>';
+        }
+      }
       svcCard.innerHTML = `
         <div style="flex:1;min-width:0">
           <div class="m-svc-name">${svcNames}</div>
           <div class="m-svc-meta">${siblings.length} prestations \u00b7 ${totalDur} min</div>
         </div>
-        ${totalPrice ? '<div class="m-svc-price">' + (totalPrice / 100).toFixed(2).replace(".",",") + ' \u20ac</div>' : ''}
+        ${grpPriceHtml}
         <span class="m-color-dot" style="background:${accentColor}" onclick="fcShowColorPopover(this)" title="Couleur"></span>`;
     } else {
       freeCard.style.display = 'none';

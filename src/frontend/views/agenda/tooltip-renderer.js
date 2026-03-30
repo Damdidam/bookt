@@ -98,6 +98,23 @@ function fcShowTooltip(event, x, y) {
     html += `<div class="tt-section"><div class="tt-svc">${svc}${durTag}</div></div>`;
   }
 
+  // ── 3b. Promo line ──
+  {
+    let promoLabel = '', promoPct = 0, promoDiscCents = 0;
+    if (p._isGroup && p._members) {
+      const pm = p._members.find(m => m.promotion_discount_cents > 0);
+      if (pm) { promoLabel = pm.promotion_label || ''; promoPct = pm.promotion_discount_pct || 0; promoDiscCents = pm.promotion_discount_cents; }
+    } else if (p.promotion_discount_cents > 0) {
+      promoLabel = p.promotion_label || ''; promoPct = p.promotion_discount_pct || 0; promoDiscCents = p.promotion_discount_cents;
+    }
+    if (promoDiscCents > 0) {
+      const pctStr = promoPct ? '-' + promoPct + '%' : '';
+      const discStr = (promoDiscCents / 100).toFixed(2).replace('.', ',');
+      const label = promoLabel ? esc(promoLabel) : 'Promo';
+      html += `<div class="tt-row" style="color:var(--green);font-size:.75rem;font-weight:600">🏷 ${pctStr} ${label} (-${discStr} €)</div>`;
+    }
+  }
+
   // ── 4-6. Info rows: pose, praticien, note ──
   const infos = [];
 

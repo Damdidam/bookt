@@ -336,9 +336,19 @@ function renderBooking(data) {
 
   // Service
   document.getElementById('valService').textContent = booking.service.name;
-  document.getElementById('valPrice').textContent = booking.service.price_cents
-    ? `${(booking.service.price_cents / 100).toFixed(0)} €`
-    : (booking.service.price_label || '');
+  const priceEl = document.getElementById('valPrice');
+  const promoDiscount = booking.promotion_discount_cents || (data.promotion && data.promotion.discount_cents) || 0;
+  const promoLabel = booking.promotion_label || (data.promotion && data.promotion.label) || '';
+  if (booking.service.price_cents && promoDiscount > 0) {
+    const originalPrice = (booking.service.price_cents / 100).toFixed(0) + ' \u20ac';
+    const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(0) + ' \u20ac';
+    priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice
+      + (promoLabel ? '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>' : '');
+  } else {
+    priceEl.textContent = booking.service.price_cents
+      ? `${(booking.service.price_cents / 100).toFixed(0)} \u20ac`
+      : (booking.service.price_label || '');
+  }
 
   // Practitioner
   document.getElementById('valPractitioner').textContent = booking.practitioner.name;
