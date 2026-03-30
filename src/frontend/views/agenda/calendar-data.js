@@ -313,10 +313,14 @@ export function applyVisibilityFilters(events) {
     }
     // Hide expired pending bookings (start_at already passed, not confirmed)
     if (p.status === 'pending' && ev.start && new Date(ev.start) <= now) return false;
+    // Hide expired pending_deposit bookings (deposit_deadline passed)
+    if (p.status === 'pending_deposit' && p.deposit_deadline && new Date(p.deposit_deadline) < now) return false;
     if (p._isGroup) {
       const members = p._members || [];
       // Hide group if all members are pending and start is past
       if (members.every(m => m.status === 'pending') && ev.start && new Date(ev.start) <= now) return false;
+      // Hide group if all members are pending_deposit with expired deadline
+      if (members.every(m => m.status === 'pending_deposit' && m.deposit_deadline && new Date(m.deposit_deadline) < now)) return false;
       const allCancelled = members.every(m => m.status === 'cancelled');
       const allNoShow = members.every(m => m.status === 'no_show');
       const allPending = members.every(m => m.status === 'pending' || m.status === 'pending_deposit' || m.status === 'modified_pending');

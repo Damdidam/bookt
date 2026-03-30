@@ -484,6 +484,16 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
       ${detailLines}
     </div>`;
 
+  // Pass/abonnement banner
+  if (booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('pass_')) {
+    const passCode = booking.deposit_payment_intent_id.replace('pass_', '');
+    bodyHTML += `
+    <div style="background:#EEFAF1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:14px;color:#15803D;font-weight:600">\u2705 Cette prestation est couverte par votre abonnement</div>
+      <div style="font-size:12px;color:#15803D;margin-top:4px">Pass ${escHtml(passCode)}</div>
+    </div>`;
+  }
+
   // Deposit paid banner
   if (booking.deposit_required && booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0
       && booking.deposit_payment_intent_id) {

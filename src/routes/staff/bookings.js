@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
              b.internal_note, b.color AS booking_color,
              b.group_id, b.group_order, b.custom_label,
              b.deposit_required, b.deposit_status, b.deposit_amount_cents,
-             b.deposit_paid_at, b.deposit_requested_at, b.deposit_request_count, b.deposit_reminder_sent,
+             b.deposit_paid_at, b.deposit_requested_at, b.deposit_request_count, b.deposit_reminder_sent, b.deposit_payment_intent_id,
              b.locked, b.created_at,
              b.discount_pct,
              b.promotion_id, b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,

@@ -87,6 +87,7 @@ function fcOpenQuickCreate(startStr, endStr, resourceId) {
     if (qcPracDot) qcPracDot.style.background = sel?.color || 'var(--primary)';
     // Refresh service dropdowns for the new practitioner
     qcRefreshServiceDropdowns();
+    qcCheckConflict();
   };
 
   // Init service list — clear cards + open assign panel
@@ -355,6 +356,7 @@ function qcAssignConfirm() {
   document.getElementById('qcAssignSvc').style.display = 'none';
   document.getElementById('qcAddSvcBtn').style.display = '';
   qcUpdateTotal();
+  qcCheckConflict();
 }
 
 /** Cancel assign panel without adding */
@@ -368,6 +370,7 @@ function qcRemoveConfirmed(btn) {
   const card = btn.closest('.qc-svc-confirmed');
   if (card) card.remove();
   qcUpdateTotal();
+  qcCheckConflict();
 }
 
 /** When practitioner changes: services are no longer filtered by practitioner,
@@ -1002,7 +1005,9 @@ function setupQuickCreateListeners() {
     if (e.target?.id === 'qcTime' || e.target?.id === 'qcDate') {
       if (document.getElementById('qcFreestyle')?.checked) qcUpdateFreeDuration();
       else qcUpdateTotal();
+      qcCheckConflict();
     }
+    if (e.target?.id === 'qcFreeEnd') qcCheckConflict();
   });
 }
 
@@ -1181,6 +1186,96 @@ async function qcSendDepositRequest(bookingId, channel) {
 function qcSkipDepositRequest() {
   document.getElementById('calCreateModal')._dirtyGuard?.markClean();
   closeCalModal('calCreateModal');
+}
+
+// ── Conflict check (client-side, visual feedback only) ──
+let _qcConflict = false;
+
+function qcCheckConflict() {
+  // Remove previous warning
+  const prev = document.getElementById('qcConflictWarn');
+  if (prev) prev.remove();
+
+  const btn = document.getElementById('qcBtnCreate');
+  const cal = calState.fcCal;
+  if (!cal) { _qcConflict = false; return; }
+
+  const date = document.getElementById('qcDate')?.value;
+  const time = document.getElementById('qcTime')?.value;
+  const pracId = document.getElementById('qcPrac')?.value;
+  if (!date || !time || !pracId) { _qcConflict = false; if (btn) btn.disabled = false; return; }
+
+  const isFreestyle = document.getElementById('qcFreestyle')?.checked;
+  let totalMin = 0;
+  if (isFreestyle) {
+    const endTime = document.getElementById('qcFreeEnd')?.value;
+    if (endTime) {
+      const [sh, sm] = time.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      totalMin = (eh * 60 + em) - (sh * 60 + sm);
+      if (totalMin <= 0) totalMin += 24 * 60;
+    }
+  } else {
+    document.querySelectorAll('.qc-svc-confirmed').forEach(card => {
+      totalMin += parseInt(card.dataset.dur || 0) + parseInt(card.dataset.buf || 0);
+    });
+  }
+  if (totalMin <= 0) { _qcConflict = false; if (btn) btn.disabled = false; return; }
+
+  const startISO = toBrusselsISO(date, time);
+  const newStart = new Date(startISO);
+  const newEnd = new Date(newStart.getTime() + totalMin * 60000);
+
+  const prac = calState.fcPractitioners?.find(p => String(p.id) === String(pracId));
+  const maxC = prac?.max_concurrent || 1;
+  const toMin = t => Math.round(t / 60000);
+
+  let overlapCount = 0;
+  try {
+    const allEvents = cal.getEvents();
+    for (const ev of allEvents) {
+      if (String(ev.extendedProps?.practitioner_id) !== String(pracId)) continue;
+      const st = ev.extendedProps?.status;
+      if (st === 'cancelled' || st === 'no_show' || st === 'completed') continue;
+      if (ev.extendedProps?._isTask) continue;
+      const evEnd = ev.end || ev.start;
+      if (ev.start < newEnd && evEnd > newStart) {
+        // Skip if new booking fits within this event's processing window
+        const pt = parseInt(ev.extendedProps?.processing_time) || 0;
+        if (pt > 0) {
+          const ps = parseInt(ev.extendedProps?.processing_start) || 0;
+          const buf = parseInt(ev.extendedProps?.buffer_before_min) || 0;
+          const poseStartMs = ev.start.getTime() + (buf + ps) * 60000;
+          const poseEndMs = ev.start.getTime() + (buf + ps + pt) * 60000;
+          if (toMin(newStart.getTime()) >= toMin(poseStartMs) && toMin(newEnd.getTime()) <= toMin(poseEndMs)) continue;
+        }
+        overlapCount++;
+      }
+    }
+  } catch (_) {
+    // If FC getEvents fails, don't block — server will validate
+    _qcConflict = false;
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  if (overlapCount >= maxC) {
+    _qcConflict = true;
+    if (btn) btn.disabled = true;
+    // Insert warning after the time row
+    const totalEl = document.getElementById('qcTotalDuration');
+    const anchor = totalEl || document.getElementById('qcServiceList');
+    if (anchor) {
+      const warnHtml = `<div id="qcConflictWarn" style="margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.78rem;line-height:1.4;background:var(--red-bg,#FEE2E2);color:var(--red,#DC2626);border:1px solid var(--red,#DC2626);display:flex;align-items:center;gap:6px">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Cr\u00e9neau occup\u00e9 \u2014 un autre RDV existe d\u00e9j\u00e0 sur ce créneau</span>
+      </div>`;
+      anchor.insertAdjacentHTML('afterend', warnHtml);
+    }
+  } else {
+    _qcConflict = false;
+    if (btn) btn.disabled = false;
+  }
 }
 
 // Expose to global scope for onclick handlers

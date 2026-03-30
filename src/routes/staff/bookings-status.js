@@ -789,6 +789,7 @@ router.patch('/:id/status', async (req, res, next) => {
       try {
         const emailData = await queryWithRLS(bid,
           `SELECT b.start_at, b.end_at, b.group_id, b.public_token, b.comment_client, b.custom_label,
+                  b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_payment_intent_id,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
@@ -838,6 +839,7 @@ router.patch('/:id/status', async (req, res, next) => {
               service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name,
               comment: d.comment_client, custom_label: d.custom_label,
               public_token: d.public_token,
+              deposit_required: d.deposit_required, deposit_status: d.deposit_status, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id,
               promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct
             },
             business: { name: d.business_name, email: d.business_email, phone: d.business_phone, address: d.business_address, theme: d.theme, settings: d.settings },

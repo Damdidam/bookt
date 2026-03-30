@@ -194,6 +194,18 @@ function render(d) {
     </div>
   `;
 
+  // Pass/abonnement info section
+  if (bk.deposit_payment_intent_id && bk.deposit_payment_intent_id.startsWith('pass_')) {
+    const passCode = bk.deposit_payment_intent_id.replace('pass_', '');
+    html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#ECFDF5">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700;color:#059669">
+        <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Prestation couverte par votre abonnement
+      </div>
+      <p style="font-size:.82rem;color:#065F46;margin:0">Pass ${escH(passCode)}</p>
+    </div>`;
+  }
+
   // Deposit info section
   if (bk.status === 'pending_deposit' && bk.deposit_amount_cents) {
     const depEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');

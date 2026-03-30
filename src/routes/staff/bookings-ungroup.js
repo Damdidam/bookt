@@ -202,6 +202,15 @@ router.patch('/:id/ungroup', async (req, res, next) => {
         }
         const remaining = allMembers.filter(m => m.id !== id);
 
+        // If only 1 member left in the group, ungroup it (no group of 1)
+        if (remaining.length === 1) {
+          await client.query(
+            `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()
+             WHERE id = $1 AND business_id = $2`,
+            [remaining[0].id, bid]
+          );
+        }
+
         // Audit log
         const oldData = {
           group_id: locked.group_id,

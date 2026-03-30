@@ -1304,6 +1304,8 @@ function selectService(id){
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
       selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
+    }else{
+      showWarning('Maximum 5 prestations par réservation');
     }
   }else{
     selectedService=svc;
@@ -1342,6 +1344,8 @@ function selectVariant(svcId, varIdx){
       selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
       selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
       computeStepOrder();
+    }else{
+      showWarning('Maximum 5 prestations par réservation');
     }
   }else{
     // Single-service mode: select this variant
@@ -2901,6 +2905,7 @@ function downloadICS(){
 // ──────── HELPERS ────────
 function showError(msg){const el=document.getElementById('errMsg');el.textContent=msg;el.classList.add('show');el.scrollIntoView({behavior:'smooth',block:'center'});}
 function hideError(){document.getElementById('errMsg').classList.remove('show');}
+function showWarning(msg){var el=document.getElementById('bkWarningToast');if(!el){el=document.createElement('div');el.id='bkWarningToast';el.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;background:#F59E0B;color:#fff;font-size:.82rem;font-weight:600;border-radius:8px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2);transition:opacity .3s';document.body.appendChild(el);}el.textContent=msg;el.style.opacity='1';clearTimeout(el._timer);el._timer=setTimeout(function(){el.style.opacity='0';},3000);}
 </script>
 <script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
 </body>

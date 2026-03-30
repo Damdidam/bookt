@@ -1374,6 +1374,18 @@ router.post('/:id/send-reminder', async (req, res, next) => {
       return res.status(400).json({ error: 'Impossible de notifier un RDV annulé' });
     }
 
+    // Anti-spam: max 1 manual reminder per 30 minutes per booking
+    const recentReminder = await queryWithRLS(bid,
+      `SELECT id FROM notifications
+       WHERE booking_id = $1 AND business_id = $2 AND type = 'manual_reminder'
+         AND sent_at > NOW() - INTERVAL '30 minutes'
+       LIMIT 1`,
+      [id, bid]
+    );
+    if (recentReminder.rows.length > 0) {
+      return res.status(429).json({ error: 'Un rappel a déjà été envoyé récemment. Veuillez patienter.' });
+    }
+
     const dateStr = new Date(b.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
     const timeStr = new Date(b.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     const baseUrl = process.env.BASE_URL || 'https://genda.be';

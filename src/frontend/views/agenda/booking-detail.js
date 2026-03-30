@@ -160,6 +160,19 @@ async function fcOpenDetail(bookingId) {
       document.querySelector('.m-st-current')?.appendChild(cdEl);
     }
 
+    // -- Pass/abonnement banner --
+    if (b.deposit_payment_intent_id && b.deposit_payment_intent_id.startsWith('pass_')) {
+      const passCode = b.deposit_payment_intent_id.replace('pass_', '');
+      const passEl = document.createElement('div');
+      passEl.className = 'm-deposit-banner';
+      passEl.style.cssText = 'padding:12px 16px;margin:0 24px 12px;border-radius:10px;border:1.5px solid #86EFAC;background:var(--green-bg)';
+      passEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--green)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Couvert par abonnement (${passCode})
+      </div>`;
+      document.getElementById('mStatusStrip').insertAdjacentElement('afterend', passEl);
+    }
+
     // -- Deposit banner --
     if (b.deposit_required) {
       const depAmt = ((b.deposit_amount_cents || 0) / 100).toFixed(2).replace(".",",");
