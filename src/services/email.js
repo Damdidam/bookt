@@ -297,8 +297,9 @@ async function sendModificationEmail({ booking, business, groupServices }) {
   if (isMulti) {
     serviceDetailOld = `<div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.6;margin-top:4px">Prestations :</div>`;
     groupServices.forEach(s => {
+      const oldPrice = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
-      serviceDetailOld += `<div style="font-size:12px;color:#92700C;text-decoration:line-through;opacity:.6;padding:1px 0">\u2022 ${escHtml(s.name)}${pracSuffix}</div>`;
+      serviceDetailOld += `<div style="font-size:12px;color:#92700C;text-decoration:line-through;opacity:.6;padding:1px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${oldPrice ? ' \u00b7 ' + oldPrice : ''}${pracSuffix}</div>`;
     });
     serviceDetailNew = `<div style="font-size:13px;color:#15613A;font-weight:600;margin-top:4px">Prestations :</div>`;
     groupServices.forEach(s => {
@@ -1422,8 +1423,9 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
   let detailLines = '';
   if (groupServices && groupServices.length > 1) {
     groupServices.forEach(s => {
+      const sPrice = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
-      detailLines += `<tr><td style="padding:4px 0;font-weight:600">${escHtml(s.name)}${pracSuffix}</td></tr>`;
+      detailLines += `<tr><td style="padding:4px 0;font-weight:600">${escHtml(s.name)} \u2014 ${s.duration_min} min${sPrice ? ' \u00b7 ' + sPrice : ''}${pracSuffix}</td></tr>`;
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
     const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);

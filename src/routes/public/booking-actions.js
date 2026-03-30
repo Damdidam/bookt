@@ -85,14 +85,17 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
         await txClient.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = $1,
             deposit_status = CASE
-              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN
+                CASE WHEN (start_at - INTERVAL '1 minute' * $5) > NOW()
+                       OR (NOW() - created_at) <= INTERVAL '1 minute' * $6
+                     THEN 'refunded' ELSE 'cancelled' END
               WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
               ELSE deposit_status
             END,
             updated_at = NOW()
            WHERE group_id = $2 AND business_id = $3 AND id != $4
              AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
-          [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id]
+          [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id, cancelWindowHours * 60, graceMin]
         );
       }
       await txClient.query('COMMIT');
@@ -1021,14 +1024,17 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
         await txClient2.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'Annul\u00e9 par le client (email)',
             deposit_status = CASE
-              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN
+                CASE WHEN (start_at - INTERVAL '1 minute' * $4) > NOW()
+                       OR (NOW() - created_at) <= INTERVAL '1 minute' * $5
+                     THEN 'refunded' ELSE 'cancelled' END
               WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
               ELSE deposit_status
             END,
             updated_at = NOW()
            WHERE group_id = $1 AND business_id = $2 AND id != $3
              AND status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')`,
-          [bk.group_id, bk.business_id, bk.id]
+          [bk.group_id, bk.business_id, bk.id, cancelWindowHours * 60, graceMin]
         );
     }
       await txClient2.query('COMMIT');

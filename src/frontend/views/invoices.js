@@ -315,11 +315,12 @@ async function invClientChanged(){
     const price=b.variant_price_cents??b.service_price_cents??0;
     const label=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'?')+') \u2014 '+dt;
     const passBadge=b.pass_covered?' <span style="font-size:.68rem;color:var(--green);font-weight:600;padding:1px 6px;border-radius:4px;background:var(--green-bg)">Pass</span>':'';
+    const promoTag=b.promotion_discount_cents>0?' <span style="font-size:.68rem;color:var(--green);font-weight:600">promo</span>':'';
     const priceLabel=b.pass_covered?'<span style="color:var(--green)">inclus</span>':fmtEur(price);
     return `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:.82rem;cursor:pointer;border-bottom:1px solid var(--border-light);background:${i%2===0?'var(--white)':'var(--surface)'}">
       <input type="checkbox" data-unbilled-idx="${i}" onchange="invToggleUnbilled(${i},this.checked)">
       <span style="flex:1">${esc(label)}${passBadge}</span>
-      <span style="font-weight:600;color:var(--text-2)">${priceLabel}</span>
+      <span style="font-weight:600;color:var(--text-2)">${priceLabel}${promoTag}</span>
     </label>`;
   }).join('');
 }
