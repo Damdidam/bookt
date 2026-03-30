@@ -1611,6 +1611,18 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u2705 Votre acompte de ${depAmtRS}\u00a0\u20ac reste valable pour ce nouveau cr\u00e9neau.</div>
     </div>`;
+  } else if (booking.deposit_status === 'pending' && booking.deposit_amount_cents > 0) {
+    const depAmtPending = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+    let deadlineNote = '';
+    if (booking.deposit_deadline) {
+      const dl = new Date(booking.deposit_deadline);
+      const dlStr = dl.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' \u00e0 ' + dl.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      deadlineNote = ` Le d\u00e9lai de paiement est fix\u00e9 au ${dlStr}.`;
+    }
+    bodyHTML += `
+    <div style="background:#FFF3E0;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #FB8C00">
+      <div style="font-size:14px;color:#E65100;font-weight:600">\u23f3 Votre acompte de ${depAmtPending}\u00a0\u20ac est toujours attendu pour confirmer ce rendez-vous.${deadlineNote}</div>
+    </div>`;
   }
 
   // Footer: address, contact, payment methods, calendar links

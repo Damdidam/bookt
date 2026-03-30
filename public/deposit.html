@@ -114,8 +114,11 @@ function render(d) {
   }
 
   const netDepositCents = bk.net_deposit_amount_cents != null ? bk.net_deposit_amount_cents : (bk.deposit_amount_cents || 0);
-  const depAmount = (netDepositCents / 100).toFixed(2);
+  const fullDepositCents = bk.deposit_amount_cents || 0;
   const depStatus = bk.deposit_status || 'pending';
+  // For pending: show net amount (what client still needs to pay). For paid/refunded/cancelled: show full deposit amount.
+  const depAmount = (depStatus === 'pending' ? netDepositCents : fullDepositCents) / 100;
+  const depAmountStr = depAmount.toFixed(2);
 
   // Deposit status colors
   const statusConfig = {
@@ -145,22 +148,22 @@ function render(d) {
   if (depStatus === 'pending') {
     html += `
       <div class="dep-label">Acompte requis</div>
-      <div class="amount">${depAmount} &euro;</div>
+      <div class="amount">${depAmountStr} &euro;</div>
       <div class="dep-sub">pour confirmer votre rendez-vous</div>`;
   } else if (depStatus === 'paid') {
     html += `
       <div class="dep-label">Acompte pay&eacute;</div>
-      <div class="amount">${depAmount} &euro;</div>
+      <div class="amount">${depAmountStr} &euro;</div>
       <div class="dep-sub">Votre rendez-vous est confirm&eacute;</div>`;
   } else if (depStatus === 'refunded') {
     html += `
       <div class="dep-label">Acompte rembours&eacute;</div>
-      <div class="amount">${depAmount} &euro;</div>
+      <div class="amount">${depAmountStr} &euro;</div>
       <div class="dep-sub">Le montant vous sera restitu&eacute;</div>`;
   } else {
     html += `
       <div class="dep-label">Acompte conserv&eacute;</div>
-      <div class="amount">${depAmount} &euro;</div>
+      <div class="amount">${depAmountStr} &euro;</div>
       <div class="dep-sub">Suite &agrave; une annulation tardive</div>`;
   }
   html += '</div>';
@@ -197,7 +200,7 @@ function render(d) {
     html += `<div id="gcSection" style="margin:0 28px 16px;display:none"></div>`;
     html += `<button class="pay-btn" id="payBtn" onclick="startPayment()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-      Payer ${depAmount} € en ligne
+      Payer ${depAmountStr} € en ligne
     </button>`;
     html += `<div class="pay-or">ou entrez un code carte cadeau</div>`;
     html += `<div style="margin:0 28px 20px;display:flex;gap:8px">

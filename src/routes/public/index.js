@@ -655,10 +655,15 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             const depResult = shouldRequireDeposit(bizSettings, totalPrice, totalDuration, noShowCount, clientIsVip);
 
-            // Recalculate deposit amount on reduced price (LM + promo)
+            // Recalculate deposit amount on reduced price (LM + promo + pass)
             const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
-            if (depResult.required && (totalPriceAfterLm < totalPrice || promoDiscountCents > 0)) {
-              const reducedPrice = Math.max(0, totalPriceAfterLm - promoDiscountCents);
+            let passServicePrice = 0;
+            if (passPreMatchSlotIdx >= 0) {
+              const coveredSlot = chainedSlots[passPreMatchSlotIdx];
+              passServicePrice = servicePricesAfterLm[coveredSlot.service_id] || 0;
+            }
+            if (depResult.required && (totalPriceAfterLm < totalPrice || promoDiscountCents > 0 || passServicePrice > 0)) {
+              const reducedPrice = Math.max(0, totalPriceAfterLm - promoDiscountCents - passServicePrice);
               if (bizSettings.deposit_type === 'fixed') {
                 // Cap fixed deposit at reduced price
                 if (depResult.depCents > reducedPrice) depResult.depCents = reducedPrice;
@@ -1406,10 +1411,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
           const depResult = shouldRequireDeposit(bizSettings, svcPrice, svcDuration, noShowCount, clientIsVip);
 
-          // Recalculate deposit amount on reduced price (LM + promo)
+          // Recalculate deposit amount on reduced price (LM + promo + pass)
           const promoDiscountCents = promoResult.valid ? promoResult.discount_cents : 0;
-          if (depResult.required && (singlePriceAfterLm < svcPrice || promoDiscountCents > 0)) {
-            const reducedSvcPrice = Math.max(0, singlePriceAfterLm - promoDiscountCents);
+          const singlePassServicePrice = singlePassPreMatch ? singlePriceAfterLm : 0;
+          if (depResult.required && (singlePriceAfterLm < svcPrice || promoDiscountCents > 0 || singlePassServicePrice > 0)) {
+            const reducedSvcPrice = Math.max(0, singlePriceAfterLm - promoDiscountCents - singlePassServicePrice);
             if (bizSettings.deposit_type === 'fixed') {
               // Cap fixed deposit at reduced price
               if (depResult.depCents > reducedSvcPrice) depResult.depCents = reducedSvcPrice;

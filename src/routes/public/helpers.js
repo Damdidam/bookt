@@ -72,6 +72,8 @@ function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, no
   } else {
     depCents = Math.round(totalPriceCents * (bizSettings.deposit_percent || 50) / 100);
   }
+  // Cap deposit at total price (never charge more than the service costs)
+  depCents = Math.min(depCents, totalPriceCents);
 
   if (depCents <= 0) return { required: false };
 

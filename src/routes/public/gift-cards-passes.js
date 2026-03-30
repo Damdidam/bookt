@@ -99,9 +99,19 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
     const gc = gcRes.rows[0];
     if (gc.status !== 'active') { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Carte inactive ou expirée' }); }
     if (gc.expires_at && new Date(gc.expires_at) < new Date()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Carte expirée' }); }
-    const depositAmount = bk.deposit_amount_cents;
-    const gcDebit = Math.min(gc.balance_cents, depositAmount);
-    const remaining = depositAmount - gcDebit;
+    // Check for existing GC debits on this booking to prevent double application
+    const existingGcRes = await client.query(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS total_paid FROM gift_card_transactions WHERE booking_id = $1 AND type = 'debit'`,
+      [bk.id]
+    );
+    const existingGcPaid = parseInt(existingGcRes.rows[0]?.total_paid) || 0;
+    const remainingDeposit = Math.max(0, bk.deposit_amount_cents - existingGcPaid);
+    if (remainingDeposit <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "L'acompte est déjà couvert" });
+    }
+    const gcDebit = Math.min(gc.balance_cents, remainingDeposit);
+    const remaining = remainingDeposit - gcDebit;
     const newBalance = gc.balance_cents - gcDebit;
     await client.query(`UPDATE gift_cards SET balance_cents = $1, status = $2, updated_at = NOW() WHERE id = $3`, [newBalance, newBalance === 0 ? 'used' : 'active', gc.id]);
     await client.query(`INSERT INTO gift_card_transactions (id, gift_card_id, business_id, booking_id, amount_cents, type, note) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'debit', $5)`, [gc.id, bk.business_id, bk.id, gcDebit, `Acompte RDV — carte ${gc.code}`]);
