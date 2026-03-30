@@ -67,7 +67,13 @@ router.get('/summary', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status IN ('confirmed', 'completed')) AS total_bookings,
         COUNT(*) FILTER (WHERE status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancellations,
-        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
+        COALESCE(SUM(
+          CASE WHEN b.discount_pct > 0
+            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
+            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
+          END
+          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+        ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue_cents
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -286,7 +292,13 @@ router.get('/analytics', async (req, res, next) => {
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
         COUNT(*) FILTER (WHERE b.status = 'no_show') AS no_shows,
         COUNT(*) FILTER (WHERE b.status = 'cancelled') AS cancellations,
-        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
+        COALESCE(SUM(
+          CASE WHEN b.discount_pct > 0
+            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
+            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
+          END
+          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+        ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -314,7 +326,13 @@ router.get('/analytics', async (req, res, next) => {
     // 3. Top services
     const topServices = await queryWithRLS(bid,
       `SELECT s.name, s.color, COUNT(b.id) AS count,
-        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)), 0) AS revenue
+        COALESCE(SUM(
+          CASE WHEN b.discount_pct > 0
+            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
+            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
+          END
+          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+        ), 0) AS revenue
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -344,7 +362,13 @@ router.get('/analytics', async (req, res, next) => {
       `SELECT
         TO_CHAR(b.start_at AT TIME ZONE 'Europe/Brussels', 'YYYY-MM') AS month,
         COUNT(*) FILTER (WHERE b.status IN ('confirmed', 'completed')) AS bookings,
-        COALESCE(SUM(COALESCE(sv.price_cents, s.price_cents)) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
+        COALESCE(SUM(
+          CASE WHEN b.discount_pct > 0
+            THEN ROUND(COALESCE(sv.price_cents, s.price_cents, 0) * (100 - b.discount_pct) / 100.0)
+            ELSE COALESCE(sv.price_cents, s.price_cents, 0)
+          END
+          - CASE WHEN b.group_order = 0 THEN COALESCE(b.promotion_discount_cents, 0) ELSE 0 END
+        ) FILTER (WHERE b.status IN ('confirmed', 'completed')), 0) AS revenue
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id

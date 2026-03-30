@@ -233,10 +233,14 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
     // The free service must be in the cart (added by frontend)
     if (!promo.reward_service_id || !serviceIds.includes(promo.reward_service_id)) return { valid: false };
     if (promo.reward_service_id) {
-      const freeRes = await txClient.query(
-        `SELECT price_cents FROM services WHERE id = $1`, [promo.reward_service_id]
-      );
-      discount_cents = freeRes.rows[0]?.price_cents || 0;
+      let freePrice = servicePrices?.[promo.reward_service_id];
+      if (freePrice == null) {
+        const freeRes = await txClient.query(
+          `SELECT price_cents FROM services WHERE id = $1`, [promo.reward_service_id]
+        );
+        freePrice = freeRes.rows[0]?.price_cents || 0;
+      }
+      discount_cents = freePrice;
     }
   } else if (promo.reward_type === 'info_only') {
     return { valid: true, label: promo.title, discount_pct: null, discount_cents: 0, reward_type: 'info_only', reward_service_id: null };

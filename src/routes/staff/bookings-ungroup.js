@@ -286,7 +286,8 @@ router.delete('/:id/group-remove', async (req, res, next) => {
       result = await transactionWithRLS(bid, async (client) => {
         // Lock the booking FOR UPDATE
         const lock = await client.query(
-          `SELECT id, group_id, group_order, status, service_id, practitioner_id, start_at, end_at
+          `SELECT id, group_id, group_order, status, service_id, practitioner_id, start_at, end_at,
+                  promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents
            FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
           [id, bid]
         );
@@ -319,12 +320,22 @@ router.delete('/:id/group-remove', async (req, res, next) => {
         );
         const remaining = remainRes.rows;
 
+        // If the deleted booking carried promo data, we need to migrate it
+        const hadPromo = (locked.promotion_discount_cents || 0) > 0;
+
         if (remaining.length === 1) {
           // Only 1 member left → ungroup it (no group of 1)
+          // Also migrate promo fields if the deleted booking was the promo carrier
+          const promoSets = hadPromo
+            ? `, promotion_id = $3, promotion_label = $4, promotion_discount_pct = $5, promotion_discount_cents = $6`
+            : '';
+          const promoParams = hadPromo
+            ? [remaining[0].id, bid, locked.promotion_id, locked.promotion_label, locked.promotion_discount_pct, locked.promotion_discount_cents]
+            : [remaining[0].id, bid];
           await client.query(
-            `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()
+            `UPDATE bookings SET group_id = NULL, group_order = NULL, updated_at = NOW()${promoSets}
              WHERE id = $1 AND business_id = $2`,
-            [remaining[0].id, bid]
+            promoParams
           );
         } else if (remaining.length > 1) {
           // Re-sequence group_order (0, 1, 2...)
@@ -336,6 +347,16 @@ router.delete('/:id/group-remove', async (req, res, next) => {
                 [i, remaining[i].id, bid]
               );
             }
+          }
+
+          // Migrate promo fields to new group_order=0 if deleted booking was the promo carrier
+          if (hadPromo) {
+            await client.query(
+              `UPDATE bookings SET promotion_id = $1, promotion_label = $2,
+                promotion_discount_pct = $3, promotion_discount_cents = $4, updated_at = NOW()
+               WHERE group_id = $5 AND group_order = 0 AND business_id = $6`,
+              [locked.promotion_id, locked.promotion_label, locked.promotion_discount_pct, locked.promotion_discount_cents, groupId, bid]
+            );
           }
         }
 

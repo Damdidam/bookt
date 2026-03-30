@@ -14,6 +14,7 @@ router.get('/booking/:token', async (req, res, next) => {
       `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.comment_client, b.public_token, b.created_at, b.group_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
+              b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
@@ -41,12 +42,14 @@ router.get('/booking/:token', async (req, res, next) => {
     // Fetch group members if this is a grouped booking
     let groupServices = null;
     let groupEndAt = null;
+    let grpRows = null;
     if (bk.group_id) {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
-                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at
+                b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
+                b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -55,6 +58,7 @@ router.get('/booking/:token', async (req, res, next) => {
          ORDER BY b.group_order, b.start_at`,
         [bk.group_id, token]
       );
+      grpRows = grp.rows;
       if (grp.rows.length > 1) {
         const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
         const isSplit = pracIds.size > 1;
@@ -76,6 +80,11 @@ router.get('/booking/:token', async (req, res, next) => {
       ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
       : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
 
+    // Resolve promotion: for grouped bookings, find the sibling carrying the promo (group_order=0)
+    const promoSib = bk.group_id && grpRows
+      ? (grpRows.find(s => s.promotion_discount_cents > 0) || bk)
+      : bk;
+
     res.json({
       booking: {
         id: bk.id, token: bk.public_token,
@@ -84,6 +93,10 @@ router.get('/booking/:token', async (req, res, next) => {
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
+        service_price_cents: serviceInfo.price_cents, duration_min: serviceInfo.duration_min,
+        promotion_label: promoSib.promotion_label || null,
+        promotion_discount_cents: promoSib.promotion_discount_cents || 0,
+        promotion_discount_pct: promoSib.promotion_discount_pct || null,
         service: serviceInfo,
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
@@ -101,7 +114,12 @@ router.get('/booking/:token', async (req, res, next) => {
         window_hours: cancelWindowHours,
         policy_text: bk.business_settings?.cancel_policy_text || null,
         reason: !canCancel && (bk.status === 'confirmed' || bk.status === 'pending_deposit') ? 'Délai d\'annulation dépassé' : null
-      }
+      },
+      promotion: (promoSib.promotion_discount_cents > 0) ? {
+        label: promoSib.promotion_label,
+        discount_pct: promoSib.promotion_discount_pct,
+        discount_cents: promoSib.promotion_discount_cents
+      } : null
     });
   } catch (err) { next(err); }
 });
@@ -119,6 +137,7 @@ router.get('/manage/:token', async (req, res, next) => {
               b.locked, b.reschedule_count, b.business_id,
               b.service_id, b.service_variant_id, b.practitioner_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url,
+              b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
@@ -170,13 +189,15 @@ router.get('/manage/:token', async (req, res, next) => {
     let groupServices = null;
     let groupEndAt = null;
     let isSplitBooking = false;
+    let grpRows2 = null;
     if (bk.group_id) {
       const grp = await query(
         `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
                 b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
-                b.service_id, b.service_variant_id
+                b.service_id, b.service_variant_id,
+                b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -185,6 +206,7 @@ router.get('/manage/:token', async (req, res, next) => {
          ORDER BY b.group_order, b.start_at`,
         [bk.group_id, bk.business_id]
       );
+      grpRows2 = grp.rows;
       if (grp.rows.length > 1) {
         const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
         isSplitBooking = pracIds.size > 1;
@@ -217,6 +239,11 @@ router.get('/manage/:token', async (req, res, next) => {
       ? { name: groupServices.map(s => s.name).join(' + '), duration_min: groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0), price_cents: groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0), color: bk.service_color, members: groupServices }
       : { name: (bk.service_category ? bk.service_category + ' - ' : '') + (bk.service_name || ''), duration_min: bk.duration_min, price_cents: bk.price_cents, color: bk.service_color };
 
+    // Resolve promotion: for grouped bookings, find the sibling carrying the promo
+    const promoSib2 = bk.group_id && grpRows2
+      ? (grpRows2.find(s => s.promotion_discount_cents > 0) || bk)
+      : bk;
+
     res.json({
       booking: {
         id: bk.id, token: bk.public_token,
@@ -225,6 +252,10 @@ router.get('/manage/:token', async (req, res, next) => {
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
+        service_price_cents: serviceInfo.price_cents, duration_min: serviceInfo.duration_min,
+        promotion_label: promoSib2.promotion_label || null,
+        promotion_discount_cents: promoSib2.promotion_discount_cents || 0,
+        promotion_discount_pct: promoSib2.promotion_discount_pct || null,
         service: serviceInfo,
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
@@ -260,7 +291,12 @@ router.get('/manage/:token', async (req, res, next) => {
         split_service_ids: bk._splitServiceIds || null,
         split_variant_ids: bk._splitVariantIds || null,
         working_days: workingDays
-      }
+      },
+      promotion: (promoSib2.promotion_discount_cents > 0) ? {
+        label: promoSib2.promotion_label,
+        discount_pct: promoSib2.promotion_discount_pct,
+        discount_cents: promoSib2.promotion_discount_cents
+      } : null
     });
   } catch (err) { next(err); }
 });
