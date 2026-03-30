@@ -112,7 +112,8 @@ router.get('/:slug', async (req, res, next) => {
         `SELECT id, name, category, duration_min, price_cents, price_label,
                 mode_options, prep_instructions_fr, prep_instructions_nl, color, description, bookable_online,
                 processing_time, processing_start,
-                flexibility_enabled, flexibility_discount_pct, available_schedule, min_booking_notice_hours
+                flexibility_enabled, flexibility_discount_pct, available_schedule, min_booking_notice_hours,
+                promo_eligible
          FROM services
          WHERE business_id = $1 AND is_active = true
          ORDER BY sort_order, name`,
@@ -345,6 +346,7 @@ router.get('/:slug', async (req, res, next) => {
         color: s.color,
         description: s.description || null,
         bookable_online: s.bookable_online !== false,
+        promo_eligible: s.promo_eligible !== false,
         available_schedule: s.available_schedule || null,
         variants: (varByService[s.id] || []).map(v => ({
           id: v.id, name: v.name, description: v.description || null, duration_min: v.duration_min,

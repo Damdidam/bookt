@@ -282,19 +282,23 @@ router.post('/pass/validate', async (req, res, next) => {
 router.post('/deposit/:token/check-passes', async (req, res, next) => {
   try {
     const bkRes = await query(
-      `SELECT b.business_id, b.service_id, c.email FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE b.public_token = $1 AND b.status IN ('pending_deposit', 'confirmed', 'pending')`,
+      `SELECT b.business_id, b.service_id, b.service_variant_id, c.email FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE b.public_token = $1 AND b.status IN ('pending_deposit', 'confirmed', 'pending')`,
       [req.params.token]
     );
     if (bkRes.rows.length === 0 || !bkRes.rows[0].email) return res.json({ passes: [] });
-    const { business_id, service_id, email } = bkRes.rows[0];
-    const passRes = await query(
-      `SELECT p.code, p.sessions_remaining, p.sessions_total, p.expires_at, p.name, s.name AS service_name
+    const { business_id, service_id, service_variant_id, email } = bkRes.rows[0];
+    let passSql = `SELECT p.code, p.sessions_remaining, p.sessions_total, p.expires_at, p.name, s.name AS service_name
        FROM passes p JOIN services s ON s.id = p.service_id
        WHERE p.business_id = $1 AND p.status = 'active' AND p.sessions_remaining > 0 AND p.service_id = $2
-         AND LOWER(p.buyer_email) = LOWER($3) AND (p.expires_at IS NULL OR p.expires_at > NOW())
-       ORDER BY p.sessions_remaining DESC`,
-      [business_id, service_id, email]
-    );
+         AND LOWER(p.buyer_email) = LOWER($3) AND (p.expires_at IS NULL OR p.expires_at > NOW())`;
+    const passParams = [business_id, service_id, email];
+    // Filter by variant if the pass has a specific variant_id (null = all variants accepted)
+    if (service_variant_id) {
+      passSql += ` AND (p.service_variant_id IS NULL OR p.service_variant_id = $4)`;
+      passParams.push(service_variant_id);
+    }
+    passSql += ` ORDER BY p.sessions_remaining DESC`;
+    const passRes = await query(passSql, passParams);
     res.json({ passes: passRes.rows });
   } catch (err) { next(err); }
 });

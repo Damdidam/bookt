@@ -362,7 +362,11 @@ function renderBooking(data) {
   } else {
     modeEl.style.display = 'none';
   }
-  document.getElementById('valAddress').textContent = business.address || '';
+  if (!booking.appointment_mode || booking.appointment_mode === 'cabinet') {
+    document.getElementById('valAddress').textContent = business.address || '';
+  } else {
+    document.getElementById('valAddress').style.display = 'none';
+  }
 
   // Action buttons
   const actionsEl = document.getElementById('actionButtons');

@@ -231,12 +231,11 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
 
         // Conflict check per member (exclude self)
         const conflicts = await checkBookingConflicts(client, {
-          businessId: bk.business_id,
-          practitionerId: sp.practitioner_id,
-          startAt: sp.start_at,
-          endAt: sp.end_at,
-          excludeBookingId: m.id,
-          serviceId: m.service_id
+          bid: bk.business_id,
+          pracId: sp.practitioner_id,
+          newStart: sp.start_at,
+          newEnd: sp.end_at,
+          excludeIds: m.id
         });
         if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
@@ -253,12 +252,11 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
 
       const conflicts = await checkBookingConflicts(client, {
-        businessId: bk.business_id,
-        practitionerId: bk.practitioner_id,
-        startAt: start_at,
-        endAt: end_at,
-        excludeBookingId: bk.id,
-        serviceId: bk.service_id
+        bid: bk.business_id,
+        pracId: bk.practitioner_id,
+        newStart: start_at,
+        newEnd: end_at,
+        excludeIds: groupMembers.map(m => m.id)
       });
       if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
@@ -277,12 +275,11 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       if (!avail.ok) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Le praticien n\'est pas disponible à cet horaire.' }); }
 
       const conflicts = await checkBookingConflicts(client, {
-        businessId: bk.business_id,
-        practitionerId: bk.practitioner_id,
-        startAt: start_at,
-        endAt: end_at,
-        excludeBookingId: bk.id,
-        serviceId: bk.service_id
+        bid: bk.business_id,
+        pracId: bk.practitioner_id,
+        newStart: start_at,
+        newEnd: end_at,
+        excludeIds: bk.id
       });
       if (conflicts.length > 0) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Ce créneau n\'est plus disponible.' }); }
 
@@ -378,12 +375,12 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       } catch (emailErr) { console.error('[RESCHEDULE] Email error:', emailErr.message); }
     })();
 
-    // Post-commit: queue practitioner notification
+    // Post-commit: queue practitioner notification (with old slot in metadata)
     try {
       await query(
-        `INSERT INTO notifications (id, business_id, booking_id, type, status, created_at)
-         VALUES (uuid_generate_v4(), $1, $2, 'email_reschedule_pro', 'queued', NOW())`,
-        [bk.business_id, bk.id]
+        `INSERT INTO notifications (id, business_id, booking_id, type, status, metadata, created_at)
+         VALUES (uuid_generate_v4(), $1, $2, 'email_reschedule_pro', 'queued', $3, NOW())`,
+        [bk.business_id, bk.id, JSON.stringify({ old_start_at: bk.start_at, old_end_at: bk.end_at })]
       );
     } catch (_) {}
 

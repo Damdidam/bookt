@@ -26,7 +26,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     `SELECT b.id, b.business_id, b.practitioner_id, b.service_id,
             b.start_at, b.end_at,
             p.waitlist_mode, p.display_name AS practitioner_name,
-            s.name AS service_name, s.duration_min
+            s.name AS service_name, s.duration_min, s.price_cents
      FROM bookings b
      JOIN practitioners p ON p.id = b.practitioner_id
      JOIN services s ON s.id = b.service_id
@@ -161,6 +161,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
         <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
         <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0 0 6px"><strong>${escHtml(bk.service_name)}</strong></p>
+          ${bk.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
           <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(bk.practitioner_name)}</p>
           <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} à ${escHtml(slotTimeFmt)}</p>
         </div>
@@ -215,7 +216,7 @@ async function processExpiredOffers() {
     // SVC-V12-003: Use dedicated client + explicit transaction so locks are held
     const expired = await client.query(
       `SELECT w.*, p.waitlist_mode, p.display_name AS practitioner_name,
-              s.duration_min, s.name AS service_name
+              s.duration_min, s.name AS service_name, s.price_cents
        FROM waitlist_entries w
        JOIN practitioners p ON p.id = w.practitioner_id AND p.business_id = w.business_id
        JOIN services s ON s.id = w.service_id AND s.business_id = w.business_id
@@ -317,6 +318,7 @@ async function processExpiredOffers() {
               <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
               <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
                 <p style="margin:0 0 6px"><strong>${escHtml(entry.service_name)}</strong></p>
+                ${entry.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(entry.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
                 <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(entry.practitioner_name)}</p>
                 <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(cascadeDateFmt)} à ${escHtml(cascadeTimeFmt)}</p>
               </div>

@@ -636,7 +636,10 @@ function svcDisplayPrice(s){
     if(prices.length>0)return 'Dès '+(Math.min.apply(null,prices)/100).toFixed(0)+' \u20ac';
     return s.price_label||'';
   }
-  return s.price_cents?(s.price_cents/100).toFixed(0)+' \u20ac':(s.price_label||'');
+  // BUG-m2: price_cents === 0 is falsy, so explicitly check for it
+  if(s.price_cents!=null&&s.price_cents>0)return(s.price_cents/100).toFixed(0)+' \u20ac';
+  if(s.price_cents===0)return'Gratuit';
+  return s.price_label||'';
 }
 function svcDurationLabel(s){
   if(s.variants&&s.variants.length>0){
@@ -653,7 +656,7 @@ function showVariantModal(service,callback){
   if(service.description)h+='<p class="var-modal-desc">'+escH(service.description)+'</p>';
   h+='<div class="var-list">';
   service.variants.forEach(function(v,i){
-    var price=v.price_cents?(v.price_cents/100).toFixed(0)+' \u20ac':'';
+    var price=v.price_cents>0?(v.price_cents/100).toFixed(0)+' \u20ac':(v.price_cents===0?'Gratuit':'');
     h+='<div class="var-card" data-idx="'+i+'">'
       +'<div class="var-info"><div class="var-name">'+escH(v.name)+'</div>'
       +(v.description?'<div class="var-desc" style="font-size:.78rem;color:var(--text-4);margin:2px 0 4px;line-height:1.4">'+escH(v.description)+'</div>':'')
@@ -1293,16 +1296,8 @@ function selectService(id){
   if(!svc||svc.bookable_online===false)return;
   // Services with variants are handled by selectVariant() — this is for non-variant services only
   if(multiServiceMode){
-    var idx=selectedServices.findIndex(function(s){return s.id===id;});
-    if(idx>=0){
-      selectedServices.splice(idx,1);
-      delete selectedVariants[id];
-      _updateSvcCards();updateCartBar();
-      document.getElementById('btnStep1').disabled=selectedServices.length===0;
-      selectedService=selectedServices.length===1?selectedServices[0]:(selectedServices[0]||null);
-      selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
-      computeStepOrder();
-    }else if(selectedServices.length<5){
+    // BUG-m5: Allow adding the same service multiple times (no toggle)
+    if(selectedServices.length<5){
       selectedServices.push(svc);
       _updateSvcCards();updateCartBar();
       document.getElementById('btnStep1').disabled=false;
@@ -1400,13 +1395,14 @@ function updateCartBar(){
   document.getElementById('cartMeta').textContent=durStr+' \u00b7 '+priceStr;
   // Render chips
   const chipsEl=document.getElementById('cartChips');
-  chipsEl.innerHTML=selectedServices.map(function(svc){
+  // BUG-m5: Use index-based removal to handle duplicate services correctly
+  chipsEl.innerHTML=selectedServices.map(function(svc,idx){
     const v=selectedVariants[svc.id];
     const varLabel=v?(' · '+escH(v.name)):'';
     return '<span class="cart-chip">'
       +'<span class="cart-chip-name">'+escH(svc.name)+'</span>'
       +(varLabel?'<span class="cart-chip-var">'+varLabel+'</span>':'')
-      +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartService(\''+svc.id+'\')" title="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+      +'<button class="cart-chip-rm" onclick="event.stopPropagation();removeCartServiceByIdx('+idx+')" title="Retirer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
       +'</span>';
   }).join('');
 
@@ -1445,7 +1441,21 @@ function removeCartService(svcId){
   var idx=selectedServices.findIndex(function(s){return s.id===svcId;});
   if(idx>=0){
     selectedServices.splice(idx,1);
-    delete selectedVariants[svcId];
+    // Only delete variant if no more instances of this service remain
+    if(!selectedServices.some(function(s){return s.id===svcId;})) delete selectedVariants[svcId];
+    _updateSvcCards();updateCartBar();
+    document.getElementById('btnStep1').disabled=selectedServices.length===0;
+    selectedService=selectedServices.length>=1?selectedServices[0]:null;
+    selectedPractitioner=null;noPrefSelected=false;selectedMode=null;selectedDate=null;selectedSlot=null;
+    computeStepOrder();
+  }
+}
+// BUG-m5: Index-based removal for duplicate services in cart
+function removeCartServiceByIdx(idx){
+  if(idx>=0&&idx<selectedServices.length){
+    var svcId=selectedServices[idx].id;
+    selectedServices.splice(idx,1);
+    if(!selectedServices.some(function(s){return s.id===svcId;})) delete selectedVariants[svcId];
     _updateSvcCards();updateCartBar();
     document.getElementById('btnStep1').disabled=selectedServices.length===0;
     selectedService=selectedServices.length>=1?selectedServices[0]:null;
@@ -1578,13 +1588,21 @@ function renderPromoBannerTop(){
 function getEligiblePromos(){
   var promos=siteData&&siteData.promotions||[];
   var cart=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
-  var cartTotal=cart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-  var cartIds=cart.map(function(s){return s.id;});
+  // BUG-M1: filter out services that are not promo_eligible
+  var eligibleCart=cart.filter(function(s){return s.promo_eligible!==false;});
+  var cartTotal=eligibleCart.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+  var cartIds=eligibleCart.map(function(s){return s.id;});
   return promos.filter(function(p){
+    if(p.reward_type!=='info_only'&&eligibleCart.length===0)return false; // no promo-eligible services
     if(p.condition_type==='first_visit')return false; // handled server-side after authentication
     if(p.condition_type==='none')return true;
     if(p.condition_type==='min_amount')return cartTotal>=p.condition_min_cents;
-    if(p.condition_type==='specific_service')return cartIds.indexOf(p.condition_service_id)>=0;
+    if(p.condition_type==='specific_service'){
+      // Check the targeted service is in cart AND is promo_eligible
+      var targetSvc=cart.find(function(s){return s.id===p.condition_service_id;});
+      if(!targetSvc)return false;
+      return targetSvc.promo_eligible!==false;
+    }
     if(p.condition_type==='date_range'){
       var today=new Date().toISOString().slice(0,10);
       return(!p.condition_start_date||today>=p.condition_start_date)&&(!p.condition_end_date||today<=p.condition_end_date);
@@ -1915,7 +1933,11 @@ function restoreOauthState(){
     }
     if(st.serviceIds&&siteData){
       selectedServices=st.serviceIds.map(function(item){
-        if(item.is_promo) return{id:item.id,is_promo:true,promo_id:item.promo_id,price_cents:item.price_cents||0,name:'',duration_min:0};
+        if(item.is_promo){
+          // BUG-m4: Recover real name/duration from siteData instead of empty placeholders
+          var promoSvc=siteData.services.find(function(s){return s.id===item.id;});
+          return{id:item.id,is_promo:true,promo_id:item.promo_id,price_cents:item.price_cents||0,name:promoSvc?promoSvc.name:'',duration_min:promoSvc?promoSvc.duration_min:0};
+        }
         return siteData.services.find(function(s){return s.id===(item.id||item);});
       }).filter(Boolean);
     }
@@ -2268,9 +2290,13 @@ function renderSlots(){
   if(Object.keys(featuredRanges).length>0){
     var monday=getMonday(selectedDate);
     // Get service duration to check that the entire service fits in the featured window
+    // BUG-m1: Use variant duration if a variant is selected
     var svcDuration=0;
-    if(selectedService)svcDuration=selectedService.duration_min||0;
-    if(multiServiceMode&&selectedServices.length>0)svcDuration=selectedServices.reduce(function(sum,s){return sum+(s.duration_min||0);},0);
+    if(selectedService){
+      var sv=selectedVariants[selectedService.id];
+      svcDuration=sv?sv.duration_min:(selectedService.duration_min||0);
+    }
+    if(multiServiceMode&&selectedServices.length>0)svcDuration=selectedServices.reduce(function(sum,s){var sv=selectedVariants[s.id];return sum+(sv?sv.duration_min:(s.duration_min||0));},0);
     slots=slots.filter(function(s){
       var pracId=s.practitioner_id;
       if(!pracId)return true;
@@ -2461,7 +2487,7 @@ function buildSummary(){
       var name=v?svc.name+' \u2014 '+v.name:svc.name;
       var dur=v?v.duration_min:svc.duration_min;
       var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
-      var p=pc?(pc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
+      var p=pc>0?(pc/100).toFixed(0)+' \u20ac':(pc===0?'Gratuit':(svc.price_label||''));
       // In split mode, show practitioner name per service
       var pracLabel='';
       if(splitMode&&selectedSlot&&selectedSlot.practitioners){
@@ -2515,6 +2541,7 @@ function buildSummary(){
     }
   }
   // Applied promo discount (1 max)
+  // BUG-M2: When last-minute AND promo both apply, compute promo on the LM-reduced price
   if(appliedPromos.length>0){
     var ap=appliedPromos[0];
     var promoLabel=ap.title||'Promotion';
@@ -2522,7 +2549,16 @@ function buildSummary(){
     var sumDiscAmount=calcPromoDiscAmount(ap.id,sumCartSvcs);
     if(ap.type!=='info_only'&&sumDiscAmount>0){
       var sumCartTotal=sumCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-      var sumNewTotal=sumCartTotal-sumDiscAmount;
+      // If last-minute discount is also active, apply promo on the already-reduced price
+      var sumBaseForPromo=sumCartTotal;
+      if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct){
+        sumBaseForPromo=Math.round(sumCartTotal*(100-selectedSlot.discount_pct)/100);
+      }
+      // Recalculate promo discount on the LM-reduced base if it's a percentage
+      if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&ap.type==='discount_pct'){
+        sumDiscAmount=Math.round(sumBaseForPromo*ap.value/100);
+      }
+      var sumNewTotal=sumBaseForPromo-sumDiscAmount;
       if(ap.type==='discount_pct'){
         html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+ap.value+'% (-'+(sumDiscAmount/100).toFixed(2).replace(".",",")+' \u20ac)</span></div>';
       }else if(ap.type==='discount_fixed'){
@@ -2694,10 +2730,19 @@ async function submitBooking(){
     var confirmCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
     var confirmCartTotal=confirmCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
 
+    // BUG-C4: Use server-provided totals for multi-service + last-minute (per-service eligibility)
+    var hasServerTotals=data.booking&&data.booking.total_original_cents!=null&&data.booking.total_after_discount_cents!=null;
+
     // Réduction dernière minute
     if(data.booking&&data.booking.discount_pct){
-      var lmDiscPrice=Math.round(confirmCartTotal*(100-data.booking.discount_pct)/100);
-      confirmHtml+='<div class="row"><span class="l">Prix</span><span class="v"><s style="color:#9ca3af">'+(confirmCartTotal/100).toFixed(0)+' \u20ac</s> <strong style="color:#059669">'+(lmDiscPrice/100).toFixed(0)+' \u20ac</strong></span></div>';
+      // For multi-service, use server-computed total (handles per-service LM eligibility)
+      var lmOriginal=hasServerTotals?data.booking.total_original_cents:confirmCartTotal;
+      var lmDiscPrice=hasServerTotals?data.booking.total_after_discount_cents:Math.round(confirmCartTotal*(100-data.booking.discount_pct)/100);
+      // If there's also a promo, the server total_after_discount_cents already includes it — show LM price before promo
+      if(hasServerTotals&&data.promotion&&data.promotion.discount_cents>0){
+        lmDiscPrice=lmDiscPrice+data.promotion.discount_cents; // add promo back to show LM-only price
+      }
+      confirmHtml+='<div class="row"><span class="l">Prix</span><span class="v"><s style="color:#9ca3af">'+(lmOriginal/100).toFixed(0)+' \u20ac</s> <strong style="color:#059669">'+(lmDiscPrice/100).toFixed(0)+' \u20ac</strong></span></div>';
       confirmHtml+='<div class="row"><span class="l" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="v" style="color:#f59e0b;font-weight:600">-'+data.booking.discount_pct+'%</span></div>';
     }
 
@@ -2705,7 +2750,8 @@ async function submitBooking(){
     var serverPromo=data.promotion||null;
     if(serverPromo&&serverPromo.discount_cents>0){
       confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(serverPromo.label||'Promotion')+'</span><span class="v" style="color:#059669;font-weight:600">'+(serverPromo.discount_pct?'-'+serverPromo.discount_pct+'% ':'')+' -'+(serverPromo.discount_cents/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-      var confirmNewTotal=confirmCartTotal-serverPromo.discount_cents;
+      // Use server total_after_discount if available, else fallback
+      var confirmNewTotal=hasServerTotals?data.booking.total_after_discount_cents:(confirmCartTotal-serverPromo.discount_cents);
       confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
     }else if(appliedPromos.length>0){
       // Fallback: use client-side state if server didn't return promo

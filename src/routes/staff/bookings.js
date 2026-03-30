@@ -160,7 +160,7 @@ router.get('/:id/detail', async (req, res, next) => {
     const { id } = req.params;
 
     const booking = await queryWithRLS(bid,
-      `SELECT b.*, s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+      `SELECT b.*, s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.color AS service_color,
               sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
@@ -207,7 +207,7 @@ router.get('/:id/detail', async (req, res, next) => {
         `SELECT b.id, b.start_at, b.end_at, b.group_order, b.status, b.locked,
                 b.practitioner_id, b.service_id, b.service_variant_id,
                 b.promotion_id, b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
-                s.name AS service_name, s.duration_min, s.price_cents, s.color AS service_color,
+                s.name AS service_name, s.category AS service_category, s.duration_min, s.price_cents, s.color AS service_color,
                 sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id

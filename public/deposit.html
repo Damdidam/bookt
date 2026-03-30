@@ -113,7 +113,8 @@ function render(d) {
     return;
   }
 
-  const depAmount = ((bk.deposit_amount_cents || 0) / 100).toFixed(2);
+  const netDepositCents = bk.net_deposit_amount_cents != null ? bk.net_deposit_amount_cents : (bk.deposit_amount_cents || 0);
+  const depAmount = (netDepositCents / 100).toFixed(2);
   const depStatus = bk.deposit_status || 'pending';
 
   // Deposit status colors
@@ -228,7 +229,7 @@ function render(d) {
 
   // Auto-check for gift cards AFTER DOM is ready
   if (depStatus === 'pending') {
-    checkClientGiftCards(bk.deposit_amount_cents);
+    checkClientGiftCards(netDepositCents);
   }
 }
 

@@ -32,8 +32,8 @@ function renderPasses(c,passes,st){
 
   // ── KPI CARDS ──
   h+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
-    <div class="stat-card"><div class="label">Total vendus</div><div class="val" style="color:var(--primary)">${fmtEur(parseInt(st.total_sold_cents||0))}</div><div class="sub">${st.total_count||0} passes</div></div>
-    <div class="stat-card"><div class="label">Séances restantes</div><div class="val" style="color:var(--gold)">${st.sessions_remaining||0}</div><div class="sub">non utilisées</div></div>
+    <div class="stat-card"><div class="label">Total vendus</div><div class="val" style="color:var(--primary)">${st.total_sessions_sold||0} séances</div><div class="sub">${st.total_count||0} passes</div></div>
+    <div class="stat-card"><div class="label">Séances restantes</div><div class="val" style="color:var(--gold)">${st.total_sessions_remaining||0}</div><div class="sub">non utilisées</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="passFilter='active';loadPasses()"><div class="label">Passes actifs</div><div class="val" style="color:var(--green)">${st.active_count||0}</div><div class="sub">en circulation</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="passFilter='used';loadPasses()"><div class="label">Passes utilisés</div><div class="val" style="color:var(--text-3)">${st.used_count||0}</div><div class="sub">séances épuisées</div></div>
   </div>`;

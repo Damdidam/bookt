@@ -423,12 +423,13 @@ async function handleStripeWebhook(req, res) {
 
           try {
             const { generateCode } = require('./gift-cards');
-            let code;
-            for (let i = 0; i < 5; i++) {
+            let code, codeIsUnique = false;
+            for (let i = 0; i < 10; i++) {
               code = generateCode();
               const exists = await query('SELECT 1 FROM gift_cards WHERE code = $1', [code]);
-              if (exists.rows.length === 0) break;
+              if (exists.rows.length === 0) { codeIsUnique = true; break; }
             }
+            if (!codeIsUnique) { console.error('[STRIPE WH] Failed to generate unique gift card code after 10 attempts'); break; }
 
             const expiryDays = 365;
             try {
@@ -516,7 +517,7 @@ async function handleStripeWebhook(req, res) {
 
             // Fetch template
             const tplRes = await query(
-              `SELECT * FROM pass_templates WHERE id = $1 AND business_id = $2`,
+              `SELECT pt.*, s.name AS service_name FROM pass_templates pt LEFT JOIN services s ON s.id = pt.service_id WHERE pt.id = $1 AND pt.business_id = $2`,
               [pass_template_id, business_id]
             );
             if (tplRes.rows.length === 0) { console.error('[STRIPE] Pass template not found:', pass_template_id); return; }
@@ -524,15 +525,16 @@ async function handleStripeWebhook(req, res) {
 
             // Generate unique code (PS-XXXX-XXXX)
             const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code;
-            for (let attempt = 0; attempt < 5; attempt++) {
+            let code, codeIsUnique = false;
+            for (let attempt = 0; attempt < 10; attempt++) {
               code = 'PS-';
               for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
               code += '-';
               for (let i = 0; i < 4; i++) code += chars[require('crypto').randomInt(chars.length)];
               const dup = await query(`SELECT id FROM passes WHERE code = $1`, [code]);
-              if (dup.rows.length === 0) break;
+              if (dup.rows.length === 0) { codeIsUnique = true; break; }
             }
+            if (!codeIsUnique) { console.error('[STRIPE WH] Failed to generate unique pass code after 10 attempts'); break; }
 
             // Calculate expiry
             const expiresAt = new Date(Date.now() + (tpl.validity_days || 365) * 86400000);

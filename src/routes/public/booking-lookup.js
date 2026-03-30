@@ -39,6 +39,16 @@ router.get('/booking/:token', async (req, res, next) => {
 
     const bk = result.rows[0];
 
+    // Fetch GC transactions to compute net deposit amount
+    let gcPaidCents = 0;
+    if (bk.deposit_required && bk.deposit_amount_cents > 0) {
+      const gcTxRes = await query(
+        `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions
+         WHERE booking_id = $1 AND type = 'debit'`, [bk.id]
+      );
+      gcPaidCents = parseInt(gcTxRes.rows[0].gc_paid) || 0;
+    }
+
     // Fetch group members if this is a grouped booking
     let groupServices = null;
     let groupEndAt = null;
@@ -73,7 +83,7 @@ router.get('/booking/:token', async (req, res, next) => {
 
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = bk.status === 'pending' || ((['confirmed', 'pending_deposit'].includes(bk.status)) && new Date() < deadline);
+    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && new Date() < deadline);
 
     // Build service info: use group members if available, otherwise single service
     const serviceInfo = groupServices
@@ -92,6 +102,8 @@ router.get('/booking/:token', async (req, res, next) => {
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
+        net_deposit_amount_cents: Math.max(0, (bk.deposit_amount_cents || 0) - gcPaidCents),
+        gc_paid_cents: gcPaidCents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
         service_price_cents: serviceInfo.price_cents, duration_min: serviceInfo.duration_min,
         promotion_label: promoSib.promotion_label || null,
@@ -163,10 +175,20 @@ router.get('/manage/:token', async (req, res, next) => {
     const bk = result.rows[0];
     const settings = bk.business_settings || {};
 
+    // Fetch GC transactions to compute net deposit amount
+    let gcPaidCents = 0;
+    if (bk.deposit_required && bk.deposit_amount_cents > 0) {
+      const gcTxRes = await query(
+        `SELECT COALESCE(SUM(amount_cents), 0) AS gc_paid FROM gift_card_transactions
+         WHERE booking_id = $1 AND type = 'debit'`, [bk.id]
+      );
+      gcPaidCents = parseInt(gcTxRes.rows[0].gc_paid) || 0;
+    }
+
     // Cancellation (same logic as GET /booking/:token)
     const cancelWindowHours = settings.cancel_deadline_hours ?? settings.cancellation_window_hours ?? 24;
     const cancelDeadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = bk.status === 'pending' || ((['confirmed', 'pending_deposit'].includes(bk.status)) && new Date() < cancelDeadline);
+    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && new Date() < cancelDeadline);
 
     // Reschedule eligibility
     const reschEnabled = !!settings.reschedule_enabled;
@@ -251,6 +273,8 @@ router.get('/manage/:token', async (req, res, next) => {
         appointment_mode: bk.appointment_mode, comment: bk.comment_client,
         created_at: bk.created_at,
         deposit_required: bk.deposit_required, deposit_amount_cents: bk.deposit_amount_cents,
+        net_deposit_amount_cents: Math.max(0, (bk.deposit_amount_cents || 0) - gcPaidCents),
+        gc_paid_cents: gcPaidCents,
         deposit_status: bk.deposit_status, deposit_deadline: bk.deposit_deadline, deposit_payment_url: bk.deposit_payment_url,
         service_price_cents: serviceInfo.price_cents, duration_min: serviceInfo.duration_min,
         promotion_label: promoSib2.promotion_label || null,

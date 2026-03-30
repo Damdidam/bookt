@@ -306,11 +306,11 @@ export function applyVisibilityFilters(events) {
       return true;
     }
     // Hide expired pending bookings (start_at already passed, not confirmed)
-    if (p.status === 'pending' && ev.start && ev.start <= now) return false;
+    if (p.status === 'pending' && ev.start && new Date(ev.start) <= now) return false;
     if (p._isGroup) {
       const members = p._members || [];
       // Hide group if all members are pending and start is past
-      if (members.every(m => m.status === 'pending') && ev.start && ev.start <= now) return false;
+      if (members.every(m => m.status === 'pending') && ev.start && new Date(ev.start) <= now) return false;
       const allCancelled = members.every(m => m.status === 'cancelled');
       const allNoShow = members.every(m => m.status === 'no_show');
       const allPending = members.every(m => m.status === 'pending' || m.status === 'pending_deposit');

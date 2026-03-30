@@ -585,6 +585,25 @@ app.listen(PORT, async () => {
     finally { passExpiryRunning = false; }
   }, 60 * 60 * 1000);
 
+  // ===== NOTIFICATION PROCESSOR CRON — send queued pro notifications every 30s =====
+  const notifInterval = parseInt(process.env.NOTIF_CRON_INTERVAL_MS, 10) || 30 * 1000;
+  let notifRunning = false;
+  setInterval(async () => {
+    if (notifRunning) return;
+    notifRunning = true;
+    try {
+      const { processNotifications } = require('./services/notification-processor');
+      const stats = await processNotifications();
+      if (stats.processed > 0) {
+        console.log(`[NOTIF CRON] ${stats.sent} sent, ${stats.failed} failed, ${stats.errors} errors (${stats.processed} processed)`);
+      }
+    } catch (e) {
+      console.error('[NOTIF CRON] Error:', e.message);
+    } finally {
+      notifRunning = false;
+    }
+  }, notifInterval);
+
   // ===== SLOT CALIBRATION CRON — nightly recalibration of slot granularity from booking data =====
   const calibrationInterval = 24 * 60 * 60 * 1000; // 24h
   let calibrationRunning = false;

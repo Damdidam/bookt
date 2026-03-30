@@ -65,6 +65,7 @@ async function process24hReminders(stats) {
       p.display_name AS practitioner_name,
       CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+      COALESCE(sv.price_cents, s.price_cents) AS price_cents,
       b.id AS business_id, b.name AS business_name, b.slug,
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme
@@ -134,12 +135,18 @@ async function process24hReminders(stats) {
       const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
       let serviceHTML;
       if (isMulti) {
-        serviceHTML = groupServices.map(s => `<div style="padding:2px 0;font-weight:600">\u2022 ${escHtml(s.name)} (${s.duration_min} min)</div>`).join('');
+        serviceHTML = groupServices.map(s => {
+          const price = s.price_cents ? ' \u00b7 ' + (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          return `<div style="padding:2px 0;font-weight:600">\u2022 ${escHtml(s.name)} (${s.duration_min} min${price})</div>`;
+        }).join('');
         const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+        const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
         const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
-        serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
+        const totalPriceStr = totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+        serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr}</div>`;
       } else {
-        serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min)</span>`;
+        const singlePrice = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+        serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min${singlePrice})</span>`;
       }
 
       // EMAIL 24h
@@ -244,7 +251,9 @@ async function process2hReminders(stats) {
       p.display_name AS practitioner_name,
       CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+      bk.appointment_mode,
       b.id AS business_id, b.name AS business_name,
+      b.address AS business_address,
       b.plan, b.settings, b.theme
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
@@ -341,9 +350,11 @@ async function process2hReminders(stats) {
           serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)`;
         }
 
+        const addressHTML = bk.appointment_mode === 'cabinet' && bk.business_address
+          ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd ${escHtml(bk.business_address)}</p>` : '';
         const bodyHTML = isMulti
-          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, à <strong>${timeShort}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div><p>À bientôt !</p>`
-          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p>À bientôt !</p>`;
+          ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, à <strong>${timeShort}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}<p>À bientôt !</p>`
+          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, à <strong>${timeShort}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)</p>${addressHTML}<p>À bientôt !</p>`;
 
         const result = await sendEmail({
           to: bk.client_email,

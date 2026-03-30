@@ -221,10 +221,12 @@ function updateInvTotals(){
     const price=parseFloat(row.querySelector('.inv-price')?.value||0);
     subtotal+=qty*price*100;
   });
-  const vat=Math.round(subtotal*vatRate/100);
-  const total=subtotal+vat;
+  // Prices are TTC (Belgian standard) — extract VAT from TTC, aligned with backend
+  const vat=Math.round(subtotal*vatRate/(100+vatRate));
+  const total=subtotal;
+  const ht=subtotal-vat;
   totalsDiv.innerHTML=`
-    <div style="font-size:.82rem;color:var(--text-3)">Sous-total HT : <strong>${fmtEur(subtotal)}</strong></div>
+    <div style="font-size:.82rem;color:var(--text-3)">Sous-total HT : <strong>${fmtEur(ht)}</strong></div>
     <div style="font-size:.82rem;color:var(--text-3)">TVA (${vatRate}%) : <strong>${fmtEur(vat)}</strong></div>
     <div style="font-size:1rem;font-weight:700;color:var(--text);margin-top:4px">Total TTC : ${fmtEur(total)}</div>`;
 }

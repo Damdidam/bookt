@@ -340,7 +340,7 @@ async function sendModificationEmail({ booking, business, groupServices }) {
 
   const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a \u00e9t\u00e9 modifi\u00e9 :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
@@ -350,7 +350,18 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
       <div style="font-size:13px;color:#15613A;margin-bottom:4px"><strong>Nouveau :</strong> ${newDate} \u00e0 ${newTime} \u2013 ${newEndTime}</div>
       ${serviceDetailNew}
-    </div>
+    </div>`;
+
+  // Deposit info for modification email
+  if (booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0) {
+    const depAmtMod = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+    bodyHTML += `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u2705 Votre acompte de ${depAmtMod}\u00a0\u20ac reste valable pour ce nouveau cr\u00e9neau.</div>
+    </div>`;
+  }
+
+  bodyHTML += `
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">
       <a href="${escHtml(confirmUrl)}" style="display:inline-block;padding:14px 36px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;margin-right:12px"> Oui, \u00e7a me va</a>
@@ -464,16 +475,24 @@ async function sendBookingConfirmation({ booking, business, groupServices }) {
       ${detailLines}
     </div>`;
 
-  // Gift card auto-paid deposit banner
+  // Deposit paid banner
   if (booking.deposit_required && booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0
-      && booking.deposit_payment_intent_id && booking.deposit_payment_intent_id.startsWith('gc_')) {
+      && booking.deposit_payment_intent_id) {
     const depAmt = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
-    const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');
-    bodyHTML += `
+    if (booking.deposit_payment_intent_id.startsWith('gc_')) {
+      const gcCode = booking.deposit_payment_intent_id.replace('gc_', '');
+      bodyHTML += `
     <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
       <div style="font-size:14px;color:#5D4037;font-weight:600">\u{1F381} Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 via votre carte cadeau</div>
       <div style="font-size:12px;color:#8D6E63;margin-top:4px">Carte ${gcCode}</div>
     </div>`;
+    } else {
+      bodyHTML += `
+    <div style="background:#F0FDF4;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #22C55E">
+      <div style="font-size:14px;color:#15803D;font-weight:600">\u2705 Acompte de ${depAmt}\u00a0\u20ac r\u00e9gl\u00e9 par carte bancaire</div>
+      <div style="font-size:12px;color:#15803D;margin-top:4px">Le montant restant sera \u00e0 r\u00e9gler sur place.</div>
+    </div>`;
+    }
   }
 
   if (booking.comment) {
@@ -1491,7 +1510,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     if (pracName) detailLines += `<tr><td style="padding:4px 0;color:#7A7470">Praticien</td><td style="padding:4px 0;font-weight:600">${escHtml(pracName)}</td></tr>`;
   }
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour ${escHtml(booking.client_name || '')},</p>
     <p>Votre rendez-vous a bien \u00e9t\u00e9 d\u00e9plac\u00e9.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
@@ -1505,6 +1524,15 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
         ${detailLines}
       </table>
     </div>`;
+
+  // Deposit info for reschedule email
+  if (booking.deposit_status === 'paid' && booking.deposit_amount_cents > 0) {
+    const depAmtRS = (booking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+    bodyHTML += `
+    <div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #F9A825">
+      <div style="font-size:14px;color:#5D4037;font-weight:600">\u2705 Votre acompte de ${depAmtRS}\u00a0\u20ac reste valable pour ce nouveau cr\u00e9neau.</div>
+    </div>`;
+  }
 
   const manageUrl = booking.public_token ? `${baseUrl}/booking/${booking.public_token}` : null;
   const html = buildEmailHTML({

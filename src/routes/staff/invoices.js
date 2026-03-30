@@ -226,6 +226,16 @@ router.post('/', requireOwner, async (req, res, next) => {
             vat_rate: vat_rate || 21
           });
         }
+
+        // Add deposit deduction line if deposit was paid
+        if (bk.deposit_status === 'paid' && bk.deposit_amount_cents > 0) {
+          invoiceItems.push({
+            description: 'Acompte versé',
+            quantity: 1,
+            unit_price_cents: -bk.deposit_amount_cents,
+            vat_rate: vat_rate || 21
+          });
+        }
       }
     }
 

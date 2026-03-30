@@ -80,12 +80,13 @@ router.post('/', async (req, res, next) => {
     }
 
     // Generate unique code (retry on collision)
-    let code;
-    for (let i = 0; i < 5; i++) {
+    let code, codeIsUnique = false;
+    for (let i = 0; i < 10; i++) {
       code = generateCode();
       const exists = await queryWithRLS(bid, 'SELECT 1 FROM gift_cards WHERE code = $1', [code]);
-      if (exists.rows.length === 0) break;
+      if (exists.rows.length === 0) { codeIsUnique = true; break; }
     }
+    if (!codeIsUnique) return res.status(500).json({ error: 'Impossible de générer un code unique. Veuillez réessayer.' });
 
     const days = expiry_days || 365;
     const expires_at = new Date(Date.now() + days * 86400000);

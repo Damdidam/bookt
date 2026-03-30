@@ -109,7 +109,8 @@ async function generateInvoicePDF(invoice, items, opts = {}) {
     const totX = 390;
     const totW = W + 50 - totX;
     doc.fontSize(9).font('Helvetica').fillColor(MUTED);
-    doc.text('Sous-total HT', totX, y); doc.text(formatMoney(invoice.subtotal_cents), totX, y, { width: totW, align: 'right' }); y += 16;
+    const htCents = (invoice.subtotal_cents || 0) - (invoice.vat_amount_cents || 0);
+    doc.text('Sous-total HTVA', totX, y); doc.text(formatMoney(htCents), totX, y, { width: totW, align: 'right' }); y += 16;
     doc.text(`TVA (${invoice.vat_rate}%)`, totX, y); doc.text(formatMoney(invoice.vat_amount_cents), totX, y, { width: totW, align: 'right' }); y += 18;
 
     // Total box

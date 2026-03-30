@@ -121,17 +121,9 @@ router.get('/:slug/multi-slots', slotsLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'service_ids requis (UUIDs séparés par des virgules)' });
     }
 
-    // Parse and deduplicate service_ids (ANY() ignores duplicates, causing length mismatch)
-    const rawIds = service_ids.split(',').map(s => s.trim()).filter(Boolean);
-    const rawVids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
-    const ids = [], vids = [], seenSlotIds = new Set();
-    for (let i = 0; i < rawIds.length; i++) {
-      if (!seenSlotIds.has(rawIds[i])) {
-        seenSlotIds.add(rawIds[i]);
-        ids.push(rawIds[i]);
-        vids.push(rawVids[i] || null);
-      }
-    }
+    // BUG-m5: Allow duplicate service_ids for multi-slot (same service booked twice)
+    const ids = service_ids.split(',').map(s => s.trim()).filter(Boolean);
+    const vids = variant_ids ? variant_ids.split(',').map(s => s.trim() || null) : [];
     // UUID-validate non-null variant_ids
     if (vids.some(v => v && !UUID_RE.test(v))) {
       return res.status(400).json({ error: 'variant_ids invalide(s)' });

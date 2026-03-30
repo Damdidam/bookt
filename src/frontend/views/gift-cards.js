@@ -32,8 +32,8 @@ function renderGiftCards(c,cards,st){
 
   // ── KPI CARDS ──
   h+=`<div class="stats" style="grid-template-columns:repeat(4,1fr)">
-    <div class="stat-card"><div class="label">Total vendu</div><div class="val" style="color:var(--primary)">${fmtEur(parseInt(st.total_sold_cents||0))}</div><div class="sub">${st.total_count||0} cartes</div></div>
-    <div class="stat-card"><div class="label">Solde restant</div><div class="val" style="color:var(--gold)">${fmtEur(parseInt(st.remaining_balance_cents||0))}</div><div class="sub">non utilisé</div></div>
+    <div class="stat-card"><div class="label">Total vendu</div><div class="val" style="color:var(--primary)">${fmtEur(parseInt(st.total_sold_cents||0))}</div><div class="sub">${st.total||0} cartes</div></div>
+    <div class="stat-card"><div class="label">Solde restant</div><div class="val" style="color:var(--gold)">${fmtEur(parseInt(st.total_balance_cents||0))}</div><div class="sub">non utilisé</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="gcFilter='active';loadGiftCards()"><div class="label">Cartes actives</div><div class="val" style="color:var(--green)">${st.active_count||0}</div><div class="sub">en circulation</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="gcFilter='used';loadGiftCards()"><div class="label">Cartes utilisées</div><div class="val" style="color:var(--text-3)">${st.used_count||0}</div><div class="sub">solde épuisé</div></div>
   </div>`;

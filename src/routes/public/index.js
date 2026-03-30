@@ -97,27 +97,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       if (service_ids.some(id => !UUID_RE.test(id))) {
         return res.status(400).json({ error: 'service_ids invalide(s)' });
       }
-      // Deduplicate service_ids (and matching variant_ids) to prevent ANY(array) mismatch
-      const seenIds = new Set();
-      const deduped = [];
-      const dedupedVars = [];
-      for (let i = 0; i < service_ids.length; i++) {
-        if (!seenIds.has(service_ids[i])) {
-          seenIds.add(service_ids[i]);
-          deduped.push(service_ids[i]);
-          if (Array.isArray(variant_ids)) dedupedVars.push(variant_ids[i] || null);
-        }
-      }
-      service_ids.length = 0;
-      deduped.forEach(id => service_ids.push(id));
-      if (Array.isArray(variant_ids)) { variant_ids.length = 0; dedupedVars.forEach(v => variant_ids.push(v)); }
-      if (service_ids.length === 1) {
-        // Dedup reduced to single service — fall through to single-service path
-        isMultiService = false;
-        effectiveServiceId = service_ids[0];
-      } else {
-        isMultiService = true;
-      }
+      // No dedup on service_ids: a client may book the same service multiple times (e.g. [A, A])
+      isMultiService = true;
     } else if (Array.isArray(service_ids) && service_ids.length === 1) {
       // Treat single-element array as regular single service
       if (!UUID_RE.test(service_ids[0])) {
@@ -203,19 +184,21 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     // MULTI-SERVICE BOOKING FLOW
     // ══════════════════════════════════════════════════════════
     if (isMultiService) {
-      // Fetch all services, preserving order
+      // Fetch all unique services, then expand to match order (supports duplicates — BUG-m5)
+      const uniqueServiceIds = [...new Set(service_ids)];
       const multiSvcResult = await query(
         `SELECT id, name, category, duration_min, buffer_before_min, buffer_after_min, mode_options, price_cents, processing_time, processing_start, flexibility_enabled
-         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true AND bookable_online = true
-         ORDER BY array_position($1, id)`,
-        [service_ids, businessId]
+         FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true AND bookable_online = true`,
+        [uniqueServiceIds, businessId]
       );
-      if (multiSvcResult.rows.length !== service_ids.length) {
-        const foundIds = new Set(multiSvcResult.rows.map(r => r.id));
-        const missing = service_ids.filter(id => !foundIds.has(id));
-        return res.status(404).json({ error: `Prestation(s) introuvable(s): ${missing.join(', ')}` });
+      const svcById = {};
+      multiSvcResult.rows.forEach(r => { svcById[r.id] = r; });
+      const missingIds = service_ids.filter(id => !svcById[id]);
+      if (missingIds.length > 0) {
+        return res.status(404).json({ error: `Prestation(s) introuvable(s): ${[...new Set(missingIds)].join(', ')}` });
       }
-      let multiServices = multiSvcResult.rows;
+      // Rebuild ordered list (with duplicates if any)
+      let multiServices = service_ids.map(id => ({ ...svcById[id] }));
 
       // Resolve variant overrides for duration/price (multi-service)
       const resolvedVariantIds = [];
@@ -683,8 +666,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
             if (depResult.required) {
               const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
-              // Skip deposit only if RDV is less than 2h away (not enough time to pay)
-              if (hoursUntilRdv >= 2) {
+              // Skip deposit only if RDV is less than 3h away (not enough time to pay)
+              if (hoursUntilRdv >= 3) {
                 let gcAutoPaid = false;
                 // If pass was used, mark only the matched booking as pass-paid
                 // Other bookings still need normal deposit flow
@@ -964,17 +947,38 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
       // Find the booking that carries the promo (could be on any group_order for specific_service promos)
       const promoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
+
+      // BUG-C4: Compute total_after_discount from individual service prices + per-service LM discounts
+      let totalOriginalCents = 0;
+      let totalAfterLmCents = 0;
+      for (let i = 0; i < multiServices.length; i++) {
+        const svcPrice = multiServices[i].price_cents || 0;
+        totalOriginalCents += svcPrice;
+        const bk = multiBookings[i];
+        if (bk && bk.discount_pct) {
+          totalAfterLmCents += Math.round(svcPrice * (100 - bk.discount_pct) / 100);
+        } else {
+          totalAfterLmCents += svcPrice;
+        }
+      }
+      // Apply promo discount on top of LM-discounted total
+      const promoDiscCents = promoBooking.promotion_discount_cents || 0;
+      const totalAfterAllDiscounts = totalAfterLmCents - promoDiscCents;
+
       return res.status(201).json({
         booking: {
           id: multiBookings[0].id, token: multiBookings[0].public_token,
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
           cancel_url: `${BASE_URL}/booking/${multiBookings[0].public_token}`,
-          discount_pct: multiBookings[0].discount_pct
+          discount_pct: multiBookings[0].discount_pct,
+          total_original_cents: totalOriginalCents,
+          total_after_discount_cents: totalAfterAllDiscounts
         },
         bookings: multiBookings.map(b => ({
           id: b.id, token: b.public_token,
           start_at: b.start_at, end_at: b.end_at, status: b.status,
           group_order: b.group_order,
+          discount_pct: b.discount_pct || null,
           promotion_id: b.promotion_id, promotion_label: b.promotion_label,
           promotion_discount_pct: b.promotion_discount_pct, promotion_discount_cents: b.promotion_discount_cents
         })),

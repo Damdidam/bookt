@@ -106,8 +106,10 @@ async function fcOpenDetail(bookingId) {
     if (b.status === 'pending') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'confirmed\')">' + IC.check + ' Confirmer</button>');
     if (b.status === 'confirmed') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'completed\')">' + IC.check + ' Termin\u00e9</button>');
     if (b.status === 'modified_pending') acts.push('<button class="m-st-btn green" onclick="fcSetStatus(\'confirmed\')">' + IC.check + ' Forcer confirmation</button>');
-    if (!['cancelled', 'completed'].includes(b.status)) {
+    if (!['cancelled', 'completed', 'modified_pending', 'pending_deposit'].includes(b.status)) {
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'no_show\')">' + IC.x + ' No-show</button>');
+    }
+    if (!['cancelled', 'completed'].includes(b.status)) {
       acts.push('<button class="m-st-btn red" onclick="fcSetStatus(\'cancelled\')">Annuler</button>');
     }
     // "Confirmer sans acompte" is in the deposit banner, no need for a status strip button

@@ -96,15 +96,15 @@ function shouldRequireDeposit(bizSettings, totalPriceCents, totalDurationMin, no
 function computeDepositDeadline(startAt, bizSettings) {
   const timeoutMin = parseInt(bizSettings?.booking_confirmation_timeout_min) || 30;
   const confirmDeadline = new Date(Date.now() + timeoutMin * 60000);
-  const minBefore = new Date(startAt.getTime() - 2 * 3600000); // 2h before RDV
-  // Use confirmation timeout, but don't exceed start_at - 2h
+  const minBefore = new Date(startAt.getTime() - 3 * 3600000); // 3h before RDV
+  // Use confirmation timeout, but don't exceed start_at - 3h
   let deadline = confirmDeadline;
   if (minBefore.getTime() > Date.now() && minBefore < deadline) {
     deadline = minBefore;
   }
-  // Safety: deadline must be in the future (at least 5 min from now)
-  if (deadline.getTime() < Date.now() + 5 * 60000) {
-    deadline = new Date(Date.now() + 5 * 60000);
+  // Safety: deadline must be in the future (at least 20 min from now)
+  if (deadline.getTime() < Date.now() + 20 * 60000) {
+    deadline = new Date(Date.now() + 20 * 60000);
   }
   return deadline;
 }
@@ -154,7 +154,7 @@ const BASE_URL = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://ge
  * @param {boolean} isNewClient - true if client record was just created
  * @param {string|null} clientId - existing client UUID (null if new client), used for first_visit check
  */
-async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, isNewClient, clientId, servicePrices) {
+async function validateAndCalcPromo(txClient, businessId, promotionId, serviceIds, totalPriceCents, isNewClient, clientId, servicePrices, promoEligibleMap) {
   if (!promotionId) return { valid: false };
 
   // Fetch promo
@@ -164,6 +164,26 @@ async function validateAndCalcPromo(txClient, businessId, promotionId, serviceId
   );
   if (promoRes.rows.length === 0) return { valid: false };
   const promo = promoRes.rows[0];
+
+  // BUG-M1: Check promo_eligible for regular promos (not just last-minute)
+  if (!promoEligibleMap) {
+    promoEligibleMap = {};
+    if (serviceIds.length > 0) {
+      const peRes = await txClient.query(
+        `SELECT id, promo_eligible FROM services WHERE id = ANY($1) AND business_id = $2`,
+        [serviceIds, businessId]
+      );
+      peRes.rows.forEach(r => { promoEligibleMap[r.id] = r.promo_eligible !== false; });
+    }
+  }
+  // For specific_service promos, check the targeted service is promo_eligible
+  if (promo.condition_type === 'specific_service' && promo.condition_service_id) {
+    if (promoEligibleMap[promo.condition_service_id] === false) return { valid: false };
+  } else if (promo.reward_type !== 'info_only') {
+    // For other promo types, at least one service in the cart must be promo_eligible
+    const anyEligible = serviceIds.some(id => promoEligibleMap[id] !== false);
+    if (!anyEligible) return { valid: false };
+  }
 
   // Validate condition
   switch (promo.condition_type) {

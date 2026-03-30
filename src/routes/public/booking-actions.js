@@ -24,7 +24,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
     const result = await query(
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.deposit_required, b.deposit_status, b.group_id,
+              b.client_id, b.deposit_required, b.deposit_status, b.group_id,
               biz.settings AS business_settings
        FROM bookings b
        JOIN businesses biz ON biz.id = b.business_id
