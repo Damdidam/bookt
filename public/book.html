@@ -2629,14 +2629,18 @@ async function submitBooking(){
     // Prestations — always show all selected services
     if(multiServiceMode&&selectedServices.length>1){
       confirmHtml+='<div class="row" style="font-weight:600;padding-bottom:2px"><span class="l">Prestations</span><span class="v"></span></div>';
+      var confirmTotalMin=0,confirmTotalCents=0;
       selectedServices.forEach(function(svc){
+        if(svc.is_promo)return;
         var cv=selectedVariants[svc.id];
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
         var cp=cpc?(cpc/100).toFixed(0)+' \u20ac':(svc.price_label||'');
+        confirmTotalMin+=cd;confirmTotalCents+=(cpc||0);
         confirmHtml+='<div class="row"><span class="l" style="padding-left:8px">\u2022 '+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
+      confirmHtml+='<div class="row" style="border-top:1px solid var(--border-light);margin-top:4px;padding-top:4px"><span class="l" style="font-weight:700">Total</span><span class="v" style="font-weight:700">'+confirmTotalMin+' min \u00b7 '+(confirmTotalCents>0?(confirmTotalCents/100).toFixed(0)+' \u20ac':'')+'</span></div>';
     }else if(selectedService){
       var cv2=selectedVariants[selectedService.id];
       var confirmName=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
@@ -2675,31 +2679,31 @@ async function submitBooking(){
     }
     confirmHtml+='<div class="row"><span class="l">Heure</span><span class="v">'+confirmStartTime+' \u2013 '+confirmEndTime+'</span></div>';
 
+    // Prix total + réductions (calculé depuis le panier réel)
+    var confirmCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
+    var confirmCartTotal=confirmCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+
     // Réduction dernière minute
     if(data.booking&&data.booking.discount_pct){
+      var lmDiscPrice=Math.round(confirmCartTotal*(100-data.booking.discount_pct)/100);
+      confirmHtml+='<div class="row"><span class="l">Prix</span><span class="v"><s style="color:#9ca3af">'+(confirmCartTotal/100).toFixed(0)+' \u20ac</s> <strong style="color:#059669">'+(lmDiscPrice/100).toFixed(0)+' \u20ac</strong></span></div>';
       confirmHtml+='<div class="row"><span class="l" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="v" style="color:#f59e0b;font-weight:600">-'+data.booking.discount_pct+'%</span></div>';
     }
 
-    // Promo appliquée
-    if(appliedPromos.length>0){
+    // Promo appliquée — use server response (authoritative) with client fallback
+    var serverPromo=data.promotion||null;
+    if(serverPromo&&serverPromo.discount_cents>0){
+      confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(serverPromo.label||'Promotion')+'</span><span class="v" style="color:#059669;font-weight:600">'+(serverPromo.discount_pct?'-'+serverPromo.discount_pct+'% ':'')+' -'+(serverPromo.discount_cents/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
+      var confirmNewTotal=confirmCartTotal-serverPromo.discount_cents;
+      confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
+    }else if(appliedPromos.length>0){
+      // Fallback: use client-side state if server didn't return promo
       var confirmAp=appliedPromos[0];
-      var confirmCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
       var confirmDiscAmt=calcPromoDiscAmount(confirmAp.id,confirmCartSvcs);
       if(confirmAp.type!=='info_only'&&confirmDiscAmt>0){
-        var confirmCartTotal=confirmCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-        var confirmPromoLabel=confirmAp.title||'Promotion';
-        if(confirmAp.type==='discount_pct'){
-          var confirmNewTotal=confirmCartTotal-confirmDiscAmt;
-          confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmPromoLabel)+'</span><span class="v" style="color:#059669;font-weight:600">-'+confirmAp.value+'% (-'+(confirmDiscAmt/100).toFixed(2).replace(".",",")+' \u20ac)</span></div>';
-          confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-        }else if(confirmAp.type==='discount_fixed'){
-          var confirmFixedDisc=Math.min(confirmAp.value,confirmCartTotal);
-          var confirmNewTotal2=confirmCartTotal-confirmFixedDisc;
-          confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmPromoLabel)+'</span><span class="v" style="color:#059669;font-weight:600">-'+(confirmFixedDisc/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-          confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal2/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-        }else if(confirmAp.type==='free_service'){
-          confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmPromoLabel)+'</span><span class="v" style="color:#059669;font-weight:600">Offert</span></div>';
-        }
+        confirmHtml+='<div class="row"><span class="l" style="color:#059669;font-weight:600">'+escH(confirmAp.title||'Promotion')+'</span><span class="v" style="color:#059669;font-weight:600">'+(confirmAp.type==='discount_pct'?'-'+confirmAp.value+'% ':'')+'-'+(confirmDiscAmt/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
+        var confirmNewTotal2=confirmCartTotal-confirmDiscAmt;
+        confirmHtml+='<div class="row"><span class="l" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="v" style="color:#059669;font-weight:700">'+(confirmNewTotal2/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
       }
     }
 

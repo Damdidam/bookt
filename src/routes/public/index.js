@@ -954,17 +954,27 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
       })();
 
+      // Find the booking that carries the promo (could be on any group_order for specific_service promos)
+      const promoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
       return res.status(201).json({
         booking: {
           id: multiBookings[0].id, token: multiBookings[0].public_token,
           start_at: multiBookings[0].start_at, end_at: multiBookings[0].end_at, status: multiBookings[0].status,
-          cancel_url: `${BASE_URL}/booking/${multiBookings[0].public_token}`
+          cancel_url: `${BASE_URL}/booking/${multiBookings[0].public_token}`,
+          discount_pct: multiBookings[0].discount_pct
         },
         bookings: multiBookings.map(b => ({
           id: b.id, token: b.public_token,
           start_at: b.start_at, end_at: b.end_at, status: b.status,
-          group_order: b.group_order
+          group_order: b.group_order,
+          promotion_id: b.promotion_id, promotion_label: b.promotion_label,
+          promotion_discount_pct: b.promotion_discount_pct, promotion_discount_cents: b.promotion_discount_cents
         })),
+        promotion: promoBooking.promotion_id ? {
+          label: promoBooking.promotion_label,
+          discount_pct: promoBooking.promotion_discount_pct,
+          discount_cents: promoBooking.promotion_discount_cents
+        } : null,
         group_id: groupId,
         needs_confirmation: multiNeedsConfirm && multiBookings[0].status !== 'pending_deposit'
       });
@@ -1585,8 +1595,16 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         id: createdBooking.id, token: createdBooking.public_token,
         start_at: createdBooking.start_at, end_at: createdBooking.end_at, status: createdBooking.status,
         discount_pct: createdBooking.discount_pct || null,
-        cancel_url: `${BASE_URL}/booking/${createdBooking.public_token}`
+        cancel_url: `${BASE_URL}/booking/${createdBooking.public_token}`,
+        promotion_label: createdBooking.promotion_label || null,
+        promotion_discount_pct: createdBooking.promotion_discount_pct || null,
+        promotion_discount_cents: createdBooking.promotion_discount_cents || 0
       },
+      promotion: createdBooking.promotion_id ? {
+        label: createdBooking.promotion_label,
+        discount_pct: createdBooking.promotion_discount_pct,
+        discount_cents: createdBooking.promotion_discount_cents
+      } : null,
       needs_confirmation: singleNeedsConfirm && createdBooking.status !== 'pending_deposit'
     });
   } catch (err) {
