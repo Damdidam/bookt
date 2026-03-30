@@ -361,15 +361,6 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     </div>`;
   }
 
-  // Address info
-  if (business.address) {
-    const mapsUrlMod = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
-    bodyHTML += `
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee">
-      <div style="font-size:13px;color:#6B6560;padding:4px 0">${escHtml(business.address)} — <a href="${mapsUrlMod}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:500">Google Maps \u2192</a></div>
-    </div>`;
-  }
-
   bodyHTML += `
     <p style="margin-top:20px;font-size:15px">Ce nouvel horaire vous convient-il ?</p>
     <div style="text-align:center;margin:28px 0">
@@ -380,6 +371,15 @@ async function sendModificationEmail({ booking, business, groupServices }) {
     <div style="text-align:center;margin:20px 0 0;padding-top:16px;border-top:1px solid #E0DDD8">
       <a href="${escHtml(manageUrl || '')}" style="font-size:13px;color:#C62828;text-decoration:none;font-weight:600">Annuler le rendez-vous</a>
     </div>`;
+
+  // Footer: address, contact, payment methods, calendar links (for the NEW slot)
+  const serviceNameMod = isMulti ? safeServiceName : fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label);
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName: serviceNameMod,
+    practitionerName: booking.practitioner_name || '',
+    startAt: booking.new_start_at, endAt: realNewEnd.toISOString(),
+    publicToken: booking.public_token || null
+  });
 
   const html = buildEmailHTML({
     title: isMulti ? 'Modification de vos prestations' : 'Modification de votre rendez-vous',
@@ -633,7 +633,7 @@ async function sendBookingConfirmationRequest({ booking, business, timeoutMin, g
     ? Math.floor(timeoutMin / 60) + 'h' + (timeoutMin % 60 > 0 ? String(timeoutMin % 60).padStart(2, '0') : '')
     : timeoutMin + ' minutes';
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a bien \u00e9t\u00e9 enregistr\u00e9. Merci de le <strong>confirmer</strong> en cliquant ci-dessous :</p>
     <div style="background:#FEF3E2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #E6A817">
@@ -853,6 +853,16 @@ async function sendDepositRequestEmail({ booking, business, depositUrl, payUrl, 
       </div>
     </div>
     <p style="font-size:13px;color:#92700C;margin-top:12px">\u26a0\ufe0f Pass\u00e9 ce d\u00e9lai, votre rendez-vous sera automatiquement annul\u00e9.</p>`;
+
+  // Footer: address, contact, payment methods, calendar links
+  const serviceNameDR = isMulti ? safeServiceName : fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label);
+  const calEndAtDR = realEnd ? realEnd.toISOString() : (booking.end_at || booking.start_at);
+  bodyHTML += buildBookingFooter({
+    business, booking, serviceName: serviceNameDR,
+    practitionerName: booking.practitioner_name || '',
+    startAt: booking.start_at, endAt: calEndAtDR,
+    publicToken: booking.public_token || null
+  });
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const directPayUrl = payUrl || (booking.public_token ? `${baseUrl}/api/public/deposit/${booking.public_token}/pay` : depositUrl);
@@ -1405,7 +1415,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
     </div>`;
   }
 
-  const bodyHTML = `
+  let bodyHTML = `
     <p>Bonjour <strong>${safeClientName}</strong>,</p>
     <p>Votre rendez-vous a \u00e9t\u00e9 annul\u00e9.</p>
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">

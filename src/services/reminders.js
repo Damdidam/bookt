@@ -68,7 +68,8 @@ async function process24hReminders(stats) {
       COALESCE(sv.price_cents, s.price_cents) AS price_cents,
       b.id AS business_id, b.name AS business_name, b.slug,
       b.phone AS business_phone, b.address AS business_address,
-      b.plan, b.settings, b.theme
+      b.plan, b.settings, b.theme,
+      bk.promotion_label, bk.promotion_discount_cents
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
     JOIN practitioners p ON p.id = bk.practitioner_id
@@ -134,6 +135,9 @@ async function process24hReminders(stats) {
 
       const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
       let serviceHTML;
+      const promoDiscount = parseInt(bk.promotion_discount_cents) || 0;
+      const promoLabel = bk.promotion_label || '';
+
       if (isMulti) {
         serviceHTML = groupServices.map(s => {
           const price = s.price_cents ? ' \u00b7 ' + (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
@@ -142,11 +146,23 @@ async function process24hReminders(stats) {
         const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
         const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
         const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
-        const totalPriceStr = totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-        serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr}</div>`;
+        if (totalPrice > 0 && promoDiscount > 0 && promoLabel) {
+          const finalPrice = totalPrice - promoDiscount;
+          serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        } else {
+          const totalPriceStr = totalPrice > 0 ? ' \u00b7 ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr}</div>`;
+        }
       } else {
-        const singlePrice = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-        serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min${singlePrice})</span>`;
+        if (bk.price_cents && promoDiscount > 0 && promoLabel) {
+          const finalSingle = bk.price_cents - promoDiscount;
+          serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle / 100).toFixed(2).replace('.', ',')} \u20ac)</span>`;
+          serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+        } else {
+          const singlePrice = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min${singlePrice})</span>`;
+        }
       }
 
       // EMAIL 24h
@@ -165,7 +181,7 @@ async function process24hReminders(stats) {
               <tr><td style="padding:8px 0;color:#7A7470;width:100px"> Date</td><td style="padding:8px 0;font-weight:600">${startLocal}</td></tr>
               <tr><td style="padding:8px 0;color:#7A7470">${isMulti ? ' Prestations' : ' Prestation'}</td><td style="padding:8px 0">${serviceHTML}</td></tr>
               <tr><td style="padding:8px 0;color:#7A7470"> Praticien</td><td style="padding:8px 0;font-weight:600">${escHtml(bk.practitioner_name)}</td></tr>
-              ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0">${escHtml(bk.business_address)}</td></tr>` : ''}
+              ${bk.appointment_mode === 'cabinet' && bk.business_address ? `<tr><td style="padding:8px 0;color:#7A7470"> Adresse</td><td style="padding:8px 0"><a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:inherit;text-decoration:underline">${escHtml(bk.business_address)}</a></td></tr>` : ''}
             </table>
             <p style="font-size:13px;color:#9C958E;margin-top:16px">Besoin de modifier ou annuler ? Utilisez le bouton ci-dessous.</p>
           `,
@@ -253,6 +269,7 @@ async function process2hReminders(stats) {
       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
       COALESCE(sv.price_cents, s.price_cents) AS price_cents,
       bk.appointment_mode,
+      bk.promotion_label, bk.promotion_discount_cents,
       b.id AS business_id, b.name AS business_name,
       b.address AS business_address,
       b.plan, b.settings, b.theme
@@ -342,26 +359,49 @@ async function process2hReminders(stats) {
         const manageUrl2h = `${baseUrl2h}/booking/${bk.public_token}`;
         const primaryColor = bk.theme?.primary_color || '#0D7377';
 
+        const promoDiscount2h = parseInt(bk.promotion_discount_cents) || 0;
+        const promoLabel2h = bk.promotion_label || '';
+
         let serviceHTML;
         if (isMulti) {
           serviceHTML = groupServices.map(s => {
-            const pName = s.practitioner_name ? ` — ${escHtml(s.practitioner_name)}` : '';
-            return `<div style="padding:2px 0;font-weight:600">• ${escHtml(s.name)} (${s.duration_min} min)${pName}</div>`;
+            const pName = s.practitioner_name ? ` \u2014 ${escHtml(s.practitioner_name)}` : '';
+            return `<div style="padding:2px 0;font-weight:600">\u2022 ${escHtml(s.name)} (${s.duration_min} min)${pName}</div>`;
           }).join('');
           const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+          const totalPrice2h = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
           const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
-          serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
+          if (totalPrice2h > 0 && promoDiscount2h > 0 && promoLabel2h) {
+            const finalPrice2h = totalPrice2h - promoDiscount2h;
+            serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} \u00b7 <s style="opacity:.6">${(totalPrice2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalPrice2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+            serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          } else {
+            serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
+          }
         } else {
-          const singlePrice2h = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
-          serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2h})`;
+          if (bk.price_cents && promoDiscount2h > 0 && promoLabel2h) {
+            const finalSingle2h = bk.price_cents - promoDiscount2h;
+            serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle2h / 100).toFixed(2).replace('.', ',')} \u20ac)`;
+            serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
+          } else {
+            const singlePrice2h = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+            serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2h})`;
+          }
         }
 
         const addressHTML = bk.appointment_mode === 'cabinet' && bk.business_address
-          ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd ${escHtml(bk.business_address)}</p>` : '';
-        const singlePrice2hBody = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:#7A7470;text-decoration:underline">${escHtml(bk.business_address)}</a></p>` : '';
+        let singlePriceBody2h;
+        if (bk.price_cents && promoDiscount2h > 0 && promoLabel2h) {
+          const fs2h = bk.price_cents - promoDiscount2h;
+          singlePriceBody2h = ` \u00b7 <s style="opacity:.6">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(fs2h / 100).toFixed(2).replace('.', ',')} \u20ac`;
+        } else {
+          singlePriceBody2h = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+        }
+        const promoLine2h = (!isMulti && promoDiscount2h > 0 && promoLabel2h) ? `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : '';
         const bodyHTML = isMulti
           ? `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Vos rendez-vous approchent, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}</strong> :</p><div style="margin:12px 0">${serviceHTML}</div>${addressHTML}<p>\u00c0 bient\u00f4t !</p>`
-          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2hBody})</p>${addressHTML}<p>\u00c0 bient\u00f4t !</p>`;
+          : `<p>Bonjour ${escHtml(bk.client_name)},</p><p>Votre rendez-vous avec <strong>${escHtml(bk.practitioner_name)}</strong> est dans 2 heures, le <strong>${dateStr2h}</strong> \u00e0 <strong>${timeShort}</strong>.</p><p style="font-size:14px;margin:8px 0"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePriceBody2h})</p>${promoLine2h}${addressHTML}<p>\u00c0 bient\u00f4t !</p>`;
 
         const result = await sendEmail({
           to: bk.client_email,

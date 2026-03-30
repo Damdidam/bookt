@@ -512,7 +512,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
        AND p.business_id = $3 AND p.is_active = true AND p.booking_enabled = true
        GROUP BY ps.practitioner_id, p.max_concurrent
        HAVING COUNT(DISTINCT ps.service_id) = $4`,
-      [serviceIds, practitionerId, businessId, serviceIds.length]
+      [serviceIds, practitionerId, businessId, uniqueServiceIds.length]
     );
     if (psResult.rows.length === 0) {
       throw Object.assign(new Error('Ce praticien ne propose pas toutes les prestations sélectionnées'), { type: 'validation' });
@@ -529,7 +529,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
        GROUP BY ps.practitioner_id, p.max_concurrent, p.sort_order
        HAVING COUNT(DISTINCT ps.service_id) = $3
        ORDER BY p.sort_order`,
-      [serviceIds, businessId, serviceIds.length]
+      [serviceIds, businessId, uniqueServiceIds.length]
     );
     practitionerIds = psResult.rows.map(r => r.practitioner_id);
     for (const r of psResult.rows) capacityMap[r.practitioner_id] = r.max_concurrent;
@@ -821,7 +821,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
   if (!Array.isArray(serviceIds)) {
     throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
   }
-  serviceIds = [...new Set(serviceIds)];
+  // Allow duplicate serviceIds (e.g. same service booked twice)
   if (serviceIds.length < 2) {
     throw Object.assign(new Error('Au moins 2 prestations requises'), { type: 'validation' });
   }
@@ -834,6 +834,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
   if (dateFrom > dateTo) throw Object.assign(new Error('dateFrom doit être <= dateTo'), { type: 'validation' });
   const daysDiff = (new Date(dateTo) - new Date(dateFrom)) / 86400000;
   if (daysDiff > 90) throw Object.assign(new Error('Plage maximale : 90 jours'), { type: 'validation' });
+  const uniqueServiceIds = [...new Set(serviceIds)];
 
   // 1. Fetch business settings
   const bizResult = await queryWithRLS(businessId,
@@ -858,20 +859,21 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
   }
 
-  // 2. Fetch all services preserving order
+  // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
   const svcResult = await queryWithRLS(businessId,
     `SELECT id, duration_min, buffer_before_min, buffer_after_min, mode_options, available_schedule, min_booking_notice_hours
-     FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true
-     ORDER BY array_position($1, id)`,
-    [serviceIds, businessId]
+     FROM services WHERE id = ANY($1) AND business_id = $2 AND is_active = true`,
+    [uniqueServiceIds, businessId]
   );
-  if (svcResult.rows.length !== serviceIds.length) {
+  if (svcResult.rows.length !== uniqueServiceIds.length) {
     const foundIds = new Set(svcResult.rows.map(r => r.id));
-    const missing = serviceIds.filter(id => !foundIds.has(id));
+    const missing = uniqueServiceIds.filter(id => !foundIds.has(id));
     throw Object.assign(new Error(`Prestation(s) introuvable(s): ${missing.join(', ')}`), { type: 'not_found' });
   }
 
-  const services = svcResult.rows;
+  // Build a lookup and expand to match serviceIds order (duplicates get independent copies)
+  const svcLookup = Object.fromEntries(svcResult.rows.map(r => [r.id, r]));
+  const services = serviceIds.map(id => ({ ...svcLookup[id] }));
 
   // Override durations from variants
   if (Array.isArray(variantIds) && variantIds.length > 0) {

@@ -429,7 +429,18 @@ async function handleStripeWebhook(req, res) {
               const exists = await query('SELECT 1 FROM gift_cards WHERE code = $1', [code]);
               if (exists.rows.length === 0) { codeIsUnique = true; break; }
             }
-            if (!codeIsUnique) { console.error('[STRIPE WH] Failed to generate unique gift card code after 10 attempts'); break; }
+            if (!codeIsUnique) {
+              console.error('[STRIPE WH] Failed to generate unique gift card code after 10 attempts — initiating refund');
+              if (piId && piId.startsWith('pi_')) {
+                try {
+                  await stripe.refunds.create({ payment_intent: piId });
+                  console.log(`[STRIPE WH] Auto-refunded PI ${piId} for failed gift card code generation`);
+                } catch (refundErr) {
+                  console.error(`[STRIPE WH] Auto-refund failed for PI ${piId}:`, refundErr.message);
+                }
+              }
+              break;
+            }
 
             const expiryDays = 365;
             try {
@@ -534,7 +545,19 @@ async function handleStripeWebhook(req, res) {
               const dup = await query(`SELECT id FROM passes WHERE code = $1`, [code]);
               if (dup.rows.length === 0) { codeIsUnique = true; break; }
             }
-            if (!codeIsUnique) { console.error('[STRIPE WH] Failed to generate unique pass code after 10 attempts'); break; }
+            if (!codeIsUnique) {
+              console.error('[STRIPE WH] Failed to generate unique pass code after 10 attempts — initiating refund');
+              const passPiId = session.payment_intent;
+              if (passPiId && passPiId.startsWith('pi_')) {
+                try {
+                  await stripe.refunds.create({ payment_intent: passPiId });
+                  console.log(`[STRIPE WH] Auto-refunded PI ${passPiId} for failed pass code generation`);
+                } catch (refundErr) {
+                  console.error(`[STRIPE WH] Auto-refund failed for PI ${passPiId}:`, refundErr.message);
+                }
+              }
+              break;
+            }
 
             // Calculate expiry
             const expiresAt = new Date(Date.now() + (tpl.validity_days || 365) * 86400000);

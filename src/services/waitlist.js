@@ -150,7 +150,7 @@ async function processWaitlistForCancellation(bookingId, businessId) {
 
     // Fetch business info for branding
     const bizRow = await queryWithRLS(businessId,
-      `SELECT name, theme FROM businesses WHERE id = $1`, [businessId]
+      `SELECT name, theme, address FROM businesses WHERE id = $1`, [businessId]
     );
     const biz = bizRow.rows[0] || { name: 'Genda' };
 
@@ -160,10 +160,11 @@ async function processWaitlistForCancellation(bookingId, businessId) {
       bodyHTML: `<p>Bonjour ${escHtml(entry.client_name)},</p>
         <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
         <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
-          <p style="margin:0 0 6px"><strong>${escHtml(bk.service_name)}</strong></p>
+          <p style="margin:0 0 6px"><strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min)</p>
           ${bk.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
           <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(bk.practitioner_name)}</p>
           <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(slotDateFmt)} à ${escHtml(slotTimeFmt)}</p>
+          ${biz.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(biz.address)}" style="color:#3D3832">${escHtml(biz.address)}</a></p>` : ''}
         </div>
         <p style="font-weight:600;color:#D97706">⏱ Vous avez 2 heures pour réserver ce créneau avant qu'il ne soit proposé à quelqu'un d'autre.</p>`,
       ctaText: 'Réserver maintenant',
@@ -307,7 +308,7 @@ async function processExpiredOffers() {
           const cascadeTimeFmt = new Date(entry.offer_booking_start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
           const cascadeBiz = await client.query(
-            `SELECT name, theme FROM businesses WHERE id = $1`, [entry.business_id]
+            `SELECT name, theme, address FROM businesses WHERE id = $1`, [entry.business_id]
           );
           const cbiz = cascadeBiz.rows[0] || { name: 'Genda' };
 
@@ -317,10 +318,11 @@ async function processExpiredOffers() {
             bodyHTML: `<p>Bonjour ${escHtml(next.rows[0].client_name)},</p>
               <p>Bonne nouvelle ! Un créneau s'est libéré pour votre demande :</p>
               <div style="background:#F5F4F1;border-radius:8px;padding:16px;margin:16px 0">
-                <p style="margin:0 0 6px"><strong>${escHtml(entry.service_name)}</strong></p>
+                <p style="margin:0 0 6px"><strong>${escHtml(entry.service_name)}</strong> (${entry.duration_min} min)</p>
                 ${entry.price_cents ? `<p style="margin:0 0 4px;font-size:14px;color:#3D3832">${(entry.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : ''}
                 <p style="margin:0 0 4px;font-size:14px;color:#3D3832">Avec ${escHtml(entry.practitioner_name)}</p>
                 <p style="margin:0;font-size:14px;color:#3D3832">${escHtml(cascadeDateFmt)} à ${escHtml(cascadeTimeFmt)}</p>
+                ${cbiz.address ? `<p style="margin:4px 0 0;font-size:14px;color:#3D3832">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(cbiz.address)}" style="color:#3D3832">${escHtml(cbiz.address)}</a></p>` : ''}
               </div>
               <p style="font-weight:600;color:#D97706">⏱ Vous avez 2 heures pour réserver ce créneau avant qu'il ne soit proposé à quelqu'un d'autre.</p>`,
             ctaText: 'Réserver maintenant',

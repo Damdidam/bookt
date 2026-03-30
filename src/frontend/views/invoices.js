@@ -226,7 +226,7 @@ function updateInvTotals(){
   const total=subtotal;
   const ht=subtotal-vat;
   totalsDiv.innerHTML=`
-    <div style="font-size:.82rem;color:var(--text-3)">Sous-total HT : <strong>${fmtEur(ht)}</strong></div>
+    <div style="font-size:.82rem;color:var(--text-3)">Sous-total HTVA : <strong>${fmtEur(ht)}</strong></div>
     <div style="font-size:.82rem;color:var(--text-3)">TVA (${vatRate}%) : <strong>${fmtEur(vat)}</strong></div>
     <div style="font-size:1rem;font-weight:700;color:var(--text);margin-top:4px">Total TTC : ${fmtEur(total)}</div>`;
 }

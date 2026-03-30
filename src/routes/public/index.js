@@ -1365,8 +1365,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
           if (depResult.required) {
             const hoursUntilRdv = (startDate.getTime() - Date.now()) / 3600000;
-            // Skip deposit only if RDV is less than 2h away (not enough time to pay)
-            if (hoursUntilRdv >= 2) {
+            // Skip deposit only if RDV is less than 3h away (not enough time to pay)
+            if (hoursUntilRdv >= 3) {
               // If pass was used, it covers the deposit
               let gcAutoPaid = false;
               if (passUsed) {

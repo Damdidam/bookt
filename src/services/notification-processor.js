@@ -276,6 +276,17 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
     </div>`;
   }
 
+  // Deposit info
+  let depositHTML = '';
+  if (bk.deposit_required && bk.deposit_amount_cents > 0) {
+    const depAmt = fmtPrice(bk.deposit_amount_cents);
+    const isPaid = !!bk.deposit_paid_at;
+    depositHTML = `
+    <div style="background:${isPaid ? '#F0FDF4' : '#FEF3E2'};border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid ${isPaid ? '#22C55E' : '#F59E0B'}">
+      <div style="font-size:13px;color:${isPaid ? '#15803D' : '#92700C'};font-weight:600">Acompte : ${depAmt} ${isPaid ? '(pay\u00e9)' : '(en attente)'}</div>
+    </div>`;
+  }
+
   const bodyHTML = `
     <p>Un client a d\u00e9plac\u00e9 son rendez-vous.</p>
     ${oldDateHTML}
@@ -289,7 +300,8 @@ async function sendRescheduleProEmail(bk, groupServices, metadata) {
       <div style="font-size:13px;color:#6B6560"><strong>Client :</strong> ${clientName}</div>
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
-    </div>`;
+    </div>
+    ${depositHTML}`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
@@ -324,6 +336,17 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
 
+  // Deposit info
+  let depositHTML = '';
+  if (bk.deposit_required && bk.deposit_amount_cents > 0) {
+    const depAmt = fmtPrice(bk.deposit_amount_cents);
+    const isPaid = !!bk.deposit_paid_at;
+    depositHTML = `
+    <div style="background:${isPaid ? '#F0FDF4' : '#FEF3E2'};border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid ${isPaid ? '#22C55E' : '#F59E0B'}">
+      <div style="font-size:13px;color:${isPaid ? '#15803D' : '#92700C'};font-weight:600">Acompte : ${depAmt} ${isPaid ? '(pay\u00e9)' : '(en attente)'}</div>
+    </div>`;
+  }
+
   const bodyHTML = `
     <p><strong>${clientName}</strong> a confirm\u00e9 la modification de son rendez-vous.</p>
     <div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #22C55E">
@@ -335,7 +358,8 @@ async function sendModificationConfirmedProEmail(bk, groupServices) {
       <div style="font-size:13px;color:#6B6560"><strong>Client :</strong> ${clientName}</div>
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
-    </div>`;
+    </div>
+    ${depositHTML}`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
   const html = buildEmailHTML({
@@ -369,6 +393,27 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
 
   const serviceHTML = buildServiceDetailHTML(bk, groupServices);
 
+  // Deposit info
+  let depositHTML = '';
+  if (bk.deposit_required && bk.deposit_amount_cents > 0) {
+    const depAmt = fmtPrice(bk.deposit_amount_cents);
+    const isPaid = !!bk.deposit_paid_at;
+    const isRefunded = bk.deposit_status === 'refunded';
+    if (isRefunded) {
+      depositHTML = `<div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #22C55E"><div style="font-size:13px;color:#15803D;font-weight:600">Acompte de ${depAmt} rembours\u00e9 au client</div></div>`;
+    } else if (isPaid) {
+      depositHTML = `
+      <div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #22C55E">
+        <div style="font-size:13px;color:#15803D;font-weight:600">Acompte : ${depAmt} (pay\u00e9)</div>
+      </div>`;
+    } else {
+      depositHTML = `
+      <div style="background:#FEF3E2;border-radius:8px;padding:10px 14px;margin:12px 0;border-left:3px solid #F59E0B">
+        <div style="font-size:13px;color:#92700C;font-weight:600">Acompte : ${depAmt} (en attente)</div>
+      </div>`;
+    }
+  }
+
   const bodyHTML = `
     <p><strong>${clientName}</strong> a <span style="color:#DC2626;font-weight:600">refus\u00e9</span> la modification propos\u00e9e.</p>
     <div style="background:#FEF2F2;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #EF4444">
@@ -383,6 +428,7 @@ async function sendModificationRejectedProEmail(bk, groupServices) {
       ${bk.client_email ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_email)}</div>` : ''}
       ${bk.client_phone ? `<div style="font-size:13px;color:#6B6560">${escHtml(bk.client_phone)}</div>` : ''}
     </div>
+    ${depositHTML}
     <p style="font-size:14px;color:#3D3832">Vous pouvez contacter le client pour trouver un autre cr\u00e9neau.</p>`;
 
   const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';

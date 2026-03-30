@@ -21,5 +21,6 @@ ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
     'email_deposit_confirmed','email_deposit_cancelled',
     'deposit_paid_webhook',
     'email_waitlist_offer','waitlist_match',
-    'email_confirmation_request'
+    'email_confirmation_request',
+    'sms_confirmation_reply'
   ));
