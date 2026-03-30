@@ -874,6 +874,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
           if (bizRow.rows[0]) {
             const lastBooking = multiBookings[multiBookings.length - 1];
+            // Find which booking carries the promo (may not be group_order=0 for specific_service promos)
+            const emailPromoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
             const emailBooking = {
               ...multiBookings[0],
               end_at: lastBooking.end_at,
@@ -881,7 +883,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               service_category: multiServices[0]?.category || null,
               practitioner_name: pracDisplayName,
               comment: client_comment,
-              gc_partial_cents: multiGcPartial || 0
+              gc_partial_cents: multiGcPartial || 0,
+              promotion_id: emailPromoBooking.promotion_id,
+              promotion_label: emailPromoBooking.promotion_label,
+              promotion_discount_pct: emailPromoBooking.promotion_discount_pct,
+              promotion_discount_cents: emailPromoBooking.promotion_discount_cents || 0
             };
             const groupSvcs = multiServices.map(s => ({
               name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
