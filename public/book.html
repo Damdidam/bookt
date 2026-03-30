@@ -2518,27 +2518,21 @@ function buildSummary(){
   if(appliedPromos.length>0){
     var ap=appliedPromos[0];
     var promoLabel=ap.title||'Promotion';
-    var cartSvcs=multiServiceMode?selectedServices:(selectedService?[selectedService]:[]);
-    var cartTotalCents=cartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-    if(ap.type==='discount_pct'&&ap.value){
-      // specific_service: discount on that service only; otherwise on total
-      var basePrice=cartTotalCents;
-      var promoData=(siteData&&siteData.promotions||[]).find(function(p){return p.id===ap.id;});
-      if(promoData&&promoData.condition_type==='specific_service'){
-        var targetSvc=cartSvcs.find(function(s){return s.id===promoData.condition_service_id;});
-        if(targetSvc){var tv=selectedVariants[targetSvc.id];basePrice=tv&&tv.price_cents!=null?tv.price_cents:(targetSvc.price_cents||0);}
+    var sumCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
+    var sumDiscAmount=calcPromoDiscAmount(ap.id,sumCartSvcs);
+    if(ap.type!=='info_only'&&sumDiscAmount>0){
+      var sumCartTotal=sumCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+      var sumNewTotal=sumCartTotal-sumDiscAmount;
+      if(ap.type==='discount_pct'){
+        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+ap.value+'% (-'+(sumDiscAmount/100).toFixed(2).replace(".",",")+' \u20ac)</span></div>';
+      }else if(ap.type==='discount_fixed'){
+        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+(sumDiscAmount/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
+      }else if(ap.type==='free_service'){
+        html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">Offert</span></div>';
       }
-      var discAmount=Math.round(basePrice*ap.value/100);
-      var newTotal=cartTotalCents-discAmount;
-      html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+ap.value+'% (-'+(discAmount/100).toFixed(2).replace(".",",")+' \u20ac)</span></div>';
-      html+='<div class="sum-row"><span class="label" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="val" style="color:#059669;font-weight:700">'+(newTotal/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-    }else if(ap.type==='discount_fixed'&&ap.value){
-      var fixedDisc=Math.min(ap.value,cartTotalCents);
-      var newTotal2=cartTotalCents-fixedDisc;
-      html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">-'+(fixedDisc/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-      html+='<div class="sum-row"><span class="label" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="val" style="color:#059669;font-weight:700">'+(newTotal2/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
-    }else if(ap.type==='free_service'){
-      html+='<div class="sum-row"><span class="label" style="color:#059669;font-weight:600">'+escH(promoLabel)+'</span><span class="val" style="color:#059669;font-weight:600">Offert</span></div>';
+      if(ap.type!=='free_service'){
+        html+='<div class="sum-row"><span class="label" style="font-weight:700">Total apr\u00e8s r\u00e9duction</span><span class="val" style="color:#059669;font-weight:700">'+(sumNewTotal/100).toFixed(2).replace(".",",")+' \u20ac</span></div>';
+      }
     }
   }
   // Payment methods accepted on-site

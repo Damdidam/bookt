@@ -1046,12 +1046,14 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
                 s.category AS service_category,
                 COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                 COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
+                p.display_name AS practitioner_name,
                 biz.name AS biz_name, biz.slug, biz.email AS biz_email,
                 biz.address, biz.settings, biz.theme
          FROM bookings b
          LEFT JOIN clients c ON c.id = b.client_id
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+         LEFT JOIN practitioners p ON p.id = b.practitioner_id
          JOIN businesses biz ON biz.id = b.business_id
          WHERE b.id = $1 AND b.business_id = $2`,
         [id, bid]
@@ -1074,7 +1076,7 @@ router.patch('/:id/deposit-refund', async (req, res, next) => {
         const gcPaidManual = await getGcPaidCents(id);
         const { sendDepositRefundEmail } = require('../../services/email');
         sendDepositRefundEmail({
-          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct },
+          booking: { start_at: d.start_at, end_at: groupEndAt || d.end_at, deposit_amount_cents: d.deposit_amount_cents, deposit_payment_intent_id: d.deposit_payment_intent_id, gc_paid_cents: gcPaidManual, client_name: d.client_name, client_email: d.client_email, service_name: d.service_name, service_category: d.service_category, service_price_cents: d.service_price_cents, duration_min: d.duration_min, practitioner_name: d.practitioner_name, promotion_label: d.promotion_label, promotion_discount_cents: d.promotion_discount_cents, promotion_discount_pct: d.promotion_discount_pct },
           business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, settings: d.settings, theme: d.theme },
           groupServices
         }).catch(e => console.warn('[EMAIL] Deposit refund email error:', e.message));

@@ -931,7 +931,8 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     </div>
     <div style="background:#F5F4F1;border-radius:8px;padding:14px 16px;margin:16px 0;text-align:center">
       <div style="font-size:13px;font-weight:600;color:#6B6560;text-transform:uppercase;margin-bottom:4px">Montant de l'acompte</div>
-      <div style="font-size:24px;font-weight:800;color:#1A1816">${remainStr} \u20ac</div>
+      <div style="font-size:24px;font-weight:800;color:#1A1816">${remainStr}\u00a0\u20ac</div>
+      ${gcPartialCents > 0 ? `<div style="font-size:12px;color:#059669;margin-top:4px">${(gcPartialCents / 100).toFixed(2).replace('.', ',')} \u20ac d\u00e9j\u00e0 d\u00e9duit(s) de votre carte cadeau</div>` : ''}
       ${deadlineStr ? `<div style="font-size:12px;color:#DC2626;margin-top:6px;font-weight:600">\u00c0 r\u00e9gler avant le ${deadlineStr}</div>` : ''}
     </div>
     <div style="background:#F0F9FF;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #60A5FA">
@@ -950,7 +951,7 @@ async function sendDepositReminderEmail({ booking, business, depositUrl, payUrl,
     title: 'Rappel : acompte en attente',
     preheader: `Rappel — Acompte de ${amtStr}\u20ac \u00e0 r\u00e9gler sous ${timeLeftStr} pour votre RDV du ${dateStr}`,
     bodyHTML,
-    ctaText: `Payer ${remainStr} \u20ac maintenant`,
+    ctaText: `Payer ${remainStr}\u00a0\u20ac maintenant`,
     ctaUrl: directPayUrl,
     cancelText: manageUrl ? 'Gérer mon rendez-vous' : null,
     cancelUrl: manageUrl,
@@ -1346,7 +1347,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
       <div style="font-size:15px;font-weight:600;color:#DC2626;margin-bottom:4px">${_ic('calendar-dk')} ${dateStr}</div>
       <div style="font-size:14px;color:#DC2626">${_ic('clock-dk')} ${timeStr}${endTimeStr ? ' \u2013 ' + endTimeStr : ''}</div>
       ${serviceDetailHTML}
-      ${safePracName ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
+      ${safePracName && !(isMulti && groupServices.some(s => s.practitioner_name)) ? `<div style="font-size:14px;color:#6B6560">${safePracName}</div>` : ''}
     </div>
     ${depositHTML}
     <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 reprendre rendez-vous quand vous le souhaitez.</p>`;
@@ -1381,7 +1382,7 @@ async function sendCancellationEmail({ booking, business, groupServices }) {
 async function sendReviewRequestEmail({ booking, business }) {
   const color = safeColor(business.theme?.primary_color);
   const firstName = escHtml(booking.first_name || booking.client_name?.split(' ')[0] || 'Client');
-  const serviceName = escHtml(fmtSvcLabel(booking.service_category, booking.service_name) || 'votre rendez-vous');
+  const serviceName = escHtml(fmtSvcLabel(booking.service_category, booking.service_name, null, booking.custom_label) || 'votre rendez-vous');
   const practitioner = booking.practitioner_name ? ` avec ${escHtml(booking.practitioner_name)}` : '';
   const safeBizName = escHtml(business.name);
 
