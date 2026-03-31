@@ -624,17 +624,6 @@ router.patch('/:id/status', async (req, res, next) => {
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
-          // SMS cancellation to client (staff cancel)
-          if (d.client_phone && ['pro', 'premium'].includes(d.biz_plan)) {
-            try {
-              const { sendSMS } = require('../../services/sms');
-              const _dt = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-              const _tm = new Date(d.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-              const manageUrl = `${baseUrl}/booking/${d.public_token}`;
-              sendSMS({ to: d.client_phone, body: `${d.biz_name} : Votre RDV "${d.service_name}" du ${_dt} \u00e0 ${_tm} a \u00e9t\u00e9 annul\u00e9. D\u00e9tails : ${manageUrl}`, businessId: bid }).catch(e => console.warn('[SMS] Staff cancel SMS error:', e.message));
-            } catch (smsErr) { console.warn('[SMS] Staff cancel SMS error:', smsErr.message); }
-          }
         }
       } catch (e) { console.warn('[EMAIL] Cancellation email fetch error:', e.message); }
     }

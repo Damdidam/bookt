@@ -212,17 +212,6 @@ async function processExpiredDeposits() {
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
-        // SMS cancellation to client (deposit expiry)
-        if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
-          try {
-            const { sendSMS } = require('./sms');
-            const _dt = new Date(row.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-            const _tm = new Date(row.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
-            const manageUrl = `${baseUrl}/booking/${row.public_token}`;
-            await sendSMS({ to: row.client_phone, body: `${row.biz_name} : Votre RDV "${row.service_name}" du ${_dt} \u00e0 ${_tm} a \u00e9t\u00e9 annul\u00e9. D\u00e9tails : ${manageUrl}`, businessId: row.business_id });
-          } catch (smsErr) { console.warn('[DEPOSIT CRON] Cancel SMS error:', smsErr.message); }
-        }
       } catch (emailErr) {
         console.warn('[DEPOSIT CRON] Cancellation email error for booking', bkId, ':', emailErr.message);
       }
