@@ -46,6 +46,12 @@
 /* Status pills wrapper */
 .at-status-pills{display:flex;gap:4px;flex-shrink:0}
 .at-cat-chips{display:flex;gap:4px;align-items:center;flex-shrink:0;margin-left:4px}
+.at-cat-inner{display:flex;gap:4px;align-items:center}
+.at-tog{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--radius-pill);border:1.5px solid var(--border-light);background:var(--white);cursor:pointer;transition:all .15s;position:relative;flex-shrink:0}
+.at-tog:hover{border-color:var(--text-4);background:var(--surface)}
+.at-tog.active{border-color:var(--primary-soft);background:var(--primary-light);color:var(--primary)}
+.at-tog-badge{position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:var(--white);font-size:.55rem;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 3px;line-height:1}
+.at-tog-badge:not(:empty){display:flex}
 /* View button short/long labels */
 .at-vp-btn .vs{display:none}
 /* Fill rate bar — full-width thin bar */

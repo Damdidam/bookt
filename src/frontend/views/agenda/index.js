@@ -84,6 +84,31 @@ function fcToggleStatus(status, el) {
     if (p.textContent.trim() === el.textContent.trim()) p.classList.toggle('active', !isActive);
   });
   fcRefresh();
+  _updateStBadge();
+}
+
+function fcToggleStatusPills() {
+  const els = document.querySelectorAll('.at-status-pills');
+  if (!els.length) return;
+  const show = els[0].style.display === 'none';
+  els.forEach(el => el.style.display = show ? 'flex' : 'none');
+  document.querySelectorAll('.at-tog').forEach(b => {
+    if (b.getAttribute('title') === 'Filtres statut') b.classList.toggle('active', show);
+  });
+}
+function _updateStBadge() {
+  const count = [calState.fcShowPending, calState.fcShowCancelled, calState.fcShowNoShow, calState.fcShowCompleted].filter(Boolean).length;
+  document.querySelectorAll('.at-st-badge').forEach(b => { b.textContent = count || ''; b.style.display = count ? '' : 'none'; });
+}
+
+function fcToggleCatPills() {
+  const els = document.querySelectorAll('.at-cat-inner');
+  if (!els.length) return;
+  const show = els[0].style.display === 'none';
+  els.forEach(el => el.style.display = show ? 'flex' : 'none');
+  document.querySelectorAll('.at-tog').forEach(b => {
+    if (b.getAttribute('title') === 'Catégories') b.classList.toggle('active', show);
+  });
 }
 
 // ── Category filter ──
@@ -238,7 +263,7 @@ async function loadAgenda() {
   statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCompleted ? 'active' : ''}" onclick="fcToggleStatus('completed',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--text-3)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Termin\u00e9s</div>`;
   if (isPrac) {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
-  } else {
+  } else if (calState.fcPractitioners.length > 1) {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -261,6 +286,9 @@ async function loadAgenda() {
       const color = svcOfCat?.color || 'var(--primary)';
       catChipsInnerHtml += `<div class="cat-chip active" data-cat="${cat}" onclick="fcFilterCategory('${cat.replace(/'/g, "\\'")}',this)"><span class="dot" style="background:${color}"></span>${label}</div>`;
     });
+    if (categories.length > 3) {
+      catChipsInnerHtml = `<button class="at-tog" onclick="fcToggleCatPills()" title="Catégories"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button><div class="at-cat-inner" style="display:none">${catChipsInnerHtml}</div>`;
+    }
   }
 
   // Build unified toolbar
@@ -312,7 +340,8 @@ async function loadAgenda() {
     toolbar += `<div class="at-prac-pills">${pillsHtml}</div>`;
   }
   toolbar += `<div class="at-filter-sep"></div>`;
-  toolbar += `<div class="at-status-pills">${statusPillsHtml}</div>`;
+  toolbar += `<button class="at-tog" onclick="fcToggleStatusPills()" title="Filtres statut"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span class="at-tog-badge at-st-badge"></span></button>`;
+  toolbar += `<div class="at-status-pills" style="display:none">${statusPillsHtml}</div>`;
   if (catChipsInnerHtml) {
     toolbar += `<div class="at-cat-chips">${catChipsInnerHtml}</div>`;
   }
@@ -323,7 +352,7 @@ async function loadAgenda() {
   toolbar += `<div class="at-row1"><div class="at-nav"><button class="at-nav-btn" onclick="atNav('prev')">\u2039</button><button class="at-today" id="atDateMob" onclick="atNav('today')">${todayLabel}</button><button class="at-nav-btn" onclick="atNav('next')">\u203a</button></div><span class="at-title-mob" id="atTitleMob"></span><div class="at-mob-views">${soBtnHtml}<button class="at-mob-vbtn ${calState.fcMobileView === 'list' ? 'active' : ''}" onclick="atMobView('list')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button><button class="at-mob-vbtn ${calState.fcMobileView !== 'list' ? 'active' : ''}" onclick="atMobView('grid')">\u25a6</button></div></div>`;
   // Mobile: Row 2 -- prac pills + status pills + search (scrollable)
   const mobSearchHtml = `<input type="search" id="calSearchMob" class="at-search" placeholder="Rechercher..." oninput="fcSearchBookings(this.value)">`;
-  toolbar += `<div class="at-row2">${pillsHtml}${statusPillsHtml}${mobSearchHtml}</div>`;
+  toolbar += `<div class="at-row2">${pillsHtml}<button class="at-tog" onclick="fcToggleStatusPills()" title="Filtres statut"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span class="at-tog-badge at-st-badge"></span></button><div class="at-status-pills" style="display:none">${statusPillsHtml}</div>${mobSearchHtml}</div>`;
   toolbar += `</div>`;
 
   c.innerHTML = toolbar + `<div id="fcCalendar" style="${mobile && calState.fcMobileView === 'list' ? 'display:none' : ''}"></div><div id="fcMobList" class="mob-list ${mobile && calState.fcMobileView === 'list' ? 'active' : ''}"></div>` +
@@ -532,6 +561,6 @@ function toggleOverflowMenu() {
 }
 
 // Expose to global scope for onclick handlers
-bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcToggleFilterPanel, fcToggleSearch, toggleOverflowMenu });
+bridge({ loadAgenda, fcFilterPractitioner, fcToggleStatus, fcFilterCategory, fcSearchBookings, fcToggleLock, fcToggleFilterPanel, fcToggleSearch, toggleOverflowMenu, fcToggleStatusPills, fcToggleCatPills });
 
 export { loadAgenda };
