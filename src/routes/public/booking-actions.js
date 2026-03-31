@@ -8,6 +8,7 @@ const { broadcast } = require('../../services/sse');
 const { stripeRefundDeposit, escHtml } = require('./helpers');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { sendBookingConfirmation } = require('../../services/email');
+const { refundPassForBooking } = require('../../services/pass-refund');
 
 // ============================================================
 // POST /api/public/booking/:token/cancel
@@ -109,6 +110,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // Refund gift card debits + Stripe refund if deposit was refunded
     const postCancelBk = cancelResult.rows[0];
     try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(postCancelBk.id); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
+    // Refund pass sessions
+    await refundPassForBooking(postCancelBk.id).catch(e => console.warn('[PASS REFUND]', e.message));
     if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
     }
@@ -118,6 +121,7 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
         const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
         for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+        for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
       } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
     }
 

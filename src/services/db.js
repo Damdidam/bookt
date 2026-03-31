@@ -3,6 +3,8 @@ const { validate: isUuid } = require('uuid');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  // Render managed PostgreSQL uses self-signed certificates, so rejectUnauthorized
+  // must remain false. Switching to true would break the connection.
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,

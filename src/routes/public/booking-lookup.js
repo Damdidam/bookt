@@ -15,6 +15,7 @@ router.get('/booking/:token', async (req, res, next) => {
               b.comment_client, b.public_token, b.created_at, b.group_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url, b.deposit_payment_intent_id,
               b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+              b.discount_pct,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
@@ -110,6 +111,7 @@ router.get('/booking/:token', async (req, res, next) => {
         promotion_label: promoSib.promotion_label || null,
         promotion_discount_cents: promoSib.promotion_discount_cents || 0,
         promotion_discount_pct: promoSib.promotion_discount_pct || null,
+        discount_pct: bk.discount_pct || null,
         service: serviceInfo,
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }
@@ -151,6 +153,7 @@ router.get('/manage/:token', async (req, res, next) => {
               b.service_id, b.service_variant_id, b.practitioner_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url, b.deposit_payment_intent_id,
               b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+              b.discount_pct,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
               s.category AS service_category,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
@@ -282,6 +285,7 @@ router.get('/manage/:token', async (req, res, next) => {
         promotion_label: promoSib2.promotion_label || null,
         promotion_discount_cents: promoSib2.promotion_discount_cents || 0,
         promotion_discount_pct: promoSib2.promotion_discount_pct || null,
+        discount_pct: bk.discount_pct || null,
         service: serviceInfo,
         practitioner: { name: bk.practitioner_name, title: bk.practitioner_title },
         client: { name: bk.client_name, phone: bk.client_phone, email: bk.client_email }

@@ -3,7 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let invoiceFilter='all',invoiceType='all';
 let _unbilledBookings=[];
@@ -266,7 +266,8 @@ async function saveInvoice(type){
 
 async function changeInvoiceStatus(id,status){
   const labels={sent:'Marquer comme envoyée ?',paid:'Marquer comme payée ?'};
-  if(!confirm(labels[status]||`Changer le statut en "${status}" ?`))return;
+  const confirmed = await showConfirmDialog('Changer le statut', labels[status]||`Changer le statut en "${status}" ?`, 'Confirmer');
+  if(!confirmed)return;
   try{
     await api.patch(`/api/invoices/${id}/status`,{status});
     GendaUI.toast('Statut mis à jour','success');
@@ -275,7 +276,8 @@ async function changeInvoiceStatus(id,status){
 }
 
 async function deleteInvoice(id){
-  if(!confirm('Supprimer ce brouillon ?'))return;
+  const confirmed = await showConfirmDialog('Supprimer le brouillon', 'Supprimer ce brouillon ?', 'Supprimer', 'danger');
+  if(!confirmed)return;
   try{
     await api.delete(`/api/invoices/${id}`);
     GendaUI.toast('Brouillon supprimé','success');

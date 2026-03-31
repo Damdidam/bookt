@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta property="og:title" content="Votre avis — Genda">
+<meta property="og:description" content="Partagez votre expérience et aidez-nous à nous améliorer.">
 <title>Votre avis — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
@@ -203,10 +205,10 @@ function renderForm(d, primaryColor, isEdit) {
 
   html += `
       <div class="section-label">Votre note</div>
-      <div class="stars" id="starsContainer">`;
+      <div class="stars" id="starsContainer" role="radiogroup" aria-label="Note en étoiles">`;
   for (let i = 1; i <= 5; i++) {
     const active = i <= selectedRating ? ' active' : '';
-    html += `<span class="star${active}" data-value="${i}" onclick="selectStar(${i})" onmouseenter="hoverStar(${i})" onmouseleave="resetHover()">${i <= selectedRating ? '\u2605' : '\u2606'}</span>`;
+    html += `<span class="star${active}" data-value="${i}" role="radio" aria-checked="${i <= selectedRating ? 'true' : 'false'}" aria-label="${i} étoile${i > 1 ? 's' : ''}" onclick="selectStar(${i})" onmouseenter="hoverStar(${i})" onmouseleave="resetHover()">${i <= selectedRating ? '\u2605' : '\u2606'}</span>`;
   }
   html += `</div>
       <div class="star-error" id="starError">Veuillez sélectionner une note</div>
@@ -245,6 +247,7 @@ function selectStar(n) {
     s.classList.toggle('active', val <= n);
     s.classList.remove('hover-preview');
     s.textContent = val <= n ? '\u2605' : '\u2606';
+    s.setAttribute('aria-checked', val <= n ? 'true' : 'false');
   });
   // Hide error
   document.getElementById('starError').style.display = 'none';

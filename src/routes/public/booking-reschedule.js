@@ -10,7 +10,7 @@ const { getAvailableSlots, getAvailableSlotsMultiPractitioner } = require('../..
 const { UUID_RE } = require('./helpers');
 
 const { pool } = require('../../services/db');
-const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
+const { calSyncPush, checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 const { computeDepositDeadline } = require('./helpers');
 
 // ============================================================
@@ -316,6 +316,15 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     // Post-commit: SSE broadcast
     try { broadcast(bk.business_id, 'booking_update', { action: 'rescheduled', bookingId: bk.id, source: 'client' }); } catch (_) {}
 
+    // Post-commit: sync to external Google Calendar (fire-and-forget)
+    try {
+      if (bk.group_id && groupMembers.length > 0) {
+        groupMembers.forEach(m => calSyncPush(bk.business_id, m.id).catch(() => {}));
+      } else {
+        calSyncPush(bk.business_id, bk.id).catch(() => {});
+      }
+    } catch (_) {}
+
     // Post-commit: send confirmation email (async, non-blocking)
     (async () => {
       try {
@@ -324,6 +333,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
           `SELECT b.*, CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category, COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
+                  b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
                   p.display_name AS practitioner_name,
                   c.full_name AS client_name, c.email AS client_email,
                   biz.name AS business_name, biz.slug AS business_slug, biz.settings, biz.theme,

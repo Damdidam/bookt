@@ -141,6 +141,17 @@ const SECTOR_PRACTITIONER = {
 const _nextSlotCache = {};
 const _minisiteCache = {};
 
+// Periodic cache cleanup every 5 min — delete entries older than their TTL
+setInterval(() => {
+  const now = Date.now();
+  for (const key in _minisiteCache) {
+    if (now - _minisiteCache[key].ts > 2 * 60000) delete _minisiteCache[key];
+  }
+  for (const key in _nextSlotCache) {
+    if (now - _nextSlotCache[key].ts > 5 * 60000) delete _nextSlotCache[key];
+  }
+}, 5 * 60000).unref();
+
 const BASE_URL = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
 
 /**

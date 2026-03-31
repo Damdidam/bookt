@@ -4,6 +4,7 @@
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
+import { guardModal } from '../utils/dirty-guard.js';
 
 let depositFilter='all',depositFrom='',depositTo='';
 let _lastDeps=[];
@@ -145,6 +146,7 @@ function showDepositAudit(bookingId){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 // ── CSV export ──

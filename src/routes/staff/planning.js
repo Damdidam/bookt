@@ -996,7 +996,9 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       // Check if this group is a split (different practitioners)
       const siblings = await queryWithRLS(bid,
         `SELECT b.id, b.practitioner_id, b.status, b.public_token, b.start_at,
+                b.promotion_label, b.promotion_discount_cents,
                 CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
+                COALESCE(sv.price_cents, s.price_cents) AS price_cents,
                 p.display_name AS practitioner_name,
                 c.full_name AS client_name, c.email AS client_email
          FROM bookings b
@@ -1029,9 +1031,16 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
             hour: '2-digit', minute: '2-digit'
           });
-          const svcList = siblings.rows.map(s =>
-            `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.service_name)} \u00b7 ${escHtml(s.practitioner_name || '')}</div>`
-          ).join('');
+          const svcList = siblings.rows.map(s => {
+            const price = s.price_cents ? ` \u00b7 ${(s.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac` : '';
+            return `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.service_name)}${price} \u00b7 ${escHtml(s.practitioner_name || '')}</div>`;
+          }).join('');
+          // Show promo discount if present on any sibling
+          const grpPromoLabel = siblings.rows.find(s => s.promotion_label)?.promotion_label || '';
+          const grpPromoDiscount = siblings.rows.reduce((sum, s) => sum + (parseInt(s.promotion_discount_cents) || 0), 0);
+          const promoHTML = (grpPromoDiscount > 0 && grpPromoLabel)
+            ? `<div style="font-size:12px;color:#7A7470;padding:2px 0">${escHtml(grpPromoLabel)} : -${(grpPromoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`
+            : '';
           const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
           const slug = business.slug || '';
           const rebookUrl = slug ? `${baseUrl}/${slug}` : baseUrl;
@@ -1042,6 +1051,7 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
             <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:6px;padding:14px 16px;margin:16px 0">
               <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:6px">${escHtml(startLocal)}</div>
               ${svcList}
+              ${promoHTML}
             </div>
             <p>Vous pouvez reprendre un nouveau cr\u00e9neau en cliquant ci-dessous :</p>`;
 

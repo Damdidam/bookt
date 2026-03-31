@@ -192,7 +192,7 @@ router.post('/deposit/:token/check-gift-cards', async (req, res, next) => {
 });
 
 // POST /api/public/gift-card/validate
-router.post('/gift-card/validate', async (req, res, next) => {
+router.post('/gift-card/validate', depositLimiter, async (req, res, next) => {
   try {
     const { code, business_id } = req.body;
     if (!code) return res.status(400).json({ error: 'Code requis' });
@@ -270,7 +270,7 @@ router.post('/:slug/pass/checkout', async (req, res, next) => {
 });
 
 // POST /api/public/pass/validate
-router.post('/pass/validate', async (req, res, next) => {
+router.post('/pass/validate', depositLimiter, async (req, res, next) => {
   try {
     const { code, business_id } = req.body;
     if (!code) return res.status(400).json({ error: 'Code requis' });

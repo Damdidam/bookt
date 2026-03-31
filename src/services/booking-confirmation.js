@@ -8,6 +8,7 @@
 const { query, pool } = require('./db');
 const { broadcast } = require('./sse');
 const { getGcPaidCents } = require('./gift-card-refund');
+const { refundPassForBooking } = require('./pass-refund');
 
 /**
  * Process expired unconfirmed bookings.
@@ -52,6 +53,16 @@ async function processExpiredPendingBookings() {
            WHERE group_id = $1 AND id != $2 AND status = 'pending'`,
           [bk.group_id, bk.id]
         );
+      }
+
+      // Refund pass sessions
+      await refundPassForBooking(bk.id, client).catch(e => console.warn('[PASS REFUND]', e.message));
+      if (bk.group_id) {
+        const sibPass = await client.query(
+          `SELECT id FROM bookings WHERE group_id = $1 AND id != $2 AND status = 'cancelled'`,
+          [bk.group_id, bk.id]
+        );
+        for (const sib of sibPass.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
       }
 
       // Audit log — confirmation expired

@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta property="og:title" content="Mon rendez-vous — Genda">
+<meta property="og:description" content="Consultez et gérez votre rendez-vous en ligne.">
 <title>Mon rendez-vous — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
@@ -141,21 +143,26 @@ async function loadBooking() {
 function render(d) {
   const bk = d.booking, biz = d.business, can = d.cancellation, resch = d.reschedule;
   const start = new Date(bk.start_at), end = new Date(bk.end_at);
-  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-  const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+  const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
   const modeLabels = { visio: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> En visio', phone: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Par téléphone' };
   const statusLabels = { confirmed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Confirmé', cancelled: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Annulé', completed: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Terminé', no_show: 'No-show', pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> En attente', modified_pending: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Modification proposée', pending_deposit: '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Acompte requis' };
   const promoDiscount = bk.promotion_discount_cents || (d.promotion && d.promotion.discount_cents) || 0;
   const promoLabel = bk.promotion_label || (d.promotion && d.promotion.label) || '';
+  const lmDiscountPct = bk.discount_pct || 0;
+  const lmDiscount = lmDiscountPct && bk.service.price_cents ? Math.round(bk.service.price_cents * lmDiscountPct / 100) : 0;
+  const totalDiscount = promoDiscount + lmDiscount;
   let price;
-  if (bk.service.price_cents && promoDiscount > 0) {
-    const orig = (bk.service.price_cents / 100).toFixed(0) + ' \u20ac';
-    const disc = ((bk.service.price_cents - promoDiscount) / 100).toFixed(0) + ' \u20ac';
-    price = '<s style="color:var(--text-4);font-weight:400">' + orig + '</s> ' + disc
-      + (promoLabel ? '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + escH(promoLabel) + '</span>' : '');
+  if (bk.service.price_cents && totalDiscount > 0) {
+    const orig = (bk.service.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac';
+    const disc = ((bk.service.price_cents - totalDiscount) / 100).toFixed(2).replace('.', ',') + ' \u20ac';
+    let discountLabels = '';
+    if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + escH(promoLabel) + '</span>';
+    if (lmDiscountPct > 0) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">-' + lmDiscountPct + '% last-minute</span>';
+    price = '<s style="color:var(--text-4);font-weight:400">' + orig + '</s> ' + disc + discountLabels;
   } else {
-    price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(0)} \u20ac` : (bk.service.price_label || '');
+    price = bk.service.price_cents ? `${(bk.service.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac` : (bk.service.price_label || '');
   }
 
   // Apply theme
@@ -179,7 +186,7 @@ function render(d) {
         <div class="info"><div class="label">Prestation${bk.service.members && bk.service.members.length > 1 ? 's' : ''}</div>${bk.service.members && bk.service.members.length > 1
           ? bk.service.members.map(function(m) {
               var pracInfo = m.practitioner_name ? ' <span style="color:var(--text-4);font-size:.78rem">— ' + escH(m.practitioner_name) + '</span>' : '';
-              return '<div class="value" style="margin-bottom:2px">' + escH(m.name) + pracInfo + '</div><div class="sub">' + m.duration_min + ' min' + (m.price_cents ? ' · ' + (m.price_cents/100).toFixed(0) + ' €' : '') + '</div>';
+              return '<div class="value" style="margin-bottom:2px">' + escH(m.name) + pracInfo + '</div><div class="sub">' + m.duration_min + ' min' + (m.price_cents ? ' · ' + (m.price_cents/100).toFixed(2).replace('.', ',') + ' €' : (m.price_label ? ' · ' + escH(m.price_label) : '')) + '</div>';
             }).join('') + '<div class="sub" style="margin-top:4px;font-weight:600">Total : ' + bk.service.duration_min + ' min · ' + price + '</div>'
           : '<div class="value">' + escH(bk.service.name) + '</div><div class="sub">' + bk.service.duration_min + ' min · ' + price + (modeLabels[bk.appointment_mode] ? ' · ' + modeLabels[bk.appointment_mode] : '') + '</div>'
         }</div>
@@ -209,7 +216,7 @@ function render(d) {
   // Deposit info section
   if (bk.status === 'pending_deposit' && bk.deposit_amount_cents) {
     const depEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');
-    const depDeadline = bk.deposit_deadline ? new Date(bk.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const depDeadline = bk.deposit_deadline ? new Date(bk.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
     const depUrl = '/deposit/' + bk.token;
     html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#FEF3E2">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;color:#B45309">
@@ -225,7 +232,7 @@ function render(d) {
   if (bk.deposit_status === 'paid' && bk.deposit_amount_cents && bk.status !== 'pending_deposit') {
     const depPaidEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');
     const totalCents = bk.service.price_cents || 0;
-    const remainCents = Math.max(0, totalCents - promoDiscount - bk.deposit_amount_cents);
+    const remainCents = Math.max(0, totalCents - promoDiscount - lmDiscount - bk.deposit_amount_cents);
     const remainEuros = (remainCents / 100).toFixed(2).replace('.00', '');
     html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#ECFDF5">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700;color:#059669">
@@ -280,7 +287,7 @@ function render(d) {
     </div>`;
   } else if (bk.status === 'confirmed' || bk.status === 'pending_deposit') {
     const deadlineDate = new Date(can.deadline);
-    const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const deadlineStr = deadlineDate.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' à ' + deadlineDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
     html += `<div class="cancel-section">
       <h3>Annuler ce rendez-vous</h3>`;
@@ -354,7 +361,7 @@ function renderSlotPicker() {
   const isNextDisabled = _currentDate >= maxDate;
 
   const dateObj = new Date(_currentDate + 'T12:00:00');
-  const dateLabel = dateObj.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateLabel = dateObj.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
 
   let html = `<div style="padding:24px 28px">
     <button class="btn-back" onclick="loadBooking()">← Retour</button>
@@ -415,11 +422,11 @@ function selectSlot(el, startAt, endAt, slotIdx) {
   const oldStart = new Date(bk.start_at);
   const newStart = new Date(startAt);
   const newEnd = new Date(endAt);
-  const oldDateStr = oldStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
-  const oldTimeStr = oldStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-  const newDateStr = newStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long' });
-  const newTimeStr = newStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-  const newEndStr = newEnd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const oldDateStr = oldStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+  const oldTimeStr = oldStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+  const newDateStr = newStart.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+  const newTimeStr = newStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+  const newEndStr = newEnd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
   let confirmEl = document.getElementById('confirmSection');
   if (!confirmEl) {
@@ -448,8 +455,8 @@ async function confirmReschedule() {
     });
     if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Erreur'); }
     const newStart = new Date(_selectedSlot.start_at);
-    const newDateStr = newStart.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const newTimeStr = newStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const newDateStr = newStart.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+    const newTimeStr = newStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     document.getElementById('cardContent').innerHTML = `<div class="cancelled-msg" style="padding:40px 28px"><div class="check" style="color:var(--green)"><svg class="gi gi-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>Rendez-vous déplacé</h2><p>${newDateStr} à ${newTimeStr}</p><p style="margin-top:12px;font-size:.82rem">Un email de confirmation vous a été envoyé.</p><button class="btn-back" style="margin-top:20px;display:inline-flex" onclick="loadBooking()">Voir mon rendez-vous</button></div>`;
   } catch (err) {
     btn.disabled = false; btn.textContent = 'Confirmer le déplacement';
@@ -512,6 +519,6 @@ function buildOutlookUrl(start, end, title, location, bizName) {
   return `https://outlook.live.com/calendar/0/action/compose?subject=${encodeURIComponent(title)}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${encodeURIComponent(desc)}&location=${encodeURIComponent(location || '')}`;
 }
 </script>
-<script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
+
 </body>
 </html>

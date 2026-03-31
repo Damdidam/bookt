@@ -3,6 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let gcFilter='all',gcSearch='';
 let _lastCards=[];
@@ -54,7 +55,7 @@ function renderGiftCards(c,cards,st){
   h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px">
     ${filterBtns}
     <div style="flex:1"></div>
-    <input type="text" placeholder="Rechercher par code ou nom..." value="${esc(gcSearch)}" onkeydown="if(event.key==='Enter'){gcSearch=this.value;loadGiftCards()}" onblur="gcSearch=this.value" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;min-width:200px">
+    <input type="text" placeholder="Rechercher par code ou nom..." value="${esc(gcSearch)}" onkeydown="if(event.key==='Enter'){gcSearch=this.value;loadGiftCards()}" onblur="gcSearch=this.value;loadGiftCards()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:.78rem;min-width:200px">
     <button onclick="openCreateGiftCardModal()" class="btn-primary"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Créer une carte</button>
   </div>`;
 
@@ -163,6 +164,7 @@ function openCreateGiftCardModal(){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 function selectGcAmount(cents){
@@ -243,6 +245,7 @@ function openDebitGiftCard(id){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 async function submitDebitGiftCard(id){
@@ -310,6 +313,7 @@ async function refundGiftCard(id){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 async function submitRefundGiftCard(id){
@@ -332,7 +336,8 @@ async function submitRefundGiftCard(id){
 async function cancelGiftCard(id){
   const gc=_lastCards.find(c=>c.id===id);
   if(!gc){GendaUI.toast('Carte introuvable','error');return;}
-  if(!confirm(`Annuler la carte ${gc.code} ? Cette action est irréversible.`))return;
+  const confirmed = await showConfirmDialog('Annuler la carte', `Annuler la carte ${gc.code} ? Cette action est irréversible.`, 'Annuler la carte', 'danger');
+  if(!confirmed)return;
 
   try{
     await api.patch(`/api/gift-cards/${id}`,{status:'cancelled'});

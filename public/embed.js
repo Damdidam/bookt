@@ -50,7 +50,7 @@
   // Create overlay
   var overlay = document.createElement('div');
   overlay.className = 'genda-widget-overlay';
-  overlay.innerHTML = '<div class="genda-widget-modal"><button class="genda-widget-close">&times;</button><iframe src="about:blank"></iframe></div>';
+  overlay.innerHTML = '<div class="genda-widget-modal"><button class="genda-widget-close" aria-label="Fermer">&times;</button><iframe src="about:blank" title="Réservation en ligne — Genda"></iframe></div>';
 
   document.body.appendChild(btn);
   document.body.appendChild(overlay);

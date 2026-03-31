@@ -11,7 +11,7 @@
  */
 
 const router = require('express').Router();
-const { query } = require('../../services/db');
+const { query, pool } = require('../../services/db');
 const { requireAuth, requireOwner } = require('../../middleware/auth');
 
 function getStripe() {
@@ -235,50 +235,68 @@ async function handleStripeWebhook(req, res) {
           const piId = session.payment_intent || null;
           console.log(`[STRIPE WH] Deposit paid for booking ${bookingId} (PI: ${piId})`);
 
-          // Update booking: pending_deposit → confirmed, deposit_status → paid
-          const upd = await query(
-            `UPDATE bookings SET
-              status = 'confirmed',
-              deposit_status = 'paid',
-              deposit_paid_at = NOW(),
-              deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
-              deposit_deadline = NULL
-             WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
-             RETURNING id, business_id, group_id, client_id`,
-            [piId, bookingId, businessId]
-          );
+          // Update booking + group siblings + detached bookings atomically in a transaction
+          const txClient = await pool.connect();
+          let upd, linkedIds = [];
+          try {
+            await txClient.query('BEGIN');
+
+            // Update booking: pending_deposit → confirmed, deposit_status → paid
+            upd = await txClient.query(
+              `UPDATE bookings SET
+                status = 'confirmed',
+                deposit_status = 'paid',
+                deposit_paid_at = NOW(),
+                deposit_payment_intent_id = COALESCE($1, deposit_payment_intent_id),
+                deposit_deadline = NULL
+               WHERE id = $2 AND business_id = $3 AND status = 'pending_deposit'
+               RETURNING id, business_id, group_id, client_id`,
+              [piId, bookingId, businessId]
+            );
+
+            if (upd.rows.length > 0) {
+              const bk = upd.rows[0];
+
+              // Propagate to group siblings AND ungrouped bookings sharing same deposit
+              // (handles case where bookings were ungrouped/reassigned after deposit request)
+
+              // 1. Group siblings (still in same group)
+              if (bk.group_id) {
+                const grpUpd = await txClient.query(
+                  `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                    deposit_paid_at = NOW(), deposit_deadline = NULL
+                   WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
+                   RETURNING id`,
+                  [bk.group_id, businessId, bookingId]
+                );
+                grpUpd.rows.forEach(r => linkedIds.push(r.id));
+              }
+
+              // 2. Ungrouped bookings sharing same deposit_payment_intent_id (detached after deposit request)
+              if (piId) {
+                const detachedUpd = await txClient.query(
+                  `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
+                    deposit_paid_at = NOW(), deposit_deadline = NULL
+                   WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
+                     AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
+                   RETURNING id`,
+                  [piId, businessId, bookingId, bk.group_id]
+                );
+                detachedUpd.rows.forEach(r => linkedIds.push(r.id));
+              }
+            }
+
+            await txClient.query('COMMIT');
+          } catch (txErr) {
+            await txClient.query('ROLLBACK').catch(() => {});
+            console.error('[STRIPE WH] Deposit transaction failed:', txErr);
+            break;
+          } finally {
+            txClient.release();
+          }
 
           if (upd.rows.length > 0) {
             const bk = upd.rows[0];
-
-            // Propagate to group siblings AND ungrouped bookings sharing same deposit
-            // (handles case where bookings were ungrouped/reassigned after deposit request)
-            const linkedIds = [];
-
-            // 1. Group siblings (still in same group)
-            if (bk.group_id) {
-              const grpUpd = await query(
-                `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
-                  deposit_paid_at = NOW(), deposit_deadline = NULL
-                 WHERE group_id = $1 AND business_id = $2 AND id != $3 AND status = 'pending_deposit'
-                 RETURNING id`,
-                [bk.group_id, businessId, bookingId]
-              );
-              grpUpd.rows.forEach(r => linkedIds.push(r.id));
-            }
-
-            // 2. Ungrouped bookings sharing same deposit_payment_intent_id (detached after deposit request)
-            if (piId) {
-              const detachedUpd = await query(
-                `UPDATE bookings SET status = 'confirmed', deposit_status = 'paid',
-                  deposit_paid_at = NOW(), deposit_deadline = NULL
-                 WHERE deposit_payment_intent_id = $1 AND business_id = $2 AND id != $3
-                   AND status = 'pending_deposit' AND group_id IS DISTINCT FROM $4
-                 RETURNING id`,
-                [piId, businessId, bookingId, bk.group_id]
-              );
-              detachedUpd.rows.forEach(r => linkedIds.push(r.id));
-            }
 
             // SSE broadcast to update calendar in real-time
             try {

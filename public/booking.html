@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta property="og:title" content="Mon rendez-vous — Genda">
+<meta property="og:description" content="Consultez les détails de votre rendez-vous et gérez votre réservation en ligne.">
 <title>Mon rendez-vous — Genda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -327,8 +329,8 @@ function renderBooking(data) {
   // Date & time
   const start = new Date(booking.start_at);
   const end = new Date(booking.end_at);
-  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const timeStr = `${start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`;
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+  const timeStr = `${start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })} – ${end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`;
   document.getElementById('valDate').textContent = `${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}, ${timeStr}`;
 
   const durationMin = Math.round((end - start) / 60000);
@@ -498,11 +500,6 @@ document.addEventListener('keydown', e => {
 
 // Init
 loadBooking();
-</script>
-<script>document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});</script>
-<script>/* Kill mobile helpers */
-document.addEventListener('contextmenu',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();},{passive:false});
-document.addEventListener('selectstart',function(e){var t=e.target.tagName;if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')e.preventDefault();});
 </script>
 </body>
 </html>

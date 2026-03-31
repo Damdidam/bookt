@@ -66,7 +66,7 @@ async function saveProfile(){
     if(!r.ok)throw new Error((await r.json()).error);
     gToast('Profil mis à jour','success');
     // Update sidebar name
-    const u=api.getUser();if(u){u.business_name=payload.display_name;api.setUser(u);document.getElementById('userName').textContent=payload.display_name;}
+    const u=api.getUser();if(u){u.display_name=payload.display_name;api.setUser(u);document.getElementById('userName').textContent=payload.display_name;}
   }catch(e){gToast('Erreur: '+e.message,'error');}
 }
 

@@ -203,9 +203,10 @@ router.post('/manual', async (req, res, next) => {
           try {
             const biz = await queryWithRLS(bid, `SELECT name, email, phone, address, theme, settings FROM businesses WHERE id = $1`, [bid]);
             const cl = await queryWithRLS(bid, `SELECT full_name FROM clients WHERE id = $1 AND business_id = $2`, [client_id, bid]);
+            const prac = await queryWithRLS(bid, `SELECT display_name FROM practitioners WHERE id = $1 AND business_id = $2`, [practitioner_id, bid]);
             if (biz.rows[0] && cl.rows[0]) {
               await sendBookingConfirmation({
-                booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: custom_label || 'Rendez-vous libre', practitioner_name: '' },
+                booking: { ...bookings[0], client_name: cl.rows[0].full_name, client_email: client_email, service_name: custom_label || 'Rendez-vous libre', practitioner_name: prac.rows[0]?.display_name || '' },
                 business: biz.rows[0]
               });
             }

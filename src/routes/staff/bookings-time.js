@@ -1356,6 +1356,8 @@ router.post('/:id/send-reminder', async (req, res, next) => {
     const bk = await queryWithRLS(bid,
       `SELECT b.*, c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
               CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
+              COALESCE(sv.duration_min, s.duration_min) AS svc_duration_min,
+              COALESCE(sv.price_cents, s.price_cents) AS svc_price_cents,
               p.display_name AS practitioner_name,
               biz.name AS business_name, biz.slug, biz.theme, biz.address, biz.email AS business_email
        FROM bookings b
@@ -1401,12 +1403,30 @@ router.post('/:id/send-reminder', async (req, res, next) => {
 
     if ((channel === 'email' || channel === 'both') && b.client_email) {
       try {
-        const { buildEmailHTML, sendEmail } = require('../../services/email');
-        const primaryColor = (b.theme && b.theme.primary) || '#2A7B7F';
+        const { buildEmailHTML, sendEmail, escHtml } = require('../../services/email');
+        const primaryColor = (b.theme && b.theme.primary_color) || '#2A7B7F';
+
+        // Build service details (price, duration, promo)
+        const durationMin = b.duration_min || b.svc_duration_min;
+        const priceCents = b.price_cents || b.svc_price_cents;
+        const promoDiscount = parseInt(b.promotion_discount_cents) || 0;
+        const promoLabel = b.promotion_label || '';
+        let priceHTML = '';
+        if (priceCents) {
+          if (promoDiscount > 0 && promoLabel) {
+            const finalPrice = priceCents - promoDiscount;
+            priceHTML = ` · <s style="opacity:.6">${(priceCents / 100).toFixed(2).replace('.', ',')} €</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} €`;
+            priceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} €</div>`;
+          } else {
+            priceHTML = ` · ${(priceCents / 100).toFixed(2).replace('.', ',')} €`;
+          }
+        }
+        const durationHTML = durationMin ? ` (${durationMin} min${priceHTML})` : (priceHTML ? ` (${priceHTML})` : '');
+
         const html = buildEmailHTML({
           businessName: b.business_name, primaryColor,
           title: 'Rappel de votre rendez-vous',
-          bodyHTML: `<p>Bonjour ${b.client_name},</p><p>Ceci est un rappel pour votre rendez-vous :</p><p><strong>${b.service_name}</strong><br>${dateStr} à ${timeStr}<br>avec ${b.practitioner_name}</p>`,
+          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0"><strong>${escHtml(b.service_name || 'Rendez-vous')}</strong>${durationHTML}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}<br>avec ${escHtml(b.practitioner_name || '')}</div>`,
           ctaText: 'Voir mon rendez-vous', ctaUrl: manageUrl,
           cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl
         });

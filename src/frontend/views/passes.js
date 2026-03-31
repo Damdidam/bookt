@@ -3,6 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let passFilter='all', passSearch='';
 let _lastPasses=[];
@@ -184,6 +185,7 @@ async function openCreatePass(){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 function passServiceChanged(){
@@ -262,6 +264,7 @@ function openDebitPass(id){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 async function debitPass(id){
@@ -312,6 +315,7 @@ async function refundPass(id){
     </div>
   </div>`;
   document.body.appendChild(modal);
+  guardModal(modal, { noBackdropClose: true });
 }
 
 async function submitRefundPass(id){
@@ -327,7 +331,8 @@ async function submitRefundPass(id){
 async function cancelPass(id){
   const p=_lastPasses.find(x=>x.id===id);
   if(!p){GendaUI.toast('Pass introuvable','error');return;}
-  if(!confirm(`Annuler le pass ${p.code} ? Cette action est irréversible.`))return;
+  const confirmed = await showConfirmDialog('Annuler le pass', `Annuler le pass ${p.code} ? Cette action est irréversible.`, 'Annuler le pass', 'danger');
+  if(!confirmed)return;
 
   try{
     await api.patch(`/api/passes/${id}`,{status:'cancelled'});
@@ -338,7 +343,8 @@ async function cancelPass(id){
 
 // ── Delete (hard) ──
 async function deletePass(id,code){
-  if(!confirm(`Supprimer définitivement le pass ${code} ? Cette action est irréversible.`))return;
+  const confirmed = await showConfirmDialog('Supprimer le pass', `Supprimer définitivement le pass ${code} ? Cette action est irréversible.`, 'Supprimer', 'danger');
+  if(!confirmed)return;
   try{
     await api.delete(`/api/passes/${id}`);
     GendaUI.toast('Pass supprimé','success');

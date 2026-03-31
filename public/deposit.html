@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta property="og:title" content="Acompte — Genda">
+<meta property="og:description" content="Payez votre acompte en ligne pour confirmer votre rendez-vous.">
 <title>Acompte — Genda</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
@@ -86,9 +88,9 @@ async function loadBooking() {
 function render(d) {
   const bk = d.booking, biz = d.business;
   const start = new Date(bk.start_at), end = new Date(bk.end_at);
-  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
-  const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+  const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+  const endStr = end.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
 
   // Apply business theme
   if (biz.theme?.primary_color) {
@@ -171,7 +173,7 @@ function render(d) {
   // Deadline bar (only for pending)
   if (depStatus === 'pending' && bk.deposit_deadline) {
     const dl = new Date(bk.deposit_deadline);
-    const dlStr = dl.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' \u00e0 ' + dl.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    const dlStr = dl.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) + ' \u00e0 ' + dl.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
     html += `<div class="deadline-bar" style="background:var(--amber-bg);color:var(--amber)">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg>
       <span>Paiement avant le ${dlStr}</span>

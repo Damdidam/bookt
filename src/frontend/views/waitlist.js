@@ -5,9 +5,10 @@ import { api, GendaUI, viewState } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
-import { closeModal } from '../utils/dirty-guard.js';
+import { closeModal, guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 async function loadWaitlist(){
+  if(viewState.wlFilter===undefined)viewState.wlFilter='';
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div></div>`;
   try{
@@ -119,6 +120,7 @@ function wlOpenAdd(){
     m+=`<div><label class="m-field-label">Note</label><input class="m-input" id="wla_note" placeholder="Info suppl\u00e9mentaire..." maxlength="300"></div>`;
     m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlAddModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSaveAdd()">Ajouter</button></div></div></div>`;
     document.body.insertAdjacentHTML('beforeend',m);
+    guardModal(document.getElementById('wlAddModal'), { noBackdropClose: true });
   });
 }
 
@@ -153,6 +155,7 @@ function wlOffer(entryId,clientName,pracId,svcId){
   m+=`<div><label class="m-field-label">Heure de fin</label><input type="time" class="m-input" id="wlo_end" value="10:00" step="900"></div>`;
   m+=`</div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('wlOfferModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="wlSendOffer('${entryId}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer l'offre</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  guardModal(document.getElementById('wlOfferModal'), { noBackdropClose: true });
 }
 
 async function wlSendOffer(entryId){
@@ -185,7 +188,8 @@ async function wlContact(entryId,outcome){
 
 // -- Remove entry --
 async function wlRemove(entryId){
-  if(!confirm("Retirer cette personne de la liste d'attente ?"))return;
+  const confirmed = await showConfirmDialog('Retirer de la liste', "Retirer cette personne de la liste d'attente ?", 'Retirer', 'danger');
+  if(!confirmed)return;
   try{
     await api.delete(`/api/waitlist/${entryId}`);
     closeModal('wlDetailModal');
@@ -257,6 +261,7 @@ function wlDetail(idx){
 
   m+=`</div></div></div>`;
   document.body.insertAdjacentHTML('beforeend',m);
+  guardModal(document.getElementById('wlDetailModal'), { noBackdropClose: true });
 
   // Auto-save notes on blur
   document.getElementById('wlStaffNotes')?.addEventListener('blur',function(){

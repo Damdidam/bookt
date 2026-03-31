@@ -1,4 +1,4 @@
-const CACHE_NAME = 'genda-v1';
+const CACHE_NAME = 'genda-v20260331';
 const STATIC_ASSETS = [
   '/manifest.json'
 ];
