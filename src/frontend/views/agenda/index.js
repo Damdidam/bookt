@@ -263,7 +263,10 @@ async function loadAgenda() {
   statusPillsHtml += `<div class="prac-pill st-toggle ${calState.fcShowCompleted ? 'active' : ''}" onclick="fcToggleStatus('completed',this)" style="font-size:.68rem;gap:4px"><span style="color:var(--text-3)"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>Termin\u00e9s</div>`;
   if (isPrac) {
     calState.fcCurrentFilter = user?.practitioner_id || 'all';
-  } else if (calState.fcPractitioners.length > 1) {
+  } else if (calState.fcPractitioners.length <= 1) {
+    // Solo practitioner: no pills, filter = all (show everything)
+    calState.fcCurrentFilter = 'all';
+  } else {
     pillsHtml += `<div class="prac-pill active" onclick="fcFilterPractitioner('all',this)"><span class="dot" style="background:var(--primary)"></span>Tous<span class="prac-fill" data-fill-id="all"></span></div>`;
     calState.fcPractitioners.forEach(p => {
       const ini = p.display_name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
