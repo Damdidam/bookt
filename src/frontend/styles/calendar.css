@@ -78,7 +78,7 @@
 .prac-pill{padding:6px 16px;border-radius:var(--radius-pill);font-size:.74rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border-light);background:var(--white);color:var(--text-3);transition:all .15s;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .prac-pill:hover{border-color:var(--text-4);background:var(--surface)}
 .prac-pill.active{border-color:#B2DFE0;background:var(--primary-light);color:var(--primary)}
-.prac-pill.st-toggle{opacity:.55;border-style:dashed}
+.prac-pill.st-toggle{opacity:.55;border-style:dashed;padding:4px 12px;font-size:.68rem;gap:5px}
 .prac-pill.st-toggle.active{opacity:1;border-style:solid;border-color:var(--border);background:var(--surface);color:var(--text-2)}
 .prac-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 /* prac-hours removed from desktop pills — kept for mobile at-row2 */
