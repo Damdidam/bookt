@@ -144,7 +144,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       `SELECT b.id, b.start_at, b.end_at, b.status, b.locked, b.reschedule_count,
               b.business_id, b.service_id, b.service_variant_id, b.practitioner_id,
               b.group_id, b.client_id, b.appointment_mode, b.public_token,
-              b.deposit_status, b.deposit_deadline,
+              b.deposit_required, b.deposit_status, b.deposit_deadline,
               COALESCE(sv.duration_min, s.duration_min) AS duration_min,
               biz.settings AS business_settings,
               biz.slug AS business_slug
@@ -174,7 +174,8 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     if (bk.locked) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' }); }
     if ((bk.reschedule_count || 0) >= reschMaxCount) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' }); }
     const reschDeadline = new Date(new Date(bk.start_at).getTime() - reschDeadlineHours * 3600000);
-    if (now >= reschDeadline) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Le délai de modification est dépassé.' }); }
+    const depositPaidResch = bk.deposit_required && bk.deposit_status === 'paid';
+    if (depositPaidResch && now >= reschDeadline) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Le délai de modification est dépassé.' }); }
 
     // Validate date within window
     const today = now.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });

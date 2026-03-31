@@ -216,7 +216,7 @@ router.get('/manage/:token', async (req, res, next) => {
     else if (!['confirmed', 'pending_deposit'].includes(bk.status)) { reschAllowed = false; reschReason = 'Le rendez-vous ne peut pas être modifié dans son état actuel.'; }
     else if (bk.locked) { reschAllowed = false; reschReason = 'Ce rendez-vous est verrouillé. Contactez le salon.'; }
     else if ((bk.reschedule_count || 0) >= reschMaxCount) { reschAllowed = false; reschReason = 'Nombre maximum de modifications atteint. Contactez le salon.'; }
-    else if (now >= reschDeadline) { reschAllowed = false; reschReason = `Le délai de modification (${reschDeadlineHours}h avant) est dépassé.`; }
+    else if (depositPaid && now >= reschDeadline) { reschAllowed = false; reschReason = `Le délai de modification (${reschDeadlineHours}h avant) est dépassé.`; }
     else if (new Date(bk.start_at) <= now) { reschAllowed = false; reschReason = 'Ce rendez-vous est déjà passé.'; }
 
     // Group members
