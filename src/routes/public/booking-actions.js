@@ -99,6 +99,21 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           [reason || 'Annulé par le client', bk.group_id, bk.business_id, bk.id, cancelWindowHours * 60, graceMin]
         );
       }
+      // Refund gift card debits inside transaction
+      const postCancelBk = cancelResult.rows[0];
+      const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+      try { await refundGiftCardForBooking(postCancelBk.id, txClient); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
+      // Refund pass sessions inside transaction
+      await refundPassForBooking(postCancelBk.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
+      // Refund GC debits + pass sessions for group siblings inside transaction
+      if (bk.group_id) {
+        try {
+          const sibs = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+          for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id, txClient); }
+          for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message)); }
+        } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
+      }
+
       await txClient.query('COMMIT');
     } catch (txErr) {
       await txClient.query('ROLLBACK').catch(() => {});
@@ -107,22 +122,10 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       txClient.release();
     }
 
-    // Refund gift card debits + Stripe refund if deposit was refunded
-    const postCancelBk = cancelResult.rows[0];
-    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(postCancelBk.id); } catch (e) { console.error('[GC REFUND] cancel error:', e.message); }
-    // Refund pass sessions
-    await refundPassForBooking(postCancelBk.id).catch(e => console.warn('[PASS REFUND]', e.message));
-    if (postCancelBk.deposit_status === 'refunded' && postCancelBk.deposit_payment_intent_id) {
-      await stripeRefundDeposit(postCancelBk.deposit_payment_intent_id, 'POST CANCEL');
-    }
-    // Refund GC debits for group siblings
-    if (bk.group_id) {
-      try {
-        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
-        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
-        for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
-      } catch (e) { console.error('[GC REFUND] sibling cancel error:', e.message); }
+    // Stripe refund if deposit was refunded (must be outside transaction — external API call)
+    const cancelledBk = cancelResult.rows[0];
+    if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
+      await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'POST CANCEL');
     }
 
     // Log client cancellation in audit_logs (shows in staff modal "Historique" tab)

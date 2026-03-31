@@ -5,6 +5,7 @@ import { api, GendaUI, viewState } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
+import { showConfirmDialog } from '../utils/dirty-guard.js';
 
 /** Relative time in French */
 function timeAgo(dateStr) {
@@ -173,7 +174,7 @@ async function reviewAction(action, id, extra) {
   }
 
   if (action === 'deleteReply') {
-    if (!confirm('Supprimer cette réponse ?')) return;
+    if (!(await showConfirmDialog('Supprimer cette réponse ?'))) return;
     try {
       await api.delete(`/api/reviews/${id}/reply`);
       GendaUI.toast('Réponse supprimée', 'success');

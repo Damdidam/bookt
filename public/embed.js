@@ -72,9 +72,6 @@
   }
 
   closeBtn.addEventListener('click', closeWidget);
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) closeWidget();
-  });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && overlay.classList.contains('active')) closeWidget();
   });

@@ -5,7 +5,7 @@ import { api, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
-import { guardModal, closeModal } from '../utils/dirty-guard.js';
+import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let _lastPromos = [];
 let _serviceCache = null;
@@ -348,7 +348,7 @@ async function togglePromo(id, active) {
 }
 
 async function deletePromo(id, title) {
-  if (!confirm(`Supprimer d\u00E9finitivement la promotion "${title}" ? Cette action est irr\u00E9versible.`)) return;
+  if (!(await showConfirmDialog(`Supprimer définitivement la promotion "${title}" ? Cette action est irréversible.`))) return;
   try {
     await api.delete(`/api/promotions/${id}`);
     GendaUI.toast('Promotion supprim\u00E9e', 'success');

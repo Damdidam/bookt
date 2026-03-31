@@ -120,7 +120,7 @@ function render(d) {
   const depStatus = bk.deposit_status || 'pending';
   // For pending: show net amount (what client still needs to pay). For paid/refunded/cancelled: show full deposit amount.
   const depAmount = (depStatus === 'pending' ? netDepositCents : fullDepositCents) / 100;
-  const depAmountStr = depAmount.toFixed(2);
+  const depAmountStr = depAmount.toFixed(2).replace('.', ',');
 
   // Deposit status colors
   const statusConfig = {
@@ -337,8 +337,8 @@ async function checkClientGiftCards(depositCents) {
     const sec = document.getElementById('gcSection');
     if (!sec) return;
     const card = data.cards[0]; // best card (highest balance)
-    const bal = (card.balance_cents / 100).toFixed(2);
-    const dep = (depositCents / 100).toFixed(2);
+    const bal = (card.balance_cents / 100).toFixed(2).replace('.', ',');
+    const dep = (depositCents / 100).toFixed(2).replace('.', ',');
     const covers = card.balance_cents >= depositCents;
 
     sec.style.display = '';
@@ -414,7 +414,7 @@ async function payWithGiftCard(code) {
       return;
     }
 
-    const gcUsed = (data.gc_amount_used / 100).toFixed(2);
+    const gcUsed = (data.gc_amount_used / 100).toFixed(2).replace('.', ',');
 
     if (data.fully_paid) {
       // Fully paid — show success and reload
@@ -424,13 +424,13 @@ async function payWithGiftCard(code) {
         </div>
         <h2 style="font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:6px">Acompte réglé !</h2>
         <p style="font-size:.88rem;color:var(--text-3)">${gcUsed} € débités de votre carte cadeau.<br>Votre rendez-vous est confirmé.</p>
-        ${data.gc_balance > 0 ? '<p style="font-size:.78rem;color:var(--text-4);margin-top:8px">Solde restant : ' + (data.gc_balance / 100).toFixed(2) + ' €</p>' : ''}
+        ${data.gc_balance > 0 ? '<p style="font-size:.78rem;color:var(--text-4);margin-top:8px">Solde restant : ' + (data.gc_balance / 100).toFixed(2).replace('.', ',') + ' €</p>' : ''}
       </div>`;
       // Reload after 3s to show confirmed state
       setTimeout(() => { window.location.href = '/deposit/' + token; }, 3000);
     } else {
       // Partial — update pay button with remaining
-      const rem = (data.remaining / 100).toFixed(2);
+      const rem = (data.remaining / 100).toFixed(2).replace('.', ',');
       appliedGcCode = code;
       appliedGcAmount = data.gc_amount_used;
 

@@ -4,7 +4,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
@@ -218,7 +218,7 @@ function renderClosuresCard() {
           <span class="closure-dates">${dateStr}</span>
           ${cl.reason ? `<span class="closure-reason">— ${cl.reason}</span>` : ''}
         </div>
-        <button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer cette fermeture ?'))deleteClosure('${cl.id}')" style="padding:3px 8px">${ICON_X}</button>
+        <button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer cette fermeture ?'))deleteClosure('${cl.id}')})()" style="padding:3px 8px">${ICON_X}</button>
       </div>`;
     });
     h += `</div>`;
@@ -253,7 +253,7 @@ function renderHolidaysCard(year) {
           <span style="font-size:.85rem;font-weight:600">${dt}</span>
           <span style="font-size:.78rem;color:var(--text-4)">${hol.name}</span>
         </div>
-        <button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ?'))deleteHoliday('${hol.id}')" style="padding:3px 8px">${ICON_X}</button>
+        <button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer ?'))deleteHoliday('${hol.id}')})()" style="padding:3px 8px">${ICON_X}</button>
       </div>`;
     });
     h += `</div>`;

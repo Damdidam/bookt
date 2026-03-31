@@ -215,7 +215,7 @@ function render(d) {
 
   // Deposit info section
   if (bk.status === 'pending_deposit' && bk.deposit_amount_cents) {
-    const depEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');
+    const depEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
     const depDeadline = bk.deposit_deadline ? new Date(bk.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
     const depUrl = '/deposit/' + bk.token;
     html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#FEF3E2">
@@ -230,10 +230,10 @@ function render(d) {
 
   // Deposit paid info (confirmed booking with paid deposit)
   if (bk.deposit_status === 'paid' && bk.deposit_amount_cents && bk.status !== 'pending_deposit') {
-    const depPaidEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.00', '');
+    const depPaidEuros = (bk.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
     const totalCents = bk.service.price_cents || 0;
     const remainCents = Math.max(0, totalCents - promoDiscount - lmDiscount - bk.deposit_amount_cents);
-    const remainEuros = (remainCents / 100).toFixed(2).replace('.00', '');
+    const remainEuros = (remainCents / 100).toFixed(2).replace('.', ',');
     html += `<div style="padding:20px 28px;border-top:1px solid var(--border-light);background:#ECFDF5">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-weight:700;color:#059669">
         <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>

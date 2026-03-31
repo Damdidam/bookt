@@ -4,7 +4,7 @@
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
 
 // XSS-safe HTML escaping for admin views
@@ -635,7 +635,7 @@ async function toggleGalleryItem(id,currentlyActive){
 }
 
 async function deleteGalleryItem(id){
-  if(!confirm('Supprimer cette photo ?'))return;
+  if(!(await showConfirmDialog('Supprimer cette photo ?')))return;
   try{
     const r=await fetch('/api/gallery/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error('Erreur');
@@ -712,7 +712,7 @@ async function toggleNewsItem(id,currentlyActive){
 }
 
 async function deleteNewsItem(id){
-  if(!confirm('Supprimer cet article ?'))return;
+  if(!(await showConfirmDialog('Supprimer cet article ?')))return;
   try{
     const r=await fetch('/api/news/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error('Erreur');
@@ -803,7 +803,7 @@ async function handleBrandingFile(file,type){
 window.handleBrandingFile=handleBrandingFile;
 
 async function deleteBrandingImage(type){
-  if(!confirm('Supprimer cette image ?'))return;
+  if(!(await showConfirmDialog('Supprimer cette image ?')))return;
   try{
     const r=await fetch('/api/business/delete-image/'+type,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error('Erreur');
@@ -911,7 +911,7 @@ async function editTestimonial(id){
 }
 
 async function deleteTestimonial(id){
-  if(!confirm('Supprimer ce témoignage ?'))return;
+  if(!(await showConfirmDialog('Supprimer ce témoignage ?')))return;
   try{
     const r=await fetch('/api/site/testimonials/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error('Erreur');
@@ -973,7 +973,7 @@ async function editValue(id){
 }
 
 async function deleteValue(id){
-  if(!confirm('Supprimer cette valeur ?'))return;
+  if(!(await showConfirmDialog('Supprimer cette valeur ?')))return;
   try{
     const r=await fetch('/api/site/values/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error('Erreur');

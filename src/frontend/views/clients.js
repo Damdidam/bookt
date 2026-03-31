@@ -5,7 +5,7 @@ import { api, categoryLabels, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let clientSearch='';
 let clientFilter='';
@@ -312,7 +312,7 @@ async function blockClient(id){
 }
 
 async function unblockClient(id){
-  if(!confirm('Débloquer ? Il/elle pourra à nouveau réserver en ligne.'))return;
+  if(!(await showConfirmDialog('Débloquer ? Il/elle pourra à nouveau réserver en ligne.')))return;
   try{
     const r=await fetch(`/api/clients/${id}/unblock`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
@@ -322,7 +322,7 @@ async function unblockClient(id){
 }
 
 async function resetNoShow(id){
-  if(!confirm('Remettre le compteur no-show à zéro et débloquer ?'))return;
+  if(!(await showConfirmDialog('Remettre le compteur no-show à zéro et débloquer ?')))return;
   try{
     const r=await fetch(`/api/clients/${id}/reset-noshow`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);
@@ -332,7 +332,7 @@ async function resetNoShow(id){
 }
 
 async function resetExpired(id){
-  if(!confirm('Remettre le compteur de réservations non confirmées à zéro ?'))return;
+  if(!(await showConfirmDialog('Remettre le compteur de réservations non confirmées à zéro ?')))return;
   try{
     const r=await fetch(`/api/clients/${id}/reset-expired`,{method:'POST',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);

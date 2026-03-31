@@ -8,7 +8,7 @@ import { api, GendaUI, sectorLabels } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
-import { closeModal } from '../utils/dirty-guard.js';
+import { closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -438,12 +438,12 @@ async function planDoSendPlanning() {
       btn.innerHTML = `${ICONS.checkCircle} Envoyé`;
       setTimeout(() => { closeModal('planSendOverlay'); }, 1500);
     } else {
-      alert(data.error || 'Erreur d\'envoi');
+      GendaUI.toast(data.error || 'Erreur d\'envoi', 'error');
       btn.disabled = false;
       btn.innerHTML = `${ICONS.send} Envoyer`;
     }
   } catch (e) {
-    alert('Erreur: ' + e.message);
+    GendaUI.toast('Erreur: ' + e.message, 'error');
     btn.disabled = false;
     btn.innerHTML = `${ICONS.send} Envoyer`;
   }
@@ -971,7 +971,7 @@ async function _fetchAlternatives(token, pracId, from, to, period, periodEnd) {
 
 /** Reassign a booking to a different practitioner */
 async function planReassign(bookingId, newPracId) {
-  if (!confirm('Réassigner ce RDV à ce praticien ? Le client sera notifié par email.')) return;
+  if (!(await showConfirmDialog('Réassigner ce RDV à ce praticien ? Le client sera notifié par email.'))) return;
 
   // Disable the chip that was clicked
   const altZone = document.getElementById(`planAlt_${bookingId}`);
@@ -1014,7 +1014,7 @@ function planToggleImpactList() {
 async function planNotifyClients() {
   const btn = document.getElementById('planNotifyClientsBtn');
   if (!btn) return;
-  if (!confirm('Envoyer un email/SMS aux clients impactés pour les prévenir ?')) return;
+  if (!(await showConfirmDialog('Envoyer un email/SMS aux clients impactés pour les prévenir ?'))) return;
 
   btn.disabled = true;
   btn.innerHTML = `${ICONS.send} Envoi en cours...`;
@@ -1111,14 +1111,14 @@ async function planSaveAbsence() {
 
 // ── Delete absence ──
 async function planDeleteAbsence(absId) {
-  if (!confirm('Supprimer cette absence ?')) return;
+  if (!(await showConfirmDialog('Supprimer cette absence ?'))) return;
   try {
     const r = await fetch(`/api/planning/absences/${absId}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + api.getToken() } });
-    if (!r.ok) { const data = await r.json(); alert(data.error || 'Erreur'); return; }
+    if (!r.ok) { const data = await r.json(); GendaUI.toast(data.error || 'Erreur', 'error'); return; }
     _editingAbsenceId = null;
     planCloseModal();
     await renderPlanning();
-  } catch (e) { alert('Erreur: ' + e.message); }
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); }
 }
 
 // ── Notify practitioner ──
@@ -1132,10 +1132,10 @@ async function planNotifyPractitioner(absId) {
       if (btn) btn.innerHTML = `${ICONS.checkCircle} Envoyé`;
       setTimeout(() => { if (btn) { btn.innerHTML = `${ICONS.mail} Notifier`; btn.disabled = false; } }, 3000);
     } else {
-      alert(data.error || 'Erreur d\'envoi');
+      GendaUI.toast(data.error || 'Erreur d\'envoi', 'error');
       if (btn) { btn.innerHTML = `${ICONS.mail} Notifier`; btn.disabled = false; }
     }
-  } catch (e) { alert('Erreur: ' + e.message); if (btn) { btn.innerHTML = `${ICONS.mail} Notifier`; btn.disabled = false; } }
+  } catch (e) { GendaUI.toast('Erreur: ' + e.message, 'error'); if (btn) { btn.innerHTML = `${ICONS.mail} Notifier`; btn.disabled = false; } }
 }
 
 // ── Load activity logs ──

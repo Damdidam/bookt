@@ -3,7 +3,7 @@
  */
 import { api, sectorLabels, calState, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -980,7 +980,7 @@ async function openStripeDashboard(){
 }
 
 async function disconnectStripe(){
-  if(!confirm('D\u00e9connecter votre compte Stripe ? Les paiements d\'acomptes ne seront plus possibles.'))return;
+  if(!(await showConfirmDialog('Déconnecter votre compte Stripe ? Les paiements d\'acomptes ne seront plus possibles.')))return;
   try{
     const r=await fetch('/api/stripe/connect',{method:'DELETE',headers:{'Authorization':'Bearer '+api.getToken()}});
     if(!r.ok)throw new Error((await r.json()).error);

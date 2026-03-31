@@ -175,7 +175,7 @@ router.post('/deposit/:token/gift-card', depositLimiter, async (req, res, next) 
 });
 
 // POST /api/public/deposit/:token/check-gift-cards
-router.post('/deposit/:token/check-gift-cards', async (req, res, next) => {
+router.post('/deposit/:token/check-gift-cards', depositLimiter, async (req, res, next) => {
   try {
     const bkRes = await query(
       `SELECT b.business_id, c.email FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE b.public_token = $1 AND b.status = 'pending_deposit'`,
@@ -289,7 +289,7 @@ router.post('/pass/validate', depositLimiter, async (req, res, next) => {
 });
 
 // POST /api/public/deposit/:token/check-passes
-router.post('/deposit/:token/check-passes', async (req, res, next) => {
+router.post('/deposit/:token/check-passes', depositLimiter, async (req, res, next) => {
   try {
     const bkRes = await query(
       `SELECT b.business_id, b.service_id, b.service_variant_id, c.email FROM bookings b LEFT JOIN clients c ON c.id = b.client_id WHERE b.public_token = $1 AND b.status IN ('pending_deposit', 'confirmed', 'pending')`,

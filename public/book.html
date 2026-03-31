@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta property="og:title" content="Prendre rendez-vous">
+<meta property="og:description" content="Réservez votre rendez-vous en ligne">
 <title>Prendre rendez-vous</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
@@ -633,11 +635,11 @@ function escH(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g
 function svcDisplayPrice(s){
   if(s.variants&&s.variants.length>0){
     var prices=s.variants.filter(function(v){return v.price_cents!=null;}).map(function(v){return v.price_cents;});
-    if(prices.length>0)return 'Dès '+(Math.min.apply(null,prices)/100).toFixed(0)+' \u20ac';
+    if(prices.length>0)return 'Dès '+(Math.min.apply(null,prices)/100).toFixed(2).replace('.', ',')+' \u20ac';
     return s.price_label||'';
   }
   // BUG-m2: price_cents === 0 is falsy, so explicitly check for it
-  if(s.price_cents!=null&&s.price_cents>0)return(s.price_cents/100).toFixed(0)+' \u20ac';
+  if(s.price_cents!=null&&s.price_cents>0)return(s.price_cents/100).toFixed(2).replace('.', ',')+' \u20ac';
   if(s.price_cents===0)return'Gratuit';
   return s.price_label||'';
 }
@@ -656,7 +658,7 @@ function showVariantModal(service,callback){
   if(service.description)h+='<p class="var-modal-desc">'+escH(service.description)+'</p>';
   h+='<div class="var-list">';
   service.variants.forEach(function(v,i){
-    var price=v.price_cents>0?(v.price_cents/100).toFixed(0)+' \u20ac':(v.price_cents===0?'Gratuit':'');
+    var price=v.price_cents>0?(v.price_cents/100).toFixed(2).replace('.', ',')+' \u20ac':(v.price_cents===0?'Gratuit':'');
     h+='<div class="var-card" data-idx="'+i+'">'
       +'<div class="var-info"><div class="var-name">'+escH(v.name)+'</div>'
       +(v.description?'<div class="var-desc" style="font-size:.78rem;color:var(--text-4);margin:2px 0 4px;line-height:1.4">'+escH(v.description)+'</div>':'')
@@ -972,7 +974,7 @@ function initPage(){
       const durs=s.variants.map(v=>v.duration_min);
       if(prices.length>0){
         const mn=Math.min(...prices)/100,mx=Math.max(...prices)/100;
-        h+='<div class="sk-svc-price">'+(mn===mx?mn.toFixed(0):mn.toFixed(0)+'\u2013'+mx.toFixed(0))+' \u20ac</div>';
+        h+='<div class="sk-svc-price">'+(mn===mx?mn.toFixed(2).replace('.', ','):mn.toFixed(2).replace('.', ',')+'\u2013'+mx.toFixed(2).replace('.', ','))+' \u20ac</div>';
       }
       const mnD=Math.min(...durs),mxD=Math.max(...durs);
       h+='<div class="sk-svc-dur">'+(mnD===mxD?mnD:mnD+'\u2013'+mxD)+' min</div>';
@@ -1394,7 +1396,7 @@ function updateCartBar(){
   const hours=Math.floor(totalMin/60);
   const mins=totalMin%60;
   const durStr=hours>0?hours+'h'+(mins>0?String(mins).padStart(2,'0'):''):totalMin+' min';
-  const priceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'';
+  const priceStr=totalPrice>0?(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
   document.getElementById('cartCount').textContent=n+' prestation'+(n>1?'s':'');
   document.getElementById('cartMeta').textContent=durStr+' \u00b7 '+priceStr;
   // Render chips
@@ -1434,8 +1436,8 @@ function checkPromoNudge(cartCents){
   // Remove existing nudge
   if(_promoNudgeEl){_promoNudgeEl.remove();_promoNudgeEl=null;}
   if(!nudgePromo)return;
-  var remaining=((nudgePromo.condition_min_cents-cartCents)/100).toFixed(0);
-  var rewardLabel=nudgePromo.reward_type==='discount_pct'?'-'+nudgePromo.reward_value+'%':'-'+(nudgePromo.reward_value/100).toFixed(0)+'\u20ac';
+  var remaining=((nudgePromo.condition_min_cents-cartCents)/100).toFixed(2).replace('.', ',');
+  var rewardLabel=nudgePromo.reward_type==='discount_pct'?'-'+nudgePromo.reward_value+'%':'-'+(nudgePromo.reward_value/100).toFixed(2).replace('.', ',')+'\u20ac';
   var el=document.createElement('div');
   el.className='promo-nudge';
   el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>'
@@ -1580,10 +1582,10 @@ function renderPromoBannerTop(){
     var label='';
     if(p.condition_type==='first_visit'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% pour les nouveaux clients';
     else if(p.condition_type==='first_visit') label=p.title;
-    else if(p.condition_type==='min_amount'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% d\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u202F\u20ac de panier';
-    else if(p.condition_type==='min_amount'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(0)+'\u202F\u20ac d\u00e8s '+(p.condition_min_cents/100).toFixed(0)+'\u202F\u20ac de panier';
+    else if(p.condition_type==='min_amount'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% d\u00e8s '+(p.condition_min_cents/100).toFixed(2).replace('.', ',')+'\u202F\u20ac de panier';
+    else if(p.condition_type==='min_amount'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(2).replace('.', ',')+'\u202F\u20ac d\u00e8s '+(p.condition_min_cents/100).toFixed(2).replace('.', ',')+'\u202F\u20ac de panier';
     else if(p.condition_type==='specific_service'&&p.reward_type==='discount_pct') label='-'+p.reward_value+'% sur '+escH(p.condition_service_name||p.title);
-    else if(p.condition_type==='specific_service'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(0)+'\u202F\u20ac sur '+escH(p.condition_service_name||p.title);
+    else if(p.condition_type==='specific_service'&&p.reward_type==='discount_fixed') label='-'+(p.reward_value/100).toFixed(2).replace('.', ',')+'\u202F\u20ac sur '+escH(p.condition_service_name||p.title);
     else if(p.condition_type==='specific_service'&&p.reward_type==='free_service') label=escH(p.reward_service_name||'Service offert')+' offert avec '+escH(p.condition_service_name||p.title);
     else label=p.title;
     html+='<div class="ptb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="ptb-title">'+escH(label)+'</span></div>';
@@ -1721,7 +1723,7 @@ function goToPromoSlide(idx){
 
 function getPromoConditionText(p){
   if(p.condition_type==='none')return 'Offre sans condition';
-  if(p.condition_type==='min_amount')return 'Panier minimum : '+(p.condition_min_cents/100).toFixed(0)+' \u20ac';
+  if(p.condition_type==='min_amount')return 'Panier minimum : '+(p.condition_min_cents/100).toFixed(2).replace('.', ',')+' \u20ac';
   if(p.condition_type==='specific_service')return 'Avec la prestation s\u00e9lectionn\u00e9e';
   if(p.condition_type==='date_range'){
     var parts=[];
@@ -2066,19 +2068,19 @@ function goToStep(n){
           var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
           var cd=cv?cv.duration_min:svc.duration_min;
           var cpc=cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents;
-          var cpStr=cpc>0?(cpc/100).toFixed(0)+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||''));
+          var cpStr=cpc>0?(cpc/100).toFixed(2).replace('.', ',')+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||''));
           rh+='<div class="sum-row"><span class="label">\u2022 '+cn+'</span><span class="val">'+cd+' min \u00b7 '+cpStr+'</span></div>';
         });
         var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
         var tPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-        var tPriceStr=tPrice>0?(tPrice/100).toFixed(0)+' \u20ac':'';
+        var tPriceStr=tPrice>0?(tPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
         rh+='<div class="sum-divider"></div><div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+tMin+' min \u00b7 '+tPriceStr+'</strong></span></div>';
       }else if(selectedService){
         var cv2=selectedVariants[selectedService.id];
         var sn=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
         var sd=cv2?cv2.duration_min:selectedService.duration_min;
         var spc=cv2&&cv2.price_cents!=null?cv2.price_cents:selectedService.price_cents;
-        var spStr=spc>0?(spc/100).toFixed(0)+' \u20ac':(spc===0?'Gratuit':(selectedService.price_label||''));
+        var spStr=spc>0?(spc/100).toFixed(2).replace('.', ',')+' \u20ac':(spc===0?'Gratuit':(selectedService.price_label||''));
         rh+='<div class="sum-row"><span class="label">'+sn+'</span><span class="val">'+sd+' min \u00b7 '+spStr+'</span></div>';
       }
       // Promo hint (only if business has active promos)
@@ -2339,8 +2341,8 @@ function renderSlots(){
     if(s.is_last_minute&&s.original_price_cents&&s.discounted_price_cents){
       btn.innerHTML='<span class="lm-time">'+s.start_time+'</span>'
         +'<span class="lm-badge">-'+s.discount_pct+'%</span>'
-        +'<span class="lm-price"><s>'+(s.original_price_cents/100).toFixed(0)+'\u00a0\u20ac</s> '
-        +'<strong>'+(s.discounted_price_cents/100).toFixed(0)+'\u00a0\u20ac</strong></span>';
+        +'<span class="lm-price"><s>'+(s.original_price_cents/100).toFixed(2).replace('.', ',')+'\u00a0\u20ac</s> '
+        +'<strong>'+(s.discounted_price_cents/100).toFixed(2).replace('.', ',')+'\u00a0\u20ac</strong></span>';
     }else{
       btn.textContent=s.start_time;
     }
@@ -2487,7 +2489,7 @@ function clearFieldErr(field){
 // ──────── SUMMARY ────────
 function buildSummary(){
   const d=new Date(selectedSlot.start_at);
-  const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
+  const dateStr=d.toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels',weekday:'long',day:'numeric',month:'long'});
   var html='';
   if(multiServiceMode&&selectedServices.length>1){
     selectedServices.forEach(function(svc){
@@ -2495,7 +2497,7 @@ function buildSummary(){
       var name=v?svc.name+' \u2014 '+v.name:svc.name;
       var dur=v?v.duration_min:svc.duration_min;
       var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
-      var p=svc.is_promo?'Offert':(pc>0?(pc/100).toFixed(0)+' \u20ac':(pc===0?'Gratuit':(svc.price_label||'')));
+      var p=svc.is_promo?'Offert':(pc>0?(pc/100).toFixed(2).replace('.', ',')+' \u20ac':(pc===0?'Gratuit':(svc.price_label||'')));
       // In split mode, show practitioner name per service
       var pracLabel='';
       if(splitMode&&selectedSlot&&selectedSlot.practitioners){
@@ -2509,14 +2511,14 @@ function buildSummary(){
     });
     var totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
     var totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
-    var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(0)+' \u20ac':'';
+    var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
     // Last-minute discount display for multi-service
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&totalPrice>0){
       var lmTotal=Math.round(totalPrice*(100-selectedSlot.discount_pct)/100);
       html+='<div class="sum-divider"></div>'
-        +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(totalPrice/100).toFixed(0)+' \u20ac</s> <strong style="color:#059669">'+(lmTotal/100).toFixed(0)+' \u20ac</strong></span></div>'
+        +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac</s> <strong style="color:#059669">'+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>'
         +'<div class="sum-row"><span class="label" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="val" style="color:#f59e0b;font-weight:600">-'+selectedSlot.discount_pct+'%</span></div>';
-      html+='<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+(lmTotal/100).toFixed(0)+' \u20ac</strong></span></div>';
+      html+='<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+(lmTotal/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>';
     }else{
       html+='<div class="sum-divider"></div>'
         +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
@@ -2546,11 +2548,11 @@ function buildSummary(){
   if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
     var sv2=selectedVariants[selectedService.id];
     var sumPc=sv2&&sv2.price_cents!=null?sv2.price_cents:selectedService.price_cents;
-    const price=sumPc>0?(sumPc/100).toFixed(0)+' \u20ac':(sumPc===0?'Gratuit':'');
+    const price=sumPc>0?(sumPc/100).toFixed(2).replace('.', ',')+' \u20ac':(sumPc===0?'Gratuit':'');
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&sumPc>0){
       var discPrice=Math.round(sumPc*(100-selectedSlot.discount_pct)/100);
       html+='<div class="sum-divider"></div>'
-        +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(sumPc/100).toFixed(0)+' \u20ac</s> <strong style="color:#059669">'+(discPrice/100).toFixed(0)+' \u20ac</strong></span></div>'
+        +'<div class="sum-row"><span class="label">Prix</span><span class="val"><s style="color:#9ca3af">'+(sumPc/100).toFixed(2).replace('.', ',')+' \u20ac</s> <strong style="color:#059669">'+(discPrice/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>'
         +'<div class="sum-row"><span class="label" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="val" style="color:#f59e0b;font-weight:600">-'+selectedSlot.discount_pct+'%</span></div>';
     }else{
       html+='<div class="sum-divider"></div>'
@@ -2691,7 +2693,7 @@ async function submitBooking(){
 
     // Confirmation
     const d=new Date(selectedSlot.start_at);
-    const dateStr=DAYS_FULL[d.getDay()]+' '+d.getDate()+' '+MONTHS_FULL[d.getMonth()];
+    const dateStr=d.toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels',weekday:'long',day:'numeric',month:'long'});
     var confirmHtml='';
 
     // Prestations — always show all selected services
@@ -2703,11 +2705,11 @@ async function submitBooking(){
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=svc.is_promo?0:(cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents);
-        var cp=svc.is_promo?'Offert':(cpc>0?(cpc/100).toFixed(0)+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||'')));
+        var cp=svc.is_promo?'Offert':(cpc>0?(cpc/100).toFixed(2).replace('.', ',')+' \u20ac':(cpc===0?'Gratuit':(svc.price_label||'')));
         confirmTotalMin+=cd;confirmTotalCents+=(cpc||0);
         confirmHtml+='<div class="row"><span class="l" style="padding-left:8px">\u2022 '+cn+'</span><span class="v">'+cd+' min \u00b7 '+cp+'</span></div>';
       });
-      confirmHtml+='<div class="row" style="border-top:1px solid var(--border-light);margin-top:4px;padding-top:4px"><span class="l" style="font-weight:700">Total</span><span class="v" style="font-weight:700">'+confirmTotalMin+' min \u00b7 '+(confirmTotalCents>0?(confirmTotalCents/100).toFixed(0)+' \u20ac':'')+'</span></div>';
+      confirmHtml+='<div class="row" style="border-top:1px solid var(--border-light);margin-top:4px;padding-top:4px"><span class="l" style="font-weight:700">Total</span><span class="v" style="font-weight:700">'+confirmTotalMin+' min \u00b7 '+(confirmTotalCents>0?(confirmTotalCents/100).toFixed(2).replace('.', ',')+' \u20ac':'')+'</span></div>';
     }else if(selectedService){
       var cv2=selectedVariants[selectedService.id];
       var confirmName=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
@@ -2762,7 +2764,7 @@ async function submitBooking(){
       if(hasServerTotals&&data.promotion&&data.promotion.discount_cents>0){
         lmDiscPrice=lmDiscPrice+data.promotion.discount_cents; // add promo back to show LM-only price
       }
-      confirmHtml+='<div class="row"><span class="l">Prix</span><span class="v"><s style="color:#9ca3af">'+(lmOriginal/100).toFixed(0)+' \u20ac</s> <strong style="color:#059669">'+(lmDiscPrice/100).toFixed(0)+' \u20ac</strong></span></div>';
+      confirmHtml+='<div class="row"><span class="l">Prix</span><span class="v"><s style="color:#9ca3af">'+(lmOriginal/100).toFixed(2).replace('.', ',')+' \u20ac</s> <strong style="color:#059669">'+(lmDiscPrice/100).toFixed(2).replace('.', ',')+' \u20ac</strong></span></div>';
       confirmHtml+='<div class="row"><span class="l" style="color:#f59e0b;font-weight:600">Derni\u00e8re minute</span><span class="v" style="color:#f59e0b;font-weight:600">-'+data.booking.discount_pct+'%</span></div>';
     }
 
@@ -2805,7 +2807,7 @@ async function submitBooking(){
       document.querySelector('#step5 .confirm-box .icon').innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
       document.querySelector('#step5 .confirm-box h3').textContent='Acompte requis';
       var depMsg='Un acompte est n\u00e9cessaire pour confirmer votre rendez-vous.';
-      if(data.booking&&data.booking.deposit_amount_cents){depMsg='Un acompte de '+(data.booking.deposit_amount_cents/100).toFixed(0)+' \u20ac est n\u00e9cessaire pour confirmer votre rendez-vous.';}
+      if(data.booking&&data.booking.deposit_amount_cents){depMsg='Un acompte de '+(data.booking.deposit_amount_cents/100).toFixed(2).replace('.', ',')+' \u20ac est n\u00e9cessaire pour confirmer votre rendez-vous.';}
       document.querySelector('#step5 .confirm-box p').innerHTML=depMsg+' Consultez l\u2019email et/ou le SMS que nous venons de vous envoyer.<br><span style="font-size:.78rem;color:var(--text-4);margin-top:6px;display:inline-block">Si vous ne trouvez pas l\u2019email, v\u00e9rifiez vos courriers ind\u00e9sirables (spam).</span>';
       document.getElementById('calButtons').style.display='none';
     }else if(data.needs_confirmation){

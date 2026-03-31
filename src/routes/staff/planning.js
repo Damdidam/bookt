@@ -1195,6 +1195,7 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
     const bkResult = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.end_at, b.practitioner_id, b.service_id, b.status,
               b.public_token, b.client_id,
+              b.price_cents, b.promotion_label, b.promotion_discount_cents, b.duration_min,
               c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone, c.consent_sms,
               s.name AS service_name,
               p.display_name AS old_practitioner_name
@@ -1283,11 +1284,31 @@ router.post('/reassign', requireOwner, async (req, res, next) => {
           hour: '2-digit', minute: '2-digit'
         });
 
+        // Build price/promo details
+        const priceCents = parseInt(bk.price_cents) || 0;
+        const promoDiscount = parseInt(bk.promotion_discount_cents) || 0;
+        const promoLabel = bk.promotion_label || '';
+        const durationMin = bk.duration_min;
+        let detailParts = [];
+        if (durationMin) detailParts.push(`${durationMin} min`);
+        let priceInfo = '';
+        if (priceCents > 0) {
+          if (promoDiscount > 0 && promoLabel) {
+            const finalPrice = priceCents - promoDiscount;
+            priceInfo = `<s style="opacity:.6">${(priceCents / 100).toFixed(2).replace('.', ',')} €</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} €`;
+          } else {
+            priceInfo = `${(priceCents / 100).toFixed(2).replace('.', ',')} €`;
+          }
+          detailParts.push(priceInfo);
+        }
+        const detailStr = detailParts.length > 0 ? ` (${detailParts.join(' · ')})` : '';
+        const promoLine = (promoDiscount > 0 && promoLabel) ? `<div style="font-size:12px;color:#7A7470;margin-top:4px">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} €</div>` : '';
+
         const bodyHTML = `
           <p>Bonjour <strong>${escHtml(bk.client_name || 'cher client')}</strong>,</p>
           <p>Votre rendez-vous a été réassigné à un nouveau praticien :</p>
           <div style="background:#F0FDF4;border-left:4px solid #22C55E;border-radius:6px;padding:14px 16px;margin:16px 0">
-            <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${escHtml(bk.service_name || 'Rendez-vous')}</div>
+            <div style="font-size:14px;font-weight:600;color:#1A1816;margin-bottom:4px">${escHtml(bk.service_name || 'Rendez-vous')}${detailStr}</div>${promoLine}
             <div style="font-size:13px;color:#3D3832">${escHtml(startLocal)}</div>
             <div style="font-size:13px;color:#3D3832;margin-top:4px">
               <span style="text-decoration:line-through;opacity:.6">avec ${escHtml(bk.old_practitioner_name || '—')}</span>

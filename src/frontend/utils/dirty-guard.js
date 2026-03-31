@@ -26,7 +26,7 @@ export function showConfirmDialog(title, message, confirmLabel = 'Confirmer', co
     const btnColor = confirmStyle === 'danger' ? '#DC2626' : 'var(--primary)';
     el.innerHTML = `<div class="dg-card">
       <p class="dg-msg" style="font-weight:600;margin-bottom:6px">${title}</p>
-      <p class="dg-msg">${message}</p>
+      ${message ? `<p class="dg-msg">${message}</p>` : ''}
       <div class="dg-actions">
         <button class="dg-btn dg-cancel" style="background:var(--bg);color:var(--text)">Annuler</button>
         <button class="dg-btn dg-confirm" style="background:${btnColor};color:#fff">${confirmLabel}</button>
@@ -110,4 +110,4 @@ export function guardModal(overlayEl, opts = {}) {
 }
 
 // Bridge for inline onclick handlers
-bridge({ closeModal });
+bridge({ closeModal, showConfirmDialog });

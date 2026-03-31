@@ -7,6 +7,7 @@ const { broadcast } = require('../../services/sse');
 const { sendModificationEmail } = require('../../services/email');
 const { sendSMS } = require('../../services/sms');
 const { calSyncPush, businessAllowsOverlap, checkPracAvailability, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
+const { isWithinLastMinuteWindow } = require('../public/helpers');
 
 // STS-V12-007: UUID validation regex (reused across all endpoints)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -295,6 +296,34 @@ router.patch('/:id/move', async (req, res, next) => {
             }
           }
 
+          // F7: Recalculate last-minute discount for each group member after move
+          const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const bizSettings = bizRes.rows[0]?.settings || {};
+          if (bizSettings.last_minute_enabled) {
+            const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
+            const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            for (const u of updates) {
+              const newStartBrussels = new Date(u.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+              const inLmWindow = isWithinLastMinuteWindow(newStartBrussels, todayBrussels, lmDeadline);
+              const svcRes = await client.query(
+                `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+                 FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 WHERE b.id = $1`, [u.id]
+              );
+              const svc = svcRes.rows[0];
+              const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+              let newDiscountPct = null;
+              if (inLmWindow && svc && svc.promo_eligible !== false && svc.eff_price > 0 && svc.eff_price >= lmMinPrice) {
+                newDiscountPct = bizSettings.last_minute_discount_pct || 10;
+              }
+              await client.query(
+                `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+                [newDiscountPct, u.id, bid]
+              );
+            }
+          }
+
           await client.query(
             `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
              VALUES ($1, $2, 'booking', $3, 'group_move', $4, $5)`,
@@ -488,6 +517,36 @@ router.patch('/:id/move', async (req, res, next) => {
             `UPDATE bookings SET deposit_deadline = $1 WHERE id = $2 AND business_id = $3`,
             [newDeadline.toISOString(), id, bid]
           );
+        }
+
+        // F7: Recalculate last-minute discount after move
+        if (moved) {
+          const bizRes = await client.query(`SELECT settings FROM businesses WHERE id = $1`, [bid]);
+          const bizSettings = bizRes.rows[0]?.settings || {};
+          if (bizSettings.last_minute_enabled) {
+            const lmDeadline = bizSettings.last_minute_deadline || 'j-1';
+            const newStartBrussels = new Date(moved.start_at).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+            const inLmWindow = isWithinLastMinuteWindow(newStartBrussels, todayBrussels, lmDeadline);
+            // Fetch service price + promo_eligible to validate LM discount
+            const svcRes = await client.query(
+              `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+               FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = $1`, [id]
+            );
+            const svc = svcRes.rows[0];
+            const lmMinPrice = bizSettings.last_minute_min_price_cents || 0;
+            let newDiscountPct = null;
+            if (inLmWindow && svc && svc.promo_eligible !== false && svc.eff_price > 0 && svc.eff_price >= lmMinPrice) {
+              newDiscountPct = bizSettings.last_minute_discount_pct || 10;
+            }
+            // Only update if discount_pct actually changes
+            await client.query(
+              `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+              [newDiscountPct, id, bid]
+            );
+          }
         }
 
         await client.query(
@@ -1406,27 +1465,68 @@ router.post('/:id/send-reminder', async (req, res, next) => {
         const { buildEmailHTML, sendEmail, escHtml } = require('../../services/email');
         const primaryColor = (b.theme && b.theme.primary_color) || '#2A7B7F';
 
-        // Build service details (price, duration, promo)
-        const durationMin = b.duration_min || b.svc_duration_min;
-        const priceCents = b.price_cents || b.svc_price_cents;
+        // Fetch group siblings if this is a group booking
+        let groupServices = null;
+        if (b.group_id) {
+          const grp = await queryWithRLS(bid,
+            `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+                    COALESCE(sv.duration_min, s.duration_min) AS duration_min,
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents
+             FROM bookings b2
+             LEFT JOIN services s ON s.id = b2.service_id
+             LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
+             WHERE b2.group_id = $1 AND b2.business_id = $2
+             ORDER BY b2.group_order, b2.start_at`,
+            [b.group_id, bid]
+          );
+          if (grp.rows.length > 1) groupServices = grp.rows;
+        }
+
+        const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
         const promoDiscount = parseInt(b.promotion_discount_cents) || 0;
         const promoLabel = b.promotion_label || '';
-        let priceHTML = '';
-        if (priceCents) {
-          if (promoDiscount > 0 && promoLabel) {
-            const finalPrice = priceCents - promoDiscount;
-            priceHTML = ` · <s style="opacity:.6">${(priceCents / 100).toFixed(2).replace('.', ',')} €</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} €`;
-            priceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} €</div>`;
+        let serviceBlock;
+
+        if (isMulti) {
+          // Group booking: list all services
+          let serviceHTML = groupServices.map(s => {
+            const price = s.price_cents ? ' · ' + (s.price_cents / 100).toFixed(2).replace('.', ',') + ' €' : '';
+            return `<div style="padding:2px 0;font-weight:600">• ${escHtml(s.name)} (${s.duration_min} min${price})</div>`;
+          }).join('');
+          const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
+          const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+          const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
+          if (totalPrice > 0 && promoDiscount > 0 && promoLabel) {
+            const finalPrice = totalPrice - promoDiscount;
+            serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr} · <s style="opacity:.6">${(totalPrice / 100).toFixed(2).replace('.', ',')} €</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} €</div>`;
+            serviceHTML += `<div style="padding:2px 0;font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} €</div>`;
           } else {
-            priceHTML = ` · ${(priceCents / 100).toFixed(2).replace('.', ',')} €`;
+            const totalPriceStr = totalPrice > 0 ? ' · ' + (totalPrice / 100).toFixed(2).replace('.', ',') + ' €' : '';
+            serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr}</div>`;
           }
+          serviceBlock = serviceHTML;
+        } else {
+          // Single booking
+          const durationMin = b.duration_min || b.svc_duration_min;
+          const priceCents = b.price_cents || b.svc_price_cents;
+          let priceHTML = '';
+          if (priceCents) {
+            if (promoDiscount > 0 && promoLabel) {
+              const finalPrice = priceCents - promoDiscount;
+              priceHTML = ` · <s style="opacity:.6">${(priceCents / 100).toFixed(2).replace('.', ',')} €</s> ${(finalPrice / 100).toFixed(2).replace('.', ',')} €`;
+              priceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} €</div>`;
+            } else {
+              priceHTML = ` · ${(priceCents / 100).toFixed(2).replace('.', ',')} €`;
+            }
+          }
+          const durationHTML = durationMin ? ` (${durationMin} min${priceHTML})` : (priceHTML ? ` (${priceHTML})` : '');
+          serviceBlock = `<strong>${escHtml(b.service_name || 'Rendez-vous')}</strong>${durationHTML}`;
         }
-        const durationHTML = durationMin ? ` (${durationMin} min${priceHTML})` : (priceHTML ? ` (${priceHTML})` : '');
 
         const html = buildEmailHTML({
           businessName: b.business_name, primaryColor,
           title: 'Rappel de votre rendez-vous',
-          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0"><strong>${escHtml(b.service_name || 'Rendez-vous')}</strong>${durationHTML}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}<br>avec ${escHtml(b.practitioner_name || '')}</div>`,
+          bodyHTML: `<p>Bonjour <strong>${escHtml(b.client_name || '')}</strong>,</p><p>Ceci est un rappel pour votre rendez-vous :</p><div style="background:#F4F1EE;border-radius:8px;padding:14px 16px;margin:12px 0">${serviceBlock}<br>${escHtml(dateStr)} à ${escHtml(timeStr)}<br>avec ${escHtml(b.practitioner_name || '')}</div>`,
           ctaText: 'Voir mon rendez-vous', ctaUrl: manageUrl,
           cancelText: 'Gérer mon rendez-vous', cancelUrl: manageUrl
         });

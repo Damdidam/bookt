@@ -3,6 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
+import { showConfirmDialog } from '../utils/dirty-guard.js';
 
 const gToast = GendaUI.toast.bind(GendaUI);
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -207,7 +208,7 @@ async function calSyncNow(connId) {
 }
 
 async function calSyncDisconnect(connId, label) {
-  if (!confirm(`Déconnecter ${label} ?`)) return;
+  if (!(await showConfirmDialog(`Déconnecter ${label} ?`))) return;
   try {
     const r = await fetch(`/api/calendar/connections/${connId}`, {
       method: 'DELETE',

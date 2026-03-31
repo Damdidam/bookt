@@ -6,7 +6,7 @@ import { api, userSector, categoryLabels, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
 
 let allPractitioners=[];
@@ -202,7 +202,7 @@ function renderServiceRow(s,sortIdx){
   h+=`<div class="svc-row-actions">`;
   h+=`<label class="svc-toggle" title="${s.is_active!==false?'Désactiver':'Activer'}" onclick="event.stopPropagation()"><input type="checkbox"${s.is_active!==false?' checked':''} onchange="toggleService('${s.id}',this.checked)"><span class="svc-toggle-slider"></span></label>`;
   h+=`<button class="svc-icon-btn" onclick="openServiceModal('${s.id}')" title="Modifier">${PENCIL_SVG}</button>`;
-  h+=`<button class="svc-icon-btn danger" onclick="if(confirm('Supprimer cette prestation ?'))deleteService('${s.id}')" title="Supprimer">${TRASH_SVG}</button>`;
+  h+=`<button class="svc-icon-btn danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer cette prestation ?'))deleteService('${s.id}')})()" title="Supprimer">${TRASH_SVG}</button>`;
   h+=`</div>`;
   h+=`</div>`; // end row
   return h;
@@ -313,7 +313,7 @@ async function svcDeleteCategory(cat){
   const msg=svcsInCat.length>0
     ?`Supprimer la catégorie "${cat}" et ses ${svcsInCat.length} prestation(s) ?\n\nCette action est irréversible.`
     :`Supprimer la catégorie "${cat}" (vide) ?`;
-  if(!confirm(msg))return;
+  if(!(await showConfirmDialog(msg)))return;
   try{
     let errors=0;
     for(const s of svcsInCat){

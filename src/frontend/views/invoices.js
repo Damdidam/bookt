@@ -291,7 +291,7 @@ function downloadInvoicePDF(id){
 }
 
 async function createInvoiceFromBooking(bookingId){
-  if(!confirm('Créer une facture pour ce rendez-vous ?'))return;
+  if(!(await showConfirmDialog('Créer une facture pour ce rendez-vous ?')))return;
   try{
     const r=await api.post('/api/invoices',{booking_id:bookingId,type:'invoice'});
     GendaUI.toast('Facture créée ! Retrouvez-la dans Facturation.','success');

@@ -6,6 +6,7 @@
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { IC } from '../utils/icons.js';
+import { showConfirmDialog } from '../utils/dirty-guard.js';
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 
@@ -410,7 +411,7 @@ async function fsUnpublish() {
 }
 
 async function fsClear() {
-  if (!confirm('Effacer tous les créneaux vedettes de cette semaine ?')) return;
+  if (!(await showConfirmDialog('Effacer tous les créneaux vedettes de cette semaine ?'))) return;
   try {
     const r = await fetch(`/api/featured-slots?practitioner_id=${selectedPractId}&week_start=${weekStart}`, {
       method: 'DELETE',
@@ -442,7 +443,7 @@ function isDirty() {
 }
 
 async function fsWeekNav(dir) {
-  if (isDirty() && !confirm('Vos modifications ne sont pas publiées. Quitter quand même ?')) return;
+  if (isDirty() && !(await showConfirmDialog('Vos modifications ne sont pas publiées. Quitter quand même ?'))) return;
   weekStart = addDays(weekStart, dir * 7);
   const c = document.getElementById('contentArea');
   c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -451,7 +452,7 @@ async function fsWeekNav(dir) {
 }
 
 async function fsSwitchPract(pid) {
-  if (isDirty() && !confirm('Vos modifications ne sont pas publiées. Quitter quand même ?')) return;
+  if (isDirty() && !(await showConfirmDialog('Vos modifications ne sont pas publiées. Quitter quand même ?'))) return;
   selectedPractId = pid;
   const c = document.getElementById('contentArea');
   c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';

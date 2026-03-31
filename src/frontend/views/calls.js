@@ -4,7 +4,7 @@
 import { api, GendaUI, viewState } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal } from '../utils/dirty-guard.js';
+import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 function formatPhoneDisplay(phone){
   if(!phone)return '';
@@ -146,7 +146,7 @@ function renderCallVoicemails(vms){
       h+=`</div>`;
       h+=`<div style="display:flex;gap:6px">`;
       if(isUnread) h+=`<button class="btn-outline btn-sm" onclick="markVoicemailRead('${vm.id}')" style="font-size:.72rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Lu</button>`;
-      h+=`<button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ce message vocal ?'))deleteVoicemail('${vm.id}')" style="font-size:.72rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>`;
+      h+=`<button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer ce message vocal ?'))deleteVoicemail('${vm.id}')})()" style="font-size:.72rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>`;
       h+=`</div></div>`;
       h+=`<audio controls preload="none" style="width:100%;height:36px;border-radius:8px" ${isUnread?`onplay="markVoicemailRead('${vm.id}')"`:''}><source src="${vm.recording_url}" type="audio/mpeg">Votre navigateur ne supporte pas la lecture audio.</audio>`;
       if(vm.transcription) h+=`<div style="margin-top:8px;font-size:.82rem;color:var(--text-3);font-style:italic;padding:8px 12px;background:var(--surface);border-radius:8px"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${vm.transcription}</div>`;
@@ -319,7 +319,7 @@ function renderCallConfig(cs){
 }
 
 async function activateCallFilter(country){
-  if(!confirm(`Activer le filtre d'appels avec un num\u00e9ro ${country==='BE'?'belge':country==='FR'?'fran\u00e7ais':'n\u00e9erlandais'} ?\n\nUn num\u00e9ro virtuel sera attribu\u00e9 \u00e0 votre salon.`))return;
+  if(!(await showConfirmDialog(`Activer le filtre d'appels avec un numéro ${country==='BE'?'belge':country==='FR'?'français':'néerlandais'} ?\n\nUn numéro virtuel sera attribué à votre salon.`)))return;
   const c=document.getElementById('contentArea');
   c.innerHTML=`<div class="loading"><div class="spinner"></div><p style="text-align:center;margin-top:12px;color:var(--text-4)">Recherche d'un num\u00e9ro disponible...</p></div>`;
   try{
@@ -341,7 +341,7 @@ async function activateCallFilter(country){
 }
 
 async function deactivateCallFilter(){
-  if(!confirm('D\u00e9sactiver le filtre d\'appels ?\n\nLe num\u00e9ro virtuel sera lib\u00e9r\u00e9 et les appels ne seront plus filtr\u00e9s. Cette action est irr\u00e9versible.'))return;
+  if(!(await showConfirmDialog('Désactiver le filtre d\'appels ?\n\nLe numéro virtuel sera libéré et les appels ne seront plus filtrés. Cette action est irréversible.')))return;
   try{
     await api.post('/api/calls/deactivate');
     GendaUI.toast('Filtre d\'appels d\u00e9sactiv\u00e9','success');
@@ -359,7 +359,7 @@ function renderCallWhitelist(wl){
     h+=`<div style="overflow-x:auto"><table class="table"><thead><tr><th>Num\u00e9ro</th><th>Label</th><th>Actif</th><th></th></tr></thead><tbody>`;
     wl.forEach(w=>{
       h+=`<tr><td style="font-family:monospace;font-size:.85rem">${esc(w.phone_e164)}</td><td>${esc(w.label)||'\u2014'}</td><td>${w.is_active?'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>':'<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'}</td>`;
-      h+=`<td style="text-align:right"><button class="btn-outline btn-sm" onclick="editWhitelistEntry('${w.id}','${esc(w.phone_e164)}','${esc((w.label||'').replace(/'/g,"\\\\'"))}',${w.is_active})"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button> <button class="btn-outline btn-sm btn-danger" onclick="if(confirm('Supprimer ce num\u00e9ro VIP ?'))deleteWhitelistEntry('${w.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td></tr>`;
+      h+=`<td style="text-align:right"><button class="btn-outline btn-sm" onclick="editWhitelistEntry('${w.id}','${esc(w.phone_e164)}','${esc((w.label||'').replace(/'/g,"\\\\'"))}',${w.is_active})"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button> <button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Supprimer ce numéro VIP ?'))deleteWhitelistEntry('${w.id}')})()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td></tr>`;
     });
     h+=`</tbody></table></div>`;
   }
@@ -440,7 +440,7 @@ function renderCallBlacklist(bl){
     bl.forEach(b=>{
       const date=new Date(b.created_at).toLocaleDateString('fr-BE',{day:'numeric',month:'short'});
       h+=`<tr><td style="font-family:monospace;font-size:.85rem">${esc(b.phone_e164)}</td><td>${esc(b.label)||'\u2014'}</td><td>${reasonLabels[b.reason]||b.reason}</td><td style="font-size:.78rem">${date}</td>`;
-      h+=`<td style="text-align:right"><button class="btn-outline btn-sm btn-danger" onclick="if(confirm('D\u00e9bloquer ce num\u00e9ro ?'))deleteBlacklistEntry('${b.id}')"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td></tr>`;
+      h+=`<td style="text-align:right"><button class="btn-outline btn-sm btn-danger" onclick="(async()=>{if(await showConfirmDialog('Débloquer ce numéro ?'))deleteBlacklistEntry('${b.id}')})()"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td></tr>`;
     });
     h+=`</tbody></table></div>`;
   }

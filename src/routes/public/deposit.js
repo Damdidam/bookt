@@ -229,7 +229,7 @@ router.get('/deposit/:token/pay', depositLimiter, async (req, res, next) => {
 // POST /api/public/deposit/:token/verify
 // Verify payment status directly with Stripe (fallback when webhook delayed/missing)
 // ============================================================
-router.post('/deposit/:token/verify', async (req, res, next) => {
+router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => {
   try {
     const { token } = req.params;
 
