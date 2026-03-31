@@ -150,9 +150,9 @@ async function processExpiredPendingBookings() {
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   b.promotion_label, b.promotion_discount_cents,
                   p.display_name AS practitioner_name,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
-                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings, biz.plan AS biz_plan
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -193,6 +193,17 @@ async function processExpiredPendingBookings() {
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
+        // SMS cancellation to client (confirmation expiry)
+        if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
+          try {
+            const { sendSMS } = require('./sms');
+            const _dt = new Date(row.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+            const _tm = new Date(row.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+            const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+            const manageUrl = `${baseUrl}/booking/${row.public_token}`;
+            await sendSMS({ to: row.client_phone, body: `${row.biz_name} : Votre RDV "${row.service_name}" du ${_dt} \u00e0 ${_tm} a \u00e9t\u00e9 annul\u00e9. D\u00e9tails : ${manageUrl}`, businessId: row.business_id });
+          } catch (smsErr) { console.warn('[CONFIRM CRON] Cancel SMS error:', smsErr.message); }
+        }
       } catch (emailErr) {
         console.warn('[CONFIRM CRON] Cancellation email error for booking', bkId, ':', emailErr.message);
       }

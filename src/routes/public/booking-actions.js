@@ -196,9 +196,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
-                  biz.theme AS biz_theme, biz.slug AS biz_slug
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.plan AS biz_plan
            FROM bookings b
            LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -232,6 +232,17 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
+          // SMS cancellation to client
+          if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
+            try {
+              const { sendSMS } = require('../../services/sms');
+              const _dt = new Date(row.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+              const _tm = new Date(row.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const manageUrl = `${baseUrl}/booking/${row.public_token}`;
+              await sendSMS({ to: row.client_phone, body: `${row.biz_name} : Votre RDV "${row.service_name}" du ${_dt} à ${_tm} a été annulé. Détails : ${manageUrl}`, businessId: row.business_id });
+            } catch (smsErr) { console.warn('[SMS] Cancel SMS error:', smsErr.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Cancellation email error:', e.message); }
     })();
@@ -568,9 +579,9 @@ router.post('/booking/:token/reject', async (req, res, next) => {
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
-                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings, biz.plan AS biz_plan
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -604,6 +615,17 @@ router.post('/booking/:token/reject', async (req, res, next) => {
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
+          // SMS cancellation to client (rejection)
+          if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
+            try {
+              const { sendSMS } = require('../../services/sms');
+              const _dt = new Date(row.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+              const _tm = new Date(row.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const manageUrl = `${baseUrl}/booking/${row.public_token}`;
+              await sendSMS({ to: row.client_phone, body: `${row.biz_name} : Votre RDV "${row.service_name}" du ${_dt} à ${_tm} a été annulé. Détails : ${manageUrl}`, businessId: row.business_id });
+            } catch (smsErr) { console.warn('[SMS] Reject cancel SMS error:', smsErr.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Rejection cancellation email error:', e.message); }
       // M1: calSyncDelete + waitlist on reject
@@ -1175,7 +1197,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     // H3: Notify pro about client cancellation
     try { await query(`INSERT INTO notifications (business_id, booking_id, type, status) VALUES ($1, $2, 'email_cancellation_pro', 'queued')`, [bk.business_id, bk.id]); } catch (_) {}
 
-    // Send cancellation email + waitlist (non-blocking)
+    // Send cancellation email + SMS + waitlist (non-blocking)
     (async () => {
       try {
         const fullBk = await query(
@@ -1184,9 +1206,9 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   biz.name AS biz_name, biz.email AS biz_email, biz.address AS biz_address,
-                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings
+                  biz.theme AS biz_theme, biz.slug AS biz_slug, biz.settings AS biz_settings, biz.plan AS biz_plan
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -1226,6 +1248,17 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
+          // SMS cancellation to client (email link cancel)
+          if (row.client_phone && ['pro', 'premium'].includes(row.biz_plan)) {
+            try {
+              const { sendSMS } = require('../../services/sms');
+              const _dt = new Date(row.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+              const _tm = new Date(row.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const manageUrl = `${baseUrl}/booking/${row.public_token}`;
+              await sendSMS({ to: row.client_phone, body: `${row.biz_name} : Votre RDV "${row.service_name}" du ${_dt} à ${_tm} a été annulé. Détails : ${manageUrl}`, businessId: row.business_id });
+            } catch (smsErr) { console.warn('[SMS] Cancel-booking SMS error:', smsErr.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Cancel-booking email error:', e.message); }
       try { const { calSyncDelete } = require('../staff/bookings-helpers'); calSyncDelete(bk.business_id, bk.id); } catch (_) {}

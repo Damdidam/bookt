@@ -137,6 +137,36 @@ function buildServiceDetailHTML(bk, groupServices) {
 // ============================================================
 
 /**
+ * email_post_rdv — Send review request email (deferred via delay_until)
+ */
+async function sendReviewEmail(bk, metadata) {
+  if (!bk.client_email) return { success: false, error: 'no_client_email' };
+  const reviewToken = metadata?.review_token;
+  if (!reviewToken) return { success: false, error: 'no_review_token' };
+
+  const { sendReviewRequestEmail } = require('./email-misc');
+  const firstName = (bk.client_name || '').split(' ')[0] || 'Client';
+  return sendReviewRequestEmail({
+    booking: {
+      client_name: bk.client_name,
+      client_email: bk.client_email,
+      first_name: firstName,
+      service_name: bk.service_name,
+      service_category: bk.service_category,
+      practitioner_name: bk.practitioner_name,
+      review_token: reviewToken
+    },
+    business: {
+      name: bk.biz_name,
+      email: bk.biz_email,
+      address: bk.biz_address,
+      theme: bk.biz_theme,
+      settings: bk.biz_settings || {}
+    }
+  });
+}
+
+/**
  * email_new_booking_pro — Notify merchant of a new booking
  */
 async function sendNewBookingProEmail(bk, groupServices) {
@@ -472,11 +502,13 @@ async function processNotifications() {
 
   try {
     // Fetch queued pro notifications (LIMIT 50 to avoid overload)
+    // email_post_rdv uses metadata.delay_until for deferred sending
     const { rows: notifications } = await pool.query(
       `SELECT id, business_id, booking_id, type, metadata, created_at
        FROM notifications
        WHERE status = 'queued'
-         AND type IN ('email_new_booking_pro', 'email_cancellation_pro', 'email_reschedule_pro', 'email_modification_confirmed', 'email_modification_rejected')
+         AND type IN ('email_new_booking_pro', 'email_cancellation_pro', 'email_reschedule_pro', 'email_modification_confirmed', 'email_modification_rejected', 'email_post_rdv')
+         AND (metadata->>'delay_until' IS NULL OR (metadata->>'delay_until')::timestamptz <= NOW())
        ORDER BY created_at ASC
        LIMIT 50
        FOR UPDATE SKIP LOCKED`
@@ -499,8 +531,8 @@ async function processNotifications() {
           continue;
         }
 
-        // Check if business has an email
-        if (!bk.biz_email) {
+        // Check if business has an email (not needed for client-facing review emails)
+        if (!bk.biz_email && notif.type !== 'email_post_rdv') {
           await pool.query(
             `UPDATE notifications SET status = 'failed', error = 'no_business_email', sent_at = NOW() WHERE id = $1`,
             [notif.id]
@@ -529,6 +561,9 @@ async function processNotifications() {
             break;
           case 'email_modification_rejected':
             result = await sendModificationRejectedProEmail(bk, groupServices);
+            break;
+          case 'email_post_rdv':
+            result = await sendReviewEmail(bk, notif.metadata);
             break;
           default:
             result = { success: false, error: 'unknown_type' };

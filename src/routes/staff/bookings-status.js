@@ -582,17 +582,17 @@ router.patch('/:id/status', async (req, res, next) => {
     if (status === 'cancelled' && !txResult.depositRefunded) {
       try {
         const emailData = await queryWithRLS(bid,
-          `SELECT b.start_at, b.end_at, b.client_id, b.group_id,
+          `SELECT b.start_at, b.end_at, b.client_id, b.group_id, b.public_token,
                   b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
                   b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
-                  c.full_name AS client_name, c.email AS client_email,
+                  c.full_name AS client_name, c.email AS client_email, c.phone AS client_phone,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
                   COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
                   p.display_name AS practitioner_name,
                   biz.name AS biz_name, biz.slug, biz.email AS biz_email,
-                  biz.address, biz.theme, biz.settings AS biz_settings
+                  biz.address, biz.theme, biz.settings AS biz_settings, biz.plan AS biz_plan
            FROM bookings b
            LEFT JOIN clients c ON c.id = b.client_id
            LEFT JOIN services s ON s.id = b.service_id
@@ -624,6 +624,17 @@ router.patch('/:id/status', async (req, res, next) => {
             business: { name: d.biz_name, slug: d.slug, email: d.biz_email, address: d.address, theme: d.theme, settings: d.biz_settings },
             groupServices
           }).catch(e => console.warn('[EMAIL] Cancellation email error:', e.message));
+          // SMS cancellation to client (staff cancel)
+          if (d.client_phone && ['pro', 'premium'].includes(d.biz_plan)) {
+            try {
+              const { sendSMS } = require('../../services/sms');
+              const _dt = new Date(d.start_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+              const _tm = new Date(d.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+              const baseUrl = process.env.APP_BASE_URL || process.env.BASE_URL || 'https://genda.be';
+              const manageUrl = `${baseUrl}/booking/${d.public_token}`;
+              sendSMS({ to: d.client_phone, body: `${d.biz_name} : Votre RDV "${d.service_name}" du ${_dt} \u00e0 ${_tm} a \u00e9t\u00e9 annul\u00e9. D\u00e9tails : ${manageUrl}`, businessId: bid }).catch(e => console.warn('[SMS] Staff cancel SMS error:', e.message));
+            } catch (smsErr) { console.warn('[SMS] Staff cancel SMS error:', smsErr.message); }
+          }
         }
       } catch (e) { console.warn('[EMAIL] Cancellation email fetch error:', e.message); }
     }
@@ -894,16 +905,15 @@ router.patch('/:id/status', async (req, res, next) => {
                 [reviewToken, id, bid]
               );
             }
-            // Schedule email after delay (use setTimeout for simplicity)
+            // Queue review email via persistent DB notification (survives restarts)
             const delayMs = delayHours * 3600000;
-            const { sendReviewRequestEmail } = require('../../services/email');
-            setTimeout(() => {
-              sendReviewRequestEmail({
-                booking: { client_name: rd.client_name, client_email: rd.client_email, first_name: rd.first_name, service_name: rd.service_name, service_category: rd.service_category, practitioner_name: rd.practitioner_name, review_token: reviewToken },
-                business: { name: rd.business_name, email: rd.business_email, address: rd.address, theme: rd.theme, settings }
-              }).catch(e => console.warn('[EMAIL] Review request email error:', e.message));
-            }, delayMs);
-            console.log(`[REVIEW] Review email scheduled for booking ${id} in ${delayHours}h`);
+            const delayUntil = new Date(Date.now() + delayMs).toISOString();
+            await queryWithRLS(bid,
+              `INSERT INTO notifications (business_id, booking_id, type, status, metadata)
+               VALUES ($1, $2, 'email_post_rdv', 'queued', $3)`,
+              [bid, id, JSON.stringify({ review_token: reviewToken, delay_until: delayUntil })]
+            );
+            console.log(`[REVIEW] Review email queued for booking ${id} (delay_until: ${delayUntil})`);
           }
         }
       } catch (e) { console.warn('[REVIEW] Review scheduling error:', e.message); }

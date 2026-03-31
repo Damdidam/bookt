@@ -40,11 +40,11 @@ const authLimiter = rateLimit({
 
 /**
  * Rate limiter for client-phone PII lookup.
- * Strict: 5 requests per 10 minutes per IP to prevent enumeration.
+ * 15 requests per 10 minutes per IP — OAuth flow + form blurs + retries can exceed 5.
  */
 const clientPhoneLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 5,
+  max: 15,
   message: { error: 'Trop de tentatives. Réessayez plus tard.' },
   standardHeaders: true,
   legacyHeaders: false
