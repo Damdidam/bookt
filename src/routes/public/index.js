@@ -4,9 +4,10 @@ const { getAvailableSlots, getAvailableSlotsMultiPractitioner } = require('../..
 const { bookingLimiter, slotsLimiter, depositLimiter } = require('../../middleware/rate-limiter');
 const { processWaitlistForCancellation } = require('../../services/waitlist');
 const { broadcast } = require('../../services/sse');
-const { sendBookingConfirmation } = require('../../services/email');
 const { checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
 const { UUID_RE, escHtml, stripeRefundDeposit, shouldRequireDeposit, computeDepositDeadline, isWithinLastMinuteWindow, BASE_URL, validateAndCalcPromo } = require('./helpers');
+const { findOrCreateClient } = require('./booking-client-match');
+const { queueBookingNotifications, sendPostBookingComms } = require('./booking-notifications');
 
 // Mount OAuth sub-router for client booking authentication
 router.use('/auth', require('./oauth'));
@@ -392,108 +393,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
 
         // Find or create client (4-step matching: OAuth > exact > phone > email)
-        let clientId;
-        let existingClient = null;
-        let matchType = null;
-
-        // Priority 1: OAuth provider match (most reliable identity)
-        if (oauth_provider && oauth_provider_id) {
-          const oauthMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3 LIMIT 1`,
-            [businessId, oauth_provider, oauth_provider_id]
-          );
-          if (oauthMatch.rows.length > 0) {
-            existingClient = oauthMatch.rows[0];
-            matchType = 'oauth';
-          }
-        }
-
-        // Priority 2-4: phone+email > phone > email
-        if (!existingClient) {
-          const exactMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
-            [businessId, client_phone, client_email]
-          );
-          if (exactMatch.rows.length > 0) {
-            existingClient = exactMatch.rows[0];
-            matchType = 'exact';
-          } else {
-            const phoneMatch = await client.query(
-              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-              [businessId, client_phone]
-            );
-            if (phoneMatch.rows.length > 0) {
-              existingClient = phoneMatch.rows[0];
-              matchType = 'phone';
-            } else {
-              const emailMatch = await client.query(
-                `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
-                [businessId, client_email]
-              );
-              if (emailMatch.rows.length > 0) {
-                existingClient = emailMatch.rows[0];
-                matchType = 'email';
-              }
-            }
-          }
-        }
-
-        if (existingClient) {
-          if (existingClient.is_blocked) {
-            throw Object.assign(
-              new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
-              { type: 'blocked', status: 403 }
-            );
-          }
-          clientId = existingClient.id;
-          if (matchType === 'oauth' || matchType === 'exact') {
-            // Only fill empty fields — merchant edits in dashboard take priority
-            await client.query(
-              `UPDATE clients SET
-                full_name = COALESCE(full_name, NULLIF($1, '')),
-                email = COALESCE(email, NULLIF($2, '')),
-                phone = COALESCE(phone, NULLIF($3, '')),
-                bce_number = COALESCE($4, bce_number),
-                consent_sms = COALESCE($5, consent_sms),
-                consent_email = COALESCE($6, consent_email),
-                consent_marketing = COALESCE($7, consent_marketing),
-                oauth_provider = COALESCE($9, oauth_provider),
-                oauth_provider_id = COALESCE($10, oauth_provider_id),
-                updated_at = NOW()
-               WHERE id = $8`,
-              [client_name, client_email, client_phone, client_bce,
-               consent_sms === true ? true : (consent_sms === false ? false : null),
-               consent_email === true ? true : (consent_email === false ? false : null),
-               consent_marketing === true ? true : (consent_marketing === false ? false : null),
-               clientId,
-               oauth_provider || null, oauth_provider_id || null]
-            );
-          } else if (matchType === 'phone' || matchType === 'email') {
-            // Soft merge: only fill empty fields — merchant edits take priority
-            await client.query(
-              `UPDATE clients SET
-                full_name = COALESCE(full_name, NULLIF($2, '')),
-                phone = COALESCE(phone, NULLIF($4, '')),
-                email = COALESCE(email, NULLIF($5, '')),
-                oauth_provider = COALESCE($6, oauth_provider),
-                oauth_provider_id = COALESCE($7, oauth_provider_id),
-                updated_at = NOW()
-               WHERE id = $1 AND business_id = $3`,
-              [clientId, client_name, businessId, client_phone || null, client_email || null, oauth_provider || null, oauth_provider_id || null]
-            );
-          }
-        } else {
-          const nc = await client.query(
-            `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-              language_preference, consent_sms, consent_email, consent_marketing, created_from,
-              oauth_provider, oauth_provider_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
-            [businessId, client_name, client_phone, client_email, client_bce||null,
-             safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
-             oauth_provider || null, oauth_provider_id || null]
-          );
-          clientId = nc.rows[0].id;
-        }
+        const { clientId, existingClient } = await findOrCreateClient(client, {
+          businessId, client_name, client_phone, client_email, client_bce,
+          safeLang, consent_sms, consent_email, consent_marketing,
+          oauth_provider, oauth_provider_id
+        });
 
         // Determine locked status based on flexibility
         const anyFlexEnabled = multiServices.some(s => s.flexibility_enabled);
@@ -871,30 +775,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         }
 
         // Queue notifications for first booking (skip email_confirmation if deposit active)
-        if (bookings[0].status !== 'pending_deposit') {
-          try {
-            await client.query('SAVEPOINT notif_multi_sp1');
-            await client.query(
-              `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-               VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-              [businessId, bookings[0].id, client_email, client_phone]
-            );
-          } catch (notifErr) {
-            await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp1');
-            console.error('Notification insert failed:', notifErr.message);
-          }
-        }
-        try {
-          await client.query('SAVEPOINT notif_multi_sp2');
-          await client.query(
-            `INSERT INTO notifications (business_id, booking_id, type, status)
-             VALUES ($1,$2,'email_new_booking_pro','queued')`,
-            [businessId, bookings[0].id]
-          );
-        } catch (notifErr) {
-          await client.query('ROLLBACK TO SAVEPOINT notif_multi_sp2');
-          console.error('Notification insert failed:', notifErr.message);
-        }
+        await queueBookingNotifications(client, {
+          businessId, bookingId: bookings[0].id, bookingStatus: bookings[0].status,
+          clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif_multi'
+        });
 
         return { bookings, needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents };
       });
@@ -908,119 +792,64 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
 
       // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
-      (async () => {
-        try {
-          const bizRow = await query(`SELECT name, email, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
-          // Fetch practitioner names — split mode may have multiple practitioners
-          let pracDisplayName = '';
-          const splitPracNames = {}; // practitioner_id → display_name
-          if (isSplitMode) {
-            const uniquePIds = [...new Set(Object.values(splitPracMap))];
-            const pracRows = await query(`SELECT id, display_name FROM practitioners WHERE id = ANY($1)`, [uniquePIds]);
-            pracRows.rows.forEach(r => { splitPracNames[r.id] = r.display_name; });
-            pracDisplayName = pracRows.rows.map(r => r.display_name).filter(Boolean).join(', ');
-          } else {
-            const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
-            pracDisplayName = pracRow.rows[0]?.display_name || '';
-          }
-          if (bizRow.rows[0]) {
-            const lastBooking = multiBookings[multiBookings.length - 1];
-            // Find which booking carries the promo (may not be group_order=0 for specific_service promos)
-            const emailPromoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
-            const _rawSvcPrice0 = multiServices[0]?.price_cents || 0;
-            const emailBooking = {
-              ...multiBookings[0],
-              end_at: lastBooking.end_at,
-              client_name, client_email,
-              service_price_cents: multiBookings[0]?.discount_pct
+      // Pre-build multi-service data needed for notifications
+      {
+        const lastBooking = multiBookings[multiBookings.length - 1];
+        const emailPromoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
+        const _rawSvcPrice0 = multiServices[0]?.price_cents || 0;
+        const groupSvcs = multiServices.map((s, _i) => {
+          const rawPrice = s.price_cents || 0;
+          const adjPrice = multiBookings[_i]?.discount_pct ? Math.round(rawPrice * (100 - multiBookings[_i].discount_pct) / 100) : rawPrice;
+          return {
+            name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
+            duration_min: s.duration_min,
+            price_cents: adjPrice,
+            practitioner_name: isSplitMode ? null : null // filled by sendPostBookingComms after prac fetch
+          };
+        });
+        // Build createdBooking with promo fields merged + end_at from last booking
+        const multiEmailBooking = {
+          ...multiBookings[0],
+          end_at: lastBooking.end_at,
+          promotion_id: emailPromoBooking.promotion_id,
+          promotion_label: emailPromoBooking.promotion_label,
+          promotion_discount_pct: emailPromoBooking.promotion_discount_pct,
+          promotion_discount_cents: emailPromoBooking.promotion_discount_cents || 0
+        };
+        // Fetch practitioner names and fill groupSvcs (fire-and-forget wrapper handles errors)
+        (async () => {
+          try {
+            let pracDisplayName = '';
+            const splitPracNames = {};
+            if (isSplitMode) {
+              const uniquePIds = [...new Set(Object.values(splitPracMap))];
+              const pracRows = await query(`SELECT id, display_name FROM practitioners WHERE id = ANY($1)`, [uniquePIds]);
+              pracRows.rows.forEach(r => { splitPracNames[r.id] = r.display_name; });
+              pracDisplayName = pracRows.rows.map(r => r.display_name).filter(Boolean).join(', ');
+              // Fill practitioner names in groupSvcs
+              multiServices.forEach((s, _i) => { groupSvcs[_i].practitioner_name = splitPracNames[splitPracMap[s.id]] || null; });
+            } else {
+              const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
+              pracDisplayName = pracRow.rows[0]?.display_name || '';
+            }
+            sendPostBookingComms({
+              businessId, createdBooking: multiEmailBooking,
+              clientName: client_name, clientEmail: client_email,
+              clientPhone: client_phone, clientComment: client_comment,
+              needsConfirmation: multiNeedsConfirm, confirmTimeoutMin: multiConfTimeout,
+              confirmChannel: multiConfChannel, gcPartialCents: multiGcPartial || 0,
+              practitionerName: pracDisplayName,
+              serviceName: null, serviceCategory: multiServices[0]?.category || null,
+              servicePriceCents: multiBookings[0]?.discount_pct
                 ? Math.round(_rawSvcPrice0 * (100 - multiBookings[0].discount_pct) / 100)
                 : _rawSvcPrice0,
-              duration_min: multiServices[0]?.duration_min || 0,
-              service_category: multiServices[0]?.category || null,
-              practitioner_name: pracDisplayName,
-              comment: client_comment,
-              gc_partial_cents: multiGcPartial || 0,
-              promotion_id: emailPromoBooking.promotion_id,
-              promotion_label: emailPromoBooking.promotion_label,
-              promotion_discount_pct: emailPromoBooking.promotion_discount_pct,
-              promotion_discount_cents: emailPromoBooking.promotion_discount_cents || 0
-            };
-            const groupSvcs = multiServices.map((s, _i) => {
-              const rawPrice = s.price_cents || 0;
-              const adjPrice = multiBookings[_i]?.discount_pct ? Math.round(rawPrice * (100 - multiBookings[_i].discount_pct) / 100) : rawPrice;
-              return {
-                name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
-                duration_min: s.duration_min,
-                price_cents: adjPrice,
-                practitioner_name: isSplitMode ? (splitPracNames[splitPracMap[s.id]] || null) : null
-              };
+              durationMin: multiServices[0]?.duration_min || 0,
+              groupServices: groupSvcs,
+              logPrefix: 'Multi-service confirmation'
             });
-
-            if (multiBookings[0].status === 'pending_deposit') {
-              // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
-              const baseUrl = BASE_URL;
-              const depositUrl = `${baseUrl}/deposit/${multiBookings[0].public_token}`;
-              await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, multiBookings[0].id]);
-              const { sendDepositRequestEmail } = require('../../services/email');
-              const payUrl = `${baseUrl}/api/public/deposit/${multiBookings[0].public_token}/pay`;
-              await sendDepositRequestEmail({
-                booking: emailBooking,
-                business: bizRow.rows[0],
-                depositUrl,
-                payUrl,
-                groupServices: groupSvcs
-              });
-              // Audit trail
-              try {
-                await query(
-                  `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
-                   VALUES ($1,$2,'email_deposit_request',$3,'sent',NOW())`,
-                  [businessId, multiBookings[0].id, client_email]
-                );
-              } catch (_) { /* best-effort audit */ }
-              // SMS with deposit payment link
-              if (client_phone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
-                try {
-                  const { sendSMS } = require('../../services/sms');
-                  const _sd = new Date(emailBooking.start_at);
-                  const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-                  const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                  const depAmt = (multiBookings[0].deposit_amount_cents / 100).toFixed(2).replace('.', ',');
-                  const _depDl = multiBookings[0].deposit_deadline ? new Date(multiBookings[0].deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
-                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Acompte de ${depAmt}€ requis${_depDl ? ' avant le ' + _depDl : ''}. Payez ici : ${depositUrl}`, businessId });
-                  try {
-                    await query(
-                      `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
-                       VALUES ($1,$2,'sms_deposit_request',$3,'sent',NOW())`,
-                      [businessId, multiBookings[0].id, client_phone]
-                    );
-                  } catch (_) {}
-                } catch (smsErr) { console.warn('[SMS] Deposit request SMS error:', smsErr.message); }
-              }
-            } else if (multiNeedsConfirm) {
-              // Send confirmation REQUEST (client must click to confirm)
-              const { sendBookingConfirmationRequest } = require('../../services/email');
-              if (multiConfChannel === 'email' || multiConfChannel === 'both') {
-                await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: multiConfTimeout, groupServices: groupSvcs });
-              }
-              if (multiConfChannel === 'sms' || multiConfChannel === 'both') {
-                try {
-                  const { sendSMS } = require('../../services/sms');
-                  const baseUrl = BASE_URL;
-                  const link = `${baseUrl}/api/public/booking/${multiBookings[0].public_token}/confirm-booking`;
-                  const _sd = new Date(emailBooking.start_at);
-                  const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-                  const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                  const _svcLabel = groupSvcs.length > 1 ? `${groupSvcs[0].name} +${groupSvcs.length - 1}` : groupSvcs[0].name;
-                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" le ${_sDate} à ${_sTime} avec ${pracDisplayName}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
-                } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
-              }
-            } else {
-              await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0], groupServices: groupSvcs });
-            }
-          }
-        } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
-      })();
+          } catch (e) { console.warn('[EMAIL] Multi-service confirmation error:', e.message); }
+        })();
+      }
 
       // Find the booking that carries the promo (could be on any group_order for specific_service promos)
       const promoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
@@ -1175,107 +1004,11 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
 
       // Find or create client (4-step matching: OAuth > exact > phone > email)
-      let clientId;
-      let existingClient = null;
-      let matchType = null;
-
-      // Priority 1: OAuth provider match (most reliable identity)
-      if (oauth_provider && oauth_provider_id) {
-        const oauthMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3 LIMIT 1`,
-          [businessId, oauth_provider, oauth_provider_id]
-        );
-        if (oauthMatch.rows.length > 0) {
-          existingClient = oauthMatch.rows[0];
-          matchType = 'oauth';
-        }
-      }
-
-      if (!existingClient) {
-        const exactMatch = await client.query(
-          `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 AND LOWER(email) = LOWER($3) LIMIT 1`,
-          [businessId, client_phone, client_email]
-        );
-        if (exactMatch.rows.length > 0) {
-          existingClient = exactMatch.rows[0];
-          matchType = 'exact';
-        } else {
-          const phoneMatch = await client.query(
-            `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND phone = $2 LIMIT 1`,
-            [businessId, client_phone]
-          );
-          if (phoneMatch.rows.length > 0) {
-            existingClient = phoneMatch.rows[0];
-            matchType = 'phone';
-          } else {
-            const emailMatch = await client.query(
-              `SELECT id, is_blocked, no_show_count FROM clients WHERE business_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
-              [businessId, client_email]
-            );
-            if (emailMatch.rows.length > 0) {
-              existingClient = emailMatch.rows[0];
-              matchType = 'email';
-            }
-          }
-        }
-      }
-
-      if (existingClient) {
-        if (existingClient.is_blocked) {
-          throw Object.assign(
-            new Error('Votre compte est temporairement suspendu. Veuillez contacter le cabinet directement.'),
-            { type: 'blocked', status: 403 }
-          );
-        }
-        clientId = existingClient.id;
-        if (matchType === 'oauth' || matchType === 'exact') {
-          // Only fill empty fields — merchant edits in dashboard take priority
-          await client.query(
-            `UPDATE clients SET
-              full_name = COALESCE(full_name, NULLIF($1, '')),
-              email = COALESCE(email, NULLIF($2, '')),
-              phone = COALESCE(phone, NULLIF($3, '')),
-              bce_number = COALESCE($4, bce_number),
-              consent_sms = COALESCE($5, consent_sms),
-              consent_email = COALESCE($6, consent_email),
-              consent_marketing = COALESCE($7, consent_marketing),
-              oauth_provider = COALESCE($9, oauth_provider),
-              oauth_provider_id = COALESCE($10, oauth_provider_id),
-              updated_at = NOW()
-             WHERE id = $8`,
-            [client_name, client_email, client_phone, client_bce,
-             consent_sms === true ? true : (consent_sms === false ? false : null),
-             consent_email === true ? true : (consent_email === false ? false : null),
-             consent_marketing === true ? true : (consent_marketing === false ? false : null),
-             clientId,
-             oauth_provider || null, oauth_provider_id || null]
-          );
-        } else if (matchType === 'phone' || matchType === 'email') {
-          // Soft merge: only fill empty fields — merchant edits take priority
-          await client.query(
-            `UPDATE clients SET
-              full_name = COALESCE(full_name, NULLIF($2, '')),
-              phone = COALESCE(phone, NULLIF($4, '')),
-              email = COALESCE(email, NULLIF($5, '')),
-              oauth_provider = COALESCE($6, oauth_provider),
-              oauth_provider_id = COALESCE($7, oauth_provider_id),
-              updated_at = NOW()
-             WHERE id = $1 AND business_id = $3`,
-            [clientId, client_name, businessId, client_phone, client_email, oauth_provider || null, oauth_provider_id || null]
-          );
-        }
-      } else {
-        const nc = await client.query(
-          `INSERT INTO clients (business_id, full_name, phone, email, bce_number,
-            language_preference, consent_sms, consent_email, consent_marketing, created_from,
-            oauth_provider, oauth_provider_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'booking',$10,$11) RETURNING id`,
-          [businessId, client_name, client_phone, client_email, client_bce||null,
-           safeLang, consent_sms===true, consent_email===true, consent_marketing===true,
-           oauth_provider || null, oauth_provider_id || null]
-        );
-        clientId = nc.rows[0].id;
-      }
+      const { clientId, existingClient } = await findOrCreateClient(client, {
+        businessId, client_name, client_phone, client_email, client_bce,
+        safeLang, consent_sms, consent_email, consent_marketing,
+        oauth_provider, oauth_provider_id
+      });
 
       // Determine locked status based on service flexibility setting
       const singleLocked = resolvedFlexEnabled ? (flexible !== true) : false;
@@ -1601,30 +1334,10 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
       }
 
       // Queue notifications (skip email_confirmation if deposit active)
-      if (booking.rows[0].status !== 'pending_deposit') {
-        try {
-          await client.query('SAVEPOINT notif_sp1');
-          await client.query(
-            `INSERT INTO notifications (business_id, booking_id, type, recipient_email, recipient_phone, status)
-             VALUES ($1,$2,'email_confirmation',$3,$4,'queued')`,
-            [businessId, booking.rows[0].id, client_email, client_phone]
-          );
-        } catch (notifErr) {
-          await client.query('ROLLBACK TO SAVEPOINT notif_sp1');
-          console.error('Notification insert failed:', notifErr.message);
-        }
-      }
-      try {
-        await client.query('SAVEPOINT notif_sp2');
-        await client.query(
-          `INSERT INTO notifications (business_id, booking_id, type, status)
-           VALUES ($1,$2,'email_new_booking_pro','queued')`,
-          [businessId, booking.rows[0].id]
-        );
-      } catch (notifErr) {
-        await client.query('ROLLBACK TO SAVEPOINT notif_sp2');
-        console.error('Notification insert failed:', notifErr.message);
-      }
+      await queueBookingNotifications(client, {
+        businessId, bookingId: booking.rows[0].id, bookingStatus: booking.rows[0].status,
+        clientEmail: client_email, clientPhone: client_phone, savepointPrefix: 'notif'
+      });
 
       return { booking: booking.rows[0], needsConfirmation, confirmTimeoutMin, confirmChannel, gcPartialCents, svcPrice, svcDuration };
     });
@@ -1636,99 +1349,35 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
     try { const { calSyncPush } = require('../staff/bookings-helpers'); calSyncPush(businessId, createdBooking.id); } catch (_) {}
 
     // Send email (non-blocking): deposit request, confirmation request, OR direct confirmation
+    // Pre-fetch service name + practitioner name, then delegate to shared comms function
     (async () => {
       try {
-        const bizRow = await query(`SELECT name, email, address, theme, settings, plan FROM businesses WHERE id = $1`, [businessId]);
         const pracRow = await query(`SELECT display_name FROM practitioners WHERE id = $1`, [practitioner_id]);
-        if (bizRow.rows[0]) {
-          // Fetch service name (+ variant name) for email
-          let svcName = 'Rendez-vous';
-          let svcCategory = null;
-          if (effectiveServiceId) {
-            const svcRow = await query(`SELECT name, category FROM services WHERE id = $1`, [effectiveServiceId]);
-            if (svcRow.rows[0]) { svcName = svcRow.rows[0].name; svcCategory = svcRow.rows[0].category || null; }
-            if (resolvedVariantId) {
-              const vrRow = await query(`SELECT name FROM service_variants WHERE id = $1`, [resolvedVariantId]);
-              if (vrRow.rows[0]?.name) svcName = svcName + ' \u2014 ' + vrRow.rows[0].name;
-            }
-          }
-          const emailBooking = {
-            ...createdBooking,
-            client_name, client_email,
-            service_name: svcName,
-            service_category: svcCategory,
-            practitioner_name: pracRow.rows[0]?.display_name || '',
-            comment: client_comment,
-            gc_partial_cents: resultGcPartial || 0,
-            service_price_cents: createdBooking.discount_pct
-              ? Math.round((resultSvcPrice || 0) * (100 - createdBooking.discount_pct) / 100)
-              : (resultSvcPrice || 0),
-            duration_min: resultSvcDuration || 0
-          };
-          if (createdBooking.status === 'pending_deposit') {
-            // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
-            const baseUrl = BASE_URL;
-            const depositUrl = `${baseUrl}/deposit/${createdBooking.public_token}`;
-            await query(`UPDATE bookings SET deposit_payment_url = $1 WHERE id = $2`, [depositUrl, createdBooking.id]);
-            const { sendDepositRequestEmail } = require('../../services/email');
-            const payUrl = `${baseUrl}/api/public/deposit/${createdBooking.public_token}/pay`;
-            await sendDepositRequestEmail({ booking: emailBooking, business: bizRow.rows[0], depositUrl, payUrl });
-            // Audit trail
-            try {
-              await query(
-                `INSERT INTO notifications (business_id, booking_id, type, recipient_email, status, sent_at)
-                 VALUES ($1,$2,'email_deposit_request',$3,'sent',NOW())`,
-                [businessId, createdBooking.id, client_email]
-              );
-            } catch (_) { /* best-effort audit */ }
-            // SMS with deposit payment link
-            if (client_phone && ['pro', 'premium'].includes(bizRow.rows[0].plan)) {
-              try {
-                const { sendSMS } = require('../../services/sms');
-                const _sd2 = new Date(emailBooking.start_at);
-                const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-                const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                const depAmt = (createdBooking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
-                const _depDl2 = createdBooking.deposit_deadline ? new Date(createdBooking.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
-                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Acompte de ${depAmt}€ requis${_depDl2 ? ' avant le ' + _depDl2 : ''}. Payez ici : ${depositUrl}`, businessId });
-                try {
-                  await query(
-                    `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
-                     VALUES ($1,$2,'sms_deposit_request',$3,'sent',NOW())`,
-                    [businessId, createdBooking.id, client_phone]
-                  );
-                } catch (_) {}
-              } catch (smsErr) { console.warn('[SMS] Deposit request SMS error:', smsErr.message); }
-            }
-          } else if (singleNeedsConfirm) {
-            const { sendBookingConfirmationRequest } = require('../../services/email');
-            if (singleConfChannel === 'email' || singleConfChannel === 'both') {
-              await sendBookingConfirmationRequest({ booking: emailBooking, business: bizRow.rows[0], timeoutMin: singleConfTimeout });
-            }
-            if (singleConfChannel === 'sms' || singleConfChannel === 'both') {
-              try {
-                const { sendSMS } = require('../../services/sms');
-                const baseUrl = BASE_URL;
-                const link = `${baseUrl}/api/public/booking/${createdBooking.public_token}/confirm-booking`;
-                const _sd2 = new Date(emailBooking.start_at);
-                const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-                const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                console.log(`[SMS] Attempting confirmation SMS to ${client_phone} for booking ${createdBooking.id}, channel=${singleConfChannel}`);
-                const _pracName2 = pracRow.rows[0]?.display_name || '';
-                const smsResult = await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV "${svcName}" le ${_sDate2} à ${_sTime2}${_pracName2 ? ' avec ' + _pracName2 : ''}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
-                console.log(`[SMS] Confirmation SMS result:`, JSON.stringify(smsResult));
-                await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
-                  [businessId, createdBooking.id, client_phone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]);
-              } catch (smsErr) {
-                console.error('[SMS] Booking confirm SMS error:', smsErr.message, smsErr.stack);
-                try { await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, error) VALUES ($1,$2,'sms_confirmation',$3,'failed',$4)`,
-                  [businessId, createdBooking.id, client_phone, smsErr.message]); } catch (_) {}
-              }
-            }
-          } else {
-            await sendBookingConfirmation({ booking: emailBooking, business: bizRow.rows[0] });
+        let svcName = 'Rendez-vous';
+        let svcCategory = null;
+        if (effectiveServiceId) {
+          const svcRow = await query(`SELECT name, category FROM services WHERE id = $1`, [effectiveServiceId]);
+          if (svcRow.rows[0]) { svcName = svcRow.rows[0].name; svcCategory = svcRow.rows[0].category || null; }
+          if (resolvedVariantId) {
+            const vrRow = await query(`SELECT name FROM service_variants WHERE id = $1`, [resolvedVariantId]);
+            if (vrRow.rows[0]?.name) svcName = svcName + ' \u2014 ' + vrRow.rows[0].name;
           }
         }
+        sendPostBookingComms({
+          businessId, createdBooking,
+          clientName: client_name, clientEmail: client_email,
+          clientPhone: client_phone, clientComment: client_comment,
+          needsConfirmation: singleNeedsConfirm, confirmTimeoutMin: singleConfTimeout,
+          confirmChannel: singleConfChannel, gcPartialCents: resultGcPartial || 0,
+          practitionerName: pracRow.rows[0]?.display_name || '',
+          serviceName: svcName, serviceCategory: svcCategory,
+          servicePriceCents: createdBooking.discount_pct
+            ? Math.round((resultSvcPrice || 0) * (100 - createdBooking.discount_pct) / 100)
+            : (resultSvcPrice || 0),
+          durationMin: resultSvcDuration || 0,
+          groupServices: null,
+          logPrefix: 'Single booking'
+        });
       } catch (e) { console.warn('[EMAIL] Single booking email error:', e.message); }
     })();
 
