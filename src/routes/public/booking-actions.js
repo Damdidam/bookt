@@ -44,7 +44,9 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
 
     // Skip cancellation deadline for pending_deposit — client hasn't paid yet,
     // they should always be able to cancel (otherwise deposit-expiry cron would cancel it anyway)
-    if (bk.status !== 'pending_deposit') {
+    // Deadline only enforced when deposit was required AND paid
+    const depositPaid = bk.deposit_required && bk.deposit_status === 'paid';
+    if (bk.status !== 'pending_deposit' && depositPaid) {
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
       if (new Date() >= deadline) {
         return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
@@ -435,7 +437,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
 
     // Deadline check: prevent rejection bypass of cancellation deadline
     const bkCheck = await query(
-      `SELECT b.id, b.status, b.start_at, biz.settings AS business_settings
+      `SELECT b.id, b.status, b.start_at, b.deposit_required, b.deposit_status, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`, [token]
     );
@@ -445,10 +447,14 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     }
     const bkData = bkCheck.rows[0];
     const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? bkData.business_settings?.cancellation_window_hours ?? 24;
-    const deadline = new Date(new Date(bkData.start_at).getTime() - cancelWindowHours * 3600000);
-    if (new Date() >= deadline) {
-      if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
-      return res.status(400).json({ error: 'Délai de modification dépassé' });
+    // Deadline only enforced when deposit was required AND paid
+    const depositPaidReject = bkData.deposit_required && bkData.deposit_status === 'paid';
+    if (depositPaidReject) {
+      const deadline = new Date(new Date(bkData.start_at).getTime() - cancelWindowHours * 3600000);
+      if (new Date() >= deadline) {
+        if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
+        return res.status(400).json({ error: 'Délai de modification dépassé' });
+      }
     }
 
     // Deposit refund logic — same deadline + grace period as cancel route
@@ -981,7 +987,8 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
     // For confirmed: check cancellation deadline
     // Skip deadline check for pending_deposit — client hasn't paid yet, always allow cancel
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    if (bk.status === 'confirmed') {
+    // Deadline only enforced when deposit was required AND paid
+    if (bk.status === 'confirmed' && bk.deposit_required && bk.deposit_status === 'paid') {
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
       if (new Date() >= deadline) {
         return res.send(confirmationPage('Annulation impossible', `L'annulation n'est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
@@ -1065,7 +1072,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     }
 
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    if (bk.status === 'confirmed') {
+    // Deadline only enforced when deposit was required AND paid
+    if (bk.status === 'confirmed' && bk.deposit_required && bk.deposit_status === 'paid') {
       const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
       if (new Date() >= deadline) {
         return res.send(confirmationPage('Annulation impossible', `L\u2019annulation n\u2019est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));

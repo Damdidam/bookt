@@ -88,7 +88,8 @@ router.get('/booking/:token', async (req, res, next) => {
 
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && new Date() < deadline);
+    const depositPaid = bk.deposit_required && bk.deposit_status === 'paid';
+    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && (!depositPaid || new Date() < deadline));
 
     // Build service info: use group members if available, otherwise single service
     const serviceInfo = groupServices
@@ -130,6 +131,7 @@ router.get('/booking/:token', async (req, res, next) => {
       cancellation: {
         allowed: canCancel,
         deadline: deadline.toISOString(),
+        deadline_enforced: depositPaid,
         window_hours: cancelWindowHours,
         policy_text: bk.business_settings?.cancel_policy_text || null,
         reason: !canCancel && (bk.status === 'confirmed' || bk.status === 'pending_deposit') ? 'Délai d\'annulation dépassé' : null
@@ -197,7 +199,8 @@ router.get('/manage/:token', async (req, res, next) => {
     // Cancellation (same logic as GET /booking/:token)
     const cancelWindowHours = settings.cancel_deadline_hours ?? settings.cancellation_window_hours ?? 24;
     const cancelDeadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && new Date() < cancelDeadline);
+    const depositPaid = bk.deposit_required && bk.deposit_status === 'paid';
+    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && (!depositPaid || new Date() < cancelDeadline));
 
     // Reschedule eligibility
     const reschEnabled = !!settings.reschedule_enabled;
@@ -309,6 +312,7 @@ router.get('/manage/:token', async (req, res, next) => {
       cancellation: {
         allowed: canCancel,
         deadline: cancelDeadline.toISOString(),
+        deadline_enforced: depositPaid,
         window_hours: cancelWindowHours,
         policy_text: settings.cancel_policy_text || null,
         reason: !canCancel && ['confirmed', 'pending_deposit'].includes(bk.status) ? 'Délai d\'annulation dépassé' : null
