@@ -23,6 +23,7 @@
   .agenda-toolbar .at-today{padding:5px 12px;font-size:.7rem}
   .at-vp-btn{padding:5px 12px;font-size:.7rem}
   .agenda-toolbar .prac-pill{padding:5px 12px;font-size:.68rem}
+  .agenda-toolbar .at-tog{width:36px;height:36px;min-width:36px}
   .at-search-wrap.expanded .at-search.at-search-hidden{width:150px}
 }
 /* Abbreviated view labels on narrower screens */
@@ -72,6 +73,9 @@
   .agenda-toolbar .at-row2::-webkit-scrollbar{display:none}
   .agenda-toolbar .at-row2 .prac-pill{padding:3px 10px;font-size:.64rem;gap:4px}
   .agenda-toolbar .at-row2 .prac-pill .dot{width:6px;height:6px}
+  .agenda-toolbar .at-row2 .at-tog{width:36px;height:36px;min-width:36px}
+  .agenda-toolbar .at-row2 .at-status-pills .prac-pill{min-height:36px}
+  .agenda-toolbar .at-row2 .at-cat-chips .cat-chip{min-height:36px}
   /* Sticky day headers below mobile toolbar (JS sets --toolbar-h) */
   .content.agenda-active .fc .fc-scrollgrid-section-header{top:var(--toolbar-h,64px)}
   .content.agenda-active .fc .fc-scrollgrid-section-header>*{top:var(--toolbar-h,64px)!important}
