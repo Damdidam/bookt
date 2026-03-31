@@ -23,7 +23,7 @@ function toAvailWeekday(jsDate) {
  */
 function isWorkDay(date, workDays, holidayDates) {
   if (holidayDates) {
-    const ds = date.toISOString().slice(0, 10);
+    const ds = date.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     if (holidayDates.has(ds)) return false;
   }
   if (!workDays || workDays.size === 0) return true;
@@ -34,9 +34,9 @@ function isWorkDay(date, workDays, holidayDates) {
  * Get the effective period for a specific day within an absence.
  */
 function getEffectivePeriod(dayDate, absDateFrom, absDateTo, periodStart, periodEnd) {
-  const dayStr = dayDate.toISOString().slice(0, 10);
-  const fromStr = new Date(absDateFrom).toISOString().slice(0, 10);
-  const toStr = new Date(absDateTo).toISOString().slice(0, 10);
+  const dayStr = dayDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const fromStr = new Date(absDateFrom).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const toStr = new Date(absDateTo).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
   if (fromStr === toStr) return periodStart || 'full';
   if (dayStr === fromStr) return periodStart || 'full';
   if (dayStr === toStr) return periodEnd || 'full';
@@ -86,7 +86,7 @@ async function computeUsedLeave(bid, practitionerIds, year) {
       `SELECT date FROM business_holidays WHERE business_id = $1 AND date >= $2::date AND date <= $3::date`,
       [bid, yearStart, yearEnd]
     );
-    holResult.rows.forEach(r => holidayDates.add(new Date(r.date).toISOString().slice(0, 10)));
+    holResult.rows.forEach(r => holidayDates.add(new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })));
   } catch (e) { /* table might not exist */ }
 
   // Count days per absence

@@ -4,18 +4,23 @@
 <script>
 var token = new URLSearchParams(window.location.search).get('t');
 if (token) {
-  localStorage.setItem('genda_token', token);
-  // Fetch actual user/business data from API using the token
+  // Validate the token via API BEFORE storing in localStorage
   fetch('/api/staff/dashboard', { headers: { 'Authorization': 'Bearer ' + token } })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Invalid token');
+      return r.json();
+    })
     .then(function(d) {
-      if (d.user) localStorage.setItem('genda_user', JSON.stringify(d.user));
+      if (!d.user) throw new Error('Invalid token');
+      localStorage.setItem('genda_token', token);
+      localStorage.setItem('genda_user', JSON.stringify(d.user));
       if (d.business) localStorage.setItem('genda_business', JSON.stringify(d.business));
       window.location.href = '/dashboard';
     })
     .catch(function() {
-      // Fallback: just redirect, dashboard will fetch its own data
-      window.location.href = '/dashboard';
+      // Token invalid or API error — redirect to login
+      localStorage.removeItem('genda_token');
+      window.location.href = '/login';
     });
 } else {
   document.body.textContent = 'Token manquant';

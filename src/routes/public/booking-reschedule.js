@@ -7,7 +7,7 @@ const { query, queryWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { slotsLimiter, bookingLimiter } = require('../../middleware/rate-limiter');
 const { getAvailableSlots, getAvailableSlotsMultiPractitioner } = require('../../services/slot-engine');
-const { UUID_RE } = require('./helpers');
+const { UUID_RE, isWithinLastMinuteWindow } = require('./helpers');
 
 const { pool } = require('../../services/db');
 const { calSyncPush, checkPracAvailability, checkBookingConflicts } = require('../staff/bookings-helpers');
@@ -76,7 +76,7 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
 
     // Validate date range
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-    const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000).toISOString().slice(0, 10);
+    const maxDate = new Date(new Date(today).getTime() + reschWindowDays * 86400000).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     if (date < today || date > maxDate) return res.status(400).json({ error: `Date hors de la fenêtre autorisée (${reschWindowDays} jours).` });
 
     let slots;
@@ -299,6 +299,52 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         : [bk.id];
       for (const uid of updateIds) {
         await client.query(`UPDATE bookings SET deposit_deadline = $1 WHERE id = $2`, [newDeadline.toISOString(), uid]);
+      }
+    }
+
+    // Recalculate last-minute discount after reschedule
+    if (settings.last_minute_enabled) {
+      const lmDeadline = settings.last_minute_deadline || 'j-1';
+      const todayBrussels = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+      const lmMinPrice = settings.last_minute_min_price_cents || 0;
+
+      // Collect all booking IDs to update
+      const idsToUpdate = (bk.group_id && groupMembers.length > 0)
+        ? groupMembers.map(m => m.id)
+        : [bk.id];
+
+      for (const uid of idsToUpdate) {
+        // Determine the new start_at for this member
+        let memberStartAt;
+        if (isSplitGroup && Array.isArray(slotPractitioners)) {
+          const idx = groupMembers.findIndex(m => m.id === uid);
+          const sp = slotPractitioners[idx];
+          memberStartAt = sp ? sp.start_at : start_at;
+        } else if (bk.group_id && groupMembers.length > 0) {
+          const m = groupMembers.find(m => m.id === uid);
+          memberStartAt = m ? new Date(new Date(m.start_at).getTime() + delta).toISOString() : start_at;
+        } else {
+          memberStartAt = start_at;
+        }
+
+        const newStartBrussels = new Date(memberStartAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+        const inLmWindow = isWithinLastMinuteWindow(newStartBrussels, todayBrussels, lmDeadline);
+
+        const svcRes = await client.query(
+          `SELECT s.price_cents, s.promo_eligible, COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price
+           FROM bookings b LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.id = $1`, [uid]
+        );
+        const svc = svcRes.rows[0];
+        let newDiscountPct = null;
+        if (inLmWindow && svc && svc.promo_eligible !== false && svc.eff_price > 0 && svc.eff_price >= lmMinPrice) {
+          newDiscountPct = settings.last_minute_discount_pct || 10;
+        }
+        await client.query(
+          `UPDATE bookings SET discount_pct = $1 WHERE id = $2 AND business_id = $3`,
+          [newDiscountPct, uid, bk.business_id]
+        );
       }
     }
 

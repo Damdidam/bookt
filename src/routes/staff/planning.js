@@ -31,9 +31,9 @@ async function logAbsence(bid, absenceId, action, details, actorName) {
  * - Single day → period
  */
 function getEffectivePeriod(dayDate, absDateFrom, absDateTo, periodStart, periodEnd) {
-  const dayStr = dayDate.toISOString().slice(0, 10);
-  const fromStr = new Date(absDateFrom).toISOString().slice(0, 10);
-  const toStr = new Date(absDateTo).toISOString().slice(0, 10);
+  const dayStr = dayDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const fromStr = new Date(absDateFrom).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+  const toStr = new Date(absDateTo).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
   if (fromStr === toStr) return periodStart || 'full';
   if (dayStr === fromStr) return periodStart || 'full';
   if (dayStr === toStr) return periodEnd || 'full';
@@ -63,7 +63,7 @@ function toAvailWeekday(jsDate) {
 function isWorkDay(date, workDays, holidayDates) {
   // Check holidays first
   if (holidayDates) {
-    const ds = date.toISOString().slice(0, 10);
+    const ds = date.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     if (holidayDates.has(ds)) return false;
   }
   // If no workDays data, fallback: all days are workdays
@@ -107,7 +107,7 @@ async function getHolidays(bid, dateFrom, dateTo) {
     const dateSet = new Set();
     const list = [];
     result.rows.forEach(r => {
-      const ds = new Date(r.date).toISOString().slice(0, 10);
+      const ds = new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       dateSet.add(ds);
       list.push({ date: ds, name: r.name });
     });
@@ -152,7 +152,7 @@ function hasOverlapConflict(existingAbsences, newFrom, newTo, newPeriod, newPeri
 function shiftDate(dateStr, days) {
   const d = new Date(dateStr + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
 }
 
 /** String-based effective period (same logic as getEffectivePeriod but pure strings) */
@@ -187,16 +187,16 @@ async function splitOverlappingAbsences(bid, pracId, newFrom, newTo, newPeriod, 
   const toProcess = [];
   for (const abs of existing.rows) {
     if (excludeId && abs.id === excludeId) continue;
-    const exFrom = new Date(abs.date_from).toISOString().slice(0, 10);
-    const exTo = new Date(abs.date_to).toISOString().slice(0, 10);
+    const exFrom = new Date(abs.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const exTo = new Date(abs.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
     const overlapStart = exFrom > newFrom ? exFrom : newFrom;
     const overlapEnd = exTo < newTo ? exTo : newTo;
 
     let hasConflict = false;
     for (let d = new Date(overlapStart + 'T12:00:00Z');
-         d.toISOString().slice(0, 10) <= overlapEnd;
+         d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) <= overlapEnd;
          d.setUTCDate(d.getUTCDate() + 1)) {
-      const ds = d.toISOString().slice(0, 10);
+      const ds = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       const exP = effectivePeriodStr(ds, exFrom, exTo, abs.period, abs.period_end);
       const newP = effectivePeriodStr(ds, newFrom, newTo, newPeriod, newPeriodEnd);
       if (periodsConflict(exP, newP)) { hasConflict = true; break; }
@@ -334,8 +334,8 @@ async function computeAlternatives(bid, absentPracId, dateFrom, dateTo, bookings
     // 1. Absences
     for (const abs of absR.rows) {
       if (abs.practitioner_id !== pracId) continue;
-      const aF = new Date(abs.date_from).toISOString().slice(0, 10);
-      const aT = new Date(abs.date_to).toISOString().slice(0, 10);
+      const aF = new Date(abs.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+      const aT = new Date(abs.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       if (dateStr < aF || dateStr > aT) continue;
       let p = aF === aT ? (abs.period || 'full') : dateStr === aF ? (abs.period || 'full') : dateStr === aT ? (abs.period_end || 'full') : 'full';
       if (p === 'full') return false;
@@ -347,7 +347,7 @@ async function computeAlternatives(bid, absentPracId, dateFrom, dateTo, bookings
     // 2. Exceptions (closed)
     for (const exc of excR.rows) {
       if (exc.practitioner_id !== pracId) continue;
-      if (new Date(exc.date).toISOString().slice(0, 10) === dateStr && exc.type === 'closed') return false;
+      if (new Date(exc.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }) === dateStr && exc.type === 'closed') return false;
     }
 
     // 3. Weekly schedule
@@ -1384,7 +1384,7 @@ router.get('/export', requireOwner, async (req, res, next) => {
       const from = new Date(a.date_from);
       const to = new Date(a.date_to);
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        const ds = d.toISOString().slice(0, 10);
+        const ds = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const ep = getEffectivePeriod(d, a.date_from, a.date_to, a.period, a.period_end);
         absMap[a.practitioner_id][ds] = { type: a.type, period: ep };
       }
@@ -1415,7 +1415,7 @@ router.get('/export', requireOwner, async (req, res, next) => {
 
       for (let d = 1; d <= daysInMonth; d++) {
         const dt = new Date(parseInt(dateFrom.slice(0, 4)), parseInt(dateFrom.slice(5, 7)) - 1, d);
-        const ds = dt.toISOString().slice(0, 10);
+        const ds = dt.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
 
         if (holidays.dateSet.has(ds)) {
           csv += ';JF';
@@ -1499,7 +1499,7 @@ router.post('/send-planning', requireOwner, async (req, res, next) => {
       const to = new Date(Math.min(new Date(a.date_to), new Date(dateTo)));
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         if (!isWorkDay(d, workDays, holidays.dateSet)) continue;
-        const ds = d.toISOString().slice(0, 10);
+        const ds = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
         const ep = getEffectivePeriod(d, a.date_from, a.date_to, a.period, a.period_end);
         absMap[ds] = { type: a.type, period: ep };
         const dayVal = ep === 'full' ? 1 : 0.5;
@@ -1519,7 +1519,7 @@ router.post('/send-planning', requireOwner, async (req, res, next) => {
     let tableRows = '';
     for (let d = 1; d <= daysInMonth; d++) {
       const dt = new Date(year, mon - 1, d);
-      const ds = dt.toISOString().slice(0, 10);
+      const ds = dt.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
       const dayName = dayNamesShort[dt.getDay()];
       const isHoliday = holidays.dateSet.has(ds);
       const isOff = !isWorkDay(dt, workDays, holidays.dateSet);

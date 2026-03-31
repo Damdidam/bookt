@@ -52,7 +52,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
       granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
     }
   } else {
-    granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 1);
   }
 
   // 2. Fetch service details
@@ -428,7 +428,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
       granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
     }
   } else {
-    granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 1);
   }
 
   // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)
@@ -856,7 +856,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
       granularity = computeOptimalGranularity(allSvcDur.rows.map(r => r.duration_min));
     }
   } else {
-    granularity = Math.max(parseInt(settings.slot_granularity_min, 10) || 15, 1);
+    granularity = Math.max(parseInt(settings.slot_increment_min ?? settings.slot_granularity_min, 10) || 15, 1);
   }
 
   // 2. Fetch all unique services in one query, then expand to match serviceIds order (supports duplicates)

@@ -36,7 +36,10 @@ async function processExpiredDeposits() {
 
     let processed = 0;
 
-    for (const bk of expired.rows) {
+    for (let i = 0; i < expired.rows.length; i++) {
+      const bk = expired.rows[i];
+      await client.query(`SAVEPOINT sp_${i}`);
+      try {
       // Cancel the booking + mark deposit as cancelled (never paid)
       const upd = await client.query(
         `UPDATE bookings
@@ -120,6 +123,11 @@ async function processExpiredDeposits() {
 
       processed++;
       cancelledBookingIds.push({ id: bk.id, business_id: bk.business_id, group_id: bk.group_id, client_id: bk.client_id });
+      } catch (spErr) {
+        await client.query(`ROLLBACK TO sp_${i}`);
+        console.error('[DEPOSIT CRON] Failed to process booking', bk.id, spErr.message);
+        continue;
+      }
     }
 
     await client.query('COMMIT');

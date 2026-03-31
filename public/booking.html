@@ -351,6 +351,9 @@ function renderBooking(data) {
   const priceEl = document.getElementById('valPrice');
   const promoDiscount = booking.promotion_discount_cents || (data.promotion && data.promotion.discount_cents) || 0;
   const promoLabel = booking.promotion_label || (data.promotion && data.promotion.label) || '';
+  const lmDiscountPct = booking.discount_pct || 0;
+  const lmDiscount = lmDiscountPct && booking.service.price_cents ? Math.round(booking.service.price_cents * lmDiscountPct / 100) : 0;
+  const totalDiscount = promoDiscount + lmDiscount;
   if (booking.service.members && booking.service.members.length > 1) {
     // Multi-service: show each member individually
     document.getElementById('lblPrestation').textContent = (catLabels.service || 'Prestation') + 's';
@@ -362,22 +365,26 @@ function renderBooking(data) {
     membersHtml += '<div style="margin-top:4px;font-weight:600;font-size:.82rem">Total : ' + booking.service.duration_min + ' min'
       + (booking.service.price_cents ? ' \u00b7 ' + (booking.service.price_cents/100).toFixed(2).replace('.',',') + ' \u20ac' : '') + '</div>';
     svcEl.innerHTML = membersHtml;
-    // Promo on total
-    if (booking.service.price_cents && promoDiscount > 0) {
+    // Promo + LM discount on total
+    if (booking.service.price_cents && totalDiscount > 0) {
       const originalPrice = (booking.service.price_cents / 100).toFixed(2).replace('.',',') + ' \u20ac';
-      const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
-      priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice
-        + (promoLabel ? '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>' : '');
+      const discountedPrice = ((booking.service.price_cents - totalDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
+      let discountLabels = '';
+      if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>';
+      if (lmDiscountPct > 0) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">-' + lmDiscountPct + '% last-minute</span>';
+      priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice + discountLabels;
     } else {
       priceEl.textContent = '';
     }
   } else {
     svcEl.textContent = booking.service.name;
-    if (booking.service.price_cents && promoDiscount > 0) {
+    if (booking.service.price_cents && totalDiscount > 0) {
       const originalPrice = (booking.service.price_cents / 100).toFixed(2).replace('.',',') + ' \u20ac';
-      const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
-      priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice
-        + (promoLabel ? '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>' : '');
+      const discountedPrice = ((booking.service.price_cents - totalDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
+      let discountLabels = '';
+      if (promoLabel) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>';
+      if (lmDiscountPct > 0) discountLabels += '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">-' + lmDiscountPct + '% last-minute</span>';
+      priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice + discountLabels;
     } else {
       priceEl.textContent = booking.service.price_cents
         ? `${(booking.service.price_cents / 100).toFixed(2).replace('.',',')} \u20ac`

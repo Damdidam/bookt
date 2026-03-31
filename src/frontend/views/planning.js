@@ -460,7 +460,7 @@ function planOpenModal(pracId, dateStr, absId) {
   _currentTab = 'details';
 
   const isEdit = !!absId;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA');
   const fromDate = dateStr || today;
   const toDate = dateStr || today;
 
@@ -698,8 +698,8 @@ function planPickSeg(prefix, pill) {
 
 /** Shortcut chips: ½ journée, 1 jour, plusieurs jours */
 function planApplyShortcut(type) {
-  const today = new Date().toISOString().slice(0, 10);
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA');
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA');
   const fromInput = document.getElementById('planAbsFrom');
   const toInput = document.getElementById('planAbsTo');
   if (!fromInput || !toInput) return;

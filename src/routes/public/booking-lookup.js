@@ -60,7 +60,8 @@ router.get('/booking/:token', async (req, res, next) => {
                 COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
                 b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
-                b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label
+                b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label,
+                b.discount_pct
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -73,11 +74,14 @@ router.get('/booking/:token', async (req, res, next) => {
       if (grp.rows.length > 1) {
         const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
         const isSplit = pracIds.size > 1;
-        groupServices = grp.rows.map(r => ({
-          name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color,
-          practitioner_name: isSplit ? r.practitioner_name : null,
-          start_at: r.svc_start_at, end_at: r.end_at
-        }));
+        groupServices = grp.rows.map(r => {
+          const adjPrice = r.discount_pct && r.price_cents ? Math.round(r.price_cents * (100 - r.discount_pct) / 100) : r.price_cents;
+          return {
+            name: r.name, duration_min: r.duration_min, price_cents: adjPrice, color: r.color,
+            practitioner_name: isSplit ? r.practitioner_name : null,
+            start_at: r.svc_start_at, end_at: r.end_at
+          };
+        });
         groupEndAt = grp.rows[grp.rows.length - 1].end_at;
       }
     }
@@ -224,7 +228,8 @@ router.get('/manage/:token', async (req, res, next) => {
                 COALESCE(sv.price_cents, s.price_cents) AS price_cents, s.color, b.end_at,
                 b.practitioner_id, p.display_name AS practitioner_name, b.start_at AS svc_start_at,
                 b.service_id, b.service_variant_id,
-                b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label
+                b.promotion_discount_cents, b.promotion_discount_pct, b.promotion_label,
+                b.discount_pct
          FROM bookings b
          LEFT JOIN services s ON s.id = b.service_id
          LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -237,11 +242,14 @@ router.get('/manage/:token', async (req, res, next) => {
       if (grp.rows.length > 1) {
         const pracIds = new Set(grp.rows.map(r => r.practitioner_id));
         isSplitBooking = pracIds.size > 1;
-        groupServices = grp.rows.map(r => ({
-          name: r.name, duration_min: r.duration_min, price_cents: r.price_cents, color: r.color,
-          practitioner_name: isSplitBooking ? r.practitioner_name : null,
-          start_at: r.svc_start_at, end_at: r.end_at
-        }));
+        groupServices = grp.rows.map(r => {
+          const adjPrice = r.discount_pct && r.price_cents ? Math.round(r.price_cents * (100 - r.discount_pct) / 100) : r.price_cents;
+          return {
+            name: r.name, duration_min: r.duration_min, price_cents: adjPrice, color: r.color,
+            practitioner_name: isSplitBooking ? r.practitioner_name : null,
+            start_at: r.svc_start_at, end_at: r.end_at
+          };
+        });
         groupEndAt = grp.rows[grp.rows.length - 1].end_at;
       }
       // For split reschedule: store service/variant IDs
