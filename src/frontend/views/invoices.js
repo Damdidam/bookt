@@ -316,7 +316,7 @@ async function invClientChanged(){
   section.style.display='';
   list.innerHTML=_unbilledBookings.map((b,i)=>{
     const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
-    const price=b.variant_price_cents??b.service_price_cents??0;
+    const price=b.booked_price_cents??b.variant_price_cents??b.service_price_cents??0;
     const label=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'?')+') \u2014 '+dt;
     const passBadge=b.pass_covered?' <span style="font-size:.68rem;color:var(--green);font-weight:600;padding:1px 6px;border-radius:4px;background:var(--green-bg)">Pass</span>':'';
     const promoTag=b.promotion_discount_cents>0?' <span style="font-size:.68rem;color:var(--green);font-weight:600">promo</span>':'';
@@ -337,7 +337,7 @@ function invToggleUnbilled(idx,checked){
   if(checked){
     const dt=new Date(b.start_at).toLocaleDateString('fr-BE');
     const desc=b.service_name+(b.variant_name?' \u2014 '+b.variant_name:'')+' ('+(b.practitioner_name||'')+') \u2014 '+dt;
-    const fullPrice=b.variant_price_cents??b.service_price_cents??0;
+    const fullPrice=b.booked_price_cents??b.variant_price_cents??b.service_price_cents??0;
 
     if(b.pass_covered&&b.pass_info){
       // Pass-covered: service at 0€ + informational credit line

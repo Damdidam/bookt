@@ -511,6 +511,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
 
         // Pre-compute per-slot LM discount eligibility + prices after LM (needed for promo + deposit)
         const slotDiscounts = []; // one per chainedSlot
+        const slotBookedPrices = []; // effective price per slot (after LM discount)
         let totalPriceAfterLm = 0;
         const servicePricesAfterLm = {};
         for (const slot of chainedSlots) {
@@ -531,6 +532,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
           }
           slotDiscounts.push(slotDiscount);
           const priceAfterLm = slotDiscount ? Math.round(effPrice * (100 - slotDiscount) / 100) : effPrice;
+          slotBookedPrices.push(priceAfterLm);
           totalPriceAfterLm += priceAfterLm;
           servicePricesAfterLm[slot.service_id] = priceAfterLm;
         }
@@ -602,8 +604,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
               channel, appointment_mode, start_at, end_at, status, comment_client,
               group_id, group_order, confirmation_expires_at, processing_time, processing_start, locked, discount_pct,
-              promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents)
-             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+              promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents, booked_price_cents)
+             VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
              RETURNING id, public_token, start_at, end_at, status, group_id, group_order, discount_pct,
                        promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
             [businessId, slotPracId, slot.service_id, slot.service_variant_id, clientId,
@@ -615,7 +617,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
              (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promotion_id : null,
              (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.label : null,
              (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_pct : null,
-             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_cents : 0]
+             (promoResult.valid && (promoResult.condition_type === 'specific_service' ? slot.service_id === promoResult.condition_service_id : slot.group_order === 0)) ? promoResult.discount_cents : 0,
+             slotBookedPrices[_slotIdx]]
           );
           bookings.push(bk.rows[0]);
         }
@@ -1368,8 +1371,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
         `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
           channel, appointment_mode, start_at, end_at, status, comment_client, confirmation_expires_at,
           processing_time, processing_start, locked, discount_pct,
-          promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents)
-         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+          promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents, booked_price_cents)
+         VALUES ($1,$2,$3,$4,$5,'web',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          RETURNING id, public_token, start_at, end_at, status, discount_pct,
                    promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents`,
         [businessId, practitioner_id, effectiveServiceId, resolvedVariantId, clientId,
@@ -1379,7 +1382,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
          promoResult.valid ? promotion_id : null,
          promoResult.valid ? promoResult.label : null,
          promoResult.valid ? promoResult.discount_pct : null,
-         promoResult.valid ? promoResult.discount_cents : 0]
+         promoResult.valid ? promoResult.discount_cents : 0,
+         singlePriceAfterLm]
       );
 
       // ── Deposit check (single-service) — triggers: price/duration thresholds OR no-show recidivist ──

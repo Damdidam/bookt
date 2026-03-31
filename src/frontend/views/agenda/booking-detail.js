@@ -6,6 +6,8 @@ import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
 import { fcRenderTodos } from './booking-todos.js';
 import { fcRenderReminders } from './booking-reminders.js';
+import { fcRenderNotes } from './booking-notes.js';
+import { fcRenderSession } from './booking-session.js';
 import '../clients.js'; // registers openClientDetail on window
 import { calCheckConflict, calResetSlotCheck } from './booking-edit.js';
 import { fmtSvcLabel } from './calendar-render.js';
@@ -45,7 +47,7 @@ async function fcOpenDetail(bookingId) {
     const r = await fetch(`/api/bookings/${bookingId}/detail`, { headers: { 'Authorization': 'Bearer ' + api.getToken() } });
     if (!r.ok) throw new Error('RDV introuvable');
     const d = await r.json();
-    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [], group_siblings: d.group_siblings || [] };
+    calState.fcDetailData = { todos: d.todos || [], reminders: d.reminders || [], notes: d.notes || [], group_siblings: d.group_siblings || [], client_email: d.booking?.client_email };
     const b = d.booking;
     calState.fcCurrentBooking = b;
     const isFreestyle = !b.service_name;
@@ -660,7 +662,7 @@ async function fcOpenDetail(bookingId) {
     }
 
     // -- Render sub-tabs --
-    fcRenderTodos(); fcRenderReminders();
+    fcRenderTodos(); fcRenderReminders(); fcRenderNotes(); fcRenderSession(b);
 
     // -- Accordion state: open if content, show badges --
     const comment = b.comment_client || '';
@@ -714,7 +716,7 @@ function switchCalTab(el, tab) {
   document.querySelectorAll('#calDetailModal .m-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#calDetailModal .m-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  const panelMap = { rdv: 'calPanelRdv', billing: 'calPanelBilling', historique: 'calPanelHistorique' };
+  const panelMap = { rdv: 'calPanelRdv', billing: 'calPanelBilling', notes: 'calPanelNotes', session: 'calPanelSession', historique: 'calPanelHistorique' };
   document.getElementById(panelMap[tab])?.classList.add('active');
   // Lazy-load history when tab is first opened
   if (tab === 'historique') loadBookingHistory();

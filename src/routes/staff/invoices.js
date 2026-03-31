@@ -63,7 +63,7 @@ router.get('/unbilled', async (req, res, next) => {
 
     const result = await queryWithRLS(bid,
       `SELECT b.id, b.start_at, b.group_id, b.deposit_payment_intent_id, b.deposit_amount_cents,
-              b.deposit_status,
+              b.deposit_status, b.booked_price_cents,
               b.promotion_label, b.promotion_discount_pct, b.promotion_discount_cents,
               s.name AS service_name, s.price_cents AS service_price_cents,
               sv.name AS variant_name, sv.price_cents AS variant_price_cents,
@@ -211,7 +211,7 @@ router.post('/', requireOwner, async (req, res, next) => {
             booking_id: sib.id,
             description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE')}`,
             quantity: 1,
-            unit_price_cents: sib.variant_price_cents ?? sib.price_cents ?? 0,
+            unit_price_cents: sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0,
             vat_rate: vat_rate || 21
           };
         });

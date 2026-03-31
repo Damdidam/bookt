@@ -139,6 +139,20 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
       );
     } catch (e) { /* non-critical */ }
 
+    // Auto-void draft/sent invoices for this booking (+ group siblings)
+    try {
+      const voidBookingIds = [bk.id];
+      if (bk.group_id) {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        for (const s of sibs.rows) voidBookingIds.push(s.id);
+      }
+      await query(
+        `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+        [voidBookingIds]
+      );
+    } catch (e) { console.warn('[INVOICE VOID] cancel error:', e.message); }
+
     // Increment client cancel_count + auto-block if abuse threshold reached
     if (bk.client_id) {
       try {
@@ -512,6 +526,20 @@ router.post('/booking/:token/reject', async (req, res, next) => {
         for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
       } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
     }
+
+    // Auto-void draft/sent invoices for this booking (+ group siblings)
+    try {
+      const voidBookingIds = [rejBk.id];
+      if (rejBk.group_id) {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
+        for (const s of sibs.rows) voidBookingIds.push(s.id);
+      }
+      await query(
+        `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+        [voidBookingIds]
+      );
+    } catch (e) { console.warn('[INVOICE VOID] reject error:', e.message); }
 
     // Notify practitioner
     // NOTE: notification types may need a DB migration to add to the CHECK constraint
@@ -1120,6 +1148,20 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
         }
       } catch (e) { console.error('[CANCEL COUNT] Error:', e.message); }
     }
+
+    // Auto-void draft/sent invoices for this booking (+ group siblings)
+    try {
+      const voidBookingIds = [bk.id];
+      if (bk.group_id) {
+        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+        for (const s of sibs.rows) voidBookingIds.push(s.id);
+      }
+      await query(
+        `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+         WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+        [voidBookingIds]
+      );
+    } catch (e) { console.warn('[INVOICE VOID] cancel-booking error:', e.message); }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
     // H3: Notify pro about client cancellation

@@ -255,7 +255,7 @@ router.post('/manual', async (req, res, next) => {
     // Fetch all service durations
     const svcIds = serviceList.map(s => s.service_id);
     const svcResult = await queryWithRLS(bid,
-      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, available_schedule
+      `SELECT id, name, duration_min, buffer_before_min, buffer_after_min, processing_time, processing_start, available_schedule, price_cents
        FROM services WHERE business_id = $1 AND id = ANY($2)`,
       [bid, svcIds]
     );
@@ -440,12 +440,15 @@ router.post('/manual', async (req, res, next) => {
         // These fields are omitted intentionally — group members share the same visual style
         // derived from their service. Per-member customization may be added in a future iteration.
         const confirmExpiresAtNormal = bookingStatus === 'pending' ? new Date(Date.now() + confirmTimeoutMin * 60000).toISOString() : null;
+        const _slotSvc = svcMap[slot.service_id];
+        const _slotItem = serviceList[slot.group_order];
+        const _slotBookedPrice = _slotItem?._variant_price != null ? _slotItem._variant_price : (_slotSvc?.price_cents || null);
         const result = await client.query(
           `INSERT INTO bookings (business_id, practitioner_id, service_id, service_variant_id, client_id,
             channel, appointment_mode, start_at, end_at, status, comment_client,
             group_id, group_order, processing_time, processing_start, locked,
-            confirmation_expires_at)
-           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            confirmation_expires_at, booked_price_cents)
+           VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
            RETURNING *`,
           [bid, slot.practitioner_id || practitioner_id, slot.service_id, slot.service_variant_id, client_id || null,
            appointment_mode || 'cabinet',
@@ -454,7 +457,7 @@ router.post('/manual', async (req, res, next) => {
            comment || null,
            groupId, slot.group_order,
            slot.processing_time || 0, slot.processing_start || 0, bookingStatus === 'confirmed' ? true : !!locked,
-           confirmExpiresAtNormal]
+           confirmExpiresAtNormal, _slotBookedPrice]
         );
         results.push(result.rows[0]);
 

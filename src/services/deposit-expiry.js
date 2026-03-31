@@ -86,6 +86,20 @@ async function processExpiredDeposits() {
         for (const sib of sibPass.rows) { await refundPassForBooking(sib.id, client).catch(e => console.warn('[PASS REFUND]', e.message)); }
       }
 
+      // Auto-void draft/sent invoices
+      try {
+        const voidIds = [bk.id];
+        if (bk.group_id) {
+          const sibInv = await client.query(`SELECT id FROM bookings WHERE group_id = $1 AND id != $2`, [bk.group_id, bk.id]);
+          for (const s of sibInv.rows) voidIds.push(s.id);
+        }
+        await client.query(
+          `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+           WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+          [voidIds]
+        );
+      } catch (e) { console.warn('[INVOICE VOID] deposit cron error:', e.message); }
+
       // Audit log — deposit expired
       await client.query(
         `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, old_data, new_data)

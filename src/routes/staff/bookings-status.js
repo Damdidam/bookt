@@ -236,6 +236,16 @@ router.patch('/:id/status', async (req, res, next) => {
         });
       }
 
+      // ===== AUTO-VOID INVOICES: void draft/sent invoices when booking is cancelled =====
+      if (status === 'cancelled') {
+        const voidIds = [id, ...affectedSiblingIds];
+        await client.query(
+          `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+           WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+          [voidIds]
+        );
+      }
+
       // ===== DEPOSIT RESTORE: propagate deposit fields to group siblings =====
       if (depositRestore === 'redeposit' && old.rows[0].group_id && affectedSiblingIds.length > 0) {
         // Read back the deadline we just set on the main booking
