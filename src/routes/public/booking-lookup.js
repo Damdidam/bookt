@@ -219,7 +219,7 @@ router.get('/manage/:token', async (req, res, next) => {
     let reschReason = null;
     if (!reschEnabled) { reschAllowed = false; reschReason = null; } // feature off — hide section
     else if (!['confirmed', 'pending_deposit'].includes(bk.status)) { reschAllowed = false; reschReason = 'Le rendez-vous ne peut pas être modifié dans son état actuel.'; }
-    else if (bk.locked) { reschAllowed = false; reschReason = 'Ce rendez-vous est verrouillé. Contactez le salon.'; }
+    // locked flag no longer blocks client reschedule — client can always reschedule their own booking
     else if ((bk.reschedule_count || 0) >= reschMaxCount) { reschAllowed = false; reschReason = 'Nombre maximum de modifications atteint. Contactez le salon.'; }
     else if (new Date(bk.start_at) <= now) { reschAllowed = false; reschReason = 'Ce rendez-vous est déjà passé.'; }
 

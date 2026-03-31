@@ -70,7 +70,7 @@ router.get('/manage/:token/slots', slotsLimiter, async (req, res, next) => {
 
     if (!reschEnabled) return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' });
     if (!['confirmed', 'pending_deposit'].includes(bk.status)) return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' });
-    if (bk.locked) return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' });
+    // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' });
     if (new Date(bk.start_at) <= now) return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' });
 
@@ -171,7 +171,7 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
     // Eligibility checks
     if (!settings.reschedule_enabled) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'La modification en ligne n\'est pas activée.' }); }
     if (!['confirmed', 'pending_deposit'].includes(bk.status)) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous ne peut pas être modifié.' }); }
-    if (bk.locked) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est verrouillé.' }); }
+    // locked flag no longer blocks client reschedule
     if ((bk.reschedule_count || 0) >= reschMaxCount) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Nombre maximum de modifications atteint.' }); }
     if (new Date(bk.start_at) <= now) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Ce rendez-vous est déjà passé.' }); }
 
