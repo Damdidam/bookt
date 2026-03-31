@@ -89,7 +89,9 @@ router.get('/booking/:token', async (req, res, next) => {
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
     const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
     const depositPaid = bk.deposit_required && bk.deposit_status === 'paid';
-    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && (!depositPaid || new Date() < deadline));
+    // Client can ALWAYS cancel — deposit refund SQL handles the financial consequence
+    const canCancel = ['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status);
+    const depositAtRisk = depositPaid && new Date() >= deadline;
 
     // Build service info: use group members if available, otherwise single service
     const serviceInfo = groupServices
@@ -130,11 +132,13 @@ router.get('/booking/:token', async (req, res, next) => {
       },
       cancellation: {
         allowed: canCancel,
+        deposit_at_risk: depositAtRisk,
+        deposit_amount_cents: depositPaid ? bk.deposit_amount_cents : null,
         deadline: deadline.toISOString(),
         deadline_enforced: depositPaid,
         window_hours: cancelWindowHours,
         policy_text: bk.business_settings?.cancel_policy_text || null,
-        reason: !canCancel && (bk.status === 'confirmed' || bk.status === 'pending_deposit') ? 'Délai d\'annulation dépassé' : null
+        reason: !canCancel ? 'Ce rendez-vous ne peut plus être annulé' : null
       },
       promotion: (promoSib.promotion_discount_cents > 0) ? {
         label: promoSib.promotion_label,
@@ -196,11 +200,12 @@ router.get('/manage/:token', async (req, res, next) => {
       gcPaidCents = parseInt(gcTxRes.rows[0].gc_paid) || 0;
     }
 
-    // Cancellation (same logic as GET /booking/:token)
+    // Cancellation — client can ALWAYS cancel, deposit refund SQL handles the financial consequence
     const cancelWindowHours = settings.cancel_deadline_hours ?? settings.cancellation_window_hours ?? 24;
     const cancelDeadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
     const depositPaid = bk.deposit_required && bk.deposit_status === 'paid';
-    const canCancel = bk.status === 'pending' || bk.status === 'pending_deposit' || (bk.status === 'confirmed' && (!depositPaid || new Date() < cancelDeadline));
+    const canCancel = ['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status);
+    const depositAtRisk = depositPaid && new Date() >= cancelDeadline;
 
     // Reschedule eligibility
     const reschEnabled = !!settings.reschedule_enabled;
@@ -216,7 +221,6 @@ router.get('/manage/:token', async (req, res, next) => {
     else if (!['confirmed', 'pending_deposit'].includes(bk.status)) { reschAllowed = false; reschReason = 'Le rendez-vous ne peut pas être modifié dans son état actuel.'; }
     else if (bk.locked) { reschAllowed = false; reschReason = 'Ce rendez-vous est verrouillé. Contactez le salon.'; }
     else if ((bk.reschedule_count || 0) >= reschMaxCount) { reschAllowed = false; reschReason = 'Nombre maximum de modifications atteint. Contactez le salon.'; }
-    else if (depositPaid && now >= reschDeadline) { reschAllowed = false; reschReason = `Le délai de modification (${reschDeadlineHours}h avant) est dépassé.`; }
     else if (new Date(bk.start_at) <= now) { reschAllowed = false; reschReason = 'Ce rendez-vous est déjà passé.'; }
 
     // Group members
@@ -311,11 +315,13 @@ router.get('/manage/:token', async (req, res, next) => {
       },
       cancellation: {
         allowed: canCancel,
+        deposit_at_risk: depositAtRisk,
+        deposit_amount_cents: depositPaid ? bk.deposit_amount_cents : null,
         deadline: cancelDeadline.toISOString(),
         deadline_enforced: depositPaid,
         window_hours: cancelWindowHours,
         policy_text: settings.cancel_policy_text || null,
-        reason: !canCancel && ['confirmed', 'pending_deposit'].includes(bk.status) ? 'Délai d\'annulation dépassé' : null
+        reason: !canCancel ? 'Ce rendez-vous ne peut plus être annulé' : null
       },
       reschedule: {
         enabled: reschEnabled,

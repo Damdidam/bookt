@@ -42,16 +42,8 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
     // Cancel deadline (declared at function scope for both deadline check and deposit refund SQL)
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
 
-    // Skip cancellation deadline for pending_deposit — client hasn't paid yet,
-    // they should always be able to cancel (otherwise deposit-expiry cron would cancel it anyway)
-    // Deadline only enforced when deposit was required AND paid
-    const depositPaid = bk.deposit_required && bk.deposit_status === 'paid';
-    if (bk.status !== 'pending_deposit' && depositPaid) {
-      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-      if (new Date() >= deadline) {
-        return res.status(400).json({ error: `Annulation possible jusqu'à ${cancelWindowHours}h avant le rendez-vous` });
-      }
-    }
+    // Client can ALWAYS cancel — the deposit refund SQL handles the financial consequence
+    // (refund if before deadline, retain if after deadline)
 
     // Deposit refund logic — atomic CASE WHEN to avoid race condition
     // between SELECT and UPDATE (a payment webhook could change deposit_status in between)
@@ -435,7 +427,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       }
     }
 
-    // Deadline check: prevent rejection bypass of cancellation deadline
+    // Client can ALWAYS reject — the deposit refund SQL handles the financial consequence
     const bkCheck = await query(
       `SELECT b.id, b.status, b.start_at, b.deposit_required, b.deposit_status, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
@@ -447,15 +439,6 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     }
     const bkData = bkCheck.rows[0];
     const cancelWindowHours = bkData.business_settings?.cancel_deadline_hours ?? bkData.business_settings?.cancellation_window_hours ?? 24;
-    // Deadline only enforced when deposit was required AND paid
-    const depositPaidReject = bkData.deposit_required && bkData.deposit_status === 'paid';
-    if (depositPaidReject) {
-      const deadline = new Date(new Date(bkData.start_at).getTime() - cancelWindowHours * 3600000);
-      if (new Date() >= deadline) {
-        if (isForm) return res.status(400).send(confirmationPage('Délai dépassé', 'Le délai de modification est dépassé.', '#C62828', displayData?.business_name));
-        return res.status(400).json({ error: 'Délai de modification dépassé' });
-      }
-    }
 
     // Deposit refund logic — same deadline + grace period as cancel route
     const graceMin = bkData.business_settings?.cancel_grace_minutes ?? 240;
@@ -984,16 +967,8 @@ router.get('/booking/:token/cancel-booking', async (req, res, next) => {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus être annulé.', '#A68B3C', bk.business_name));
     }
 
-    // For confirmed: check cancellation deadline
-    // Skip deadline check for pending_deposit — client hasn't paid yet, always allow cancel
+    // Client can ALWAYS cancel — the deposit refund SQL handles the financial consequence
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    // Deadline only enforced when deposit was required AND paid
-    if (bk.status === 'confirmed' && bk.deposit_required && bk.deposit_status === 'paid') {
-      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-      if (new Date() >= deadline) {
-        return res.send(confirmationPage('Annulation impossible', `L'annulation n'est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
-      }
-    }
 
     // Fetch group services if multi-service booking
     let serviceLabel = `<strong>${escHtml(bk.service_name || 'Rendez-vous')}</strong>`;
@@ -1071,14 +1046,8 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
     }
 
+    // Client can ALWAYS cancel — the deposit refund SQL handles the financial consequence
     const cancelWindowHours = bk.business_settings?.cancel_deadline_hours ?? bk.business_settings?.cancellation_window_hours ?? 24;
-    // Deadline only enforced when deposit was required AND paid
-    if (bk.status === 'confirmed' && bk.deposit_required && bk.deposit_status === 'paid') {
-      const deadline = new Date(new Date(bk.start_at).getTime() - cancelWindowHours * 3600000);
-      if (new Date() >= deadline) {
-        return res.send(confirmationPage('Annulation impossible', `L\u2019annulation n\u2019est plus possible moins de ${cancelWindowHours}h avant le rendez-vous.`, '#C62828', bk.business_name));
-      }
-    }
 
     // Atomic: primary cancel + sibling propagation in one transaction
     const graceMin = bk.business_settings?.cancel_grace_minutes ?? 240;
