@@ -293,7 +293,12 @@ function render(d) {
       <h3>Annuler ce rendez-vous</h3>`;
 
     if (can.allowed) {
-      if (can.deadline_enforced) {
+      if (can.deposit_at_risk) {
+        const depAmount = (can.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+        html += `
+          <div class="deadline-info past-deadline" style="background:#FFF3E0;border-color:#FF9800"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Attention : le délai d'annulation gratuite (${can.window_hours}h avant) est dépassé. <strong>Votre acompte de ${depAmount}\u202f€ ne sera pas remboursé.</strong></div>
+          <p>Vous pouvez toujours annuler, mais l'acompte sera conservé par le salon. Vous pouvez aussi <strong>déplacer</strong> votre rendez-vous sans perdre votre acompte.</p>`;
+      } else if (can.deadline_enforced) {
         html += `
           <div class="deadline-info"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg> Annulation gratuite jusqu'au ${deadlineStr}</div>`;
       } else {
@@ -305,11 +310,6 @@ function render(d) {
         <textarea id="cancelReason" placeholder="Raison de l'annulation (optionnel)"></textarea>
         <button class="btn-cancel" id="cancelBtn" onclick="cancelBooking()">Annuler mon rendez-vous</button>
       `;
-    } else {
-      html += `
-        <div class="deadline-info past-deadline"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Le délai d'annulation (${can.window_hours}h avant) est dépassé</div>
-        <p>Contactez directement le salon pour modifier ou annuler votre rendez-vous.</p>
-        ${biz.phone ? `<a href="tel:${biz.phone}" style="display:inline-block;padding:10px 20px;background:var(--primary);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.88rem"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Appeler le salon</a>` : ''}
       `;
     }
     html += `</div>`;

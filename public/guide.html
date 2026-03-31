@@ -213,9 +213,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
       ? `Jusqu'a ${f.cancel_deadline_hours}h avant si acompte paye`
       : 'A tout moment avant le rendez-vous';
     html += buildSection('x', 'Annulation', cancelSubtitle, false, `
-      ${f.deposit_enabled ? rule('info', `Avec acompte : annulation jusqu'a ${f.cancel_deadline_hours}h avant`, `Si vous avez paye un acompte, vous pouvez annuler gratuitement jusqu'a ${f.cancel_deadline_hours} heures avant l'heure prevue. Au-dela, l'annulation n'est plus possible en ligne.`) : ''}
+      ${f.deposit_enabled ? rule('info', `Avec acompte`, `L'annulation est toujours possible. Avant ${f.cancel_deadline_hours}h du RDV, votre acompte est integralement rembourse. Apres ce delai, l'acompte est conserve par le salon. Vous pouvez aussi deplacer votre RDV a tout moment sans perdre votre acompte.`) : ''}
       ${f.deposit_enabled ? rule('ok', 'Sans acompte : annulation libre', 'Pour les rendez-vous sans acompte, l\'annulation est possible a tout moment avant l\'heure prevue.') : rule('ok', 'Annulation libre', 'Vous pouvez annuler votre rendez-vous a tout moment avant l\'heure prevue, directement depuis le lien "Gerer mon rendez-vous" dans votre email de confirmation.')}
-      ${f.deposit_enabled ? rule('warn', 'Impact sur l\'acompte', `Si vous annulez dans le delai (${f.cancel_deadline_hours}h avant), l'acompte est rembourse. Au-dela, l'acompte est conserve.`) : ''}
       ${f.cancel_policy_text ? rule('info', 'Politique d\'annulation', f.cancel_policy_text) : ''}
     `);
 
