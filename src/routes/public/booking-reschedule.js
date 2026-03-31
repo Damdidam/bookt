@@ -344,15 +344,17 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
         );
         if (bkData.rows.length) {
           const r = bkData.rows[0];
+          // Apply last-minute discount to service_price_cents
+          if (r.discount_pct && r.service_price_cents) r.service_price_cents = Math.round(r.service_price_cents * (100 - r.discount_pct) / 100);
           // Fetch group services for split bookings
           let groupSvcs = null;
           if (r.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents,
                       b.practitioner_id, p.display_name AS practitioner_name,
-                      b.start_at, b.end_at
+                      b.start_at, b.end_at, b.discount_pct
                FROM bookings b
                LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -364,11 +366,14 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(g => g.practitioner_id));
               const hasSplitPrac = _pIds.size > 1;
-              groupSvcs = grp.rows.map(g => ({
-                name: g.name, duration_min: g.duration_min, price_cents: g.price_cents,
-                practitioner_name: hasSplitPrac ? g.practitioner_name : null,
-                start_at: g.start_at, end_at: g.end_at
-              }));
+              groupSvcs = grp.rows.map(g => {
+                const adjP = g.discount_pct && g.price_cents ? Math.round(g.price_cents * (100 - g.discount_pct) / 100) : (g.price_cents || 0);
+                return {
+                  name: g.name, duration_min: g.duration_min, price_cents: adjP,
+                  practitioner_name: hasSplitPrac ? g.practitioner_name : null,
+                  start_at: g.start_at, end_at: g.end_at
+                };
+              });
               // Update booking times to reflect full group range
               r.start_at = grp.rows[0].start_at;
               r.end_at = grp.rows[grp.rows.length - 1].end_at;

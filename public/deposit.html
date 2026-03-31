@@ -73,6 +73,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:
 
 <script>
 const token = window.location.pathname.split('/').pop();
+let _businessId = null;
 if (!token) { showError('Lien invalide'); }
 else { loadBooking(); }
 
@@ -87,6 +88,7 @@ async function loadBooking() {
 
 function render(d) {
   const bk = d.booking, biz = d.business;
+  _businessId = d.business_id || biz.id || null;
   const start = new Date(bk.start_at), end = new Date(bk.end_at);
   const dateStr = start.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
   const timeStr = start.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
@@ -376,7 +378,7 @@ async function applyGiftCard() {
     const res = await fetch('/api/public/gift-card/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, business_id: _businessId })
     });
     const data = await res.json();
 

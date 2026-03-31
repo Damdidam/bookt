@@ -313,7 +313,7 @@ setInterval(() => {
 const CONFIRM_RE = /^(oui|yes|ok|confirm|confirmer|ja|1)$/i;
 const CANCEL_RE = /^(non|no|annuler|cancel|nee|0)$/i;
 
-router.post('/sms/inbound', validateTwilioSignature, async (req, res) => {
+router.post('/sms/inbound', async (req, res) => {
   const from = (req.body.From || '').trim();
   const body = (req.body.Body || '').trim();
   const normalized = body.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

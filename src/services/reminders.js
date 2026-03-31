@@ -69,7 +69,8 @@ async function process24hReminders(stats) {
       b.id AS business_id, b.name AS business_name, b.slug,
       b.phone AS business_phone, b.address AS business_address,
       b.plan, b.settings, b.theme,
-      bk.promotion_label, bk.promotion_discount_cents
+      bk.promotion_label, bk.promotion_discount_cents,
+      bk.discount_pct
     FROM bookings bk
     JOIN clients c ON c.id = bk.client_id
     JOIN practitioners p ON p.id = bk.practitioner_id
@@ -118,7 +119,8 @@ async function process24hReminders(stats) {
           `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                   COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
-                  b.practitioner_id, p.display_name AS practitioner_name
+                  b.practitioner_id, p.display_name AS practitioner_name,
+                  b.discount_pct
            FROM bookings b LEFT JOIN services s ON s.id = b.service_id
            LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
            LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -128,10 +130,19 @@ async function process24hReminders(stats) {
         if (grp.rows.length > 1) {
           const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
           if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+          // Apply last-minute discount to each group member's price
+          grp.rows.forEach(r => {
+            if (r.discount_pct && r.price_cents) {
+              r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+            }
+          });
           groupServices = grp.rows;
           groupEndAt = grp.rows[grp.rows.length - 1].end_at;
         }
       }
+
+      // Apply last-minute discount to single booking price
+      const adjPriceCents = bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents;
 
       const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
       let serviceHTML;
@@ -155,12 +166,12 @@ async function process24hReminders(stats) {
           serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}${totalPriceStr}</div>`;
         }
       } else {
-        if (bk.price_cents && promoDiscount > 0 && promoLabel) {
-          const finalSingle = bk.price_cents - promoDiscount;
-          serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle / 100).toFixed(2).replace('.', ',')} \u20ac)</span>`;
+        if (adjPriceCents && promoDiscount > 0 && promoLabel) {
+          const finalSingle = adjPriceCents - promoDiscount;
+          serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(adjPriceCents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle / 100).toFixed(2).replace('.', ',')} \u20ac)</span>`;
           serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel)} : -${(promoDiscount / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
         } else {
-          const singlePrice = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          const singlePrice = adjPriceCents ? ' \u00b7 ' + (adjPriceCents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
           serviceHTML = `<span style="font-weight:600">${escHtml(bk.service_name)} (${bk.duration_min} min${singlePrice})</span>`;
         }
       }
@@ -213,7 +224,7 @@ async function process24hReminders(stats) {
 
       // SMS 24h
       if (reminderSmsEnabled && bk.client_phone && bk.consent_sms) {
-        const smsBody = `Rappel ${bk.business_name}: RDV le ${dateShort} à ${timeShort} avec ${bk.practitioner_name}. Modifier: ${manageUrl}`;
+        const smsBody = `Rappel ${bk.business_name}: RDV "${bk.service_name}" le ${dateShort} à ${timeShort} avec ${bk.practitioner_name}. Modifier: ${manageUrl}`;
 
         const result = await sendSMS({
           to: bk.client_phone,
@@ -270,6 +281,7 @@ async function process2hReminders(stats) {
       COALESCE(sv.price_cents, s.price_cents) AS price_cents,
       bk.appointment_mode,
       bk.promotion_label, bk.promotion_discount_cents,
+      bk.discount_pct,
       b.id AS business_id, b.name AS business_name,
       b.address AS business_address,
       b.plan, b.settings, b.theme
@@ -309,9 +321,11 @@ async function process2hReminders(stats) {
       let groupServices = null;
       if (bk.group_id) {
         const grp = await query(
-          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
+          `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS name,
                   COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                  b2.end_at, b2.practitioner_id, p.display_name AS practitioner_name
+                  COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                  b2.end_at, b2.practitioner_id, p.display_name AS practitioner_name,
+                  b2.discount_pct
            FROM bookings b2 LEFT JOIN services s ON s.id = b2.service_id
            LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
            LEFT JOIN practitioners p ON p.id = b2.practitioner_id
@@ -321,11 +335,19 @@ async function process2hReminders(stats) {
         if (grp.rows.length > 1) {
           const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
           if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+          // Apply last-minute discount to each group member's price
+          grp.rows.forEach(r => {
+            if (r.discount_pct && r.price_cents) {
+              r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+            }
+          });
           groupServices = grp.rows;
         }
       }
 
       const isMulti = Array.isArray(groupServices) && groupServices.length > 1;
+      // Apply last-minute discount to single booking price (2h)
+      const adjPriceCents2h = bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents;
 
       // SMS 2h
       if (smsEnabled && bk.client_phone && bk.consent_sms) {
@@ -334,7 +356,7 @@ async function process2hReminders(stats) {
           const serviceNames = groupServices.map(s => s.name).join(' + ');
           smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}. À bientôt !`;
         } else {
-          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) avec ${bk.practitioner_name}. À bientôt !`;
+          smsBody = `${bk.business_name}: Rappel, votre RDV "${bk.service_name}" est dans 2h (${timeShort}) avec ${bk.practitioner_name}. À bientôt !`;
         }
 
         const result = await sendSMS({
@@ -379,12 +401,12 @@ async function process2hReminders(stats) {
             serviceHTML += `<div style="padding:4px 0;font-weight:700">Total : ${durStr}</div>`;
           }
         } else {
-          if (bk.price_cents && promoDiscount2h > 0 && promoLabel2h) {
-            const finalSingle2h = bk.price_cents - promoDiscount2h;
-            serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle2h / 100).toFixed(2).replace('.', ',')} \u20ac)`;
+          if (adjPriceCents2h && promoDiscount2h > 0 && promoLabel2h) {
+            const finalSingle2h = adjPriceCents2h - promoDiscount2h;
+            serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min \u00b7 <s style="opacity:.6">${(adjPriceCents2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(finalSingle2h / 100).toFixed(2).replace('.', ',')} \u20ac)`;
             serviceHTML += `<div style="font-size:12px;color:#7A7470">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</div>`;
           } else {
-            const singlePrice2h = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+            const singlePrice2h = adjPriceCents2h ? ' \u00b7 ' + (adjPriceCents2h / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
             serviceHTML = `<strong>${escHtml(bk.service_name)}</strong> (${bk.duration_min} min${singlePrice2h})`;
           }
         }
@@ -392,11 +414,11 @@ async function process2hReminders(stats) {
         const addressHTML = bk.appointment_mode === 'cabinet' && bk.business_address
           ? `<p style="font-size:13px;color:#7A7470;margin:8px 0 0">\ud83d\udccd <a href="https://maps.google.com/?q=${encodeURIComponent(bk.business_address)}" style="color:#7A7470;text-decoration:underline">${escHtml(bk.business_address)}</a></p>` : '';
         let singlePriceBody2h;
-        if (bk.price_cents && promoDiscount2h > 0 && promoLabel2h) {
-          const fs2h = bk.price_cents - promoDiscount2h;
-          singlePriceBody2h = ` \u00b7 <s style="opacity:.6">${(bk.price_cents / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(fs2h / 100).toFixed(2).replace('.', ',')} \u20ac`;
+        if (adjPriceCents2h && promoDiscount2h > 0 && promoLabel2h) {
+          const fs2h = adjPriceCents2h - promoDiscount2h;
+          singlePriceBody2h = ` \u00b7 <s style="opacity:.6">${(adjPriceCents2h / 100).toFixed(2).replace('.', ',')} \u20ac</s> ${(fs2h / 100).toFixed(2).replace('.', ',')} \u20ac`;
         } else {
-          singlePriceBody2h = bk.price_cents ? ' \u00b7 ' + (bk.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          singlePriceBody2h = adjPriceCents2h ? ' \u00b7 ' + (adjPriceCents2h / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
         }
         const promoLine2h = (!isMulti && promoDiscount2h > 0 && promoLabel2h) ? `<p style="font-size:12px;color:#7A7470;margin:4px 0 0">${escHtml(promoLabel2h)} : -${(promoDiscount2h / 100).toFixed(2).replace('.', ',')} \u20ac</p>` : '';
         const bodyHTML = isMulti

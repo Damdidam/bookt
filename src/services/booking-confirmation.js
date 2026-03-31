@@ -141,13 +141,15 @@ async function processExpiredPendingBookings() {
         );
         if (!fullBk.rows[0]?.client_email) continue;
         const row = fullBk.rows[0];
+        // Apply last-minute discount to service_price_cents
+        const _adjSvcPriceConf = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
         let groupServices = null;
         if (row.group_id) {
           const grp = await query(
             `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                     COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
-                    b.practitioner_id, p.display_name AS practitioner_name
+                    b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
              FROM bookings b LEFT JOIN services s ON s.id = b.service_id
              LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
              LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -157,6 +159,7 @@ async function processExpiredPendingBookings() {
           if (grp.rows.length > 1) {
             const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
             if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+            grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
             groupServices = grp.rows;
           }
         }
@@ -164,7 +167,7 @@ async function processExpiredPendingBookings() {
         const gcPaidConfirm = await getGcPaidCents(bkId);
         const { sendCancellationEmail } = require('./email');
         await sendCancellationEmail({
-          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, duration_min: row.duration_min, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidConfirm },
+          booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, service_price_cents: _adjSvcPriceConf, duration_min: row.duration_min, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidConfirm },
           business: { name: row.biz_name, slug: row.biz_slug, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, settings: row.biz_settings },
           groupServices
         });
@@ -179,7 +182,7 @@ async function processExpiredPendingBookings() {
       try {
         const siblings = await query(
           `SELECT b.id, b.start_at, b.end_at, b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at, b.deposit_payment_intent_id,
-                  b.promotion_label, b.promotion_discount_cents,
+                  b.promotion_label, b.promotion_discount_cents, b.discount_pct,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' \u2014 ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
                   COALESCE(sv.price_cents, s.price_cents, 0) AS service_price_cents,
@@ -201,9 +204,10 @@ async function processExpiredPendingBookings() {
         for (const sib of siblings.rows) {
           try {
             const gcPaidSibConf = await getGcPaidCents(sib.id);
+            const _adjSibPrice = sib.discount_pct ? Math.round((sib.service_price_cents || 0) * (100 - sib.discount_pct) / 100) : (sib.service_price_cents || 0);
             const { sendCancellationEmail } = require('./email');
             await sendCancellationEmail({
-              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: sib.service_price_cents, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf },
+              booking: { start_at: sib.start_at, end_at: sib.end_at, client_name: sib.client_name, client_email: sib.client_email, service_name: sib.service_name, service_category: sib.service_category, service_price_cents: _adjSibPrice, duration_min: sib.duration_min, promotion_label: sib.promotion_label, promotion_discount_cents: sib.promotion_discount_cents, practitioner_name: sib.practitioner_name, deposit_required: sib.deposit_required, deposit_status: sib.deposit_status, deposit_amount_cents: sib.deposit_amount_cents, deposit_paid_at: sib.deposit_paid_at, deposit_payment_intent_id: sib.deposit_payment_intent_id, gc_paid_cents: gcPaidSibConf },
               business: { name: sib.biz_name, slug: sib.biz_slug, email: sib.biz_email, address: sib.biz_address, theme: sib.biz_theme, settings: sib.biz_settings }
             });
           } catch (e) { console.warn('[CONFIRM CRON] Sibling email error:', e.message); }

@@ -686,7 +686,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                     `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
                      WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
                        AND (expires_at IS NULL OR expires_at > NOW())
-                     LIMIT 1`,
+                     LIMIT 1 FOR UPDATE`,
                     [businessId, pass_code.toUpperCase().trim()]
                   );
                 } else if (client_email) {
@@ -697,7 +697,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                        AND service_id = ANY($3)
                        AND (service_variant_id IS NULL OR service_variant_id = ANY($4))
                        AND (expires_at IS NULL OR expires_at > NOW())
-                     ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+                     ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1 FOR UPDATE`,
                     [businessId, client_email, serviceIds, variantIds.filter(Boolean)]
                   );
                 }
@@ -768,7 +768,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                         `SELECT id, code, balance_cents FROM gift_cards
                          WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
                            AND (expires_at IS NULL OR expires_at > NOW())
-                         LIMIT 1`,
+                         LIMIT 1 FOR UPDATE`,
                         [businessId, gift_card_code.toUpperCase().trim()]
                       );
                     } else {
@@ -777,7 +777,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                          WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
                            AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
                            AND (expires_at IS NULL OR expires_at > NOW())
-                         ORDER BY balance_cents DESC LIMIT 1`,
+                         ORDER BY balance_cents DESC LIMIT 1 FOR UPDATE`,
                         [businessId, client_email]
                       );
                     }
@@ -924,11 +924,14 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             const lastBooking = multiBookings[multiBookings.length - 1];
             // Find which booking carries the promo (may not be group_order=0 for specific_service promos)
             const emailPromoBooking = multiBookings.find(b => b.promotion_discount_cents > 0) || multiBookings[0];
+            const _rawSvcPrice0 = multiServices[0]?.price_cents || 0;
             const emailBooking = {
               ...multiBookings[0],
               end_at: lastBooking.end_at,
               client_name, client_email,
-              service_price_cents: multiServices[0]?.price_cents || 0,
+              service_price_cents: multiBookings[0]?.discount_pct
+                ? Math.round(_rawSvcPrice0 * (100 - multiBookings[0].discount_pct) / 100)
+                : _rawSvcPrice0,
               duration_min: multiServices[0]?.duration_min || 0,
               service_category: multiServices[0]?.category || null,
               practitioner_name: pracDisplayName,
@@ -939,12 +942,16 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
               promotion_discount_pct: emailPromoBooking.promotion_discount_pct,
               promotion_discount_cents: emailPromoBooking.promotion_discount_cents || 0
             };
-            const groupSvcs = multiServices.map(s => ({
-              name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
-              duration_min: s.duration_min,
-              price_cents: s.price_cents,
-              practitioner_name: isSplitMode ? (splitPracNames[splitPracMap[s.id]] || null) : null
-            }));
+            const groupSvcs = multiServices.map((s, _i) => {
+              const rawPrice = s.price_cents || 0;
+              const adjPrice = multiBookings[_i]?.discount_pct ? Math.round(rawPrice * (100 - multiBookings[_i].discount_pct) / 100) : rawPrice;
+              return {
+                name: s._variant_name ? s.name + ' \u2014 ' + s._variant_name : s.name,
+                duration_min: s.duration_min,
+                price_cents: adjPrice,
+                practitioner_name: isSplitMode ? (splitPracNames[splitPracMap[s.id]] || null) : null
+              };
+            });
 
             if (multiBookings[0].status === 'pending_deposit') {
               // Deposit auto-triggered: send deposit request email (payment serves as confirmation)
@@ -976,7 +983,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                   const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
                   const depAmt = (multiBookings[0].deposit_amount_cents / 100).toFixed(2).replace('.', ',');
-                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Acompte de ${depAmt}€ requis. Payez ici : ${depositUrl}`, businessId });
+                  const _depDl = multiBookings[0].deposit_deadline ? new Date(multiBookings[0].deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
+                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Acompte de ${depAmt}€ requis${_depDl ? ' avant le ' + _depDl : ''}. Payez ici : ${depositUrl}`, businessId });
                   try {
                     await query(
                       `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
@@ -1000,7 +1008,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   const _sd = new Date(emailBooking.start_at);
                   const _sDate = _sd.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                   const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
-                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} à ${_sTime}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
+                  const _svcLabel = groupSvcs.length > 1 ? `${groupSvcs[0].name} +${groupSvcs.length - 1}` : groupSvcs[0].name;
+                  await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV "${_svcLabel}" le ${_sDate} à ${_sTime} avec ${pracDisplayName}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
                 } catch (smsErr) { console.warn('[SMS] Booking confirm SMS error:', smsErr.message); }
               }
             } else {
@@ -1436,7 +1445,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                   `SELECT id, code, sessions_remaining, service_id, service_variant_id FROM passes
                    WHERE business_id = $1 AND code = $2 AND status = 'active' AND sessions_remaining > 0
                      AND (expires_at IS NULL OR expires_at > NOW())
-                   LIMIT 1`,
+                   LIMIT 1 FOR UPDATE`,
                   [businessId, pass_code.toUpperCase().trim()]
                 );
               } else if (client_email) {
@@ -1447,7 +1456,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                      AND service_id = $3
                      AND (service_variant_id IS NULL OR service_variant_id = $4)
                      AND (expires_at IS NULL OR expires_at > NOW())
-                   ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1`,
+                   ORDER BY service_variant_id DESC NULLS LAST, sessions_remaining ASC LIMIT 1 FOR UPDATE`,
                   [businessId, client_email, effectiveServiceId, effectiveVariantId]
                 );
               }
@@ -1506,7 +1515,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                       `SELECT id, code, balance_cents FROM gift_cards
                        WHERE business_id = $1 AND code = $2 AND status = 'active' AND balance_cents > 0
                          AND (expires_at IS NULL OR expires_at > NOW())
-                       LIMIT 1`,
+                       LIMIT 1 FOR UPDATE`,
                       [businessId, gift_card_code.toUpperCase().trim()]
                     );
                   } else {
@@ -1515,7 +1524,7 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                        WHERE business_id = $1 AND status = 'active' AND balance_cents > 0
                          AND (LOWER(recipient_email) = LOWER($2) OR LOWER(buyer_email) = LOWER($2))
                          AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY balance_cents DESC LIMIT 1`,
+                       ORDER BY balance_cents DESC LIMIT 1 FOR UPDATE`,
                       [businessId, client_email]
                     );
                   }
@@ -1647,7 +1656,9 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
             practitioner_name: pracRow.rows[0]?.display_name || '',
             comment: client_comment,
             gc_partial_cents: resultGcPartial || 0,
-            service_price_cents: resultSvcPrice || 0,
+            service_price_cents: createdBooking.discount_pct
+              ? Math.round((resultSvcPrice || 0) * (100 - createdBooking.discount_pct) / 100)
+              : (resultSvcPrice || 0),
             duration_min: resultSvcDuration || 0
           };
           if (createdBooking.status === 'pending_deposit') {
@@ -1674,7 +1685,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
                 const depAmt = (createdBooking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
-                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Acompte de ${depAmt}€ requis. Payez ici : ${depositUrl}`, businessId });
+                const _depDl2 = createdBooking.deposit_deadline ? new Date(createdBooking.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
+                await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Acompte de ${depAmt}€ requis${_depDl2 ? ' avant le ' + _depDl2 : ''}. Payez ici : ${depositUrl}`, businessId });
                 try {
                   await query(
                     `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)
@@ -1698,7 +1710,8 @@ router.post('/:slug/bookings', bookingLimiter, async (req, res, next) => {
                 const _sDate2 = _sd2.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const _sTime2 = _sd2.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
                 console.log(`[SMS] Attempting confirmation SMS to ${client_phone} for booking ${createdBooking.id}, channel=${singleConfChannel}`);
-                const smsResult = await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV le ${_sDate2} à ${_sTime2}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
+                const _pracName2 = pracRow.rows[0]?.display_name || '';
+                const smsResult = await sendSMS({ to: client_phone, body: `${bizRow.rows[0].name} : RDV "${svcName}" le ${_sDate2} à ${_sTime2}${_pracName2 ? ' avec ' + _pracName2 : ''}. Répondez OUI pour confirmer ou cliquez ici : ${link}`, businessId });
                 console.log(`[SMS] Confirmation SMS result:`, JSON.stringify(smsResult));
                 await query(`INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at, error) VALUES ($1,$2,'sms_confirmation',$3,$4,NOW(),$5)`,
                   [businessId, createdBooking.id, client_phone, smsResult.success ? 'sent' : 'failed', smsResult.error || null]);

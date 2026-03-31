@@ -11,7 +11,7 @@ router.get('/booking/:token', async (req, res, next) => {
   try {
     const { token } = req.params;
     const result = await query(
-      `SELECT b.id, b.start_at, b.end_at, b.status, b.appointment_mode,
+      `SELECT b.id, b.business_id, b.start_at, b.end_at, b.status, b.appointment_mode,
               b.comment_client, b.public_token, b.created_at, b.group_id,
               b.deposit_required, b.deposit_amount_cents, b.deposit_status, b.deposit_deadline, b.deposit_payment_url, b.deposit_payment_intent_id,
               b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
@@ -134,7 +134,8 @@ router.get('/booking/:token', async (req, res, next) => {
         label: promoSib.promotion_label,
         discount_pct: promoSib.promotion_discount_pct,
         discount_cents: promoSib.promotion_discount_cents
-      } : null
+      } : null,
+      business_id: bk.business_id
     });
   } catch (err) { next(err); }
 });

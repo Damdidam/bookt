@@ -165,7 +165,8 @@ router.get('/:id/detail', async (req, res, next) => {
               sv.name AS variant_name, sv.duration_min AS variant_duration_min, sv.price_cents AS variant_price_cents,
               p.display_name AS practitioner_name, p.color AS practitioner_color,
               c.full_name AS client_name, c.phone AS client_phone, c.email AS client_email,
-              c.no_show_count, c.is_blocked, c.is_vip
+              c.no_show_count, c.is_blocked, c.is_vip,
+              COALESCE((SELECT SUM(gct.amount_cents) FROM gift_card_transactions gct WHERE gct.booking_id = b.id AND gct.type = 'debit'), 0) AS gc_paid_cents
        FROM bookings b
        LEFT JOIN services s ON s.id = b.service_id
        LEFT JOIN service_variants sv ON sv.id = b.service_variant_id

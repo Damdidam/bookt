@@ -198,21 +198,23 @@ router.post('/booking/:token/cancel', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
             }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidCancel = await getGcPaidCents(bk.id);
+          const _adjSvcPrice1 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           const { sendCancellationEmail } = require('../../services/email');
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice1, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: bk.business_settings },
             groupServices
           });
@@ -424,6 +426,9 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       return res.status(400).json({ error: 'Délai de modification dépassé' });
     }
 
+    // Deposit refund logic — same deadline + grace period as cancel route
+    const graceMin = bkData.business_settings?.cancel_grace_minutes ?? 240;
+
     // Atomic: primary reject + sibling cancellation in one transaction
     const txClient = await pool.connect();
     let result;
@@ -432,7 +437,10 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       result = await txClient.query(
         `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
           deposit_status = CASE
-            WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+            WHEN deposit_required = true AND deposit_status = 'paid' THEN
+              CASE WHEN (start_at - INTERVAL '1 minute' * $2) > NOW()
+                     OR (NOW() - created_at) <= INTERVAL '1 minute' * $3
+                   THEN 'refunded' ELSE 'cancelled' END
             WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
             ELSE deposit_status
           END,
@@ -440,7 +448,7 @@ router.post('/booking/:token/reject', async (req, res, next) => {
          WHERE public_token = $1 AND status = 'modified_pending'
          RETURNING id, status, start_at, end_at, business_id, group_id,
                    deposit_required, deposit_status, deposit_payment_intent_id`,
-        [token]
+        [token, cancelWindowHours * 60, graceMin]
       );
 
       if (result.rows.length === 0) {
@@ -467,14 +475,17 @@ router.post('/booking/:token/reject', async (req, res, next) => {
         await txClient.query(
           `UPDATE bookings SET status = 'cancelled', cancel_reason = 'client_rejected_modification',
             deposit_status = CASE
-              WHEN deposit_required = true AND deposit_status = 'paid' THEN 'refunded'
+              WHEN deposit_required = true AND deposit_status = 'paid' THEN
+                CASE WHEN (start_at - INTERVAL '1 minute' * $4) > NOW()
+                       OR (NOW() - created_at) <= INTERVAL '1 minute' * $5
+                     THEN 'refunded' ELSE 'cancelled' END
               WHEN deposit_required = true AND deposit_status = 'pending' THEN 'cancelled'
               ELSE deposit_status
             END,
             updated_at = NOW()
            WHERE group_id = $1 AND business_id = $2 AND id != $3
              AND status IN ('confirmed', 'pending_deposit', 'pending', 'modified_pending')`,
-          [rejBk.group_id, rejBk.business_id, rejBk.id]
+          [rejBk.group_id, rejBk.business_id, rejBk.id, cancelWindowHours * 60, graceMin]
         );
       }
       await txClient.query('COMMIT');
@@ -488,15 +499,17 @@ router.post('/booking/:token/reject', async (req, res, next) => {
     // Refund gift card debits + Stripe refund AFTER transaction commits
     const rejBk = result.rows[0];
     try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(rejBk.id); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
+    await refundPassForBooking(rejBk.id).catch(e => console.warn('[PASS REFUND]', e.message));
     if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
     }
-    // Refund GC debits for group siblings
+    // Refund GC debits + pass sessions for group siblings
     if (rejBk.group_id) {
       try {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
         const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
         for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+        for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
       } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
     }
 
@@ -539,12 +552,13 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
             }
           }
@@ -552,8 +566,9 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidReject = await getGcPaidCents(rejBk.id);
+          const _adjSvcPrice2 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidReject, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice2, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -781,10 +796,10 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
             let groupServices = null;
             if (fullBk.rows[0].group_id) {
               const grp = await query(
-                `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+                `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                         COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                         COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
-                        b.practitioner_id, p.display_name AS practitioner_name
+                        b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
                  FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                  LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                  LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -794,11 +809,13 @@ router.get('/booking/:token/confirm-booking', async (req, res, next) => {
               if (grp.rows.length > 1) {
                 const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
                 if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+                grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
                 groupServices = grp.rows;
               }
             }
             const { sendBookingConfirmation } = require('../../services/email');
             const emailBk = fullBk.rows[0];
+            if (emailBk.discount_pct && emailBk.service_price_cents) emailBk.service_price_cents = Math.round(emailBk.service_price_cents * (100 - emailBk.discount_pct) / 100);
             // Fix end_at for multi-service groups
             if (groupServices && groupServices.length > 1) emailBk.end_at = groupServices[groupServices.length - 1].end_at;
             await sendBookingConfirmation({ booking: emailBk, business: bizRow.rows[0], groupServices });
@@ -973,7 +990,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
 
     const result = await query(
       `SELECT b.id, b.status, b.start_at, b.created_at, b.business_id,
-              b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
+              b.client_id, b.deposit_required, b.deposit_status, b.deposit_payment_intent_id, b.group_id,
               biz.name AS business_name, biz.theme, biz.settings AS business_settings
        FROM bookings b JOIN businesses biz ON biz.id = b.business_id
        WHERE b.public_token = $1`,
@@ -989,7 +1006,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     if (bk.status === 'cancelled') {
       return res.send(confirmationPage('D\u00e9j\u00e0 annul\u00e9', 'Ce rendez-vous a d\u00e9j\u00e0 \u00e9t\u00e9 annul\u00e9.', '#C62828', bk.business_name));
     }
-    if (!['pending', 'confirmed', 'pending_deposit'].includes(bk.status)) {
+    if (!['pending', 'confirmed', 'pending_deposit', 'modified_pending'].includes(bk.status)) {
       return res.send(confirmationPage('Action impossible', 'Ce rendez-vous ne peut plus \u00eatre annul\u00e9.', '#A68B3C', bk.business_name));
     }
 
@@ -1018,7 +1035,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           ELSE deposit_status
         END,
         updated_at = NOW()
-       WHERE id = $1 AND status IN ('pending', 'confirmed', 'pending_deposit')
+       WHERE id = $1 AND status IN ('pending', 'confirmed', 'pending_deposit', 'modified_pending')
        RETURNING *`,
       [bk.id, cancelWindowHours * 60, graceMin]
     );
@@ -1057,15 +1074,17 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
     // Refund gift card debits + Stripe refund AFTER transaction commits
     const cancelledBk = cancelResult.rows[0];
     try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(cancelledBk.id); } catch (e) { console.error('[GC REFUND] reschedule-cancel error:', e.message); }
+    await refundPassForBooking(cancelledBk.id).catch(e => console.warn('[PASS REFUND]', e.message));
     if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
     }
-    // Refund GC debits for group siblings
+    // Refund GC debits + pass sessions for group siblings
     if (bk.group_id) {
       try {
         const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
         const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
         for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
+        for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
       } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
     }
 
@@ -1079,6 +1098,28 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
          JSON.stringify({ status: 'cancelled', cancel_reason: 'Annul\u00e9 par le client (email)' })]
       );
     } catch (_) { /* non-critical */ }
+
+    // Increment client cancel_count + auto-block if abuse threshold reached
+    if (bk.client_id) {
+      try {
+        const updC = await query(
+          `UPDATE clients SET cancel_count = COALESCE(cancel_count, 0) + 1, updated_at = NOW()
+           WHERE id = $1 AND business_id = $2 RETURNING cancel_count`,
+          [bk.client_id, bk.business_id]
+        );
+        const cancelCount = updC.rows[0]?.cancel_count || 0;
+        const bizS = await query(`SELECT settings FROM businesses WHERE id = $1`, [bk.business_id]);
+        const sett = bizS.rows[0]?.settings || {};
+        if (sett.cancel_abuse_enabled && cancelCount >= (sett.cancel_abuse_max || 5)) {
+          await query(
+            `UPDATE clients SET is_blocked = true, blocked_at = NOW(), blocked_reason = $3, updated_at = NOW()
+             WHERE id = $1 AND business_id = $2 AND is_blocked = false`,
+            [bk.client_id, bk.business_id, `Bloqué automatiquement : ${cancelCount} annulation(s) consécutive(s)`]
+          );
+          console.log(`[CANCEL ABUSE] Client ${bk.client_id} blocked after ${cancelCount} cancellations`);
+        }
+      } catch (e) { console.error('[CANCEL COUNT] Error:', e.message); }
+    }
 
     broadcast(bk.business_id, 'booking_update', { action: 'cancelled', source: 'public' });
     // H3: Notify pro about client cancellation
@@ -1108,10 +1149,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
-                      b.practitioner_id, p.display_name AS practitioner_name
+                      b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -1121,6 +1162,7 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
             }
           }
@@ -1128,8 +1170,9 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           const { sendCancellationEmail } = require('../../services/email');
           const { getGcPaidCents } = require('../../services/gift-card-refund');
           const gcPaidCancel2 = await getGcPaidCents(bk.id);
+          const _adjSvcPrice3 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendCancellationEmail({
-            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: row.service_price_cents, duration_min: row.duration_min },
+            booking: { start_at: row.start_at, end_at: groupEndAt || row.end_at, client_name: row.client_name, client_email: row.client_email, service_name: row.service_name, service_category: row.service_category, practitioner_name: row.practitioner_name, deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_paid_at: row.deposit_paid_at, deposit_payment_intent_id: row.deposit_payment_intent_id, gc_paid_cents: gcPaidCancel2, promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct, service_price_cents: _adjSvcPrice3, duration_min: row.duration_min },
             business: { name: row.biz_name, email: row.biz_email, address: row.biz_address, theme: row.biz_theme, slug: row.biz_slug, settings: row.biz_settings },
             groupServices
           });
@@ -1269,21 +1312,23 @@ router.post('/booking/:token/confirm-booking', async (req, res, next) => {
           let groupServices = null;
           if (row.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name, COALESCE(sv.duration_min, s.duration_min) AS duration_min, COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at, b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct FROM bookings b LEFT JOIN services s ON s.id = b.service_id LEFT JOIN service_variants sv ON sv.id = b.service_variant_id LEFT JOIN practitioners p ON p.id = b.practitioner_id WHERE b.group_id = $1 AND b.business_id = $2 ORDER BY b.group_order, b.start_at`,
               [row.group_id, row.business_id]
             );
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
             }
           }
           const groupEndAt = groupServices ? groupServices[groupServices.length - 1].end_at : null;
+          const _adjSvcPrice4 = row.discount_pct ? Math.round((row.service_price_cents || 0) * (100 - row.discount_pct) / 100) : (row.service_price_cents || 0);
           await sendBookingConfirmation({
             booking: {
               public_token: row.public_token, start_at: row.start_at, end_at: groupEndAt || row.end_at,
               client_name: row.client_name, client_email: row.client_email,
-              service_name: row.service_name, service_category: row.service_category, service_price_cents: row.service_price_cents, duration_min: row.duration_min, practitioner_name: row.practitioner_name,
+              service_name: row.service_name, service_category: row.service_category, service_price_cents: _adjSvcPrice4, duration_min: row.duration_min, practitioner_name: row.practitioner_name,
               comment: row.comment_client,
               deposit_required: row.deposit_required, deposit_status: row.deposit_status, deposit_amount_cents: row.deposit_amount_cents, deposit_payment_intent_id: row.deposit_payment_intent_id,
               promotion_label: row.promotion_label, promotion_discount_cents: row.promotion_discount_cents, promotion_discount_pct: row.promotion_discount_pct

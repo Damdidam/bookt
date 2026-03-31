@@ -196,9 +196,9 @@ router.post('/gift-card/validate', depositLimiter, async (req, res, next) => {
   try {
     const { code, business_id } = req.body;
     if (!code) return res.status(400).json({ error: 'Code requis' });
-    let sql = `SELECT id, code, amount_cents, balance_cents, status, expires_at, business_id FROM gift_cards WHERE code = $1`;
-    const params = [code.toUpperCase().trim()];
-    if (business_id) { sql += ' AND business_id = $2'; params.push(business_id); }
+    if (!business_id) return res.status(400).json({ error: 'business_id requis' });
+    const sql = `SELECT id, code, amount_cents, balance_cents, status, expires_at, business_id FROM gift_cards WHERE code = $1 AND business_id = $2`;
+    const params = [code.toUpperCase().trim(), business_id];
     const result = await query(sql, params);
     if (result.rows.length === 0) return res.json({ valid: false, error: 'Code invalide' });
     const gc = result.rows[0];
@@ -274,10 +274,11 @@ router.post('/pass/validate', depositLimiter, async (req, res, next) => {
   try {
     const { code, business_id } = req.body;
     if (!code) return res.status(400).json({ error: 'Code requis' });
+    if (!business_id) return res.status(400).json({ error: 'business_id requis' });
     const passRes = await query(
       `SELECT p.id, p.code, p.name, p.sessions_total, p.sessions_remaining, p.service_id, p.expires_at, p.status, s.name AS service_name
-       FROM passes p JOIN services s ON s.id = p.service_id WHERE p.code = $1 ${business_id ? 'AND p.business_id = $2' : ''} LIMIT 1`,
-      business_id ? [code.toUpperCase().trim(), business_id] : [code.toUpperCase().trim()]
+       FROM passes p JOIN services s ON s.id = p.service_id WHERE p.code = $1 AND p.business_id = $2 LIMIT 1`,
+      [code.toUpperCase().trim(), business_id]
     );
     if (passRes.rows.length === 0) return res.json({ valid: false, error: 'Code invalide' });
     const pass = passRes.rows[0];

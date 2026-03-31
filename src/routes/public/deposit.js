@@ -332,7 +332,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
       try {
         const bkData = await query(
           `SELECT b.start_at, b.end_at, b.deposit_amount_cents, b.group_id, b.public_token,
-                  b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct,
+                  b.promotion_label, b.promotion_discount_cents, b.promotion_discount_pct, b.discount_pct,
                   c.full_name AS client_name, c.email AS client_email,
                   CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS service_name,
                   s.category AS service_category,
@@ -354,6 +354,8 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
         );
         if (bkData.rows.length > 0 && bkData.rows[0].client_email) {
           const d = bkData.rows[0];
+          // Apply last-minute discount to service_price_cents
+          if (d.discount_pct && d.service_price_cents) d.service_price_cents = Math.round(d.service_price_cents * (100 - d.discount_pct) / 100);
           let groupServices = null;
           const allLinkedIds = [bk.id, ...sibIds];
           if (allLinkedIds.length > 1) {
@@ -361,7 +363,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
               `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
-                      b.practitioner_id, p.display_name AS practitioner_name
+                      b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -372,15 +374,16 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }
           } else if (d.group_id) {
             const grp = await query(
-              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' — ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
+              `SELECT CASE WHEN sv.name IS NOT NULL THEN COALESCE(s.category || ' - ', '') || s.name || ' \u2014 ' || sv.name ELSE COALESCE(s.category || ' - ', '') || s.name END AS name,
                       COALESCE(sv.duration_min, s.duration_min) AS duration_min,
                       COALESCE(sv.price_cents, s.price_cents) AS price_cents, b.end_at,
-                      b.practitioner_id, p.display_name AS practitioner_name
+                      b.practitioner_id, p.display_name AS practitioner_name, b.discount_pct
                FROM bookings b LEFT JOIN services s ON s.id = b.service_id
                LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
                LEFT JOIN practitioners p ON p.id = b.practitioner_id
@@ -391,6 +394,7 @@ router.post('/deposit/:token/verify', depositLimiter, async (req, res, next) => 
             if (grp.rows.length > 1) {
               const _pIds = new Set(grp.rows.map(r => r.practitioner_id));
               if (_pIds.size <= 1) grp.rows.forEach(r => { r.practitioner_name = null; });
+              grp.rows.forEach(r => { if (r.discount_pct && r.price_cents) r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100); });
               groupServices = grp.rows;
               d.end_at = grp.rows[grp.rows.length - 1].end_at;
             }

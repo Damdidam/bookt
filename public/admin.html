@@ -451,14 +451,14 @@ function renderAnnouncements(list) {
   if (!list.length) { el.innerHTML = '<div style="font-size:.82rem;color:var(--text-4);padding:8px 0">Aucune annonce publiée</div>'; return; }
   el.innerHTML = list.map(a => {
     const active = a.is_active && (!a.ends_at || new Date(a.ends_at) > new Date());
-    const endsStr = a.ends_at ? new Date(a.ends_at).toLocaleString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Pas d\'expiration';
+    const endsStr = a.ends_at ? new Date(a.ends_at).toLocaleString('fr-BE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : 'Pas d\'expiration';
     const statusDot = active ? '<span style="color:var(--green)">●</span>' : '<span style="color:var(--text-4)">●</span>';
     return '<div class="ann-item">' +
       '<span class="ann-badge ' + esc(a.type) + '">' + esc(a.type) + '</span>' +
       '<div class="ann-content">' +
         '<div class="ann-title">' + statusDot + ' ' + esc(a.title) + '</div>' +
         (a.body ? '<div class="ann-body">' + esc(a.body) + '</div>' : '') +
-        '<div class="ann-meta">' + endsStr + ' · Créée le ' + new Date(a.created_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }) + '</div>' +
+        '<div class="ann-meta">' + endsStr + ' · Créée le ' + new Date(a.created_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' }) + '</div>' +
       '</div>' +
       '<div class="ann-actions">' +
         (a.is_active

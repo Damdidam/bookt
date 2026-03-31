@@ -63,7 +63,8 @@ async function fetchGroupServices(groupId, businessId) {
             s.category,
             COALESCE(sv.price_cents, s.price_cents, 0) AS price_cents,
             COALESCE(sv.duration_min, s.duration_min, 0) AS duration_min,
-            p.display_name AS practitioner_name
+            p.display_name AS practitioner_name,
+            b.discount_pct
      FROM bookings b
      LEFT JOIN services s ON s.id = b.service_id
      LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
@@ -84,12 +85,17 @@ function buildServiceDetailHTML(bk, groupServices) {
   if (isMulti) {
     let html = '';
     groupServices.forEach(s => {
-      const price = fmtPrice(s.price_cents);
+      // Apply last-minute discount per member
+      const adjMemberPrice = s.discount_pct && s.price_cents ? Math.round(s.price_cents * (100 - s.discount_pct) / 100) : (s.price_cents || 0);
+      const price = fmtPrice(adjMemberPrice);
       const pracSuffix = s.practitioner_name ? ' \u00b7 ' + escHtml(s.practitioner_name) : '';
       html += `<div style="font-size:13px;color:#3D3832;padding:2px 0">\u2022 ${escHtml(s.name)} \u2014 ${s.duration_min} min${price ? ' \u00b7 ' + price : ''}${pracSuffix}</div>`;
     });
     const totalMin = groupServices.reduce((sum, s) => sum + (s.duration_min || 0), 0);
-    const totalPrice = groupServices.reduce((sum, s) => sum + (s.price_cents || 0), 0);
+    const totalPrice = groupServices.reduce((sum, s) => {
+      const adj = s.discount_pct && s.price_cents ? Math.round(s.price_cents * (100 - s.discount_pct) / 100) : (s.price_cents || 0);
+      return sum + adj;
+    }, 0);
     const promoDisc = bk.promotion_discount_cents || 0;
     const finalPrice = totalPrice - promoDisc;
     const durStr = totalMin >= 60 ? Math.floor(totalMin / 60) + 'h' + (totalMin % 60 > 0 ? String(totalMin % 60).padStart(2, '0') : '') : totalMin + ' min';
@@ -107,7 +113,8 @@ function buildServiceDetailHTML(bk, groupServices) {
   // Single service
   const serviceName = escHtml(bk.service_category ? bk.service_category + ' - ' + bk.service_name : (bk.service_name || 'Rendez-vous'));
   let html = `<div style="font-size:14px;color:#3D3832;font-weight:600">${serviceName}</div>`;
-  const priceCents = bk.service_price_cents || 0;
+  const _rawPriceCents = bk.service_price_cents || 0;
+  const priceCents = bk.discount_pct ? Math.round(_rawPriceCents * (100 - bk.discount_pct) / 100) : _rawPriceCents;
   if (priceCents > 0) {
     const dur = bk.duration_min ? bk.duration_min + ' min \u00b7 ' : '';
     const promoDisc = bk.promotion_discount_cents || 0;

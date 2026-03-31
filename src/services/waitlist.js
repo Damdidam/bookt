@@ -81,8 +81,8 @@ async function processWaitlistForCancellation(bookingId, businessId) {
     // Queue a notification for the pro
     try {
       await queryWithRLS(bk.business_id,
-        `INSERT INTO notifications (business_id, booking_id, type, status)
-         VALUES ($1, $2, 'waitlist_match', 'queued')`,
+        `INSERT INTO notifications (business_id, booking_id, type, status, sent_at)
+         VALUES ($1, $2, 'waitlist_match', 'sent', NOW())`,
         [bk.business_id, bookingId]
       );
     } catch (e) { console.warn('[WAITLIST] Notification insert error:', e.message); }

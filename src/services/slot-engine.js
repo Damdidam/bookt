@@ -173,8 +173,8 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     [businessId, dateFrom, dateTo]
   );
   const bizClosures = bizClosureResult.rows.map(r => ({
-    from: new Date(r.date_from).toISOString().slice(0, 10),
-    to: new Date(r.date_to).toISOString().slice(0, 10)
+    from: new Date(r.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+    to: new Date(r.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
   }));
 
   // 5d. Fetch business holidays in date range
@@ -184,7 +184,7 @@ async function getAvailableSlots({ businessId, serviceId, practitionerId, dateFr
     [businessId, dateFrom, dateTo]
   );
   const bizHolidaySet = new Set(bizHolidayResult.rows.map(r =>
-    new Date(r.date).toISOString().slice(0, 10)
+    new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
   ));
 
   // 5e. Fetch staff absences in date range (congés, maladie, formation…)
@@ -614,8 +614,8 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     [businessId, dateFrom, dateTo]
   );
   const bizClosures2 = bizClosureResult2.rows.map(r => ({
-    from: new Date(r.date_from).toISOString().slice(0, 10),
-    to: new Date(r.date_to).toISOString().slice(0, 10)
+    from: new Date(r.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+    to: new Date(r.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
   }));
 
   const bizHolidayResult2 = await queryWithRLS(businessId,
@@ -624,7 +624,7 @@ async function getAvailableSlotsMulti({ businessId, serviceIds, practitionerId, 
     [businessId, dateFrom, dateTo]
   );
   const bizHolidaySet2 = new Set(bizHolidayResult2.rows.map(r =>
-    new Date(r.date).toISOString().slice(0, 10)
+    new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
   ));
 
   // 6c. Fetch staff absences in date range (congés, maladie, formation…)
@@ -1025,8 +1025,8 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     [businessId, dateFrom, dateTo]
   );
   const bizClosures = bizClosureResult.rows.map(r => ({
-    from: new Date(r.date_from).toISOString().slice(0, 10),
-    to: new Date(r.date_to).toISOString().slice(0, 10)
+    from: new Date(r.date_from).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }),
+    to: new Date(r.date_to).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
   }));
 
   const bizHolidayResult = await queryWithRLS(businessId,
@@ -1035,7 +1035,7 @@ async function getAvailableSlotsMultiPractitioner({ businessId, serviceIds, date
     [businessId, dateFrom, dateTo]
   );
   const bizHolidaySet = new Set(bizHolidayResult.rows.map(r =>
-    new Date(r.date).toISOString().slice(0, 10)
+    new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' })
   ));
 
   // Staff absences

@@ -7,6 +7,8 @@ const router = require('express').Router();
 const { queryWithRLS, transactionWithRLS } = require('../../services/db');
 const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete, businessAllowsOverlap, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
+const { refundPassForBooking } = require('../../services/pass-refund');
+const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -313,6 +315,10 @@ router.delete('/:id/group-remove', async (req, res, next) => {
         await client.query(`DELETE FROM practitioner_todos WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
         await client.query(`DELETE FROM booking_reminders WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
         await client.query(`DELETE FROM pre_rdv_sends WHERE booking_id = $1 AND business_id = $2`, [id, bid]);
+
+        // Refund pass and gift card before deleting
+        await refundGiftCardForBooking(id, client).catch(e => console.error('[GC REFUND] group-remove error:', e.message));
+        await refundPassForBooking(id, client).catch(e => console.warn('[PASS REFUND] group-remove:', e.message));
 
         // Delete the booking itself
         await client.query(
