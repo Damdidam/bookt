@@ -357,15 +357,15 @@ function renderBooking(data) {
     let membersHtml = booking.service.members.map(function(m) {
       const pracInfo = m.practitioner_name ? ' <span style="color:var(--text-4);font-size:.78rem">\u2014 ' + m.practitioner_name.replace(/</g,'&lt;') + '</span>' : '';
       return '<div style="margin-bottom:2px">' + m.name.replace(/</g,'&lt;') + pracInfo + '</div>'
-        + '<div style="font-size:.82rem;color:var(--text-4)">' + m.duration_min + ' min' + (m.price_cents ? ' \u00b7 ' + (m.price_cents/100).toFixed(0) + ' \u20ac' : '') + '</div>';
+        + '<div style="font-size:.82rem;color:var(--text-4)">' + m.duration_min + ' min' + (m.price_cents ? ' \u00b7 ' + (m.price_cents/100).toFixed(2).replace('.',',') + ' \u20ac' : '') + '</div>';
     }).join('');
     membersHtml += '<div style="margin-top:4px;font-weight:600;font-size:.82rem">Total : ' + booking.service.duration_min + ' min'
-      + (booking.service.price_cents ? ' \u00b7 ' + (booking.service.price_cents/100).toFixed(0) + ' \u20ac' : '') + '</div>';
+      + (booking.service.price_cents ? ' \u00b7 ' + (booking.service.price_cents/100).toFixed(2).replace('.',',') + ' \u20ac' : '') + '</div>';
     svcEl.innerHTML = membersHtml;
     // Promo on total
     if (booking.service.price_cents && promoDiscount > 0) {
-      const originalPrice = (booking.service.price_cents / 100).toFixed(0) + ' \u20ac';
-      const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(0) + ' \u20ac';
+      const originalPrice = (booking.service.price_cents / 100).toFixed(2).replace('.',',') + ' \u20ac';
+      const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
       priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice
         + (promoLabel ? '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>' : '');
     } else {
@@ -374,13 +374,13 @@ function renderBooking(data) {
   } else {
     svcEl.textContent = booking.service.name;
     if (booking.service.price_cents && promoDiscount > 0) {
-      const originalPrice = (booking.service.price_cents / 100).toFixed(0) + ' \u20ac';
-      const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(0) + ' \u20ac';
+      const originalPrice = (booking.service.price_cents / 100).toFixed(2).replace('.',',') + ' \u20ac';
+      const discountedPrice = ((booking.service.price_cents - promoDiscount) / 100).toFixed(2).replace('.',',') + ' \u20ac';
       priceEl.innerHTML = '<s style="color:var(--text-4);font-weight:400">' + originalPrice + '</s> ' + discountedPrice
         + (promoLabel ? '<span style="color:#059669;font-size:.78rem;font-weight:600;margin-left:6px">' + promoLabel.replace(/</g,'&lt;') + '</span>' : '');
     } else {
       priceEl.textContent = booking.service.price_cents
-        ? `${(booking.service.price_cents / 100).toFixed(0)} \u20ac`
+        ? `${(booking.service.price_cents / 100).toFixed(2).replace('.',',')} \u20ac`
         : (booking.service.price_label || '');
     }
   }

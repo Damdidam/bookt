@@ -279,7 +279,7 @@ function qcAssignSvcChanged() {
   const variants = svc?.variants || [];
   if (variants.length > 0) {
     varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
-      `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(0)+'\u20ac' : ''})</option>`
+      `<option value="${v.id}" data-dur="${v.duration_min}" data-price="${v.price_cents||0}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 '+(v.price_cents/100).toFixed(2).replace('.',',')+'\u20ac' : ''})</option>`
     ).join('');
     varWrap.style.display = 'block';
   } else {
@@ -310,7 +310,7 @@ function qcAssignUpdateInfo() {
     const variant = svc?.variants?.find(v => String(v.id) === String(varId));
     const dur = variant?.duration_min || parseInt(varOpt.dataset.dur) || 0;
     const price = variant?.price_cents ?? parseInt(varOpt.dataset.price) ?? 0;
-    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+    info.textContent = dur + ' min' + (price ? ' \u00b7 ' + (price / 100).toFixed(2).replace('.',',') + '\u20ac' : '');
   } else {
     info.textContent = svcDurPriceLabel(svc);
   }
@@ -342,7 +342,7 @@ function qcAssignConfirm() {
   const name = variant ? svc.name + ' \u2014 ' + variant.name : svc.name;
   const dur = variant?.duration_min || svc.duration_min || 0;
   const price = variant?.price_cents || svc.price_cents || 0;
-  const durPrice = dur + 'min' + (price ? ' \u00b7 ' + (price / 100).toFixed(0) + '\u20ac' : '');
+  const durPrice = dur + 'min' + (price ? ' \u00b7 ' + (price / 100).toFixed(2).replace('.',',') + '\u20ac' : '');
   const modes = JSON.stringify(svc.mode_options || ['cabinet']);
   const pt = variant?.processing_time || svc.processing_time || 0;
   const ps = variant?.processing_start || svc.processing_start || 0;
@@ -570,7 +570,7 @@ function qcCheckDepositSuggestion() {
     _qcUpdateDepositAmountRow();
     _qcUpdateDepositChannels(true);
     const reasons = [];
-    if (priceHit) reasons.push((totalPrice / 100).toFixed(0) + '€');
+    if (priceHit) reasons.push((totalPrice / 100).toFixed(2).replace('.',',') + '€');
     if (durHit) reasons.push(totalDur + ' min');
     hint.textContent = 'Suggéré — ' + reasons.join(' · ');
   } else if (!suggest && hint) {

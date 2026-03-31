@@ -7,6 +7,7 @@
 import { api, calState } from '../../state.js';
 import { gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
+import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { fcRefresh } from './calendar-init.js';
 
 // ── Featured mode state ──
@@ -59,7 +60,7 @@ function fsGetPracId() {
 async function fsToggleMode() {
   if (fsActive) {
     if (fsDirty) {
-      if (!confirm('Vous avez des modifications non enregistrées. Quitter le mode vedette ?')) return;
+      if (!(await showConfirmDialog('Vous avez des modifications non enregistrées. Quitter le mode vedette ?'))) return;
     }
     fsDeactivate();
   } else {

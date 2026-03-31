@@ -8,6 +8,7 @@
 import { api, calState, userRole } from '../../state.js';
 import { esc, gToast } from '../../utils/dom.js';
 import { bridge } from '../../utils/window-bridge.js';
+import { showConfirmDialog } from '../../utils/dirty-guard.js';
 import { fcRefresh } from './calendar-init.js';
 import { closeCalModal } from './booking-detail.js';
 
@@ -150,7 +151,7 @@ async function fcConfirmUngroup(siblingId) {
  * @param {string} serviceName — display name for confirmation message
  */
 async function fcRemoveFromGroup(siblingId, serviceName) {
-  if (!confirm(`Supprimer \u00ab ${serviceName} \u00bb du groupe ?\n\nCette action est irr\u00e9versible.`)) return;
+  if (!(await showConfirmDialog(`Supprimer \u00ab ${serviceName} \u00bb du groupe ?\n\nCette action est irr\u00e9versible.`))) return;
 
   try {
     const r = await fetch(`/api/bookings/${siblingId}/group-remove`, {

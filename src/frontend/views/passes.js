@@ -3,7 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let passFilter='all', passSearch='';
 let _lastPasses=[];
@@ -116,8 +116,7 @@ function renderPasses(c,passes,st){
 
 // ── Create Pass Modal ──
 async function openCreatePass(){
-  const existing=document.getElementById('passCreateModal');
-  if(existing)existing.remove();
+  closeModal('passCreateModal');
 
   // Fetch services list
   let services=[];
@@ -136,7 +135,7 @@ async function openCreatePass(){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>Créer un pass</h3>
-      <button class="m-close" onclick="document.getElementById('passCreateModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('passCreateModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px">
@@ -180,7 +179,7 @@ async function openCreatePass(){
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('passCreateModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('passCreateModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="submitCreatePass()">Créer le pass</button>
     </div>
   </div>`;
@@ -226,7 +225,7 @@ async function submitCreatePass(){
       buyer_email:buyerEmail||undefined,
       expires_at:expiresAt||undefined
     });
-    document.getElementById('passCreateModal').remove();
+    closeModal('passCreateModal');
     GendaUI.toast('Pass créé avec succès','success');
     loadPasses();
   }catch(e){GendaUI.toast(e.message||'Erreur lors de la création','error');}
@@ -237,8 +236,7 @@ function openDebitPass(id){
   const p=_lastPasses.find(x=>x.id===id);
   if(!p){GendaUI.toast('Pass introuvable','error');return;}
 
-  const existing=document.getElementById('passDebitModal');
-  if(existing)existing.remove();
+  closeModal('passDebitModal');
 
   const sessionsRemaining=parseInt(p.sessions_remaining||0);
 
@@ -247,7 +245,7 @@ function openDebitPass(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Débiter — ${esc(p.code)}</h3>
-      <button class="m-close" onclick="document.getElementById('passDebitModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('passDebitModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
@@ -259,7 +257,7 @@ function openDebitPass(id){
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('passDebitModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('passDebitModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="debitPass('${p.id}')" ${sessionsRemaining<=0?'disabled':''}>Débiter 1 séance</button>
     </div>
   </div>`;
@@ -270,7 +268,7 @@ function openDebitPass(id){
 async function debitPass(id){
   try{
     await api.post(`/api/passes/${id}/debit`);
-    document.getElementById('passDebitModal').remove();
+    closeModal('passDebitModal');
     GendaUI.toast('Séance débitée avec succès','success');
     loadPasses();
   }catch(e){GendaUI.toast(e.message||'Erreur lors du débit','error');}
@@ -281,8 +279,7 @@ async function refundPass(id){
   const p=_lastPasses.find(x=>x.id===id);
   if(!p){GendaUI.toast('Pass introuvable','error');return;}
 
-  const existing=document.getElementById('passRefundModal');
-  if(existing)existing.remove();
+  closeModal('passRefundModal');
 
   const sessionsRemaining=parseInt(p.sessions_remaining||0);
   const sessionsTotal=parseInt(p.sessions_total||0);
@@ -292,7 +289,7 @@ async function refundPass(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Rembourser — ${esc(p.code)}</h3>
-      <button class="m-close" onclick="document.getElementById('passRefundModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('passRefundModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
@@ -310,7 +307,7 @@ async function refundPass(id){
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('passRefundModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('passRefundModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="submitRefundPass('${p.id}')">Rembourser 1 séance</button>
     </div>
   </div>`;
@@ -321,7 +318,7 @@ async function refundPass(id){
 async function submitRefundPass(id){
   try{
     await api.post(`/api/passes/${id}/refund`);
-    document.getElementById('passRefundModal').remove();
+    closeModal('passRefundModal');
     GendaUI.toast('Séance remboursée avec succès','success');
     loadPasses();
   }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement','error');}

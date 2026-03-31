@@ -993,7 +993,7 @@ function soSvcChanged() {
   const variants = svc?.variants || [];
   if (variants.length > 0) {
     if (varSel) varSel.innerHTML = '<option value="">\u2014 Variante \u2014</option>' + variants.map(v =>
-      `<option value="${v.id}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 ' + (v.price_cents / 100).toFixed(0) + '\u20ac' : ''})</option>`
+      `<option value="${v.id}">${esc(v.name)} (${v.duration_min} min${v.price_cents ? ' \u00b7 ' + (v.price_cents / 100).toFixed(2).replace('.',',') + '\u20ac' : ''})</option>`
     ).join('');
     if (varWrap) varWrap.style.display = '';
   } else {

@@ -1468,7 +1468,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
     var totalCents = items.reduce(function(s, v) { return s + v.price_cents; }, 0);
     var hours = Math.floor(totalMin / 60), mins = totalMin % 60;
     var dur = hours > 0 ? hours + 'h' + (mins > 0 ? String(mins).padStart(2,'0') : '') : totalMin + ' min';
-    var price = totalCents > 0 ? (totalCents / 100).toFixed(0) + ' \u20ac' : '';
+    var price = totalCents > 0 ? (totalCents / 100).toFixed(2).replace('.',',') + ' \u20ac' : '';
 
     document.getElementById('cartSummary').innerHTML = '<strong>' + n + ' prestation' + (n > 1 ? 's' : '') + '</strong> \u00b7 ' + dur + ' \u00b7 ' + price;
     // Build services param: "svcId:varId,svcId2" format
@@ -1733,7 +1733,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
             if (s.description) sH += '<div class="service-detail">' + esc(s.description) + '</div>';
             sH += '</div></div>';
             s.variants.forEach(function(v) {
-              var vPrice = v.price_cents ? (v.price_cents / 100).toFixed(0) + '\u20ac' : '';
+              var vPrice = v.price_cents ? (v.price_cents / 100).toFixed(2).replace('.',',') + '\u20ac' : '';
               var vDetail = (v.duration_min || 0) + ' min';
               var compositeId = s.id + ':' + v.id;
               var vClick = multi ? 'toggleMultiSvc(\'' + compositeId + '\')' : 'window.location.href=\'' + bookUrl + '?service=' + s.id + '&variant=' + v.id + '\'';
@@ -1744,7 +1744,7 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
             });
           } else {
             // Service without variants: show as before
-            var price = s.price_label || (s.price_cents ? (s.price_cents / 100).toFixed(0) + '\u20ac' : '');
+            var price = s.price_label || (s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.',',') + '\u20ac' : '');
             var detail = (s.duration_min || 0) + ' min' + (s.description ? ' \u00b7 ' + esc(s.description) : '');
             var click = multi ? 'toggleMultiSvc(\'' + s.id + '\')' : 'window.location.href=\'' + bookUrl + '?service=' + s.id + '\'';
             sH += '<div class="service-item" data-svc-id="' + s.id + '" onclick="' + click + '">';
@@ -1765,10 +1765,10 @@ body.tpl-funky .cart-chip { border-radius: 100px; }
         promos.forEach(function(p) {
           var label = '';
           if (p.condition_type === 'first_visit' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% pour les nouveaux clients';
-          else if (p.condition_type === 'min_amount' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% d\u00e8s ' + (p.condition_min_cents / 100).toFixed(0) + '\u202f\u20ac de panier';
-          else if (p.condition_type === 'min_amount' && p.reward_type === 'discount_fixed') label = '-' + (p.reward_value / 100).toFixed(0) + '\u202f\u20ac d\u00e8s ' + (p.condition_min_cents / 100).toFixed(0) + '\u202f\u20ac de panier';
+          else if (p.condition_type === 'min_amount' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% d\u00e8s ' + (p.condition_min_cents / 100).toFixed(2).replace('.',',') + '\u202f\u20ac de panier';
+          else if (p.condition_type === 'min_amount' && p.reward_type === 'discount_fixed') label = '-' + (p.reward_value / 100).toFixed(2).replace('.',',') + '\u202f\u20ac d\u00e8s ' + (p.condition_min_cents / 100).toFixed(2).replace('.',',') + '\u202f\u20ac de panier';
           else if (p.condition_type === 'specific_service' && p.reward_type === 'discount_pct') label = '-' + p.reward_value + '% sur ' + (p.condition_service_name || p.title);
-          else if (p.condition_type === 'specific_service' && p.reward_type === 'discount_fixed') label = '-' + (p.reward_value / 100).toFixed(0) + '\u202f\u20ac sur ' + (p.condition_service_name || p.title);
+          else if (p.condition_type === 'specific_service' && p.reward_type === 'discount_fixed') label = '-' + (p.reward_value / 100).toFixed(2).replace('.',',') + '\u202f\u20ac sur ' + (p.condition_service_name || p.title);
           else if (p.condition_type === 'specific_service' && p.reward_type === 'free_service') label = (p.reward_service_name || 'Service offert') + ' offert avec ' + (p.condition_service_name || p.title);
           else label = p.title;
           bH += '<div class="sp-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="sp-title">' + esc(label) + '</span></div>';

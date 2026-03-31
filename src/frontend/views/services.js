@@ -6,7 +6,7 @@ import { api, userSector, categoryLabels, GendaUI } from '../state.js';
 import { esc } from '../utils/dom.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
-import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { IC } from '../utils/icons.js';
 
 let allPractitioners=[];
@@ -168,8 +168,8 @@ function renderServiceRow(s,sortIdx){
   const varPrices=vars.map(v=>v.price_cents).filter(p=>p>0);
   const varDurs=vars.map(v=>v.duration_min).filter(d=>d>0);
   let priceStr;
-  if(varPrices.length>0){const mn=(Math.min(...varPrices)/100).toFixed(0),mx=(Math.max(...varPrices)/100).toFixed(0);priceStr=mn===mx?mn+' €':mn+' – '+mx+' €';}
-  else if(s.price_cents)priceStr=(s.price_cents/100).toFixed(0)+' €';
+  if(varPrices.length>0){const mn=(Math.min(...varPrices)/100).toFixed(2).replace('.',','),mx=(Math.max(...varPrices)/100).toFixed(2).replace('.',',');priceStr=mn===mx?mn+' €':mn+' – '+mx+' €';}
+  else if(s.price_cents)priceStr=(s.price_cents/100).toFixed(2).replace('.',',')+' €';
   else priceStr=s.price_label||'';
   let durStr;
   if(varDurs.length>0){const mn=Math.min(...varDurs),mx=Math.max(...varDurs);durStr=mn===mx?mn+' min':mn+' – '+mx+' min';}
@@ -212,7 +212,7 @@ function renderPassTemplateList(pts){
   let h=`<div class="svc-pass-list-inline" style="margin-top:6px;padding:6px 0;border-top:1px dashed var(--border-light)">`;
   h+=`<div style="font-size:.68rem;font-weight:600;color:var(--text-4);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${TICKET_SVG} Abonnements</div>`;
   pts.forEach(pt=>{
-    const price=(pt.price_cents/100).toFixed(0)+' €';
+    const price=(pt.price_cents/100).toFixed(2).replace('.',',')+' €';
     const varLabel=pt.variant_name?' — '+esc(pt.variant_name):'';
     h+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:.78rem">`;
     h+=`<span style="color:var(--green);font-weight:600">${pt.sessions_count}x</span>`;
@@ -232,7 +232,7 @@ function renderVariantList(vars,color,serviceId){
 }
 
 function renderVariantRow(v,color){
-  const price=v.price_cents?(v.price_cents/100).toFixed(0)+' €':'';
+  const price=v.price_cents?(v.price_cents/100).toFixed(2).replace('.',',')+' €':'';
   let h=`<div class="svc-var-item" data-variant-id="${v.id}">`;
   h+=`<div class="svc-var-dot" style="background:${color}"></div>`;
   h+=`<div class="svc-var-info">`;
@@ -1064,7 +1064,7 @@ function qsRenderStep1(){
   const svcsLabel=categoryLabels.services.toLowerCase();
   let m=`<div class="m-overlay open qs-overlay" id="qsModalOverlay"><div class="m-dialog m-lg qs-modal">
     <div class="qs-progress"><div class="qs-step active">1</div><div class="qs-line"></div><div class="qs-step">2</div></div>
-    <div class="m-header-simple"><h3>Choisissez vos catégories</h3><button class="m-close" onclick="document.getElementById('qsModalOverlay').remove()">${X_SVG}</button></div>
+    <div class="m-header-simple"><h3>Choisissez vos catégories</h3><button class="m-close" onclick="closeModal('qsModalOverlay')">${X_SVG}</button></div>
     <div class="m-body"><p class="qs-subtitle">Décochez les catégories qui ne vous concernent pas</p><div class="qs-cat-grid">`;
   qsGroups.forEach(g=>{
     const sel=qsSelectedCats.has(g.category);
@@ -1073,7 +1073,7 @@ function qsRenderStep1(){
       <div class="qs-cat-label">${g.category}</div><div class="qs-cat-count">${g.templates.length} ${svcsLabel}</div></div>`;
   });
   m+=`</div></div><div class="m-bottom"><span class="qs-count" id="qsCatCount"><strong>${qsSelectedCats.size}</strong> catégories sélectionnées</span><button class="m-btn m-btn-primary" onclick="qsGoStep2()" id="qsNextBtn">Continuer →</button></div></div></div>`;
-  document.querySelector('.qs-overlay')?.remove();
+  closeModal('qsModalOverlay');
   document.body.insertAdjacentHTML('beforeend',m);
   qsOverlay=document.querySelector('.qs-overlay');
 }
@@ -1160,7 +1160,7 @@ async function qsSubmitAll(){
     btn.textContent=`Création ${i+1}/${toCreate.length}...`;
     try{const r=await fetch('/api/services',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.getToken()},body:JSON.stringify(toCreate[i])});if(r.ok)created++;else errors++;}catch(e){errors++;}
   }
-  document.querySelector('.qs-overlay')?.remove();
+  closeModal('qsModalOverlay');
   GendaUI.toast(`${created} ${svcsLabel} créées !`,'success');
   if(errors>0)GendaUI.toast(`${errors} erreur(s)`,'error');
   loadServices();

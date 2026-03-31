@@ -287,7 +287,7 @@ async function deleteInvoice(id){
 
 function downloadInvoicePDF(id){
   const token=localStorage.getItem('genda_token');
-  window.open(`/api/invoices/${id}/pdf?token=${token}`,'_blank');
+  window.open(`/api/invoices/${id}/pdf?token=${token}`,'_blank','noopener');
 }
 
 async function createInvoiceFromBooking(bookingId){

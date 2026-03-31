@@ -128,8 +128,7 @@ async function fetchServices() {
 }
 
 async function openPromoModal(id) {
-  const existing = document.getElementById('promoModal');
-  if (existing) existing.remove();
+  closeModal('promoModal');
 
   let promo = null;
   if (id) {
@@ -334,7 +333,7 @@ async function savePromo(id) {
       await api.post('/api/promotions', body);
       GendaUI.toast('Promotion cr\u00E9\u00E9e', 'success');
     }
-    document.getElementById('promoModal').remove();
+    closeModal('promoModal');
     loadPromotions();
   } catch (e) { GendaUI.toast(e.message || 'Erreur lors de l\'enregistrement', 'error'); }
 }

@@ -3,7 +3,7 @@
  */
 import { api, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
-import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 
 let gcFilter='all',gcSearch='';
 let _lastCards=[];
@@ -117,8 +117,7 @@ function renderGiftCards(c,cards,st){
 
 // ── Create Gift Card Modal ──
 function openCreateGiftCardModal(){
-  const existing=document.getElementById('gcCreateModal');
-  if(existing)existing.remove();
+  closeModal('gcCreateModal');
 
   const amountPills=[25,50,75,100,150,200];
   const pillsHtml=amountPills.map(a=>`<button type="button" onclick="selectGcAmount(${a*100})" class="gc-amount-pill" data-cents="${a*100}" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface);color:var(--text-1);font-size:.85rem;font-weight:600;cursor:pointer">${a} \u20ac</button>`).join('');
@@ -128,7 +127,7 @@ function openCreateGiftCardModal(){
   modal.innerHTML=`<div class="m-dialog m-md">
     <div class="m-header-simple">
       <h3>Créer une carte cadeau</h3>
-      <button class="m-close" onclick="document.getElementById('gcCreateModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('gcCreateModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:16px">
@@ -159,7 +158,7 @@ function openCreateGiftCardModal(){
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('gcCreateModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('gcCreateModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="submitCreateGiftCard()">Créer la carte</button>
     </div>
   </div>`;
@@ -199,7 +198,7 @@ async function submitCreateGiftCard(){
       recipient_email:recipientEmail||undefined,
       message:message||undefined
     });
-    document.getElementById('gcCreateModal').remove();
+    closeModal('gcCreateModal');
     GendaUI.toast('Carte cadeau créée avec succès','success');
     loadGiftCards();
   }catch(e){GendaUI.toast(e.message||'Erreur lors de la création','error');}
@@ -210,15 +209,14 @@ function openDebitGiftCard(id){
   const gc=_lastCards.find(c=>c.id===id);
   if(!gc){GendaUI.toast('Carte introuvable','error');return;}
 
-  const existing=document.getElementById('gcDebitModal');
-  if(existing)existing.remove();
+  closeModal('gcDebitModal');
 
   const modal=document.createElement('div');
   modal.className='m-overlay open';modal.id='gcDebitModal';
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Débiter la carte ${esc(gc.code)}</h3>
-      <button class="m-close" onclick="document.getElementById('gcDebitModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('gcDebitModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
@@ -240,7 +238,7 @@ function openDebitGiftCard(id){
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('gcDebitModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('gcDebitModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="submitDebitGiftCard('${gc.id}')">Débiter</button>
     </div>
   </div>`;
@@ -258,7 +256,7 @@ async function submitDebitGiftCard(id){
       amount_cents:Math.round(amountVal*100),
       note:note||undefined
     });
-    document.getElementById('gcDebitModal').remove();
+    closeModal('gcDebitModal');
     GendaUI.toast('Carte débitée avec succès','success');
     loadGiftCards();
   }catch(e){GendaUI.toast(e.message||'Erreur lors du débit','error');}
@@ -269,8 +267,7 @@ async function refundGiftCard(id){
   const gc=_lastCards.find(c=>c.id===id);
   if(!gc){GendaUI.toast('Carte introuvable','error');return;}
 
-  const existing=document.getElementById('gcRefundModal');
-  if(existing)existing.remove();
+  closeModal('gcRefundModal');
 
   const spent=parseInt(gc.amount_cents||0)-parseInt(gc.balance_cents||0);
   if(spent<=0){GendaUI.toast('Aucun montant à rembourser','error');return;}
@@ -280,7 +277,7 @@ async function refundGiftCard(id){
   modal.innerHTML=`<div class="m-dialog m-sm">
     <div class="m-header-simple">
       <h3>Rembourser — ${esc(gc.code)}</h3>
-      <button class="m-close" onclick="document.getElementById('gcRefundModal').remove()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="m-close" onclick="closeModal('gcRefundModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="m-body">
       <div style="margin-bottom:14px;padding:12px;background:var(--surface);border-radius:var(--radius-xs)">
@@ -308,7 +305,7 @@ async function refundGiftCard(id){
     </div>
     <div class="m-bottom">
       <div style="flex:1"></div>
-      <button class="m-btn m-btn-ghost" onclick="document.getElementById('gcRefundModal').remove()">Annuler</button>
+      <button class="m-btn m-btn-ghost" onclick="closeModal('gcRefundModal')">Annuler</button>
       <button class="m-btn m-btn-primary" onclick="submitRefundGiftCard('${gc.id}')">Rembourser</button>
     </div>
   </div>`;
@@ -326,7 +323,7 @@ async function submitRefundGiftCard(id){
       amount_cents:Math.round(amountVal*100),
       note:note||undefined
     });
-    document.getElementById('gcRefundModal').remove();
+    closeModal('gcRefundModal');
     GendaUI.toast('Remboursement effectué','success');
     loadGiftCards();
   }catch(e){GendaUI.toast(e.message||'Erreur lors du remboursement','error');}

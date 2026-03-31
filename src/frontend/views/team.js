@@ -5,7 +5,7 @@
 import { api, SECTOR_LABELS, userSector, sectorLabels, categoryLabels, GendaUI } from '../state.js';
 import { bridge } from '../utils/window-bridge.js';
 import { cswHTML } from './agenda/color-swatches.js';
-import { guardModal, showConfirmDialog } from '../utils/dirty-guard.js';
+import { guardModal, closeModal, showConfirmDialog } from '../utils/dirty-guard.js';
 import { trapFocus, releaseFocus } from '../utils/focus-trap.js';
 import { enableSwipeClose } from '../utils/swipe-close.js';
 import { initTimeInputs } from '../utils/dom.js';
@@ -564,9 +564,9 @@ function teamAddSlot(day) {
   const hr = parseInt((ds || '09:00').split(':')[0]);
   const de = `${String(Math.min(hr + 4, 20)).padStart(2, '0')}:00`;
 
-  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
+  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="closeModal('teamSlotModal')">${ICONS.close}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${(ds || '09:00').slice(0, 5)}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${de}"></div></div>
-  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('teamSlotModal')">Annuler</button><button class="m-btn m-btn-primary" onclick="teamConfirmAddSlot(${day})">Ajouter</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   initTimeInputs(document.getElementById('teamSlotModal'));
 }
@@ -584,7 +584,7 @@ function teamConfirmAddSlot(day) {
   if (!teamEditSchedule[day]) teamEditSchedule[day] = [];
   teamEditSchedule[day].push({ start_time: st, end_time: en });
   teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
-  document.getElementById('teamSlotModal')?.remove();
+  closeModal('teamSlotModal');
   document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
 }
 
@@ -594,9 +594,9 @@ function teamEditSlot(day, idx) {
   const st = (slot.start_time || '09:00:00').slice(0, 5);
   const en = (slot.end_time || '18:00:00').slice(0, 5);
 
-  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="document.getElementById('teamSlotModal').remove()">${ICONS.close}</button></div><div class="m-body">
+  let m = `<div class="m-overlay open" id="teamSlotModal" style="z-index:350"><div class="m-dialog m-sm"><div class="m-header-simple"><h3>Modifier créneau — ${DAYS_WEEK[day]}</h3><button class="m-close" onclick="closeModal('teamSlotModal')">${ICONS.close}</button></div><div class="m-body">
     <div class="m-row m-row-2"><div><div class="m-field-label">Début</div><input type="text" class="m-input m-time" id="tm_slot_start" value="${st}"></div><div><div class="m-field-label">Fin</div><input type="text" class="m-input m-time" id="tm_slot_end" value="${en}"></div></div>
-  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="document.getElementById('teamSlotModal').remove()">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});document.getElementById('teamSlotModal').remove()" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
+  </div><div class="m-bottom"><div style="flex:1"></div><button class="m-btn m-btn-ghost" onclick="closeModal('teamSlotModal')">Annuler</button><button class="m-btn m-btn-danger" onclick="teamRemoveSlot(${day},${idx});closeModal('teamSlotModal')" style="margin-right:auto">Supprimer</button><button class="m-btn m-btn-primary" onclick="teamConfirmEditSlot(${day},${idx})">Enregistrer</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', m);
   initTimeInputs(document.getElementById('teamSlotModal'));
 }
@@ -618,7 +618,7 @@ function teamConfirmEditSlot(day, idx) {
     teamEditSchedule[day][idx] = { start_time: st, end_time: en };
     teamEditSchedule[day].sort((a, b) => a.start_time.localeCompare(b.start_time));
   }
-  document.getElementById('teamSlotModal')?.remove();
+  closeModal('teamSlotModal');
   document.getElementById('tm_schedule_editor').innerHTML = renderScheduleEditor();
 }
 
@@ -963,7 +963,7 @@ async function openPracTasks(pracId, pracName) {
 
 function closeTasksModal() {
   releaseFocus();
-  document.getElementById('tasksModalOverlay')?.remove();
+  closeModal('tasksModalOverlay');
   if (!document.querySelector('.m-overlay.open')) document.body.classList.remove('has-modal');
 }
 

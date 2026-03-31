@@ -31,8 +31,8 @@ function renderAnalytics(d){
   // KPIs
   h+=`<div class="an-kpi">
     <div class="kpi"><div class="kv">${t.bookings}</div><div class="kl">RDV confirmés</div></div>
-    <div class="kpi"><div class="kv">${(t.revenue/100).toFixed(0)} €</div><div class="kl">Chiffre d'affaires</div></div>
-    <div class="kpi"><div class="kv">${(t.avg_booking_value/100).toFixed(0)} €</div><div class="kl">Panier moyen</div></div>
+    <div class="kpi"><div class="kv">${(t.revenue/100).toFixed(2).replace('.',',')} €</div><div class="kl">Chiffre d'affaires</div></div>
+    <div class="kpi"><div class="kv">${(t.avg_booking_value/100).toFixed(2).replace('.',',')} €</div><div class="kl">Panier moyen</div></div>
     <div class="kpi"><div class="kv">${t.no_show_rate}%</div><div class="kl">Taux no-show</div></div>
     <div class="kpi"><div class="kv">${d.new_clients}</div><div class="kl">Nouveaux clients</div></div>
   </div>`;
@@ -52,7 +52,7 @@ function renderAnalytics(d){
     h+=`<div class="top-svc-list">`;
     d.top_services.forEach(s=>{
       const pct=Math.round(s.count/maxCount*100);
-      h+=`<div class="top-svc-row"><span class="sname">${s.name}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${s.color||'var(--primary)'}">${s.count}</div></div><span class="scount">${(s.revenue/100).toFixed(0)}€</span></div>`;
+      h+=`<div class="top-svc-row"><span class="sname">${s.name}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${s.color||'var(--primary)'}">${s.count}</div></div><span class="scount">${(s.revenue/100).toFixed(2).replace('.',',')}€</span></div>`;
     });
     h+=`</div>`;
   }

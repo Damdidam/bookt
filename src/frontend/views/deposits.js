@@ -157,7 +157,7 @@ function exportDepositsCSV(){
   if(depositFrom)params.set('from',depositFrom);
   if(depositTo)params.set('to',depositTo);
   params.set('token',token);
-  window.open(`/api/deposits/export?${params}`,'_blank');
+  window.open(`/api/deposits/export?${params}`,'_blank','noopener');
 }
 
 // Expose for inline handlers

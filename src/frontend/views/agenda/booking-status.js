@@ -164,7 +164,7 @@ async function fcRequireDeposit() {
   const amountCents = Math.round(parseFloat(amountInput?.value || 0) * 100);
   const deadlineHours = parseInt(deadlineInput?.value || 48);
   if (!amountCents || amountCents <= 0) { gToast('Montant invalide', 'error'); return; }
-  if (!confirm(`Exiger un acompte de ${(amountCents / 100).toFixed(2)}\u20ac ? Le client devra payer avant le RDV.`)) return;
+  if (!(await showConfirmDialog(`Exiger un acompte de ${(amountCents / 100).toFixed(2)}\u20ac ? Le client devra payer avant le RDV.`))) return;
   fcRequireDeposit._busy = true;
   try {
     const r = await fetch(`/api/bookings/${calState.fcCurrentEventId}/require-deposit`, {

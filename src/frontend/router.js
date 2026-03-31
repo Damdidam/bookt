@@ -3,7 +3,7 @@
  * Uses dynamic imports for code splitting (each view is a separate chunk).
  */
 import { getContentArea } from './utils/dom.js';
-import { showDirtyPrompt } from './utils/dirty-guard.js';
+import { showDirtyPrompt, showConfirmDialog } from './utils/dirty-guard.js';
 
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 
@@ -56,7 +56,7 @@ async function loadSection(section) {
 
   // Check featured-slots mode dirty guard
   if (window._fsFeaturedDirty?.()) {
-    if (!confirm('Vous avez des créneaux vedette non enregistrés. Quitter quand même ?')) return;
+    if (!(await showConfirmDialog('Vous avez des créneaux vedette non enregistrés. Quitter quand même ?'))) return;
     window._fsFeaturedDeactivate?.();
   }
 

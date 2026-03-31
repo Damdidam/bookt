@@ -31,7 +31,7 @@ function fmtMin(min) {
   return h > 0 ? h + 'h' + (m > 0 ? String(m).padStart(2, '0') : '') : m + 'min';
 }
 
-function fmtEur(cents) { return ((cents || 0) / 100).toFixed(0) + '\u202f\u20ac'; }
+function fmtEur(cents) { return ((cents || 0) / 100).toFixed(2).replace('.',',') + '\u202f\u20ac'; }
 
 // ── Toggle ──
 async function gaToggleMode() {

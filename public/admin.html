@@ -413,7 +413,7 @@ function goPage(p) {
 function impersonate(businessId) {
   apiFetch('/impersonate/' + businessId, { method: 'POST' })
     .then(data => {
-      window.open('/dashboard.html?admin_token=' + encodeURIComponent(data.token), '_blank');
+      window.open('/dashboard.html?admin_token=' + encodeURIComponent(data.token), '_blank', 'noopener');
       toast('Dashboard ouvert pour ' + data.business.name, 'success');
     })
     .catch(err => toast(err.message));
