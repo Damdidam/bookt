@@ -9,6 +9,7 @@ const { broadcast } = require('../../services/sse');
 const { calSyncPush, calSyncDelete, businessAllowsOverlap, getMaxConcurrent, checkBookingConflicts } = require('./bookings-helpers');
 const { refundPassForBooking } = require('../../services/pass-refund');
 const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+const { escHtml, fmtSvcLabel, safeColor, fmtTimeBrussels, sendEmail, buildEmailHTML } = require('../../services/email-utils');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -278,7 +279,7 @@ router.delete('/:id/group-remove', async (req, res, next) => {
     // 1. Fetch the booking
     const bkRes = await queryWithRLS(bid,
       `SELECT b.id, b.group_id, b.group_order, b.status, b.start_at, b.end_at,
-              b.practitioner_id, b.service_id
+              b.practitioner_id, b.service_id, b.client_id
        FROM bookings b
        WHERE b.id = $1 AND b.business_id = $2`,
       [id, bid]
@@ -298,7 +299,9 @@ router.delete('/:id/group-remove', async (req, res, next) => {
         // Lock the booking FOR UPDATE
         const lock = await client.query(
           `SELECT id, group_id, group_order, status, service_id, practitioner_id, start_at, end_at,
-                  promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents
+                  promotion_id, promotion_label, promotion_discount_pct, promotion_discount_cents,
+                  deposit_required, deposit_status, deposit_amount_cents, deposit_paid_at,
+                  booked_price_cents
            FROM bookings WHERE id = $1 AND business_id = $2 FOR UPDATE`,
           [id, bid]
         );
@@ -326,17 +329,32 @@ router.delete('/:id/group-remove', async (req, res, next) => {
           [id, bid]
         );
 
-        // Count remaining members in the group
+        // Count remaining members in the group (with price + service info for recalculations)
         const remainRes = await client.query(
-          `SELECT id, group_order FROM bookings
-           WHERE group_id = $1 AND business_id = $2
-           ORDER BY group_order`,
+          `SELECT b.id, b.group_order, b.service_id, b.booked_price_cents,
+                  b.deposit_required, b.deposit_status, b.deposit_amount_cents, b.deposit_paid_at,
+                  b.promotion_id, b.promotion_discount_cents,
+                  COALESCE(b.booked_price_cents, sv.price_cents, s.price_cents, 0) AS effective_price_cents,
+                  s.name AS service_name, s.category AS service_category, s.duration_min,
+                  s.price_cents AS service_price_cents
+           FROM bookings b
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           LEFT JOIN services s ON s.id = b.service_id
+           WHERE b.group_id = $1 AND b.business_id = $2
+           ORDER BY b.group_order`,
           [groupId, bid]
         );
         const remaining = remainRes.rows;
 
         // If the deleted booking carried promo data, we need to migrate it
         const hadPromo = (locked.promotion_discount_cents || 0) > 0;
+        // Determine promo carrier: either the deleted booking or an existing member
+        const promoCarrierId = hadPromo
+          ? locked.promotion_id
+          : remaining.find(m => m.promotion_id)?.promotion_id || null;
+
+        // ===== Calculate new group total (for deposit + promo recalculation) =====
+        const newGroupTotal = remaining.reduce((sum, m) => sum + (m.effective_price_cents || 0), 0);
 
         if (remaining.length === 1) {
           // Only 1 member left → ungroup it (no group of 1)
@@ -375,6 +393,115 @@ router.delete('/:id/group-remove', async (req, res, next) => {
           }
         }
 
+        // ===== BUG 2 FIX: Recalculate promotion_discount_cents on new total =====
+        const activePromoId = promoCarrierId;
+        let newPromoCents = 0;
+        if (activePromoId && remaining.length > 0) {
+          const promoRes = await client.query(
+            `SELECT * FROM promotions WHERE id = $1`, [activePromoId]
+          );
+          if (promoRes.rows.length > 0) {
+            const promo = promoRes.rows[0];
+            if (promo.reward_type === 'discount_pct') {
+              if (promo.condition_type === 'specific_service') {
+                // Discount applies to the specific service's price in remaining
+                const targetMember = remaining.find(m => m.service_id === promo.condition_service_id);
+                const targetPrice = targetMember ? (targetMember.effective_price_cents || 0) : 0;
+                newPromoCents = Math.round(targetPrice * promo.reward_value / 100);
+              } else {
+                newPromoCents = Math.round(newGroupTotal * promo.reward_value / 100);
+              }
+            } else if (promo.reward_type === 'discount_fixed') {
+              if (promo.condition_type === 'specific_service') {
+                const targetMember = remaining.find(m => m.service_id === promo.condition_service_id);
+                const targetPrice = targetMember ? (targetMember.effective_price_cents || 0) : 0;
+                newPromoCents = Math.min(promo.reward_value, targetPrice);
+              } else {
+                newPromoCents = Math.min(promo.reward_value, newGroupTotal);
+              }
+            } else if (promo.reward_type === 'free_service') {
+              const freeMember = remaining.find(m => m.service_id === promo.reward_service_id);
+              newPromoCents = freeMember ? (freeMember.effective_price_cents || 0) : 0;
+            }
+            // info_only: newPromoCents stays 0
+
+            // Update the promo carrier (group_order=0 or the single remaining booking)
+            const carrierId = remaining[0].id;
+            if (newPromoCents > 0) {
+              await client.query(
+                `UPDATE bookings SET promotion_discount_cents = $1, updated_at = NOW()
+                 WHERE id = $2 AND business_id = $3`,
+                [newPromoCents, carrierId, bid]
+              );
+            } else {
+              // Promo no longer valid (e.g. removed service was the specific_service target)
+              await client.query(
+                `UPDATE bookings SET promotion_id = NULL, promotion_label = NULL,
+                  promotion_discount_pct = NULL, promotion_discount_cents = NULL, updated_at = NOW()
+                 WHERE id = $1 AND business_id = $2`,
+                [carrierId, bid]
+              );
+            }
+          }
+        }
+
+        // ===== BUG 1 FIX: Recalculate deposit_amount_cents =====
+        // Find if any remaining member has deposit info (group leader carries it)
+        const depositCarrier = remaining.find(m => m.deposit_required) || remaining[0];
+        const oldDepositCents = depositCarrier.deposit_amount_cents || 0;
+        const depositWasPaid = depositCarrier.deposit_status === 'paid';
+        let newDepositCents = 0;
+
+        if (depositCarrier.deposit_required && remaining.length > 0) {
+          // Fetch business settings for deposit calculation
+          const bizRes = await client.query(
+            `SELECT settings FROM businesses WHERE id = $1`, [bid]
+          );
+          const bizSettings = bizRes.rows[0]?.settings || {};
+
+          if (bizSettings.deposit_type === 'fixed') {
+            newDepositCents = bizSettings.deposit_fixed_cents || 2500;
+          } else {
+            newDepositCents = Math.round(newGroupTotal * (bizSettings.deposit_percent || 50) / 100);
+          }
+
+          // Update the group leader (group_order=0 or single remaining) with new deposit
+          const leaderId = remaining[0].id;
+          await client.query(
+            `UPDATE bookings SET deposit_amount_cents = $1, updated_at = NOW()
+             WHERE id = $2 AND business_id = $3`,
+            [newDepositCents, leaderId, bid]
+          );
+
+          // If deposit was already paid and new amount < old amount, audit the overpayment
+          if (depositWasPaid && newDepositCents < oldDepositCents) {
+            const overpayment = oldDepositCents - newDepositCents;
+            await client.query(
+              `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
+               VALUES ($1, $2, 'booking', $3, 'deposit_overpayment', $4, $5)`,
+              [bid, req.user.id, leaderId,
+               JSON.stringify({ old_deposit_cents: oldDepositCents, deposit_status: 'paid' }),
+               JSON.stringify({ new_deposit_cents: newDepositCents, overpayment_cents: overpayment, reason: 'group_member_removed' })]
+            );
+          }
+        }
+
+        // ===== BUG 4 FIX: Void draft/sent invoices for the removed booking =====
+        await client.query(
+          `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+           WHERE booking_id = $1 AND status IN ('draft', 'sent')`,
+          [id]
+        );
+        // Also void group-level invoices since total changed
+        if (remaining.length > 0) {
+          const remainingIds = remaining.map(m => m.id);
+          await client.query(
+            `UPDATE invoices SET status = 'cancelled', updated_at = NOW()
+             WHERE booking_id = ANY($1::uuid[]) AND status IN ('draft', 'sent')`,
+            [remainingIds]
+          );
+        }
+
         // Audit log
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
@@ -388,10 +515,48 @@ router.delete('/:id/group-remove', async (req, res, next) => {
              start_at: locked.start_at,
              end_at: locked.end_at
            }),
-           JSON.stringify({ remaining_group_size: remaining.length })]
+           JSON.stringify({ remaining_group_size: remaining.length, new_group_total_cents: newGroupTotal, new_deposit_cents: newDepositCents, new_promo_discount_cents: newPromoCents })]
         );
 
-        return { remaining_group_size: remaining.length };
+        // ===== Collect data for post-transaction email (BUG 3) =====
+        let emailData = null;
+        if (remaining.length > 0 && booking.client_id) {
+          const clientRes = await client.query(
+            `SELECT first_name, last_name, email FROM clients WHERE id = $1 AND business_id = $2`,
+            [booking.client_id, bid]
+          );
+          const bizRes2 = await client.query(
+            `SELECT name, email, phone, address, theme FROM businesses WHERE id = $1`, [bid]
+          );
+          // Fetch the removed service name
+          const removedSvcRes = await client.query(
+            `SELECT name, category FROM services WHERE id = $1`, [locked.service_id]
+          );
+          if (clientRes.rows.length > 0 && clientRes.rows[0].email && bizRes2.rows.length > 0) {
+            const cl = clientRes.rows[0];
+            const biz = bizRes2.rows[0];
+            const removedSvc = removedSvcRes.rows[0] || {};
+            emailData = {
+              client_name: [cl.first_name, cl.last_name].filter(Boolean).join(' ') || 'Client',
+              client_email: cl.email,
+              business: biz,
+              removed_service: fmtSvcLabel(removedSvc.category, removedSvc.name),
+              remaining_services: remaining.map(m => ({
+                name: m.service_name || 'Prestation',
+                category: m.service_category,
+                duration_min: m.duration_min,
+                price_cents: m.effective_price_cents
+              })),
+              new_total_cents: newGroupTotal,
+              promo_discount_cents: newPromoCents,
+              deposit_status: depositCarrier.deposit_status,
+              deposit_amount_cents: newDepositCents,
+              start_at: remaining[0] ? locked.start_at : null
+            };
+          }
+        }
+
+        return { remaining_group_size: remaining.length, emailData };
       });
     } catch (err) {
       if (err.type === 'bad_request' || err.type === 'not_found') return res.status(err.type === 'not_found' ? 404 : 400).json({ error: err.message });
@@ -401,6 +566,75 @@ router.delete('/:id/group-remove', async (req, res, next) => {
     // Post-transaction: broadcast + calendar sync delete
     broadcast(bid, 'booking_update', { action: 'group_member_removed' });
     calSyncDelete(bid, id).catch(() => {});
+
+    // ===== BUG 3 FIX: Send client notification email =====
+    if (result.emailData) {
+      try {
+        const ed = result.emailData;
+        const biz = ed.business;
+        const color = safeColor(biz.theme?.primary_color);
+
+        let servicesHTML = '';
+        ed.remaining_services.forEach(s => {
+          const price = s.price_cents ? (s.price_cents / 100).toFixed(2).replace('.', ',') + ' \u20ac' : '';
+          servicesHTML += `<div style="font-size:13px;color:#15613A;padding:2px 0">\u2022 ${escHtml(fmtSvcLabel(s.category, s.name))} \u2014 ${s.duration_min || '?'} min${price ? ' \u00b7 ' + price : ''}</div>`;
+        });
+
+        const totalStr = (ed.new_total_cents / 100).toFixed(2).replace('.', ',');
+        let totalLine = `<div style="font-size:14px;color:#15613A;font-weight:700;margin-top:8px">Total : ${totalStr} \u20ac</div>`;
+        if (ed.promo_discount_cents > 0) {
+          const discStr = (ed.promo_discount_cents / 100).toFixed(2).replace('.', ',');
+          const finalStr = ((ed.new_total_cents - ed.promo_discount_cents) / 100).toFixed(2).replace('.', ',');
+          totalLine = `<div style="font-size:14px;color:#15613A;font-weight:700;margin-top:8px">Total : <s style="opacity:.6">${totalStr} \u20ac</s> ${finalStr} \u20ac</div>`;
+          totalLine += `<div style="font-size:11px;color:#15613A;opacity:.8">Promotion : -${discStr} \u20ac</div>`;
+        }
+
+        let depositLine = '';
+        if (ed.deposit_status === 'paid' && ed.deposit_amount_cents > 0) {
+          const depStr = (ed.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
+          depositLine = `<div style="background:#FFF8E1;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #F9A825">
+            <div style="font-size:13px;color:#5D4037">\u2705 Votre acompte de ${depStr}\u00a0\u20ac reste valable.</div>
+          </div>`;
+        }
+
+        const dateStr = ed.start_at ? new Date(ed.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' }) : '';
+        const timeStr = ed.start_at ? fmtTimeBrussels(ed.start_at) : '';
+
+        const bodyHTML = `
+          <p>Bonjour <strong>${escHtml(ed.client_name)}</strong>,</p>
+          <p>Une prestation a \u00e9t\u00e9 retir\u00e9e de votre rendez-vous${dateStr ? ' du <strong>' + dateStr + '</strong> \u00e0 <strong>' + timeStr + '</strong>' : ''} :</p>
+          <div style="background:#FEF3E2;border-radius:8px;padding:12px 16px;margin:16px 0;border-left:3px solid #E6A817">
+            <div style="font-size:13px;color:#92700C;text-decoration:line-through;opacity:.7">${escHtml(ed.removed_service)}</div>
+          </div>
+          <div style="background:#EEFAF1;border-radius:8px;padding:14px 16px;margin:16px 0;border-left:3px solid #1B7A42">
+            <div style="font-size:13px;color:#15613A;font-weight:600;margin-bottom:6px">Prestations restantes :</div>
+            ${servicesHTML}
+            ${totalLine}
+          </div>
+          ${depositLine}
+          <p style="font-size:13px;color:#9C958E">Si vous avez des questions, n\u2019h\u00e9sitez pas \u00e0 nous contacter.</p>`;
+
+        const html = buildEmailHTML({
+          title: 'Modification de votre rendez-vous',
+          preheader: `Une prestation a \u00e9t\u00e9 retir\u00e9e de votre rendez-vous`,
+          bodyHTML,
+          businessName: biz.name,
+          primaryColor: color,
+          footerText: `${biz.name}${biz.address ? ' \u00b7 ' + biz.address : ''} \u00b7 Via Genda.be`
+        });
+
+        await sendEmail({
+          to: ed.client_email,
+          toName: ed.client_name,
+          subject: `Modification de votre RDV \u2014 ${biz.name}`,
+          html,
+          fromName: biz.name,
+          replyTo: biz.email
+        });
+      } catch (emailErr) {
+        console.error('[EMAIL] group-remove notification error:', emailErr.message);
+      }
+    }
 
     res.json({
       deleted: true,

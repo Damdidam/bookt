@@ -324,6 +324,68 @@ router.patch('/:id/move', async (req, res, next) => {
             }
           }
 
+          // Recalculate promotion discount after LM discount change (group)
+          {
+            const grpPromoCheck = await client.query(
+              `SELECT promotion_id FROM bookings WHERE id = ANY($1::uuid[]) AND promotion_id IS NOT NULL LIMIT 1`,
+              [updates.map(u => u.id)]
+            );
+            const grpPromoId = grpPromoCheck.rows[0]?.promotion_id;
+            if (grpPromoId) {
+              const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [grpPromoId]);
+              const promo = promoRes.rows[0];
+              if (promo) {
+                const allIds = updates.map(u => u.id);
+                let groupTotal = 0;
+                for (const uid of allIds) {
+                  const mRes = await client.query(
+                    `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+                     FROM bookings b
+                     LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                     WHERE b.id = $1`, [uid]
+                  );
+                  const m = mRes.rows[0];
+                  if (m) {
+                    groupTotal += m.discount_pct
+                      ? Math.round(m.eff_price * (100 - m.discount_pct) / 100)
+                      : m.eff_price;
+                  }
+                }
+                let newPromoCents = 0;
+                if (promo.reward_type === 'discount_pct') {
+                  newPromoCents = Math.round(groupTotal * promo.reward_value / 100);
+                } else if (promo.reward_type === 'discount_fixed') {
+                  newPromoCents = Math.min(promo.reward_value, groupTotal);
+                } else if (promo.reward_type === 'free_service' && promo.reward_service_id) {
+                  const freeRes = await client.query(
+                    `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+                     FROM bookings b
+                     LEFT JOIN services s ON s.id = b.service_id
+                     LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                     WHERE b.service_id = $1 AND b.id = ANY($2::uuid[])`,
+                    [promo.reward_service_id, allIds]
+                  );
+                  if (freeRes.rows[0]) {
+                    const fp = freeRes.rows[0];
+                    newPromoCents = fp.discount_pct
+                      ? Math.round(fp.eff_price * (100 - fp.discount_pct) / 100)
+                      : fp.eff_price;
+                  }
+                }
+                if (newPromoCents >= 0 && promo.reward_type !== 'info_only') {
+                  for (const uid of allIds) {
+                    await client.query(
+                      `UPDATE bookings SET promotion_discount_cents = $1
+                       WHERE id = $2 AND business_id = $3 AND promotion_id IS NOT NULL`,
+                      [newPromoCents, uid, bid]
+                    );
+                  }
+                }
+              }
+            }
+          }
+
           await client.query(
             `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
              VALUES ($1, $2, 'booking', $3, 'group_move', $4, $5)`,
@@ -438,9 +500,10 @@ router.patch('/:id/move', async (req, res, next) => {
                 const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
                 const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
                 const timeMoved = new Date(refStart).getTime() !== new Date(bk.start_at).getTime() || new Date(refEnd).getTime() !== new Date(bk.end_at).getTime();
+                const _svcLabel = bk.service_name || 'prestation';
                 const smsBody = timeMoved
-                  ? `${bk.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
-                  : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
+                  ? `${bk.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+                  : `${bk.business_name}: Rappel, RDV "${_svcLabel}" le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
                 const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
                 groupNotifResult.sms = smsResult.success ? 'sent' : 'error';
               } catch (e) { console.warn('[MOVE] Group SMS error:', e.message); groupNotifResult.sms = 'error'; }
@@ -549,6 +612,49 @@ router.patch('/:id/move', async (req, res, next) => {
           }
         }
 
+        // Recalculate promotion discount after LM discount change (single)
+        if (moved) {
+          const singlePromoCheck = await client.query(
+            `SELECT promotion_id FROM bookings WHERE id = $1 AND promotion_id IS NOT NULL`, [id]
+          );
+          const singlePromoId = singlePromoCheck.rows[0]?.promotion_id;
+          if (singlePromoId) {
+            const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [singlePromoId]);
+            const promo = promoRes.rows[0];
+            if (promo) {
+              const mRes = await client.query(
+                `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+                 FROM bookings b
+                 LEFT JOIN services s ON s.id = b.service_id
+                 LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+                 WHERE b.id = $1`, [id]
+              );
+              const m = mRes.rows[0];
+              if (m) {
+                const adjPrice = m.discount_pct
+                  ? Math.round(m.eff_price * (100 - m.discount_pct) / 100)
+                  : m.eff_price;
+                let newPromoCents = 0;
+                if (promo.reward_type === 'discount_pct') {
+                  newPromoCents = Math.round(adjPrice * promo.reward_value / 100);
+                } else if (promo.reward_type === 'discount_fixed') {
+                  newPromoCents = Math.min(promo.reward_value, adjPrice);
+                } else if (promo.reward_type === 'free_service' && promo.reward_service_id) {
+                  // For single booking with free_service, discount = service price
+                  newPromoCents = adjPrice;
+                }
+                if (newPromoCents >= 0 && promo.reward_type !== 'info_only') {
+                  await client.query(
+                    `UPDATE bookings SET promotion_discount_cents = $1
+                     WHERE id = $2 AND business_id = $3 AND promotion_id IS NOT NULL`,
+                    [newPromoCents, id, bid]
+                  );
+                }
+              }
+            }
+          }
+        }
+
         await client.query(
           `INSERT INTO audit_logs (business_id, actor_user_id, entity_type, entity_id, action, old_data, new_data)
            VALUES ($1, $2, 'booking', $3, 'move', $4, $5)`,
@@ -651,9 +757,10 @@ router.patch('/:id/move', async (req, res, next) => {
               const newDateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
               const newTimeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
               const timeMoved = new Date(sRefStart).getTime() !== new Date(bk.start_at).getTime() || new Date(sRefEnd).getTime() !== new Date(bk.end_at).getTime();
+              const _svcLabel = bk.service_name || 'prestation';
               const smsBody = timeMoved
-                ? `${bk.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
-                : `${bk.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
+                ? `${bk.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+                : `${bk.business_name}: Rappel, RDV "${_svcLabel}" le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
               const smsResult = await sendSMS({ to: bk.client_phone, body: smsBody, businessId: bid });
               notificationResult.sms = smsResult.success ? 'sent' : 'error';
             } catch (e) { console.warn('[MOVE] SMS error:', e.message); notificationResult.sms = 'error'; }
@@ -1278,9 +1385,10 @@ router.patch('/:id/modify', async (req, res, next) => {
         const newDateStr = new Date(start_at).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
         const newTimeStr = new Date(start_at).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
         const timeMoved = new Date(oldBooking.start_at).getTime() !== new Date(start_at).getTime() || new Date(oldBooking.end_at).getTime() !== new Date(end_at).getTime();
+        const _svcLabel = oldBooking.service_name || 'prestation';
         const smsBody = timeMoved
-          ? `${oldBooking.business_name}: Votre RDV a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
-          : `${oldBooking.business_name}: Rappel de votre RDV le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
+          ? `${oldBooking.business_name}: Votre RDV "${_svcLabel}" a été modifié — ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`
+          : `${oldBooking.business_name}: Rappel, RDV "${_svcLabel}" le ${newDateStr} à ${newTimeStr}. Détails : ${manageLink}`;
         const smsResult = await sendSMS({ to: oldBooking.client_phone, body: smsBody, businessId: bid });
         notificationResult = { ...notificationResult, sms: smsResult.success ? 'sent' : 'error' };
       } catch (e) {
@@ -1454,7 +1562,7 @@ router.post('/:id/send-reminder', async (req, res, next) => {
     const result = {};
 
     if ((channel === 'sms' || channel === 'both') && b.client_phone) {
-      const smsBody = `Rappel ${b.business_name}: RDV le ${dateStr} à ${timeStr} avec ${b.practitioner_name}. Détails : ${manageUrl}`;
+      const smsBody = `Rappel ${b.business_name}: RDV "${b.service_name}" le ${dateStr} à ${timeStr} avec ${b.practitioner_name}. Détails : ${manageUrl}`;
       const smsRes = await sendSMS({ to: b.client_phone, body: smsBody, businessId: bid });
       result.sms = smsRes.success ? 'sent' : 'error';
       if (smsRes.error) result.sms_error = smsRes.error;
@@ -1471,7 +1579,8 @@ router.post('/:id/send-reminder', async (req, res, next) => {
           const grp = await queryWithRLS(bid,
             `SELECT CASE WHEN sv.name IS NOT NULL THEN s.name || ' — ' || sv.name ELSE s.name END AS name,
                     COALESCE(sv.duration_min, s.duration_min) AS duration_min,
-                    COALESCE(sv.price_cents, s.price_cents) AS price_cents
+                    COALESCE(sv.price_cents, s.price_cents) AS price_cents,
+                    b2.discount_pct
              FROM bookings b2
              LEFT JOIN services s ON s.id = b2.service_id
              LEFT JOIN service_variants sv ON sv.id = b2.service_variant_id
@@ -1479,7 +1588,15 @@ router.post('/:id/send-reminder', async (req, res, next) => {
              ORDER BY b2.group_order, b2.start_at`,
             [b.group_id, bid]
           );
-          if (grp.rows.length > 1) groupServices = grp.rows;
+          if (grp.rows.length > 1) {
+            // Apply last-minute discount to each group member's price
+            grp.rows.forEach(r => {
+              if (r.discount_pct && r.price_cents) {
+                r.price_cents = Math.round(r.price_cents * (100 - r.discount_pct) / 100);
+              }
+            });
+            groupServices = grp.rows;
+          }
         }
 
         const isMulti = Array.isArray(groupServices) && groupServices.length > 1;

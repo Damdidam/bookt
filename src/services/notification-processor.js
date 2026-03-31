@@ -478,7 +478,8 @@ async function processNotifications() {
        WHERE status = 'queued'
          AND type IN ('email_new_booking_pro', 'email_cancellation_pro', 'email_reschedule_pro', 'email_modification_confirmed', 'email_modification_rejected')
        ORDER BY created_at ASC
-       LIMIT 50`
+       LIMIT 50
+       FOR UPDATE SKIP LOCKED`
     );
 
     if (notifications.length === 0) return stats;

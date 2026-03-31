@@ -348,6 +348,84 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       }
     }
 
+    // Recalculate promotion discount after LM discount change
+    {
+      // Collect all booking IDs in this group (or just the single booking)
+      const promoIds = (bk.group_id && groupMembers.length > 0)
+        ? groupMembers.map(m => m.id)
+        : [bk.id];
+
+      // Check if the primary booking has a promotion_id
+      const promoCheck = await client.query(
+        `SELECT promotion_id, promotion_discount_pct FROM bookings WHERE id = $1`, [promoIds[0]]
+      );
+      const promoId = promoCheck.rows[0]?.promotion_id;
+
+      if (promoId) {
+        const promoRes = await client.query(`SELECT * FROM promotions WHERE id = $1`, [promoId]);
+        const promo = promoRes.rows[0];
+
+        if (promo) {
+          // Fetch each member's adjusted price (after LM discount) and sum for group total
+          let groupTotal = 0;
+          const memberPrices = [];
+          for (const uid of promoIds) {
+            const mRes = await client.query(
+              `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+               FROM bookings b
+               LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = $1`, [uid]
+            );
+            const m = mRes.rows[0];
+            if (m) {
+              const adjPrice = m.discount_pct
+                ? Math.round(m.eff_price * (100 - m.discount_pct) / 100)
+                : m.eff_price;
+              memberPrices.push(adjPrice);
+              groupTotal += adjPrice;
+            }
+          }
+
+          // Recalculate promo discount on group total
+          let newPromoCents = 0;
+          if (promo.reward_type === 'discount_pct') {
+            newPromoCents = Math.round(groupTotal * promo.reward_value / 100);
+          } else if (promo.reward_type === 'discount_fixed') {
+            newPromoCents = Math.min(promo.reward_value, groupTotal);
+          } else if (promo.reward_type === 'free_service' && promo.reward_service_id) {
+            // Free service: discount = the price of that service in the group (after LM)
+            const freeRes = await client.query(
+              `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+               FROM bookings b
+               LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.service_id = $1 AND b.id = ANY($2::uuid[])`,
+              [promo.reward_service_id, promoIds]
+            );
+            if (freeRes.rows[0]) {
+              const fp = freeRes.rows[0];
+              newPromoCents = fp.discount_pct
+                ? Math.round(fp.eff_price * (100 - fp.discount_pct) / 100)
+                : fp.eff_price;
+            }
+          }
+          // info_only promos have 0 discount, no update needed
+
+          if (newPromoCents >= 0 && promo.reward_type !== 'info_only') {
+            // Update all group members that carry the promo (typically only the first/primary)
+            for (const uid of promoIds) {
+              await client.query(
+                `UPDATE bookings SET promotion_discount_cents = $1
+                 WHERE id = $2 AND business_id = $3 AND promotion_id IS NOT NULL`,
+                [newPromoCents, uid, bk.business_id]
+              );
+            }
+          }
+        }
+      }
+    }
+
     // Audit log
     await client.query(
       `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, actor_user_id, old_data, new_data)

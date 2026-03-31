@@ -1446,7 +1446,10 @@ router.post('/:id/send-deposit-request', async (req, res, next) => {
           const dateStr = new Date(bk.start_at).toLocaleDateString('fr-BE', {
             timeZone: 'Europe/Brussels', day: 'numeric', month: 'short'
           });
-          const body = `${bk.business_name} — Acompte de ${amtStr}€ requis pour votre RDV du ${dateStr}. Détails : ${depositUrl}`;
+          const _timeStr = new Date(bk.start_at).toLocaleTimeString('fr-BE', {
+            timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit'
+          });
+          const body = `${bk.business_name} — Acompte ${amtStr}€ pour "${bk.service_name}" le ${dateStr} à ${_timeStr}. Payez : ${depositUrl}`;
           const r = await sendSMS({ to: bk.client_phone, body, businessId: bid });
           results[ch] = r;
         }

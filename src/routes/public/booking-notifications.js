@@ -137,7 +137,7 @@ async function sendPostBookingComms({
             const _sTime = _sd.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
             const depAmt = (createdBooking.deposit_amount_cents / 100).toFixed(2).replace('.', ',');
             const _depDl = createdBooking.deposit_deadline ? new Date(createdBooking.deposit_deadline).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) : '';
-            await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : RDV le ${_sDate} \u00e0 ${_sTime}. Acompte de ${depAmt}\u20ac requis${_depDl ? ' avant le ' + _depDl : ''}. Payez ici : ${depositUrl}`, businessId });
+            await sendSMS({ to: clientPhone, body: `${bizRow.rows[0].name} : Acompte ${depAmt}\u20ac pour "${serviceName}"${practitionerName ? ' avec ' + practitionerName : ''} le ${_sDate} \u00e0 ${_sTime}${_depDl ? '. Avant le ' + _depDl : ''}. Payez : ${depositUrl}`, businessId });
             try {
               await query(
                 `INSERT INTO notifications (business_id, booking_id, type, recipient_phone, status, sent_at)

@@ -1152,7 +1152,10 @@ router.post('/notify-impacted', requireOwner, async (req, res, next) => {
       // ── SMS (Pro/Premium + consent) ──
       if (hasSms && bk.client_phone && bk.consent_sms) {
         try {
-          const smsBody = `${business.name}: Votre RDV du ${dateShort} à ${timeShort} (${bk.service_name || 'prestation'}) est impacté par une absence. Nous vous recontacterons pour un nouveau créneau.`;
+          const _manageUrl = bk.public_token ? `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}` : null;
+          const smsBody = _manageUrl
+            ? `${business.name}: Votre RDV "${bk.service_name || 'prestation'}" du ${dateShort} à ${timeShort} est impacté par une absence. Détails : ${_manageUrl}`
+            : `${business.name}: Votre RDV du ${dateShort} à ${timeShort} (${bk.service_name || 'prestation'}) est impacté par une absence. Nous vous recontacterons.`;
 
           const smsResult = await sendSMS({
             to: bk.client_phone,

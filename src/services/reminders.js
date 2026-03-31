@@ -224,7 +224,10 @@ async function process24hReminders(stats) {
 
       // SMS 24h
       if (reminderSmsEnabled && bk.client_phone && bk.consent_sms) {
-        const smsBody = `Rappel ${bk.business_name}: RDV "${bk.service_name}" le ${dateShort} à ${timeShort} avec ${bk.practitioner_name}. Modifier: ${manageUrl}`;
+        const _svcLabel24 = (Array.isArray(groupServices) && groupServices.length > 1)
+          ? `${groupServices[0].name} +${groupServices.length - 1}`
+          : bk.service_name;
+        const smsBody = `Rappel ${bk.business_name}: RDV "${_svcLabel24}" le ${dateShort} à ${timeShort} avec ${bk.practitioner_name}. Modifier: ${manageUrl}`;
 
         const result = await sendSMS({
           to: bk.client_phone,
@@ -350,13 +353,14 @@ async function process2hReminders(stats) {
       const adjPriceCents2h = bk.discount_pct && bk.price_cents ? Math.round(bk.price_cents * (100 - bk.discount_pct) / 100) : bk.price_cents;
 
       // SMS 2h
+      const manageUrl2hSms = `${process.env.APP_BASE_URL || 'https://genda.be'}/booking/${bk.public_token}`;
       if (smsEnabled && bk.client_phone && bk.consent_sms) {
         let smsBody;
         if (isMulti) {
           const serviceNames = groupServices.map(s => s.name).join(' + ');
-          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}. À bientôt !`;
+          smsBody = `${bk.business_name}: Rappel, votre RDV est dans 2h (${timeShort}) — ${serviceNames}. Détails : ${manageUrl2hSms}`;
         } else {
-          smsBody = `${bk.business_name}: Rappel, votre RDV "${bk.service_name}" est dans 2h (${timeShort}) avec ${bk.practitioner_name}. À bientôt !`;
+          smsBody = `${bk.business_name}: Rappel, votre RDV "${bk.service_name}" est dans 2h (${timeShort}) avec ${bk.practitioner_name}. Détails : ${manageUrl2hSms}`;
         }
 
         const result = await sendSMS({

@@ -502,6 +502,21 @@ router.post('/booking/:token/reject', async (req, res, next) => {
           [rejBk.group_id, rejBk.business_id, rejBk.id, cancelWindowHours * 60, graceMin]
         );
       }
+      // Refund gift card debits inside transaction
+      const rejBkTx = result.rows[0];
+      const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
+      try { await refundGiftCardForBooking(rejBkTx.id, txClient); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
+      // Refund pass sessions inside transaction
+      await refundPassForBooking(rejBkTx.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message));
+      // Refund GC debits + pass sessions for group siblings inside transaction
+      if (rejBkTx.group_id) {
+        try {
+          const sibs = await txClient.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBkTx.group_id, rejBkTx.business_id, rejBkTx.id]);
+          for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id, txClient); }
+          for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient).catch(e => console.warn('[PASS REFUND]', e.message)); }
+        } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
+      }
+
       await txClient.query('COMMIT');
     } catch (txErr) {
       await txClient.query('ROLLBACK').catch(() => {});
@@ -510,21 +525,10 @@ router.post('/booking/:token/reject', async (req, res, next) => {
       txClient.release();
     }
 
-    // Refund gift card debits + Stripe refund AFTER transaction commits
+    // Stripe refund AFTER transaction commits (external API call shouldn't hold open DB transaction)
     const rejBk = result.rows[0];
-    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(rejBk.id); } catch (e) { console.error('[GC REFUND] reject error:', e.message); }
-    await refundPassForBooking(rejBk.id).catch(e => console.warn('[PASS REFUND]', e.message));
     if (rejBk.deposit_status === 'refunded' && rejBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(rejBk.deposit_payment_intent_id, 'REJECT');
-    }
-    // Refund GC debits + pass sessions for group siblings
-    if (rejBk.group_id) {
-      try {
-        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [rejBk.group_id, rejBk.business_id, rejBk.id]);
-        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
-        for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
-      } catch (e) { console.error('[GC REFUND] sibling reject error:', e.message); }
     }
 
     // Auto-void draft/sent invoices for this booking (+ group siblings)
@@ -1091,6 +1095,21 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
           [bk.group_id, bk.business_id, bk.id, cancelWindowHours * 60, graceMin]
         );
     }
+      // Refund gift card debits inside transaction
+      const postCancelBk2 = cancelResult.rows[0];
+      const { refundGiftCardForBooking: refundGC2 } = require('../../services/gift-card-refund');
+      try { await refundGC2(postCancelBk2.id, txClient2); } catch (e) { console.error('[GC REFUND] cancel-booking error:', e.message); }
+      // Refund pass sessions inside transaction
+      await refundPassForBooking(postCancelBk2.id, txClient2).catch(e => console.warn('[PASS REFUND]', e.message));
+      // Refund GC debits + pass sessions for group siblings inside transaction
+      if (bk.group_id) {
+        try {
+          const sibs = await txClient2.query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
+          for (const sib of sibs.rows) { await refundGC2(sib.id, txClient2); }
+          for (const sib of sibs.rows) { await refundPassForBooking(sib.id, txClient2).catch(e => console.warn('[PASS REFUND]', e.message)); }
+        } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
+      }
+
       await txClient2.query('COMMIT');
     } catch (txErr2) {
       await txClient2.query('ROLLBACK').catch(() => {});
@@ -1099,21 +1118,10 @@ router.post('/booking/:token/cancel-booking', async (req, res, next) => {
       txClient2.release();
     }
 
-    // Refund gift card debits + Stripe refund AFTER transaction commits
+    // Stripe refund AFTER transaction commits (external API call shouldn't hold open DB transaction)
     const cancelledBk = cancelResult.rows[0];
-    try { const { refundGiftCardForBooking } = require('../../services/gift-card-refund'); await refundGiftCardForBooking(cancelledBk.id); } catch (e) { console.error('[GC REFUND] reschedule-cancel error:', e.message); }
-    await refundPassForBooking(cancelledBk.id).catch(e => console.warn('[PASS REFUND]', e.message));
     if (cancelledBk.deposit_status === 'refunded' && cancelledBk.deposit_payment_intent_id) {
       await stripeRefundDeposit(cancelledBk.deposit_payment_intent_id, 'CANCEL-BOOKING');
-    }
-    // Refund GC debits + pass sessions for group siblings
-    if (bk.group_id) {
-      try {
-        const sibs = await query(`SELECT id FROM bookings WHERE group_id = $1 AND business_id = $2 AND id != $3`, [bk.group_id, bk.business_id, bk.id]);
-        const { refundGiftCardForBooking } = require('../../services/gift-card-refund');
-        for (const sib of sibs.rows) { await refundGiftCardForBooking(sib.id); }
-        for (const sib of sibs.rows) { await refundPassForBooking(sib.id).catch(e => console.warn('[PASS REFUND]', e.message)); }
-      } catch (e) { console.error('[GC REFUND] sibling cancel-booking error:', e.message); }
     }
 
     // Audit log
