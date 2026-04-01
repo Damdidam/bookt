@@ -439,6 +439,13 @@ async function handleStripeWebhook(req, res) {
           const piId = session.payment_intent || session.id;
           console.log(`[STRIPE WH] Gift card purchased for business ${bizId} (${amountCents}c, PI: ${piId})`);
 
+          // Idempotency guard — Stripe may deliver the same event multiple times
+          const existingGC = await query('SELECT id FROM gift_cards WHERE stripe_payment_intent_id = $1', [piId]);
+          if (existingGC.rows.length > 0) {
+            console.log(`[STRIPE WH] GC already created for PI ${piId}, skipping duplicate`);
+            break;
+          }
+
           try {
             const { generateCode } = require('./gift-cards');
             let code, codeIsUnique = false;
@@ -459,14 +466,6 @@ async function handleStripeWebhook(req, res) {
               }
               break;
             }
-
-            const expiryDays = 365;
-            try {
-              const bizSettings = await query('SELECT settings FROM businesses WHERE id = $1', [bizId]);
-              if (bizSettings.rows[0]?.settings?.giftcard_expiry_days) {
-                // use business setting
-              }
-            } catch (_) {}
 
             const bizResult = await query('SELECT id, name, slug, theme, email, settings FROM businesses WHERE id = $1', [bizId]);
             const biz = bizResult.rows[0];
@@ -543,6 +542,16 @@ async function handleStripeWebhook(req, res) {
         if (session.metadata?.type === 'pass') {
           try {
             const { business_id, pass_template_id, buyer_name, buyer_email } = session.metadata;
+
+            // Idempotency guard — Stripe may deliver the same event multiple times
+            const passPi = session.payment_intent;
+            if (passPi) {
+              const existingPass = await query('SELECT id FROM passes WHERE stripe_payment_intent_id = $1', [passPi]);
+              if (existingPass.rows.length > 0) {
+                console.log(`[STRIPE WH] Pass already created for PI ${passPi}, skipping duplicate`);
+                break;
+              }
+            }
 
             // Fetch template
             const tplRes = await query(

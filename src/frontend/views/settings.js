@@ -332,7 +332,7 @@ async function loadSettings(){
     h+=`<div class="field"><label>Message personnalisé (optionnel)</label><textarea id="s_dep_message" placeholder="Ex: Un acompte est demandé suite à des absences répétées..." style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:.82rem;resize:vertical;min-height:60px">${esc(depMsg)}</textarea><div class="hint">Inclus dans l'email de demande d'acompte envoyé au client</div></div>`;
 
     // ── Cancellation policy sub-section ──
-    const canDl=b.settings?.cancel_deadline_hours||48;
+    const canDl=b.settings?.cancel_deadline_hours||24;
     const canGrace=b.settings?.cancel_grace_minutes||240;
     const canPolicy=b.settings?.cancel_policy_text||'';
     h+=`<div style="height:1px;background:var(--border);margin:18px 0 14px"></div>`;
@@ -677,7 +677,7 @@ async function saveAllSettings(){
       settings_deposit_price_threshold_cents:Math.round((parseFloat(el('s_dep_price_thresh')?.value)||0)*100),
       settings_deposit_duration_threshold_min:parseInt(el('s_dep_dur_thresh')?.value)||0,
       settings_deposit_threshold_mode:el('s_dep_thresh_mode')?.value||'any',
-      settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||48,
+      settings_cancel_deadline_hours:parseInt(el('s_cancel_deadline')?.value)||24,
       settings_cancel_grace_minutes:(parseInt(el('s_cancel_grace')?.value)||4)*60,
       settings_cancel_policy_text:el('s_cancel_policy')?.value||'',
       settings_refund_policy:document.querySelector('input[name="refund_policy"]:checked')?.value||'full',
@@ -1056,7 +1056,7 @@ async function saveDepositSettings(){
       settings_deposit_price_threshold_cents:Math.round((parseFloat(document.getElementById('s_dep_price_thresh')?.value)||0)*100),
       settings_deposit_duration_threshold_min:parseInt(document.getElementById('s_dep_dur_thresh')?.value)||0,
       settings_deposit_threshold_mode:document.getElementById('s_dep_thresh_mode')?.value||'any',
-      settings_cancel_deadline_hours:parseInt(document.getElementById('s_cancel_deadline')?.value)||48,
+      settings_cancel_deadline_hours:parseInt(document.getElementById('s_cancel_deadline')?.value)||24,
       settings_cancel_grace_minutes:(parseInt(document.getElementById('s_cancel_grace')?.value)||4)*60,
       settings_cancel_policy_text:document.getElementById('s_cancel_policy')?.value||''
     };

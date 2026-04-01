@@ -210,7 +210,7 @@ router.post('/', requireOwner, async (req, res, next) => {
           const svcLabel = sib.service_category ? `${sib.service_category} - ${sib.service_name}${sib.variant_name ? ' \u2014 ' + sib.variant_name : ''}` : (sib.variant_name ? `${sib.service_name} \u2014 ${sib.variant_name}` : sib.service_name);
           return {
             booking_id: sib.id,
-            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE')}`,
+            description: `${svcLabel} — ${new Date(sib.start_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' })}`,
             quantity: 1,
             unit_price_cents: sib.booked_price_cents ?? sib.variant_price_cents ?? sib.price_cents ?? 0,
             vat_rate: vat_rate || 21

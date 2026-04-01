@@ -374,15 +374,37 @@ router.patch('/:id/move', async (req, res, next) => {
                   }
                 }
                 if (newPromoCents >= 0 && promo.reward_type !== 'info_only') {
+                  const newPromoPct = groupTotal > 0 ? Math.round(newPromoCents / groupTotal * 100) : 0;
                   for (const uid of allIds) {
                     await client.query(
-                      `UPDATE bookings SET promotion_discount_cents = $1
-                       WHERE id = $2 AND business_id = $3 AND promotion_id IS NOT NULL`,
-                      [newPromoCents, uid, bid]
+                      `UPDATE bookings SET promotion_discount_cents = $1, promotion_discount_pct = $2
+                       WHERE id = $3 AND business_id = $4 AND promotion_id IS NOT NULL`,
+                      [newPromoCents, newPromoPct, uid, bid]
                     );
                   }
                 }
               }
+            }
+          }
+
+          // Recalculate booked_price_cents for each group member after LM discount changes
+          for (const u of updates) {
+            const pRes = await client.query(
+              `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+               FROM bookings b
+               LEFT JOIN services s ON s.id = b.service_id
+               LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+               WHERE b.id = $1`, [u.id]
+            );
+            const p = pRes.rows[0];
+            if (p) {
+              const bookedPrice = p.discount_pct
+                ? Math.round(p.eff_price * (100 - p.discount_pct) / 100)
+                : p.eff_price;
+              await client.query(
+                `UPDATE bookings SET booked_price_cents = $1 WHERE id = $2 AND business_id = $3`,
+                [bookedPrice, u.id, bid]
+              );
             }
           }
 
@@ -644,14 +666,36 @@ router.patch('/:id/move', async (req, res, next) => {
                   newPromoCents = adjPrice;
                 }
                 if (newPromoCents >= 0 && promo.reward_type !== 'info_only') {
+                  const newPromoPct = adjPrice > 0 ? Math.round(newPromoCents / adjPrice * 100) : 0;
                   await client.query(
-                    `UPDATE bookings SET promotion_discount_cents = $1
-                     WHERE id = $2 AND business_id = $3 AND promotion_id IS NOT NULL`,
-                    [newPromoCents, id, bid]
+                    `UPDATE bookings SET promotion_discount_cents = $1, promotion_discount_pct = $2
+                     WHERE id = $3 AND business_id = $4 AND promotion_id IS NOT NULL`,
+                    [newPromoCents, newPromoPct, id, bid]
                   );
                 }
               }
             }
+          }
+        }
+
+        // Recalculate booked_price_cents after LM discount change (single)
+        if (moved) {
+          const pRes = await client.query(
+            `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+             FROM bookings b
+             LEFT JOIN services s ON s.id = b.service_id
+             LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+             WHERE b.id = $1`, [id]
+          );
+          const p = pRes.rows[0];
+          if (p) {
+            const bookedPrice = p.discount_pct
+              ? Math.round(p.eff_price * (100 - p.discount_pct) / 100)
+              : p.eff_price;
+            await client.query(
+              `UPDATE bookings SET booked_price_cents = $1 WHERE id = $2 AND business_id = $3`,
+              [bookedPrice, id, bid]
+            );
           }
         }
 

@@ -155,7 +155,7 @@ router.get('/export', async (req, res, next) => {
 
     const statusLabels = { pending: 'En attente', paid: 'Pay\u00e9', refunded: 'Rembours\u00e9', cancelled: 'Conserv\u00e9' };
     const bkLabels = { pending: 'En attente', confirmed: 'Confirm\u00e9', cancelled: 'Annul\u00e9', completed: 'Termin\u00e9', no_show: 'No-show', pending_deposit: 'Attente acompte', modified_pending: 'Modifi\u00e9' };
-    const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-BE') : '';
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels' }) : '';
     const fmtEur = (c) => ((c || 0) / 100).toFixed(2).replace('.', ',');
 
     const header = 'Date cr\u00e9ation;Date RDV;Client;Email;T\u00e9l\u00e9phone;Prestation;Prix prestation;Montant acompte;Dont carte cadeau;Dont Stripe;Statut acompte;Date paiement;Statut RDV;Praticien;Stripe PI;Raison annulation\n';

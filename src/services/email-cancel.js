@@ -253,7 +253,7 @@ async function sendRescheduleConfirmationEmail({ booking, business, oldStartAt, 
     let deadlineNote = '';
     if (booking.deposit_deadline) {
       const dl = new Date(booking.deposit_deadline);
-      const dlStr = dl.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' \u00e0 ' + dl.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+      const dlStr = dl.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: 'numeric', month: 'short' }) + ' \u00e0 ' + dl.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
       deadlineNote = ` Le d\u00e9lai de paiement est fix\u00e9 au ${dlStr}.`;
     }
     bodyHTML += `

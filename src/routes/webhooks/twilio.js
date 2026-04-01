@@ -474,7 +474,7 @@ function buildMessages(lang, s, bookingUrl, mode) {
   if (mode === 'vacation') {
     const vacMsg = s.vacation_message_fr;
     const until = s.vacation_until
-      ? new Date(s.vacation_until).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long' })
+      ? new Date(s.vacation_until).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long' })
       : null;
 
     return {

@@ -427,6 +427,32 @@ router.post('/manage/:token/reschedule', bookingLimiter, async (req, res, next) 
       }
     }
 
+    // Recalculate booked_price_cents after LM + promo discount changes
+    {
+      const priceIds = (bk.group_id && groupMembers.length > 0)
+        ? groupMembers.map(m => m.id)
+        : [bk.id];
+      for (const uid of priceIds) {
+        const pRes = await client.query(
+          `SELECT COALESCE(sv.price_cents, s.price_cents, 0) AS eff_price, b.discount_pct
+           FROM bookings b
+           LEFT JOIN services s ON s.id = b.service_id
+           LEFT JOIN service_variants sv ON sv.id = b.service_variant_id
+           WHERE b.id = $1`, [uid]
+        );
+        const p = pRes.rows[0];
+        if (p) {
+          const bookedPrice = p.discount_pct
+            ? Math.round(p.eff_price * (100 - p.discount_pct) / 100)
+            : p.eff_price;
+          await client.query(
+            `UPDATE bookings SET booked_price_cents = $1 WHERE id = $2 AND business_id = $3`,
+            [bookedPrice, uid, bk.business_id]
+          );
+        }
+      }
+    }
+
     // Audit log
     await client.query(
       `INSERT INTO audit_logs (business_id, entity_type, entity_id, action, actor_user_id, old_data, new_data)

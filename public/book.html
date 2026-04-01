@@ -2098,7 +2098,7 @@ function goToStep(n){
         var tPriceStr=tPrice>0?(tPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
         rh+='<div class="sum-divider"></div><div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+tMin+' min \u00b7 '+tPriceStr+'</strong></span></div>';
       }else if(selectedService){
-        var cv2=selectedVariants[selectedService.id];
+        var cv2=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
         var sn=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
         var sd=cv2?cv2.duration_min:selectedService.duration_min;
         var spc=cv2&&cv2.price_cents!=null?cv2.price_cents:selectedService.price_cents;
@@ -2287,7 +2287,7 @@ async function loadSlots(){
     const params=new URLSearchParams({service_id:selectedService.id,date_from:dateFrom,date_to:dateTo});
     if(selectedPractitioner)params.set('practitioner_id',selectedPractitioner.id);
     if(selectedMode)params.set('appointment_mode',selectedMode);
-    if(selectedVariants[selectedService.id])params.set('variant_id',selectedVariants[selectedService.id].id);
+    var _slotVar=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];if(_slotVar)params.set('variant_id',_slotVar.id);
     slotsUrl='/api/public/'+slug+'/slots?'+params;
   }
   try{
@@ -2325,7 +2325,7 @@ function renderSlots(){
     // BUG-m1: Use variant duration if a variant is selected
     var svcDuration=0;
     if(selectedService){
-      var sv=selectedVariants[selectedService.id];
+      var sv=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
       svcDuration=sv?sv.duration_min:(selectedService.duration_min||0);
     }
     if(multiServiceMode&&selectedServices.length>0)svcDuration=selectedServices.reduce(function(sum,s,i){var sv=selectedVariantsByIdx[i]||selectedVariants[s.id];return sum+(sv?sv.duration_min:(s.duration_min||0));},0);
@@ -2514,8 +2514,8 @@ function buildSummary(){
   const dateStr=d.toLocaleDateString('fr-BE',{timeZone:'Europe/Brussels',weekday:'long',day:'numeric',month:'long'});
   var html='';
   if(multiServiceMode&&selectedServices.length>1){
-    selectedServices.forEach(function(svc){
-      var v=selectedVariants[svc.id];
+    selectedServices.forEach(function(svc,i){
+      var v=selectedVariantsByIdx[i];
       var name=v?svc.name+' \u2014 '+v.name:svc.name;
       var dur=v?v.duration_min:svc.duration_min;
       var pc=v&&v.price_cents!=null?v.price_cents:svc.price_cents;
@@ -2531,8 +2531,8 @@ function buildSummary(){
       }
       html+='<div class="sum-row"><span class="label">'+name+pracLabel+'</span><span class="val">'+dur+' min \u00b7 '+p+'</span></div>';
     });
-    var totalMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);
-    var totalPrice=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+    var totalMin=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v?v.duration_min:svc.duration_min);},0);
+    var totalPrice=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
     var totalPriceStr=totalPrice>0?(totalPrice/100).toFixed(2).replace('.', ',')+' \u20ac':'';
     // Last-minute discount display for multi-service
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&totalPrice>0){
@@ -2546,7 +2546,7 @@ function buildSummary(){
         +'<div class="sum-row"><span class="label"><strong>Total</strong></span><span class="val"><strong>'+totalMin+' min \u00b7 '+totalPriceStr+'</strong></span></div>';
     }
   }else if(selectedService){
-    var sv=selectedVariants[selectedService.id];
+    var sv=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
     var svcName=sv?selectedService.name+' \u2014 '+sv.name:selectedService.name;
     html+='<div class="sum-row"><span class="label">Prestation</span><span class="val">'+svcName+'</span></div>';
   }
@@ -2566,9 +2566,9 @@ function buildSummary(){
   html+=''
     +'<div class="sum-divider"></div>'
     +'<div class="sum-row"><span class="label">Date</span><span class="val">'+dateStr+'</span></div>'
-    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+(function(){if(multiServiceMode&&selectedServices.length>1){var tMin=selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0);var sD=new Date(selectedSlot.start_at);var eD=new Date(sD.getTime()+tMin*60000);return eD.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});}return selectedSlot.end_time;})()+'</span></div>';
+    +'<div class="sum-row"><span class="label">Heure</span><span class="val">'+selectedSlot.start_time+' \u2013 '+(function(){if(multiServiceMode&&selectedServices.length>1){var tMin=selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v?v.duration_min:svc.duration_min);},0);var sD=new Date(selectedSlot.start_at);var eD=new Date(sD.getTime()+tMin*60000);return eD.toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels'});}return selectedSlot.end_time;})()+'</span></div>';
   if(selectedService&&!(multiServiceMode&&selectedServices.length>1)){
-    var sv2=selectedVariants[selectedService.id];
+    var sv2=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
     var sumPc=sv2&&sv2.price_cents!=null?sv2.price_cents:selectedService.price_cents;
     const price=sumPc>0?(sumPc/100).toFixed(2).replace('.', ',')+' \u20ac':(sumPc===0?'Gratuit':'');
     if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct&&sumPc>0){
@@ -2589,7 +2589,7 @@ function buildSummary(){
     var sumCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
     var sumDiscAmount=calcPromoDiscAmount(ap.id,sumCartSvcs);
     if(ap.type!=='info_only'&&sumDiscAmount>0){
-      var sumCartTotal=sumCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+      var sumCartTotal=sumCartSvcs.reduce(function(s,svc){var oi=selectedServices.indexOf(svc);var v=oi>=0?selectedVariantsByIdx[oi]:null;return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
       // If last-minute discount is also active, apply promo on the already-reduced price
       var sumBaseForPromo=sumCartTotal;
       if(selectedSlot&&selectedSlot.is_last_minute&&selectedSlot.discount_pct){
@@ -2696,11 +2696,11 @@ async function submitBooking(){
     if(selectedSlot&&selectedSlot.is_last_minute)bookingBody.is_last_minute=true;
     if(multiServiceMode&&selectedServices.length>1){
       bookingBody.service_ids=selectedServices.map(s=>s.id);
-      var bvids=selectedServices.map(function(s){return selectedVariants[s.id]?selectedVariants[s.id].id:null;});
+      var bvids=selectedServices.map(function(s,i){var v=selectedVariantsByIdx[i];return v?v.id:null;});
       if(bvids.some(function(v){return v;}))bookingBody.variant_ids=bvids;
     }else if(selectedService){
       bookingBody.service_id=selectedService.id;
-      if(selectedVariants[selectedService.id])bookingBody.variant_id=selectedVariants[selectedService.id].id;
+      var _sv=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];if(_sv)bookingBody.variant_id=_sv.id;
     }
     if(selectedSlot.end_at)bookingBody.end_at=selectedSlot.end_at;
     if(oauthProvider&&oauthProviderId){bookingBody.oauth_provider=oauthProvider;bookingBody.oauth_provider_id=oauthProviderId;}
@@ -2722,8 +2722,8 @@ async function submitBooking(){
     if(multiServiceMode&&selectedServices.length>1){
       confirmHtml+='<div class="row" style="font-weight:600;padding-bottom:2px"><span class="l">Prestations</span><span class="v"></span></div>';
       var confirmTotalMin=0,confirmTotalCents=0;
-      selectedServices.forEach(function(svc){
-        var cv=selectedVariants[svc.id];
+      selectedServices.forEach(function(svc,i){
+        var cv=selectedVariantsByIdx[i];
         var cn=cv?escH(svc.name)+' \u2014 '+escH(cv.name):escH(svc.name);
         var cd=cv?cv.duration_min:svc.duration_min;
         var cpc=svc.is_promo?0:(cv&&cv.price_cents!=null?cv.price_cents:svc.price_cents);
@@ -2733,7 +2733,7 @@ async function submitBooking(){
       });
       confirmHtml+='<div class="row" style="border-top:1px solid var(--border-light);margin-top:4px;padding-top:4px"><span class="l" style="font-weight:700">Total</span><span class="v" style="font-weight:700">'+confirmTotalMin+' min \u00b7 '+(confirmTotalCents>0?(confirmTotalCents/100).toFixed(2).replace('.', ',')+' \u20ac':'')+'</span></div>';
     }else if(selectedService){
-      var cv2=selectedVariants[selectedService.id];
+      var cv2=selectedVariantsByIdx[0]||selectedVariants[selectedService.id];
       var confirmName=cv2?escH(selectedService.name)+' \u2014 '+escH(cv2.name):escH(selectedService.name);
       confirmHtml+='<div class="row"><span class="l">Prestation</span><span class="v">'+confirmName+'</span></div>';
     }
@@ -2760,8 +2760,8 @@ async function submitBooking(){
     var confirmStartTime=selectedSlot?selectedSlot.start_time:'';
     var confirmEndTime=selectedSlot?selectedSlot.end_time:'';
     if(multiServiceMode&&selectedServices.length>1&&selectedSlot){
-      var totalMin=selectedServices.reduce(function(sum,svc){
-        var cv=selectedVariants[svc.id];
+      var totalMin=selectedServices.reduce(function(sum,svc,i){
+        var cv=selectedVariantsByIdx[i];
         return sum+(cv?cv.duration_min:svc.duration_min);
       },0);
       var startD=new Date(selectedSlot.start_at);
@@ -2772,7 +2772,7 @@ async function submitBooking(){
 
     // Prix total + réductions (calculé depuis le panier réel)
     var confirmCartSvcs=multiServiceMode?selectedServices.filter(function(s){return!s.is_promo;}):(selectedService?[selectedService]:[]);
-    var confirmCartTotal=confirmCartSvcs.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
+    var confirmCartTotal=confirmCartSvcs.reduce(function(s,svc){var oi=selectedServices.indexOf(svc);var v=oi>=0?selectedVariantsByIdx[oi]:null;return s+(v&&v.price_cents!=null?v.price_cents:(svc.price_cents||0));},0);
 
     // BUG-C4: Use server-provided totals for multi-service + last-minute (per-service eligibility)
     var hasServerTotals=data.booking&&data.booking.total_original_cents!=null&&data.booking.total_after_discount_cents!=null;
@@ -2896,9 +2896,9 @@ async function wlSubmit(){
 // ──────── CALENDAR BUTTONS ────────
 function buildCalendarButtons(startAt,endAt,token){
   const start=new Date(startAt);
-  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0):(selectedVariants[selectedService?.id]?.duration_min||selectedService?.duration_min||30);
+  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v?v.duration_min:svc.duration_min);},0):(selectedVariantsByIdx[0]?.duration_min||selectedService?.duration_min||30);
   const end=endAt?new Date(endAt):new Date(start.getTime()+totalDur*60000);
-  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(function(s){var v=selectedVariants[s.id];return v?s.name+' \u2014 '+v.name:s.name;}).join(' + '):(function(){var v=selectedVariants[selectedService?.id];return v?selectedService.name+' \u2014 '+v.name:(selectedService?.name||'RDV');}());
+  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(function(s,i){var v=selectedVariantsByIdx[i];return v?s.name+' \u2014 '+v.name:s.name;}).join(' + '):(function(){var v=selectedVariantsByIdx[0];return v?selectedService.name+' \u2014 '+v.name:(selectedService?.name||'RDV');}());
   const title=calTitle+' \u2014 '+(selectedPractitioner?.display_name||'');
   const loc=siteData?.business?.address||'';
   const desc=title+' — '+(siteData?.business?.name||'Genda');
@@ -2914,9 +2914,9 @@ function buildCalendarButtons(startAt,endAt,token){
 }
 function downloadICS(){
   const start=new Date(selectedSlot.start_at);
-  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce(function(s,svc){var v=selectedVariants[svc.id];return s+(v?v.duration_min:svc.duration_min);},0):(selectedVariants[selectedService?.id]?.duration_min||selectedService?.duration_min||30);
+  const totalDur=multiServiceMode&&selectedServices.length>1?selectedServices.reduce(function(s,svc,i){var v=selectedVariantsByIdx[i];return s+(v?v.duration_min:svc.duration_min);},0):(selectedVariantsByIdx[0]?.duration_min||selectedService?.duration_min||30);
   const end=selectedSlot.end_at?new Date(selectedSlot.end_at):new Date(start.getTime()+totalDur*60000);
-  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(function(s){var v=selectedVariants[s.id];return v?s.name+' \u2014 '+v.name:s.name;}).join(' + '):(function(){var v=selectedVariants[selectedService?.id];return v?selectedService.name+' \u2014 '+v.name:(selectedService?.name||'RDV');}());
+  const calTitle=multiServiceMode&&selectedServices.length>1?selectedServices.map(function(s,i){var v=selectedVariantsByIdx[i];return v?s.name+' \u2014 '+v.name:s.name;}).join(' + '):(function(){var v=selectedVariantsByIdx[0];return v?selectedService.name+' \u2014 '+v.name:(selectedService?.name||'RDV');}());
   const title=calTitle+' \u2014 '+(selectedPractitioner?.display_name||'');
   const loc=siteData?.business?.address||'';
   function dt(d){return d.getUTCFullYear()+String(d.getUTCMonth()+1).padStart(2,'0')+String(d.getUTCDate()).padStart(2,'0')+'T'+String(d.getUTCHours()).padStart(2,'0')+String(d.getUTCMinutes()).padStart(2,'0')+String(d.getUTCSeconds()).padStart(2,'0')+'Z';}

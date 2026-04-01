@@ -148,7 +148,7 @@ async function sendGiftCardEmail({ giftCard, business }) {
   const color = safeColor(business.theme?.primary_color);
   const amtStr = (giftCard.amount_cents / 100).toFixed(2).replace('.', ',');
   const expiryStr = giftCard.expires_at
-    ? new Date(giftCard.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(giftCard.expires_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long', year: 'numeric' })
     : '';
   const recipientName = giftCard.recipient_name || '';
   const buyerName = giftCard.buyer_name || 'Quelqu\'un';
@@ -238,7 +238,7 @@ async function sendPassPurchaseEmail({ pass, business }) {
   const color = safeColor(business.theme?.primary_color);
   const priceFmt = pass.price_cents ? (pass.price_cents / 100).toFixed(2).replace('.', ',') + ' €' : '';
   const unitPrice = (pass.price_cents && pass.sessions_total > 1) ? (pass.price_cents / pass.sessions_total / 100).toFixed(2).replace('.', ',') + ' €' : '';
-  const expiresStr = pass.expires_at ? new Date(pass.expires_at).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const expiresStr = pass.expires_at ? new Date(pass.expires_at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long', year: 'numeric' }) : '';
 
   const bodyHTML = `
     <p>Bonjour <strong>${escHtml(pass.buyer_name || 'Client')}</strong>,</p>

@@ -13,15 +13,15 @@ async function processExpiredPasses() {
     try {
       const { rows } = await pool.query(
         `SELECT c.full_name AS client_name, c.email AS client_email,
-                biz.name AS biz_name, biz.theme
+                biz.name AS biz_name, biz.theme, biz.email AS biz_email, biz.address AS biz_address, biz.phone AS biz_phone
          FROM clients c
          JOIN businesses biz ON biz.id = c.business_id
          WHERE c.email = $1 AND c.business_id = $2`,
         [pass.buyer_email, pass.business_id]
       );
       if (!rows[0]?.client_email) continue;
-      const { client_name, client_email, biz_name, biz_theme } = rows[0];
-      const color = safeColor(biz_theme?.primary_color);
+      const { client_name, client_email, biz_name, theme, biz_email, biz_address, biz_phone } = rows[0];
+      const color = safeColor(theme?.primary_color);
       const remaining = pass.sessions_remaining || 0;
 
       const bodyHTML = `
@@ -30,7 +30,7 @@ async function processExpiredPasses() {
           <div style="font-size:14px;color:#DC2626;font-weight:600;margin-bottom:4px">Pass expir\u00e9</div>
           <div style="font-size:13px;color:#3D3832">${remaining > 0 ? `${remaining} s\u00e9ance(s) restante(s) non utilis\u00e9e(s).` : 'Toutes les s\u00e9ances ont \u00e9t\u00e9 utilis\u00e9es.'}</div>
         </div>
-        <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 nous contacter pour renouveler votre pass.</p>`;
+        <p style="font-size:14px;color:#3D3832">N'h\u00e9sitez pas \u00e0 nous contacter pour renouveler votre pass${biz_phone ? ' au ' + escHtml(biz_phone) : ''}${biz_email ? ' (' + escHtml(biz_email) + ')' : ''}.</p>`;
 
       const html = buildEmailHTML({
         title: 'Pass expir\u00e9',
@@ -38,7 +38,7 @@ async function processExpiredPasses() {
         bodyHTML,
         businessName: biz_name,
         primaryColor: color,
-        footerText: `${escHtml(biz_name)} \u00b7 Via Genda.be`
+        footerText: `${escHtml(biz_name)}${biz_address ? ' \u00b7 ' + escHtml(biz_address) : ''} \u00b7 Via Genda.be`
       });
 
       await sendEmail({
@@ -46,7 +46,8 @@ async function processExpiredPasses() {
         toName: client_name,
         subject: `Votre pass "${pass.name || 'Pass'}" a expir\u00e9 \u2014 ${biz_name}`,
         html,
-        fromName: biz_name
+        fromName: biz_name,
+        replyTo: biz_email || undefined
       });
     } catch (e) {
       console.warn('[PASS EXPIRY] Email error for pass', pass.id, ':', e.message);
